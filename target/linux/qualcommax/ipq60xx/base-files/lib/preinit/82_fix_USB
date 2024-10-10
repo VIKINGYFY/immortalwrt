@@ -1,0 +1,13 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/functions/system.sh
+
+case $(board_name) in
+	jdcloud,ax6600)
+		devmem 0x1016000 32 0x201
+		devmem 0x1016004 32 0x2
+	;;
+esac
+
+exit 0
