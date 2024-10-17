@@ -402,7 +402,7 @@ define KernelPackage/ath11k/config
                depends on ATH11K_NSS_SUPPORT
                select PACKAGE_MAC80211_MESH
                select NSS_FIRMWARE_VERSION_11_4
-               default n
+               default y
 
        choice
             prompt "Memory Profile"
