@@ -27,8 +27,10 @@ ipq807x_setup_interfaces()
 		ucidef_set_interfaces_lan_wan "lan plc" "wan"
 		;;
 	compex,wpq873|\
+	linksys,homewrk|\
 	linksys,mx4200v1|\
 	linksys,mx4200v2|\
+	linksys,mx4300|\
 	prpl,haze|\
 	redmi,ax6|\
 	redmi,ax6-stock|\
@@ -83,12 +85,11 @@ ipq807x_setup_macs()
 	local label_mac=""
 
 	case "$board" in
-		linksys,mx4200v2)
+		linksys,mx4200v2|\
+		linksys,mx4300)
 			label_mac=$(mtd_get_mac_ascii devinfo hw_mac_addr)
-			for i in $(seq 3 5); do
-				[ "$(mtd_get_mac_ascii u_env eth${i}addr)" != "$label_mac" ] && lan_mac=$label_mac
-			done
-			[ "$(mtd_get_mac_ascii u_env eth2addr)" != "$label_mac" ] && wan_mac=$label_mac
+			[ "$(mtd_get_mac_ascii u_env eth1addr)" != "$label_mac" ] && wan_mac=$label_mac
+			[ "$(mtd_get_mac_ascii u_env eth2addr)" != "$label_mac" ] && lan_mac=$label_mac
 		;;
 		linksys,mx8500)
 			label_mac=$(mtd_get_mac_ascii devinfo hw_mac_addr)
@@ -104,7 +105,6 @@ ipq807x_setup_macs()
 			[ "$wan_mac" != "00:00:00:00:00:00" ] || wan_mac="$(get_mac_binary "$(find_mtd_chardev mac)" 0x20000)"
 			lan_mac="$(macaddr_add "$wan_mac" 1)"
 			label_mac="$wan_mac"
-
 		;;
 	esac
 
