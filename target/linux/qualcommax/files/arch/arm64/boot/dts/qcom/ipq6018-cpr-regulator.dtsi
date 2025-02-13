@@ -16,7 +16,7 @@
 
 &soc {
 	apc_apm: apm@b111000 {
-		compatible = "qcom,ipq807x-apm";
+		compatible = "qcom,ipq60xx-apm";
 		reg = <0x0 0xb111000 0x0 0x1000>;
 		reg-names = "pm-apcc-glb";
 		qcom,apm-post-halt-delay = <0x2>;
@@ -26,7 +26,7 @@
 	};
 
 	apc_cpr: cpr4-ctrl@b018000 {
-		compatible = "qcom,cpr4-ipq6018-apss-regulator";
+		compatible = "qcom,cpr4-ipq60xx-apss-regulator";
 		reg = <0x0 0xb018000 0x0 0x4000>, <0x0 0xa4000 0x0 0x1000>, <0x0 0x0193d008 0x0 0x4>;
 		reg-names = "cpr_ctrl", "fuse_base", "cpr_tcsr_reg";
 		interrupts = <GIC_SPI 15 IRQ_TYPE_EDGE_RISING>;
@@ -37,7 +37,7 @@
 		qcom,cpr-idle-cycles = <15>;
 		qcom,cpr-step-quot-init-min = <0>;
 		qcom,cpr-step-quot-init-max = <15>;
-		qcom,cpr-count-mode = <0>;		/* All-at-once */
+		qcom,cpr-count-mode = <0>;
 		qcom,cpr-count-repeat = <1>;
 		qcom,cpr-down-error-step-limit = <1>;
 		qcom,cpr-up-error-step-limit = <1>;

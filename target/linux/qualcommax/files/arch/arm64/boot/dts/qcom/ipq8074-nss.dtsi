@@ -14,8 +14,8 @@
 &soc {
 	nss-common {
 		compatible = "qcom,nss-common";
-		reg = <0x01868010 0x1000>;
-		reg-names = "nss-misc-reset";
+		reg = <0x01868010 0x1000>, <0x40000000 0x1000>;
+		reg-names = "nss-misc-reset", "nss-misc-reset-flag";
 		memory-region = <&nss_region>;
 	};
 
@@ -33,44 +33,50 @@
 					<GIC_SPI 386 IRQ_TYPE_EDGE_RISING>;
 		reg = <0x39000000 0x1000>, <0x38000000 0x30000>, <0x0b111000 0x1000>;
 		reg-names = "nphys", "vphys", "qgic-phys";
-		clocks = <&gcc GCC_NSS_NOC_CLK>,
-			 	<&gcc GCC_NSS_PTP_REF_CLK>,
-			 	<&gcc GCC_NSS_CSR_CLK>,
+		clocks = <&gcc GCC_MEM_NOC_NSS_AXI_CLK>,
+				<&gcc GCC_MEM_NOC_UBI32_CLK>,
+				<&gcc GCC_NSSNOC_CE_APB_CLK>,
+				<&gcc GCC_NSSNOC_CE_AXI_CLK>,
+				<&gcc GCC_NSSNOC_QOSGEN_REF_CLK>,
+				<&gcc GCC_NSSNOC_SNOC_CLK>,
+				<&gcc GCC_NSSNOC_TIMEOUT_REF_CLK>,
+				<&gcc GCC_NSSNOC_UBI0_AHB_CLK>,
+				<&gcc GCC_NSS_CE_APB_CLK>,
+				<&gcc GCC_NSS_CE_AXI_CLK>,
 				<&gcc GCC_NSS_CFG_CLK>,
-			 	<&gcc GCC_NSS_IMEM_CLK>,
-			 	<&gcc GCC_NSSNOC_QOSGEN_REF_CLK>,
-			 	<&gcc GCC_MEM_NOC_NSS_AXI_CLK>,
-			 	<&gcc GCC_NSSNOC_SNOC_CLK>,
-			 	<&gcc GCC_NSSNOC_TIMEOUT_REF_CLK>,
-			 	<&gcc GCC_NSS_CE_AXI_CLK>,
-			 	<&gcc GCC_NSS_CE_APB_CLK>,
-			 	<&gcc GCC_NSSNOC_CE_AXI_CLK>,
-			 	<&gcc GCC_NSSNOC_CE_APB_CLK>,
-			 	<&gcc GCC_NSSNOC_UBI0_AHB_CLK>,
-			 	<&gcc GCC_UBI0_CORE_CLK>,
-			 	<&gcc GCC_UBI0_AHB_CLK>,
-			 	<&gcc GCC_UBI0_AXI_CLK>,
-			 	<&gcc GCC_UBI0_MPT_CLK>,
-			 	<&gcc GCC_UBI0_NC_AXI_CLK>;
-		clock-names = "nss-noc-clk",
-					"nss-ptp-ref-clk",
-					"nss-csr-clk",
+				<&gcc GCC_NSS_CSR_CLK>,
+				<&gcc GCC_NSS_IMEM_CLK>,
+				<&gcc GCC_NSS_NOC_CLK>,
+				<&gcc GCC_NSS_PTP_REF_CLK>,
+				<&gcc GCC_SNOC_NSSNOC_CLK>,
+				<&gcc GCC_UBI0_AHB_CLK>,
+				<&gcc GCC_UBI0_AXI_CLK>,
+				<&gcc GCC_UBI0_CORE_CLK>,
+				<&gcc GCC_UBI0_MPT_CLK>,
+				<&gcc GCC_UBI0_NC_AXI_CLK>,
+				<&gcc GCC_UBI0_UTCM_CLK>;
+		clock-names = "nss-ahb-clk",
+					"nss-axi-clk",
+					"nss-ce-apb-clk",
+					"nss-ce-axi-clk",
 					"nss-cfg-clk",
+					"nss-core-clk",
+					"nss-csr-clk",
 					"nss-imem-clk",
-					"nss-nssnoc-qosgen-ref-clk",
 					"nss-mem-noc-nss-axi-clk",
+					"nss-mem-noc-ubi32-clk",
+					"nss-mpt-clk",
+					"nss-nc-axi-clk",
+					"nss-noc-clk",
+					"nss-nssnoc-ahb-clk",
+					"nss-nssnoc-ce-apb-clk",
+					"nss-nssnoc-ce-axi-clk",
+					"nss-nssnoc-qosgen-ref-clk",
 					"nss-nssnoc-snoc-clk",
 					"nss-nssnoc-timeout-ref-clk",
-					"nss-ce-axi-clk",
-					"nss-ce-apb-clk",
-					"nss-nssnoc-ce-axi-clk",
-					"nss-nssnoc-ce-apb-clk",
-					"nss-nssnoc-ahb-clk",
-					"nss-core-clk",
-					"nss-ahb-clk",
-					"nss-axi-clk",
-					"nss-mpt-clk",
-					"nss-nc-axi-clk";
+					"nss-ptp-ref-clk",
+					"nss-snoc-nssnoc-clk",
+					"nss-utcm-clk";
 		qcom,id = <0>;
 		qcom,num-queue = <4>;
 		qcom,num-irq = <10>;
@@ -80,30 +86,38 @@
 		qcom,mid-frequency = <748800000>;
 		qcom,max-frequency = <1689600000>;
 		qcom,bridge-enabled;
+		qcom,capwap-enabled;
+		qcom,clmap-enabled;
+		qcom,crypto-enabled;
+		qcom,dtls-enabled;
+		qcom,gre-enabled;
+		qcom,gre-redir-enabled;
+		qcom,gre-redir-mark-enabled;
+		qcom,igs-enabled;
+		qcom,ipsec-enabled;
 		qcom,ipv4-enabled;
 		qcom,ipv4-reasm-enabled;
 		qcom,ipv6-enabled;
 		qcom,ipv6-reasm-enabled;
-		qcom,wlanredirect-enabled;
-		qcom,tun6rd-enabled;
 		qcom,l2tpv2-enabled;
-		qcom,gre-enabled;
-		qcom,gre-redir-enabled;
-		qcom,gre-redir-mark-enabled;
 		qcom,map-t-enabled;
+		qcom,match-enabled;
+		qcom,mirror-enabled;
 		qcom,portid-enabled;
 		qcom,ppe-enabled;
 		qcom,pppoe-enabled;
 		qcom,pptp-enabled;
-		qcom,tunipip6-enabled;
+		qcom,pvxlan-enabled;
+		qcom,qvpn-enabled;
 		qcom,shaping-enabled;
-		qcom,wlan-dataplane-offload-enabled;
-		qcom,vlan-enabled;
-		qcom,igs-enabled;
-		qcom,vxlan-enabled;
-		qcom,match-enabled;
-		qcom,mirror-enabled;
+		qcom,tls-enabled;
+		qcom,tun6rd-enabled;
+		qcom,tunipip6-enabled;
 		qcom,udp-st-enabled;
+		qcom,vlan-enabled;
+		qcom,vxlan-enabled;
+		qcom,wlan-dataplane-offload-enabled;
+		qcom,wlanredirect-enabled;
 		mx-supply = <&nss_dummy_reg>;
 		npu-supply = <&nss_dummy_reg>;
 	};
@@ -121,58 +135,58 @@
 					<GIC_SPI 398 IRQ_TYPE_EDGE_RISING>;
 		reg = <0x39400000 0x1000>, <0x38030000 0x30000>, <0x0b111000 0x1000>;
 		reg-names = "nphys", "vphys", "qgic-phys";
-		clocks = <&gcc GCC_NSS_NOC_CLK>,
-				<&gcc GCC_NSS_PTP_REF_CLK>,
-				<&gcc GCC_NSS_CSR_CLK>,
-				<&gcc GCC_NSS_CFG_CLK>,
-				<&gcc GCC_NSS_IMEM_CLK>,
+		clocks = <&gcc GCC_MEM_NOC_NSS_AXI_CLK>,
+				<&gcc GCC_NSSNOC_CE_APB_CLK>,
+				<&gcc GCC_NSSNOC_CE_AXI_CLK>,
 				<&gcc GCC_NSSNOC_QOSGEN_REF_CLK>,
-				<&gcc GCC_MEM_NOC_NSS_AXI_CLK>,
 				<&gcc GCC_NSSNOC_SNOC_CLK>,
 				<&gcc GCC_NSSNOC_TIMEOUT_REF_CLK>,
-				<&gcc GCC_NSS_CE_AXI_CLK>,
-				<&gcc GCC_NSS_CE_APB_CLK>,
-				<&gcc GCC_NSSNOC_CE_AXI_CLK>,
-				<&gcc GCC_NSSNOC_CE_APB_CLK>,
 				<&gcc GCC_NSSNOC_UBI1_AHB_CLK>,
-				<&gcc GCC_UBI1_CORE_CLK>,
+				<&gcc GCC_NSS_CE_APB_CLK>,
+				<&gcc GCC_NSS_CE_AXI_CLK>,
+				<&gcc GCC_NSS_CFG_CLK>,
+				<&gcc GCC_NSS_CSR_CLK>,
+				<&gcc GCC_NSS_IMEM_CLK>,
+				<&gcc GCC_NSS_NOC_CLK>,
+				<&gcc GCC_NSS_PTP_REF_CLK>,
 				<&gcc GCC_UBI1_AHB_CLK>,
 				<&gcc GCC_UBI1_AXI_CLK>,
+				<&gcc GCC_UBI1_CORE_CLK>,
 				<&gcc GCC_UBI1_MPT_CLK>,
 				<&gcc GCC_UBI1_NC_AXI_CLK>;
-		clock-names = "nss-noc-clk",
-					"nss-ptp-ref-clk",
-					"nss-csr-clk",
+		clock-names = "nss-ahb-clk",
+					"nss-axi-clk",
+					"nss-ce-apb-clk",
+					"nss-ce-axi-clk",
 					"nss-cfg-clk",
+					"nss-core-clk",
+					"nss-csr-clk",
 					"nss-imem-clk",
-					"nss-nssnoc-qosgen-ref-clk",
 					"nss-mem-noc-nss-axi-clk",
+					"nss-mpt-clk",
+					"nss-nc-axi-clk",
+					"nss-noc-clk",
+					"nss-nssnoc-ahb-clk",
+					"nss-nssnoc-ce-apb-clk",
+					"nss-nssnoc-ce-axi-clk",
+					"nss-nssnoc-qosgen-ref-clk",
 					"nss-nssnoc-snoc-clk",
 					"nss-nssnoc-timeout-ref-clk",
-					"nss-ce-axi-clk",
-					"nss-ce-apb-clk",
-					"nss-nssnoc-ce-axi-clk",
-					"nss-nssnoc-ce-apb-clk",
-					"nss-nssnoc-ahb-clk",
-					"nss-core-clk",
-					"nss-ahb-clk",
-					"nss-axi-clk",
-					"nss-mpt-clk",
-					"nss-nc-axi-clk";
+					"nss-ptp-ref-clk";
 		qcom,id = <1>;
 		qcom,num-queue = <4>;
 		qcom,num-irq = <9>;
 		qcom,num-pri = <4>;
 		qcom,load-addr = <0x40800000>;
 		qcom,capwap-enabled;
-		qcom,dtls-enabled;
-		qcom,tls-enabled;
-		qcom,crypto-enabled;
-		qcom,ipsec-enabled;
-		qcom,qvpn-enabled;
-		qcom,pvxlan-enabled;
 		qcom,clmap-enabled;
+		qcom,crypto-enabled;
+		qcom,dtls-enabled;
+		qcom,ipsec-enabled;
+		qcom,pvxlan-enabled;
+		qcom,qvpn-enabled;
 		qcom,rmnet_rx-enabled;
+		qcom,tls-enabled;
 	};
 
 	nss_crypto: qcom,nss_crypto {
@@ -191,65 +205,65 @@
 			clock-names = "crypto_clk", "crypto_nocclk", "crypto_ppeclk";
 			clock-frequency = /bits/ 64 <600000000 600000000 300000000>;
 			qcom,dma-mask = <0xff>;
-			qcom,transform-enabled;
-			qcom,aes128-cbc;
-			qcom,aes192-cbc;
-			qcom,aes256-cbc;
-			qcom,aes128-ctr;
-			qcom,aes192-ctr;
-			qcom,aes256-ctr;
-			qcom,aes128-ecb;
-			qcom,aes192-ecb;
-			qcom,aes256-ecb;
-			qcom,3des-cbc;
-			qcom,md5-hash;
-			qcom,sha160-hash;
-			qcom,sha224-hash;
-			qcom,sha384-hash;
-			qcom,sha512-hash;
-			qcom,sha256-hash;
-			qcom,md5-hmac;
-			qcom,sha160-hmac;
-			qcom,sha224-hmac;
-			qcom,sha256-hmac;
-			qcom,sha384-hmac;
-			qcom,sha512-hmac;
-			qcom,aes128-gcm-gmac;
-			qcom,aes192-gcm-gmac;
-			qcom,aes256-gcm-gmac;
-			qcom,aes128-cbc-md5-hmac;
-			qcom,aes128-cbc-sha160-hmac;
-			qcom,aes192-cbc-md5-hmac;
-			qcom,aes192-cbc-sha160-hmac;
-			qcom,aes256-cbc-md5-hmac;
-			qcom,aes256-cbc-sha160-hmac;
-			qcom,aes128-ctr-sha160-hmac;
-			qcom,aes192-ctr-sha160-hmac;
-			qcom,aes256-ctr-sha160-hmac;
-			qcom,aes128-ctr-md5-hmac;
-			qcom,aes192-ctr-md5-hmac;
-			qcom,aes256-ctr-md5-hmac;
 			qcom,3des-cbc-md5-hmac;
 			qcom,3des-cbc-sha160-hmac;
-			qcom,aes128-cbc-sha256-hmac;
-			qcom,aes192-cbc-sha256-hmac;
-			qcom,aes256-cbc-sha256-hmac;
-			qcom,aes128-ctr-sha256-hmac;
-			qcom,aes192-ctr-sha256-hmac;
-			qcom,aes256-ctr-sha256-hmac;
 			qcom,3des-cbc-sha256-hmac;
+			qcom,3des-cbc;
+			qcom,aes128-cbc-md5-hmac;
+			qcom,aes128-cbc-sha160-hmac;
+			qcom,aes128-cbc-sha256-hmac;
 			qcom,aes128-cbc-sha384-hmac;
-			qcom,aes192-cbc-sha384-hmac;
-			qcom,aes256-cbc-sha384-hmac;
-			qcom,aes128-ctr-sha384-hmac;
-			qcom,aes192-ctr-sha384-hmac;
-			qcom,aes256-ctr-sha384-hmac;
 			qcom,aes128-cbc-sha512-hmac;
-			qcom,aes192-cbc-sha512-hmac;
-			qcom,aes256-cbc-sha512-hmac;
+			qcom,aes128-cbc;
+			qcom,aes128-ctr-md5-hmac;
+			qcom,aes128-ctr-sha160-hmac;
+			qcom,aes128-ctr-sha256-hmac;
+			qcom,aes128-ctr-sha384-hmac;
 			qcom,aes128-ctr-sha512-hmac;
+			qcom,aes128-ctr;
+			qcom,aes128-ecb;
+			qcom,aes128-gcm-gmac;
+			qcom,aes192-cbc-md5-hmac;
+			qcom,aes192-cbc-sha160-hmac;
+			qcom,aes192-cbc-sha256-hmac;
+			qcom,aes192-cbc-sha384-hmac;
+			qcom,aes192-cbc-sha512-hmac;
+			qcom,aes192-cbc;
+			qcom,aes192-ctr-md5-hmac;
+			qcom,aes192-ctr-sha160-hmac;
+			qcom,aes192-ctr-sha256-hmac;
+			qcom,aes192-ctr-sha384-hmac;
 			qcom,aes192-ctr-sha512-hmac;
+			qcom,aes192-ctr;
+			qcom,aes192-ecb;
+			qcom,aes192-gcm-gmac;
+			qcom,aes256-cbc-md5-hmac;
+			qcom,aes256-cbc-sha160-hmac;
+			qcom,aes256-cbc-sha256-hmac;
+			qcom,aes256-cbc-sha384-hmac;
+			qcom,aes256-cbc-sha512-hmac;
+			qcom,aes256-cbc;
+			qcom,aes256-ctr-md5-hmac;
+			qcom,aes256-ctr-sha160-hmac;
+			qcom,aes256-ctr-sha256-hmac;
+			qcom,aes256-ctr-sha384-hmac;
 			qcom,aes256-ctr-sha512-hmac;
+			qcom,aes256-ctr;
+			qcom,aes256-ecb;
+			qcom,aes256-gcm-gmac;
+			qcom,md5-hash;
+			qcom,md5-hmac;
+			qcom,sha160-hash;
+			qcom,sha160-hmac;
+			qcom,sha224-hash;
+			qcom,sha224-hmac;
+			qcom,sha256-hash;
+			qcom,sha256-hmac;
+			qcom,sha384-hash;
+			qcom,sha384-hmac;
+			qcom,sha512-hash;
+			qcom,sha512-hmac;
+			qcom,transform-enabled;
 
 			engine0 {
 				reg_offset = <0x80000>;
