@@ -53,9 +53,9 @@ ipq60xx_setup_macs()
 
 	case "$board" in
 	linksys,mr7350)
-		label_mac=$(mtd_get_mac_ascii devinfo hw_mac_addr)
-		lan_mac=$label_mac
-		wan_mac=$label_mac
+		lan_mac=$(mtd_get_mac_ascii devinfo hw_mac_addr)
+		wan_mac=$(macaddr_add "$lan_mac" 1)
+		label_mac=$lan_mac
 		;;
 	qihoo,360v6)
 		lan_mac=$(mtd_get_mac_ascii factory lanMac)

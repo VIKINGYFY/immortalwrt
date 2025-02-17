@@ -10,7 +10,9 @@ PHYNBR=${DEVPATH##*/phy}
 board=$(board_name)
 
 case "$board" in
-	arcadyan,aw1000)
+	arcadyan,aw1000|\
+	tplink,eap620hd-v1|\
+	tplink,eap660hd-v1)
 		label_mac=$(get_mac_label)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
@@ -20,20 +22,12 @@ case "$board" in
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac  8 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 16 > /sys${DEVPATH}/macaddress
 		;;
+	aliyun,ap8220|\
 	cmcc,rm2-6|\
+	verizon,cr1000a|\
 	zte,mf269|\
 	zte,mf269-stock)
 		label_mac=$(get_mac_label)
-		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
-		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
-		;;
-	aliyun,ap8220)
-		label_mac=$(mtd_get_mac_text product_info 0x4b)
-		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
-		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
-		;;
-	verizon,cr1000a)
-		label_mac=$(mmc_get_mac_ascii "0:APPSBLENV" baseMAC)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
 		;;
@@ -57,12 +51,6 @@ case "$board" in
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac   1 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac -31 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "2" ] && macaddr_add $label_mac  33 > /sys${DEVPATH}/macaddress
-		;;
-	tplink,eap620hd-v1|\
-	tplink,eap660hd-v1)
-		label_mac=$(get_mac_binary /tmp/factory_data/default-mac 0)
-		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
-		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		;;
 	zbtlink,zbt-z800ax)
 		label_mac=$(get_mac_label)
