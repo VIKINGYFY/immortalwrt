@@ -21,6 +21,16 @@
 			gpios = <&tlmm 50 GPIO_ACTIVE_HIGH>;
 		};
 	};
+
+	gpio-export {
+		compatible = "gpio-export";
+
+		ble-power {
+			gpio-export,name = "ble_power";
+			gpio-export,output = <1>;
+			gpios = <&tlmm 54 GPIO_ACTIVE_HIGH>;
+		};
+	};
 };
 
 &blsp1_spi1 {
@@ -120,20 +130,11 @@
 
 	nand@0 {
 		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
 		nand-ecc-strength = <4>;
 		nand-ecc-step-size = <512>;
 		nand-bus-width = <8>;
-
-		partitions {
-			compatible = "fixed-partitions";
-			#address-cells = <1>;
-			#size-cells = <1>;
-
-			partition@0 {
-				label = "rootfs";
-				reg = <0x00 0x8000000>;
-			};
-		};
 	};
 };
 

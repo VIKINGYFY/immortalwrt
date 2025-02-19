@@ -42,7 +42,7 @@ define Device/aliyun_ap8220
 	PAGESIZE := 2048
 	DEVICE_DTS_CONFIG := config@ac02
 	SOC := ipq8071
-	DEVICE_PACKAGES := ipq-wifi-aliyun_ap8220
+	DEVICE_PACKAGES := ipq-wifi-aliyun_ap8220 kmod-bluetooth kmod-bluetooth-6lowpan
 endef
 TARGET_DEVICES += aliyun_ap8220
 
@@ -108,7 +108,6 @@ define Device/cmcc_rm2-6
 	PAGESIZE := 2048
 	DEVICE_DTS_CONFIG := config@ac02
 	SOC := ipq8070
-	IMAGE/factory.bin := append-ubi | qsdk-ipq-factory-nand
 	DEVICE_PACKAGES := ipq-wifi-cmcc_rm2-6 kmod-hwmon-gpiofan
 endef
 TARGET_DEVICES += cmcc_rm2-6
@@ -123,7 +122,6 @@ define Device/compex_wpq873
 	DEVICE_DTS_CONFIG := config@hk09.wpq873
 	SOC := ipq8072
 	DEVICE_PACKAGES := ipq-wifi-compex_wpq873
-	IMAGE/factory.ubi := append-ubi | qsdk-ipq-factory-nand
 endef
 TARGET_DEVICES += compex_wpq873
 
@@ -150,7 +148,6 @@ define Device/edgecore_eap102
 	DEVICE_DTS_CONFIG := config@ac02
 	SOC := ipq8071
 	DEVICE_PACKAGES := ipq-wifi-edgecore_eap102
-	IMAGE/factory.ubi := append-ubi | qsdk-ipq-factory-nand
 endef
 TARGET_DEVICES += edgecore_eap102
 
@@ -471,7 +468,6 @@ define Device/yuncore_ax880
 	DEVICE_DTS_CONFIG := config@hk09
 	SOC := ipq8072
 	DEVICE_PACKAGES := ipq-wifi-yuncore_ax880
-	IMAGE/factory.bin := append-ubi | qsdk-ipq-factory-nand
 endef
 TARGET_DEVICES += yuncore_ax880
 
@@ -485,7 +481,6 @@ define Device/zbtlink_zbt-z800ax
 	DEVICE_DTS_CONFIG := config@hk09
 	SOC := ipq8072
 	DEVICE_PACKAGES := ipq-wifi-zbtlink_zbt-z800ax
-	IMAGE/factory.bin := append-ubi | qsdk-ipq-factory-nand
 endef
 TARGET_DEVICES += zbtlink_zbt-z800ax
 
