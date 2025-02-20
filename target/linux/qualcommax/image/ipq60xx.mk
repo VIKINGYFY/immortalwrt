@@ -175,6 +175,20 @@ define Device/zn_m2
 endef
 TARGET_DEVICES += zn_m2
 
+define Device/link_nn6000
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := Link
+	DEVICE_MODEL := NN6000
+	BLOCKSIZE := 128k
+	KERNEL_SIZE := 6144k
+	SOC := ipq6000
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-link_nn6000
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
+TARGET_DEVICES += link_nn6000
+
 define Device/redmi_ax5-jdcloud
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)

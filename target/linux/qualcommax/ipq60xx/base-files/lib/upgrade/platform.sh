@@ -152,6 +152,7 @@ platform_do_upgrade() {
 	jdcloud,re-ss-01|\
 	jdcloud,re-cs-02|\
 	jdcloud,re-cs-07|\
+	link,nn6000|\
 	redmi,ax5-jdcloud)
 		CI_KERNPART="0:HLOS"
 		CI_ROOTPART="rootfs"
@@ -168,6 +169,7 @@ platform_copy_config() {
 	jdcloud,re-ss-01|\
 	jdcloud,re-cs-02|\
 	jdcloud,re-cs-07|\
+	link,nn6000|\
 	redmi,ax5-jdcloud)
 		emmc_copy_config
 		;;
