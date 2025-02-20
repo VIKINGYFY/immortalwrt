@@ -10,7 +10,7 @@
  	CPUHP_LUSTRE_CFS_DEAD,
 --- a/include/linux/skbuff.h
 +++ b/include/linux/skbuff.h
-@@ -1059,6 +1059,10 @@ struct sk_buff {
+@@ -1055,6 +1055,10 @@ struct sk_buff {
  	/* only useable after checking ->active_extensions != 0 */
  	struct skb_ext		*extensions;
  #endif
@@ -21,7 +21,7 @@
  };
  
  /* if you move pkt_type around you also must adapt those constants */
-@@ -1244,7 +1248,7 @@ static inline void kfree_skb_list(struct
+@@ -1240,7 +1244,7 @@ static inline void kfree_skb_list(struct
  	kfree_skb_list_reason(segs, SKB_DROP_REASON_NOT_SPECIFIED);
  }
  
@@ -30,7 +30,7 @@
  void consume_skb(struct sk_buff *skb);
  #else
  static inline void consume_skb(struct sk_buff *skb)
-@@ -1256,6 +1260,9 @@ static inline void consume_skb(struct sk
+@@ -1252,6 +1256,9 @@ static inline void consume_skb(struct sk
  void __consume_stateless_skb(struct sk_buff *skb);
  void  __kfree_skb(struct sk_buff *skb);
  extern struct kmem_cache *skbuff_cache;
@@ -104,7 +104,7 @@
 +obj-$(CONFIG_SKB_RECYCLER) += skbuff_recycle.o
 --- a/net/core/dev.c
 +++ b/net/core/dev.c
-@@ -6053,10 +6053,16 @@ static int process_backlog(struct napi_s
+@@ -6052,10 +6052,16 @@ static int process_backlog(struct napi_s
  
  	napi->weight = READ_ONCE(dev_rx_weight);
  	while (again) {
