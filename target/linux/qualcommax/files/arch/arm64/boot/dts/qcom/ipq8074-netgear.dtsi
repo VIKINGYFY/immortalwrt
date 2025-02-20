@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
-/*
- * Copyright (c) 2021, Flole <flole@flole.de>
- * Copyright (c) 2023, Andrew Smith <gul.code@outlook.com>
- */
-
-/dts-v1/;
 
 #include "ipq8074.dtsi"
-#include "ipq8074-ess.dtsi"
 #include "ipq8074-hk-cpu.dtsi"
+#include "ipq8074-common.dtsi"
+#include "ipq8074-ess.dtsi"
+
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
@@ -16,10 +12,12 @@
 / {
 	aliases {
 		serial0 = &blsp1_uart5;
+
 		led-boot = &led_front_blue;
 		led-failsafe = &led_front_red;
 		led-running = &led_front_green;
 		led-upgrade = &led_front_white;
+
 		label-mac-device = &dp2;
 	};
 
@@ -103,68 +101,20 @@
 			bias-pull-up;
 		};
 	};
-
-	leds_pins: leds_pinmux {
-		led_power_green {
-			pins = "gpio21";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-
-		led_power_red {
-			pins = "gpio22";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-
-		led_white {
-			pins = "gpio26";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-
-		led_green {
-			pins = "gpio29";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-
-		led_red {
-			pins = "gpio31";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-
-		led_blue {
-			pins = "gpio33";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-	};
-};
-
-&blsp1_uart5 {
-	status = "okay";
 };
 
 &blsp1_i2c2 {
+	status = "okay";
+
 	pinctrl-0 = <&i2c_0_pins>;
 	pinctrl-names = "default";
 
-	status = "okay";
-	
 	tlc59208f@27 {
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "ti,tlc59108";
 		reg = <0x27>;
-		
+
 		led@0 {
 			label = "rgb:led0";
 			reg = <0>;
@@ -189,22 +139,6 @@
 			linux,default-trigger = "default-off";
 		};
 	};
-};
-
-&prng {
-	status = "okay";
-};
-
-&cryptobam {
-	status = "okay";
-};
-
-&crypto {
-	status = "okay";
-};
-
-&qpic_bam {
-	status = "okay";
 };
 
 &qpic_nand {
@@ -422,11 +356,10 @@
 	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
 
 	ethernet-phy-package@0 {
+		compatible = "qcom,qca8075-package";
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reg = <0>;
-
-		compatible = "qcom,qca8075-package";
 
 		qca8075_1: ethernet-phy@1 {
 			compatible = "ethernet-phy-ieee802.3-c22";
@@ -460,38 +393,38 @@
 &switch {
 	status = "okay";
 
-	switch_lan_bmp = <(ESS_PORT2 | ESS_PORT3 | ESS_PORT4 | ESS_PORT5)>; /* lan port bitmap */
-	switch_wan_bmp = <ESS_PORT6>; /* wan port bitmap */
-	switch_mac_mode = <MAC_MODE_PSGMII>; /* mac mode for uniphy instance0*/
-	switch_mac_mode2 = <MAC_MODE_SGMII_PLUS>; /* mac mode for uniphy instance2*/
+	switch_lan_bmp = <(ESS_PORT2 | ESS_PORT3 | ESS_PORT4 | ESS_PORT5)>;
+	switch_wan_bmp = <ESS_PORT6>;
+	switch_mac_mode = <MAC_MODE_PSGMII>;
+	switch_mac_mode2 = <MAC_MODE_SGMII_PLUS>;
 
 	qcom,port_phyinfo {
 		port@2 {
 			port_id = <2>;
 			phy_address = <1>;
 		};
+
 		port@3 {
 			port_id = <3>;
 			phy_address = <2>;
 		};
+
 		port@4 {
 			port_id = <4>;
 			phy_address = <3>;
 		};
+
 		port@5 {
 			port_id = <5>;
 			phy_address = <4>;
 		};
+
 		port@6 {
 			port_id = <6>;
 			phy_address = <28>;
 			port_mac_sel = "QGMAC_PORT";
 		};
 	};
-};
-
-&edma {
-	status = "okay";
 };
 
 &dp2 {
@@ -536,6 +469,10 @@
 
 &wifi {
 	status = "okay";
-
+	qcom,ath11k-fw-memory-mode = <1>;
 	qcom,ath11k-calibration-variant = "Netgear-SXK80";
+};
+
+&edma {
+	status = "okay";
 };

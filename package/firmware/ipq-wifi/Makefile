@@ -5,10 +5,10 @@ PKG_NAME:=ipq-wifi
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL=$(PROJECT_GIT)/project/firmware/qca-wireless.git
-PKG_SOURCE_DATE:=2025-02-16
-PKG_SOURCE_VERSION:=331dd0ead646f0d3fe38cb4bf83cce4b448343e8
-PKG_MIRROR_HASH:=f49b3acd56a1cf4a0d52413b060d6adbd65c2754b44cabe096fed69172febbb5
+PKG_SOURCE_URL=https://github.com/VIKINGYFY/ipq-wireless-mod.git
+PKG_SOURCE_DATE:=2025-02-18
+PKG_SOURCE_VERSION:=099dd4f7c2484468adc9c2b2e09c847235500f7a
+PKG_MIRROR_HASH:=65dc1e53a0ed23b38ddfa9b6db2190c4a9a82ad6a85a4a7c6d5a551e368d4217
 PKG_FLAGS:=nonshared
 
 include $(INCLUDE_DIR)/package.mk
@@ -73,7 +73,18 @@ ALLWIFIBOARDS:= \
 	zte_mf269 \
 	zte_mf287 \
 	zte_mf287plus \
-	zyxel_nbg7815
+	zyxel_nbg7815 \
+	cmiot_ax18 \
+	glinet_gl-ax1800 \
+	glinet_gl-axt1800 \
+	jdcloud_re-ss-01 \
+	jdcloud_re-cs-02 \
+	link_nn6000 \
+	redmi_ax5 \
+	redmi_ax5-jdcloud \
+	verizon_cr1000a \
+	xiaomi_ax1800 \
+	zn_m2
 
 ALLWIFIPACKAGES:=$(foreach BOARD,$(ALLWIFIBOARDS),ipq-wifi-$(BOARD))
 
@@ -214,5 +225,16 @@ $(eval $(call generate-ipq-wifi-package,zte_mf269,ZTE MF269))
 $(eval $(call generate-ipq-wifi-package,zte_mf287,ZTE MF287))
 $(eval $(call generate-ipq-wifi-package,zte_mf287plus,ZTE MF287Plus))
 $(eval $(call generate-ipq-wifi-package,zyxel_nbg7815,Zyxel NBG7815))
+$(eval $(call generate-ipq-wifi-package,cmiot_ax18,CMIOT AX18))
+$(eval $(call generate-ipq-wifi-package,glinet_gl-ax1800,GL.iNet GL-AX1800))
+$(eval $(call generate-ipq-wifi-package,glinet_gl-axt1800,GL.iNet GL-AXT1800))
+$(eval $(call generate-ipq-wifi-package,jdcloud_re-ss-01,JDCloud RE-SS-01))
+$(eval $(call generate-ipq-wifi-package,jdcloud_re-cs-02,JDCloud RE-CS-02))
+$(eval $(call generate-ipq-wifi-package,link_nn6000,Link NN6000))
+$(eval $(call generate-ipq-wifi-package,redmi_ax5,Redmi AX5))
+$(eval $(call generate-ipq-wifi-package,redmi_ax5-jdcloud,Redmi AX5 JDCloud))
+$(eval $(call generate-ipq-wifi-package,verizon_cr1000a,Verizon CR1000A))
+$(eval $(call generate-ipq-wifi-package,xiaomi_ax1800,Xiaomi AX1800))
+$(eval $(call generate-ipq-wifi-package,zn_m2,ZN M2))
 
 $(foreach PACKAGE,$(ALLWIFIPACKAGES),$(eval $(call BuildPackage,$(PACKAGE))))

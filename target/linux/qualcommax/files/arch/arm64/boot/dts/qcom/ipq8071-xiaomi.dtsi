@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
-/* Copyright (c) 2021, Robert Marko <robimarko@gmail.com> */
 
 #include "ipq8074-512m.dtsi"
 #include "ipq8074-ac-cpu.dtsi"
+#include "ipq8074-common.dtsi"
 #include "ipq8074-ess.dtsi"
+
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
 
 / {
 	aliases {
 		serial0 = &blsp1_uart5;
+
 		led-boot = &led_system_yellow;
 		led-failsafe = &led_system_yellow;
 		led-running = &led_system_blue;
 		led-upgrade = &led_system_yellow;
+
 		label-mac-device = &dp2;
 	};
 
@@ -49,26 +53,6 @@
 			bias-pull-up;
 		};
 	};
-};
-
-&blsp1_uart5 {
-	status = "okay";
-};
-
-&prng {
-	status = "okay";
-};
-
-&cryptobam {
-	status = "okay";
-};
-
-&crypto {
-	status = "okay";
-};
-
-&qpic_bam {
-	status = "okay";
 };
 
 &qpic_nand {
@@ -214,9 +198,9 @@
 	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
 
 	ethernet-phy-package@0 {
+		compatible = "qcom,qca8075-package";
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "qcom,qca8075-package";
 		reg = <0>;
 
 		qca8075_1: ethernet-phy@1 {
@@ -244,32 +228,31 @@
 &switch {
 	status = "okay";
 
-	switch_lan_bmp = <(ESS_PORT3 | ESS_PORT4 | ESS_PORT5)>; /* lan port bitmap */
-	switch_wan_bmp = <ESS_PORT2>; /* wan port bitmap */
-	switch_mac_mode = <MAC_MODE_PSGMII>; /* mac mode for uniphy instance0*/
+	switch_lan_bmp = <(ESS_PORT3 | ESS_PORT4 | ESS_PORT5)>;
+	switch_wan_bmp = <ESS_PORT2>;
+	switch_mac_mode = <MAC_MODE_PSGMII>;
 
 	qcom,port_phyinfo {
 		port@2 {
 			port_id = <2>;
 			phy_address = <1>;
 		};
+
 		port@3 {
 			port_id = <3>;
 			phy_address = <2>;
 		};
+
 		port@4 {
 			port_id = <4>;
 			phy_address = <3>;
 		};
+
 		port@5 {
 			port_id = <5>;
 			phy_address = <4>;
 		};
 	};
-};
-
-&edma {
-	status = "okay";
 };
 
 &dp2 {
@@ -304,8 +287,6 @@
 	nvmem-cell-names = "mac-address";
 };
 
-&wifi {
+&edma {
 	status = "okay";
-
-	qcom,ath11k-fw-memory-mode = <1>;
 };
