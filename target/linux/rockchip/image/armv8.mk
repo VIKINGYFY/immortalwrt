@@ -104,7 +104,7 @@ define Device/rumu3f_fine-3399
   SOC := rk3399
   UBOOT_DEVICE_NAME := fine3399-rk3399
   BOOT_FLOW := pine64-bin
-  DEVICE_PACKAGES := kmod-gpio-button-hotplug kmod-r8168
+  DEVICE_PACKAGES := kmod-r8169
 endef
 TARGET_DEVICES += rumu3f_fine-3399
 
