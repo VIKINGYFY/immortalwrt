@@ -13,8 +13,8 @@
 #include <dt-bindings/leds/common.h>
 
 / {
-	model = "Link NN6000";
-	compatible = "link,nn6000", "qcom,ipq6018";
+	model = "Link NN6000 V1";
+	compatible = "link,nn6000-v1", "qcom,ipq6018";
 
 	aliases {
 		serial0 = &blsp1_uart3;
@@ -130,8 +130,8 @@
 &switch {
 	status = "okay";
 
-	switch_lan_bmp = <(ESS_PORT2 | ESS_PORT3)>;
-	switch_wan_bmp = <ESS_PORT4>;
+	switch_lan_bmp = <(ESS_PORT3 | ESS_PORT4)>;
+	switch_wan_bmp = <ESS_PORT2>;
 	switch_mac_mode = <MAC_MODE_PSGMII>;
 
 	qcom,port_phyinfo {

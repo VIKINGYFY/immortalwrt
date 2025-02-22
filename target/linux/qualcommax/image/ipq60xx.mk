@@ -188,11 +188,11 @@ define Device/redmi_ax5-jdcloud
 endef
 TARGET_DEVICES += redmi_ax5-jdcloud
 
-define Device/link_nn6000
+define Device/link_nn6000-v1
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
 	DEVICE_VENDOR := Link
-	DEVICE_MODEL := NN6000
+	DEVICE_MODEL := NN6000 V1
 	BLOCKSIZE := 128k
 	KERNEL_SIZE := 6144k
 	SOC := ipq6000
@@ -200,7 +200,13 @@ define Device/link_nn6000
 	DEVICE_PACKAGES := ipq-wifi-link_nn6000
 	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
 endef
-TARGET_DEVICES += link_nn6000
+TARGET_DEVICES += link_nn6000-v1
+
+define Device/link_nn6000-v2
+	$(Device/link_nn6000-v1)
+	DEVICE_MODEL := NN6000 V2
+endef
+TARGET_DEVICES += link_nn6000-v2
 
 define Device/jdcloud_re-ss-01
 	$(call Device/FitImage)

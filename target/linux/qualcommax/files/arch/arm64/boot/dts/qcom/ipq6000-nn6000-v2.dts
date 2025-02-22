@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/dts-v1/;
+
+#include "ipq6000-nn6000-v1"
+
+/ {
+	model = "Link NN6000 V2";
+	compatible = "link,nn6000-v2", "qcom,ipq6018";
+
+	aliases {
+		ethernet4 = &dp5;
+		ethernet5 = &dp6;
+	};
+};
+
+&mdio {
+	ethernet-phy-package@0 {
+		qca8075_4: ethernet-phy@4 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <4>;
+		};
+
+		qca8075_5: ethernet-phy@5 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <5>;
+		};
+	};
+};
+
+&switch {
+	switch_lan_bmp = <(ESS_PORT3 | ESS_PORT4 | ESS_PORT5 | ESS_PORT6)>;
+
+	qcom,port_phyinfo {
+		port@5 {
+			port_id = <5>;
+			phy_address = <4>;
+		};
+
+		port@6 {
+			port_id = <6>;
+			phy_address = <5>;
+		};
+	};
+};
+
+&dp5 {
+	status = "okay";
+	phy-handle = <&qca8075_4>;
+	label = "lan3";
+};
+
+&dp6 {
+	status = "okay";
+	phy-handle = <&qca8075_5>;
+	label = "lan4";
+};
