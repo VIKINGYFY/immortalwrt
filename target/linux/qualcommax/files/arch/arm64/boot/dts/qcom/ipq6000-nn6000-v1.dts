@@ -2,99 +2,17 @@
 
 /dts-v1/;
 
-#include "ipq6018.dtsi"
-#include "ipq6018-common.dtsi"
-#include "ipq6018-ess.dtsi"
-#include "ipq6018-nss.dtsi"
-#include "ipq6000-fixed-smps.dtsi"
-
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input.h>
-#include <dt-bindings/leds/common.h>
+#include "ipq6000-link.dtsi"
 
 / {
-	model = "Link NN6000 V1";
+	model = "Link NN6000 v1";
 	compatible = "link,nn6000-v1", "qcom,ipq6018";
 
 	aliases {
-		serial0 = &blsp1_uart3;
-
-		led-boot = &led_status_blue;
-		led-failsafe = &led_status_red;
-		led-running = &led_status_green;
-		led-upgrade = &led_status_red;
-
 		ethernet1 = &dp2;
 		ethernet2 = &dp3;
 		ethernet3 = &dp4;
 	};
-
-	chosen {
-		stdout-path = "serial0:115200n8";
-	};
-
-	keys {
-		compatible = "gpio-keys";
-
-		wps {
-			label = "wps";
-			linux,code = <KEY_WPS_BUTTON>;
-			gpios = <&tlmm 42 GPIO_ACTIVE_LOW>;
-		};
-
-		reset {
-			label = "reset";
-			linux,code = <KEY_RESTART>;
-			gpios = <&tlmm 9 GPIO_ACTIVE_LOW>;
-		};
-	};
-
-	leds {
-		compatible = "gpio-leds";
-
-		led_status_red: red {
-			label = "red:status";
-			gpios = <&tlmm 50 GPIO_ACTIVE_HIGH>;
-		};
-
-		led_status_green: green {
-			label = "green:status";
-			gpios = <&tlmm 70 GPIO_ACTIVE_HIGH>;
-		};
-
-		led_status_blue: blue {
-			label = "blue:status";
-			gpios = <&tlmm 69 GPIO_ACTIVE_HIGH>;
-		};
-	};
-};
-
-&tlmm {
-	gpio-reserved-ranges = <20 1>;
-
-	mdio_pins: mdio-pins {
-		mdc {
-			pins = "gpio64";
-			function = "mdc";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-
-		mdio {
-			pins = "gpio65";
-			function = "mdio";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-	};
-};
-
-&sdhc_1 {
-	status = "okay";
-
-	/delete-property/ mmc-hs400-1_8v;
-	mmc-hs200-1_8v;
-	mmc-ddr-1_8v;
 };
 
 &mdio {
@@ -152,12 +70,6 @@
 	};
 };
 
-&wifi {
-	status = "okay";
-	qcom,ath11k-fw-memory-mode = <1>;
-	qcom,ath11k-calibration-variant = "Link-NN6000";
-};
-
 &dp2 {
 	status = "okay";
 	phy-handle = <&qca8075_1>;
@@ -174,8 +86,4 @@
 	status = "okay";
 	phy-handle = <&qca8075_3>;
 	label = "lan2";
-};
-
-&edma {
-	status = "okay";
 };
