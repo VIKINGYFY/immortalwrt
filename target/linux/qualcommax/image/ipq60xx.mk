@@ -192,7 +192,7 @@ define Device/link_nn6000-v1
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
 	DEVICE_VENDOR := Link
-	DEVICE_MODEL := NN6000 V1
+	DEVICE_MODEL := NN6000 v1
 	BLOCKSIZE := 128k
 	KERNEL_SIZE := 6144k
 	SOC := ipq6000
@@ -204,7 +204,7 @@ TARGET_DEVICES += link_nn6000-v1
 
 define Device/link_nn6000-v2
 	$(Device/link_nn6000-v1)
-	DEVICE_MODEL := NN6000 V2
+	DEVICE_MODEL := NN6000 v2
 endef
 TARGET_DEVICES += link_nn6000-v2
 

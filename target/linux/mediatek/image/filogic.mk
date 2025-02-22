@@ -2066,8 +2066,5 @@ define Device/superbox_s20-plus
   IMAGES += factory.bin
   IMAGE/factory.bin := append-kernel | pad-to 32M | append-rootfs
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
-  ARTIFACTS := preloader.bin bl31-uboot.fip
-  ARTIFACT/preloader.bin := mt7986-bl2 emmc-ddr4
-  ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot superbox_s20-plus
 endef
 TARGET_DEVICES += superbox_s20-plus
