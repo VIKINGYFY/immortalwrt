@@ -31,7 +31,8 @@ case "$board" in
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
 		;;
 	linksys,mx4200v2|\
-	linksys,mx4300)
+	linksys,mx4300|\
+	linksys,mx8500)
 		label_mac=$(mtd_get_mac_ascii devinfo hw_mac_addr)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
@@ -61,6 +62,7 @@ case "$board" in
 		label_mac=$(mmc_get_mac_ascii "0:APPSBLENV" baseMAC)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "2" ] && macaddr_add $label_mac 4 > /sys${DEVPATH}/macaddress
 		;;
 	zbtlink,zbt-z800ax)
 		label_mac=$(get_mac_label)

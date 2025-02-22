@@ -69,10 +69,6 @@
 		enable-active-high;
 		regulator-boot-on;
 	};
-
-	memory {
-		reg = <0 0x40000000 0 0x40000000>;
-	};
 };
 
 &eth {
@@ -293,27 +289,58 @@
 	status = "okay";
 };
 
-&xhci {
-	vusb33-supply = <&reg_3p3v>;
-	vbus-supply = <&usb_vbus>;
-	status = "okay";
-};
-
-
 &mmc0 {
-	bus-width = <8>;
-	cap-mmc-highspeed;
-	hs400-ds-delay = <0x14014>;
-	max-frequency = <200000000>;
-	mmc-hs200-1_8v;
-	mmc-hs400-1_8v;
-	no-sd;
-	no-sdio;
-	non-removable;
 	pinctrl-names = "default", "state_uhs";
 	pinctrl-0 = <&mmc0_pins_default>;
 	pinctrl-1 = <&mmc0_pins_uhs>;
+	bus-width = <8>;
+	max-frequency = <200000000>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	mmc-hs400-1_8v;
+	hs400-ds-delay = <0x14014>;
 	vmmc-supply = <&reg_3p3v>;
 	vqmmc-supply = <&reg_1p8v>;
+	non-removable;
+	no-sd;
+	no-sdio;
 	status = "okay";
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+			partitions {
+				block-partition-env {
+					partname = "u-boot-env";
+
+					nvmem-layout {
+						compatible = "u-boot,env";
+					};
+				};
+
+				block-partition-factory {
+					partname = "factory";
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						eeprom_factory_0: eeprom@0 {
+							reg = <0x0 0x1000>;
+						};
+
+						macaddr_factory_a: macaddr@a {
+							compatible = "mac-base";
+							reg = <0xa 0x6>;
+							#nvmem-cell-cells = <1>;
+						};
+					};
+				};
+			};
+		};
+	};
 };
