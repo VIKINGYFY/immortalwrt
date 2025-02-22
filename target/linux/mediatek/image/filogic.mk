@@ -1085,7 +1085,7 @@ define Device/jdcloud_re-cp-03
   IMAGE/sysupgrade.itb := append-kernel | \
 	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | \
 	pad-rootfs | append-metadata
-  ARTIFACTS :=gpt.bin preloader.bin bl31-uboot.fip
+  ARTIFACTS := gpt.bin preloader.bin bl31-uboot.fip
   ARTIFACT/gpt.bin := mt798x-gpt emmc
   ARTIFACT/preloader.bin := mt7986-bl2 emmc-ddr4
   ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot jdcloud_re-cp-03
@@ -2055,3 +2055,19 @@ define Device/zyxel_nwa50ax-pro
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 endef
 TARGET_DEVICES += zyxel_nwa50ax-pro
+
+define Device/superbox_s20-plus
+  DEVICE_VENDOR := SuperBox
+  DEVICE_MODEL := S20 Plus
+  DEVICE_DTS := mt7986a-superbox-s20-plus
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES := kmod-usb3 kmod-mt7915e kmod-mt7986-firmware mt7986-wo-firmware \
+	automount f2fsck mkf2fs
+  IMAGES += factory.bin
+  IMAGE/factory.bin := append-kernel | pad-to 32M | append-rootfs
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  ARTIFACTS := preloader.bin bl31-uboot.fip
+  ARTIFACT/preloader.bin := mt7986-bl2 emmc-ddr4
+  ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot superbox_s20-plus
+endef
+TARGET_DEVICES += superbox_s20-plus
