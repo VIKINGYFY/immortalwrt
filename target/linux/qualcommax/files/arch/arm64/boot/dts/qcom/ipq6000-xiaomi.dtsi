@@ -14,10 +14,10 @@
 	aliases {
 		serial0 = &blsp1_uart3;
 
-		led-boot = &led_yellow;
-		led-failsafe = &led_blue;
-		led-running = &led_blue;
-		led-upgrade = &led_yellow;
+		led-boot = &led_system_yellow;
+		led-failsafe = &led_system_blue;
+		led-running = &led_system_blue;
+		led-upgrade = &led_system_yellow;
 
 		ethernet1 = &dp2;
 		ethernet2 = &dp3;
@@ -33,22 +33,22 @@
 	leds {
 		compatible = "gpio-leds";
 
-		led_blue: system-blue {
+		led_system_blue: system-blue {
 			label = "blue:system";
 			gpios = <&tlmm 29 GPIO_ACTIVE_HIGH>;
 		};
 
-		led_yellow: system-yellow {
+		led_system_yellow: system-yellow {
 			label = "yellow:system";
 			gpios = <&tlmm 30 GPIO_ACTIVE_HIGH>;
 		};
 
-		network-blue {
+		led_network_blue: network-blue {
 			label = "blue:network";
 			gpios = <&tlmm 31 GPIO_ACTIVE_HIGH>;
 		};
 
-		network-yellow {
+		led_network_yellow: network-yellow {
 			label = "yellow:network";
 			gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
 		};

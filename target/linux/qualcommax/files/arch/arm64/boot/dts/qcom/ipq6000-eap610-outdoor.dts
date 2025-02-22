@@ -42,13 +42,13 @@
 	leds {
 		compatible = "gpio-leds";
 
-		led_sys_amber: led-0 {
+		led_sys_amber: sys-amber {
 			function = "system";
 			color = <LED_COLOR_ID_AMBER>;
 			gpios = <&tlmm 35 GPIO_ACTIVE_HIGH>;
 		};
 
-		led_sys_green: led-1 {
+		led_sys_green: sys-green {
 			function = "system";
 			color = <LED_COLOR_ID_GREEN>;
 			gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
@@ -119,7 +119,7 @@
 
 &switch {
 	switch_lan_bmp = <ESS_PORT5>;
-	switch_mac_mode1 = <MAC_MODE_SGMII_CHANNEL0>;
+	switch_mac_mode1 = <MAC_MODE_SGMII_PLUS>;
 	status = "okay";
 
 	qcom,port_phyinfo {

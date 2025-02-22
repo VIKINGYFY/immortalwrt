@@ -12,6 +12,8 @@
 	compatible = "superbox,s20-plus", "mediatek,mt7986a";
 
 	aliases {
+		serial0 = &uart0;
+		label-mac-device = &gmac1;
 		led-boot = &led_green;
 		led-failsafe = &led_green;
 		led-running = &led_green;
@@ -19,9 +21,8 @@
 	};
 
 	chosen {
-		bootargs = "console=ttyS0,115200n1 loglevel=8 \
-			    earlycon=uart8250,mmio32,0x11002000 \
-			    root=PARTLABEL=rootfs rootwait rootfstype=squashfs,f2fs";
+		stdout-path = "serial0:115200n8";
+		bootargs-append = " root=PARTLABEL=rootfs rootwait";
 	};
 
 	reg_1p8v: regulator-1p8v {
@@ -68,10 +69,6 @@
 		gpios = <&pio 17 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 		regulator-boot-on;
-	};
-
-	memory {
-		reg = <0 0x40000000 0 0x40000000>;
 	};
 };
 
@@ -211,21 +208,21 @@
 			       "EMMC_DATA_6", "EMMC_DATA_7", "EMMC_CMD";
 			input-enable;
 			drive-strength = <4>;
-			mediatek,pull-up-adv = <1>;
+			mediatek,pull-up-adv = <1>;	/* pull-up 10K */
 		};
 		conf-clk {
 			pins = "EMMC_CK";
 			drive-strength = <6>;
-			mediatek,pull-down-adv = <2>;
+			mediatek,pull-down-adv = <2>;	/* pull-down 50K */
 		};
 		conf-ds {
 			pins = "EMMC_DSL";
-			mediatek,pull-down-adv = <2>;
+			mediatek,pull-down-adv = <2>;	/* pull-down 50K */
 		};
 		conf-rst {
 			pins = "EMMC_RSTB";
 			drive-strength = <4>;
-			mediatek,pull-up-adv = <1>;
+			mediatek,pull-up-adv = <1>;	/* pull-up 10K */
 		};
 	};
 
@@ -240,21 +237,21 @@
 			       "EMMC_DATA_6", "EMMC_DATA_7", "EMMC_CMD";
 			input-enable;
 			drive-strength = <4>;
-			mediatek,pull-up-adv = <1>;
+			mediatek,pull-up-adv = <1>;	/* pull-up 10K */
 		};
 		conf-clk {
 			pins = "EMMC_CK";
 			drive-strength = <6>;
-			mediatek,pull-down-adv = <2>;
+			mediatek,pull-down-adv = <2>;	/* pull-down 50K */
 		};
 		conf-ds {
 			pins = "EMMC_DSL";
-			mediatek,pull-down-adv = <2>;
+			mediatek,pull-down-adv = <2>;	/* pull-down 50K */
 		};
 		conf-rst {
 			pins = "EMMC_RSTB";
 			drive-strength = <4>;
-			mediatek,pull-up-adv = <1>;
+			mediatek,pull-up-adv = <1>;	/* pull-up 10K */
 		};
 	};
 };
@@ -293,27 +290,58 @@
 	status = "okay";
 };
 
-&xhci {
-	vusb33-supply = <&reg_3p3v>;
-	vbus-supply = <&usb_vbus>;
-	status = "okay";
-};
-
-
 &mmc0 {
-	bus-width = <8>;
-	cap-mmc-highspeed;
-	hs400-ds-delay = <0x14014>;
-	max-frequency = <200000000>;
-	mmc-hs200-1_8v;
-	mmc-hs400-1_8v;
-	no-sd;
-	no-sdio;
-	non-removable;
 	pinctrl-names = "default", "state_uhs";
 	pinctrl-0 = <&mmc0_pins_default>;
 	pinctrl-1 = <&mmc0_pins_uhs>;
+	bus-width = <8>;
+	max-frequency = <200000000>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	mmc-hs400-1_8v;
+	hs400-ds-delay = <0x14014>;
 	vmmc-supply = <&reg_3p3v>;
 	vqmmc-supply = <&reg_1p8v>;
+	non-removable;
+	no-sd;
+	no-sdio;
 	status = "okay";
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+			partitions {
+				block-partition-env {
+					partname = "u-boot-env";
+
+					nvmem-layout {
+						compatible = "u-boot,env";
+					};
+				};
+
+				block-partition-factory {
+					partname = "factory";
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						eeprom_factory_0: eeprom@0 {
+							reg = <0x0 0x1000>;
+						};
+
+						macaddr_factory_a: macaddr@a {
+							compatible = "mac-base";
+							reg = <0xa 0x6>;
+							#nvmem-cell-cells = <1>;
+						};
+					};
+				};
+			};
+		};
+	};
 };
