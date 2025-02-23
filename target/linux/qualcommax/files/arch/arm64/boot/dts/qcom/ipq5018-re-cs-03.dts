@@ -8,7 +8,8 @@
 #include <dt-bindings/leds/common.h>
 
 / {
-
+	#address-cells = <0x2>;
+	#size-cells = <0x2>;
 	model = "JDCloud RE-CS-03";
 	compatible = "jdcloud,re-cs-03", "qcom,ipq5018";
 
@@ -190,19 +191,6 @@
 			forced-speed = <1000>;
 			forced-duplex = <1>;
 		};
-	};
-};
-
-// MAC1 ---SGMII---> QCA8337 SerDes
-&dp2 {
-	status = "okay";
-
-	nvmem-cells = <&hw_mac_addr 0>;
-	nvmem-cell-names = "mac-address";
-
-	fixed-link {
-		speed = <1000>;
-		full-duplex;
 	};
 };
 
