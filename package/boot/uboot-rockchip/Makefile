@@ -118,7 +118,7 @@ define U-Boot/rk3399/Default
 endef
 
 define U-Boot/fine3399-rk3399
-  $(U-Boot/Default/rk3399)
+  $(U-Boot/rk3399/Default)
   NAME:=Fine 3399
   BUILD_DEVICES:= \
     rumu3f_fine-3399
