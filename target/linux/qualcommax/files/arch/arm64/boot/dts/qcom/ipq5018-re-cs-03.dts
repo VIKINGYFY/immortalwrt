@@ -8,8 +8,6 @@
 #include <dt-bindings/leds/common.h>
 
 / {
-	#address-cells = <0x2>;
-	#size-cells = <0x2>;
 	model = "JDCloud RE-CS-03";
 	compatible = "jdcloud,re-cs-03", "qcom,ipq5018";
 
@@ -19,6 +17,8 @@
 		led-running = &led_green;
 		led-upgrade = &led_red;
 		serial0 = &blsp1_uart1;
+		serial0 = &blsp1_uart2;
+		sdhc1 = &sdhc_1;
 	};
 
 	keys {
@@ -66,17 +66,21 @@
 };
 
 &sdhc_1 {
+	status = "okay";
 	pinctrl-0 = <&emmc_pins>;
 	pinctrl-names = "default";
-	status = "okay";
 };
 
 &q6v5_wcss {
-	boot-args = <0x2 0x4 0x2 0xf 0x0 0x0>;
 	status = "okay";
+	boot-args = <0x2 0x4 0x2 0xf 0x0 0x0>;
 };
 
 &blsp1_uart1 {
+	status = "okay";
+};
+
+&blsp1_uart2 {
 	status = "okay";
 };
 
@@ -171,17 +175,18 @@
 &switch {
 	status = "okay";
 
-	switch_mac_mode = <MAC_MODE_SGMII_PLUS>;
-
+	compatible = "qcom,ess-switch-ipq50xx";
+	device_id = <0>;
+	switch_mac_mode = <MAC_MODE_SGMII_PLUS>; /* mac mode for uniphy instance*/
+	cmnblk_clk = "internal_96MHz"; /* cmnblk clk*/
 	qcom,port_phyinfo {
-		// MAC0 -> GE Phy -> QCA8337 Phy4
 		port@0 {
 			port_id = <1>;
-			mdiobus = <&mdio0>;
 			phy_address = <7>;
+			phy_dac = <0x10 0x10>;
+			mdiobus = <&mdio0>;
 		};
 
-		// MAC1 ---SGMII---> QCA8337 SerDes
 		port@1 {
 			port_id = <2>;
 			forced-speed = <1000>;
@@ -192,6 +197,10 @@
 
 &mdio0 {
 	status = "okay";
+
+	ethernet-phy@0 {
+		reg = <0x07>;
+	};
 };
 
 &mdio1 {
@@ -199,79 +208,62 @@
 
 	pinctrl-0 = <&mdio1_pins>;
 	pinctrl-names = "default";
-	reset-gpios = <&tlmm 39 GPIO_ACTIVE_LOW>;
+	phy-reset-gpio = <&tlmm 39 0>;
 
-	// QCA8337 Phy0 not connected
 	qca8337_0: ethernet-phy@0 {
 		reg = <0>;
 	};
 
-	// QCA8337 Phy1 -> WAN
 	qca8337_1: ethernet-phy@1 {
 		reg = <1>;
 	};
 
-	// QCA8337 Phy2 -> LAN1
 	qca8337_2: ethernet-phy@2 {
 		reg = <2>;
 	};
 
-	// QCA8337 Phy3 -> LAN2
 	qca8337_3: ethernet-phy@3 {
 		reg = <3>;
 	};
 
-	// QCA8337 Phy4 -> LAN3
-	qca8337_4: ethernet-phy@4 {
-		reg = <4>;
-	};
+	ess-switch1@1 {
+		compatible = "qcom,ess-switch-qca83xx";
+		device_id = <1>;
+		switch_access_mode = "mdio";
+		mdio-bus = <&mdio1>;
+		reset_gpio = <&tlmm 0x27 0>;
+		switch_cpu_bmp = <0x40>;  /* cpu port bitmap */
+		switch_lan_bmp = <0x1e>; /* lan port bitmap */
+		switch_wan_bmp = <0x0>;  /* wan port bitmap */
+		qca,ar8327-initvals = <
+				0x00004 0x7600000   /* PAD0_MODE */
+				0x00008 0x1000000   /* PAD5_MODE */
+				0x0000c 0x80        /* PAD6_MODE */
+				0x00010 0x2613a0    /* PORT6 FORCE MODE*/
+				0x000e4 0xaa545     /* MAC_POWER_SEL */
+				0x000e0 0xc74164de  /* SGMII_CTRL */
+				0x0007c 0x4e        /* PORT0_STATUS */
+				0x00094 0x4e        /* PORT6_STATUS */
+		>;
+		qcom,port_phyinfo {
+			port@0 {
+				port_id = <1>;
+				phy_address = <0>;
+			};
 
-	// QCA8337 switch
-	switch1: ethernet-switch@17 {
-		compatible = "qca,qca8337";
-		reg = <17>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
+			port@1 {
+				port_id = <2>;
+				phy_address = <1>;
+			};
 
 			port@2 {
-				reg = <2>;
-				label = "wan";
-				phy-handle = <&qca8337_1>;
+				port_id = <3>;
+				phy_address = <2>;
 			};
 
 			port@3 {
-				reg = <3>;
-				label = "lan3";
-				phy-handle = <&qca8337_2>;
-			};
-
-			port@4 {
-				reg = <4>;
-				label = "lan2";
-				phy-handle = <&qca8337_3>;
-			};
-
-			port@5 {
-				reg = <5>;
-				label = "lan1";
-				phy-handle = <&qca8337_4>;
-			};
-
-			port@6 {
-				reg = <6>;
-				label = "cpu";
-				phy-mode = "sgmii";
-				ethernet = <&dp2>;
-				qca,sgmii-enable-pll;
-
-				fixed-link {
-					speed = <1000>;
-					full-duplex;
-				};
+				port_id = <4>;
+				phy_address = <3>;
 			};
 		};
 	};
