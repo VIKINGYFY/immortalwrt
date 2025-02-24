@@ -117,6 +117,13 @@ define U-Boot/rk3399/Default
   ATF:=$(RK3399_ATF)
 endef
 
+define U-Boot/fine3399-rk3399
+  $(U-Boot/rk3399/Default)
+  NAME:=Fine 3399
+  BUILD_DEVICES:= \
+    rumu3f_fine-3399
+endef
+
 define U-Boot/guangmiao-g4c-rk3399
   $(U-Boot/rk3399/Default)
   NAME:=GuangMiao G4C
