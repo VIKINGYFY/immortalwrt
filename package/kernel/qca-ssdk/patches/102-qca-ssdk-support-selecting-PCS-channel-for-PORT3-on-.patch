@@ -32,7 +32,7 @@ Signed-off-by: Mantas Pucka <mantas@8devices.com>
  	led_ctrl_pattern_t source_pattern[SSDK_MAX_PORT_NUM][PORT_LED_SOURCE_MAX];
  } ssdk_dt_cfg;
  
-@@ -161,6 +162,7 @@ a_uint32_t ssdk_device_id_get(a_uint32_t
+@@ -174,6 +175,7 @@ a_uint32_t ssdk_device_id_get(a_uint32_t
  struct device_node *ssdk_dts_node_get(a_uint32_t dev_id);
  struct clk *ssdk_dts_essclk_get(a_uint32_t dev_id);
  struct clk *ssdk_dts_cmnclk_get(a_uint32_t dev_id);
@@ -85,8 +85,8 @@ Signed-off-by: Mantas Pucka <mantas@8devices.com>
  				PORT_WRAPPER_PSGMII);
 --- a/src/init/ssdk_dts.c
 +++ b/src/init/ssdk_dts.c
-@@ -272,6 +272,13 @@ struct clk *ssdk_dts_cmnclk_get(a_uint32
- 	return cfg->cmnblk_clk;
+@@ -306,6 +306,13 @@ ssdk_netdev_switch_t *ssdk_dts_netdev_sw
+ 	return NULL;
  }
  
 +a_uint32_t ssdk_dts_port3_pcs_channel_get(a_uint32_t dev_id)
@@ -99,7 +99,7 @@ Signed-off-by: Mantas Pucka <mantas@8devices.com>
  #if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
  static void ssdk_dt_parse_mac_mode(a_uint32_t dev_id,
  		struct device_node *switch_node, ssdk_init_cfg *cfg)
-@@ -305,6 +312,25 @@ static void ssdk_dt_parse_mac_mode(a_uin
+@@ -339,6 +346,25 @@ static void ssdk_dt_parse_mac_mode(a_uin
  
  	return;
  }
@@ -125,7 +125,7 @@ Signed-off-by: Mantas Pucka <mantas@8devices.com>
  #ifdef IN_UNIPHY
  static void ssdk_dt_parse_uniphy(a_uint32_t dev_id)
  {
-@@ -1354,6 +1380,7 @@ sw_error_t ssdk_dt_parse(ssdk_init_cfg *
+@@ -1410,6 +1436,7 @@ sw_error_t ssdk_dt_parse(ssdk_init_cfg *
  	rv = ssdk_dt_parse_access_mode(switch_node, ssdk_dt_priv);
  	SW_RTN_ON_ERROR(rv);
  	ssdk_dt_parse_mac_mode(*dev_id, switch_node, cfg);

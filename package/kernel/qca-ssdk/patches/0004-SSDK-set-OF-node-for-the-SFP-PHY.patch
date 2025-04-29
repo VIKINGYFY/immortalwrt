@@ -31,7 +31,7 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
  } phy_info_t;
  /*qca808x_end*/
  #define MALIBU5PORT_PHY         0x004DD0B1
-@@ -1038,3 +1039,8 @@ hsl_phydev_eee_update(a_uint32_t dev_id,
+@@ -1038,3 +1039,8 @@ hsl_port_phy_mode_get(a_uint32_t dev_id,
  #endif				/* __cplusplus */
  #endif				/* _HSL_PHY_H_ */
  /*qca808x_end*/
@@ -42,7 +42,7 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
 +hsl_port_node_set(a_uint32_t dev_id, a_uint32_t port_id, struct device_node *port_node);
 --- a/src/hsl/phy/hsl_phy.c
 +++ b/src/hsl/phy/hsl_phy.c
-@@ -3433,3 +3433,17 @@ hsl_phy_modify_debug(a_uint32_t dev_id,
+@@ -3435,3 +3435,17 @@ hsl_phy_modify_debug(a_uint32_t dev_id,
  	return rv;
  }
  /*qca808x_end*/
@@ -78,7 +78,7 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
  		if(phydev->drv)
 --- a/src/init/ssdk_dts.c
 +++ b/src/init/ssdk_dts.c
-@@ -784,6 +784,13 @@ static sw_error_t ssdk_dt_parse_phy_info
+@@ -821,6 +821,13 @@ static sw_error_t ssdk_dt_parse_phy_info
  			}
  		}
  		hsl_port_feature_set(dev_id, port_id, phy_features | PHY_F_INIT);
@@ -89,6 +89,6 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
 +		* pass the SFP phy via phy-handle
 +		*/
 +		hsl_port_node_set(dev_id, port_id, port_node);
- 	}
- 
- 	return rv;
+ 		/*parse the switch external node*/
+ 		switch_external_node = of_get_child_by_name(port_node, "switch_external");
+ 		if(switch_external_node) {
