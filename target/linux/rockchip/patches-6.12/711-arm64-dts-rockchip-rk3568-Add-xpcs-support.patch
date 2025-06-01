@@ -26,7 +26,7 @@ Signed-off-by: David Wu <david.wu@rock-chips.com>
  	xin24m: xin24m {
  		compatible = "fixed-clock";
  		clock-frequency = <24000000>;
-@@ -423,6 +430,12 @@
+@@ -428,6 +435,12 @@
  		status = "disabled";
  	};
  
@@ -39,19 +39,19 @@ Signed-off-by: David Wu <david.wu@rock-chips.com>
  	pmugrf: syscon@fdc20000 {
  		compatible = "rockchip,rk3568-pmugrf", "syscon", "simple-mfd";
  		reg = <0x0 0xfdc20000 0x0 0x10000>;
-@@ -722,11 +735,13 @@
+@@ -727,11 +740,13 @@
  		clocks = <&cru SCLK_GMAC1>, <&cru SCLK_GMAC1_RX_TX>,
  			 <&cru SCLK_GMAC1_RX_TX>, <&cru CLK_MAC1_REFOUT>,
  			 <&cru ACLK_GMAC1>, <&cru PCLK_GMAC1>,
 -			 <&cru SCLK_GMAC1_RX_TX>, <&cru CLK_GMAC1_PTP_REF>;
 +			 <&cru SCLK_GMAC1_RX_TX>, <&cru CLK_GMAC1_PTP_REF>,
-+			 <&cru PCLK_XPCS>;
++			 <&cru PCLK_XPCS>, <&cru CLK_XPCS_EEE>;
  		clock-names = "stmmaceth", "mac_clk_rx",
  			      "mac_clk_tx", "clk_mac_refout",
  			      "aclk_mac", "pclk_mac",
 -			      "clk_mac_speed", "ptp_ref";
 +			      "clk_mac_speed", "ptp_ref",
-+			      "pclk_xpcs";
++			      "pclk_xpcs", "clk_xpcs_eee";
  		resets = <&cru SRST_A_GMAC1>;
  		reset-names = "stmmaceth";
  		rockchip,grf = <&grf>;
