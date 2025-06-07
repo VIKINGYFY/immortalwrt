@@ -79,15 +79,6 @@
 		};
 	};
 
-	i2c_pins: i2c-pins {
-		mux {
-			pins = "gpio42", "gpio43";
-			function = "blsp2_i2c";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-	};
-
 	mdio_pins: mdio-state {
 		mdc-pins {
 			pins = "gpio64";
@@ -107,9 +98,6 @@
 
 &blsp1_i2c3 {
 	status = "okay";
-
-	pinctrl-0 = <&i2c_pins>;
-	pinctrl-names = "default";
 
 	led-controller@62 {
 		compatible = "nxp,pca9633";

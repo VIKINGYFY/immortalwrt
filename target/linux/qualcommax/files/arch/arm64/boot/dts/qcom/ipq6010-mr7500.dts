@@ -431,18 +431,15 @@
 	};
 };
 
-&blsp1_uart3 {
-	pinctrl-0 = <&serial_3_pins>;
-	pinctrl-names = "default";
-	status = "okay";
-};
-
 &blsp1_uart2 {
-	pinctrl-0 = <&hsuart_pins &btcoex_pins>;
+	status = "okay";
+
+	pinctrl-0 = <&hsuart_pins>, <&btcoex_pins>;
 	pinctrl-names = "default";
+
 	dmas = <&blsp_dma 2>, <&blsp_dma 3>;
 	dma-names = "tx", "rx";
-	status = "okay";
+
 	bluetooth { // doesn't work
 		compatible = "csr,8811";
 		enable-gpios = <&tlmm 34 GPIO_ACTIVE_LOW>;
