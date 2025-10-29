@@ -69,9 +69,7 @@ proto_dhcpv6_setup() {
 
 	[ -z "$clientid" ] && clientid="$(uci_get network @globals[0] dhcp_default_duid)"
 	
-	# Validate and fix DUID format for DHCPv6
 	if [ -n "$clientid" ] && ! echo "$clientid" | grep -qE '^[0-9a-fA-F]+$'; then
-		# Try to get MAC from various interfaces
 		local mac=""
 		for check_iface in br-lan eth0 eth1; do
 			if [ -e "/sys/class/net/$check_iface/address" ]; then
@@ -80,7 +78,6 @@ proto_dhcpv6_setup() {
 			fi
 		done
 		
-		# Generate DUID-LL (Type 3) with Ethernet (Type 1)
 		if [ -n "$mac" ]; then
 			clientid="00030001${mac}"
 			uci set network.@globals[0].dhcp_default_duid="$clientid"
