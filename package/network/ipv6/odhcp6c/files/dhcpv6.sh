@@ -86,8 +86,6 @@ proto_dhcpv6_setup() {
 	fi
 	
 	[ -n "$clientid" ] && append opts "-c$clientid"
-	
-	[ -n "$clientid" ] && append opts "-c$clientid"
 
 	[ "$defaultreqopts" = "0" ] && append opts "-R"
 
