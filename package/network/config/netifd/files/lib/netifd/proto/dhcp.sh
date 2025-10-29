@@ -42,7 +42,6 @@ proto_dhcp_get_default_clientid() {
 	[ -e "/sys/class/net/$iface/ifindex" ] && iaid="$(cat "/sys/class/net/$iface/ifindex")"
 	duid="$(uci_get network @globals[0] dhcp_default_duid)"
 	
-	# Generate proper DUID if not exists or invalid
 	if [ -z "$duid" ] || ! echo "$duid" | grep -qE '^[0-9a-fA-F]+$'; then
 		# Try to get MAC from various interfaces
 		local mac=""
@@ -53,7 +52,6 @@ proto_dhcp_get_default_clientid() {
 			fi
 		done
 		
-		# Generate DUID-LL (Type 3) with Ethernet (Type 1)
 		if [ -n "$mac" ]; then
 			duid="00030001${mac}"
 			uci set network.@globals[0].dhcp_default_duid="$duid"
