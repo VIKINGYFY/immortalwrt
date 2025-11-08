@@ -36,7 +36,7 @@
 
 	chosen {
 		stdout-path = "serial0:115200n8";
-		bootargs-append = " root=/dev/ubiblock0_1 earlycon=msm_serial_dm,0x78b3000 consoleblank=0";
+		bootargs-append = "console=ttyMSM0,115200n8 earlycon=msm_serial_dm,0x78b3000 root=/dev/ubiblock0_1 rootwait swiotlb=1 coherent_pool=2M";
 	};
 
 	keys {
@@ -256,17 +256,12 @@
 				reg = <0x610000 0x080000>;
 				read-only;
 			};
-
 		};
 	};
 };
 
 &qpic_nand {
 	status = "okay";
-
-	partitions {
-		status = "disabled";
-	};
 
 	nand@0 {
 		#address-cells = <1>;
@@ -282,7 +277,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			rootfs: partition@0 {
+			partition@0 {
 				label = "rootfs";
 				reg = <0x00000000 0x03400000>;
 			};

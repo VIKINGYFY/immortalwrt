@@ -51,11 +51,11 @@ define Device/arcadyan_aw1000
 	$(call Device/UbiFit)
 	DEVICE_VENDOR := Arcadyan
 	DEVICE_MODEL := AW1000
-	BLOCKSIZE := 256k
-	PAGESIZE := 4096
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
 	SOC := ipq8072
 	DEVICE_DTS_CONFIG := config@hk09
-	DEVICE_PACKAGES := ipq-wifi-arcadyan_aw1000 kmod-gpio-nxp-74hc164 kmod-usb-serial-option uqmi
+	DEVICE_PACKAGES := ipq-wifi-arcadyan_aw1000 kmod-usb-serial-option uqmi
 endef
 TARGET_DEVICES += arcadyan_aw1000
 
