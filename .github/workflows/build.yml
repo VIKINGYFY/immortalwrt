@@ -10,7 +10,7 @@ env:
   # 您的 ImmortalWrt 仓库作为源代码
   REPO_URL: https://github.com/VIKINGYFY/immortalwrt
   REPO_BRANCH: main
-  CONFIG_FILE: ax18nano.config
+  CONFIG_FILE: ax18.config
   FIRMWARE_NAME: immortalwrt-ax18
   TZ: Asia/Shanghai
 
@@ -48,7 +48,7 @@ jobs:
           path: |
             ccache
             dl
-          key: ${{ runner.os }}-immortalwrt-${{ hashFiles('ax18nano.config', 'custom-files/**') }}
+          key: ${{ runner.os }}-immortalwrt-${{ hashFiles('ax18.config', 'custom-files/**') }}
           restore-keys: |
             ${{ runner.os }}-immortalwrt-
 
