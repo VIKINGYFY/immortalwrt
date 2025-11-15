@@ -654,7 +654,7 @@ define Device/bananapi_bpi-r4-lite
   DEVICE_DTC_FLAGS := --pad 4096
   DEVICE_DTS_DIR := ../dts
   DEVICE_DTS_LOADADDR := 0x4ff00000
-  DEVICE_PACKAGES := kmod-eeprom-at24 \
+  DEVICE_PACKAGES := mt7987-2p5g-phy-firmware kmod-eeprom-at24 \
 		     kmod-gpio-pca953x kmod-i2c-mux-pca954x kmod-rtc-pcf8563 \
 		     kmod-sfp e2fsprogs mkf2fs
   BLOCKSIZE := 128k
@@ -909,6 +909,45 @@ define Device/comfast_cf-e393ax
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 endef
 TARGET_DEVICES += comfast_cf-e393ax
+
+define Device/comfast_cf-wr632ax-common
+  DEVICE_VENDOR := COMFAST
+  DEVICE_MODEL := CF-WR632AX
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware \
+	kmod-hwmon-pwmfan kmod-usb3 automount
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  KERNEL_IN_UBI := 1
+endef
+
+define Device/comfast_cf-wr632ax
+  DEVICE_DTS := mt7981b-comfast-cf-wr632ax
+  IMAGE_SIZE := 65536k
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  SUPPORTED_DEVICES += cf-wr632ax
+  $(call Device/comfast_cf-wr632ax-common)
+endef
+TARGET_DEVICES += comfast_cf-wr632ax
+
+define Device/comfast_cf-wr632ax-ubootmod
+  DEVICE_VARIANT := (OpenWrt U-Boot layout)
+  DEVICE_DTS := mt7981b-comfast-cf-wr632ax-ubootmod
+  UBOOTENV_IN_UBI := 1
+  IMAGES := sysupgrade.itb
+  KERNEL_INITRAMFS_SUFFIX := -recovery.itb
+  KERNEL := kernel-bin | gzip
+  KERNEL_INITRAMFS := kernel-bin | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 64k
+  IMAGE/sysupgrade.itb := append-kernel | \
+	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | append-metadata
+  ARTIFACTS := preloader.bin bl31-uboot.fip
+  ARTIFACT/preloader.bin := mt7981-bl2 spim-nand-ddr3
+  ARTIFACT/bl31-uboot.fip := mt7981-bl31-uboot comfast_cf-wr632ax
+  $(call Device/comfast_cf-wr632ax-common)
+endef
+TARGET_DEVICES += comfast_cf-wr632ax-ubootmod
 
 define Device/confiabits_mt7981
   DEVICE_VENDOR := Confiabits
@@ -1855,7 +1894,7 @@ define Device/mediatek_mt7987a-rfb
   DEVICE_DTS_DIR := ../dts
   DEVICE_DTC_FLAGS := --pad 4096
   DEVICE_DTS_LOADADDR := 0x4ff00000
-  DEVICE_PACKAGES := mt798x-2p5g-phy-firmware-internal kmod-sfp blkid
+  DEVICE_PACKAGES := mt7987-2p5g-phy-firmware kmod-sfp
   KERNEL_LOADADDR := 0x40000000
   KERNEL := kernel-bin | gzip
   KERNEL_INITRAMFS := kernel-bin | lzma | \
@@ -2408,6 +2447,21 @@ define Device/tplink_fr365-v1
   DEVICE_PACKAGES := fitblk kmod-sfp kmod-usb3 kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware automount
 endef
 TARGET_DEVICES += tplink_fr365-v1
+
+define Device/tplink_be450
+  DEVICE_VENDOR := TP-Link
+  DEVICE_MODEL := BE450
+  DEVICE_DTS := mt7988d-tplink-be450
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES := kmod-mt7992-firmware kmod-usb3 \
+	    mt7988-2p5g-phy-firmware mt7988-wo-firmware
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  IMAGE_SIZE := 51200k
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += tplink_be450
 
 define Device/tplink_re6000xd
   DEVICE_VENDOR := TP-Link
