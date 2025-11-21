@@ -150,8 +150,10 @@ function device_htmode_append(config) {
 	/* 802.11n */
 	config.ieee80211n = 0;
 	if (config.band != '6g') {
-		if (config.htmode in [ 'VHT20', 'HT20', 'HE20', 'EHT20' ])
+		if (config.htmode in [ 'VHT20', 'HT20', 'HE20', 'EHT20' ]) {
 			config.ieee80211n = 1;
+			config.ht_capab = '';
+		}
 		if (config.htmode in [ 'HT40', 'HT40+', 'HT40-', 'VHT40', 'VHT80', 'VHT160', 'HE40', 'HE80', 'HE160', 'EHT40', 'EHT80', 'EHT160' ]) {
 			config.ieee80211n = 1;
 			if (!config.channel)
@@ -487,7 +489,7 @@ function generate(config) {
 		append_vars(config, [ 'airtime_mode' ]);
 
 	/* assoc/thresholds */
-	append_vars(config, [ 'rssi_reject_assoc_rssi', 'rssi_ignore_probe_request', 'iface_max_num_sta', 'no_probe_resp_if_max_sta' ]);
+	append_vars(config, [ 'rssi_reject_assoc_rssi', 'rssi_reject_assoc_timeout', 'rssi_ignore_probe_request', 'iface_max_num_sta', 'no_probe_resp_if_max_sta' ]);
 
 	/* ACS / Radar*/
 	if (!phy_features.radar_background || config.band != '5g')

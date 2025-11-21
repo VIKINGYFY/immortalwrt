@@ -830,7 +830,7 @@ define Device/cudy_r700
   DEVICE_MODEL := R700
   IMAGE_SIZE := 15872k
   UIMAGE_NAME := R29
-  DEVICE_PACKAGES := -uboot-envtools
+  DEVICE_PACKAGES := -uboot-envtools -wpad-basic-mbedtls
 endef
 TARGET_DEVICES += cudy_r700
 
@@ -1019,6 +1019,9 @@ define Device/dlink_dir-2660-a1
   $(Device/dlink_dir_nand_128m)
   DEVICE_MODEL := DIR-2660
   DEVICE_VARIANT := A1
+  DEVICE_ALT0_VENDOR := D-Link
+  DEVICE_ALT0_MODEL := DIR-2660
+  DEVICE_ALT0_VARIANT := A2
 endef
 TARGET_DEVICES += dlink_dir-2660-a1
 
@@ -1239,6 +1242,13 @@ define Device/edimax_rg21s
   DEVICE_PACKAGES := kmod-mt7615-firmware -uboot-envtools
 endef
 TARGET_DEVICES += edimax_rg21s
+
+define Device/edup_ep-rt2960s
+  $(Device/haier-sim_wr1800k)
+  DEVICE_VENDOR := EDUP
+  DEVICE_MODEL := EP-RT2960S
+endef
+TARGET_DEVICES += edup_ep-rt2960s
 
 define Device/elecom_wrc-gs
   $(Device/dsa-migration)
@@ -1867,6 +1877,27 @@ define Device/iptime_a8004t
   DEVICE_PACKAGES := kmod-mt7615-firmware kmod-usb3 -uboot-envtools
 endef
 TARGET_DEVICES += iptime_a8004t
+
+define Device/iptime_ax2002m
+  $(Device/nand)
+  IMAGE_SIZE := 121344k
+  KERNEL_LOADADDR := 0x82000000
+  KERNEL := kernel-bin | relocate-kernel $(loadaddr-y) | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
+ifeq ($(IB),)
+  ARTIFACTS := initramfs-factory.bin
+  ARTIFACT/initramfs-factory.bin := append-image-stage initramfs-kernel.bin | \
+	check-size | iptime-crc32 ax2002m
+endif
+  DEVICE_VENDOR := ipTIME
+  DEVICE_MODEL := AX2002MESH
+  DEVICE_PACKAGES := kmod-mt7915-firmware
+  DEVICE_COMPAT_VERSION := 2.0
+  DEVICE_COMPAT_MESSAGE := NMBM has been newly enabled, and its flash block \
+	mapping might be incompatible with existing installation. \
+	New installation with factory image via recovery mode is recommended.
+endef
+TARGET_DEVICES += iptime_ax2002m
 
 define Device/iptime_ax2004m
   $(Device/nand)
@@ -2918,6 +2949,7 @@ define Device/tplink_eap235-wall-v1
   IMAGE_SIZE := 13440k
   IMAGE/factory.bin := append-rootfs | tplink-safeloader factory | \
 	pad-extra 128
+  DEFAULT := n
 endef
 TARGET_DEVICES += tplink_eap235-wall-v1
 
@@ -2941,7 +2973,9 @@ define Device/tplink_eap615-wall-v1
   DEVICE_VARIANT := v1
   DEVICE_PACKAGES := kmod-mt7915-firmware -uboot-envtools
   TPLINK_BOARD_ID := EAP615-WALL-V1
-  KERNEL := kernel-bin | lzma -d22 | fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb | pad-to 64k
+  KERNEL_LOADADDR := 0x82000000
+  KERNEL := kernel-bin | relocate-kernel $(loadaddr-y) | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb | pad-to 64k
   KERNEL_INITRAMFS := kernel-bin | lzma -d22 | fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
   IMAGE_SIZE := 13248k
 endef
@@ -3699,6 +3733,7 @@ TARGET_DEVICES += zbtlink_zbt-wg3526-32m
 
 define Device/zio_freezio
   $(Device/dsa-migration)
+  $(Device/uimage-lzma-loader)
   IMAGE_SIZE := 16064k
   DEVICE_VENDOR := ZIO
   DEVICE_MODEL := FREEZIO
