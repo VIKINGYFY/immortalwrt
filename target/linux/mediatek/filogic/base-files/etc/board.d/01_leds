@@ -27,6 +27,7 @@ snr,snr-cpe-ax2)
 asus,tuf-ax4200)
 	ucidef_set_led_netdev "wan" "WAN" "mdio-bus:06:white:wan" "eth1" "link tx rx"
 	;;
+asus,tuf-ax4200q|\
 asus,tuf-ax6000)
 	ucidef_set_led_netdev "lan5" "LAN5" "mdio-bus:05:white:lan" "lan5" "link tx rx"
 	ucidef_set_led_netdev "wan" "WAN" "mdio-bus:06:white:wan" "eth1" "link tx rx"
@@ -60,7 +61,8 @@ cudy,re3000-v1|\
 wavlink,wl-wn573hx3)
 	ucidef_set_led_netdev "lan" "lan" "green:lan" "eth0" "link tx rx"
 	;;
-cudy,wr3000-v1)
+cudy,wr3000-v1|\
+cudy,wr3000e-v1)
 	ucidef_set_led_netdev "wan" "wan" "blue:wan" "wan"
 	;;
 cudy,wr3000h-v1|\
@@ -120,6 +122,12 @@ mercusys,mr80x-v3)
 	ucidef_set_led_netdev "lan3" "lan-3" "green:lan-3" "lan3" "link tx rx"
 	ucidef_set_led_netdev "wan" "wan" "green:wan" "wan" "link tx rx"
 	;;
+mercusys,mr85x)
+	ucidef_set_led_switch "lan0" "lan-0" "green:lan-0" "switch0" "0x01"
+	ucidef_set_led_switch "lan1" "lan-1" "green:lan-1" "switch0" "0x02"
+	ucidef_set_led_switch "lan2" "lan-2" "green:lan-2" "switch0" "0x04"
+	ucidef_set_led_netdev "wan" "wan" "green:wan" "eth1" "link tx rx"
+	;;
 mercusys,mr90x-v1|\
 mercusys,mr90x-v1-ubi)
 	ucidef_set_led_netdev "lan-0" "lan-0" "green:lan-0" "lan0" "link tx rx"
@@ -134,6 +142,17 @@ netcore,n60-pro)
 	ucidef_set_led_netdev "lan1" "LAN1" "mdio-bus:05:green:lan" "lan1" "link tx rx"
 	ucidef_set_led_netdev "wanact" "WANACT" "mdio-bus:06:green:wan" "eth1" "tx rx"
 	ucidef_set_led_netdev "wanlink" "WANLINK" "blue:wan" "eth1" "link"
+	;;
+netgear,eax17)
+	ucidef_set_led_default power_green "Power (green)" green:power 1
+	ucidef_set_led_default power_red   "Power (red)"   red:power   0
+	ucidef_set_led_default rlink_red   "Client (red)"  red:lan     0
+	ucidef_set_led_default clink_red   "Router (red)"  red:wan     0
+	ucidef_set_led_wps     wps_green   "WPS (green)"   green:wps
+	ucidef_set_led_netdev  lan_speed_fast  "LAN Link (green)"     green:status  eth0
+	uci -q set system.lan_speed_fast.mode='link'
+	ucidef_set_led_netdev  lan_speed_slow  "LAN Activity (yellow)" yellow:status eth0
+	uci -q set system.lan_speed_slow.mode='tx rx'
 	;;
 netgear,wax220)
 	ucidef_set_led_netdev "eth0" "LAN" "green:lan" "eth0"
@@ -252,6 +271,10 @@ tplink,tl-7dr7250-v1)
 	ucidef_set_led_netdev "lan1" "LAN1" "mt7530-0:01:green:lan" "lan1"
 	ucidef_set_led_netdev "lan2" "LAN2" "mt7530-0:00:green:lan" "lan2"
 	ucidef_set_led_netdev "lan3" "LAN3" "mdio-bus:0f:green:lan" "lan3"
+	;;
+wavlink,wl-wn536ax6-a)
+	ucidef_set_led_netdev "wifi" "wifi" "blue:wlan" "phy1-ap0" "link"
+	ucidef_set_led_netdev "wan" "wan" "blue:wan" "eth1" "link tx rx"
 	;;
 wavlink,wl-wn551x3)
         ucidef_set_led_netdev "lan-1" "lan-1" "green:lan-1" "lan1" "link tx rx"

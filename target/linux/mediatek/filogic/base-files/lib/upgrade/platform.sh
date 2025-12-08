@@ -148,6 +148,7 @@ platform_do_upgrade() {
 	asus,rt-ax52|\
 	asus,rt-ax59u|\
 	asus,tuf-ax4200|\
+	asus,tuf-ax4200q|\
 	asus,tuf-ax6000|\
 	asus,zenwifi-bt8)
 		CI_UBIPART="UBI_DEV"
@@ -162,9 +163,10 @@ platform_do_upgrade() {
 		;;
 	cudy,re3000-v1|\
 	cudy,wr3000-v1|\
-	yuncore,ax835|\
+	totolink,x6000r|\
 	wavlink,wl-wn573hx3|\
-	totolink,x6000r)
+	widelantech,wap430x|\
+	yuncore,ax835)
 		default_do_upgrade "$1"
 		;;
 	dlink,aquila-pro-ai-m30-a1|\
@@ -188,12 +190,24 @@ platform_do_upgrade() {
 		nand_do_upgrade "$1"
 		;;
 	mercusys,mr80x-v3|\
+	mercusys,mr85x|\
 	mercusys,mr90x-v1|\
 	tplink,archer-ax80-v1|\
 	tplink,be450|\
 	tplink,re6000xd)
 		CI_UBIPART="ubi0"
 		nand_do_upgrade "$1"
+		;;
+	netgear,eax17)
+		echo "UPGRADING SECOND SLOT"
+		CI_KERNPART="kernel2"
+		CI_ROOTPART="rootfs2"
+		nand_do_flash_file "$1" || nand_do_upgrade_failed
+		echo "UPGRADING PRIMARY SLOT"
+		CI_KERNPART="kernel"
+		CI_ROOTPART="rootfs"
+		nand_do_flash_file "$1" || nand_do_upgrade_failed
+		nand_do_upgrade_success
 		;;
 	tplink,fr365-v1)
 		CI_UBIPART="ubi"
@@ -369,6 +383,7 @@ platform_pre_upgrade() {
 	asus,rt-ax52|\
 	asus,rt-ax59u|\
 	asus,tuf-ax4200|\
+	asus,tuf-ax4200q|\
 	asus,tuf-ax6000|\
 	asus,zenwifi-bt8)
 		asus_initial_setup
