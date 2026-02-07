@@ -159,6 +159,16 @@
 	pinctrl-names = "default";
 };
 
+&eth0 {
+	nvmem-cells = <&macaddr_uboot_ethaddr 0>;
+	nvmem-cell-names = "mac-address";
+};
+
+&ppe {
+	nvmem-cells = <&macaddr_uboot_ethaddr 1>;
+	nvmem-cell-names = "mac-address";
+};
+
 &gswip_mdio {
 	phy0: ethernet-phy@0 {
 		reg = <0x0>;
@@ -207,6 +217,8 @@
 		label = "wan";
 		phy-mode = "rgmii";
 		phy-handle = <&phy5>;
+		nvmem-cells = <&macaddr_uboot_ethaddr 1>;
+		nvmem-cell-names = "mac-address";
 	};
 };
 

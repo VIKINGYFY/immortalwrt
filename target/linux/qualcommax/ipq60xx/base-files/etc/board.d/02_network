@@ -22,9 +22,9 @@ ipq60xx_setup_interfaces()
 	cambiumnetworks,xe3-4)
 		ucidef_set_interface_lan "lan1 lan2" "dhcp"
 		;;
-	jdcloud,re-cs-02|\
 	link,nn6000-v2|\
 	glinet,gl-ax1800|\
+	jdcloud,re-cs-02|\
 	linksys,mr7350|\
 	linksys,mr7500|\
 	yuncore,fap650)
@@ -35,8 +35,11 @@ ipq60xx_setup_interfaces()
 	jdcloud,re-ss-01|\
 	jdcloud,re-ss-01-spi|\
 	jdcloud,re-cs-07|\
+	jdcloud,re-ss-01|\
+	philips,ly1800|\
 	redmi,ax5|\
 	redmi,ax5-jdcloud|\
+	sy,y6010|\
 	xiaomi,ax1800|\
 	zn,m2|\
 	qihoo,360v6)
@@ -46,6 +49,7 @@ ipq60xx_setup_interfaces()
 	netgear,wax610|\
 	netgear,wax610y|\
 	tplink,eap610od|\
+	tplink,eap620hd-v3|\
 	tplink,eap623od-hd-v1|\
 	tplink,eap625od-hd-v1)
 		ucidef_set_interface_lan "lan" "dhcp"
@@ -73,6 +77,7 @@ ipq60xx_setup_macs()
 		label_mac=$wan_mac
 		;;
 	tplink,eap610od|\
+	tplink,eap620hd-v3|\
 	tplink,eap623od-hd-v1|\
 	tplink,eap625od-hd-v1)
 		lan_mac=$(get_mac_binary /tmp/factory_data/default-mac 0)

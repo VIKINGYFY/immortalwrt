@@ -251,7 +251,15 @@ probe/assoc/auth requests via object subscribe.
  
  	/* followed by SSID and Supported rates; and HT capabilities if 802.11n
  	 * is used */
-@@ -6073,6 +6090,13 @@ static void handle_assoc(struct hostapd_
+@@ -6057,6 +6074,7 @@ static void handle_assoc(struct hostapd_
+ 
+ #ifdef CONFIG_TAXONOMY
+ 	taxonomy_sta_info_assoc_req(hapd, sta, pos, left);
++	taxonomy_sta_info_assoc_frame(hapd, sta, mgmt, len);
+ #endif /* CONFIG_TAXONOMY */
+ 
+ 	sta->pending_wds_enable = 0;
+@@ -6073,6 +6091,13 @@ static void handle_assoc(struct hostapd_
  	if (set_beacon)
  		ieee802_11_update_beacons(hapd->iface);
  
@@ -265,7 +273,7 @@ probe/assoc/auth requests via object subscribe.
   fail:
  
  	/*
-@@ -6302,6 +6326,7 @@ static void handle_disassoc(struct hosta
+@@ -6302,6 +6327,7 @@ static void handle_disassoc(struct hosta
  			   (unsigned long) len);
  		return;
  	}
@@ -273,7 +281,7 @@ probe/assoc/auth requests via object subscribe.
  
  	sta = ap_get_sta(hapd, mgmt->sa);
  	if (!sta) {
-@@ -6333,6 +6358,8 @@ static void handle_deauth(struct hostapd
+@@ -6333,6 +6359,8 @@ static void handle_deauth(struct hostapd
  	/* Clear the PTKSA cache entries for PASN */
  	ptksa_cache_flush(hapd->ptksa, mgmt->sa, WPA_CIPHER_NONE);
  
@@ -392,7 +400,15 @@ probe/assoc/auth requests via object subscribe.
  		    hapd->msg_ctx_parent != hapd->msg_ctx)
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -302,6 +302,7 @@ struct sta_info {
+@@ -255,6 +255,7 @@ struct sta_info {
+ #ifdef CONFIG_TAXONOMY
+ 	struct wpabuf *probe_ie_taxonomy;
+ 	struct wpabuf *assoc_ie_taxonomy;
++	struct wpabuf *assoc_frame_taxonomy;
+ #endif /* CONFIG_TAXONOMY */
+ 
+ #ifdef CONFIG_FILS
+@@ -302,6 +303,7 @@ struct sta_info {
  #endif /* CONFIG_TESTING_OPTIONS */
  #ifdef CONFIG_AIRTIME_POLICY
  	unsigned int airtime_weight;
@@ -636,32 +652,6 @@ probe/assoc/auth requests via object subscribe.
 +
 +	eloop_register_cb(uloop_poll_handler, uloop_timeout_poll_handler);
 +}
---- a/wpa_supplicant/Makefile
-+++ b/wpa_supplicant/Makefile
-@@ -191,6 +191,13 @@ ifdef CONFIG_EAPOL_TEST
- CFLAGS += -Werror -DEAPOL_TEST
- endif
- 
-+ifdef CONFIG_UBUS
-+CFLAGS += -DUBUS_SUPPORT
-+OBJS += ubus.o
-+OBJS += ../src/utils/uloop.o
-+LIBS += -lubox -lubus
-+endif
-+
- ifdef CONFIG_CODE_COVERAGE
- CFLAGS += -O0 -fprofile-arcs -ftest-coverage -U_FORTIFY_SOURCE
- LIBS += -lgcov
-@@ -1046,6 +1053,9 @@ ifdef CONFIG_CTRL_IFACE_MIB
- CFLAGS += -DCONFIG_CTRL_IFACE_MIB
- endif
- OBJS += ../src/ap/ctrl_iface_ap.o
-+ifdef CONFIG_UBUS
-+OBJS += ../src/ap/ubus.o
-+endif
- endif
- 
- CFLAGS += -DEAP_SERVER -DEAP_SERVER_IDENTITY
 --- a/wpa_supplicant/main.c
 +++ b/wpa_supplicant/main.c
 @@ -203,7 +203,7 @@ int main(int argc, char *argv[])
@@ -683,82 +673,31 @@ probe/assoc/auth requests via object subscribe.
  		case 'o':
  			params.override_driver = optarg;
  			break;
---- a/wpa_supplicant/wpa_supplicant.c
-+++ b/wpa_supplicant/wpa_supplicant.c
-@@ -8289,6 +8289,8 @@ struct wpa_supplicant * wpa_supplicant_a
- 	}
- #endif /* CONFIG_P2P */
- 
-+	wpas_ubus_add_bss(wpa_s);
-+
- 	return wpa_s;
+--- a/src/ap/taxonomy.c
++++ b/src/ap/taxonomy.c
+@@ -290,3 +290,12 @@ void taxonomy_sta_info_assoc_req(const s
+ 	wpabuf_free(sta->assoc_ie_taxonomy);
+ 	sta->assoc_ie_taxonomy = wpabuf_alloc_copy(ie, ie_len);
  }
- 
-@@ -8315,6 +8317,8 @@ int wpa_supplicant_remove_iface(struct w
- 	struct wpa_supplicant *parent = wpa_s->parent;
- #endif /* CONFIG_MESH */
- 
-+	wpas_ubus_free_bss(wpa_s);
 +
- 	/* Remove interface from the global list of interfaces */
- 	prev = global->ifaces;
- 	if (prev == wpa_s) {
-@@ -8661,8 +8665,12 @@ int wpa_supplicant_run(struct wpa_global
- 	eloop_register_signal_terminate(wpa_supplicant_terminate, global);
- 	eloop_register_signal_reconfig(wpa_supplicant_reconfig, global);
- 
-+	wpas_ubus_add(global);
-+
- 	eloop_run();
- 
-+	wpas_ubus_free(global);
-+
- 	return 0;
- }
- 
---- a/wpa_supplicant/wpa_supplicant_i.h
-+++ b/wpa_supplicant/wpa_supplicant_i.h
-@@ -21,6 +21,7 @@
- #include "config_ssid.h"
- #include "wmm_ac.h"
- #include "pasn/pasn_common.h"
-+#include "ubus.h"
- 
- extern const char *const wpa_supplicant_version;
- extern const char *const wpa_supplicant_license;
-@@ -319,6 +320,8 @@ struct wpa_global {
- #endif /* CONFIG_WIFI_DISPLAY */
- 
- 	struct psk_list_entry *add_psk; /* From group formation */
-+
-+	struct ubus_object ubus_global;
- };
- 
- 
-@@ -697,6 +700,7 @@ struct wpa_supplicant {
- 	unsigned char own_addr[ETH_ALEN];
- 	unsigned char perm_addr[ETH_ALEN];
- 	char ifname[100];
-+	struct wpas_ubus_bss ubus;
- #ifdef CONFIG_MATCH_IFACE
- 	int matched;
- #endif /* CONFIG_MATCH_IFACE */
---- a/wpa_supplicant/wps_supplicant.c
-+++ b/wpa_supplicant/wps_supplicant.c
-@@ -33,6 +33,7 @@
- #include "p2p/p2p.h"
- #include "p2p_supplicant.h"
- #include "wps_supplicant.h"
-+#include "ubus.h"
- 
- 
- #ifndef WPS_PIN_SCAN_IGNORE_SEL_REG
-@@ -401,6 +402,8 @@ static int wpa_supplicant_wps_cred(void
- 	wpa_hexdump_key(MSG_DEBUG, "WPS: Received Credential attribute",
- 			cred->cred_attr, cred->cred_attr_len);
- 
-+	wpas_ubus_notify(wpa_s, cred);
-+
- 	if (wpa_s->conf->wps_cred_processing == 1)
- 		return 0;
++void taxonomy_sta_info_assoc_frame(const struct hostapd_data *hapd,
++				   struct sta_info *sta,
++				   const struct ieee80211_mgmt *mgmt,
++				   size_t len)
++{
++	wpabuf_free(sta->assoc_frame_taxonomy);
++	sta->assoc_frame_taxonomy = wpabuf_alloc_copy(mgmt, len);
++}
+--- a/src/ap/taxonomy.h
++++ b/src/ap/taxonomy.h
+@@ -18,6 +18,10 @@ void taxonomy_hostapd_sta_info_probe_req
+ void taxonomy_sta_info_assoc_req(const struct hostapd_data *hapd,
+ 				 struct sta_info *sta,
+ 				 const u8 *ie, size_t ie_len);
++void taxonomy_sta_info_assoc_frame(const struct hostapd_data *hapd,
++				   struct sta_info *sta,
++			  	   const struct ieee80211_mgmt *mgmt,
++				   size_t len);
+ int retrieve_sta_taxonomy(const struct hostapd_data *hapd,
+ 			  struct sta_info *sta, char *buf, size_t buflen);
  

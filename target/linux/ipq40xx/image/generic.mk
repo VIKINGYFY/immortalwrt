@@ -189,6 +189,15 @@ define Device/aruba_ap-365
 endef
 TARGET_DEVICES += aruba_ap-365
 
+define Device/asus_map-ac1300
+	$(call Device/FitImageLzma)
+	DEVICE_VENDOR := ASUS
+	DEVICE_MODEL := Lyra Mini (MAP-AC1300)
+	SOC := qcom-ipq4018
+	DEVICE_PACKAGES := kmod-ath3k
+endef
+TARGET_DEVICES += asus_map-ac1300
+
 define Device/asus_map-ac2200
 	$(call Device/FitImageLzma)
 	DEVICE_VENDOR := ASUS
@@ -705,6 +714,23 @@ define Device/linksys_ea8300
 endef
 TARGET_DEVICES += linksys_ea8300
 
+define Device/linksys_mr6350
+	$(call Device/FitzImage)
+	$(call Device/kernel-size-6350-8300)
+	DEVICE_VENDOR := Linksys
+	DEVICE_MODEL := MR6350
+	SOC := qcom-ipq4019
+	KERNEL_SIZE := 5120k
+	IMAGE_SIZE := 84992k
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	UBINIZE_OPTS := -E 5    # EOD marks to "hide" factory sig at EOF
+	IMAGES += factory.bin
+	IMAGE/factory.bin  := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi | linksys-image type=MR6350
+	DEVICE_PACKAGES := ipq-wifi-linksys_mr6350 kmod-usb-ledtrig-usbport
+endef
+TARGET_DEVICES += linksys_mr6350
+
 define Device/linksys_mr8300
 	$(call Device/FitzImage)
 	$(call Device/kernel-size-6350-8300)
@@ -722,6 +748,25 @@ define Device/linksys_mr8300
 	DEVICE_PACKAGES := ath10k-firmware-qca9888-ct kmod-usb-ledtrig-usbport
 endef
 TARGET_DEVICES += linksys_mr8300
+
+define Device/linksys_whw01
+	$(call Device/FitzImage)
+	DEVICE_VENDOR := Linksys
+	DEVICE_MODEL := WHW01
+	DEVICE_ALT0_VENDOR := Linksys
+	DEVICE_ALT0_MODEL := VLP01
+	KERNEL_SIZE := 6144k
+	IMAGE_SIZE := 75776k
+	NAND_SIZE := 256m
+	SOC := qcom-ipq4018
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	UBINIZE_OPTS := -E 5    # EOD marks to "hide" factory sig at EOF
+	IMAGES += factory.bin
+	IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi | linksys-image type=WHW01
+	DEVICE_PACKAGES := uboot-envtools kmod-leds-pca963x
+endef
+TARGET_DEVICES += linksys_whw01
 
 define Device/linksys_whw03
 	$(call Device/FitzImage)
@@ -755,23 +800,6 @@ define Device/linksys_whw03v2
 endef
 TARGET_DEVICES += linksys_whw03v2
 
-define Device/linksys_whw01
-	$(call Device/FitzImage)
-	DEVICE_VENDOR := Linksys
-	DEVICE_MODEL := WHW01
-	KERNEL_SIZE := 6144k
-	IMAGE_SIZE := 75776k
-	NAND_SIZE := 256m
-	SOC := qcom-ipq4018
-	BLOCKSIZE := 128k
-	PAGESIZE := 2048
-	UBINIZE_OPTS := -E 5    # EOD marks to "hide" factory sig at EOF
-	IMAGES += factory.bin
-	IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi | linksys-image type=WHW01
-	DEVICE_PACKAGES := uboot-envtools kmod-leds-pca963x
-endef
-TARGET_DEVICES += linksys_whw01
-
 define Device/luma_wrtq-329acn
 	$(call Device/FitImage)
 	DEVICE_VENDOR := Luma Home
@@ -794,6 +822,22 @@ define Device/meraki_common
 	DEVICE_PACKAGES := ath10k-firmware-qca9887-ct
 endef
 
+define Device/meraki_mr20
+	$(call Device/meraki_common)
+	DEVICE_MODEL := MR20
+	DEVICE_DTS_CONFIG := config@4
+	DEVICE_PACKAGES := ipq-wifi-meraki_underdog
+endef
+TARGET_DEVICES += meraki_mr20
+
+define Device/meraki_mr30h
+	$(call Device/meraki_common)
+	DEVICE_MODEL := MR30H
+	DEVICE_DTS_CONFIG := config@2
+	DEVICE_PACKAGES += ipq-wifi-meraki_mr30h
+endef
+TARGET_DEVICES += meraki_mr30h
+
 define Device/meraki_mr33
 	$(call Device/meraki_common)
 	DEVICE_MODEL := MR33
@@ -806,6 +850,22 @@ define Device/meraki_mr74
 	DEVICE_DTS_CONFIG := config@3
 endef
 TARGET_DEVICES += meraki_mr74
+
+define Device/meraki_z3
+	$(call Device/meraki_common)
+	DEVICE_MODEL := Z3
+	DEVICE_DTS_CONFIG := config@1
+	DEVICE_PACKAGES := -ath10k-firmware-qca9887-ct ipq-wifi-meraki_z3
+endef
+TARGET_DEVICES += meraki_z3
+
+define Device/meraki_gx20
+	$(call Device/meraki_common)
+	DEVICE_MODEL := GX20
+	DEVICE_DTS_CONFIG := config@2
+	DEVICE_PACKAGES := -ath10k-board-qca4019 -ath10k-firmware-qca9887-ct
+endef
+TARGET_DEVICES += meraki_gx20
 
 define Device/mobipromo_cm520-79f
 	$(call Device/FitzImage)
@@ -852,11 +912,13 @@ define Device/netgear_orbi
 		append-rootfs | pad-rootfs | netgear-dni
 	IMAGE/sysupgrade.bin/squashfs := append-rootfs | pad-to 64k | \
 		sysupgrade-tar rootfs=$$$$@ | append-metadata
-	DEVICE_PACKAGES := ath10k-firmware-qca9984-ct e2fsprogs kmod-fs-ext4 losetup
+	DEVICE_PACKAGES := e2fsprogs kmod-fs-ext4 losetup
 endef
 
 define Device/netgear_lbr20
-	$(call Device/netgear_orbi)
+	$(call Device/DniImage)
+	SOC := qcom-ipq4019
+	DEVICE_VENDOR := NETGEAR
 	DEVICE_MODEL := LBR20
 	NETGEAR_BOARD_ID := LBR20
 	NETGEAR_HW_ID := 29766182+0+256+512+2x2+2x2+2x2+1
@@ -874,12 +936,46 @@ define Device/netgear_lbr20
 endef
 TARGET_DEVICES += netgear_lbr20
 
+define Device/netgear_rbx20
+	$(call Device/DniImage)
+	SOC := qcom-ipq4019
+	DEVICE_VENDOR := NETGEAR
+	KERNEL_SIZE := 7340032
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	UBINIZE_OPTS := -E 5
+	IMAGE/factory.img := append-kernel | pad-offset $$$$(BLOCKSIZE) 64 | \
+		append-uImage-fakehdr filesystem | pad-to $$$$(KERNEL_SIZE) | \
+		append-ubi | netgear-dni
+	IMAGE/sysupgrade.bin := append-kernel | pad-offset $$$$(BLOCKSIZE) 64 | \
+		append-uImage-fakehdr filesystem | sysupgrade-tar kernel=$$$$@ | \
+		append-metadata
+	DEVICE_PACKAGES := ipq-wifi-netgear_rbk20 ath10k-firmware-qca9888-ct
+endef
+
+define Device/netgear_rbr20
+	$(call Device/netgear_rbx20)
+	DEVICE_MODEL := RBR20
+	NETGEAR_BOARD_ID := RBR20
+	NETGEAR_HW_ID := 29765641+0+256+512+2x2+2x2+2x2
+endef
+TARGET_DEVICES += netgear_rbr20
+
+define Device/netgear_rbs20
+	$(call Device/netgear_rbx20)
+	DEVICE_MODEL := RBS20
+	NETGEAR_BOARD_ID := RBS20
+	NETGEAR_HW_ID := 29765641+0+128+512+2x2+2x2+2x2
+endef
+TARGET_DEVICES += netgear_rbs20
+
 define Device/netgear_rbx40
 	$(call Device/netgear_orbi)
 	NETGEAR_HW_ID := 29765515+0+4096+512+2x2+2x2+2x2
 	KERNEL_SIZE := 3932160
 	ROOTFS_SIZE := 32243712
 	IMAGE_SIZE := 36175872
+	DEVICE_PACKAGES += ipq-wifi-netgear_rbk40 ath10k-firmware-qca9888-ct
 endef
 
 define Device/netgear_rbr40
@@ -904,6 +1000,7 @@ define Device/netgear_rbx50
 	KERNEL_SIZE := 3932160
 	ROOTFS_SIZE := 32243712
 	IMAGE_SIZE := 36175872
+	DEVICE_PACKAGES += ath10k-firmware-qca9984-ct
 endef
 
 define Device/netgear_rbr50
@@ -928,6 +1025,7 @@ define Device/netgear_srx60
 	KERNEL_SIZE := 3932160
 	ROOTFS_SIZE := 32243712
 	IMAGE_SIZE := 36175872
+	DEVICE_PACKAGES += ath10k-firmware-qca9984-ct
 endef
 
 define Device/netgear_srr60

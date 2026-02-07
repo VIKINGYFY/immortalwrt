@@ -109,15 +109,17 @@
 			drive-strength = <6>;
 			bias-pull-down;
 		};
+
 		mux_1 {
-			pins = "gpio53";
-			function = "pta1_0";
+			pins = "gpio52";
+			function = "pta1_2";
 			drive-strength = <6>;
 			bias-pull-down;
 		};
+
 		mux_2 {
-			pins = "gpio52";
-			function = "pta1_2";
+			pins = "gpio53";
+			function = "pta1_0";
 			drive-strength = <6>;
 			bias-pull-down;
 		};
@@ -359,7 +361,8 @@
 	dmas = <&blsp_dma 2>, <&blsp_dma 3>;
 	dma-names = "tx", "rx";
 
-	bluetooth { // doesn't work
+	// doesn't work
+	bluetooth {
 		compatible = "csr,8811";
 		enable-gpios = <&tlmm 34 GPIO_ACTIVE_LOW>;
 	};
@@ -369,8 +372,6 @@
 	status = "okay";
 
 	nand@0 {
-		#address-cells = <1>;
-		#size-cells = <1>;
 		reg = <0>;
 
 		nand-ecc-strength = <4>;

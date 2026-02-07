@@ -22,7 +22,7 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  	status = "okay";
 --- a/arch/arm64/boot/dts/rockchip/rk3399-nanopi-r4s.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3399-nanopi-r4s.dts
-@@ -119,6 +119,11 @@
+@@ -118,6 +118,11 @@
  	status = "disabled";
  };
  
@@ -34,57 +34,36 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  &u2phy0_host {
  	phy-supply = <&vdd_5v>;
  };
---- a/arch/arm64/boot/dts/rockchip/rk3588-armsom-sige7.dts
-+++ b/arch/arm64/boot/dts/rockchip/rk3588-armsom-sige7.dts
-@@ -346,7 +346,7 @@
- 	max-frequency = <200000000>;
- 	no-sdio;
- 	no-mmc;
+--- a/arch/arm64/boot/dts/rockchip/rk3568-9tripod-x3568-v4.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3568-9tripod-x3568-v4.dts
+@@ -755,7 +755,7 @@
+ 	disable-wp;
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&sdmmc0_bus4 &sdmmc0_clk &sdmmc0_cmd &sdmmc0_det>;
 -	sd-uhs-sdr104;
 +	sd-uhs-sdr50;
- 	vmmc-supply = <&vcc_3v3_s3>;
- 	vqmmc-supply = <&vccio_sd_s0>;
+ 	vmmc-supply = <&vcc3v3_sd>;
+ 	vqmmc-supply = <&vccio_sd>;
  	status = "okay";
---- a/arch/arm64/boot/dts/rockchip/rk3588-nanopc-t6.dtsi
-+++ b/arch/arm64/boot/dts/rockchip/rk3588-nanopc-t6.dtsi
-@@ -618,8 +618,7 @@
- 	no-sd;
+--- a/arch/arm64/boot/dts/rockchip/rk3568-photonicat.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3568-photonicat.dts
+@@ -433,7 +433,8 @@
+ /* eMMC */
+ &sdhci {
+ 	bus-width = <8>;
+-	max-frequency = <200000000>;
++	cap-mmc-highspeed;
++	max-frequency = <150000000>;
+ 	mmc-hs200-1_8v;
  	non-removable;
- 	max-frequency = <200000000>;
--	mmc-hs400-1_8v;
--	mmc-hs400-enhanced-strobe;
-+	mmc-hs200-1_8v;
- 	status = "okay";
- };
- 
-@@ -631,7 +630,7 @@
- 	disable-wp;
- 	no-mmc;
- 	no-sdio;
+ 	pinctrl-names = "default";
+@@ -467,7 +468,8 @@
+ 	non-removable;
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&sdmmc1_bus4 &sdmmc1_cmd &sdmmc1_clk>;
 -	sd-uhs-sdr104;
++	sd-uhs-sdr25;
 +	sd-uhs-sdr50;
- 	vmmc-supply = <&vcc3v3_sd_s0>;
- 	vqmmc-supply = <&vccio_sd_s0>;
- 	status = "okay";
---- a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b-5bp-5t.dtsi
-+++ b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b-5bp-5t.dtsi
-@@ -452,7 +452,7 @@
- 	cap-sd-highspeed;
- 	cd-gpios = <&gpio0 RK_PA4 GPIO_ACTIVE_LOW>;
- 	disable-wp;
--	sd-uhs-sdr104;
-+	sd-uhs-sdr50;
- 	vmmc-supply = <&vcc_3v3_s3>;
- 	vqmmc-supply = <&vccio_sd_s0>;
- 	status = "okay";
---- a/arch/arm64/boot/dts/rockchip/rk3588s-rock-5a.dts
-+++ b/arch/arm64/boot/dts/rockchip/rk3588s-rock-5a.dts
-@@ -440,7 +440,7 @@
- 	max-frequency = <150000000>;
- 	no-sdio;
- 	no-mmc;
--	sd-uhs-sdr104;
-+	sd-uhs-sdr50;
- 	vmmc-supply = <&vcc_3v3_s0>;
- 	vqmmc-supply = <&vccio_sd_s0>;
- 	status = "okay";
+ 	vmmc-supply = <&vcc3v3_sys>;
+ 	vqmmc-supply = <&vcc_1v8>;
+ 	#address-cells = <1>;

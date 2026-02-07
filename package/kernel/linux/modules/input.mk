@@ -83,6 +83,22 @@ endef
 
 $(eval $(call KernelPackage,input-evdev))
 
+define KernelPackage/input-adc-keys
+  SUBMENU:=$(INPUT_MODULES_MENU)
+  TITLE:=ADC Ladder Buttons support
+  DEPENDS:= +kmod-input-core +kmod-iio-core
+  KCONFIG:= \
+	CONFIG_KEYBOARD_ADC \
+	CONFIG_INPUT_KEYBOARD=y
+  FILES:=$(LINUX_DIR)/drivers/input/keyboard/adc-keys.ko
+  AUTOLOAD:=$(call AutoProbe,adc-keys,1)
+endef
+
+define KernelPackage/input-adc-keys/description
+ Enable support for ADC Ladder Buttons.
+endef
+
+$(eval $(call KernelPackage,input-adc-keys))
 
 define KernelPackage/input-gpio-keys
   SUBMENU:=$(INPUT_MODULES_MENU)
@@ -142,6 +158,23 @@ endef
 
 $(eval $(call KernelPackage,input-gpio-encoder))
 
+
+define KernelPackage/input-matrix-keypad
+  SUBMENU:=$(INPUT_MODULES_MENU)
+  TITLE:=GPIO matrix keypad support
+  DEPENDS:= @GPIO_SUPPORT +kmod-input-core +kmod-input-matrixkmap
+  KCONFIG:= \
+	CONFIG_KEYBOARD_MATRIX \
+	CONFIG_INPUT_KEYBOARD=y
+  FILES:=$(LINUX_DIR)/drivers/input/keyboard/matrix_keypad.ko
+  AUTOLOAD:=$(call AutoProbe,matrix_keypad,1)
+endef
+
+define KernelPackage/input-matrix-keypad/description
+ Enable support for GPIO driven matrix keypad.
+endef
+
+$(eval $(call KernelPackage,input-matrix-keypad))
 
 define KernelPackage/input-joydev
   SUBMENU:=$(INPUT_MODULES_MENU)

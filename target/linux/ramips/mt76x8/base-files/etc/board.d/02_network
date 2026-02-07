@@ -22,6 +22,7 @@ ramips_setup_interfaces()
 	minew,g1-c|\
 	onion,omega2p|\
 	onion,omega2|\
+	qding,qc202|\
 	ravpower,rp-wd009|\
 	tama,w06|\
 	tplink,re200-v2|\
@@ -99,6 +100,13 @@ ramips_setup_interfaces()
 		ucidef_add_switch "switch0" \
 			"4:lan" "6@eth0"
 		;;
+	cudy,lt400e-v1)
+		ucidef_add_switch "switch0" \
+			"3:lan:1" "2:lan:2" "1:lan:3" "0:lan:4" "6@eth0"
+		ucidef_set_interface "wwan" device "usb0" protocol "dhcp"
+		uci add_list firewall.@zone[1].network='wwan'
+		uci add_list firewall.@zone[1].network='wwan6'
+		;;
 	cudy,m1200-v1|\
 	cudy,tr1200-v1)
 		ucidef_add_switch "switch0" \
@@ -119,6 +127,15 @@ ramips_setup_interfaces()
 	hiwifi,hc5761a)
 		ucidef_add_switch "switch0" \
 			"0:lan" "1:lan" "4:wan" "6@eth0"
+		;;
+	hongdian,h8850-v20|\
+	keenetic,kn-1112|\
+	keenetic,kn-1212|\
+	keenetic,kn-1613|\
+	keenetic,kn-1713|\
+	motorola,mwr03)
+		ucidef_add_switch "switch0" \
+			"1:lan" "2:lan" "3:lan" "0:wan" "6@eth0"
 		;;
 	huasifei,shf283)
 		ucidef_add_switch "switch0" \
@@ -142,14 +159,6 @@ ramips_setup_interfaces()
 	keenetic,kn-1221)
 		ucidef_add_switch "switch0" \
 			"1:lan" "2:lan" "0:wan" "6@eth0"
-		;;
-	keenetic,kn-1112|\
-	keenetic,kn-1212|\
-	keenetic,kn-1613|\
-	keenetic,kn-1713|\
-	motorola,mwr03)
-		ucidef_add_switch "switch0" \
-			"1:lan" "2:lan" "3:lan" "0:wan" "6@eth0"
 		;;
 	keenetic,kn-3211)
 		ucidef_add_switch "switch0" \
@@ -187,6 +196,7 @@ ramips_setup_interfaces()
 		ucidef_add_switch "switch0" \
 			"0:wan" "1:lan" "2:lan" "3:lan" "4:lan" "6t@eth0"
 		;;
+	teltonika,rut976|\
 	teltonika,rut9x1|\
 	teltonika,rut9x6)
 		ucidef_add_switch "switch0" \
@@ -198,6 +208,7 @@ ramips_setup_interfaces()
 			"0:lan" "1:lan" "2:lan" "3:lan" "6t@eth0"
 		ucidef_set_interface "wan" device "/dev/cdc-wdm0" protocol "qmi"
 		;;
+	cudy,re1200-outdoor-v1|\
 	tplink,tl-mr3020-v3)
 		ucidef_add_switch "switch0" \
 			"0:lan" "6@eth0"
@@ -206,7 +217,8 @@ ramips_setup_interfaces()
 		ucidef_add_switch "switch0" \
 			"1:lan" "2:lan" "3:lan" "4:wan" "6@eth0"
 		;;
-	tplink,tl-mr6400-v5)
+	tplink,tl-mr6400-v5|\
+	tplink,tl-mr6400-v7)
 		ucidef_add_switch "switch0" \
 			"0:lan" "1:lan" "2:lan" "3:wan" "6@eth0"
 		;;
@@ -287,6 +299,8 @@ ramips_setup_macs()
 		label_mac=$(mtd_get_mac_binary factory 0x4)
 		;;
 	duzun,dm06|\
+	hongdian,h7920-v40|\
+	hongdian,h8850-v20|\
 	netgear,r6020|\
 	netgear,r6080|\
 	netgear,r6120|\
@@ -311,7 +325,6 @@ ramips_setup_macs()
 	totolink,a3)
 		wan_mac=$(mtd_get_mac_binary u-boot 0x1fc40)
 		;;
-	hongdian,h7920-v40|\
 	jotale,js76x8-8m|\
 	jotale,js76x8-16m|\
 	jotale,js76x8-32m|\

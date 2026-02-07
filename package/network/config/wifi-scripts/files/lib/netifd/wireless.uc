@@ -1,23 +1,93 @@
 'use strict';
 
-import * as libubus from "ubus";
+import * as ubus from "ubus";
 import { realpath } from "fs";
 import {
 	handler_load, handler_attributes,
 	parse_attribute_list, parse_bool, parse_array,
 	TYPE_ARRAY, TYPE_STRING, TYPE_INT, TYPE_BOOL
 } from "./utils.uc";
+import { find_phy } from "wifi.utils";
 import * as wdev from "./wireless-device.uc";
 
-let ubus = netifd.ubus;
 let wireless = netifd.wireless = {
 	handlers: {},
 	devices: {},
+	mlo: {},
 	path: realpath(netifd.main_path + "/wireless"),
 };
 
-function update_config(new_devices)
+function wpad_update_mlo(service, mode)
 {
+	let config = {};
+
+	for (let ifname, data in wireless.mlo) {
+		if (data.mode != mode)
+			continue;
+
+		data.phy = find_phy(data.radio_config[0], true);
+		if (!data.phy)
+			continue;
+
+		config[ifname] = data;
+	}
+
+	ubus.call({
+		object: service,
+		method: "mld_set",
+		return: "ignore",
+		data: { config },
+	});
+}
+
+function hostapd_update_mlo()
+{
+	wpad_update_mlo("hostapd", "ap");
+}
+
+function supplicant_update_mlo()
+{
+	wpad_update_mlo("wpa_supplicant", "sta");
+}
+
+function mlo_vif_create(config, radio_config, vif_idx, mlo_vifs)
+{
+	let mlo_config = { ...config };
+
+	if (config.wds)
+		mlo_config['4addr'] = config.wds;
+	mlo_config.radio_config = radio_config;
+
+	let ifname = config.ifname;
+	if (!ifname) {
+		let idx = vif_idx[config.mode] ?? 0;
+		vif_idx[config.mode] = idx + 1;
+		ifname = config.mode + "-mld" + idx;
+	}
+
+	mlo_vifs[ifname] = mlo_config;
+	return ifname;
+}
+
+function mlo_vif_macaddr(config, dev_names, dev_name)
+{
+	if (dev_name != dev_names[0])
+		delete config.macaddr;
+	if (!config.radio_macaddr)
+		return;
+
+	let idx = index(dev_names, dev_name);
+	let macaddr = idx >= 0 ? config.radio_macaddr[idx] : null;
+	if (macaddr)
+		config.macaddr = macaddr;
+}
+
+function update_config(new_devices, mlo_vifs)
+{
+	wireless.mlo = mlo_vifs;
+	hostapd_update_mlo();
+	supplicant_update_mlo();
+
 	for (let name, dev in wireless.devices)
 		if (!new_devices[name])
 			dev.destroy();
@@ -45,7 +115,7 @@ function config_init(uci)
 	let handlers = {};
 	let devices = {};
 	let vifs = {};
-	let mlo_device;
+	let mlo_vifs = {};
 
 	let sections = {
 		device: {},
@@ -54,6 +124,7 @@ function config_init(uci)
 		station: {},
 	};
 	let radio_idx = {};
+	let vif_idx = {};
 
 	for (let name, data in config) {
 		let type = data[".type"];
@@ -66,20 +137,6 @@ function config_init(uci)
 		let list = sections[substr(type, 5)];
 		if (list)
 			list[name] = data;
-
-		if (type == "wifi-iface" && parse_bool(data.mlo))
-			mlo_device = true;
-	}
-
-	if (mlo_device) {
-		devices[wdev.mlo_name] = {
-			name: wdev.mlo_name,
-			config: {
-				type: "mac80211",
-			},
-			vif: [],
-		};
-		handlers[wdev.mlo_name] = wireless.handlers.mac80211;
 	}
 
 	for (let name, data in sections.device) {
@@ -109,11 +166,12 @@ function config_init(uci)
 		let radios = map(dev_names, (v) => radio_idx[v]);
 		radios = filter(radios, (v) => v != null);
 		let radio_config = map(dev_names, (v) => devices[v].config);
-		if (mlo_vif)
-			dev_names = [ wdev.mlo_name, ...dev_names ];
+		let ifname;
+		let mlo_created = false;
+
 		for (let dev_name in dev_names) {
 			let dev = devices[dev_name];
-			if (!dev)
+			if (!dev || dev.config.disabled)
 				continue;
 
 			let handler = handlers[dev_name];
@@ -121,23 +179,16 @@ function config_init(uci)
 				continue;
 
 			let config = parse_attribute_list(data, handler.iface);
-			if (mlo_vif)
-				if (dev_name == wdev.mlo_name)
-					config.radio_config = radio_config;
-				else
-					config.mode = "link";
 			config.radios = radios;
 
-			if (dev_name != dev_names[0])
-				delete config.macaddr;
-			if (dev_name != wdev.mlo_name && config.radio_macaddr) {
-				let idx = index(dev_names, dev_name);
-				if (mlo_vif)
-					idx--;
-				let macaddr = idx >= 0 ? config.radio_macaddr[idx] : null;
-				if (macaddr)
-					config.macaddr = macaddr;
+			if (mlo_vif && !mlo_created) {
+				ifname = mlo_vif_create(config, radio_config, vif_idx, mlo_vifs);
+				mlo_created = true;
 			}
+
+			if (ifname)
+				config.ifname = ifname;
+			mlo_vif_macaddr(config, dev_names, dev_name);
 
 			let vif = {
 				name, config,
@@ -154,8 +205,9 @@ function config_init(uci)
 	}
 
 	for (let name, data in sections.vlan) {
+		let ifaces = parse_array(data.iface);
 		for (let iface, iface_vifs in vifs) {
-			if (data.iface && data.iface != iface)
+			if (length(ifaces) && index(ifaces, iface) < 0)
 				continue;
 
 			for (let vif in iface_vifs) {
@@ -176,22 +228,25 @@ function config_init(uci)
 	}
 
 	for (let name, data in sections.station) {
-		if (!data.iface || !vifs[data.iface])
-			continue;
-
-		for (let vif in vifs[data.iface]) {
-			let dev = devices[vif.device];
-			let handler = handlers[vif.device];
-			if (!dev || !handler)
+		let ifaces = parse_array(data.iface);
+		for (let iface, iface_vifs in vifs) {
+			if (length(ifaces) && index(ifaces, iface) < 0)
 				continue;
 
-			let config = parse_attribute_list(data, handler.station);
+			for (let vif in iface_vifs) {
+				let dev = devices[vif.device];
+				let handler = handlers[vif.device];
+				if (!dev || !handler)
+					continue;
 
-			let sta = {
-				name,
-				config
-			};
-			push(vif.sta, sta);
+				let config = parse_attribute_list(data, handler.station);
+
+				let sta = {
+					name,
+					config
+				};
+				push(vif.sta, sta);
+			}
 		}
 	}
 
@@ -254,13 +309,30 @@ function config_init(uci)
 						let config = vif.config;
 						if (!config)
 							continue;
+
+						let mlo_vif = parse_bool(config.mlo);
+						let radios = map(devs, (v) => radio_idx[v]);
+						radios = filter(radios, (v) => v != null);
+						let radio_config = map(devs, (v) => devices[v]?.config);
+						radio_config = filter(radio_config, (v) => v != null);
+						let ifname;
+
+						if (mlo_vif) {
+							ifname = mlo_vif_create(config, radio_config, vif_idx, mlo_vifs);
+							mlo_vifs[ifname].radios = radios;
+						}
+
 						for (let device in devs) {
 							let dev = devices[device];
 							if (!dev)
 								continue;
 
+							let vif_config = ifname ? { ...config, ifname, radios } : config;
+							if (ifname)
+								mlo_vif_macaddr(vif_config, devs, device);
+
 							let vif_data = {
-								name, device, config,
+								name, device, config: vif_config,
 								vlan: [],
 								sta: []
 							};
@@ -268,8 +340,6 @@ function config_init(uci)
 								vif_data.vlans = vif.vlans;
 							if (vif.stations)
 								vif_data.sta = vif.stations;
-							vifs[name] ??= [];
-							push(vifs[name], vif_data);
 							push(dev.vif, vif_data);
 						}
 					}
@@ -278,7 +348,7 @@ function config_init(uci)
 		}
 	}
 
-	update_config(devices);
+	update_config(devices, mlo_vifs);
 }
 
 function config_start()
@@ -348,16 +418,13 @@ function wdev_call(req, cb)
 	if (dev) {
 		dev = wireless.devices[dev];
 		if (!dev)
-			return libubus.STATUS_NOT_FOUND;
+			return ubus.STATUS_NOT_FOUND;
 
 		return cb(dev);
 	}
 
-	for (let name, dev in wireless.devices) {
-		if (name == wdev.mlo_name)
-			continue;
+	for (let name, dev in wireless.devices)
 		cb(dev);
-	}
 
 	return 0;
 }
@@ -398,9 +465,7 @@ const ubus_obj = {
 	up: {
 		args: wdev_args,
 		call: function(req) {
-			let mlo_dev = wireless.devices[wdev.mlo_name];
-			if (mlo_dev)
-				mlo_dev.start();
+			hostapd_update_mlo();
 
 			return wdev_call(req, (dev) => {
 				dev.start();
@@ -411,12 +476,19 @@ const ubus_obj = {
 	down: {
 		args: wdev_args,
 		call: function(req) {
-			let mlo_dev = wireless.devices[wdev.mlo_name];
-			if (mlo_dev)
-				mlo_dev.config_change = true;
-
 			return wdev_call(req, (dev) => {
 				dev.stop();
+				return 0;
+			});
+		}
+	},
+	retry: {
+		args: wdev_args,
+		call: function(req) {
+			hostapd_update_mlo();
+
+			return wdev_call(req, (dev) => {
+				dev.retry_setup();
 				return 0;
 			});
 		}
@@ -424,9 +496,7 @@ const ubus_obj = {
 	reconf: {
 		args: wdev_args,
 		call: function(req) {
-			let mlo_dev = wireless.devices[wdev.mlo_name];
-			if (mlo_dev)
-				mlo_dev.update();
+			hostapd_update_mlo();
 
 			return wdev_call(req, (dev) => {
 				dev.update();
@@ -459,11 +529,11 @@ const ubus_obj = {
 		call: function(req) {
 			let dev = req.args.device;
 			if (!dev)
-				return libubus.STATUS_INVALID_ARGUMENT;
+				return ubus.STATUS_INVALID_ARGUMENT;
 
 			dev = wireless.devices[dev];
 			if (!dev)
-				return libubus.STATUS_NOT_FOUND;
+				return ubus.STATUS_NOT_FOUND;
 
 			return dev.notify(req);
 		}
@@ -501,6 +571,12 @@ handler_load(wireless.path, (script, data) => {
 });
 
 wireless.obj = ubus.publish("network.wireless", ubus_obj);
+wireless.listener = ubus.listener("ubus.object.add", (event, msg) => {
+	if (msg.path == "hostapd")
+		hostapd_update_mlo();
+	else if (msg.path == "wpa_supplicant")
+		supplicant_update_mlo();
+});
 
 return {
 	hotplug,

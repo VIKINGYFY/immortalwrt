@@ -75,7 +75,7 @@ UBOOT_MAKE_FLAGS = \
 	HOSTCC="$(HOSTCC)" \
 	HOSTCFLAGS="$(HOST_CFLAGS) $(HOST_CPPFLAGS) -std=gnu11" \
 	HOSTLDFLAGS="$(HOST_LDFLAGS)" \
-	LOCALVERSION="-ImmortalWrt-$(REVISION)" \
+	LOCALVERSION="-ImmortalWRT-$(REVISION)" \
 	STAGING_PREFIX="$(STAGING_DIR_HOST)" \
 	PKG_CONFIG_PATH="$(STAGING_DIR_HOST)/lib/pkgconfig" \
 	PKG_CONFIG_LIBDIR="$(STAGING_DIR_HOST)/lib/pkgconfig" \
@@ -104,7 +104,7 @@ define Build/U-Boot/Target
       endif
     endif
     $(if $(DEFAULT),DEFAULT:=$(DEFAULT))
-    URL:=http://www.denx.de/wiki/U-Boot
+    URL:=https://docs.u-boot.org/en/latest/
   endef
 
   define Package/u-boot-$(1)/install

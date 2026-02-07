@@ -15,7 +15,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
 
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -32,6 +32,7 @@
+@@ -33,6 +33,7 @@
  #include "dbring.h"
  #include "spectral.h"
  #include "wow.h"
@@ -23,7 +23,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  #include "fw.h"
  #include "coredump.h"
  
-@@ -523,6 +524,8 @@ struct ath11k_htt_data_stats {
+@@ -526,6 +527,8 @@ struct ath11k_htt_data_stats {
  	u64 bw[ATH11K_COUNTER_TYPE_MAX][ATH11K_BW_NUM];
  	u64 nss[ATH11K_COUNTER_TYPE_MAX][ATH11K_NSS_NUM];
  	u64 gi[ATH11K_COUNTER_TYPE_MAX][ATH11K_GI_NUM];
@@ -32,7 +32,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  };
  
  struct ath11k_htt_tx_stats {
-@@ -530,6 +533,9 @@ struct ath11k_htt_tx_stats {
+@@ -533,6 +536,9 @@ struct ath11k_htt_tx_stats {
  	u64 tx_duration;
  	u64 ba_fails;
  	u64 ack_fails;
@@ -42,7 +42,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  };
  
  struct ath11k_per_ppdu_tx_stats {
-@@ -648,11 +654,16 @@ struct ath11k_per_peer_tx_stats {
+@@ -651,11 +657,16 @@ struct ath11k_per_peer_tx_stats {
  	u32 succ_bytes;
  	u32 retry_bytes;
  	u32 failed_bytes;
@@ -62,7 +62,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  
 --- a/drivers/net/wireless/ath/ath11k/debugfs_sta.c
 +++ b/drivers/net/wireless/ath/ath11k/debugfs_sta.c
-@@ -14,13 +14,39 @@
+@@ -15,13 +15,39 @@
  #include "dp_rx.h"
  #include "debugfs_htt_stats.h"
  
@@ -103,7 +103,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  
  	if (!arsta->tx_stats)
  		return;
-@@ -65,6 +91,43 @@ void ath11k_debugfs_sta_add_tx_stats(str
+@@ -66,6 +92,43 @@ void ath11k_debugfs_sta_add_tx_stats(str
  		STATS_OP_FMT(RETRY).legacy[1][mcs] += peer_stats->retry_pkts;
  	}
  
@@ -147,7 +147,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  	if (peer_stats->is_ampdu) {
  		tx_stats->ba_fails += peer_stats->ba_fails;
  
-@@ -125,6 +188,17 @@ void ath11k_debugfs_sta_add_tx_stats(str
+@@ -126,6 +189,17 @@ void ath11k_debugfs_sta_add_tx_stats(str
  	STATS_OP_FMT(RETRY).gi[1][gi] += peer_stats->retry_pkts;
  
  	tx_stats->tx_duration += peer_stats->duration;
@@ -165,7 +165,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  }
  
  void ath11k_debugfs_sta_update_txcompl(struct ath11k *ar,
-@@ -141,12 +215,13 @@ static ssize_t ath11k_dbg_sta_dump_tx_st
+@@ -142,12 +216,13 @@ static ssize_t ath11k_dbg_sta_dump_tx_st
  	struct ath11k_sta *arsta = ath11k_sta_to_arsta(sta);
  	struct ath11k *ar = arsta->arvif->ar;
  	struct ath11k_htt_data_stats *stats;
@@ -181,7 +181,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  
  	if (!arsta->tx_stats)
  		return -ENOENT;
-@@ -164,45 +239,46 @@ static ssize_t ath11k_dbg_sta_dump_tx_st
+@@ -165,45 +240,46 @@ static ssize_t ath11k_dbg_sta_dump_tx_st
  			len += scnprintf(buf + len, size - len, "%s_%s\n",
  					 str_name[k],
  					 str[j]);
@@ -237,7 +237,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  					 stats->gi[j][0], stats->gi[j][1],
  					 stats->gi[j][2], stats->gi[j][3]);
  			len += scnprintf(buf + len, size - len,
-@@ -211,10 +287,68 @@ static ssize_t ath11k_dbg_sta_dump_tx_st
+@@ -212,10 +288,68 @@ static ssize_t ath11k_dbg_sta_dump_tx_st
  			for (i = 0; i < ATH11K_LEGACY_NUM; i++)
  				len += scnprintf(buf + len, size - len, "%llu ",
  						 stats->legacy[j][i]);
@@ -307,7 +307,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  	len += scnprintf(buf + len, size - len,
  			 "\nTX duration\n %llu usecs\n",
  			 arsta->tx_stats->tx_duration);
-@@ -222,6 +356,7 @@ static ssize_t ath11k_dbg_sta_dump_tx_st
+@@ -223,6 +357,7 @@ static ssize_t ath11k_dbg_sta_dump_tx_st
  			"BA fails\n %llu\n", arsta->tx_stats->ba_fails);
  	len += scnprintf(buf + len, size - len,
  			"ack fails\n %llu\n", arsta->tx_stats->ack_fails);
@@ -317,7 +317,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  	if (len > size)
 --- a/drivers/net/wireless/ath/ath11k/dp.h
 +++ b/drivers/net/wireless/ath/ath11k/dp.h
-@@ -602,6 +602,45 @@ enum htt_ppdu_stats_tag_type {
+@@ -596,6 +596,45 @@ enum htt_ppdu_stats_tag_type {
  				    BIT(HTT_PPDU_STATS_TAG_TX_MGMTCTRL_PAYLOAD) | \
  				    HTT_PPDU_STATS_TAG_DEFAULT)
  
@@ -363,7 +363,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  /* HTT_H2T_MSG_TYPE_RX_RING_SELECTION_CFG Message
   *
   * details:
-@@ -1241,6 +1280,19 @@ enum htt_ppdu_stats_gi {
+@@ -1235,6 +1274,19 @@ enum htt_ppdu_stats_gi {
  #define HTT_PPDU_STATS_USER_RATE_INFO0_USER_POS_M	GENMASK(3, 0)
  #define HTT_PPDU_STATS_USER_RATE_INFO0_MU_GROUP_ID_M	GENMASK(11, 4)
  
@@ -383,7 +383,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  #define HTT_PPDU_STATS_USER_RATE_INFO1_RESP_TYPE_VALD_M	BIT(0)
  #define HTT_PPDU_STATS_USER_RATE_INFO1_PPDU_TYPE_M	GENMASK(5, 1)
  
-@@ -1268,6 +1320,12 @@ enum htt_ppdu_stats_gi {
+@@ -1262,6 +1314,12 @@ enum htt_ppdu_stats_gi {
  		FIELD_GET(HTT_PPDU_STATS_USER_RATE_FLAGS_GI_M, _val)
  #define HTT_USR_RATE_DCM(_val) \
  		FIELD_GET(HTT_PPDU_STATS_USER_RATE_FLAGS_DCM_M, _val)
@@ -396,7 +396,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  
  #define HTT_PPDU_STATS_USER_RATE_RESP_FLAGS_LTF_SIZE_M		GENMASK(1, 0)
  #define HTT_PPDU_STATS_USER_RATE_RESP_FLAGS_STBC_M		BIT(2)
-@@ -1359,16 +1417,33 @@ struct htt_ppdu_stats_usr_cmpltn_ack_ba_
+@@ -1353,16 +1411,33 @@ struct htt_ppdu_stats_usr_cmpltn_ack_ba_
  	u32 success_bytes;
  } __packed;
  
@@ -431,7 +431,7 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  #define HTT_PPDU_DESC_MAX_DEPTH	16
  
  struct htt_ppdu_stats {
-@@ -1377,7 +1452,7 @@ struct htt_ppdu_stats {
+@@ -1371,7 +1446,7 @@ struct htt_ppdu_stats {
  };
  
  struct htt_ppdu_stats_info {

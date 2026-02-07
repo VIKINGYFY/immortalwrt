@@ -58,7 +58,7 @@
   *  __dev_uc_sync - Synchronize device's unicast list
   *  @dev:  device to sync
   *  @sync: function to call if address should be added
-@@ -5231,6 +5240,11 @@ static inline bool netif_is_failover_sla
+@@ -5232,6 +5241,11 @@ static inline bool netif_is_failover_sla
  	return dev->priv_flags & IFF_FAILOVER_SLAVE;
  }
  
@@ -331,7 +331,7 @@
  
  struct Qdisc *qdisc_lookup_rcu(struct net_device *dev, u32 handle)
  {
-@@ -2462,4 +2463,26 @@ static int __init pktsched_init(void)
+@@ -2452,4 +2453,26 @@ static int __init pktsched_init(void)
  	return 0;
  }
  
@@ -360,7 +360,7 @@
  subsys_initcall(pktsched_init);
 --- a/net/sched/sch_generic.c
 +++ b/net/sched/sch_generic.c
-@@ -1090,6 +1090,7 @@ static void __qdisc_destroy(struct Qdisc
+@@ -1093,6 +1093,7 @@ static void __qdisc_destroy(struct Qdisc
  
  	call_rcu(&qdisc->rcu, qdisc_free_cb);
  }
@@ -421,7 +421,7 @@
  /* Reset all TX qdiscs greater than index of a device.  */
  static inline void qdisc_reset_all_tx_gt(struct net_device *dev, unsigned int i)
  {
-@@ -1371,4 +1408,9 @@ static inline void qdisc_synchronize(con
+@@ -1379,4 +1416,9 @@ static inline void qdisc_synchronize(con
  		msleep(1);
  }
  

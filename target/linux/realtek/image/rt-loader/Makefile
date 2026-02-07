@@ -7,12 +7,18 @@
 #
 # KERNEL_IMG_IN:	The filename of an LZMA compressed kernel. If given the loader
 #			and the kernel will be concatenated (piggy back loading).
-# FLASH_ADDR:		The kernel address in the ROM. If given, the loeader will be
+# FLASH_ADDR:		The kernel address in the ROM. If given, the loader will be
 #			created standalone and search a LZMA compressed uImage on the
 #			target device starting from this address.
+# KERNEL_ADDR:		The to-be-used kernel load address to which rt-loader will load
+# 			the kernel and execute it. If not given, rt-loader will use its
+# 			initial run address for this (which is the uImage load address
+# 			when using U-boot images) For non-uImage, this uses an arbitrary
+# 			load address which is independent of rt-loader's initial run
+# 			address.
 # KERNEL_IMG_OUT:	The filename of the kernel image with the rt-loader prepended.
 #			If not given it will be created as image.bin into the BUILD_DIR.
-# BUILD_DIR: 		The temporary build dir. If not given it will be set to "build".
+# BUILD_DIR:		The temporary build dir. If not given it will be set to "build".
 #
 # To add it into the OpenWrt toolchain just create the following new build commands
 #
@@ -26,6 +32,12 @@
 #	    KERNEL_IMG_IN="$@" KERNEL_IMG_OUT="$@.new" BUILD_DIR="$@.build"
 #   mv "$@.new" "$@"
 # endef
+#
+# define Build/rt-loader-non-uImage
+#   $(MAKE) all clean -C rt-loader CROSS_COMPILE="$(TARGET_CROSS)" \
+#           KERNEL_ADDR="$(KERNEL_LOADADDR)" KERNEL_IMG_IN="$@" \
+#           KERNEL_IMG_OUT="$@.new" BUILD_DIR="$@.build"
+#   mv "$@.new" "$@"
 #
 # define Build/rt-loader-standalone
 #   $(MAKE) all clean -C rt-loader CROSS_COMPILE="$(TARGET_CROSS)" \
@@ -48,9 +60,13 @@
 #   KERNEL/rt-loader := rt-loader-standalone
 #   KERNEL := kernel-bin | append-dtb | rt-compress | uImage lzma
 # endef
+#
 
 FLASH_ADDR_NONE	:= 0x0
 FLASH_ADDR	?= $(FLASH_ADDR_NONE)
+
+KERNEL_ADDR_NONE := 0x0
+KERNEL_ADDR 	?= $(KERNEL_ADDR_NONE)
 
 CC		:= $(CROSS_COMPILE)gcc
 LD		:= $(CROSS_COMPILE)ld
@@ -59,19 +75,20 @@ OBJDUMP		:= $(CROSS_COMPILE)objdump
 
 CFLAGS		= -fpic -mabicalls -O2 -fno-builtin-printf -Iinclude
 CFLAGS		+= -DFLASH_ADDR=$(FLASH_ADDR)
+CFLAGS		+= -DKERNEL_ADDR=$(KERNEL_ADDR)
 
 ASFLAGS		= -fpic -msoft-float -Iinclude
 
 LDFLAGS		= -static -nostdlib -T linker/linker.ld --no-warn-mismatch
 
-O_FORMAT 	= $(shell $(OBJDUMP) -i | head -2 | grep elf32)
+O_FORMAT	= $(shell $(OBJDUMP) -i | head -2 | grep elf32)
 
 SOURCES		= src/startup.S src/main.c src/board.c src/memory.c src/unlzma.c
 
 BUILD_DIR	?= build
 
 IMAGE_OBJ	:= $(BUILD_DIR)/image.o
-IMAGE_ELF     	:= $(BUILD_DIR)/image.elf
+IMAGE_ELF	:= $(BUILD_DIR)/image.elf
 
 KERNEL_IMG_NONE	:= $(BUILD_DIR)/empty_kernel.bin
 KERNEL_IMG_IN	?= $(KERNEL_IMG_NONE)

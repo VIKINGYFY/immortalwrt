@@ -1,7 +1,7 @@
 PART_NAME=firmware
 REQUIRE_IMAGE_METADATA=1
 
-RAMFS_COPY_BIN='fw_printenv fw_setenv head'
+RAMFS_COPY_BIN='fw_printenv fw_setenv head seq'
 RAMFS_COPY_DATA='/etc/fw_env.config /var/lock/fw_printenv.lock'
 
 remove_oem_ubi_volume() {
@@ -78,6 +78,7 @@ platform_do_upgrade() {
 		nand_do_upgrade "$1"
 		;;
 	tplink,eap610od|\
+	tplink,eap620hd-v3|\
 	tplink,eap623od-hd-v1|\
 	tplink,eap625od-hd-v1)
 		remove_oem_ubi_volume ubi_rootfs
@@ -95,12 +96,14 @@ platform_do_upgrade() {
 		fw_setenv owrt_slotactive $((1 - active))
 		nand_do_upgrade "$1"
 		;;
-	jdcloud,re-ss-01|\
 	jdcloud,re-cs-02|\
 	jdcloud,re-cs-07|\
+	jdcloud,re-ss-01|\
 	link,nn6000-v1|\
 	link,nn6000-v2|\
-	redmi,ax5-jdcloud)
+	philips,ly1800|\
+	redmi,ax5-jdcloud|\
+	sy,y6010)
 		CI_KERNPART="0:HLOS"
 		CI_ROOTPART="rootfs"
 		emmc_do_upgrade "$1"

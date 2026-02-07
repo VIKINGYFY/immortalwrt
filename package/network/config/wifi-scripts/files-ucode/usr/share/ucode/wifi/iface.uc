@@ -4,6 +4,9 @@ import { append_value, log } from 'wifi.common';
 import * as fs from 'fs';
 
 export function parse_encryption(config, dev_config) {
+	if (!config.encryption)
+		return;
+
 	let encryption = split(config.encryption, '+', 2);
 
 	config.wpa = 0;
@@ -13,10 +16,11 @@ export function parse_encryption(config, dev_config) {
 			config.wpa = v;
 			break;
 		}
-	if (!config.wpa)
-		config.wpa_pairwise = null;
 
-	config.wpa_pairwise = (config.hw_mode == 'ad') ? 'GCMP' : 'CCMP';
+	config.wpa_pairwise = null;
+	if (config.wpa)
+		config.wpa_pairwise = (config.hw_mode == 'ad') ? 'GCMP' : 'CCMP';
+
 	config.auth_type = encryption[0] ?? 'none';
 
 	let wpa3_pairwise = config.wpa_pairwise;
@@ -41,8 +45,9 @@ export function parse_encryption(config, dev_config) {
 		break;
 
 	case 'psk':
+	case 'psk2':
 	case 'psk-mixed':
-		config.auth_type = "psk";
+		config.auth_type = 'psk';
 		wpa3_pairwise = null;
 		break;
 
@@ -60,10 +65,6 @@ export function parse_encryption(config, dev_config) {
 	case 'wpa2':
 	case 'wpa-mixed':
 		config.auth_type = 'eap';
-		wpa3_pairwise = null;
-		break;
-
-	case 'psk2':
 		wpa3_pairwise = null;
 		break;
 
@@ -111,7 +112,7 @@ export function parse_encryption(config, dev_config) {
 		if (!wpa3_pairwise)
 			break;
 
-		if (config.rsn_override)
+		if (config.rsn_override && wpa3_pairwise != config.wpa_pairwise)
 			config.rsn_override_pairwise = wpa3_pairwise;
 		else
 			config.wpa_pairwise = wpa3_pairwise;
@@ -153,7 +154,9 @@ export function wpa_key_mgmt(config) {
 		if (config.ieee80211r)
 			append_value(config, 'wpa_key_mgmt', 'FT-EAP');
 
-		config.rsn_override_key_mgmt = config.wpa_key_mgmt;
+		if (config.rsn_override)
+			config.rsn_override_key_mgmt = config.wpa_key_mgmt;
+
 		append_value(config, 'wpa_key_mgmt', 'WPA-EAP');
 		break;
 
@@ -173,11 +176,14 @@ export function wpa_key_mgmt(config) {
 		append_value(config, 'wpa_key_mgmt', 'SAE');
 		if (config.ieee80211r)
 			append_value(config, 'wpa_key_mgmt', 'FT-SAE');
-		config.rsn_override_key_mgmt = config.wpa_key_mgmt;
 
-		append_value(config, 'rsn_override_key_mgmt_2', 'SAE-EXT-KEY');
-		if (config.ieee80211r)
-			append_value(config, 'rsn_override_key_mgmt_2', 'FT-SAE-EXT-KEY');
+		if (config.rsn_override) {
+			config.rsn_override_key_mgmt = config.wpa_key_mgmt;
+
+			append_value(config, 'rsn_override_key_mgmt_2', 'SAE-EXT-KEY');
+			if (config.ieee80211r)
+				append_value(config, 'rsn_override_key_mgmt_2', 'FT-SAE-EXT-KEY');
+		}
 
 		if (config.rsn_override > 1)
 			delete config.wpa_key_mgmt;

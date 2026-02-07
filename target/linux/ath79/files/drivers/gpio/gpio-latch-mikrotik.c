@@ -12,8 +12,6 @@
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
 #include <linux/platform_device.h>
-#include <linux/of_platform.h>
-#include <linux/of_gpio.h>
 
 #define GPIO_LATCH_DRIVER_NAME  "gpio-latch-mikrotik"
 #define GPIO_LATCH_LINES 9

@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+include ./common.mk
+
 define Build/xikestor-nosimg
   $(STAGING_DIR_HOST)/bin/nosimg-enc -i $@ -o $@.new
   mv $@.new $@
@@ -14,6 +16,15 @@ define Device/hasivo_s1100w-8xgt-se
 endef
 TARGET_DEVICES += hasivo_s1100w-8xgt-se
 
+define Device/hasivo_s1100wp-8gt-se
+  SOC := rtl9303
+  DEVICE_VENDOR := Hasivo
+  DEVICE_MODEL := S1100WP-8GT-SE
+  IMAGE_SIZE := 12288k
+  $(Device/kernel-lzma)
+endef
+TARGET_DEVICES += hasivo_s1100wp-8gt-se
+
 define Device/plasmacloud-common
   SOC := rtl9302
   UIMAGE_MAGIC := 0x93000000
@@ -27,6 +38,12 @@ define Device/plasmacloud-common
   IMAGE/factory.bin := append-kernel | append-rootfs | pad-rootfs | check-size
   IMAGE/sysupgrade.bin := append-rootfs | pad-rootfs | sysupgrade-tar rootfs=$$$$@ | append-metadata
 endef
+
+define Device/plasmacloud_mcx3
+  $(Device/plasmacloud-common)
+  DEVICE_MODEL := MCX3
+endef
+TARGET_DEVICES += plasmacloud_mcx3
 
 define Device/plasmacloud_psx8
   $(Device/plasmacloud-common)
@@ -63,6 +80,25 @@ define Device/vimin_vm-s100-0800ms
 endef
 TARGET_DEVICES += vimin_vm-s100-0800ms
 
+define Device/xikestor_sks8300-8t
+  SOC := rtl9303
+  UIMAGE_MAGIC := 0x93000000
+  DEVICE_VENDOR := XikeStor
+  DEVICE_MODEL := SKS8300-8T
+  DEVICE_PACKAGES := kmod-hwmon-lm75
+  IMAGE_SIZE := 20480k
+  $(Device/kernel-lzma)
+  IMAGE/sysupgrade.bin := \
+    pad-extra 16 | \
+    append-kernel | \
+    pad-to 64k | \
+    append-rootfs | \
+    pad-rootfs | \
+    check-size | \
+    append-metadata
+endef
+TARGET_DEVICES += xikestor_sks8300-8t
+
 define Device/xikestor_sks8300-8x
   SOC := rtl9303
   DEVICE_VENDOR := XikeStor
@@ -96,25 +132,32 @@ define Device/xikestor_sks8310-8x
 endef
 TARGET_DEVICES += xikestor_sks8310-8x
 
-define Device/zyxel_xgs1210-12-a1
+define Device/zyxel_xgs1010-12-a1
   SOC := rtl9302
-  SUPPORTED_DEVICES += zyxel,xgs1210-12
-  UIMAGE_MAGIC := 0x93001210
-  ZYXEL_VERS := ABTY
+  UIMAGE_MAGIC := 0x93001010
   DEVICE_VENDOR := Zyxel
-  DEVICE_MODEL := XGS1210-12
+  DEVICE_MODEL := XGS1010-12
   DEVICE_VARIANT := A1
-  IMAGE_SIZE := 13312k
-  KERNEL_INITRAMFS := \
-        kernel-bin | \
-        append-dtb | \
-        gzip | \
-        zyxel-vers | \
-        uImage gzip
+  KERNEL_SIZE := 7168k
+  IMAGE_SIZE := 13184k
+  $(Device/kernel-lzma)
+endef
+TARGET_DEVICES += zyxel_xgs1010-12-a1
+
+define Device/zyxel_xgs1210-12-a1
+  $(Device/zyxel_xgs1210-12)
+  SUPPORTED_DEVICES += zyxel,xgs1210-12
+  DEVICE_VARIANT := A1
 endef
 TARGET_DEVICES += zyxel_xgs1210-12-a1
 
-define Device/zyxel_xgs1250-12
+define Device/zyxel_xgs1210-12-b1
+  $(Device/zyxel_xgs1210-12)
+  DEVICE_VARIANT := B1
+endef
+TARGET_DEVICES += zyxel_xgs1210-12-b1
+
+define Device/zyxel_xgs1250-12-common
   SOC := rtl9302
   UIMAGE_MAGIC := 0x93001250
   ZYXEL_VERS := ABWE
@@ -122,11 +165,30 @@ define Device/zyxel_xgs1250-12
   DEVICE_MODEL := XGS1250-12
   DEVICE_PACKAGES := kmod-hwmon-gpiofan kmod-thermal
   IMAGE_SIZE := 13312k
+  KERNEL := \
+	kernel-bin | \
+	append-dtb | \
+	rt-compress | \
+	rt-loader | \
+	uImage none
   KERNEL_INITRAMFS := \
 	kernel-bin | \
 	append-dtb | \
-	gzip | \
+	rt-compress | \
 	zyxel-vers | \
-	uImage gzip
+	rt-loader | \
+	uImage none
 endef
-TARGET_DEVICES += zyxel_xgs1250-12
+
+define Device/zyxel_xgs1250-12-a1
+  $(Device/zyxel_xgs1250-12-common)
+  SUPPORTED_DEVICES += zyxel,xgs1250-12
+  DEVICE_VARIANT := A1
+endef
+TARGET_DEVICES += zyxel_xgs1250-12-a1
+
+define Device/zyxel_xgs1250-12-b1
+  $(Device/zyxel_xgs1250-12-common)
+  DEVICE_VARIANT := B1
+endef
+TARGET_DEVICES += zyxel_xgs1250-12-b1

@@ -77,6 +77,48 @@ define Device/glinet_gl-axt1800
 endef
 TARGET_DEVICES += glinet_gl-axt1800
 
+define Device/jdcloud_re-cs-02
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := JDCloud
+	DEVICE_MODEL := RE-CS-02
+	KERNEL_SIZE := 6144k
+	BLOCKSIZE := 128k
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp03-c3
+	DEVICE_PACKAGES := ipq-wifi-jdcloud_re-cs-02 ath11k-firmware-qcn9074 luci-app-athena-led luci-i18n-athena-led-zh-cn
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
+TARGET_DEVICES += jdcloud_re-cs-02
+
+define Device/jdcloud_re-cs-07
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := JDCloud
+	DEVICE_MODEL := RE-CS-07
+	KERNEL_SIZE := 6144k
+	BLOCKSIZE := 128k
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp03-c4
+	DEVICE_PACKAGES := -ath11k-firmware-ipq6018 -ath11k-firmware-qcn9074 -kmod-ath11k -kmod-ath11k-ahb -kmod-ath11k-pci -hostapd-common -wpad-openssl
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
+TARGET_DEVICES += jdcloud_re-cs-07
+
+define Device/jdcloud_re-ss-01
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := JDCloud
+	DEVICE_MODEL := RE-SS-01
+	KERNEL_SIZE := 6144k
+	BLOCKSIZE := 128k
+	SOC := ipq6000
+	DEVICE_DTS_CONFIG := config@cp03-c2
+	DEVICE_PACKAGES := ipq-wifi-jdcloud_re-ss-01
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
+TARGET_DEVICES += jdcloud_re-ss-01
+
 define Device/linksys_mr
 	$(call Device/FitImage)
 	DEVICE_VENDOR := Linksys
@@ -160,23 +202,18 @@ define Device/qihoo_360v6
 endef
 TARGET_DEVICES += qihoo_360v6
 
-define Device/tplink_eap6xx-common
+define Device/tplink_eap610od
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
 	DEVICE_VENDOR := TP-Link
+	DEVICE_MODEL := EAP610-Outdoor
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq6010
 	DEVICE_DTS_CONFIG := config@cp03-c1
-	DEVICE_PACKAGES := kmod-phy-realtek
+	DEVICE_PACKAGES := ipq-wifi-tplink_eap610od
 	IMAGES += web-ui-factory.bin
 	IMAGE/web-ui-factory.bin := append-ubi | tplink-image-2022
-endef
-
-define Device/tplink_eap610od
-	$(call Device/tplink_eap6xx-common)
-	DEVICE_MODEL := EAP610-Outdoor
-	DEVICE_PACKAGES += ipq-wifi-tplink_eap610od
 	TPLINK_SUPPORT_STRING := SupportList:\r\n \
 		EAP610-Outdoor(TP-Link|UN|AX1800-D):1.0\r\n \
 		EAP610-Outdoor(TP-Link|JP|AX1800-D):1.0\r\n \
@@ -185,20 +222,34 @@ endef
 TARGET_DEVICES += tplink_eap610od
 
 define Device/tplink_eap623od-hd-v1
-	$(call Device/tplink_eap6xx-common)
-	DEVICE_MODEL := EAP623-Outdoor HD
-	DEVICE_VARIANT := v1
-	DEVICE_PACKAGES += ipq-wifi-tplink_eap623od-hd-v1
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := TP-Link
+	DEVICE_MODEL := EAP623-Outdoor HD v1
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-tplink_eap623od-hd-v1 kmod-phy-realtek
+	IMAGES += web-ui-factory.bin
+	IMAGE/web-ui-factory.bin := append-ubi | tplink-image-2022
 	TPLINK_SUPPORT_STRING := SupportList:\r\n \
 		EAP623-Outdoor HD(TP-Link|UN|AX1800-D):1.0
 endef
 TARGET_DEVICES += tplink_eap623od-hd-v1
 
 define Device/tplink_eap625od-hd-v1
-	$(call Device/tplink_eap6xx-common)
-	DEVICE_MODEL := EAP625-Outdoor HD
-	DEVICE_VARIANT := v1
-	DEVICE_PACKAGES += ipq-wifi-tplink_eap625od-hd-v1
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := TP-Link
+	DEVICE_MODEL := EAP625-Outdoor HD v1 and v1.6
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-tplink_eap625od-hd-v1
+	IMAGES += web-ui-factory.bin
+	IMAGE/web-ui-factory.bin := append-ubi | tplink-image-2022
 	TPLINK_SUPPORT_STRING := SupportList:\r\n \
 		EAP625-Outdoor HD(TP-Link|UN|AX1800-D):1.0\r\n \
 		EAP625-Outdoor HD(TP-Link|CA|AX1800-D):1.0\r\n \
@@ -206,6 +257,26 @@ define Device/tplink_eap625od-hd-v1
 		EAP625-Outdoor HD(TP-Link|KR|AX1800-D):1.0
 endef
 TARGET_DEVICES += tplink_eap625od-hd-v1
+
+define Device/tplink_eap620hd-v3
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := TP-Link
+	DEVICE_MODEL := EAP620 HD v3
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-tplink_eap620hd-v3
+	IMAGES += web-ui-factory.bin
+	IMAGE/web-ui-factory.bin := append-ubi | tplink-image-2022
+	TPLINK_SUPPORT_STRING := SupportList:\r\n \
+		EAP620 HD(TP-Link|UN|AX1800-D):3.0\r\n \
+		EAP620 HD(TP-Link|CA|AX1800-D):3.0\r\n \
+		EAP620 HD(TP-Link|JP|AX1800-D):3.0\r\n \
+		EAP620 HD(TP-Link|EG|AX1800-D):3.0\r\n
+endef
+TARGET_DEVICES += tplink_eap620hd-v3
 
 define Device/yuncore_fap650
 	$(call Device/FitImage)
@@ -287,20 +358,6 @@ define Device/zn_m2
 endef
 TARGET_DEVICES += zn_m2
 
-define Device/redmi_ax5-jdcloud
-	$(call Device/FitImage)
-	$(call Device/EmmcImage)
-	DEVICE_VENDOR := Redmi
-	DEVICE_MODEL := AX5 JDCloud
-	KERNEL_SIZE := 6144k
-	BLOCKSIZE := 128k
-	SOC := ipq6000
-	DEVICE_DTS_CONFIG := config@cp03-c1
-	DEVICE_PACKAGES := ipq-wifi-redmi_ax5-jdcloud
-	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
-endef
-TARGET_DEVICES += redmi_ax5-jdcloud
-
 define Device/link_nn6000-v1
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
@@ -321,19 +378,19 @@ define Device/link_nn6000-v2
 endef
 TARGET_DEVICES += link_nn6000-v2
 
-define Device/jdcloud_re-ss-01
+define Device/philips_ly1800
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
-	DEVICE_VENDOR := JDCloud
-	DEVICE_MODEL := RE-SS-01
+	DEVICE_VENDOR := Philips
+	DEVICE_MODEL := LY1800
 	KERNEL_SIZE := 6144k
 	BLOCKSIZE := 128k
-	SOC := ipq6000
-	DEVICE_DTS_CONFIG := config@cp03-c2
-	DEVICE_PACKAGES := ipq-wifi-jdcloud_re-ss-01
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp01-c1
+	DEVICE_PACKAGES := ipq-wifi-philips_ly1800
 	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
 endef
-TARGET_DEVICES += jdcloud_re-ss-01
+TARGET_DEVICES += philips_ly1800
 
 define Device/jdcloud_re-ss-01-spi
 	$(call Device/FitImageLzma)
@@ -349,29 +406,30 @@ endef
 TARGET_DEVICES += jdcloud_re-ss-01-spi
 
 define Device/jdcloud_re-cs-02
+define Device/redmi_ax5-jdcloud
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
-	DEVICE_VENDOR := JDCloud
-	DEVICE_MODEL := RE-CS-02
+	DEVICE_VENDOR := Redmi
+	DEVICE_MODEL := AX5 JDCloud
 	KERNEL_SIZE := 6144k
 	BLOCKSIZE := 128k
-	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp03-c3
-	DEVICE_PACKAGES := ipq-wifi-jdcloud_re-cs-02 ath11k-firmware-qcn9074 luci-app-athena-led luci-i18n-athena-led-zh-cn
+	SOC := ipq6000
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-redmi_ax5-jdcloud
 	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
 endef
-TARGET_DEVICES += jdcloud_re-cs-02
+TARGET_DEVICES += redmi_ax5-jdcloud
 
-define Device/jdcloud_re-cs-07
+define Device/sy_y6010
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
-	DEVICE_VENDOR := JDCloud
-	DEVICE_MODEL := RE-CS-07
+	DEVICE_VENDOR := SY
+	DEVICE_MODEL := Y6010
 	KERNEL_SIZE := 6144k
 	BLOCKSIZE := 128k
 	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp03-c4
-	DEVICE_PACKAGES := -ath11k-firmware-ipq6018 -ath11k-firmware-qcn9074 -kmod-ath11k -kmod-ath11k-ahb -kmod-ath11k-pci -hostapd-common -wpad-openssl
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-sy_y6010
 	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
 endef
-TARGET_DEVICES += jdcloud_re-cs-07
+TARGET_DEVICES += sy_y6010

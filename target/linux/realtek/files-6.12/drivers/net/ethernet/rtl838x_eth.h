@@ -5,13 +5,34 @@
 
 /* Register definition */
 
-/* Per port MAC control */
-#define RTL838X_MAC_PORT_CTRL			(0xd560)
-#define RTL839X_MAC_PORT_CTRL			(0x8004)
-#define RTL930X_MAC_L2_PORT_CTRL		(0x3268)
-#define RTL930X_MAC_PORT_CTRL			(0x3260)
-#define RTL931X_MAC_L2_PORT_CTRL		(0x6000)
-#define RTL931X_MAC_PORT_CTRL			(0x6004)
+#define RTETH_838X_CPU_PORT			28
+#define RTETH_839X_CPU_PORT			52
+#define RTETH_930X_CPU_PORT			28
+#define RTETH_931X_CPU_PORT			56
+
+/*
+ * Reset
+ */
+#define RTL838X_RST_GLB_CTRL_0			(0x003c)
+#define RTL839X_RST_GLB_CTRL			(0x0014)
+#define RTL930X_RST_GLB_CTRL_0			(0x000c)
+#define RTL931X_RST_GLB_CTRL			(0x0400)
+
+/* Switch interrupts */
+#define RTL839X_IMR_PORT_LINK_STS_CHG		(0x0068)
+#define RTL839X_ISR_PORT_LINK_STS_CHG		(0x00a0)
+
+/*
+ * CPU port MAC control. On RTL93XX the functionality of the MAC port control register is
+ * split into MAC_L2_PORT_CTRL and MAC_PORT_CTRL and the L2 register holds the important
+ * bits for the driver. To avoid confusion on splitted models use the L2 naming convention
+ * for all targets.
+ */
+
+#define RTETH_838X_MAC_L2_PORT_CTRL		(0xd560 + (RTETH_838X_CPU_PORT << 7))
+#define RTETH_839X_MAC_L2_PORT_CTRL		(0x8004 + (RTETH_839X_CPU_PORT << 7))
+#define RTETH_930X_MAC_L2_PORT_CTRL		(0x3268 + (RTETH_930X_CPU_PORT << 6))
+#define RTETH_931X_MAC_L2_PORT_CTRL		(0x6000 + (RTETH_931X_CPU_PORT << 7))
 
 /* DMA interrupt control and status registers */
 #define RTL838X_DMA_IF_CTRL			(0x9f58)
@@ -91,14 +112,6 @@
 #define RTL838X_DMA_IF_TX_CUR_DESC_ADDR_CTRL	(0x9F48)
 #define RTL930X_DMA_IF_TX_CUR_DESC_ADDR_CTRL	(0xE008)
 
-#define RTL838X_DMY_REG31			(0x3b28)
-#define RTL838X_SDS_MODE_SEL			(0x0028)
-#define RTL838X_SDS_CFG_REG			(0x0034)
-#define RTL838X_INT_MODE_CTRL			(0x005c)
-#define RTL838X_SDS4_REG28			(0xef80)
-#define RTL838X_SDS4_DUMMY0			(0xef8c)
-#define RTL838X_SDS5_EXT_REG6			(0xf18c)
-
 /* L2 features */
 #define RTL839X_TBL_ACCESS_L2_CTRL		(0x1180)
 #define RTL839X_TBL_ACCESS_L2_DATA(idx)		(0x1184 + ((idx) << 2))
@@ -151,12 +164,12 @@
 #define RTL930X_L2_PORT_DABLK_CTRL		(0x9060)
 
 /* MAC link state bits */
-#define FORCE_EN				(1 << 0)
-#define FORCE_LINK_EN				(1 << 1)
-#define NWAY_EN					(1 << 2)
-#define DUPLX_MODE				(1 << 3)
-#define TX_PAUSE_EN				(1 << 6)
-#define RX_PAUSE_EN				(1 << 7)
+#define FORCE_EN				BIT(0)
+#define FORCE_LINK_EN				BIT(1)
+#define NWAY_EN					BIT(2)
+#define DUPLX_MODE				BIT(3)
+#define TX_PAUSE_EN				BIT(6)
+#define RX_PAUSE_EN				BIT(7)
 
 /* L2 Notification DMA interface */
 #define RTL839X_DMA_IF_NBUF_BASE_DESC_ADDR_CTRL	(0x785C)
@@ -192,20 +205,6 @@
 #define RTL931X_RMA_CTRL_1			(0x8804)
 #define RTL931X_RMA_CTRL_2			(0x8808)
 
-/* Advanced SMI control for clause 45 PHYs */
-#define RTL930X_SMI_MAC_TYPE_CTRL		(0xCA04)
-#define RTL930X_SMI_PORT24_27_ADDR_CTRL		(0xCB90)
-#define RTL930X_SMI_PORT0_15_POLLING_SEL	(0xCA08)
-#define RTL930X_SMI_PORT16_27_POLLING_SEL	(0xCA0C)
-
-#define RTL930X_SMI_10GPHY_POLLING_REG0_CFG	(0xCBB4)
-#define RTL930X_SMI_10GPHY_POLLING_REG9_CFG	(0xCBB8)
-#define RTL930X_SMI_10GPHY_POLLING_REG10_CFG	(0xCBBC)
-#define RTL930X_SMI_PRVTE_POLLING_CTRL		(0xCA10)
-
-/* Registers of the internal Serdes of the 8390 */
-#define RTL839X_SDS12_13_XSG0			(0xB800)
-
 /* Chip configuration registers of the RTL9310 */
 #define RTL931X_MEM_ENCAP_INIT			(0x4854)
 #define RTL931X_MEM_MIB_INIT			(0x7E18)
@@ -215,40 +214,24 @@
 #define RTL931X_MEM_ALE_INIT_2			(0x82E4)
 #define RTL931X_MDX_CTRL_RSVD			(0x0fcc)
 #define RTL931X_PS_SOC_CTRL			(0x13f8)
-#define RTL931X_SMI_10GPHY_POLLING_SEL2		(0xCF8)
-#define RTL931X_SMI_10GPHY_POLLING_SEL3		(0xCFC)
-#define RTL931X_SMI_10GPHY_POLLING_SEL4		(0xD00)
 
-/* Registers of the internal Serdes of the 8380 */
-#define RTL838X_SDS4_FIB_REG0			(0xF800)
+/* shared CPU tag definitions for RTL930X/RTL931X */
+#define RTL93XX_CPU_TAG1_FWD_MASK		GENMASK(11, 8)
+
+#define RTL93XX_CPU_TAG1_FWD_ALE		0
+#define RTL93XX_CPU_TAG1_FWD_PHYSICAL		1
+#define RTL93XX_CPU_TAG1_FWD_LOGICAL		2
+#define RTL93XX_CPU_TAG1_FWD_TRUNK		3
+#define RTL93XX_CPU_TAG1_FWD_ONE_HOP		4
+#define RTL93XX_CPU_TAG1_FWD_LOGICAL_ONE_HOP	5
+#define RTL93XX_CPU_TAG1_FWD_UCST_CPU_MIN_PORT	6
+#define RTL93XX_CPU_TAG1_FWD_UCST_CPU		7
+#define RTL93XX_CPU_TAG1_FWD_BCST_CPU		8
+
+#define RTL93XX_CPU_TAG1_IGNORE_STP_MASK	GENMASK(2, 2)
 
 /* Default MTU with jumbo frames support */
 #define DEFAULT_MTU 9000
-
-inline int rtl838x_mac_port_ctrl(int p)
-{
-	return RTL838X_MAC_PORT_CTRL + (p << 7);
-}
-
-inline int rtl839x_mac_port_ctrl(int p)
-{
-	return RTL839X_MAC_PORT_CTRL + (p << 7);
-}
-
-/* On the RTL931XX, the functionality of the MAC port control register is split up
- * into RTL931X_MAC_L2_PORT_CTRL and RTL931X_MAC_PORT_CTRL the functionality used
- * by the Ethernet driver is in the same bits now in RTL931X_MAC_L2_PORT_CTRL
- */
-
-inline int rtl930x_mac_port_ctrl(int p)
-{
-	return RTL930X_MAC_L2_PORT_CTRL + (p << 6);
-}
-
-inline int rtl931x_mac_port_ctrl(int p)
-{
-	return RTL931X_MAC_L2_PORT_CTRL + (p << 7);
-}
 
 inline int rtl838x_dma_if_rx_ring_size(int i)
 {
@@ -359,7 +342,6 @@ inline u32 rtl839x_get_mac_link_spd_sts(int port)
 	return (speed & 0x3);
 }
 
-
 inline u32 rtl930x_get_mac_link_spd_sts(int port)
 {
 	int r = RTL930X_MAC_LINK_SPD_STS + ((port >> 3) << 2);
@@ -420,10 +402,15 @@ inline u32 rtl931x_get_mac_tx_pause_sts(int p)
 
 struct p_hdr;
 struct dsa_tag;
+struct rteth_ctrl;
+struct rteth_packet;
 
-struct rtl838x_eth_reg {
+struct rteth_config {
+	int family_id;
+	int cpu_port;
+	int rx_rings;
 	irqreturn_t (*net_irq)(int irq, void *dev_id);
-	int (*mac_port_ctrl)(int port);
+	int mac_l2_port_ctrl;
 	int dma_if_intr_sts;
 	int dma_if_intr_msk;
 	int dma_if_intr_rx_runout_sts;
@@ -449,9 +436,12 @@ struct rtl838x_eth_reg {
 	u32 (*get_mac_tx_pause_sts)(int port);
 	int mac;
 	int l2_tbl_flush_ctrl;
-	void (*update_cntr)(int r, int work_done);
-	void (*create_tx_header)(struct p_hdr *h, unsigned int dest_port, int prio);
+	void (*create_tx_header)(struct rteth_packet *h, unsigned int dest_port, int prio);
 	bool (*decode_tag)(struct p_hdr *h, struct dsa_tag *tag);
+	void (*hw_reset)(struct rteth_ctrl *ctrl);
+	int (*init_mac)(struct rteth_ctrl *ctrl);
+	void (*update_counter)(int r, int work_done);
+	const struct net_device_ops *netdev_ops;
 };
 
 #endif /* _RTL838X_ETH_H */

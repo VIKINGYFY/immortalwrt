@@ -232,24 +232,6 @@
 	};
 };
 
-&ethernet0 {
-	mdio: mdio-bus {
-		compatible = "realtek,rtl838x-mdio";
-		regmap = <&ethernet0>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		INTERNAL_PHY_SDS(0, 2)
-		INTERNAL_PHY_SDS(8, 3)
-		INTERNAL_PHY_SDS(16, 4)
-		INTERNAL_PHY_SDS(20, 5)
-		INTERNAL_PHY_SDS(24, 6)
-		INTERNAL_PHY_SDS(25, 7)
-		INTERNAL_PHY_SDS(26, 8)
-		INTERNAL_PHY_SDS(27, 9)
-	};
-};
-
 &switch0 {
 	ports {
 		#address-cells = <1>;
@@ -258,8 +240,8 @@
 		port@0 {
 			reg = <0>;
 			label = "lan1";
+			pcs-handle = <&serdes2>;
 			phy-mode = "1000base-x";
-			phy-handle = <&phy0>;
 			sfp = <&sfp0>;
 			managed = "in-band-status";
 			led-set = <0>;
@@ -268,8 +250,8 @@
 		port@8 {
 			reg = <8>;
 			label = "lan2";
+			pcs-handle = <&serdes3>;
 			phy-mode = "1000base-x";
-			phy-handle = <&phy8>;
 			sfp = <&sfp1>;
 			managed = "in-band-status";
 			led-set = <0>;
@@ -278,8 +260,8 @@
 		port@10 {
 			reg = <16>;
 			label = "lan3";
+			pcs-handle = <&serdes4>;
 			phy-mode = "1000base-x";
-			phy-handle = <&phy16>;
 			sfp = <&sfp2>;
 			managed = "in-band-status";
 			led-set = <0>;
@@ -288,8 +270,8 @@
 		port@14 {
 			reg = <20>;
 			label = "lan4";
+			pcs-handle = <&serdes5>;
 			phy-mode = "1000base-x";
-			phy-handle = <&phy20>;
 			sfp = <&sfp3>;
 			managed = "in-band-status";
 			led-set = <0>;
@@ -298,8 +280,8 @@
 		port@18 {
 			reg = <24>;
 			label = "lan5";
+			pcs-handle = <&serdes6>;
 			phy-mode = "1000base-x";
-			phy-handle = <&phy24>;
 			sfp = <&sfp4>;
 			managed = "in-band-status";
 			led-set = <0>;
@@ -308,8 +290,8 @@
 		port@19 {
 			reg = <25>;
 			label = "lan6";
+			pcs-handle = <&serdes7>;
 			phy-mode = "1000base-x";
-			phy-handle = <&phy25>;
 			sfp = <&sfp5>;
 			managed = "in-band-status";
 			led-set = <0>;
@@ -318,8 +300,8 @@
 		port@1a {
 			reg = <26>;
 			label = "lan7";
+			pcs-handle = <&serdes8>;
 			phy-mode = "1000base-x";
-			phy-handle = <&phy26>;
 			sfp = <&sfp6>;
 			managed = "in-band-status";
 			led-set = <0>;
@@ -328,8 +310,8 @@
 		port@1b {
 			reg = <27>;
 			label = "lan8";
+			pcs-handle = <&serdes9>;
 			phy-mode = "1000base-x";
-			phy-handle = <&phy27>;
 			sfp = <&sfp7>;
 			managed = "in-band-status";
 			led-set = <0>;

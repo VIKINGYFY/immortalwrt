@@ -14,13 +14,13 @@ PKG_RELEASE:=2
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/ppp-project/ppp
+PKG_MIRROR_HASH:=381668ce1547afeaf599f08ae37935bfd3d5841747c62bca5a870c11e3e9bedb
 PKG_SOURCE_DATE:=2024-12-31
 PKG_SOURCE_VERSION:=9f612dc02c34509f062ed63b60bcc7e937e25178
-PKG_MIRROR_HASH:=677b71d23b668db986146e13b0c651f2ac506eb4fb244ffba1ff406cbae3511b
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_LICENSE:=BSD-4-Clause
-PKG_CPE_ID:=cpe:/a:samba:ppp
+PKG_CPE_ID:=cpe:/a:point-to-point_protocol_project:point-to-point_protocol
 
 PKG_ASLR_PIE_REGULAR:=1
 PKG_BUILD_DEPENDS:=libpcap
