@@ -20,16 +20,17 @@
 		serial0 = &blsp1_uart5;
 		serial1 = &blsp1_uart3;
 
-		led-boot = &led_power;
-		led-failsafe = &led_power;
-		led-running = &led_power;
-		led-upgrade = &led_power;
+		led-boot = &led_system_red;
+		led-failsafe = &led_system_red;
+		led-running = &led_system_blue;
+		led-upgrade = &led_system_red;
 
 		ethernet0 = &dp1;
 		ethernet1 = &dp2;
 		ethernet2 = &dp3;
 		ethernet3 = &dp4;
-		ethernet4 = &dp6_syn;
+		ethernet4 = &dp5;
+		ethernet5 = &dp6;
 
 		label-mac-device = &dp1;
 	};
@@ -42,66 +43,30 @@
 	keys {
 		compatible = "gpio-keys";
 
-		wps_button {
-			label = "wps";
-			linux,code = <KEY_WPS_BUTTON>;
+		reset {
+			label = "reset";
 			gpios = <&tlmm 34 GPIO_ACTIVE_LOW>;
-			linux,input-type = <1>;
-			debounce-interval = <60>;
+			linux,code = <KEY_RESTART>;
+		};
+
+		wps {
+			label = "wps";
+			gpios = <&tlmm 63 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
 		};
 	};
 
 	leds {
 		compatible = "gpio-leds";
 
-		led_power: power {
-			label = "green:power";
+		led_system_blue: system-blue {
 			gpios = <&tlmm 18 GPIO_ACTIVE_HIGH>;
+			color = <LED_COLOR_ID_BLUE>;
 		};
 
-		wifi {
-			label = "green:wifi";
-			gpios = <&tlmm 19 GPIO_ACTIVE_HIGH>;
-		};
-
-		internet {
-			label = "green:internet";
-			gpios = <&tlmm 20 GPIO_ACTIVE_HIGH>;
-		};
-
-		led_5g_red: 5g_red {
-			label = "red:5g";
-			gpios = <&tlmm 21 GPIO_ACTIVE_LOW>;
-		};
-
-		led_5g_green: 5g_green {
-			label = "green:5g";
-			gpios = <&tlmm 22 GPIO_ACTIVE_LOW>;
-		};
-
-		led_5g_blue: 5g_blue {
-			label = "blue:5g";
-			gpios = <&tlmm 23 GPIO_ACTIVE_LOW>;
-		};
-
-		led_signal_red: signal_red {
-			label = "red:signal";
-			gpios = <&tlmm 24 GPIO_ACTIVE_LOW>;
-		};
-
-		led_signal_green: signal_green {
-			label = "green:signal";
-			gpios = <&tlmm 25 GPIO_ACTIVE_LOW>;
-		};
-
-		led_signal_blue: signal_blue {
-			label = "blue:signal";
-			gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
-		};
-
-		phone {
-			label = "green:phone";
-			gpios = <&tlmm 27 GPIO_ACTIVE_HIGH>;
+		led_system_red: system-red {
+			gpios = <&tlmm 25 GPIO_ACTIVE_HIGH>;
+			color = <LED_COLOR_ID_RED>;
 		};
 	};
 
@@ -322,7 +287,7 @@
 
 	pinctrl-0 = <&mdio_pins>;
 	pinctrl-names = "default";
-	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
+	reset-gpios = <&tlmm 26 0>;
 
 	ethernet-phy-package@0 {
 		compatible = "qcom,qca8075-package";
@@ -353,11 +318,15 @@
 		};
 	};
 
-	qca8081: ethernet-phy@28 {
+	phy4: ethernet-phy@28 {
 		compatible = "ethernet-phy-id004d.d101";
 		reg = <28>;
-		reset-deassert-us = <10000>;
-		reset-gpios = <&tlmm 64 GPIO_ACTIVE_LOW>;
+	};
+	
+	/* 添加dp6使用的PHY，地址为7，使用c45协议 */
+	phy5: ethernet-phy@7 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <7>;
 	};
 };
 
@@ -365,7 +334,7 @@
 	status = "okay";
 
 	switch_lan_bmp = <(ESS_PORT1 | ESS_PORT2 | ESS_PORT3 | ESS_PORT4)>;
-	switch_wan_bmp = <ESS_PORT6>;
+	switch_wan_bmp = <(ESS_PORT5 |ESS_PORT6)>;
 	switch_mac_mode = <MAC_MODE_QSGMII>;
 	switch_mac_mode2 = <MAC_MODE_SGMII_PLUS>;
 
@@ -390,10 +359,16 @@
 			phy_address = <3>;
 		};
 
-		port@6 {
-			port_id = <6>;
+		port@5 {
+			port_id = <5>;
 			phy_address = <28>;
 			port_mac_sel = "QGMAC_PORT";
+		};
+
+		port@6 {
+			port_id = <6>;
+			phy_address = <7>;
+			ethernet-phy-ieee802.3-c45;
 		};
 	};
 };
@@ -430,10 +405,15 @@
 	label = "lan4";
 };
 
-&dp6_syn {
+&dp5 {
 	status = "okay";
-	phy-handle = <&qca8081>;
+	phy-handle = <&phy4>;
 	label = "wan";
+};
+
+&dp6 {
+	status = "okay";
+	phy-handle = <&phy5>;
 };
 
 &wifi {
