@@ -59,6 +59,19 @@ define Device/arcadyan_aw1000
 endef
 TARGET_DEVICES += arcadyan_aw1000
 
+define Device/queclink_wr300fg
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := Queclink
+	DEVICE_MODEL := WR300FG
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	SOC := ipq8072
+	DEVICE_DTS_CONFIG := config@hk09
+	DEVICE_PACKAGES := ipq-wifi-queclink_wr300fg kmod-usb-serial-option uqmi
+endef
+TARGET_DEVICES += queclink_wr300fg
+
 define Device/asus_rt-ax89x
 	DEVICE_VENDOR := Asus
 	DEVICE_MODEL := RT-AX89X
