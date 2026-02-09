@@ -616,8 +616,6 @@ define Device/verizon_cr1000a
 	$(call Device/EmmcImage)
 	DEVICE_VENDOR := Verizon
 	DEVICE_MODEL := CR1000A
-	BLOCKSIZE := 128k
-	PAGESIZE := 2048
 	SOC := ipq8072
 	DEVICE_DTS_CONFIG := config@verizon_cr1000a
 	DEVICE_PACKAGES := ipq-wifi-verizon_cr1000a ath11k-firmware-qcn9074 kmod-phy-realtek
