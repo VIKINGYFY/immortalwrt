@@ -155,7 +155,7 @@
 					#address-cells = <1>;
 					#size-cells = <1>;
 
-					hw_mac_addr: hw_mac_addr {
+					hw_mac_addr: hw-mac-addr {
 						compatible = "mac-base";
 						#nvmem-cell-cells = <1>;
 					};
@@ -191,26 +191,121 @@
 		qca8075_0: ethernet-phy@0 {
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <0>;
+
+			leds {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				led@0 {
+					reg = <0>;
+					color = <LED_COLOR_ID_ORANGE>;
+					function = LED_FUNCTION_LAN;
+					default-state = "keep";
+				};
+
+				led@1 {
+					reg = <1>;
+					color = <LED_COLOR_ID_GREEN>;
+					function = LED_FUNCTION_LAN;
+					default-state = "keep";
+				};
+			};
 		};
 
 		qca8075_1: ethernet-phy@1 {
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <1>;
+
+			leds {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				led@0 {
+					reg = <0>;
+					color = <LED_COLOR_ID_ORANGE>;
+					function = LED_FUNCTION_LAN;
+					default-state = "keep";
+				};
+
+				led@1 {
+					reg = <1>;
+					color = <LED_COLOR_ID_GREEN>;
+					function = LED_FUNCTION_LAN;
+					default-state = "keep";
+				};
+			};
 		};
 
 		qca8075_2: ethernet-phy@2 {
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <2>;
+
+			leds {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				led@0 {
+					reg = <0>;
+					color = <LED_COLOR_ID_ORANGE>;
+					function = LED_FUNCTION_LAN;
+					default-state = "keep";
+				};
+
+				led@1 {
+					reg = <1>;
+					color = <LED_COLOR_ID_GREEN>;
+					function = LED_FUNCTION_LAN;
+					default-state = "keep";
+				};
+			};
 		};
 
 		qca8075_3: ethernet-phy@3 {
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <3>;
+
+			leds {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				led@0 {
+					reg = <0>;
+					color = <LED_COLOR_ID_ORANGE>;
+					function = LED_FUNCTION_LAN;
+					default-state = "keep";
+				};
+
+				led@1 {
+					reg = <1>;
+					color = <LED_COLOR_ID_GREEN>;
+					function = LED_FUNCTION_LAN;
+					default-state = "keep";
+				};
+			};
 		};
 
 		qca8075_4: ethernet-phy@4 {
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <4>;
+
+			leds {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				led@0 {
+					reg = <0>;
+					color = <LED_COLOR_ID_ORANGE>;
+					function = LED_FUNCTION_WAN;
+					default-state = "keep";
+				};
+
+				led@1 {
+					reg = <1>;
+					color = <LED_COLOR_ID_GREEN>;
+					function = LED_FUNCTION_WAN;
+					default-state = "keep";
+				};
+			};
 		};
 	};
 };
@@ -250,10 +345,8 @@
 	};
 };
 
-&wifi {
+&edma {
 	status = "okay";
-	qcom,ath11k-fw-memory-mode = <1>;
-	qcom,ath11k-calibration-variant = "Linksys-MR7350";
 };
 
 &dp1 {
@@ -296,6 +389,8 @@
 	nvmem-cell-names = "mac-address";
 };
 
-&edma {
+&wifi {
 	status = "okay";
+	qcom,ath11k-fw-memory-mode = <1>;
+	qcom,ath11k-calibration-variant = "Linksys-MR7350";
 };
