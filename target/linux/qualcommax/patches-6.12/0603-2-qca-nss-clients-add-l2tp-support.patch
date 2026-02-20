@@ -1,75 +1,32 @@
 --- a/include/linux/ppp_channel.h
 +++ b/include/linux/ppp_channel.h
-@@ -60,6 +60,51 @@ struct ppp_channel {
- };
+@@ -97,6 +97,9 @@ extern int ppp_channel_get_protocol(stru
+ /* Call this get protocol version */
+ extern int ppp_channel_get_proto_version(struct ppp_channel *);
  
- #ifdef __KERNEL__
-+/* Call this to obtain the underlying protocol of the PPP channel,
-+ * e.g. PX_PROTO_OE
-+ */
-+extern int ppp_channel_get_protocol(struct ppp_channel *);
-+
-+/* Call this to hold a channel */
-+extern bool ppp_channel_hold(struct ppp_channel *);
-+
-+/* Call this to release a hold you have upon a channel */
-+extern void ppp_channel_release(struct ppp_channel *);
-+
-+/* Release hold on PPP channels */
-+extern void ppp_release_channels(struct ppp_channel *channels[],
-+                                 unsigned int chan_sz);
-+
-+/* Test if ppp xmit lock is locked */
-+extern bool ppp_is_xmit_locked(struct net_device *dev);
-+
-+/* Call this get protocol version */
-+extern int ppp_channel_get_proto_version(struct ppp_channel *);
-+
 +/* Get the device index  associated with a channel, or 0, if none */
 +extern int ppp_dev_index(struct ppp_channel *);
 +
-+/* Hold PPP channels for the PPP device */
-+extern int ppp_hold_channels(struct net_device *dev,
-+                             struct ppp_channel *channels[],
-+                             unsigned int chan_sz);
+ /* Call this to hold a channel */
+ extern bool ppp_channel_hold(struct ppp_channel *);
+ 
+@@ -111,12 +114,16 @@ extern void ppp_release_channels(struct
+ extern int ppp_hold_channels(struct net_device *dev,
+ 				struct ppp_channel *channels[],
+ 				unsigned int chan_sz);
 +extern int __ppp_hold_channels(struct net_device *dev,
-+ 				struct ppp_channel *channels[],
-+ 				unsigned int chan_sz);
-+
-+/* Test if the ppp device is a multi-link ppp device */
-+extern int ppp_is_multilink(struct net_device *dev);
++				struct ppp_channel *channels[],
++				unsigned int chan_sz);
+ 
+ /* Test if ppp xmit lock is locked */
+ extern bool ppp_is_xmit_locked(struct net_device *dev);
+ 
+ /* Test if the ppp device is a multi-link ppp device */
+ extern int ppp_is_multilink(struct net_device *dev);
 +extern int __ppp_is_multilink(struct net_device *dev);
-+
-+/* Update statistics of the PPP net_device by incrementing related
-+ * statistics field value with corresponding parameter
-+ */
-+extern void ppp_update_stats(struct net_device *dev, unsigned long rx_packets,
-+                             unsigned long rx_bytes, unsigned long tx_packets,
-+                             unsigned long tx_bytes, unsigned long rx_errors,
-+                             unsigned long tx_errors, unsigned long rx_dropped,
-+                             unsigned long tx_dropped);
-+
- /* Called by the channel when it can send some more data. */
- extern void ppp_output_wakeup(struct ppp_channel *);
  
-@@ -143,5 +188,17 @@ extern void ppp_update_stats(struct net_
-  * that ppp_unregister_channel returns.
-  */
- 
-+/* QCA NSS Clients Support - Start */
-+/* PPP channel connection event types */
-+#define PPP_CHANNEL_DISCONNECT  0
-+#define PPP_CHANNEL_CONNECT     1
-+
-+/* Register the PPP channel connect notifier */
-+extern void ppp_channel_connection_register_notify(struct notifier_block *nb);
-+
-+/* Unregister the PPP channel connect notifier */
-+extern void ppp_channel_connection_unregister_notify(struct notifier_block *nb);
-+/* QCA NSS Clients Support - End */
-+
- #endif /* __KERNEL__ */
- #endif
+ /* Register the PPP channel connect notifier */
+ extern void ppp_channel_connection_register_notify(struct notifier_block *nb);
 --- a/include/linux/if_pppol2tp.h
 +++ b/include/linux/if_pppol2tp.h
 @@ -12,4 +12,30 @@
@@ -80,7 +37,7 @@
 +/*
 + * Holds L2TP channel info
 + */
-+struct pppol2tp_common_addr {
++struct  pppol2tp_common_addr {
 +	int tunnel_version;				/* v2 or v3 */
 +	__u32 local_tunnel_id, remote_tunnel_id;	/* tunnel id */
 +	__u32 local_session_id, remote_session_id;	/* session id */
@@ -261,7 +218,30 @@
  
 --- a/drivers/net/ppp/ppp_generic.c
 +++ b/drivers/net/ppp/ppp_generic.c
-@@ -3741,6 +3741,32 @@ int ppp_is_multilink(struct net_device *
+@@ -3005,6 +3005,22 @@ char *ppp_dev_name(struct ppp_channel *c
+ 	return name;
+ }
+ 
++/* Return the PPP net device index */
++int ppp_dev_index(struct ppp_channel *chan)
++{
++	struct channel *pch = chan->ppp;
++	int ifindex = 0;
++	struct ppp *ppp;
++
++	if (pch) {
++		rcu_read_lock();
++		ppp = rcu_dereference(pch->ppp);
++		if (ppp && ppp->dev)
++			ifindex = ppp->dev->ifindex;
++		rcu_read_unlock();
++	}
++	return ifindex;
++}
+ 
+ /*
+  * Disconnect a channel from the generic layer.
+@@ -3760,6 +3776,32 @@ int ppp_is_multilink(struct net_device *
  }
  EXPORT_SYMBOL(ppp_is_multilink);
  
@@ -294,7 +274,7 @@
  /* ppp_channel_get_protocol()
   *	Call this to obtain the underlying protocol of the PPP channel,
   *	e.g. PX_PROTO_OE
-@@ -3879,6 +3905,59 @@ int ppp_hold_channels(struct net_device
+@@ -3898,6 +3940,59 @@ int ppp_hold_channels(struct net_device
  }
  EXPORT_SYMBOL(ppp_hold_channels);
  
@@ -354,6 +334,14 @@
  /* ppp_release_channels()
   *	Releases channels
   */
+@@ -3925,6 +4020,7 @@ EXPORT_SYMBOL(ppp_unregister_channel);
+ EXPORT_SYMBOL(ppp_channel_index);
+ EXPORT_SYMBOL(ppp_unit_number);
+ EXPORT_SYMBOL(ppp_dev_name);
++EXPORT_SYMBOL(ppp_dev_index);
+ EXPORT_SYMBOL(ppp_input);
+ EXPORT_SYMBOL(ppp_input_error);
+ EXPORT_SYMBOL(ppp_output_wakeup);
 --- a/net/l2tp/l2tp_core.c
 +++ b/net/l2tp/l2tp_core.c
 @@ -622,6 +622,31 @@ out:

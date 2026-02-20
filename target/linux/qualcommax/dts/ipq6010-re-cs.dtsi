@@ -57,21 +57,6 @@
 	};
 };
 
-&qusb_phy_0 {
-	status = "okay";
-	vdd-supply = <&usb_vbus>;
-};
-
-&sdhc {
-	status = "okay";
-
-	bus-width = <8>;
-	mmc-ddr-1_8v;
-	mmc-hs200-1_8v;
-
-	/delete-property/ mmc-hs400-1_8v;
-};
-
 &tlmm {
 	btuart_pins: btuart-pins {
 		pins = "gpio48", "gpio49";
@@ -86,6 +71,21 @@
 
 	pinctrl-0 = <&btuart_pins>;
 	pinctrl-names = "default";
+};
+
+&qusb_phy_0 {
+	status = "okay";
+	vdd-supply = <&usb_vbus>;
+};
+
+&sdhc {
+	status = "okay";
+
+	bus-width = <8>;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+
+	/delete-property/ mmc-hs400-1_8v;
 };
 
 &mdio {

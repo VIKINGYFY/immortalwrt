@@ -43,7 +43,6 @@ define Device/alfa-network_ap120c-ax
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq6000
-	DEVICE_DTS_CONFIG := config@cp03-c1
 	DEVICE_PACKAGES := ipq-wifi-alfa-network_ap120c-ax
 endef
 TARGET_DEVICES += alfa-network_ap120c-ax
@@ -55,8 +54,8 @@ define Device/cambiumnetworks_xe3-4
 	DEVICE_MODEL := XE3-4
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq6010
 	DEVICE_DTS_CONFIG := config@cp01-c3-xv3-4
+	SOC := ipq6010
 	DEVICE_PACKAGES := ipq-wifi-cambiumnetworks_xe34 ath11k-firmware-qcn9074
 endef
 TARGET_DEVICES += cambiumnetworks_xe3-4
@@ -152,7 +151,7 @@ TARGET_DEVICES += linksys_mr7350
 define Device/linksys_mr7500
 	$(call Device/linksys_mr)
 	DEVICE_MODEL := MR7500
-	SOC := ipq6010
+	SOC := ipq6018
 	NAND_SIZE := 512m
 	IMAGE_SIZE := 147456k
 	DEVICE_PACKAGES += ipq-wifi-linksys_mr7500 ath11k-firmware-qcn9074
@@ -191,8 +190,8 @@ define Device/netgear_wax214
 	DEVICE_MODEL := WAX214
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq6010
 	DEVICE_DTS_CONFIG := config@cp03-c1
+	SOC := ipq6010
 	DEVICE_PACKAGES := ipq-wifi-netgear_wax214
 endef
 TARGET_DEVICES += netgear_wax214
@@ -202,8 +201,8 @@ define Device/netgear_wax610-common
 	DEVICE_VENDOR := Netgear
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq6010
 	DEVICE_DTS_CONFIG := config@cp03-c1
+	SOC := ipq6010
 	KERNEL_IN_UBI := 1
 	IMAGES += ui-factory.tar
 	IMAGE/ui-factory.tar := append-ubi | qsdk-ipq-factory-nand | pad-to 4096 | wax610-netgear-tar
@@ -243,8 +242,7 @@ define Device/tplink_eap610od
 	DEVICE_MODEL := EAP610-Outdoor
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp03-c1
+	SOC := ipq6018
 	DEVICE_PACKAGES := ipq-wifi-tplink_eap610od
 	IMAGES += web-ui-factory.bin
 	IMAGE/web-ui-factory.bin := append-ubi | tplink-image-2022
@@ -262,8 +260,7 @@ define Device/tplink_eap623od-hd-v1
 	DEVICE_MODEL := EAP623-Outdoor HD v1
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp03-c1
+	SOC := ipq6018
 	DEVICE_PACKAGES := ipq-wifi-tplink_eap623od-hd-v1 kmod-phy-realtek
 	IMAGES += web-ui-factory.bin
 	IMAGE/web-ui-factory.bin := append-ubi | tplink-image-2022
@@ -279,8 +276,7 @@ define Device/tplink_eap625od-hd-v1
 	DEVICE_MODEL := EAP625-Outdoor HD v1 and v1.6
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp03-c1
+	SOC := ipq6018
 	DEVICE_PACKAGES := ipq-wifi-tplink_eap625od-hd-v1
 	IMAGES += web-ui-factory.bin
 	IMAGE/web-ui-factory.bin := append-ubi | tplink-image-2022
@@ -299,8 +295,7 @@ define Device/tplink_eap620hd-v3
 	DEVICE_MODEL := EAP620 HD v3
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp03-c1
+	SOC := ipq6018
 	DEVICE_PACKAGES := ipq-wifi-tplink_eap620hd-v3
 	IMAGES += web-ui-factory.bin
 	IMAGE/web-ui-factory.bin := append-ubi | tplink-image-2022
@@ -319,8 +314,8 @@ define Device/yuncore_fap650
 	DEVICE_MODEL := FAP650
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq6000
 	DEVICE_DTS_CONFIG := config@cp03-c1
+	SOC := ipq6018
 	DEVICE_PACKAGES := ipq-wifi-yuncore_fap650
 	IMAGES := factory.ubi factory.ubin sysupgrade.bin
 	IMAGE/factory.ubin := append-ubi | qsdk-ipq-factory-nand
