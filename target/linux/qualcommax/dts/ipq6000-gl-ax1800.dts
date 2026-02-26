@@ -16,7 +16,7 @@
 &partitions {
 	partition@a00000 {
 		label = "rootfs";
-		reg = <0x0a00000 0x7300000>;
+		reg = <0x00a00000 0x07300000>;
 	};
 };
 
@@ -66,5 +66,7 @@
 };
 
 &wifi {
+	status = "okay";
+	qcom,ath11k-fw-memory-mode = <1>;
 	qcom,ath11k-calibration-variant = "GL-iNet-GL-AX1800";
 };
