@@ -64,7 +64,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  };
  
  /**
-@@ -2155,6 +2171,16 @@ static inline bool lockdep_vif_wiphy_mut
+@@ -2180,6 +2196,16 @@ static inline bool lockdep_vif_wiphy_mut
  			      lockdep_vif_wiphy_mutex_held(vif))
  
  /**
@@ -81,7 +81,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
   * enum ieee80211_key_flags - key flags
   *
   * These flags are used for communication about keys between the driver
-@@ -2867,6 +2893,8 @@ struct ieee80211_txq {
+@@ -2892,6 +2918,8 @@ struct ieee80211_txq {
   *	HW flag so drivers can opt in according to their own control, e.g. in
   *	testing.
   *
@@ -90,7 +90,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
   * @NUM_IEEE80211_HW_FLAGS: number of hardware flags, used for sizing arrays
   */
  enum ieee80211_hw_flags {
-@@ -2927,6 +2955,7 @@ enum ieee80211_hw_flags {
+@@ -2952,6 +2980,7 @@ enum ieee80211_hw_flags {
  	IEEE80211_HW_DISALLOW_PUNCTURING,
  	IEEE80211_HW_HANDLES_QUIET_CSA,
  	IEEE80211_HW_STRICT,
@@ -98,7 +98,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  
  	/* keep last, obviously */
  	NUM_IEEE80211_HW_FLAGS
-@@ -3959,6 +3988,10 @@ struct ieee80211_prep_tx_info {
+@@ -3984,6 +4013,10 @@ struct ieee80211_prep_tx_info {
   *	non-MLO connections.
   *	The callback can sleep.
   *
@@ -109,7 +109,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
   * @prepare_multicast: Prepare for multicast filter configuration.
   *	This callback is optional, and its return value is passed
   *	to configure_filter(). This callback must be atomic.
-@@ -4541,6 +4574,9 @@ struct ieee80211_ops {
+@@ -4569,6 +4602,9 @@ struct ieee80211_ops {
  				  struct ieee80211_bss_conf *info,
  				  u64 changed);
  
