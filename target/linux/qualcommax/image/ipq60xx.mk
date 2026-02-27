@@ -108,7 +108,7 @@ define Device/jdcloud_re-cs-07
 	BLOCKSIZE := 64k
 	KERNEL_SIZE := 6144k
 	DEVICE_DTS_CONFIG := config@cp03-c4
-	DEVICE_PACKAGES := -ath11k-firmware-ipq6018 -kmod-ath11k-ahb -wpad-basic-mbedtls
+	DEVICE_PACKAGES := -ath11k-firmware-ipq6018 -kmod-ath11k-ahb -wpad-openssl
 endef
 TARGET_DEVICES += jdcloud_re-cs-07
 

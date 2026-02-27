@@ -6,7 +6,7 @@ define Device/cznic_turris-mox
     kmod-rtc-ds1307 kmod-i2c-pxa kmod-dsa kmod-dsa-mv88e6xxx kmod-sfp \
     kmod-phy-marvell kmod-phy-marvell-10g kmod-ath10k ath10k-board-qca988x \
     ath10k-firmware-qca988x kmod-mt7915e kmod-mt7915-firmware mwlwifi-firmware-88w8997 \
-    wpad-basic-mbedtls
+    wpad-openssl
   SOC := armada-3720
   BOOT_SCRIPT := turris-mox
 endef
@@ -99,12 +99,11 @@ TARGET_DEVICES += marvell_armada-3720-db
 
 define Device/methode_udpu
   $(call Device/Default-arm64)
+  $(call Device/FitImage)
   DEVICE_VENDOR := Methode
   DEVICE_MODEL := micro-DPU (uDPU)
   DEVICE_DTS := armada-3720-uDPU
   KERNEL_LOADADDR := 0x00800000
-  KERNEL_INITRAMFS := kernel-bin | gzip | fit gzip $$(KDIR)/image-$$(DEVICE_DTS).dtb
-  KERNEL_INITRAMFS_SUFFIX := .itb
   DEVICE_PACKAGES += f2fs-tools fdisk kmod-i2c-pxa kmod-hwmon-lm75 kmod-dsa-mv88e6xxx
   DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(2)
   FILESYSTEMS := targz
@@ -118,7 +117,6 @@ define Device/methode_edpu
   $(call Device/methode_udpu)
   DEVICE_MODEL := eDPU
   DEVICE_DTS := armada-3720-eDPU
-  KERNEL_INITRAMFS := kernel-bin | gzip | fit gzip $$(KDIR)/image-$$(DEVICE_DTS).dtb
 endef
 TARGET_DEVICES += methode_edpu
 

@@ -167,7 +167,7 @@ define Device/merrii_hummingbird
   $(call Device/FitImageGzip)
   DEVICE_VENDOR := Merrii
   DEVICE_MODEL := Hummingbird
-  DEVICE_PACKAGES:=kmod-brcmfmac cypress-firmware-43362-sdio wpad-basic-mbedtls
+  DEVICE_PACKAGES:=kmod-brcmfmac cypress-firmware-43362-sdio wpad-openssl
   SOC := sun6i-a31
 endef
 TARGET_DEVICES += merrii_hummingbird
@@ -214,7 +214,7 @@ define Device/roofull_beelink-x2
   DEVICE_VENDOR := Roofull
   DEVICE_MODEL := Beelink-X2
   DEVICE_PACKAGES:=kmod-leds-gpio kmod-gpio-button-hotplug \
-	kmod-brcmfmac cypress-firmware-43430-sdio wpad-basic-mbedtls
+	kmod-brcmfmac cypress-firmware-43430-sdio wpad-openssl
   SOC := sun8i-h3
 endef
 TARGET_DEVICES += roofull_beelink-x2
