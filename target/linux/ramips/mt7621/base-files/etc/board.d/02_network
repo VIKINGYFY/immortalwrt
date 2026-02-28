@@ -47,9 +47,6 @@ ramips_setup_interfaces()
 	cudy,ap1300-outdoor-v1|\
 	dlink,dap-1620-b1|\
 	dlink,dap-x1860-a1|\
-	dlink,dir-1360-a1)
-		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan"
-		;;
 	dlink,dra-1360-a1|\
 	edimax,re23s|\
 	linksys,re7000|\
@@ -292,17 +289,6 @@ ramips_setup_macs()
 		;;
 	jdcloud,re-sp-01b)
 		lan_mac=$(mtd_get_mac_ascii config mac)
-		wan_mac=$lan_mac
-		label_mac=$lan_mac
-		;;
-	linksys,e5600|\
-	linksys,ea6350-v4|\
-	linksys,ea7300-v1|\
-	linksys,ea7300-v2|\
-	linksys,ea7500-v2|\
-	linksys,ea8100-v1|\
-	linksys,ea8100-v2)
-		lan_mac=$(mtd_get_mac_ascii devinfo hw_mac_addr)
 		wan_mac=$lan_mac
 		label_mac=$lan_mac
 		;;

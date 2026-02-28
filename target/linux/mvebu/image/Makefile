@@ -138,7 +138,7 @@ endef
 
 define Build/uDPU-firmware
 	(rm -fR $@-fw; mkdir -p $@-fw)
-	$(CP) $(BIN_DIR)/$(DEVICE_IMG_PREFIX)-initramfs.itb $@-fw/recovery.itb
+	$(CP) $(BIN_DIR)/$(KERNEL_INITRAMFS_IMAGE) $@-fw/recovery.itb
 	$(CP) $(IMAGE_ROOTFS) $@-fw/rootfs.tgz
 	$(CP) $@-boot.scr $@-fw/boot.scr
 	$(TAR) -czp --numeric-owner --owner=0 --group=0 --sort=name \
@@ -147,6 +147,12 @@ define Build/uDPU-firmware
 	$(TAR) -czp --numeric-owner --owner=0 --group=0 --sort=name \
 		$(if $(SOURCE_DATE_EPOCH),--mtime="@$(SOURCE_DATE_EPOCH)") \
 		-f $(KDIR_TMP)/$(DEVICE_IMG_PREFIX)-firmware.tgz -C $@-fw .
+endef
+
+define Device/FitImage
+  KERNEL_SUFFIX := -uImage.itb
+  KERNEL = kernel-bin | libdeflate-gzip | fit gzip $$(KDIR)/image-$$(DEVICE_DTS).dtb
+  KERNEL_NAME := Image
 endef
 
 define Device/Default
