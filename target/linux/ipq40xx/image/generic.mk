@@ -343,8 +343,7 @@ define Device/cilab_meshpoint-one
 	DEVICE_MODEL := MeshPoint.One
 	DEVICE_PACKAGES += kmod-i2c-gpio kmod-iio-bmp280-i2c kmod-hwmon-ina2xx kmod-rtc-pcf2127
 endef
-# Missing DSA Setup
-#TARGET_DEVICES += cilab_meshpoint-one
+TARGET_DEVICES += cilab_meshpoint-one
 
 define Device/compex_wpj419
 	$(call Device/FitImage)
@@ -645,6 +644,18 @@ define Device/glinet_gl-s1300
 	DEVICE_PACKAGES := kmod-fs-ext4 kmod-mmc kmod-spi-dev
 endef
 TARGET_DEVICES += glinet_gl-s1300
+
+define Device/huawei_ap4050dn
+	$(call Device/FitImageLzma)
+	DEVICE_VENDOR := Huawei
+	DEVICE_MODEL := AP4050DN
+	SOC := qcom-ipq4018
+	IMAGE_SIZE := 51200k
+	DEVICE_PACKAGES := ipq-wifi-huawei_ap4050dn
+	KERNEL = kernel-bin | lzma | fit lzma $$(KDIR)/image-$$(DEVICE_DTS).dtb
+	IMAGE/sysupgrade.bin := append-kernel | append-rootfs | pad-rootfs | check-size | append-metadata
+endef
+TARGET_DEVICES += huawei_ap4050dn
 
 define Device/kernel-size-6350-8300
 	DEVICE_COMPAT_VERSION := 2.0

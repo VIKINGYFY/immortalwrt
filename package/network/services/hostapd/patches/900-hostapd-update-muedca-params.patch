@@ -1,6 +1,6 @@
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -1290,6 +1290,11 @@ static int hostapd_ctrl_iface_set(struct
+@@ -1291,6 +1291,11 @@ static int hostapd_ctrl_iface_set(struct
  		} else if (os_strncmp(cmd, "wme_ac_", 7) == 0 ||
  			   os_strncmp(cmd, "wmm_ac_", 7) == 0) {
  			hapd->parameter_set_count++;
@@ -14,7 +14,7 @@
  					   "Failed to update beacons with WMM parameters");
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -21,6 +21,7 @@
+@@ -22,6 +22,7 @@
  #include "common/nan_de.h"
  #include "crypto/random.h"
  #include "p2p/p2p.h"
@@ -22,7 +22,7 @@
  #include "wps/wps.h"
  #include "fst/fst.h"
  #include "wnm_ap.h"
-@@ -2358,6 +2359,47 @@ static void hostapd_event_wds_sta_interf
+@@ -2377,6 +2378,47 @@ static void hostapd_event_wds_sta_interf
  		ifname, MAC2STR(addr));
  }
  
@@ -70,7 +70,7 @@
  
  #ifdef CONFIG_OWE
  static int hostapd_notif_update_dh_ie(struct hostapd_data *hapd,
-@@ -2916,6 +2958,9 @@ void hostapd_wpa_event(void *ctx, enum w
+@@ -2939,6 +2981,9 @@ void hostapd_wpa_event(void *ctx, enum w
  			   hapd->conf->iface);
  		hostapd_event_color_change(hapd, true);
  		break;
@@ -82,7 +82,7 @@
  	case EVENT_MLD_INTERFACE_FREED:
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -4680,6 +4680,10 @@ static int hostapd_fill_csa_settings(str
+@@ -4721,6 +4721,10 @@ static int hostapd_fill_csa_settings(str
  	hapd->cs_count = settings->cs_count;
  	hapd->cs_block_tx = settings->block_tx;
  
@@ -95,7 +95,7 @@
  		free_beacon_data(&settings->beacon_after);
 --- a/src/ap/ieee802_11_he.c
 +++ b/src/ap/ieee802_11_he.c
-@@ -19,6 +19,7 @@
+@@ -20,6 +20,7 @@
  #include "sta_info.h"
  #include "ieee802_11.h"
  #include "dfs.h"
@@ -103,7 +103,7 @@
  
  static u8 ieee80211_he_ppet_size(u8 ppe_thres_hdr, const u8 *phy_cap_info)
  {
-@@ -294,9 +295,16 @@ u8 * hostapd_eid_he_operation(struct hos
+@@ -279,9 +280,16 @@ u8 * hostapd_eid_he_operation(struct hos
  u8 * hostapd_eid_he_mu_edca_parameter_set(struct hostapd_data *hapd, u8 *eid)
  {
  	struct ieee80211_he_mu_edca_parameter_set *edca;
@@ -157,7 +157,7 @@
  			  size_t len);
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -6156,6 +6156,16 @@ enum wpa_event_type {
+@@ -6246,6 +6246,16 @@ enum wpa_event_type {
  	EVENT_LINK_CH_SWITCH_STARTED,
  
  	/**
@@ -174,7 +174,7 @@
  	 * EVENT_TID_LINK_MAP - MLD event to set TID-to-link mapping
  	 *
  	 * This event is used by the driver to indicate the received TID-to-link
-@@ -7144,6 +7154,16 @@ union wpa_event_data {
+@@ -7259,6 +7269,16 @@ union wpa_event_data {
  	struct pasn_auth pasn_auth;
  
  	/**
@@ -211,7 +211,7 @@
  	C2S(NL80211_CMD_SET_HW_TIMESTAMP)
  	C2S(NL80211_CMD_LINKS_REMOVED)
  	C2S(NL80211_CMD_SET_TID_TO_LINK_MAPPING)
-@@ -3875,6 +3876,35 @@ static void nl80211_port_authorized(stru
+@@ -3884,6 +3885,35 @@ static void nl80211_port_authorized(stru
  	wpa_supplicant_event(drv->ctx, EVENT_PORT_AUTHORIZED, &event);
  }
  
@@ -247,10 +247,10 @@
  
  static void nl80211_sta_opmode_change_event(struct wpa_driver_nl80211_data *drv,
  					    struct nlattr **tb)
-@@ -4405,6 +4435,9 @@ static void do_process_drv_event(struct
- 	case NL80211_CMD_ASSOC_MLO_RECONF:
- 		mlme_event_link_addition(drv, nla_data(frame), nla_len(frame));
+@@ -4470,6 +4500,9 @@ static void do_process_drv_event(struct
+ 		nl80211_nan_next_dw_event(drv, tb);
  		break;
+ #endif /* CONFIG_NAN */
 +	case NL80211_CMD_UPDATE_HE_MUEDCA_PARAMS:
 +		nl80211_update_muedca_params_event(drv, tb);
 +		break;
@@ -259,9 +259,9 @@
  			"(cmd=%d)", cmd);
 --- a/src/drivers/nl80211_copy.h
 +++ b/src/drivers/nl80211_copy.h
-@@ -1336,6 +1336,11 @@
-  *	control EPCS configuration. Used to notify userland on the current state
-  *	of EPCS.
+@@ -1361,6 +1361,11 @@
+  *	user space that the NAN new cluster has been joined. The cluster ID is
+  *	indicated by %NL80211_ATTR_MAC.
   *
 + * @NL80211_CMD_UPDATE_HE_MUEDCA_PARAMS: Updated MU-EDCA parameters from driver.
 + *	This event is used to update MU-EDCA parameters in Beacon frame, which
@@ -271,15 +271,15 @@
   * @NL80211_CMD_MAX: highest used command number
   * @__NL80211_CMD_AFTER_LAST: internal use
   */
-@@ -1596,6 +1601,7 @@ enum nl80211_commands {
- 	NL80211_CMD_ASSOC_MLO_RECONF,
- 	NL80211_CMD_EPCS_CFG,
+@@ -1624,6 +1629,7 @@ enum nl80211_commands {
+ 	NL80211_CMD_NAN_NEXT_DW_NOTIFICATION,
+ 	NL80211_CMD_NAN_CLUSTER_JOINED,
  
 +	NL80211_CMD_UPDATE_HE_MUEDCA_PARAMS,
  	/* add new commands above here */
  
  	/* used to define NL80211_CMD_MAX below */
-@@ -2826,6 +2832,9 @@ enum nl80211_commands {
+@@ -2856,6 +2862,9 @@ enum nl80211_commands {
   *	the incoming frame RX timestamp.
   * @NL80211_ATTR_TD_BITMAP: Transition Disable bitmap, for subsequent
   *	(re)associations.
@@ -289,9 +289,9 @@
   *
   * @NL80211_ATTR_PUNCT_BITMAP: (u32) Preamble puncturing bitmap, lowest
   *	bit corresponds to the lowest 20 MHz channel. Each bit set to 1
-@@ -3456,6 +3465,7 @@ enum nl80211_attrs {
+@@ -3546,6 +3555,7 @@ enum nl80211_attrs {
  
- 	NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS,
+ 	NL80211_ATTR_EPP_PEER,
  
 +	NL80211_ATTR_HE_MUEDCA_PARAMS,
  	/* add attributes here, update the policy in nl80211.c */
