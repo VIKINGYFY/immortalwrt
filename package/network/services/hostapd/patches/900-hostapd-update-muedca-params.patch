@@ -247,16 +247,16 @@
  
  static void nl80211_sta_opmode_change_event(struct wpa_driver_nl80211_data *drv,
  					    struct nlattr **tb)
-@@ -4470,6 +4500,9 @@ static void do_process_drv_event(struct
- 		nl80211_nan_next_dw_event(drv, tb);
+@@ -4652,6 +4682,9 @@ int process_bss_event(struct nl_msg *msg
+ 	case NL80211_CMD_CONTROL_PORT_FRAME:
+ 		nl80211_control_port_frame(bss, tb);
  		break;
- #endif /* CONFIG_NAN */
 +	case NL80211_CMD_UPDATE_HE_MUEDCA_PARAMS:
-+		nl80211_update_muedca_params_event(drv, tb);
++		nl80211_update_muedca_params_event(bss->drv, tb);
 +		break;
  	default:
- 		wpa_dbg(drv->ctx, MSG_DEBUG, "nl80211: Ignored unknown event "
- 			"(cmd=%d)", cmd);
+ 		wpa_printf(MSG_DEBUG, "nl80211: Ignored unknown event "
+ 			   "(cmd=%d)", gnlh->cmd);
 --- a/src/drivers/nl80211_copy.h
 +++ b/src/drivers/nl80211_copy.h
 @@ -1361,6 +1361,11 @@

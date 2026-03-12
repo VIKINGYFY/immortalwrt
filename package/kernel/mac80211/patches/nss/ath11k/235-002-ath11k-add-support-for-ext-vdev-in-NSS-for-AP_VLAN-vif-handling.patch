@@ -230,7 +230,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	nss_tx_status_t status;
  	int ret = 0;
  
-@@ -1281,11 +1368,362 @@ int ath11k_nss_vdev_down(struct ath11k_v
+@@ -1281,11 +1368,365 @@ int ath11k_nss_vdev_down(struct ath11k_v
  	}
  
  	ath11k_dbg(ar->ab, ATH11K_DBG_NSS, "nss vdev down tx msg success\n");
@@ -511,6 +511,9 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
 +		   "nss ext vdev interface delete ctx %pK, ifnum %d\n",
 +		   arvif->nss.ctx, arvif->nss.if_num);
 +
++	if (arvif->nss.ext_vdev_up)
++		ath11k_nss_ext_vdev_down(arvif);
++
 +	ath11k_nss_ext_vdev_unregister(arvif);
 +
 +	ath11k_nss_ext_vdev_free(arvif);
@@ -593,7 +596,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  /*----------------------------Peer Setup/Config -----------------------------*/
  
  int ath11k_nss_set_peer_sec_type(struct ath11k *ar,
-@@ -1379,22 +1817,22 @@ free:
+@@ -1379,22 +1820,22 @@ free:
  	return status;
  }
  
@@ -623,7 +626,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  					sta->addr);
  		goto exit;
  	}
-@@ -1466,13 +1904,13 @@ void ath11k_nss_update_sta_rxrate(struct
+@@ -1466,13 +1907,13 @@ void ath11k_nss_update_sta_rxrate(struct
  				  struct ath11k_peer *peer,
  				  struct hal_rx_user_status *user_stats)
  {
@@ -639,7 +642,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	struct ath11k_base *ab = ar->ab;
  
  	if (!ab->nss.enabled)
-@@ -1776,8 +2214,8 @@ int ath11k_nss_add_wds_peer(struct ath11
+@@ -1776,8 +2217,8 @@ int ath11k_nss_add_wds_peer(struct ath11
  	}
  
  	ath11k_dbg(ab, ATH11K_DBG_NSS_WDS,
@@ -650,7 +653,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  
  msg_free:
  	kfree(wlmsg);
-@@ -1822,8 +2260,8 @@ int ath11k_nss_update_wds_peer(struct at
+@@ -1822,8 +2263,8 @@ int ath11k_nss_update_wds_peer(struct at
  	}
  
  	ath11k_dbg(ab, ATH11K_DBG_NSS_WDS,

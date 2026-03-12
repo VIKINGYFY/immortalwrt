@@ -341,7 +341,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  
 --- a/net/mac80211/driver-ops.c
 +++ b/net/mac80211/driver-ops.c
-@@ -632,3 +632,23 @@ int drv_change_sta_links(struct ieee8021
+@@ -635,3 +635,23 @@ int drv_change_sta_links(struct ieee8021
  
  	return 0;
  }
@@ -365,6 +365,20 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
 +	/* TODO: trace event */
 +}
 +#endif
+--- a/net/mac80211/driver-ops.h
++++ b/net/mac80211/driver-ops.h
+@@ -1817,4 +1817,11 @@ static inline int drv_set_eml_op_mode(st
+ 	return ret;
+ }
+ 
++#ifdef CPTCFG_MAC80211_MESH
++void drv_config_mesh_offload_path(struct ieee80211_local *local,
++				  struct ieee80211_sub_if_data *sdata,
++				  enum ieee80211_mesh_path_offld_cmd cmd,
++				  struct ieee80211_mesh_path_offld *path);
++#endif /* CPTCFG_MAC80211_MESH */
++
+ #endif /* __MAC80211_DRIVER_OPS */
 --- a/net/mac80211/mesh.h
 +++ b/net/mac80211/mesh.h
 @@ -321,6 +321,10 @@ void mesh_rx_path_sel_frame(struct ieee8
@@ -1194,17 +1208,22 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  		if (!is_multicast_ether_addr(skb->data)) {
  			struct sta_info *next_hop;
  			bool mpp_lookup = true;
-@@ -2974,6 +2984,9 @@ static struct sk_buff *ieee80211_build_h
+@@ -2974,10 +2984,10 @@ static struct sk_buff *ieee80211_build_h
  
  	skb_reset_mac_header(skb);
  
+-	info = IEEE80211_SKB_CB(skb);
+-	memset(info, 0, sizeof(*info));
+-
+-	info->flags = info_flags;
 +#ifdef CPTCFG_MAC80211_MESH
 +nss_mesh:
 +#endif
- 	info = IEEE80211_SKB_CB(skb);
- 	memset(info, 0, sizeof(*info));
- 
-@@ -4303,6 +4316,7 @@ void __ieee80211_subif_start_xmit(struct
++	info->flags |= info_flags;
+ 	if (info_id) {
+ 		info->status_data = info_id;
+ 		info->status_data_idr = 1;
+@@ -4303,6 +4313,7 @@ void __ieee80211_subif_start_xmit(struct
  	struct sk_buff *next;
  	int len = skb->len;
  	struct ieee80211_key *key = NULL;
@@ -1212,7 +1231,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	struct ieee80211_sub_if_data *ap_sdata;
  
  	if (unlikely(!ieee80211_sdata_running(sdata) || skb->len < ETH_HLEN)) {
-@@ -4377,9 +4391,15 @@ void __ieee80211_subif_start_xmit(struct
+@@ -4377,9 +4388,15 @@ void __ieee80211_subif_start_xmit(struct
  			goto out;
  		}
  
@@ -1231,17 +1250,3 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	}
  	goto out;
   out_free:
---- a/net/mac80211/driver-ops.h
-+++ b/net/mac80211/driver-ops.h
-@@ -1814,4 +1814,11 @@ static inline int drv_set_eml_op_mode(st
- 	return ret;
- }
- 
-+#ifdef CPTCFG_MAC80211_MESH
-+void drv_config_mesh_offload_path(struct ieee80211_local *local,
-+				  struct ieee80211_sub_if_data *sdata,
-+				  enum ieee80211_mesh_path_offld_cmd cmd,
-+				  struct ieee80211_mesh_path_offld *path);
-+#endif /* CPTCFG_MAC80211_MESH */
-+
- #endif /* __MAC80211_DRIVER_OPS */

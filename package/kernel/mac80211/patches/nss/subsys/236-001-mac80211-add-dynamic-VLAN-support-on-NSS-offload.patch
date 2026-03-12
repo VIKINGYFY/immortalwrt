@@ -66,6 +66,18 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	if (!check_sdata_in_driver(sdata))
  		return -EIO;
  
+@@ -506,7 +510,10 @@ int drv_set_key(struct ieee80211_local *
+ 	might_sleep();
+ 	lockdep_assert_wiphy(local->hw.wiphy);
+ 
+-	sdata = get_bss_sdata(sdata);
++	if (!(sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
++	      ieee80211_hw_check(&local->hw, SUPPORTS_NSS_OFFLOAD)))
++		sdata = get_bss_sdata(sdata);
++
+ 	if (!check_sdata_in_driver(sdata))
+ 		return -EIO;
+ 
 --- a/net/mac80211/driver-ops.h
 +++ b/net/mac80211/driver-ops.h
 @@ -478,7 +478,9 @@ static inline int drv_sta_add(struct iee
@@ -78,6 +90,18 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
 +
  	if (!check_sdata_in_driver(sdata))
  		return -EIO;
+ 
+@@ -519,7 +521,10 @@ static inline void drv_vif_add_debugfs(s
+ 	    WARN_ON(!sdata->vif.debugfs_dir))
+ 		return;
+ 
+-	sdata = get_bss_sdata(sdata);
++	if (!(sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
++	      ieee80211_hw_check(&local->hw, SUPPORTS_NSS_OFFLOAD)))
++		sdata = get_bss_sdata(sdata);
++
+ 	if (!check_sdata_in_driver(sdata))
+ 		return;
  
 --- a/net/mac80211/key.c
 +++ b/net/mac80211/key.c
@@ -128,3 +152,19 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	if (unlikely(test_bit(SCAN_SW_SCANNING, &local->scanning)) &&
  	    test_bit(SDATA_STATE_OFFCHANNEL, &sdata->state))
  		goto out_free;
+--- a/net/mac80211/iface.c
++++ b/net/mac80211/iface.c
+@@ -1442,6 +1442,13 @@ int ieee80211_do_open(struct wireless_de
+ 			ieee80211_set_vif_encap_ops(sdata);
+ 		} else {
+ 			netif_carrier_off(dev);
++
++			if (ieee80211_hw_check(&local->hw, SUPPORTS_NSS_OFFLOAD)) {
++				ieee80211_set_sdata_offload_flags(sdata);
++				res = drv_add_interface(local, sdata);
++				if (res)
++					goto err_stop;
++			}
+ 		}
+ 		break;
+ 	case NL80211_IFTYPE_MONITOR:

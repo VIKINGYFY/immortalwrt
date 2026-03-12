@@ -102,15 +102,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  		if (!sdata->bss)
  			return;
  
-@@ -1417,7 +1422,6 @@ int ieee80211_do_open(struct wireless_de
- 				(sdata->u.mntr.flags & MONITOR_FLAG_ACTIVE);
- 	switch (sdata->vif.type) {
- 	case NL80211_IFTYPE_AP_VLAN:
--		/* no need to tell driver, but set carrier and chanctx */
- 		if (sdata->bss->active) {
- 			struct ieee80211_link_data *link;
- 
-@@ -1426,6 +1430,14 @@ int ieee80211_do_open(struct wireless_de
+@@ -1426,6 +1431,14 @@ int ieee80211_do_open(struct wireless_de
  			}
  
  			netif_carrier_on(dev);
@@ -119,7 +111,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
 +				ieee80211_set_sdata_offload_flags(sdata);
 +				res = drv_add_interface(local, sdata);
 +				if (res)
-+					goto err_del_interface;
++					goto err_stop;
 +			}
 +
  			ieee80211_set_vif_encap_ops(sdata);
