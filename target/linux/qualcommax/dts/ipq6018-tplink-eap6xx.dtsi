@@ -14,9 +14,9 @@
 	aliases {
 		serial0 = &blsp1_uart3;
 		led-boot = &led_sys_green;
-		led-failsafe = &led_sys_green;
+		led-failsafe = &led_sys_yellow;
 		led-running = &led_sys_green;
-		led-upgrade = &led_sys_green;
+		led-upgrade = &led_sys_yellow;
 	};
 
 	chosen {
@@ -38,20 +38,14 @@
 		compatible = "gpio-leds";
 
 		led_sys_yellow: sys-yellow {
+			function = "system";
 			color = <LED_COLOR_ID_YELLOW>;
-			function = LED_FUNCTION_STATUS;
-			gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
-		};
-
-		led_sys_amber: sys-amber {
-			color = <LED_COLOR_ID_AMBER>;
-			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 35 GPIO_ACTIVE_HIGH>;
 		};
 
 		led_sys_green: sys-green {
+			function = "system";
 			color = <LED_COLOR_ID_GREEN>;
-			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
 		};
 	};
@@ -77,6 +71,16 @@
 		gpios = <36 GPIO_ACTIVE_HIGH>;
 		line-name = "enable-leds";
 	};
+};
+
+&dp5 {
+	status = "okay";
+	phy-handle = <&rtl8211f_4>;
+	label = "lan";
+};
+
+&edma {
+	status = "okay";
 };
 
 &mdio {
@@ -123,14 +127,4 @@
 			compatible = "qcom,smem-part";
 		};
 	};
-};
-
-&dp5 {
-	status = "okay";
-	phy-handle = <&rtl8211f_4>;
-	label = "lan";
-};
-
-&edma {
-	status = "okay";
 };

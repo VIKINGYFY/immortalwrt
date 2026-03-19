@@ -258,7 +258,7 @@ TARGET_DEVICES += linksys_mx5300
 define Device/linksys_mx8500
 	$(call Device/linksys_mx)
 	DEVICE_MODEL := MX8500
-	DEVICE_PACKAGES += ipq-wifi-linksys_mx8500 ath11k-firmware-qcn9074 kmod-hci-uart
+	DEVICE_PACKAGES += ipq-wifi-linksys_mx8500 ath11k-firmware-qcn9074-ddwrt kmod-hci-uart
 endef
 TARGET_DEVICES += linksys_mx8500
 
@@ -396,7 +396,7 @@ define Device/prpl_haze
 	DEVICE_MODEL := Haze
 	DEVICE_DTS_CONFIG := config@hk09
 	SOC := ipq8072
-	DEVICE_PACKAGES := ath11k-firmware-qcn9074 ipq-wifi-prpl_haze kmod-leds-lp5562
+	DEVICE_PACKAGES := ath11k-firmware-qcn9074-ddwrt ipq-wifi-prpl_haze kmod-leds-lp5562
 endef
 TARGET_DEVICES += prpl_haze
 
@@ -546,7 +546,7 @@ define Device/xiaomi_ax9000
 	PAGESIZE := 2048
 	SOC := ipq8072
 	DEVICE_DTS_CONFIG := config@hk14
-	DEVICE_PACKAGES := ipq-wifi-xiaomi_ax9000 ath11k-firmware-qcn9074 ath10k-firmware-qca9887 kmod-ath10k-smallbuffers
+	DEVICE_PACKAGES := ipq-wifi-xiaomi_ax9000 ath11k-firmware-qcn9074-ddwrt ath10k-firmware-qca9887 kmod-ath10k-smallbuffers
 ifeq ($(IB),)
 ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
 	ARTIFACTS := initramfs-factory.ubi
@@ -673,6 +673,6 @@ define Device/verizon_cr1000a
 	DEVICE_MODEL := CR1000A
 	SOC := ipq8072
 	DEVICE_DTS_CONFIG := config@verizon_cr1000a
-	DEVICE_PACKAGES := ipq-wifi-verizon_cr1000a ath11k-firmware-qcn9074 kmod-phy-realtek
+	DEVICE_PACKAGES := ipq-wifi-verizon_cr1000a ath11k-firmware-qcn9074-ddwrt kmod-phy-realtek
 endef
 TARGET_DEVICES += verizon_cr1000a
