@@ -656,7 +656,7 @@
  
  out_remove_new_fa:
 @@ -1754,6 +1760,9 @@ int fib_table_delete(struct net *net, st
- 	if (fa_to_delete->fa_state & FA_S_ACCESSED)
+ 	if (READ_ONCE(fa_to_delete->fa_state) & FA_S_ACCESSED)
  		rt_cache_flush(cfg->fc_nlinfo.nl_net);
  
 +	blocking_notifier_call_chain(&iproute_chain,
@@ -708,7 +708,7 @@
  static inline const void *choose_neigh_daddr(const struct in6_addr *p,
  					     struct sk_buff *skb,
  					     const void *daddr)
-@@ -3928,6 +3931,10 @@ int ip6_route_add(struct fib6_config *cf
+@@ -3927,6 +3930,10 @@ int ip6_route_add(struct fib6_config *cf
  		return PTR_ERR(rt);
  
  	err = __ip6_ins_rt(rt, &cfg->fc_nlinfo, extack);
@@ -719,7 +719,7 @@
  	fib6_info_release(rt);
  
  	return err;
-@@ -3949,6 +3956,9 @@ static int __ip6_del_rt(struct fib6_info
+@@ -3948,6 +3955,9 @@ static int __ip6_del_rt(struct fib6_info
  	err = fib6_del(rt, info);
  	spin_unlock_bh(&table->tb6_lock);
  
@@ -729,7 +729,7 @@
  out:
  	fib6_info_release(rt);
  	return err;
-@@ -6424,6 +6434,20 @@ static int ip6_route_dev_notify(struct n
+@@ -6423,6 +6433,20 @@ static int ip6_route_dev_notify(struct n
  	return NOTIFY_OK;
  }
  
@@ -760,7 +760,7 @@
  	}
  #undef N
  	return "UNKNOWN_NETDEV_EVENT";
-@@ -12078,7 +12079,7 @@ static void __init net_dev_struct_check(
+@@ -12091,7 +12092,7 @@ static void __init net_dev_struct_check(
  #ifdef CONFIG_NET_XGRESS
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_tx, tcx_egress);
  #endif
@@ -769,7 +769,7 @@
  
  	/* TXRX read-mostly hotpath */
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, lstats);
-@@ -12087,7 +12088,7 @@ static void __init net_dev_struct_check(
+@@ -12100,7 +12101,7 @@ static void __init net_dev_struct_check(
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, hard_header_len);
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, features);
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, ip6_ptr);
@@ -778,7 +778,7 @@
  
  	/* RX read-mostly hotpath */
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_rx, ptype_specific);
-@@ -12107,7 +12108,7 @@ static void __init net_dev_struct_check(
+@@ -12120,7 +12121,7 @@ static void __init net_dev_struct_check(
  #ifdef CONFIG_NET_XGRESS
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_rx, tcx_ingress);
  #endif

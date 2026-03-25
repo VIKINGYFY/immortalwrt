@@ -31,8 +31,7 @@ case "$board" in
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
 		;;
 	linksys,mx4200v2|\
-	linksys,mx4300|\
-	linksys,mx8500)
+	linksys,mx4300)
 		label_mac=$(get_mac_label)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
@@ -41,8 +40,8 @@ case "$board" in
 	netgear,rbr750|\
 	netgear,rbs750)
 		label_mac=$(get_mac_label_dt)
-		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
-		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "2" ] && macaddr_add $label_mac 4 > /sys${DEVPATH}/macaddress
 		;;
 	netgear,rax120v2|\
@@ -63,12 +62,16 @@ case "$board" in
 		[ "$PHYNBR" = "0" ] && mtd_get_mac_binary 0:ART 0x5e29c > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && mtd_get_mac_binary 0:ART 0x5e2a2 > /sys${DEVPATH}/macaddress
 		;;
-	tplink,deco-x80-5g|\
+	tplink,deco-x80-5g)
+		label_mac=$(get_mac_binary /tmp/factory_data/default-mac 0)
+		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac -1 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac -2 > /sys${DEVPATH}/macaddress
+		;;
 	tplink,eap620hd-v1|\
 	tplink,eap660hd-v1)
 		label_mac=$(get_mac_binary /tmp/factory_data/default-mac 0)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
-		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 0 > /sys${DEVPATH}/macaddress
 		;;
 	verizon,cr1000a)
 		label_mac=$(mmc_get_mac_ascii 0:APPSBLENV baseMAC)

@@ -127,6 +127,31 @@ define Device/jdcloud_re-ss-01
 endef
 TARGET_DEVICES += jdcloud_re-ss-01
 
+define Device/link_nn6000-common
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := Link
+	SOC := ipq6000
+	KERNEL_SIZE := 6144k
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-link_nn6000
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
+
+define Device/link_nn6000-v1
+	$(Device/link_nn6000-common)
+	DEVICE_MODEL := NN6000 v1
+	DEVICE_VARIANT := v1
+endef
+TARGET_DEVICES += link_nn6000-v1
+
+define Device/link_nn6000-v2
+	$(Device/link_nn6000-common)
+	DEVICE_MODEL := NN6000 v2
+	DEVICE_VARIANT := v2
+endef
+TARGET_DEVICES += link_nn6000-v2
+
 define Device/linksys_mr
 	$(call Device/FitImage)
 	DEVICE_VENDOR := Linksys
@@ -380,28 +405,6 @@ define Device/zn_m2
 	DEVICE_PACKAGES := ipq-wifi-zn_m2
 endef
 TARGET_DEVICES += zn_m2
-
-define Device/link_nn6000-common
-	$(call Device/emmc-common)
-	DEVICE_VENDOR := Link
-	SOC := ipq6000
-	DEVICE_DTS_CONFIG := config@cp03-c1
-	DEVICE_PACKAGES := ipq-wifi-link_nn6000
-endef
-
-define Device/link_nn6000-v1
-	$(Device/link_nn6000-common)
-	DEVICE_MODEL := NN6000 v1
-	DEVICE_VARIANT := v1
-endef
-TARGET_DEVICES += link_nn6000-v1
-
-define Device/link_nn6000-v2
-	$(Device/link_nn6000-common)
-	DEVICE_MODEL := NN6000 v2
-	DEVICE_VARIANT := v2
-endef
-TARGET_DEVICES += link_nn6000-v2
 
 define Device/philips_ly1800
 	$(call Device/emmc-common)

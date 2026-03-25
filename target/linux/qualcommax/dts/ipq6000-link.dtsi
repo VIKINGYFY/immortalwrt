@@ -13,7 +13,7 @@
 	aliases {
 		serial0 = &blsp1_uart3;
 
-		led-boot = &led_status_blue;
+		led-boot = &led_status_red;
 		led-failsafe = &led_status_red;
 		led-running = &led_status_green;
 		led-upgrade = &led_status_red;
@@ -40,21 +40,27 @@
 	};
 
 	leds {
+		/* Single RGB led controlled via GPIO.
+		To mimic the OEM default behaviour red are switched on from boot */
 		compatible = "gpio-leds";
 
 		led_status_red: status-red {
-			label = "red:status";
 			gpios = <&tlmm 50 GPIO_ACTIVE_HIGH>;
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_STATUS;
+			default-state = "on";
 		};
 
 		led_status_green: status-green {
-			label = "green:status";
 			gpios = <&tlmm 70 GPIO_ACTIVE_HIGH>;
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
 		};
 
 		led_status_blue: status-blue {
-			label = "blue:status";
 			gpios = <&tlmm 69 GPIO_ACTIVE_HIGH>;
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_STATUS;
 		};
 	};
 };

@@ -42,7 +42,7 @@
  };
  
  /* if you move pkt_type around you also must adapt those constants */
-@@ -1286,7 +1304,7 @@ static inline void kfree_skb_list(struct
+@@ -1318,7 +1336,7 @@ static inline void kfree_skb_list(struct
  	kfree_skb_list_reason(segs, SKB_DROP_REASON_NOT_SPECIFIED);
  }
  
@@ -51,7 +51,7 @@
  void consume_skb(struct sk_buff *skb);
  #else
  static inline void consume_skb(struct sk_buff *skb)
-@@ -1295,8 +1313,12 @@ static inline void consume_skb(struct sk
+@@ -1327,8 +1345,12 @@ static inline void consume_skb(struct sk
  }
  #endif
  
@@ -64,7 +64,7 @@
  
  void kfree_skb_partial(struct sk_buff *skb, bool head_stolen);
  bool skb_try_coalesce(struct sk_buff *to, struct sk_buff *from,
-@@ -1419,6 +1441,7 @@ static inline int skb_pad(struct sk_buff
+@@ -1451,6 +1473,7 @@ static inline int skb_pad(struct sk_buff
  	return __skb_pad(skb, pad, true);
  }
  #define dev_kfree_skb(a)	consume_skb(a)
@@ -72,7 +72,7 @@
  
  int skb_append_pagefrags(struct sk_buff *skb, struct page *page,
  			 int offset, size_t size, size_t max_frags);
-@@ -3382,6 +3405,9 @@ static inline void *netdev_alloc_frag_al
+@@ -3414,6 +3437,9 @@ static inline void *netdev_alloc_frag_al
  struct sk_buff *__netdev_alloc_skb(struct net_device *dev, unsigned int length,
  				   gfp_t gfp_mask);
  
@@ -146,7 +146,7 @@
 +obj-$(CONFIG_SKB_RECYCLER) += skbuff_recycle.o
 --- a/net/core/dev.c
 +++ b/net/core/dev.c
-@@ -6212,12 +6212,18 @@ static int process_backlog(struct napi_s
+@@ -6225,12 +6225,18 @@ static int process_backlog(struct napi_s
  
  	napi->weight = READ_ONCE(net_hotdata.dev_rx_weight);
  	while (again) {

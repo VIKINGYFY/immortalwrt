@@ -82,7 +82,7 @@
  	case EVENT_MLD_INTERFACE_FREED:
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -4721,6 +4721,10 @@ static int hostapd_fill_csa_settings(str
+@@ -4717,6 +4717,10 @@ static int hostapd_fill_csa_settings(str
  	hapd->cs_count = settings->cs_count;
  	hapd->cs_block_tx = settings->block_tx;
  
@@ -157,7 +157,7 @@
  			  size_t len);
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -6246,6 +6246,16 @@ enum wpa_event_type {
+@@ -6247,6 +6247,16 @@ enum wpa_event_type {
  	EVENT_LINK_CH_SWITCH_STARTED,
  
  	/**
@@ -174,7 +174,7 @@
  	 * EVENT_TID_LINK_MAP - MLD event to set TID-to-link mapping
  	 *
  	 * This event is used by the driver to indicate the received TID-to-link
-@@ -7259,6 +7269,16 @@ union wpa_event_data {
+@@ -7260,6 +7270,16 @@ union wpa_event_data {
  	struct pasn_auth pasn_auth;
  
  	/**
@@ -211,7 +211,7 @@
  	C2S(NL80211_CMD_SET_HW_TIMESTAMP)
  	C2S(NL80211_CMD_LINKS_REMOVED)
  	C2S(NL80211_CMD_SET_TID_TO_LINK_MAPPING)
-@@ -3884,6 +3885,35 @@ static void nl80211_port_authorized(stru
+@@ -3885,6 +3886,35 @@ static void nl80211_port_authorized(stru
  	wpa_supplicant_event(drv->ctx, EVENT_PORT_AUTHORIZED, &event);
  }
  
@@ -247,7 +247,7 @@
  
  static void nl80211_sta_opmode_change_event(struct wpa_driver_nl80211_data *drv,
  					    struct nlattr **tb)
-@@ -4652,6 +4682,9 @@ int process_bss_event(struct nl_msg *msg
+@@ -4653,6 +4683,9 @@ int process_bss_event(struct nl_msg *msg
  	case NL80211_CMD_CONTROL_PORT_FRAME:
  		nl80211_control_port_frame(bss, tb);
  		break;
@@ -259,9 +259,9 @@
  			   "(cmd=%d)", gnlh->cmd);
 --- a/src/drivers/nl80211_copy.h
 +++ b/src/drivers/nl80211_copy.h
-@@ -1361,6 +1361,11 @@
-  *	user space that the NAN new cluster has been joined. The cluster ID is
-  *	indicated by %NL80211_ATTR_MAC.
+@@ -1367,6 +1367,11 @@
+  *	%NL80211_ATTR_INCUMBENT_SIGNAL_INTERFERENCE_BITMAP. The current channel
+  *	definition is also sent.
   *
 + * @NL80211_CMD_UPDATE_HE_MUEDCA_PARAMS: Updated MU-EDCA parameters from driver.
 + *	This event is used to update MU-EDCA parameters in Beacon frame, which
@@ -271,15 +271,15 @@
   * @NL80211_CMD_MAX: highest used command number
   * @__NL80211_CMD_AFTER_LAST: internal use
   */
-@@ -1624,6 +1629,7 @@ enum nl80211_commands {
- 	NL80211_CMD_NAN_NEXT_DW_NOTIFICATION,
- 	NL80211_CMD_NAN_CLUSTER_JOINED,
+@@ -1632,6 +1637,7 @@ enum nl80211_commands {
+ 
+ 	NL80211_CMD_INCUMBENT_SIGNAL_DETECT,
  
 +	NL80211_CMD_UPDATE_HE_MUEDCA_PARAMS,
  	/* add new commands above here */
  
  	/* used to define NL80211_CMD_MAX below */
-@@ -2856,6 +2862,9 @@ enum nl80211_commands {
+@@ -2864,6 +2870,9 @@ enum nl80211_commands {
   *	the incoming frame RX timestamp.
   * @NL80211_ATTR_TD_BITMAP: Transition Disable bitmap, for subsequent
   *	(re)associations.
@@ -289,9 +289,9 @@
   *
   * @NL80211_ATTR_PUNCT_BITMAP: (u32) Preamble puncturing bitmap, lowest
   *	bit corresponds to the lowest 20 MHz channel. Each bit set to 1
-@@ -3546,6 +3555,7 @@ enum nl80211_attrs {
+@@ -3582,6 +3591,7 @@ enum nl80211_attrs {
  
- 	NL80211_ATTR_EPP_PEER,
+ 	NL80211_ATTR_UHR_OPERATION,
  
 +	NL80211_ATTR_HE_MUEDCA_PARAMS,
  	/* add attributes here, update the policy in nl80211.c */

@@ -50,6 +50,7 @@ ALLWIFIBOARDS:= \
 	iodata_wn-dax3000gr \
 	jdcloud_re-cs-02 \
 	jdcloud_re-ss-01 \
+	link_nn6000 \
 	linksys_homewrk \
 	linksys_mr5500 \
 	linksys_mr6350 \
@@ -121,7 +122,6 @@ ALLWIFIBOARDS:= \
 	anysafe_e1 \
 	cmiot_ax18 \
 	jdcloud_re-cs-03 \
-	link_nn6000 \
 	philips_ly1800 \
 	redmi_ax5 \
 	redmi_ax5-jdcloud \
@@ -254,6 +254,7 @@ $(eval $(call generate-ipq-wifi-package,ignitenet_ss-w2-ac2600,Ignitenet SS-W2-A
 $(eval $(call generate-ipq-wifi-package,iodata_wn-dax3000gr,I-O DATA WN-DAX3000GR))
 $(eval $(call generate-ipq-wifi-package,jdcloud_re-cs-02,JDCloud RE-CS-02))
 $(eval $(call generate-ipq-wifi-package,jdcloud_re-ss-01,JDCloud RE-SS-01))
+$(eval $(call generate-ipq-wifi-package,link_nn6000,Link NN6000))
 $(eval $(call generate-ipq-wifi-package,linksys_homewrk,Linksys HomeWRK))
 $(eval $(call generate-ipq-wifi-package,linksys_mr5500,Linksys MR5500))
 $(eval $(call generate-ipq-wifi-package,linksys_mr6350,Linksys MR6350))
@@ -325,7 +326,6 @@ $(eval $(call generate-ipq-wifi-package,zyxel_scr50axe,Zyxel SCR50AXE))
 $(eval $(call generate-ipq-wifi-package,anysafe_e1,AnySafe E1))
 $(eval $(call generate-ipq-wifi-package,cmiot_ax18,CMIOT AX18))
 $(eval $(call generate-ipq-wifi-package,jdcloud_re-cs-03,JDCloud RE-CS-03))
-$(eval $(call generate-ipq-wifi-package,link_nn6000,Link NN6000))
 $(eval $(call generate-ipq-wifi-package,philips_ly1800,Philips LY1800))
 $(eval $(call generate-ipq-wifi-package,redmi_ax5,Redmi AX5))
 $(eval $(call generate-ipq-wifi-package,redmi_ax5-jdcloud,Redmi AX5 JDCloud))
