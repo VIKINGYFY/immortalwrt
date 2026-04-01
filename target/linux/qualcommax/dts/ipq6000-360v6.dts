@@ -19,15 +19,10 @@
 	aliases {
 		serial0 = &blsp1_uart3;
 
-		led-boot = &led_status_orange;
+		led-boot = &led_status_red;
 		led-failsafe = &led_status_red;
 		led-running = &led_status_green;
 		led-upgrade = &led_status_orange;
-
-		ethernet0 = &dp1;
-		ethernet1 = &dp2;
-		ethernet2 = &dp3;
-		ethernet3 = &dp4;
 	};
 
 	chosen {
@@ -55,21 +50,18 @@
 		compatible = "gpio-leds";
 
 		led_status_red: status-red {
-			label = "red:status";
 			color = <LED_COLOR_ID_RED>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 71 GPIO_ACTIVE_HIGH>;
 		};
 
 		led_status_orange: status-orange {
-			label = "orange:status";
 			color = <LED_COLOR_ID_ORANGE>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 72 GPIO_ACTIVE_HIGH>;
 		};
 
 		led_status_green: status-green {
-			label = "green:status";
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;

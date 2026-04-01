@@ -44,28 +44,26 @@
 		compatible = "gpio-leds";
 
 		led_pw: pw {
-			label = "pw:status";
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_POWER;
 			gpios = <&tlmm 46 GPIO_ACTIVE_HIGH>;
 		};
 
 		led_2g: 2g {
-			label = "2g:status";
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_WLAN_2GHZ;
 			gpios = <&tlmm 47 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "phy1radio";
 		};
 
 		led_5g: 5g {
-			label = "5g:status";
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_WLAN_5GHZ;
 			gpios = <&tlmm 48 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "phy0radio";
 		};
 
 		led_bt: bt {
-			label = "bt:status";
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_BLUETOOTH;
 			gpios = <&tlmm 50 GPIO_ACTIVE_HIGH>;

@@ -53,21 +53,18 @@
 		compatible = "gpio-leds";
 
 		led_status_blue: status-blue {
-			label = "blue:status";
 			color = <LED_COLOR_ID_BLUE>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 35 GPIO_ACTIVE_HIGH>;
 		};
 
 		led_status_red: status-red {
-			label = "red:status";
 			color = <LED_COLOR_ID_RED>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
 		};
 
 		led_status_green: status-green {
-			label = "green:status";
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 50 GPIO_ACTIVE_HIGH>;
@@ -78,9 +75,10 @@
 &sdhc {
 	status = "okay";
 
-	/delete-property/ mmc-hs400-1_8v;
-	mmc-hs200-1_8v;
+	bus-width = <8>;
 	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	non-removable;
 };
 
 &mdio {

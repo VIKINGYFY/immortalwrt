@@ -6,7 +6,7 @@ define KernelPackage/drm-rockchip
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=Rockchip DRM support
   DEPENDS:=@TARGET_rockchip +kmod-backlight +kmod-drm-kms-helper \
-	+kmod-multimedia-input +kmod-drm-display-helper
+	+kmod-multimedia-input +kmod-drm-display-helper +kmod-cec-core
   KCONFIG:= \
 	CONFIG_DRM_ROCKCHIP \
 	CONFIG_DRM_LOAD_EDID_FIRMWARE=y \
@@ -45,8 +45,7 @@ define KernelPackage/drm-rockchip
 	$(LINUX_DIR)/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.ko \
 	$(LINUX_DIR)/drivers/gpu/drm/drm_dma_helper.ko \
 	$(LINUX_DIR)/drivers/gpu/drm/panel/panel-simple.ko \
-	$(LINUX_DIR)/drivers/gpu/drm/rockchip/rockchipdrm.ko \
-	$(LINUX_DIR)/drivers/media/cec/core/cec.ko
+	$(LINUX_DIR)/drivers/gpu/drm/rockchip/rockchipdrm.ko
   AUTOLOAD:=$(call AutoProbe,rockchipdrm phy-rockchip-inno-hdmi phy-rockchip-samsung-hdptx dw-hdmi-cec)
 endef
 
