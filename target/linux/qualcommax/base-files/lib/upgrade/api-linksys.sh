@@ -77,7 +77,7 @@ linksys_bootconfig_pre_upgrade() {
 	fi
 }
 
-linksys_mx_pre_upgrade() {
+linksys_pre_upgrade() {
 	local setenv_script="/tmp/fw_env_upgrade"
 
 	CI_UBIPART="rootfs"
