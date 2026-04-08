@@ -82,7 +82,7 @@
  	case EVENT_MLD_INTERFACE_FREED:
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -4717,6 +4717,10 @@ static int hostapd_fill_csa_settings(str
+@@ -4746,6 +4746,10 @@ static int hostapd_fill_csa_settings(str
  	hapd->cs_count = settings->cs_count;
  	hapd->cs_block_tx = settings->block_tx;
  
@@ -157,7 +157,7 @@
  			  size_t len);
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -6247,6 +6247,16 @@ enum wpa_event_type {
+@@ -6249,6 +6249,16 @@ enum wpa_event_type {
  	EVENT_LINK_CH_SWITCH_STARTED,
  
  	/**
@@ -174,7 +174,7 @@
  	 * EVENT_TID_LINK_MAP - MLD event to set TID-to-link mapping
  	 *
  	 * This event is used by the driver to indicate the received TID-to-link
-@@ -7266,6 +7276,16 @@ union wpa_event_data {
+@@ -7270,6 +7280,16 @@ union wpa_event_data {
  	struct pasn_auth pasn_auth;
  
  	/**
@@ -211,7 +211,7 @@
  	C2S(NL80211_CMD_SET_HW_TIMESTAMP)
  	C2S(NL80211_CMD_LINKS_REMOVED)
  	C2S(NL80211_CMD_SET_TID_TO_LINK_MAPPING)
-@@ -3885,6 +3886,35 @@ static void nl80211_port_authorized(stru
+@@ -3887,6 +3888,35 @@ static void nl80211_port_authorized(stru
  	wpa_supplicant_event(drv->ctx, EVENT_PORT_AUTHORIZED, &event);
  }
  
@@ -247,7 +247,7 @@
  
  static void nl80211_sta_opmode_change_event(struct wpa_driver_nl80211_data *drv,
  					    struct nlattr **tb)
-@@ -4745,6 +4775,9 @@ int process_bss_event(struct nl_msg *msg
+@@ -4747,6 +4777,9 @@ int process_bss_event(struct nl_msg *msg
  	case NL80211_CMD_CONTROL_PORT_FRAME:
  		nl80211_control_port_frame(bss, tb);
  		break;
