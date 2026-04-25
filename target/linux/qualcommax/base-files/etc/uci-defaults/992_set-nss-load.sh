@@ -1,12 +1,11 @@
 #!/bin/sh
-
-#指定文件路径
+# 修正后的 NSS 启动调优
+# - sed 正则非贪婪,避免误伤多行 popen
+# - sysctl 改 sysctl.d 持久化,procd-sysctl 在合适时机应用
 FILE="/usr/share/rpcd/ucode/luci"
+[ -f "$FILE" ] && sed -i "s#popen('top -n1[^']*')#popen('/sbin/cpuusage')#" "$FILE"
 
-#添加NSS状态显示
-sed -i "s#const fd = popen('top.*')#const fd = popen('/sbin/cpuusage')#g" $FILE
-
-#锁定NSS频率
-sysctl -w dev.nss.clock.auto_scale='0'
+mkdir -p /etc/sysctl.d
+echo 'dev.nss.clock.auto_scale = 0' > /etc/sysctl.d/97-nss-lock-clock.conf
 
 exit 0

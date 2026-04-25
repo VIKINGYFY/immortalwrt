@@ -1,3 +1,4 @@
+#!/bin/sh
 . /lib/functions.sh
 
 PART_SIZE=20

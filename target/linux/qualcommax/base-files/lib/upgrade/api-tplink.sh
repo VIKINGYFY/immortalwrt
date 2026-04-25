@@ -1,3 +1,4 @@
+#!/bin/sh
 . /lib/functions.sh
 . /lib/upgrade/common.sh
 
