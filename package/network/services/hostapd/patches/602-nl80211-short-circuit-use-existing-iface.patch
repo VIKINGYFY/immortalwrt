@@ -18,11 +18,9 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  src/drivers/driver_nl80211.c | 36 +++++++++++++++++++++++-------------
  1 file changed, 23 insertions(+), 13 deletions(-)
 
-diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
-index 413b6bd..8917204 100644
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -6686,6 +6686,24 @@ static int nl80211_create_iface_once(struct wpa_driver_nl80211_data *drv,
+@@ -6686,6 +6686,24 @@ static int nl80211_create_iface_once(str
  }
  
  
@@ -47,7 +45,7 @@ index 413b6bd..8917204 100644
  int nl80211_create_iface(struct wpa_driver_nl80211_data *drv,
  			 const char *ifname, enum nl80211_iftype iftype,
  			 const u8 *addr, int wds, u32 radio_mask,
-@@ -6694,25 +6712,17 @@ int nl80211_create_iface(struct wpa_driver_nl80211_data *drv,
+@@ -6694,25 +6712,17 @@ int nl80211_create_iface(struct wpa_driv
  {
  	int ret;
  
@@ -78,5 +76,3 @@ index 413b6bd..8917204 100644
  		}
  		wpa_printf(MSG_INFO, "Try to remove and re-create %s", ifname);
  
--- 
-2.43.0
