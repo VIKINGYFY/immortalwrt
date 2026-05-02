@@ -1,0 +1,51 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: VIKINGYFY <vikingyfy@immortalwrt.org>
+Date: Sat, 2 May 2026 00:00:00 +0800
+Subject: [PATCH] wifi: cfg80211: relax max bandwidth check in reg rule
+ validation
+
+The is_valid_reg_rule() function rejects regulatory rules where
+max_bandwidth_khz exceeds the frequency range. However, some
+ath11k firmware (notably for the CN regulatory domain) reports
+rules where the maximum bandwidth is larger than the frequency
+range width, causing the entire regulatory domain to be rejected
+and spamming the kernel log with WARNING backtraces.
+
+The bandwidth constraint is already enforced by
+reg_get_max_bandwidth_from_range() which clamps the result to
+the actual range width. The validation here is redundant and
+overly strict, causing regressions from kernel 6.12 where this
+check did not exist.
+
+Remove the redundant bandwidth check and the redundant
+end_freq/start_freq check (which is already verified above),
+returning to the 6.12 behavior.
+
+Signed-off-by: VIKINGYFY <vikingyfy@immortalwrt.org>
+---
+ net/wireless/reg.c | 7 -------
+ 1 file changed, 7 deletions(-)
+
+--- a/net/wireless/reg.c
++++ b/net/wireless/reg.c
+@@ -1235,7 +1235,6 @@ unsigned int reg_get_max_bandwidth(cons
+ static bool is_valid_reg_rule(const struct ieee80211_reg_rule *rule)
+ {
+ 	const struct ieee80211_freq_range *freq_range = &rule->freq_range;
+-	u32 freq_diff;
+ 
+ 	if (freq_range->start_freq_khz <= 0 || freq_range->end_freq_khz <= 0)
+ 		return false;
+@@ -1243,12 +1242,6 @@ static bool is_valid_reg_rule(const str
+ 	if (freq_range->start_freq_khz > freq_range->end_freq_khz)
+ 		return false;
+ 
+-	freq_diff = freq_range->end_freq_khz - freq_range->start_freq_khz;
+-
+-	if (freq_range->end_freq_khz <= freq_range->start_freq_khz ||
+-	    freq_range->max_bandwidth_khz > freq_diff)
+-		return false;
+-
+ 	return true;
+ }
+ 

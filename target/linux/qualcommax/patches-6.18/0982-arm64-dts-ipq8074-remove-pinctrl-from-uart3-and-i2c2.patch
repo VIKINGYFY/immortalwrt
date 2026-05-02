@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: VIKINGYFY <vikingyfy@immortalwrt.org>
+Date: Sat, 2 May 2026 00:00:00 +0800
+Subject: [PATCH] arm64: dts: qcom: ipq8074: remove pinctrl from uart3 and i2c2
+
+On kernel 6.18, the blsp1_uart3 pinctrl (hsuart_pins: GPIO 46-49) and
+blsp1_i2c2 pinctrl (i2c_0_pins: GPIO 42-43) cause GPIO conflicts with
+many IPQ807X devices that use these pins for LEDs, buttons, etc.
+
+The pinctrl configuration was not present in kernel 6.12, and removing
+it restores the previous behavior where pins are not claimed exclusively
+by serial/i2c drivers, allowing them to be used as GPIOs.
+
+Devices that actually need blsp1_uart3 or blsp1_i2c2 for specific
+hardware functions can re-enable the pinctrl in their device DTS.
+
+Signed-off-by: VIKINGYFY <vikingyfy@immortalwrt.org>
+---
+ arch/arm64/boot/dts/qcom/ipq8074.dtsi | 4 ----
+ 1 file changed, 4 deletions(-)
+
+--- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
+@@ -690,8 +690,6 @@
+ 			dmas = <&blsp_dma 4>,
+ 				<&blsp_dma 5>;
+ 			dma-names = "tx", "rx";
+-			pinctrl-0 = <&hsuart_pins>;
+-			pinctrl-names = "default";
+ 			status = "disabled";
+ 		};
+ 
+@@ -747,8 +745,6 @@
+ 			clock-frequency = <400000>;
+ 			dmas = <&blsp_dma 14>, <&blsp_dma 15>;
+ 			dma-names = "tx", "rx";
+-			pinctrl-0 = <&i2c_0_pins>;
+-			pinctrl-names = "default";
+ 			status = "disabled";
+ 		};
+ 
