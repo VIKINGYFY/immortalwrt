@@ -1,0 +1,16 @@
+--- a/drivers/regulator/qcom_smd-regulator.c
++++ b/drivers/regulator/qcom_smd-regulator.c
+@@ -792,10 +792,10 @@ struct rpm_regulator_data {
+ };
+ 
+ static const struct rpm_regulator_data rpm_mp5496_regulators[] = {
+-	{ "s1", QCOM_SMD_RPM_SMPA, 1, &mp5496_smps, "s1" },
+-	{ "s2", QCOM_SMD_RPM_SMPA, 2, &mp5496_smps, "s2" },
+-	{ "l2", QCOM_SMD_RPM_LDOA, 2, &mp5496_ldoa2, "l2" },
+-	{ "l5", QCOM_SMD_RPM_LDOA, 5, &mp5496_ldoa2, "l5" },
++	{ "s1", QCOM_SMD_RPM_SMPA, 1, &mp5496_smps, "vin1" },
++	{ "s2", QCOM_SMD_RPM_SMPA, 2, &mp5496_smps, "vin2" },
++	{ "l2", QCOM_SMD_RPM_LDOA, 2, &mp5496_ldoa2, "vin2" },
++	{ "l5", QCOM_SMD_RPM_LDOA, 5, &mp5496_ldoa2, "vin5" },
+ 	{}
+ };
