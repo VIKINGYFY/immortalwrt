@@ -159,6 +159,7 @@ inline struct sk_buff *skb_recycler_alloc(struct net_device *dev,
 		skb->data = skb->head + NET_SKB_PAD;
 		skb_reset_tail_pointer(skb);
 		skb->dev = dev;
+		skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
 
 		skb->is_from_recycler = 1;
 		/* Restore fast_recycled flag */
