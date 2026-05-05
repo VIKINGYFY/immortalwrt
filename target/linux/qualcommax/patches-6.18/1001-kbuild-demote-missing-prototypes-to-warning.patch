@@ -1,0 +1,9 @@
+--- a/scripts/Makefile.extrawarn
++++ b/scripts/Makefile.extrawarn
+@@ -19,6 +19,7 @@ KBUILD_CFLAGS += $(call cc-option, -Wno-address-of-packed-member)
+ KBUILD_CFLAGS += -Wmissing-declarations
+ KBUILD_CFLAGS += -Wmissing-prototypes
++KBUILD_CFLAGS += -Wno-error=missing-prototypes
+
+ ifneq ($(CONFIG_FRAME_WARN),0)
+ KBUILD_CFLAGS += -Wframe-larger-than=$(CONFIG_FRAME_WARN)
