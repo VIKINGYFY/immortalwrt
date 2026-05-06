@@ -13,8 +13,8 @@ issues.
 
 Signed-off-by: Mantas Pucka <mantas@8devices.com>
 ---
- drivers/remoteproc/qcom_q6v5_wcss.c | 6 +++---
- 1 file changed, 3 insertions(+), 3 deletions(-)
+ drivers/remoteproc/qcom_q6v5_wcss.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
 
 --- a/drivers/remoteproc/qcom_q6v5_wcss.c
 +++ b/drivers/remoteproc/qcom_q6v5_wcss.c
@@ -31,6 +31,15 @@ Signed-off-by: Mantas Pucka <mantas@8devices.com>
  	if (desc->ssctl_id) {
  		wcss->sysmon = qcom_add_sysmon_subdev(rproc,
 @@ -1162,7 +1162,7 @@ static const struct wcss_data wcss_ipq80
+ 	.aon_reset_required = true,
+ 	.wcss_q6_reset_required = true,
+ 	.bcr_reset_required = false,
+-	.ssr_name = "q6wcss",
++	.ssr_name = "wcnss",
+ 	.ops = &q6v5_wcss_ipq8074_ops,
+ 	.requires_force_stop = true,
+ 	.need_mem_protection = true,
+@@ -1176,7 +1176,7 @@ static const struct wcss_data wcss_ipq60
  	.aon_reset_required = true,
  	.wcss_q6_reset_required = true,
  	.bcr_reset_required = false,
