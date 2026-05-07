@@ -76,8 +76,13 @@ define KernelPackage/nf-ipt
   SUBMENU:=$(NF_MENU)
   TITLE:=Iptables core
   KCONFIG:=$(KCONFIG_NF_IPT)
-  FILES:=$(foreach mod,$(NF_IPT-m),$(LINUX_DIR)/net/$(mod).ko)
-  AUTOLOAD:=$(call AutoProbe,$(notdir $(NF_IPT-m)))
+  # 6.18+ 内核 ip_tables.ko / x_tables.ko 由 kmod-iptables(LEGACY KCONFIG)提供;
+  # 6.12 仍由本包直接提供。用 DEPENDS 在 6.18+ 把 kmod-iptables 拉进来,
+  # 用 $(if) 让 FILES/AUTOLOAD 仅在 6.12 启用,避免双方装相同 .ko 引发
+  # opkg check_data_file_clashes 错误(详见 b0c5bf38 / 4069cf5b 调试历史)。
+  DEPENDS:=+!LINUX_6_12:kmod-iptables
+  FILES:=$(if $(CONFIG_LINUX_6_12),$(foreach mod,$(NF_IPT-m),$(LINUX_DIR)/net/$(mod).ko))
+  AUTOLOAD:=$(if $(CONFIG_LINUX_6_12),$(call AutoProbe,$(notdir $(NF_IPT-m))))
 endef
 
 $(eval $(call KernelPackage,nf-ipt))
