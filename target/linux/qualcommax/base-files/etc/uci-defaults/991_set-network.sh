@@ -25,7 +25,11 @@ if [ -n "$ula_prefix" ]; then
 	uci set network.wan6.reqprefix='auto'
 	uci set network.lan.ip6assign='64'
 	uci set network.lan.ip6ifaceid='eui64'
-	uci set network.globals.packet_steering='0'
+	if lsmod 2>/dev/null | grep -q '^qca_nss_drv '; then
+		uci set network.globals.packet_steering='0'
+	else
+		uci set network.globals.packet_steering='1'
+	fi
 	uci del network.globals.ula_prefix
 
 	uci commit network
