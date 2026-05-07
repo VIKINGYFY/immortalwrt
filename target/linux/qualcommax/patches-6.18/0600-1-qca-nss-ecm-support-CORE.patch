@@ -118,7 +118,7 @@
  #define QUEUE_STATE_DRV_XOFF	(1 << __QUEUE_STATE_DRV_XOFF)
  #define QUEUE_STATE_STACK_XOFF	(1 << __QUEUE_STATE_STACK_XOFF)
  #define QUEUE_STATE_FROZEN	(1 << __QUEUE_STATE_FROZEN)
-@@ -2102,6 +2132,7 @@ struct net_device {
+@@ -2104,6 +2134,7 @@ struct net_device {
  		unsigned long		lltx:1;
  		unsigned long		netmem_tx:1;
  	);
@@ -126,7 +126,7 @@
  	const struct net_device_ops *netdev_ops;
  	const struct header_ops *header_ops;
  	struct netdev_queue	*_tx;
-@@ -3178,6 +3209,10 @@ enum netdev_cmd {
+@@ -3181,6 +3212,10 @@ enum netdev_cmd {
  	NETDEV_OFFLOAD_XSTATS_REPORT_USED,
  	NETDEV_OFFLOAD_XSTATS_REPORT_DELTA,
  	NETDEV_XDP_FEAT_CHANGE,
@@ -352,7 +352,7 @@
  			spin_unlock_bh(&br->hash_lock);
  		}
  	}
-@@ -1027,6 +1084,12 @@ void br_fdb_update(struct net_bridge *br
+@@ -1033,6 +1090,12 @@ void br_fdb_update(struct net_bridge *br
  				 */
  				if (unlikely(test_bit(BR_FDB_LOCKED, &fdb->flags)))
  					clear_bit(BR_FDB_LOCKED, &fdb->flags);
@@ -365,7 +365,7 @@
  			}
  
  			if (unlikely(test_bit(BR_FDB_ADDED_BY_USER, &flags))) {
-@@ -1054,6 +1117,64 @@ void br_fdb_update(struct net_bridge *br
+@@ -1060,6 +1123,64 @@ void br_fdb_update(struct net_bridge *br
  	}
  }
  
@@ -760,7 +760,7 @@
  	}
  #undef N
  	return "UNKNOWN_NETDEV_EVENT";
-@@ -12995,7 +12996,7 @@ static void __init net_dev_struct_check(
+@@ -13015,7 +13016,7 @@ static void __init net_dev_struct_check(
  #ifdef CONFIG_NET_XGRESS
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_tx, tcx_egress);
  #endif
@@ -769,7 +769,7 @@
  
  	/* TXRX read-mostly hotpath */
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, lstats);
-@@ -13004,7 +13005,7 @@ static void __init net_dev_struct_check(
+@@ -13024,7 +13025,7 @@ static void __init net_dev_struct_check(
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, hard_header_len);
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, features);
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, ip6_ptr);
@@ -778,7 +778,7 @@
  
  	/* RX read-mostly hotpath */
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_rx, ptype_specific);
-@@ -13022,7 +13023,7 @@ static void __init net_dev_struct_check(
+@@ -13042,7 +13043,7 @@ static void __init net_dev_struct_check(
  #ifdef CONFIG_NET_XGRESS
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_rx, tcx_ingress);
  #endif
@@ -857,7 +857,7 @@
  #endif /* _UAPI_LINUX_IN_H */
 --- a/net/netfilter/nf_conntrack_ecache.c
 +++ b/net/netfilter/nf_conntrack_ecache.c
-@@ -276,7 +276,6 @@ void nf_conntrack_register_notifier(stru
+@@ -278,7 +278,6 @@ void nf_conntrack_register_notifier(stru
  	mutex_lock(&nf_ct_ecache_mutex);
  	notify = rcu_dereference_protected(net->ct.nf_conntrack_event_cb,
  					   lockdep_is_held(&nf_ct_ecache_mutex));

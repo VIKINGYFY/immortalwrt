@@ -1,0 +1,31 @@
+From: VikingYFY <noreply@example.com>
+Subject: [PATCH] wifi: ath11k: clamp regulatory rule bandwidth to range
+
+Some firmware regulatory events can report a maximum bandwidth wider than
+the rule frequency span. cfg80211 rejects those domains and emits an
+"Invalid regulatory domain" warning during regulatory_set_wiphy_regd().
+
+Clamp each ath11k regulatory rule's maximum bandwidth to its own frequency
+range before passing it to cfg80211. This keeps the firmware-provided
+country code and power data intact while preventing malformed host rules.
+
+--- a/drivers/net/wireless/ath/ath11k/reg.c
++++ b/drivers/net/wireless/ath/ath11k/reg.c
+@@ -396,9 +396,16 @@ ath11k_reg_update_rule(struct ieee80211_
+ 		       u32 end_freq, u32 bw, u32 ant_gain, u32 reg_pwr,
+ 		       s8 psd, u32 reg_flags)
+ {
++	u32 max_bw = bw;
++
++	if (end_freq > start_freq)
++		max_bw = min_t(u32, max_bw, end_freq - start_freq);
++	else
++		max_bw = 0;
++
+ 	reg_rule->freq_range.start_freq_khz = MHZ_TO_KHZ(start_freq);
+ 	reg_rule->freq_range.end_freq_khz = MHZ_TO_KHZ(end_freq);
+-	reg_rule->freq_range.max_bandwidth_khz = MHZ_TO_KHZ(bw);
++	reg_rule->freq_range.max_bandwidth_khz = MHZ_TO_KHZ(max_bw);
+ 	reg_rule->power_rule.max_antenna_gain = DBI_TO_MBI(ant_gain);
+ 	reg_rule->power_rule.max_eirp = DBM_TO_MBM(reg_pwr);
+ 	reg_rule->psd = psd;

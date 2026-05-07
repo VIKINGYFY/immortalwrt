@@ -142,7 +142,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	void (*add_twt_setup)(struct ieee80211_hw *hw,
  			      struct ieee80211_sta *sta,
  			      struct ieee80211_twt_setup *twt);
-@@ -7991,4 +8020,101 @@ int ieee80211_emulate_switch_vif_chanctx
+@@ -7993,4 +8022,101 @@ int ieee80211_emulate_switch_vif_chanctx
   * Return: %true iff the vif is a NAN interface and NAN is started
   */
  bool ieee80211_vif_nan_started(struct ieee80211_vif *vif);
@@ -331,7 +331,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  		   sdata, fmt, ##__VA_ARGS__)
 --- a/net/mac80211/debugfs.c
 +++ b/net/mac80211/debugfs.c
-@@ -508,6 +508,7 @@ static const char *hw_flag_names[] = {
+@@ -504,6 +504,7 @@ static const char *hw_flag_names[] = {
  	FLAG(HANDLES_QUIET_CSA),
  	FLAG(STRICT),
  	FLAG(SUPPORTS_NSS_OFFLOAD),
@@ -1175,7 +1175,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  void mesh_pathtbl_unregister(struct ieee80211_sub_if_data *sdata)
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -2630,7 +2630,7 @@ static struct sk_buff *ieee80211_build_h
+@@ -2632,7 +2632,7 @@ static struct sk_buff *ieee80211_build_h
  	bool multicast;
  	u16 info_id = 0;
  	struct ieee80211_chanctx_conf *chanctx_conf = NULL;
@@ -1184,7 +1184,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	int ret;
  	u8 link_id = u32_get_bits(ctrl_flags, IEEE80211_TX_CTRL_MLO_LINK);
  
-@@ -2642,6 +2642,9 @@ static struct sk_buff *ieee80211_build_h
+@@ -2644,6 +2644,9 @@ static struct sk_buff *ieee80211_build_h
  		info_flags |= IEEE80211_TX_CTL_REQ_TX_STATUS;
  #endif
  
@@ -1194,7 +1194,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	/* convert Ethernet header to proper 802.11 header (based on
  	 * operation mode) */
  	ethertype = (skb->data[12] << 8) | skb->data[13];
-@@ -2712,6 +2715,13 @@ static struct sk_buff *ieee80211_build_h
+@@ -2714,6 +2717,13 @@ static struct sk_buff *ieee80211_build_h
  		break;
  #ifdef CPTCFG_MAC80211_MESH
  	case NL80211_IFTYPE_MESH_POINT:
@@ -1208,7 +1208,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  		if (!is_multicast_ether_addr(skb->data)) {
  			struct sta_info *next_hop;
  			bool mpp_lookup = true;
-@@ -2974,10 +2984,10 @@ static struct sk_buff *ieee80211_build_h
+@@ -2976,10 +2986,10 @@ static struct sk_buff *ieee80211_build_h
  
  	skb_reset_mac_header(skb);
  
@@ -1223,7 +1223,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	if (info_id) {
  		info->status_data = info_id;
  		info->status_data_idr = 1;
-@@ -4303,6 +4313,7 @@ void __ieee80211_subif_start_xmit(struct
+@@ -4305,6 +4315,7 @@ void __ieee80211_subif_start_xmit(struct
  	struct sk_buff *next;
  	int len = skb->len;
  	struct ieee80211_key *key = NULL;
@@ -1231,7 +1231,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	struct ieee80211_sub_if_data *ap_sdata;
  
  	if (unlikely(!ieee80211_sdata_running(sdata) || skb->len < ETH_HLEN)) {
-@@ -4377,9 +4388,15 @@ void __ieee80211_subif_start_xmit(struct
+@@ -4379,9 +4390,15 @@ void __ieee80211_subif_start_xmit(struct
  			goto out;
  		}
  

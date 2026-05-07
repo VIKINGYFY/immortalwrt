@@ -166,6 +166,9 @@ static inline bool consume_skb_can_recycle(const struct sk_buff *skb,
 	if (unlikely(skb_end_pointer(skb) - skb->head > max_skb_size))
 		return false;
 
+	if (unlikely(skb->truesize < SKB_TRUESIZE(skb_end_offset(skb))))
+		return false;
+
 	if (unlikely(skb_cloned(skb)))
 		return false;
 

@@ -89,13 +89,14 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  /**
   * qcom_mdt_get_size() - acquire size of the memory region needed to load mdt
   * @fw:		firmware object for the mdt file
-@@ -335,7 +395,7 @@ static bool qcom_mdt_bins_are_split(cons
+@@ -333,9 +393,9 @@ static bool qcom_mdt_bins_are_split(cons
+ }
+ 
  static int __qcom_mdt_load(struct device *dev, const struct firmware *fw,
 -			   const char *fw_name, void *mem_region,
--			   phys_addr_t mem_phys, size_t mem_size,
--			   phys_addr_t *reloc_base)
 +			   const char *fw_name, int pas_id, void *mem_region,
-+			   phys_addr_t mem_phys, size_t mem_size,
+ 			   phys_addr_t mem_phys, size_t mem_size,
+-			   phys_addr_t *reloc_base)
 +			   phys_addr_t *reloc_base, bool dma_require, int pd_asid)
  {
  	const struct elf32_phdr *phdrs;
@@ -137,7 +138,8 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  			memset(ptr + phdr->p_filesz, 0, phdr->p_memsz - phdr->p_filesz);
  	}
  
-@@ -461,7 +533,7 @@ int qcom_mdt_load(struct device *dev, co
+@@ -460,8 +532,8 @@ int qcom_mdt_load(struct device *dev, co
+ 	if (ret)
  		return ret;
  
 -	return __qcom_mdt_load(dev, fw, firmware, mem_region, mem_phys,
@@ -147,7 +149,8 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  }
  EXPORT_SYMBOL_GPL(qcom_mdt_load);
  
-@@ -482,9 +554,36 @@ int qcom_mdt_load_no_init(struct device
+@@ -481,10 +553,37 @@ int qcom_mdt_load_no_init(struct device
+ 			  const char *firmware, void *mem_region, phys_addr_t mem_phys,
  			  size_t mem_size, phys_addr_t *reloc_base)
  {
 -	return __qcom_mdt_load(dev, fw, firmware, mem_region, mem_phys,

@@ -73,10 +73,10 @@
  		case AD_MUX_COLLECTING_DISTRIBUTING:
  			port->actor_oper_port_state |= LACP_STATE_COLLECTING;
  			port->actor_oper_port_state |= LACP_STATE_DISTRIBUTING;
-@@ -2128,5 +2187,16 @@ static void ad_disable_collecting_distri
-		__disable_port(port);
-		/* Slave array needs an update */
-		*update_slave_arr = true;
+@@ -2128,6 +2186,17 @@ static void ad_disable_collecting_distri
+ 		__disable_port(port);
+ 		/* Slave array needs an update */
+ 		*update_slave_arr = true;
 +
 +		struct bond_cb *lag_cb_main; /* QCA NSS ECM bonding support */
 +		/* QCA NSS ECM bonding support - Start */
@@ -88,7 +88,7 @@
 +
 +		rcu_read_unlock();
 +		/* QCA NSS ECM bonding support - End */
-	}
+ 	}
  }
  
 --- a/drivers/net/bonding/bond_main.c
@@ -297,8 +297,8 @@
 +		fk->ports.ports = *layer4hdr;
 +
 +	return true;
- }
- 
++}
++
 +/* bond_xmit_hash_without_skb - Applies load balancing algorithm for a packet,
 + * to calculate hash for a given set of L2/L3 addresses. Does not
 + * calculate egress interface.
@@ -403,8 +403,8 @@
 +	}
 +
 +	return NULL;
-+}
-+
+ }
+ 
 +/* bond_3ad_get_tx_dev - Calculate egress interface for a given packet,
 + * for a LAG that is configured in 802.3AD mode
 + * @skb: pointer to skb to be egressed
@@ -574,7 +574,7 @@
  static bool bond_flow_ip(struct sk_buff *skb, struct flow_keys *fk, const void *data,
  			 int hlen, __be16 l2_proto, int *nhoff, int *ip_proto, bool l34)
  {
-@@ -5264,15 +5561,18 @@ static netdev_tx_t bond_3ad_xor_xmit(str
+@@ -5264,15 +5657,18 @@ static netdev_tx_t bond_3ad_xor_xmit(str
  				     struct net_device *dev)
  {
  	struct bonding *bond = netdev_priv(dev);
@@ -600,7 +600,7 @@
  }
  
  /* in broadcast mode, we send everything to all or usable slave interfaces.
-@@ -5537,7 +5837,7 @@ static netdev_tx_t __bond_start_xmit(str
+@@ -5537,7 +5933,7 @@ static netdev_tx_t __bond_start_xmit(str
  			return bond_xmit_broadcast(skb, dev, false);
  		fallthrough;
  	case BOND_MODE_XOR:

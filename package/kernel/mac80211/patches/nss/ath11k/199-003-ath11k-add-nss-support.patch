@@ -94,7 +94,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  unsigned int ath11k_debug_mask;
  EXPORT_SYMBOL(ath11k_debug_mask);
  module_param_named(debug_mask, ath11k_debug_mask, uint, 0644);
-@@ -2031,10 +2037,16 @@ static int ath11k_core_pdev_create(struc
+@@ -2086,10 +2092,16 @@ static int ath11k_core_pdev_create(struc
  		goto err_pdev_debug;
  	}
  
@@ -112,7 +112,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	}
  
  	ret = ath11k_thermal_register(ab);
-@@ -2056,6 +2068,8 @@ err_thermal_unregister:
+@@ -2111,6 +2123,8 @@ err_thermal_unregister:
  	ath11k_thermal_unregister(ab);
  err_mac_unregister:
  	ath11k_mac_unregister(ab);
@@ -121,7 +121,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  err_dp_pdev_free:
  	ath11k_dp_pdev_free(ab);
  err_pdev_debug:
-@@ -2104,6 +2118,10 @@ static void ath11k_core_pdev_destroy(str
+@@ -2159,6 +2173,10 @@ static void ath11k_core_pdev_destroy(str
  	ath11k_spectral_deinit(ab);
  	ath11k_thermal_unregister(ab);
  	ath11k_mac_unregister(ab);
@@ -132,7 +132,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	ath11k_core_pdev_suspend_target(ab);
  	ath11k_hif_irq_disable(ab);
  	ath11k_dp_pdev_free(ab);
-@@ -2311,6 +2329,10 @@ static int ath11k_core_reconfigure_on_cr
+@@ -2366,6 +2384,10 @@ static int ath11k_core_reconfigure_on_cr
  	int ret;
  
  	mutex_lock(&ab->core_lock);
@@ -143,7 +143,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	ath11k_thermal_unregister(ab);
  	ath11k_dp_pdev_free(ab);
  	ath11k_spectral_deinit(ab);
-@@ -2645,6 +2667,10 @@ int ath11k_core_pre_init(struct ath11k_b
+@@ -2700,6 +2722,10 @@ int ath11k_core_pre_init(struct ath11k_b
  		ath11k_err(ab, "failed to pre init firmware: %d", ret);
  		return ret;
  	}

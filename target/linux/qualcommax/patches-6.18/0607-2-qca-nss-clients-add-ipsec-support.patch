@@ -177,7 +177,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  int xfrm_input(struct sk_buff *skb, int nexthdr, __be32 spi, int encap_type);
 --- a/net/xfrm/xfrm_policy.c
 +++ b/net/xfrm/xfrm_policy.c
-@@ -4320,6 +4320,10 @@ static int __net_init xfrm_net_init(stru
+@@ -4322,6 +4322,10 @@ static int __net_init xfrm_net_init(stru
  	spin_lock_init(&net->xfrm.xfrm_policy_lock);
  	seqcount_spinlock_init(&net->xfrm.xfrm_policy_hash_generation, &net->xfrm.xfrm_policy_lock);
  	mutex_init(&net->xfrm.xfrm_cfg_mutex);

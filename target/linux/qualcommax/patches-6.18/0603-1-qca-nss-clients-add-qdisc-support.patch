@@ -42,7 +42,7 @@
  	dev->needs_free_netdev = true;
 --- a/include/linux/netdevice.h
 +++ b/include/linux/netdevice.h
-@@ -5037,6 +5037,15 @@ void dev_uc_flush(struct net_device *dev
+@@ -5040,6 +5040,15 @@ void dev_uc_flush(struct net_device *dev
  void dev_uc_init(struct net_device *dev);
  
  /**
@@ -58,7 +58,7 @@
   *  __dev_uc_sync - Synchronize device's unicast list
   *  @dev:  device to sync
   *  @sync: function to call if address should be added
-@@ -5604,6 +5613,11 @@ static inline bool netif_is_failover_sla
+@@ -5607,6 +5616,11 @@ static inline bool netif_is_failover_sla
  	return dev->priv_flags & IFF_FAILOVER_SLAVE;
  }
  

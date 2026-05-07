@@ -126,7 +126,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	key->conf.cipher = cipher;
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -4680,16 +4680,25 @@ static void ieee80211_8023_xmit(struct i
+@@ -4682,16 +4682,25 @@ static void ieee80211_8023_xmit(struct i
  				struct ieee80211_key *key, struct sk_buff *skb)
  {
  	struct ieee80211_tx_info *info;
@@ -154,7 +154,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  		goto out_free;
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -1442,6 +1442,13 @@ int ieee80211_do_open(struct wireless_de
+@@ -1446,6 +1446,13 @@ int ieee80211_do_open(struct wireless_de
  			ieee80211_set_vif_encap_ops(sdata);
  		} else {
  			netif_carrier_off(dev);

@@ -159,6 +159,7 @@ inline struct sk_buff *skb_recycler_alloc(struct net_device *dev,
 		skb->data = skb->head + NET_SKB_PAD;
 		skb_reset_tail_pointer(skb);
 		skb->dev = dev;
+		skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
 
 		skb->is_from_recycler = 1;
 		/* Restore fast_recycled flag */
@@ -714,10 +715,10 @@ static ssize_t proc_skb_recycle_enable_write(struct file *file,
 }
 
 static const struct proc_ops proc_skb_recycle_enable_fops = {
-        .proc_open    = proc_skb_recycle_enable_open,
-        .proc_read    = seq_read,
-        .proc_write   = proc_skb_recycle_enable_write,
-        .proc_release = single_release,
+		.proc_open    = proc_skb_recycle_enable_open,
+		.proc_read    = seq_read,
+		.proc_write   = proc_skb_recycle_enable_write,
+		.proc_release = single_release,
 };
 
 union void_int {
