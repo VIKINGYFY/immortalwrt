@@ -37,7 +37,6 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_MAC80211_MESH \
 	CONFIG_PACKAGE_MAC80211_TRACING \
 	CONFIG_PACKAGE_MAC80211_NSS_SUPPORT \
-	CONFIG_PACKAGE_MAC80211_NSS_REDIRECT \
 	CONFIG_PACKAGE_IWLWIFI_DEBUG \
 	CONFIG_PACKAGE_IWLWIFI_DEBUGFS \
 	CONFIG_PACKAGE_RTLWIFI_DEBUG \
@@ -138,10 +137,6 @@ define KernelPackage/mac80211
   KCONFIG:=\
 	CONFIG_AVERAGE=y
   FILES:= $(PKG_BUILD_DIR)/net/mac80211/mac80211.ko
-ifdef CONFIG_PACKAGE_MAC80211_NSS_REDIRECT
-  AUTOLOAD:=$(call AutoProbe, mac80211)
-  MODPARAMS.mac80211:=nss_redirect=1
-endif
   ABI_VERSION:=$(PKG_VERSION)-$(PKG_RELEASE)
   MENU:=1
 endef
@@ -155,13 +150,6 @@ define KernelPackage/mac80211/config
 			default y
 			help
 				This option enables support for NSS in QCA boards.
-		config PACKAGE_MAC80211_NSS_REDIRECT
-			bool "Enable autoloading with 'nss_redirect=1' (not needed on ath11k)"
-			depends on PACKAGE_MAC80211_NSS_SUPPORT
-			default n
-			help
-				This option enables autoloading mac80211 with 'nss_redirect=1'.
-				However, it is not required for wifi offloading.
   endif
 
 	config PACKAGE_MAC80211_DEBUGFS
@@ -307,10 +295,6 @@ endif
 
 ifdef CONFIG_ATH11K_NSS_SUPPORT
 	IREMAP_CFLAGS+=-I$(STAGING_DIR)/usr/include/qca-nss-drv -I$(STAGING_DIR)/usr/include/qca-nss-clients
-endif
-
-ifeq ($(CONFIG_NSS_FIRMWARE_VERSION_11_4),y)
-	C_DEFINES+=-DCONFIG_NSS_FIRMWARE_VERSION_11_4
 endif
 
 config-$(CONFIG_PACKAGE_MAC80211_NSS_SUPPORT) += MAC80211_NSS_SUPPORT
