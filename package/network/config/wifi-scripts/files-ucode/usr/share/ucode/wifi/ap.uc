@@ -546,7 +546,7 @@ function iface_interworking(config) {
 }
 
 export function generate(interface, data, config, vlans, stas, phy_features) {
-	config.ctrl_interface = '/var/run/hostapd';
+	config.ctrl_interface = `/var/run/hostapd/${interface}`;
 
 	config.start_disabled = data.ap_start_disabled;
 	iface_setup(config);
