@@ -1,0 +1,28 @@
+--- a/drivers/net/wireless/ath/ath11k/nss.c
++++ b/drivers/net/wireless/ath/ath11k/nss.c
+@@ -3,6 +3,7 @@
+  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
+  */
+ #include <linux/of.h>
++#include <linux/timer.h>
+ 
+ #include "debug.h"
+ #include "mac.h"
+@@ -1865,7 +1866,7 @@ static void ath11k_nss_mpp_timer_cb(stru
+ {
+ 	nss_wifi_mesh_msg_callback_t msg_cb;
+-	struct arvif_nss *nss = from_timer(nss, timer,mpp_expiry_timer);
++	struct arvif_nss *nss = timer_container_of(nss, timer, mpp_expiry_timer);
+ 	struct ath11k_vif *arvif = container_of(nss, struct ath11k_vif, nss);
+ 	struct ath11k_base *ab = arvif->ar->ab;
+ 	LIST_HEAD(local_entry);
+	nss_tx_status_t status;
+@@ -2488,7 +2489,7 @@ static void ath11k_nss_mesh_vdev_free(st
+ 		list_del(&arvif->nss.list);
+ 		spin_unlock_bh(&nss_mesh_spinlock);
+ 
+-	del_timer_sync(&nss->mpp_expiry_timer);
++	timer_delete_sync(&nss->mpp_expiry_timer);
+ 
+ 	for (i = 0; i < ATH11K_NSS_MESH_MPATH_ENTRY_MAX; i++) {
+ 		mpath = &nss->mpp[i];
