@@ -404,7 +404,7 @@ define KernelPackage/ath11k/config
                default y
                help
                   Say Y to enable NSS WiFi offload support. Ensure you enable feeds for NSS drivers.
-                  https://github.com/qosmio/nss-packages
+                  https://github.com/VIKINGYFY/nss-packages-618 (pinned in feeds.conf.default)
 
        config ATH11K_NSS_MESH_SUPPORT
                bool "Enable NSS WiFi Mesh offload"
