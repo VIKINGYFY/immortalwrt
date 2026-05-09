@@ -36,7 +36,42 @@ Signed-off-by: Qi Liu <liuqi_colin@msn.com>
  #include "probe.h"
  
  #define AUTOFS_MOUNT_PATH       "/tmp/run/blockd/"
-@@ -1714,6 +1717,44 @@ static int main_extroot(int argc, char *
+@@ -434,6 +437,18 @@ static struct uci_package * config_try_l
+ 	return pkg;
+ }
+ 
++static bool extroot_has_fstab(const char *cfg)
++{
++	char path[64];
++
++	snprintf(path, sizeof(path), "%s/upper/etc/config/fstab", cfg);
++	if (!access(path, R_OK))
++		return true;
++
++	snprintf(path, sizeof(path), "%s/etc/config/fstab", cfg);
++	return !access(path, R_OK);
++}
++
+ static int config_load(char *cfg)
+ {
+ 	struct uci_context *ctx = uci_alloc_context();
+@@ -445,11 +460,13 @@ static int config_load(char *cfg)
+ 
+ 	if (cfg) {
+ 		snprintf(path, sizeof(path), "%s/upper/etc/config/fstab", cfg);
+-		pkg = config_try_load(ctx, path);
++		if (!access(path, R_OK))
++			pkg = config_try_load(ctx, path);
+ 
+ 		if (!pkg) {
+ 			snprintf(path, sizeof(path), "%s/etc/config/fstab", cfg);
+-			pkg = config_try_load(ctx, path);
++			if (!access(path, R_OK))
++				pkg = config_try_load(ctx, path);
+ 		}
+ 	}
+ 
+@@ -1714,6 +1731,46 @@ static int main_extroot(int argc, char *
         }
  #endif
  
@@ -49,31 +84,33 @@ Signed-off-by: Qi Liu <liuqi_colin@msn.com>
 +			case FS_EXT4: {
 +				char cfg[] = "/tmp/ext4_cfg";
 +
-+				/* Mount volume and try extroot (using fstab from that vol) */
++				/* Mount volume and try extroot only if it carries an fstab. */
 +				mkdir_p(cfg, 0755);
 +				if (!mount(data->blk, cfg, "ext4", MS_NOATIME, NULL)) {
-+					err = mount_extroot(cfg);
++					if (extroot_has_fstab(cfg))
++						err = mount_extroot(cfg);
 +					umount2(cfg, MNT_DETACH);
 +				}
-+				if (err < 0)
-+					rmdir("/tmp/overlay");
 +				rmdir(cfg);
-+				return err;
++				if (err >= 0)
++					return err;
++				break;
 +			}
 +
 +			case FS_F2FS: {
 +				char cfg[] = "/tmp/f2fs_cfg";
 +
-+				/* Mount volume and try extroot (using fstab from that vol) */
++				/* Mount volume and try extroot only if it carries an fstab. */
 +				mkdir_p(cfg, 0755);
 +				if (!mount(data->blk, cfg, "f2fs", MS_NOATIME, NULL)) {
-+					err = mount_extroot(cfg);
++					if (extroot_has_fstab(cfg))
++						err = mount_extroot(cfg);
 +					umount2(cfg, MNT_DETACH);
 +				}
-+				if (err < 0)
-+					rmdir("/tmp/overlay");
 +				rmdir(cfg);
-+				return err;
++				if (err >= 0)
++					return err;
++				break;
 +			}
 +		}
 +	}
