@@ -8,7 +8,8 @@
  
  #include "debug.h"
  #include "mac.h"
-@@ -1865,7 +1866,7 @@ static void ath11k_nss_mpp_timer_cb(stru
+@@ -1864,7 +1865,7 @@ int ath11k_nss_dump_mpp_request(struct a
+ static void ath11k_nss_mpp_timer_cb(struct timer_list *timer)
  {
  	nss_wifi_mesh_msg_callback_t msg_cb;
 -	struct arvif_nss *nss = from_timer(nss, timer,mpp_expiry_timer);
@@ -16,13 +17,12 @@
  	struct ath11k_vif *arvif = container_of(nss, struct ath11k_vif, nss);
  	struct ath11k_base *ab = arvif->ar->ab;
  	LIST_HEAD(local_entry);
-	nss_tx_status_t status;
 @@ -2488,7 +2489,7 @@ static void ath11k_nss_mesh_vdev_free(st
- 		list_del(&arvif->nss.list);
- 		spin_unlock_bh(&nss_mesh_spinlock);
+ 	LIST_HEAD(mpp_local_entry);
+ 	nss_tx_status_t status;
  
 -	del_timer_sync(&nss->mpp_expiry_timer);
 +	timer_delete_sync(&nss->mpp_expiry_timer);
  
- 	for (i = 0; i < ATH11K_NSS_MESH_MPATH_ENTRY_MAX; i++) {
- 		mpath = &nss->mpp[i];
+ 	spin_lock_bh(&ar->nss.dump_lock);
+ 	list_splice_tail_init(&nss->mpath_dump, &mpath_local_entry);
