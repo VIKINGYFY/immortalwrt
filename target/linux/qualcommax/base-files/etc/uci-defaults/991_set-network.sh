@@ -35,4 +35,16 @@ if [ -n "$ula_prefix" ]; then
 	uci commit network
 fi
 
+# NSS 运行时: 禁用所有 device 级别 offload (qosmio 规范)
+# packet_steering/flow_offloading/flow_offloading_hw 必须在
+# network device 级别显式 =0,防止 sysupgrade dirty config 泄漏
+if lsmod 2>/dev/null | grep -q '^qca_nss_drv '; then
+	for d in $(uci -q show network 2>/dev/null | awk -F'[.=]' '/=device$/{print $2}'); do
+		uci -q set "network.${d}.packet_steering=0"
+		uci -q set "network.${d}.flow_offloading=0"
+		uci -q set "network.${d}.flow_offloading_hw=0"
+	done
+	uci commit network
+fi
+
 exit 0
