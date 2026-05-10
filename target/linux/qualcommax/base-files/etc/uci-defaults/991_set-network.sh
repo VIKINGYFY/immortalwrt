@@ -1,6 +1,23 @@
 #!/bin/sh
 
-# 检查 network.globals.ula_prefix 是否存在且不为空
+# --- NSS 运行时防护: 每次启动强制禁用 offload (qosmio 规范) ---
+# uci-defaults 阶段 NSS 模块尚未加载,lsmod 不可靠。
+# 此构建专为 NSS 设备,无条件禁用所有软件/硬件 offload。
+# 98-nss-tune (AX6 overlay) 也会在 device 级别执行相同操作。
+
+# globals 级别 — 每次启动
+uci set network.globals.packet_steering='0'
+uci commit network
+
+# device 级别 — 每次启动,防止 sysupgrade dirty config 泄漏
+for d in $(uci -q show network 2>/dev/null | awk -F'[.=]' '/=device$/{print $2}'); do
+	uci -q set "network.${d}.packet_steering=0"
+	uci -q set "network.${d}.flow_offloading=0"
+	uci -q set "network.${d}.flow_offloading_hw=0"
+done
+uci commit network
+
+# --- IPv6 首次启动配置 (ula_prefix 存在时) ---
 ula_prefix=$(uci get network.globals.ula_prefix 2>/dev/null)
 
 if [ -n "$ula_prefix" ]; then
@@ -25,25 +42,8 @@ if [ -n "$ula_prefix" ]; then
 	uci set network.wan6.reqprefix='auto'
 	uci set network.lan.ip6assign='64'
 	uci set network.lan.ip6ifaceid='eui64'
-	if lsmod 2>/dev/null | grep -q '^qca_nss_drv '; then
-		uci set network.globals.packet_steering='0'
-	else
-		uci set network.globals.packet_steering='1'
-	fi
 	uci del network.globals.ula_prefix
 
-	uci commit network
-fi
-
-# NSS 运行时: 禁用所有 device 级别 offload (qosmio 规范)
-# packet_steering/flow_offloading/flow_offloading_hw 必须在
-# network device 级别显式 =0,防止 sysupgrade dirty config 泄漏
-if lsmod 2>/dev/null | grep -q '^qca_nss_drv '; then
-	for d in $(uci -q show network 2>/dev/null | awk -F'[.=]' '/=device$/{print $2}'); do
-		uci -q set "network.${d}.packet_steering=0"
-		uci -q set "network.${d}.flow_offloading=0"
-		uci -q set "network.${d}.flow_offloading_hw=0"
-	done
 	uci commit network
 fi
 
