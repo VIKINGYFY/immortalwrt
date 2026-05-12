@@ -14,6 +14,7 @@ for d in $(uci -q show network 2>/dev/null | awk -F'[.=]' '/=device$/{print $2}'
 	uci -q set "network.${d}.flow_offloading=0"
 	uci -q set "network.${d}.flow_offloading_hw=0"
 done
+uci commit network
 
 # --- IPv6 首次启动配置 (ula_prefix 存在时) ---
 ula_prefix=$(uci get network.globals.ula_prefix 2>/dev/null)
