@@ -52,7 +52,7 @@ get_bootconfig_partidx() {
 	for i in $(seq 0 $((numparts -1))); do
 		nameoffset=$((12 + i * $PART_SIZE))
 		nameraw=$(dd if="$file" bs=1 skip="$nameoffset" count=12 2>/dev/null)
-		name=${nameraw//S'\x00'/}
+		name=${nameraw//$'\x00'/}
 		if [ "$partname" = "$name" ]; then
 			echo $i
 		fi
