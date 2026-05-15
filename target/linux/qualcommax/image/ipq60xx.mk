@@ -47,6 +47,16 @@ define Device/alfa-network_ap120c-ax
 endef
 TARGET_DEVICES += alfa-network_ap120c-ax
 
+define Device/anysafe_e1
+	$(call Device/nand-common)
+	DEVICE_VENDOR := AnySafe
+	DEVICE_MODEL := E1
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp01-c3
+	DEVICE_PACKAGES := ipq-wifi-anysafe_e1 ath11k-firmware-qcn9074-ddwrt kmod-hwmon-pwmfan
+endef
+TARGET_DEVICES += anysafe_e1
+
 define Device/cambiumnetworks_xe3-4
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
@@ -59,6 +69,33 @@ define Device/cambiumnetworks_xe3-4
 	DEVICE_PACKAGES := ipq-wifi-cambiumnetworks_xe34 ath11k-firmware-qcn9074-ddwrt
 endef
 TARGET_DEVICES += cambiumnetworks_xe3-4
+
+define Device/cmiot_ax18
+	$(call Device/nand-common)
+	DEVICE_VENDOR := CMIOT
+	DEVICE_MODEL := AX18
+	SOC := ipq6000
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-cmiot_ax18
+endef
+TARGET_DEVICES += cmiot_ax18
+
+define Device/dptech_ap3000-2c
+	$(call Device/nand-common)
+	DEVICE_VENDOR := DPtech
+	DEVICE_MODEL := AP3000-2C
+	SOC := ipq6000
+	DEVICE_DTS_CONFIG := config@cp03-c1-DP019
+	DEVICE_PACKAGES := ipq-wifi-dptech_ap3000-2c
+endef
+TARGET_DEVICES += dptech_ap3000-2c
+
+define Device/emmc-common
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	KERNEL_SIZE := 6144k
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
 
 define Device/glinet_gl-common
 	$(call Device/FitImage)
@@ -184,6 +221,13 @@ define Device/linksys_mr7500
 endef
 TARGET_DEVICES += linksys_mr7500
 
+define Device/nand-common
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+endef
+
 define Device/netgear_rbx350
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
@@ -248,6 +292,16 @@ define Device/netgear_wax610y
 endef
 TARGET_DEVICES += netgear_wax610y
 
+define Device/philips_ly1800
+	$(call Device/emmc-common)
+	DEVICE_VENDOR := Philips
+	DEVICE_MODEL := LY1800
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp01-c1
+	DEVICE_PACKAGES := ipq-wifi-philips_ly1800
+endef
+TARGET_DEVICES += philips_ly1800
+
 define Device/qihoo_360v6
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
@@ -260,6 +314,36 @@ define Device/qihoo_360v6
 	DEVICE_PACKAGES := ipq-wifi-qihoo_360v6
 endef
 TARGET_DEVICES += qihoo_360v6
+
+define Device/redmi_ax5
+	$(call Device/nand-common)
+	DEVICE_VENDOR := Redmi
+	DEVICE_MODEL := AX5
+	SOC := ipq6000
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-redmi_ax5
+endef
+TARGET_DEVICES += redmi_ax5
+
+define Device/redmi_ax5-jdcloud
+	$(call Device/emmc-common)
+	DEVICE_VENDOR := Redmi
+	DEVICE_MODEL := AX5 JDCloud
+	SOC := ipq6000
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-redmi_ax5-jdcloud
+endef
+TARGET_DEVICES += redmi_ax5-jdcloud
+
+define Device/sy_y6010
+	$(call Device/emmc-common)
+	DEVICE_VENDOR := SY
+	DEVICE_MODEL := Y6010
+	SOC := ipq6010
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-sy_y6010
+endef
+TARGET_DEVICES += sy_y6010
 
 define Device/tplink_eap6xx-common
 	$(call Device/FitImage)
@@ -328,6 +412,16 @@ define Device/tplink_eap620-hd-v3
 endef
 TARGET_DEVICES += tplink_eap620-hd-v3
 
+define Device/xiaomi_ax1800
+	$(call Device/nand-common)
+	DEVICE_VENDOR := Xiaomi
+	DEVICE_MODEL := AX1800
+	SOC := ipq6000
+	DEVICE_DTS_CONFIG := config@cp03-c1
+	DEVICE_PACKAGES := ipq-wifi-xiaomi_ax1800
+endef
+TARGET_DEVICES += xiaomi_ax1800
+
 define Device/yuncore_fap650
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
@@ -343,60 +437,6 @@ define Device/yuncore_fap650
 endef
 TARGET_DEVICES += yuncore_fap650
 
-define Device/nand-common
-	$(call Device/FitImage)
-	$(call Device/UbiFit)
-	BLOCKSIZE := 128k
-	PAGESIZE := 2048
-endef
-
-define Device/emmc-common
-	$(call Device/FitImage)
-	$(call Device/EmmcImage)
-	KERNEL_SIZE := 6144k
-	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
-endef
-
-define Device/anysafe_e1
-	$(call Device/nand-common)
-	DEVICE_VENDOR := AnySafe
-	DEVICE_MODEL := E1
-	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp01-c3
-	DEVICE_PACKAGES := ipq-wifi-anysafe_e1 ath11k-firmware-qcn9074-ddwrt kmod-hwmon-pwmfan
-endef
-TARGET_DEVICES += anysafe_e1
-
-define Device/cmiot_ax18
-	$(call Device/nand-common)
-	DEVICE_VENDOR := CMIOT
-	DEVICE_MODEL := AX18
-	SOC := ipq6000
-	DEVICE_DTS_CONFIG := config@cp03-c1
-	DEVICE_PACKAGES := ipq-wifi-cmiot_ax18
-endef
-TARGET_DEVICES += cmiot_ax18
-
-define Device/redmi_ax5
-	$(call Device/nand-common)
-	DEVICE_VENDOR := Redmi
-	DEVICE_MODEL := AX5
-	SOC := ipq6000
-	DEVICE_DTS_CONFIG := config@cp03-c1
-	DEVICE_PACKAGES := ipq-wifi-redmi_ax5
-endef
-TARGET_DEVICES += redmi_ax5
-
-define Device/xiaomi_ax1800
-	$(call Device/nand-common)
-	DEVICE_VENDOR := Xiaomi
-	DEVICE_MODEL := AX1800
-	SOC := ipq6000
-	DEVICE_DTS_CONFIG := config@cp03-c1
-	DEVICE_PACKAGES := ipq-wifi-xiaomi_ax1800
-endef
-TARGET_DEVICES += xiaomi_ax1800
-
 define Device/zn_m2
 	$(call Device/nand-common)
 	DEVICE_VENDOR := ZN
@@ -406,33 +446,3 @@ define Device/zn_m2
 	DEVICE_PACKAGES := ipq-wifi-zn_m2
 endef
 TARGET_DEVICES += zn_m2
-
-define Device/philips_ly1800
-	$(call Device/emmc-common)
-	DEVICE_VENDOR := Philips
-	DEVICE_MODEL := LY1800
-	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp01-c1
-	DEVICE_PACKAGES := ipq-wifi-philips_ly1800
-endef
-TARGET_DEVICES += philips_ly1800
-
-define Device/redmi_ax5-jdcloud
-	$(call Device/emmc-common)
-	DEVICE_VENDOR := Redmi
-	DEVICE_MODEL := AX5 JDCloud
-	SOC := ipq6000
-	DEVICE_DTS_CONFIG := config@cp03-c1
-	DEVICE_PACKAGES := ipq-wifi-redmi_ax5-jdcloud
-endef
-TARGET_DEVICES += redmi_ax5-jdcloud
-
-define Device/sy_y6010
-	$(call Device/emmc-common)
-	DEVICE_VENDOR := SY
-	DEVICE_MODEL := Y6010
-	SOC := ipq6010
-	DEVICE_DTS_CONFIG := config@cp03-c1
-	DEVICE_PACKAGES := ipq-wifi-sy_y6010
-endef
-TARGET_DEVICES += sy_y6010

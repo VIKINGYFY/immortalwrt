@@ -38,12 +38,13 @@ platform_do_upgrade() {
 		alfa_bootconfig_rootfs_rotate "0:BOOTCONFIG" "148"
 		nand_do_upgrade "$1"
 		;;
-	cambiumnetworks,xe3-4)
-		fw_setenv bootcount 0
+	anysafe,e1|\
+	dptech,ap3000-2c)
+		CI_UBIPART="rootfs"
 		nand_do_upgrade "$1"
 		;;
-	anysafe,e1)
-		CI_UBIPART="rootfs"
+	cambiumnetworks,xe3-4)
+		fw_setenv bootcount 0
 		nand_do_upgrade "$1"
 		;;
 	cmiot,ax18|\
