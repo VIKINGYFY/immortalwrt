@@ -347,8 +347,8 @@ define U-Boot/mt7981_comfast_cf-wr632ax
   UBOOT_IMAGE:=u-boot.fip
   BL2_BOOTDEV:=spim-nand
   BL2_SOC:=mt7981
-  BL2_DDRTYPE:=ddr3
-  DEPENDS:=+trusted-firmware-a-mt7981-spim-nand-ddr3
+  BL2_DDRTYPE:=ddr3-1866
+  DEPENDS:=+trusted-firmware-a-mt7981-spim-nand-ddr3-1866
 endef
 
 define U-Boot/mt7981_cudy_tr3000-v1
@@ -543,7 +543,7 @@ define U-Boot/mt7981_livinet_zr-3020
 endef
 
 define U-Boot/mt7981_netis_nx30v2
-  NAME:=Netis NX30V2
+  NAME:=netis NX30 V2
   BUILD_SUBTARGET:=filogic
   BUILD_DEVICES:=netis_nx30v2
   UBOOT_CONFIG:=mt7981_netis_nx30v2
@@ -729,6 +729,18 @@ define U-Boot/mt7981_snr_snr-cpe-ax2
   BUILD_SUBTARGET:=filogic
   BUILD_DEVICES:=snr_snr-cpe-ax2
   UBOOT_CONFIG:=mt7981_snr_snr-cpe-ax2
+  UBOOT_IMAGE:=u-boot.fip
+  BL2_BOOTDEV:=spim-nand
+  BL2_SOC:=mt7981
+  BL2_DDRTYPE:=ddr3
+  DEPENDS:=+trusted-firmware-a-mt7981-spim-nand-ddr3
+endef
+
+define U-Boot/mt7981_wavlink_wl-wnt100x3
+  NAME:=WAVLINK WL-WNT100X3
+  BUILD_SUBTARGET:=filogic
+  BUILD_DEVICES:=wavlink_wl-wnt100x3-ubootmod
+  UBOOT_CONFIG:=mt7981_wavlink_wl-wnt100x3
   UBOOT_IMAGE:=u-boot.fip
   BL2_BOOTDEV:=spim-nand
   BL2_SOC:=mt7981
@@ -1365,6 +1377,7 @@ UBOOT_TARGETS := \
 	mt7981_qihoo_360t7 \
 	mt7981_qihoo_360t7-ubi \
 	mt7981_snr_snr-cpe-ax2 \
+	mt7981_wavlink_wl-wnt100x3 \
 	mt7981_xiaomi_mi-router-ax3000t \
 	mt7981_xiaomi_mi-router-wr30u \
 	mt7986_acer_predator-w6x \
