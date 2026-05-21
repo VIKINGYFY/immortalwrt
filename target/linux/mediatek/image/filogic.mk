@@ -3262,8 +3262,6 @@ define Device/tplink_f65-v1
 endef
 TARGET_DEVICES += tplink_f65-v1
 
-define Device/tplink_fr365-v1
-
 define Device/tplink_re6000xd
   DEVICE_VENDOR := TP-Link
   DEVICE_MODEL := RE6000XD
