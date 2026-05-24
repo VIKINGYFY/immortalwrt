@@ -1,4 +1,4 @@
-name: Build ImmortalWrt
+name: OpenWrt Second Compilation
 
 on:
   workflow_dispatch:
@@ -12,73 +12,39 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: owrt
+          fetch-depth: 0   # 方便后续 git pull
 
-      - name: Install Build Dependencies
+      - name: Update Source (Git Pull)
         run: |
-          sudo apt update
-          sudo apt install -y build-essential clang flex bison g++ gawk \
-            gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
-            python3 python3-pip python3-setuptools rsync unzip zlib1g-dev \
-            file wget curl llvm npm
+          git pull --ff-only origin owrt || true
 
-      - name: Setup Feeds and Custom Packages
+      - name: Quick Setup for Second Build
         run: |
-          # 添加 kenzok8 软件源
-          sed -i '1i src-git kenzo https://github.com/kenzok8/openwrt-packages' feeds.conf.default
-          sed -i '2i src-git small https://github.com/kenzok8/small' feeds.conf.default
-
-          # 更新 feeds
+          # 只做必要的 feeds 更新和安装
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-          # 修复 tcping strip 错误
-          if [ -f "package/feeds/small/tcping/Makefile" ] || [ -f "package/tcping/Makefile" ]; then
-            echo "修复 tcping strip 问题..."
-            sed -i 's/strip $(PKG_BUILD_DIR)\/tcping/strip --strip-all $(PKG_BUILD_DIR)\/tcping || true/' package/feeds/*/tcping/Makefile 2>/dev/null || true
-            sed -i '/strip/d' package/feeds/*/tcping/Makefile 2>/dev/null || true
-          fi
-
-          # 添加 mosdns（清理原版冲突）
-          find ./ | grep Makefile | grep v2ray-geodata | xargs rm -f
-          find ./ | grep Makefile | grep mosdns | xargs rm -f
-          git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
-          git clone https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
-
-          # 添加 luci-app-daed
-          git clone https://github.com/QiuSimons/luci-app-daed package/dae
-
-          # 添加 turboacc
-          curl -sSL https://raw.githubusercontent.com/mufeng05/turboacc/main/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh
-
-          # 再次更新 feeds
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-
-      - name: Load Custom Config
+      - name: Load Config
         run: |
-          # 使用你上传的 s20m.config
-          if [ -f "s20m.config" ]; then
-            echo "✅ 使用 s20m.config 作为编译配置"
-            cp s20m.config .config
-          else
-            echo "⚠️ 未找到 s20m.config，使用默认配置"
-            make defconfig
-          fi
+          echo "✅ 使用 s20m.config 进行二次编译"
+          cp s20m.config .config
           make defconfig
 
-      - name: Download Packages
+      - name: Compile Firmware (Second Build)
         run: |
-          make download -j$(nproc) || true
-
-      - name: Compile Firmware
-        run: |
-          # 建议第一次编译用单线程，稳定
-          make -j1 V=s
+        export STRIP="/bin/true"
+          # 二次编译建议使用多线程，速度更快
+          echo "开始二次编译..."
+          make -j$(($(nproc) + 1)) V=s || make -j2 V=s
 
       - name: Upload Firmware
         uses: actions/upload-artifact@v4
         with:
-          name: ImmortalWrt-S20M-Firmware
+          name: ImmortalWrt-S20M-Second-Build
           path: |
             bin/targets/*
           retention-days: 30
+
+      - name: Show Build Time
+        if: always()
+        run: echo "编译完成！请在 Artifacts 中下载固件"
