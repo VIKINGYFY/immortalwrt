@@ -22,11 +22,13 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Load Config & Fix tcping
+      - name: Compile Firmware
         run: |
-          cp s20m.config .config
-          echo "# CONFIG_PACKAGE_tcping is not set" >> .config
-          make defconfig
+          # 绕过 tcping 的 strip 错误
+          export STRIP="true"
+          echo "已临时禁用 STRIP 工具以绕过 tcping 错误"
+          
+          make -j$(($(nproc) + 1)) V=s || make -j2 V=s
 
       - name: Compile Firmware
         run: |
