@@ -31,6 +31,13 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
+          # 修复 tcping strip 错误
+          if [ -f "package/feeds/small/tcping/Makefile" ] || [ -f "package/tcping/Makefile" ]; then
+            echo "修复 tcping strip 问题..."
+            sed -i 's/strip $(PKG_BUILD_DIR)\/tcping/strip --strip-all $(PKG_BUILD_DIR)\/tcping || true/' package/feeds/*/tcping/Makefile 2>/dev/null || true
+            sed -i '/strip/d' package/feeds/*/tcping/Makefile 2>/dev/null || true
+          fi
+
           # 添加 mosdns（清理原版冲突）
           find ./ | grep Makefile | grep v2ray-geodata | xargs rm -f
           find ./ | grep Makefile | grep mosdns | xargs rm -f
