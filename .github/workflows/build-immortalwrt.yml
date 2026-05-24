@@ -5,46 +5,36 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
         with:
           ref: owrt
-          fetch-depth: 0   # 方便后续 git pull
+          fetch-depth: 0
 
-      - name: Update Source (Git Pull)
-        run: |
-          git pull --ff-only origin owrt || true
+      - name: Update Source
+        run: git pull --ff-only origin owrt || true
 
-      - name: Quick Setup for Second Build
+      - name: Quick Feeds Update
         run: |
-          # 只做必要的 feeds 更新和安装
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Load Config
+      - name: Load Config & Fix tcping
         run: |
-          echo "✅ 使用 s20m.config 进行二次编译"
           cp s20m.config .config
+          echo "# CONFIG_PACKAGE_tcping is not set" >> .config
           make defconfig
 
-      - name: Compile Firmware (Second Build)
+      - name: Compile Firmware
         run: |
-        export STRIP="/bin/true"
-          # 二次编译建议使用多线程，速度更快
-          echo "开始二次编译..."
           make -j$(($(nproc) + 1)) V=s || make -j2 V=s
 
       - name: Upload Firmware
         uses: actions/upload-artifact@v4
         with:
           name: ImmortalWrt-S20M-Second-Build
-          path: |
-            bin/targets/*
+          path: bin/targets/*
           retention-days: 30
-
-      - name: Show Build Time
-        if: always()
-        run: echo "编译完成！请在 Artifacts 中下载固件"
