@@ -21,8 +21,9 @@
 		bootargs-append = " root=PARTLABEL=rootfs rootwait";
 	};
 
-	memory {
+	memory@40000000 {
 		reg = <0 0x40000000 0 0x80000000>;
+		device_type = "memory";
 	};
 
 	gpio-keys {
@@ -158,6 +159,8 @@
 };
 
 &mmc0 {
+	status = "okay";
+
 	pinctrl-names = "default", "state_uhs";
 	pinctrl-0 = <&mmc0_pins_default>;
 	pinctrl-1 = <&mmc0_pins_uhs>;
@@ -172,7 +175,6 @@
 	non-removable;
 	no-sd;
 	no-sdio;
-	status = "okay";
 
 	card@0 {
 		compatible = "mmc-card";
@@ -194,9 +196,9 @@
 							reg = <0x0 0x1000>;
 						};
 
-						macaddr_factory_4: macaddr@4 {
+						macaddr_factory_04: macaddr@04 {
 							compatible = "mac-base";
-							reg = <0x4 0x6>;
+							reg = <0x04 0x6>;
 							#nvmem-cell-cells = <1>;
 						};
 
@@ -334,16 +336,21 @@
 };
 
 &wifi {
-	nvmem-cells = <&eeprom_factory_0>;
-	nvmem-cell-names = "eeprom";
+	status = "okay";
+
 	pinctrl-names = "default", "dbdc";
 	pinctrl-0 = <&wf_2g_5g_pins>;
 	pinctrl-1 = <&wf_dbdc_pins>;
-	status = "okay";
+
+	nvmem-cells = <&eeprom_factory_0>;
+	nvmem-cell-names = "eeprom";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
 
 	band@0 {
 		reg = <0>;
-		nvmem-cells = <&macaddr_factory_4 0>;
+		nvmem-cells = <&macaddr_factory_04 0>;
 		nvmem-cell-names = "mac-address";
 
 	};
