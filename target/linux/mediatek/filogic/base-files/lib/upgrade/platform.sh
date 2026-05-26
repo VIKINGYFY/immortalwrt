@@ -141,8 +141,8 @@ platform_do_upgrade() {
 	bananapi,bpi-r3-mini|\
 	bananapi,bpi-r4|\
 	bananapi,bpi-r4-2g5|\
-	bananapi,bpi-r4-lite|\
 	bananapi,bpi-r4-poe|\
+	bananapi,bpi-r4-lite|\
 	bazis,ax3000wm|\
 	cetron,ct3003-ubootmod|\
 	cmcc,a10-ubootmod|\
@@ -152,9 +152,9 @@ platform_do_upgrade() {
 	cudy,tr3000-v1-ubootmod|\
 	cudy,wbr3000uax-v1-ubootmod|\
 	cudy,wr3000e-v1-ubootmod|\
+	cudy,wr3000s-v1-ubootmod|\
 	cudy,wr3000h-v1-ubootmod|\
 	cudy,wr3000p-v1-ubootmod|\
-	cudy,wr3000s-v1-ubootmod|\
 	gatonetworks,gdsp|\
 	h3c,magic-nx30-pro-ubootmod|\
 	imou,hx21|\
@@ -165,13 +165,14 @@ platform_do_upgrade() {
 	mediatek,mt7981-rfb|\
 	mediatek,mt7988a-rfb|\
 	mercusys,mr90x-v1-ubi|\
-	netcore,n60|\
-	netcore,n60-pro|\
+	netis,eap930-v1|\
 	netis,nx30v2|\
 	netis,nx31|\
 	netis,nx32u|\
 	nokia,ea0326gmp|\
 	openwrt,one|\
+	netcore,n60|\
+	netcore,n60-pro|\
 	qihoo,360t7|\
 	qihoo,360t7-ubi|\
 	routerich,ax3000-ubootmod|\
@@ -187,8 +188,8 @@ platform_do_upgrade() {
 	tplink,tl-xtr8488|\
 	wavlink,wl-wnt100x3-ubootmod|\
 	xiaomi,mi-router-ax3000t-ubootmod|\
-	xiaomi,mi-router-wr30u-ubootmod|\
 	xiaomi,redmi-router-ax6000-ubootmod|\
+	xiaomi,mi-router-wr30u-ubootmod|\
 	zyxel,ex5601-t0-ubootmod|\
 	zyxel,wx5600-t0-ubootmod)
 		fit_do_upgrade "$1"
@@ -362,8 +363,8 @@ platform_check_image() {
 	bananapi,bpi-r3-mini|\
 	bananapi,bpi-r4|\
 	bananapi,bpi-r4-2g5|\
-	bananapi,bpi-r4-lite|\
 	bananapi,bpi-r4-poe|\
+	bananapi,bpi-r4-lite|\
 	bazis,ax3000wm|\
 	cetron,ct3003-ubootmod|\
 	cmcc,a10-ubootmod|\
@@ -373,9 +374,9 @@ platform_check_image() {
 	cudy,tr3000-v1-ubootmod|\
 	cudy,wbr3000uax-v1-ubootmod|\
 	cudy,wr3000e-v1-ubootmod|\
+	cudy,wr3000s-v1-ubootmod|\
 	cudy,wr3000h-v1-ubootmod|\
 	cudy,wr3000p-v1-ubootmod|\
-	cudy,wr3000s-v1-ubootmod|\
 	gatonetworks,gdsp|\
 	h3c,magic-nx30-pro-ubootmod|\
 	imou,hx21|\
@@ -386,13 +387,14 @@ platform_check_image() {
 	mediatek,mt7981-rfb|\
 	mediatek,mt7988a-rfb|\
 	mercusys,mr90x-v1-ubi|\
-	netcore,n60|\
-	netcore,n60-pro|\
+	nokia,ea0326gmp|\
+	netis,eap930-v1|\
 	netis,nx30v2|\
 	netis,nx31|\
 	netis,nx32u|\
-	nokia,ea0326gmp|\
 	openwrt,one|\
+	netcore,n60|\
+	netcore,n60-pro|\
 	qihoo,360t7|\
 	qihoo,360t7-ubi|\
 	routerich,ax3000-ubootmod|\
@@ -408,8 +410,8 @@ platform_check_image() {
 	tplink,tl-xtr8488|\
 	wavlink,wl-wnt100x3-ubootmod|\
 	xiaomi,mi-router-ax3000t-ubootmod|\
-	xiaomi,mi-router-wr30u-ubootmod|\
 	xiaomi,redmi-router-ax6000-ubootmod|\
+	xiaomi,mi-router-wr30u-ubootmod|\
 	zyxel,ex5601-t0-ubootmod|\
 	zyxel,wx5600-t0-ubootmod)
 		fit_check_image "$1"
@@ -471,8 +473,8 @@ platform_copy_config() {
 	bananapi,bpi-r3-mini|\
 	bananapi,bpi-r4|\
 	bananapi,bpi-r4-2g5|\
-	bananapi,bpi-r4-lite|\
 	bananapi,bpi-r4-poe|\
+	bananapi,bpi-r4-lite|\
 	cmcc,rax3000m|\
 	cmcc,rax3000me|\
 	gatonetworks,gdsp|\
