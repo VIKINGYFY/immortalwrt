@@ -241,6 +241,11 @@ case "$board" in
 	tplink,tl-xtr8488)
 		[ "$PHYNBR" = "1" ] && get_mac_label > /sys${DEVPATH}/macaddress
 		;;
+	tplink,wma301-v2*)
+		addr=$(mtd_get_mac_binary factory 0x1c)
+		[ "$PHYNBR" = "0" ] && macaddr_add $addr 2 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "1" ] && macaddr_add $addr 3 > /sys${DEVPATH}/macaddress
+		;;
 	routerich,ax3000|\
 	routerich,ax3000-ubootmod|\
 	zbtlink,zbt-z8102ax|\

@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/dts-v1/;
+#include "mt7981b-tplink-wma301-v2-common.dtsi"
+
+/ {
+	model = "TP-Link WMA301 v2.1/256M (OpenWrt U-Boot layout)";
+	compatible = "tplink,wma301-v2-1-256m-ubootmod", "mediatek,mt7981";
+};
+
+&led_status_red {
+	gpios = <&pio 12 GPIO_ACTIVE_LOW>;
+};
+
+&led_status_green {
+	gpios = <&pio 11 GPIO_ACTIVE_LOW>;
+};
+
+&ubi {
+	reg = <0x500000 0xfb00000>;
+};
+
+&spi_nand {
+	spi-cal-enable;
+	spi-cal-mode = "read-data";
+	spi-cal-datalen = <7>;
+	spi-cal-data = /bits/ 8 <0x53 0x50 0x49 0x4E 0x41 0x4E 0x44>;
+	spi-cal-addrlen = <5>;
+	spi-cal-addr = /bits/ 32 <0x0 0x0 0x0 0x0 0x0>;
+};
