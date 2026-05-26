@@ -1274,11 +1274,11 @@ define Device/cudy_re3000-v1
 endef
 TARGET_DEVICES += cudy_re3000-v1
 
-define Device/cudy_tr3000-256mb-v1
+define Device/cudy_tr3000-v1-256mb
   DEVICE_VENDOR := Cudy
   DEVICE_MODEL := TR3000
-  DEVICE_VARIANT := 256mb v1
-  DEVICE_DTS := mt7981b-cudy-tr3000-256mb-v1
+  DEVICE_VARIANT := v1 (256M)
+  DEVICE_DTS := mt7981b-cudy-tr3000-v1-256mb
   DEVICE_DTS_DIR := ../dts
   SUPPORTED_DEVICES += R103
   UBINIZE_OPTS := -E 5
@@ -1289,7 +1289,7 @@ define Device/cudy_tr3000-256mb-v1
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
   DEVICE_PACKAGES := kmod-usb3 kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware automount
 endef
-TARGET_DEVICES += cudy_tr3000-256mb-v1
+TARGET_DEVICES += cudy_tr3000-v1-256mb
 
 define Device/cudy_tr3000-v1
   DEVICE_VENDOR := Cudy
