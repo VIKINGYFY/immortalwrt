@@ -1274,11 +1274,11 @@ define Device/cudy_re3000-v1
 endef
 TARGET_DEVICES += cudy_re3000-v1
 
-define Device/cudy_tr3000-256mb-v1
+define Device/cudy_tr3000-v1-256mb
   DEVICE_VENDOR := Cudy
   DEVICE_MODEL := TR3000
-  DEVICE_VARIANT := 256mb v1
-  DEVICE_DTS := mt7981b-cudy-tr3000-256mb-v1
+  DEVICE_VARIANT := v1 (256M)
+  DEVICE_DTS := mt7981b-cudy-tr3000-v1-256mb
   DEVICE_DTS_DIR := ../dts
   SUPPORTED_DEVICES += R103
   UBINIZE_OPTS := -E 5
@@ -1289,7 +1289,7 @@ define Device/cudy_tr3000-256mb-v1
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
   DEVICE_PACKAGES := kmod-usb3 kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware automount
 endef
-TARGET_DEVICES += cudy_tr3000-256mb-v1
+TARGET_DEVICES += cudy_tr3000-v1-256mb
 
 define Device/cudy_tr3000-v1
   DEVICE_VENDOR := Cudy
@@ -4032,3 +4032,50 @@ define Device/supergateway_s20p
   DEVICE_DTS := mt7986a-supergateway-s20p
 endef
 TARGET_DEVICES += supergateway_s20p
+
+define Device/tplink_wma301-v2-common
+  DEVICE_VENDOR := TP-Link
+  DEVICE_MODEL := WMA301
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
+  SUPPORTED_DEVICES += mediatek,mt7981-spim-snand-rfb
+  KERNEL_IN_UBI := 1
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  IMAGES += factory.bin
+  IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+
+define Device/tplink_wma301-v2
+  $(call Device/tplink_wma301-v2-common)
+  DEVICE_VARIANT := v2.0
+  DEVICE_DTS := mt7981b-tplink-wma301-v2
+  IMAGE_SIZE := 114688k
+endef
+TARGET_DEVICES += tplink_wma301-v2
+
+define Device/tplink_wma301-v2-256m
+  $(call Device/tplink_wma301-v2-common)
+  DEVICE_VARIANT := v2.0 (256M)
+  DEVICE_DTS := mt7981b-tplink-wma301-v2-256m
+  IMAGE_SIZE := 235520k
+endef
+TARGET_DEVICES += tplink_wma301-v2-256m
+
+define Device/tplink_wma301-v2-1
+  $(call Device/tplink_wma301-v2-common)
+  DEVICE_VARIANT := v2.1
+  DEVICE_DTS := mt7981b-tplink-wma301-v2-1
+  IMAGE_SIZE := 114688k
+endef
+TARGET_DEVICES += tplink_wma301-v2-1
+
+define Device/tplink_wma301-v2-1-256m
+  $(call Device/tplink_wma301-v2-common)
+  DEVICE_VARIANT := v2.1 (256M)
+  DEVICE_DTS := mt7981b-tplink-wma301-v2-1-256m
+  IMAGE_SIZE := 235520k
+endef
+TARGET_DEVICES += tplink_wma301-v2-1-256m
