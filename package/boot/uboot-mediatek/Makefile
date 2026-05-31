@@ -770,6 +770,9 @@ define U-Boot/mt7981_tplink_wma301-v2
   BL2_SOC:=mt7981
   BL2_DDRTYPE:=ddr3
   DEPENDS:=+trusted-firmware-a-mt7981-spim-nand-ddr3
+  BL2_BOOTDEV:=wma301-v2-ddr3
+  BL2_SOC:=mt7981
+  DEPENDS:=+trusted-firmware-a-mt7981-wma301-v2-ddr3
 endef
 
 define U-Boot/mt7981_tplink_wma301-v2-256m
@@ -782,6 +785,9 @@ define U-Boot/mt7981_tplink_wma301-v2-256m
   BL2_SOC:=mt7981
   BL2_DDRTYPE:=ddr3
   DEPENDS:=+trusted-firmware-a-mt7981-spim-nand-ddr3
+  BL2_BOOTDEV:=wma301-v2-ddr3
+  BL2_SOC:=mt7981
+  DEPENDS:=+trusted-firmware-a-mt7981-wma301-v2-ddr3
 endef
 
 define U-Boot/mt7981_tplink_wma301-v2-1
@@ -794,6 +800,9 @@ define U-Boot/mt7981_tplink_wma301-v2-1
   BL2_SOC:=mt7981
   BL2_DDRTYPE:=ddr3
   DEPENDS:=+trusted-firmware-a-mt7981-spim-nand-ddr3
+  BL2_BOOTDEV:=wma301-v2-ddr3
+  BL2_SOC:=mt7981
+  DEPENDS:=+trusted-firmware-a-mt7981-wma301-v2-ddr3
 endef
 
 define U-Boot/mt7981_tplink_wma301-v2-1-256m
@@ -806,6 +815,9 @@ define U-Boot/mt7981_tplink_wma301-v2-1-256m
   BL2_SOC:=mt7981
   BL2_DDRTYPE:=ddr3
   DEPENDS:=+trusted-firmware-a-mt7981-spim-nand-ddr3
+  BL2_BOOTDEV:=wma301-v2-ddr3
+  BL2_SOC:=mt7981
+  DEPENDS:=+trusted-firmware-a-mt7981-wma301-v2-ddr3
 endef
 
 define U-Boot/mt7981_wavlink_wl-wnt100x3
