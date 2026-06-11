@@ -8,35 +8,29 @@
 	compatible = "supergateway,s20l", "mediatek,mt7986a";
 };
 
-&eth {
-	status = "okay";
+&switch {
+	ports {
+		port@0 {
+			label = "wan";
 
-	mdio: mdio-bus {
-		switch: switch@1f {
-			ports {
-				port@0 {
-					label = "wan";
+			nvmem-cells = <&macaddr_factory_24 0>;
+			nvmem-cell-names = "mac-address";
+		};
 
-					nvmem-cells = <&macaddr_factory_24 0>;
-					nvmem-cell-names = "mac-address";
-				};
+		port@1 {
+			label = "lan4";
+		};
 
-				port@1 {
-					label = "lan4";
-				};
+		port@2 {
+			label = "lan3";
+		};
 
-				port@2 {
-					label = "lan3";
-				};
+		port@3 {
+			label = "lan2";
+		};
 
-				port@3 {
-					label = "lan2";
-				};
-
-				port@4 {
-					label = "lan1";
-				};
-			};
+		port@4 {
+			label = "lan1";
 		};
 	};
 };

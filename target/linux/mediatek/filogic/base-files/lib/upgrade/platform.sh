@@ -215,9 +215,7 @@ platform_do_upgrade() {
 	smartrg,sdg-8733|\
 	smartrg,sdg-8733a|\
 	smartrg,sdg-8734|\
-	supergateway,s20l|\
-	supergateway,s20m|\
-	supergateway,s20p)
+	supergateway,s20*)
 		CI_KERNPART="kernel"
 		CI_ROOTPART="rootfs"
 		emmc_do_upgrade "$1"
@@ -465,9 +463,7 @@ platform_copy_config() {
 	smartrg,sdg-8733|\
 	smartrg,sdg-8733a|\
 	smartrg,sdg-8734|\
-	supergateway,s20l|\
-	supergateway,s20m|\
-	supergateway,s20p|\
+	supergateway,s20*|\
 	ubnt,unifi-6-plus)
 		emmc_copy_config
 		;;
