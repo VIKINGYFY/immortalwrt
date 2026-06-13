@@ -99,9 +99,9 @@ function setup_phy(phy, config, data) {
 		config.txpower = 'auto';
 
 	log(`Configuring '${phy}' txantenna: ${config.txantenna}, rxantenna: ${config.rxantenna} distance: ${config.distance}`);
-	system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna}`);
-	system(`iw phy ${phy} set distance ${config.distance}`);
-	system(`iw phy ${phy} set txpower ${config.txpower}`);
+	system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna} >/dev/null 2>&1`);
+	system(`iw phy ${phy} set distance ${config.distance} >/dev/null 2>&1`);
+	system(`iw phy ${phy} set txpower ${config.txpower} >/dev/null 2>&1`);
 
 	if (config.frag)
 		system(`iw phy ${phy} set frag ${config.frag}`);
