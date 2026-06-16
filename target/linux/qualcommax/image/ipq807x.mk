@@ -78,6 +78,29 @@ define Device/arcadyan_aw1000
 endef
 TARGET_DEVICES += arcadyan_aw1000
 
+
+define Device/arista_ap-c360
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := Arista
+	DEVICE_MODEL := AP-C360
+	BLOCKSIZE := 256k
+	PAGESIZE := 4096
+	KERNEL_SIZE := 16384k
+	SOC := ipq8074
+	DEVICE_DTS := ipq8074-ap-c360
+	DEVICE_DTS_CONFIG := config@hk09
+	SUPPORTED_DEVICES := arista,c360
+	DEVICE_PACKAGES := ath11k-firmware-qcn9074-ddwrt kmod-ath11k-pci \
+		kmod-phy-aquantia kmod-spi-gpio kmod-gpio-nxp-74hc164 \
+		ipq-wifi-arista_c360 pciutils
+	IMAGES := sysupgrade.bin factory.bin
+	IMAGE/factory.bin := append-ubi
+	ARTIFACTS := kernel.itb
+	ARTIFACT/kernel.itb := append-kernel | check-size $$$$(KERNEL_SIZE)
+endef
+TARGET_DEVICES += arista_ap-c360
+
 define Device/asus_rt-ax89x
 	DEVICE_VENDOR := Asus
 	DEVICE_MODEL := RT-AX89X

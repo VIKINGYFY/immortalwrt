@@ -1,0 +1,20 @@
+#!/bin/sh
+
+[ "$(board_name)" = "arista,c360" ] || exit 0
+
+# AP-C360 defaults to dumb-AP/bridge mode: never run a DHCP/RA server on LAN.
+uci -q set dhcp.lan.ignore="1"
+uci -q set dhcp.lan.ra="disabled"
+uci -q set dhcp.lan.dhcpv6="disabled"
+uci -q delete dhcp.lan.dynamicdhcp
+uci -q delete dhcp.lan.dynamicdhcpv4
+uci -q delete dhcp.lan.dynamicdhcpv6
+uci -q delete dhcp.lan.force
+uci -q delete dhcp.lan.ra_default
+uci -q delete dhcp.lan.ra_flags
+uci -q delete dhcp.lan.ra_slaac
+uci -q commit dhcp
+
+/usr/sbin/arista-c360-radio-mode apply-wireless
+
+exit 0

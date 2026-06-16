@@ -21,6 +21,9 @@ ipq807x_setup_interfaces()
 	zte,mf269-stock)
 		ucidef_set_interfaces_lan_wan "lan" "wan"
 		;;
+	arista,c360)
+		ucidef_set_interface_lan "eth1 eth2"
+		;;
 	asus,rt-ax89x)
 		ucidef_set_interfaces_lan_wan "10g-sfp 10g-copper lan1 lan2 lan3 lan4 lan5 lan6 lan7 lan8" "wan"
 		;;
@@ -95,6 +98,13 @@ ipq807x_setup_macs()
 	local label_mac=""
 
 	case "$board" in
+	arista,c360)
+		lan_mac=$(mtd_get_mac_ascii "0:APPSBLENV" ethaddr)
+		wan_mac=$(mtd_get_mac_ascii "0:APPSBLENV" eth1addr)
+		ucidef_set_network_device_mac "eth1" "$lan_mac"
+		ucidef_set_network_device_mac "eth2" "$wan_mac"
+		label_mac=$lan_mac
+		;;
 	aliyun,ap8220)
 		wan_mac=$(cat $(find_mtd_part product_info) | awk -F '\t' '/product.mac/{print $2}')
 		lan_mac=$(macaddr_add $wan_mac 1)

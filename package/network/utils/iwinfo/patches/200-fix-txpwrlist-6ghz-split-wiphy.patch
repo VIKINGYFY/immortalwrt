@@ -1,0 +1,156 @@
+From: OpenWrt Community <openwrt@example.com>
+Date: Sat, 24 May 2025 00:00:00 +0000
+Subject: iwinfo: fix txpwrlist missing 6 GHz channels
+
+The kernel omits bands above 5 GHz in NL80211_CMD_GET_WIPHY responses
+unless NL80211_ATTR_SPLIT_WIPHY_DUMP is requested (net/wireless/nl80211.c,
+"omit higher bands for ancient software").  Split dump mode requires
+NLM_F_DUMP together with the NL80211_ATTR_SPLIT_WIPHY_DUMP attribute,
+exactly as nl80211_get_freqlist() already does.
+
+In split dump mode the callback is invoked once per partial message.  The
+old callback design stored the channel-to-search *and* the result in the
+same int *, so each successive call overwrote ch_cur with -1.  Fix by
+introducing struct nl80211_txpwr_state so ch_cur is read-only in the
+callback.  If the channel is found before all messages arrive, subsequent
+calls return NL_SKIP immediately.
+
+Guard bands[NL80211_BAND_ATTR_FREQS] before iterating (some partial
+messages carry band entries without freq lists, causing a NULL deref).
+
+Also add an explicit check for dbm_max < 0 to prevent the uint8_t
+truncation of -1 to 255 that previously appeared as "255 dBm" in LuCI
+for 6 GHz radios.
+
+Signed-off-by: OpenWrt Community <openwrt@example.com>
+---
+ iwinfo_nl80211.c |   70 +++++++++++++++++++++++++++++++++++++++++++-----------
+ 1 file changed, 56 insertions(+), 21 deletions(-)
+
+--- a/iwinfo_nl80211.c
+@@ -2554,10 +2554,15 @@
+ 	return -1;
+ }
+
++struct nl80211_txpwr_state {
++	int ch_cur;   /* channel to look up (constant) */
++	int dbm_max;  /* result: max power in dBm, or -1 */
++};
++
+ static int nl80211_get_txpwrlist_cb(struct nl_msg *msg, void *arg)
+ {
+-	int *dbm_max = arg;
+-	int ch_cur, ch_cmp, bands_remain, freqs_remain;
++	struct nl80211_txpwr_state *st = arg;
++	int ch_cmp, bands_remain, freqs_remain;
+
+ 	struct nlattr **attr = nl80211_parse(msg);
+ 	struct nlattr *bands[NL80211_BAND_ATTR_MAX + 1];
+@@ -2573,28 +2578,37 @@
+ 		[NL80211_FREQUENCY_ATTR_MAX_TX_POWER] = { .type = NLA_U32  },
+ 	};
+
+-	ch_cur = *dbm_max; /* value int* is initialized with channel by caller */
+-	*dbm_max = -1;
++	/* Already found in a previous partial message - nothing more to do. */
++	if (st->dbm_max >= 0)
++		return NL_SKIP;
++
++	if (!attr[NL80211_ATTR_WIPHY_BANDS])
++		return NL_SKIP;
+
+ 	nla_for_each_nested(band, attr[NL80211_ATTR_WIPHY_BANDS], bands_remain)
+ 	{
+ 		nla_parse(bands, NL80211_BAND_ATTR_MAX, nla_data(band),
+ 		          nla_len(band), NULL);
+
++		if (!bands[NL80211_BAND_ATTR_FREQS])
++			continue;
++
+ 		nla_for_each_nested(freq, bands[NL80211_BAND_ATTR_FREQS], freqs_remain)
+ 		{
+ 			nla_parse(freqs, NL80211_FREQUENCY_ATTR_MAX,
+ 			          nla_data(freq), nla_len(freq), freq_policy);
+
++			if (!freqs[NL80211_FREQUENCY_ATTR_FREQ])
++				continue;
++
+ 			ch_cmp = nl80211_freq2channel(nla_get_u32(
+ 				freqs[NL80211_FREQUENCY_ATTR_FREQ]));
+
+-			if ((!ch_cur || (ch_cmp == ch_cur)) &&
++			if ((!st->ch_cur || (ch_cmp == st->ch_cur)) &&
+ 			    freqs[NL80211_FREQUENCY_ATTR_MAX_TX_POWER])
+ 			{
+-				*dbm_max = (int)(0.01 * nla_get_u32(
++				st->dbm_max = (int)(0.01 * nla_get_u32(
+ 					freqs[NL80211_FREQUENCY_ATTR_MAX_TX_POWER]));
+-
+ 				break;
+ 			}
+ 		}
+@@ -2605,23 +2619,34 @@
+
+ static int nl80211_get_txpwrlist(const char *ifname, char *buf, int *len)
+ {
+-	int err, ch_cur;
+-	int dbm_max = -1, dbm_cur, dbm_cnt;
++	struct nl80211_txpwr_state st = { .ch_cur = 0, .dbm_max = -1 };
++	struct nl80211_msg_conveyor *cv;
++	uint32_t features;
++	int err, dbm_cur, dbm_cnt, flags;
+ 	struct iwinfo_txpwrlist_entry entry;
+
+-	if (nl80211_get_channel(ifname, &ch_cur))
+-		ch_cur = 0;
++	if (!nl80211_get_channel(ifname, &st.ch_cur))
++		; /* ch_cur set */
+
+-	/* initialize the value pointer with channel for callback */
+-	dbm_max = ch_cur;
++	/* Use split dump to include 6 GHz band (kernel omits it otherwise). */
++	features = nl80211_get_protocol_features(ifname);
++	flags = (features & NL80211_PROTOCOL_FEATURE_SPLIT_WIPHY_DUMP) ? NLM_F_DUMP : 0;
+
+-	err = nl80211_request(ifname, NL80211_CMD_GET_WIPHY, 0,
+-	                      nl80211_get_txpwrlist_cb, &dbm_max);
++	cv = nl80211_msg(ifname, NL80211_CMD_GET_WIPHY, flags);
++	if (!cv)
++		return -1;
++
++	NLA_PUT_FLAG(cv->msg, NL80211_ATTR_SPLIT_WIPHY_DUMP);
++
++	err = nl80211_send(cv, nl80211_get_txpwrlist_cb, &st);
+
+ 	if (!err)
+ 	{
++		if (st.dbm_max < 0)
++			goto out;
++
+ 		for (dbm_cur = 0, dbm_cnt = 0;
+-		     dbm_cur < dbm_max;
++		     dbm_cur < st.dbm_max;
+ 		     dbm_cur++, dbm_cnt++)
+ 		{
+ 			entry.dbm = dbm_cur;
+@@ -2630,9 +2655,8 @@
+ 			memcpy(&buf[dbm_cnt * sizeof(entry)], &entry, sizeof(entry));
+ 		}
+
+-		entry.dbm = dbm_max;
+-		entry.mw  = iwinfo_dbm2mw(dbm_max);
+-
++		entry.dbm = st.dbm_max;
++		entry.mw  = iwinfo_dbm2mw(st.dbm_max);
+ 		memcpy(&buf[dbm_cnt * sizeof(entry)], &entry, sizeof(entry));
+ 		dbm_cnt++;
+
+@@ -2640,6 +2664,9 @@
+ 		return 0;
+ 	}
+
++nla_put_failure:
++	nl80211_free(cv);
++out:
+ 	return -1;
+ }
