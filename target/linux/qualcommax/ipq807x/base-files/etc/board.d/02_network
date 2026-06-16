@@ -99,11 +99,7 @@ ipq807x_setup_macs()
 
 	case "$board" in
 	arista,c360)
-		lan_mac=$(mtd_get_mac_ascii "0:APPSBLENV" ethaddr)
-		wan_mac=$(mtd_get_mac_ascii "0:APPSBLENV" eth1addr)
-		ucidef_set_network_device_mac "eth1" "$lan_mac"
-		ucidef_set_network_device_mac "eth2" "$wan_mac"
-		label_mac=$lan_mac
+		label_mac=$(mtd_get_mac_ascii "0:APPSBLENV" ethaddr)
 		;;
 	aliyun,ap8220)
 		wan_mac=$(cat $(find_mtd_part product_info) | awk -F '\t' '/product.mac/{print $2}')
