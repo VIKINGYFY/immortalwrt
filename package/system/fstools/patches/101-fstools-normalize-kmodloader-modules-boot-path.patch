@@ -1,0 +1,22 @@
+--- a/libfstools/extroot.c
++++ b/libfstools/extroot.c
+@@ -32,6 +32,7 @@ int mount_extroot(char const *extroot_pr
+ 	char ldlib_path[32];
+ 	char block_path[32];
+ 	char kmod_loader[64];
++	char *kmod_root;
+ 	struct stat s;
+ 	pid_t pid;
+ 
+@@ -57,8 +58,10 @@ int mount_extroot(char const *extroot_pr
+ 	if (!stat(ldlib_path, &s) && S_ISDIR(s.st_mode)) {
+ 		ULOG_INFO("loading kmods from internal overlay\n");
+ 		setenv("LD_LIBRARY_PATH", ldlib_path, 1);
++		kmod_root = dirname(ldlib_path);
+ 		snprintf(kmod_loader, sizeof(kmod_loader),
+-		         "/sbin/kmodloader %s/etc/modules-boot.d/", dirname(ldlib_path));
++		         "/sbin/kmodloader %s%setc/modules-boot.d/",
++		         kmod_root, strcmp(kmod_root, "/") ? "/" : "");
+ 		if (system(kmod_loader))
+ 			ULOG_ERR("failed to launch kmodloader from internal overlay\n");
+ 	}
