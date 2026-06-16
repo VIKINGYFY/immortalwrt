@@ -1,0 +1,261 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+CONFIG="arista_c360"
+BOARD="arista,c360"
+REG_MODE="0x1009000"
+REG_SUBMODE="0x1009004"
+FW_ROOT="/lib/firmware/ath11k"
+BOARD_ROOT="/usr/share/arista-c360/boarddata"
+
+[ "$(board_name 2>/dev/null)" = "$BOARD" ] || exit 0
+
+log()
+{
+	logger -t arista-c360-radio-mode "$*"
+}
+
+mode_get()
+{
+	local mode
+	mode="$(uci -q get ${CONFIG}.radio.mode)"
+	case "$mode" in
+		dual5g|tri6g) echo "$mode" ;;
+		*) echo tri6g ;;
+	esac
+}
+
+mode_set()
+{
+	case "$1" in
+		tri6g|dual5g) ;;
+		*) echo "invalid mode: $1" >&2; return 1 ;;
+	esac
+	uci -q set ${CONFIG}.radio="radio"
+	uci -q set ${CONFIG}.radio.mode="$1"
+	uci -q commit ${CONFIG}
+}
+
+write32_bytes()
+{
+	local dec b0 b1 b2 b3
+	dec=$(($1))
+	b0=$(printf "%02x" $((dec & 255)))
+	b1=$(printf "%02x" $(((dec >> 8) & 255)))
+	b2=$(printf "%02x" $(((dec >> 16) & 255)))
+	b3=$(printf "%02x" $(((dec >> 24) & 255)))
+	printf "%b" "\\x$b0\\x$b1\\x$b2\\x$b3"
+}
+
+mem_write32()
+{
+	local addr="$1" value="$2" seek
+	if command -v devmem >/dev/null 2>&1; then
+		devmem "$addr" 32 "$value" >/dev/null 2>&1
+		return $?
+	fi
+	[ -w /dev/mem ] || return 1
+	seek=$((addr / 4))
+	write32_bytes "$value" | dd of=/dev/mem bs=4 seek="$seek" count=1 conv=notrunc >/dev/null 2>&1
+}
+
+mem_read32()
+{
+	local addr="$1" skip
+	if command -v devmem >/dev/null 2>&1; then
+		devmem "$addr" 32 2>/dev/null
+		return
+	fi
+	[ -r /dev/mem ] || { echo n/a; return; }
+	skip=$((addr / 4))
+	dd if=/dev/mem bs=4 skip="$skip" count=1 2>/dev/null | hexdump -v -e '1/4 "0x%08x"' 2>/dev/null || echo n/a
+}
+
+apply_strap()
+{
+	local mode="$1" rf sub
+	if [ "$mode" = "dual5g" ]; then
+		rf="0x2c3"
+		sub="0x2"
+	else
+		rf="0x2c1"
+		sub="0x0"
+	fi
+	mem_write32 "$REG_MODE" "$rf" && mem_write32 "$REG_SUBMODE" "$sub" || {
+		log "failed to write RF strap for mode=$mode"
+		return 1
+	}
+	log "applied RF strap mode=$mode reg0=$rf reg1=$sub"
+}
+
+install_board()
+{
+	local chip="$1" hw="$2" mode="$3" src dst
+	src="$BOARD_ROOT/$chip/$hw/board-$mode.bin"
+	[ -f "$src" ] || return 1
+	dst="$FW_ROOT/$chip/$hw/board-2.bin"
+	mkdir -p "$(dirname "$dst")"
+	cp -f "$src" "$dst"
+}
+
+apply_boarddata()
+{
+	local mode="$1"
+	install_board IPQ8074 hw2.0 "$mode" || return 1
+	install_board QCN9074 hw1.0 "$mode" || return 1
+	log "selected $mode boarddata"
+}
+
+apply_early()
+{
+	local mode
+	mode="$(mode_get)"
+	apply_strap "$mode"
+	apply_boarddata "$mode"
+}
+
+ensure_wireless_generated()
+{
+	uci -q show wireless | grep -q '=wifi-device' && return 0
+	wifi config >/dev/null 2>&1 || true
+}
+
+
+normalize_radios()
+{
+	local radio path band stale
+	ensure_wireless_generated
+	for stale in apc360_tmp_5g apc360_tmp_24g apc360_tmp_service apc360_tmp_scan; do
+		uci -q delete wireless.$stale
+	done
+	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
+		path="$(uci -q get wireless.$radio.path)"
+		band="$(uci -q get wireless.$radio.band)"
+		case "$path:$band" in
+			platform/soc@0/c000000.wifi:5g) uci -q rename wireless.$radio=apc360_tmp_5g ;;
+			platform/soc@0/c000000.wifi+1:2g) uci -q rename wireless.$radio=apc360_tmp_24g ;;
+			*soc@0/20000000.pcie*:*) uci -q rename wireless.$radio=apc360_tmp_service ;;
+			*soc@0/10000000.pcie*:*) uci -q rename wireless.$radio=apc360_tmp_scan ;;
+		esac
+	done
+	uci -q rename wireless.apc360_tmp_5g=radio0
+	uci -q rename wireless.apc360_tmp_24g=radio1
+	uci -q rename wireless.apc360_tmp_service=radio2
+	uci -q delete wireless.apc360_tmp_scan
+	uci -q delete wireless.radio3
+}
+
+reset_ap_ifaces()
+{
+	local iface
+	for iface in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+		uci -q delete wireless.$iface
+	done
+}
+
+add_default_ap()
+{
+	local section="$1" device="$2" enc="$3"
+	uci -q set wireless.$section=wifi-iface
+	uci -q set wireless.$section.device="$device"
+	uci -q set wireless.$section.network="lan"
+	uci -q set wireless.$section.mode="ap"
+	uci -q set wireless.$section.ssid="ImmortalWRT"
+	uci -q set wireless.$section.encryption="$enc"
+	uci -q set wireless.$section.disabled="0"
+}
+
+apply_wireless()
+{
+	local mode="$1"
+	normalize_radios
+	reset_ap_ifaces
+
+	uci -q set wireless.radio0=wifi-device
+	uci -q set wireless.radio0.type="mac80211"
+	uci -q set wireless.radio0.path="platform/soc@0/c000000.wifi"
+	uci -q set wireless.radio0.band="5g"
+	uci -q set wireless.radio0.country="US"
+	uci -q set wireless.radio0.channel="36"
+	uci -q set wireless.radio0.htmode="HE80"
+	uci -q set wireless.radio0.txpower="27"
+	uci -q delete wireless.radio0.disabled
+
+	uci -q set wireless.radio1=wifi-device
+	uci -q set wireless.radio1.type="mac80211"
+	uci -q set wireless.radio1.path="platform/soc@0/c000000.wifi+1"
+	uci -q set wireless.radio1.band="2g"
+	uci -q set wireless.radio1.country="US"
+	uci -q set wireless.radio1.channel="1"
+	uci -q set wireless.radio1.htmode="HE20"
+	uci -q set wireless.radio1.txpower="28"
+	uci -q delete wireless.radio1.disabled
+
+	uci -q set wireless.radio2=wifi-device
+	uci -q set wireless.radio2.type="mac80211"
+	uci -q set wireless.radio2.path="soc@0/20000000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0"
+	uci -q set wireless.radio2.country="US"
+	uci -q set wireless.radio2.txpower="28"
+	uci -q delete wireless.radio2.disabled
+
+	add_default_ap default_radio0 radio0 none
+	add_default_ap default_radio1 radio1 none
+
+	if [ "$mode" = "dual5g" ]; then
+		uci -q set wireless.radio2.band="5g"
+		uci -q set wireless.radio2.channel="149"
+		uci -q set wireless.radio2.htmode="HE80"
+		uci -q delete wireless.radio2.he_6ghz_reg_pwr_type
+		uci -q delete wireless.radio2.stationary_ap
+		add_default_ap default_radio2 radio2 none
+	else
+		uci -q set wireless.radio2.band="6g"
+		uci -q set wireless.radio2.channel="5"
+		uci -q set wireless.radio2.htmode="HE160"
+		uci -q set wireless.radio2.he_6ghz_reg_pwr_type="1"
+		uci -q set wireless.radio2.stationary_ap="1"
+		add_default_ap default_radio2 radio2 owe
+	fi
+
+	uci -q reorder wireless.radio0=0
+	uci -q reorder wireless.radio1=1
+	uci -q reorder wireless.radio2=2
+	uci -q reorder wireless.default_radio0=3
+	uci -q reorder wireless.default_radio1=4
+	uci -q reorder wireless.default_radio2=5
+	uci -q commit wireless
+	log "updated wireless config for mode=$mode"
+}
+
+status()
+{
+	local mode
+	mode="$(mode_get)"
+	printf 'mode=%s\n' "$mode"
+	printf 'strap_%s=%s\n' "$REG_MODE" "$(mem_read32 "$REG_MODE")"
+	printf 'strap_%s=%s\n' "$REG_SUBMODE" "$(mem_read32 "$REG_SUBMODE")"
+	printf 'expected=%s\n' "$([ "$mode" = dual5g ] && echo '2.4G + 5G-low + 5G-high' || echo '2.4G + 5G + 6G')"
+}
+
+case "$1" in
+	status) status ;;
+	apply-early) apply_early ;;
+	apply-wireless) apply_wireless "$(mode_get)" ;;
+	apply) apply_early; apply_wireless "$(mode_get)" ;;
+	set)
+		mode_set "$2" || exit 1
+		apply_wireless "$2"
+		if [ "$3" = "--reboot" ]; then
+			reboot
+		else
+			echo "mode set to $2; reboot AP to switch RF mode"
+		fi
+		;;
+	*)
+		cat <<USAGE
+Usage: arista-c360-radio-mode status|apply-early|apply-wireless|apply|set tri6g|dual5g [--reboot]
+USAGE
+		exit 1
+		;;
+esac

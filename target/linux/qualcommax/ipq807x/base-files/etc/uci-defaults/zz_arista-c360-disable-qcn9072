@@ -1,0 +1,21 @@
+#!/bin/sh
+
+[ "$(board_name)" = "arista,c360" ] || exit 0
+
+for iface in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+	dev="$(uci -q get wireless.$iface.device)"
+	[ "$dev" = "radio3" ] && uci -q delete wireless.$iface
+	[ "$iface" = "apc360_scan" ] && uci -q delete wireless.$iface
+done
+
+for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
+	path="$(uci -q get wireless.$radio.path)"
+	case "$radio:$path" in
+		radio3:*|*:soc@0/10000000.pcie*|*:*/10000000.pcie*)
+			uci -q delete wireless.$radio
+			;;
+	esac
+done
+
+uci -q commit wireless
+exit 0

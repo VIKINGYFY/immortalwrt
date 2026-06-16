@@ -1,0 +1,56 @@
+#!/bin/sh
+
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "arista,c360" ] || exit 0
+
+valid_mac()
+{
+	case "$1" in
+		""|00:00:00:00:00:00|ff:ff:ff:ff:ff:ff) return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
+set_device_mac()
+{
+	local dev="$1" mac="$2" section
+	valid_mac "$mac" || return 0
+
+	for section in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=device$/\1/p'); do
+		[ "$(uci -q get network.$section.name)" = "$dev" ] || continue
+		uci -q set network.$section.macaddr="$mac"
+		return 0
+	done
+
+	section="$(uci -q add network device)"
+	uci -q set network.$section.name="$dev"
+	uci -q set network.$section.macaddr="$mac"
+}
+
+lan_mac="$(mtd_get_mac_ascii "0:APPSBLENV" ethaddr)"
+eth2_mac="$(mtd_get_mac_ascii "0:APPSBLENV" eth1addr)"
+
+valid_mac "$lan_mac" || exit 0
+valid_mac "$eth2_mac" || eth2_mac="$(macaddr_add "$lan_mac" 1)"
+[ "$eth2_mac" != "$lan_mac" ] || eth2_mac="$(macaddr_add "$lan_mac" 1)"
+
+set_device_mac eth1 "$lan_mac"
+set_device_mac eth2 "$eth2_mac"
+uci -q set network.lan.macaddr="$lan_mac"
+
+# AP-C360 is a bridge AP by default; keep both 10G copper ports in LAN unless
+# the user has already created a WAN interface.
+if ! uci -q get network.wan >/dev/null; then
+	for section in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=device$/\1/p'); do
+		[ "$(uci -q get network.$section.name)" = "br-lan" ] || continue
+		uci -q del_list network.$section.ports="eth1"
+		uci -q del_list network.$section.ports="eth2"
+		uci -q add_list network.$section.ports="eth1"
+		uci -q add_list network.$section.ports="eth2"
+		break
+	done
+fi
+
+uci -q commit network
+exit 0
