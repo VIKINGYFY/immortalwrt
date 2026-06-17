@@ -4,6 +4,7 @@
 
 CONFIG="arista_c360"
 BOARD="arista,c360"
+DEFAULT_WIFI_KEY="a12344321a"
 REG_MODE="0x1009000"
 REG_SUBMODE="0x1009004"
 FW_ROOT="/lib/firmware/ath11k"
@@ -51,6 +52,10 @@ write32_bytes()
 mem_write32()
 {
 	local addr="$1" value="$2" seek
+	if command -v apc360-devmem >/dev/null 2>&1; then
+		apc360-devmem "$addr" 32 "$value" >/dev/null 2>&1
+		return $?
+	fi
 	if command -v devmem >/dev/null 2>&1; then
 		devmem "$addr" 32 "$value" >/dev/null 2>&1
 		return $?
@@ -63,13 +68,19 @@ mem_write32()
 mem_read32()
 {
 	local addr="$1" skip
+	local value
+	if command -v apc360-devmem >/dev/null 2>&1; then
+		value="$(apc360-devmem "$addr" 32 2>/dev/null)"
+		[ -n "$value" ] && { echo "$value"; return; }
+	fi
 	if command -v devmem >/dev/null 2>&1; then
-		devmem "$addr" 32 2>/dev/null
-		return
+		value="$(devmem "$addr" 32 2>/dev/null)"
+		[ -n "$value" ] && { echo "$value"; return; }
 	fi
 	[ -r /dev/mem ] || { echo n/a; return; }
 	skip=$((addr / 4))
-	dd if=/dev/mem bs=4 skip="$skip" count=1 2>/dev/null | hexdump -v -e '1/4 "0x%08x"' 2>/dev/null || echo n/a
+	value="$(dd if=/dev/mem bs=4 skip="$skip" count=1 2>/dev/null | hexdump -v -e '1/4 "0x%08x"' 2>/dev/null)"
+	[ -n "$value" ] && echo "$value" || echo n/a
 }
 
 apply_strap()
@@ -156,13 +167,14 @@ reset_ap_ifaces()
 
 add_default_ap()
 {
-	local section="$1" device="$2" enc="$3"
+	local section="$1" device="$2" enc="$3" key="$4"
 	uci -q set wireless.$section=wifi-iface
 	uci -q set wireless.$section.device="$device"
 	uci -q set wireless.$section.network="lan"
 	uci -q set wireless.$section.mode="ap"
 	uci -q set wireless.$section.ssid="ImmortalWRT"
 	uci -q set wireless.$section.encryption="$enc"
+	[ -n "$key" ] && uci -q set wireless.$section.key="$key" || uci -q delete wireless.$section.key
 	uci -q set wireless.$section.disabled="0"
 }
 
@@ -199,8 +211,8 @@ apply_wireless()
 	uci -q set wireless.radio2.txpower="28"
 	uci -q delete wireless.radio2.disabled
 
-	add_default_ap default_radio0 radio0 none
-	add_default_ap default_radio1 radio1 none
+	add_default_ap default_radio0 radio0 psk-mixed "$DEFAULT_WIFI_KEY"
+	add_default_ap default_radio1 radio1 psk-mixed "$DEFAULT_WIFI_KEY"
 
 	if [ "$mode" = "dual5g" ]; then
 		uci -q set wireless.radio2.band="5g"
@@ -208,14 +220,14 @@ apply_wireless()
 		uci -q set wireless.radio2.htmode="HE80"
 		uci -q delete wireless.radio2.he_6ghz_reg_pwr_type
 		uci -q delete wireless.radio2.stationary_ap
-		add_default_ap default_radio2 radio2 none
+		add_default_ap default_radio2 radio2 psk-mixed "$DEFAULT_WIFI_KEY"
 	else
 		uci -q set wireless.radio2.band="6g"
 		uci -q set wireless.radio2.channel="5"
 		uci -q set wireless.radio2.htmode="HE160"
 		uci -q set wireless.radio2.he_6ghz_reg_pwr_type="1"
 		uci -q set wireless.radio2.stationary_ap="1"
-		add_default_ap default_radio2 radio2 owe
+		add_default_ap default_radio2 radio2 sae "$DEFAULT_WIFI_KEY"
 	fi
 
 	uci -q reorder wireless.radio0=0

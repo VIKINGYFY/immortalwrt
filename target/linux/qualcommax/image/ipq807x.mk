@@ -93,7 +93,7 @@ define Device/arista_ap-c360
 	SUPPORTED_DEVICES := arista,c360
 	DEVICE_PACKAGES := ath11k-firmware-qcn9074-ddwrt kmod-ath11k-pci \
 		kmod-phy-aquantia kmod-spi-gpio kmod-gpio-nxp-74hc164 \
-		ipq-wifi-arista_c360 pciutils
+		ipq-wifi-arista_c360 pciutils apc360-devmem
 	IMAGES := sysupgrade.bin factory.bin
 	IMAGE/factory.bin := append-ubi
 	ARTIFACTS := kernel.itb
