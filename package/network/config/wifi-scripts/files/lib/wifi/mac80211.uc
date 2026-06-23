@@ -102,16 +102,16 @@ set ${s}.${id}
 set ${s}.band='${band_name}'
 set ${s}.channel='${channel}'
 set ${s}.htmode='${htmode}'
-set ${s}.country='${country || ''}'
+set ${s}.country='${country || 'CN'}'
 set ${s}.num_global_macaddr='${num_global_macaddr || ''}'
 
 set ${si}=wifi-iface
 set ${si}.device='${name}'
 set ${si}.network='lan'
 set ${si}.mode='ap'
-set ${si}.ssid='${defaults?.ssid || "ImmortalWRT"}'
-set ${si}.encryption='${defaults?.encryption || encryption}'
-set ${si}.key='${defaults?.key || ""}'
+set ${si}.ssid='${defaults?.ssid || 'OWRT'}'
+set ${si}.encryption='${defaults?.encryption || 'psk2+ccmp'}'
+set ${si}.key='${defaults?.key || '12345678'}'
 set ${si}.disabled='0'
 
 `);
