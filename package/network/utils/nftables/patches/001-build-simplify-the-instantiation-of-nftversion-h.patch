@@ -1,7 +1,7 @@
 From 2a0ec8a7246e5c5eb85270e3d4de43e20a00c577 Mon Sep 17 00:00:00 2001
 From: Jeremy Sowden <jeremy@azazel.net>
 Date: Wed, 28 Jan 2026 18:31:05 +0000
-Subject: [PATCH] build: simplify the instantation of nftversion.h
+Subject: build: simplify the instantation of nftversion.h
 
 Add an nftversion.h.in autoconf input file which configure uses to instantiate
 nftversion.h in the usual way.
@@ -30,7 +30,7 @@ Signed-off-by: Phil Sutter <phil@nwl.cc>
 -	echo "	${STABLE_RELEASE}"
 -	echo "};"
 -	echo "static char nftbuildstamp[[]] = {"
--	for ((i = 56; i >= 0; i-= 8)); do
+-	for i in `seq 56 -8 0`; do
 -		echo "	((uint64_t)MAKE_STAMP >> $i) & 0xff,"
 -	done
 -	echo "};"
