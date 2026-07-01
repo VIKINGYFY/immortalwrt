@@ -32,6 +32,7 @@ ALLWIFIBOARDS:= \
 	alfa-network_ap120c-ax \
 	aliyun_ap8220 \
 	arcadyan_aw1000 \
+	arista_c360 \
 	asus_rt-ax89x \
 	buffalo_wxr-5950ax12 \
 	cambiumnetworks_xe34 \
@@ -240,6 +241,31 @@ $(eval $(call generate-ipq-wifi-package,8devices_mango,8devices Mango))
 $(eval $(call generate-ipq-wifi-package,alfa-network_ap120c-ax,ALFA Network AP120C-AX))
 $(eval $(call generate-ipq-wifi-package,aliyun_ap8220,Aliyun AP8220))
 $(eval $(call generate-ipq-wifi-package,arcadyan_aw1000,Arcadyan AW1000))
+$(eval $(call generate-ipq-wifi-package,arista_c360,Arista AP-C360))
+define Package/ipq-wifi-arista_c360/install-overlay
+	$(INSTALL_DIR) $(1)/lib/firmware/ath11k/IPQ8074/hw2.0
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/board-arista_c360.ipq8074 \
+		$(1)/lib/firmware/ath11k/IPQ8074/hw2.0/board-2.bin
+	$(INSTALL_DIR) $(1)/lib/firmware/ath11k/QCN9074/hw1.0
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/board-arista_c360.qcn9074 \
+		$(1)/lib/firmware/ath11k/QCN9074/hw1.0/board-2.bin
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/arista-c360/qcn9000-fw/amss.bin \
+		$(1)/lib/firmware/ath11k/QCN9074/hw1.0/amss.bin
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/arista-c360/qcn9000-fw/m3.bin \
+		$(1)/lib/firmware/ath11k/QCN9074/hw1.0/m3.bin
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/arista-c360/qcn9000-fw/fw_version.txt \
+		$(1)/lib/firmware/ath11k/QCN9074/hw1.0/fw_version.txt
+	$(INSTALL_DIR) $(1)/usr/share/arista-c360/boarddata/IPQ8074/hw2.0
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/board-arista_c360.ipq8074 \
+		$(1)/usr/share/arista-c360/boarddata/IPQ8074/hw2.0/board-tri6g.bin
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/board-arista_c360-dual5g.ipq8074 \
+		$(1)/usr/share/arista-c360/boarddata/IPQ8074/hw2.0/board-dual5g.bin
+	$(INSTALL_DIR) $(1)/usr/share/arista-c360/boarddata/QCN9074/hw1.0
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/board-arista_c360.qcn9074 \
+		$(1)/usr/share/arista-c360/boarddata/QCN9074/hw1.0/board-tri6g.bin
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/board-arista_c360-dual5g.qcn9074 \
+		$(1)/usr/share/arista-c360/boarddata/QCN9074/hw1.0/board-dual5g.bin
+endef
 $(eval $(call generate-ipq-wifi-package,asus_rt-ax89x,Asus RT-AX89X))
 $(eval $(call generate-ipq-wifi-package,buffalo_wxr-5950ax12,Buffalo WXR-5950AX12))
 $(eval $(call generate-ipq-wifi-package,cambiumnetworks_xe34,Cambium Networks XE3-4))
