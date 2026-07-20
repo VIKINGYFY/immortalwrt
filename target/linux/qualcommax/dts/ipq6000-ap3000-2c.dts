@@ -12,7 +12,7 @@
 	compatible = "dptech,ap3000-2c", "qcom,ipq6018";
 
 	aliases {
-		label-mac-device = &dp4;
+		label-mac-device = &swport4;
 		serial0 = &blsp1_uart3;
 
 		led-boot = &led_power;
@@ -250,57 +250,62 @@
 	};
 };
 
+&uniphy0 {
+	status = "okay";
+};
+
 &switch {
 	status = "okay";
 
-	switch_lan_bmp = <(ESS_PORT4|ESS_PORT5)>;
-	switch_wan_bmp = <ESS_PORT3>;
-	switch_mac_mode = <MAC_MODE_PSGMII>;
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-	qcom,port_phyinfo {
-		port@3 {
-			port_id = <3>;
-			phy_address = <2>;
+		port@0 {
+			reg = <0>;
+			ethernet = <&edma>;
+			phy-mode = "internal";
+
+			fixed-link {
+				speed = <1000>;
+				full-duplex;
+			};
 		};
 
-		port@4 {
-			port_id = <4>;
-			phy_address = <3>;
+		swport3: port@3 {
+			reg = <3>;
+			label = "wan";
+			phy-handle = <&qca8075_2>;
+			phy-mode = "psgmii";
+			pcs-handle = <&uniphy0 2>;
+			nvmem-cells = <&macaddr_wan>;
+			nvmem-cell-names = "mac-address";
 		};
 
-		port@5 {
-			port_id = <5>;
-			phy_address = <4>;
+		swport4: port@4 {
+			reg = <4>;
+			label = "lan1";
+			phy-handle = <&qca8075_3>;
+			phy-mode = "psgmii";
+			pcs-handle = <&uniphy0 3>;
+			nvmem-cells = <&macaddr_lan>;
+			nvmem-cell-names = "mac-address";
+		};
+
+		swport5: port@5 {
+			reg = <5>;
+			label = "lan2";
+			phy-handle = <&qca8075_4>;
+			phy-mode = "psgmii";
+			pcs-handle = <&uniphy0 4>;
+			nvmem-cells = <&macaddr_lan>;
+			nvmem-cell-names = "mac-address";
 		};
 	};
 };
 
 &edma {
 	status = "okay";
-};
-
-&dp3 {
-	status = "okay";
-	phy-handle = <&qca8075_2>;
-	label = "wan";
-	nvmem-cells = <&macaddr_wan>;
-	nvmem-cell-names = "mac-address";
-};
-
-&dp4 {
-	status = "okay";
-	phy-handle = <&qca8075_3>;
-	label = "lan1";
-	nvmem-cells = <&macaddr_lan>;
-	nvmem-cell-names = "mac-address";
-};
-
-&dp5 {
-	status = "okay";
-	phy-handle = <&qca8075_4>;
-	label = "lan2";
-	nvmem-cells = <&macaddr_lan>;
-	nvmem-cell-names = "mac-address";
 };
 
 &wifi {

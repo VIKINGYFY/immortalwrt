@@ -17,10 +17,10 @@
 	compatible = "verizon,cr1000a", "qcom,ipq8074";
 
 	aliases {
-		ethernet4 = &dp5;
-		ethernet5 = &dp6;
+		ethernet4 = &swport5;
+		ethernet5 = &swport6;
 
-		label-mac-device = &dp5_syn;
+		label-mac-device = &swport5;
 		serial0 = &blsp1_uart5;
 	};
 
@@ -140,24 +140,46 @@
 	};
 };
 
+&uniphy1 {
+	status = "okay";
+};
+
+&uniphy2 {
+	status = "okay";
+};
+
 &switch {
 	status = "okay";
 
-	switch_lan_bmp = <ESS_PORT5>;
-	switch_wan_bmp = <ESS_PORT6>;
-	switch_mac_mode = <MAC_MODE_PSGMII>;
-	switch_mac_mode1 = <MAC_MODE_10GBASE_R>;
-	switch_mac_mode2 = <MAC_MODE_USXGMII>;
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-	qcom,port_phyinfo {
-		port@5 {
-			port_id = <5>;
-			phy_address = <0x4>;
+		port@0 {
+			reg = <0>;
+			ethernet = <&edma>;
+			phy-mode = "internal";
+
+			fixed-link {
+				speed = <1000>;
+				full-duplex;
+			};
 		};
 
-		port@6 {
-			port_id = <6>;
-			phy_address = <0x8>;
+		swport5: port@5 {
+			reg = <5>;
+			label = "lan";
+			phy-handle = <&rtl9303>;
+			phy-mode = "10gbase-r";
+			pcs-handle = <&uniphy1 0>;
+		};
+
+		swport6: port@6 {
+			reg = <6>;
+			label = "wan";
+			phy-handle = <&aqr113c>;
+			phy-mode = "usxgmii";
+			pcs-handle = <&uniphy2 0>;
 		};
 	};
 };
@@ -166,18 +188,6 @@
 	status = "okay";
 	qcom,ath11k-fw-memory-mode = <1>;
 	qcom,ath11k-calibration-variant = "Verizon-CR1000A";
-};
-
-&dp5_syn {
-	status = "okay";
-	phy-handle = <&rtl9303>;
-	label = "lan";
-};
-
-&dp6_syn {
-	status = "okay";
-	phy-handle = <&aqr113c>;
-	label = "wan";
 };
 
 &pcie0 {

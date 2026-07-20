@@ -13,9 +13,9 @@
 / {
 	aliases {
 		serial0 = &blsp1_uart5;
-		ethernet0 = &dp5_syn;
-		ethernet1 = &dp6_syn;
-		label-mac-device = &dp6_syn;
+		ethernet0 = &swport5;
+		ethernet1 = &swport6;
+		label-mac-device = &swport6;
 
 		led-boot = &led_power_green;
 		led-failsafe = &led_power_red;
@@ -44,6 +44,27 @@
 			registers-number = <2>;
 			enable-gpios = <&tlmm 20 GPIO_ACTIVE_HIGH>;
 			spi-max-frequency = <1000000>;
+		};
+	};
+};
+
+&switch {
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		swport5: port@5 {
+			reg = <5>;
+			phy-mode = "usxgmii";
+			pcs-handle = <&uniphy1 0>;
+			status = "disabled";
+		};
+
+		swport6: port@6 {
+			reg = <6>;
+			phy-mode = "usxgmii";
+			pcs-handle = <&uniphy2 0>;
+			status = "disabled";
 		};
 	};
 };
