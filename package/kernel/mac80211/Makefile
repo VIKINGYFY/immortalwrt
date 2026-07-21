@@ -36,7 +36,6 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_MAC80211_DEBUGFS \
 	CONFIG_PACKAGE_MAC80211_MESH \
 	CONFIG_PACKAGE_MAC80211_TRACING \
-	CONFIG_PACKAGE_MAC80211_NSS_SUPPORT \
 	CONFIG_PACKAGE_IWLWIFI_DEBUG \
 	CONFIG_PACKAGE_IWLWIFI_DEBUGFS \
 	CONFIG_PACKAGE_RTLWIFI_DEBUG \
@@ -146,14 +145,6 @@ endef
 
 define KernelPackage/mac80211/config
   if PACKAGE_kmod-mac80211
-
-	config PACKAGE_MAC80211_NSS_SUPPORT
-		bool "Enable NSS offload support in mac80211"
-		depends on PACKAGE_kmod-qca-nss-drv
-		default y
-		help
-		  Compile mac80211 with support for handing vifs over to the
-		  Qualcomm NSS cores (required for ath11k NSS Wi-Fi offload).
 
 	config PACKAGE_MAC80211_DEBUGFS
 		bool "Export mac80211 internals in DebugFS"
@@ -296,7 +287,7 @@ ifeq ($(BUILD_VARIANT),smallbuffers)
 	C_DEFINES+= -DCONFIG_ATH10K_SMALLBUFFERS
 endif
 
-config-$(CONFIG_PACKAGE_MAC80211_NSS_SUPPORT) += MAC80211_NSS_SUPPORT
+config-$(CONFIG_ATH11K_NSS_SUPPORT) += MAC80211_NSS_SUPPORT
 
 MAKE_OPTS:= \
 	$(subst -C $(LINUX_DIR),-C "$(PKG_BUILD_DIR)",$(KERNEL_MAKEOPTS)) \
@@ -446,10 +437,10 @@ endef
 
 ifdef CONFIG_ATH11K_NSS_SUPPORT
 define KernelPackage/ath11k/install
-	$(INSTALL_DIR) $(1)/etc/init.d $(1)/etc/config $(1)/usr/bin
+	$(INSTALL_DIR) $(1)/etc/init.d $(1)/usr/bin $(1)/etc/hotplug.d/net
 	$(INSTALL_BIN) ./files/qca-nss-pbuf.init $(1)/etc/init.d/qca-nss-pbuf
-	$(INSTALL_DATA) ./files/pbuf.uci $(1)/etc/config/pbuf
 	$(INSTALL_BIN) ./files/nss_diag.sh $(1)/usr/bin/nss_diag
+	$(INSTALL_DATA) ./files/disable_mesh_chksum_ath11k.hotplug $(1)/etc/hotplug.d/net/99-disable_mesh_chksum_ath11k
 endef
 endif
 

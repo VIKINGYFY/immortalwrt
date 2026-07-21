@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OpenWrt Build System <openwrt@localhost>
+Date: Sat, 27 Jun 2026 00:00:00 +0800
+Subject: [PATCH] ath11k: nss: fix station rate reporting
+
+NSS offload can bypass the normal mac80211 data paths used to refresh
+station bitrate fields. Keep station dumps useful by falling back to the
+rates cached by ath11k/NSS when cfg80211 has not received a current rate
+from the regular path.
+
+Only filter NSS RX rate updates by frame-control when firmware provided a
+valid frame-control value. Some 6.18 monitor status paths leave it unset,
+which otherwise makes all RX rates look like non-data frames.
+
+--- a/drivers/net/wireless/ath/ath11k/nss.c
++++ b/drivers/net/wireless/ath/ath11k/nss.c
+@@ -2062,7 +2062,9 @@ void ath11k_nss_update_sta_stats(struct
+ 	struct sta_info *stainfo;
+ 	struct ath11k_peer *peer;
+ 	struct ath11k *ar = arvif->ar;
++	struct ath11k_sta *arsta = ath11k_sta_to_arsta(sta);
+ 	struct ath11k_base *ab = ar->ab;
++	struct rate_info *txrate = NULL;
+ 
+ 	if (!ab->nss.stats_enabled)
+ 		return;
+@@ -2119,6 +2121,18 @@ void ath11k_nss_update_sta_stats(struct
+ 		peer->nss.nss_stats->rx_bytes;
+ 	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_BYTES);
+ 
++	if (!(sinfo->filled & BIT_ULL(NL80211_STA_INFO_TX_BITRATE))) {
++		if (arsta->txrate.legacy || arsta->txrate.nss)
++			txrate = &arsta->txrate;
++		else if (arsta->last_txrate.legacy || arsta->last_txrate.nss)
++			txrate = &arsta->last_txrate;
++
++		if (txrate) {
++			sinfo->txrate = *txrate;
++			sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
++		}
++	}
++
+ 	if (peer->nss.nss_stats->rxrate.legacy || peer->nss.nss_stats->rxrate.nss) {
+ 		if (peer->nss.nss_stats->rxrate.legacy) {
+ 			sinfo->rxrate.legacy = peer->nss.nss_stats->rxrate.legacy;
+@@ -2154,7 +2168,10 @@ void ath11k_nss_update_sta_rxrate(struct
+ 	if (!ab->nss.enabled)
+ 		return;
+ 
+-	if (!ieee80211_is_data(__cpu_to_le16(ppdu_info->frame_control)))
++	if ((user_stats && user_stats->frame_control_info_valid &&
++	     !ieee80211_is_data(__cpu_to_le16(user_stats->frame_control))) ||
++	    (!user_stats && ppdu_info->fc_valid &&
++	     !ieee80211_is_data(__cpu_to_le16(ppdu_info->frame_control))))
+ 		return;
+ 
+ 	if (!peer->nss.nss_stats)

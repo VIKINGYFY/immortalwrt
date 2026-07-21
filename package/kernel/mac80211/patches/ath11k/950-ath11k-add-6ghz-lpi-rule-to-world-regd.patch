@@ -1,0 +1,53 @@
+From: OpenWrt Community <openwrt@example.com>
+Date: Sat, 24 May 2025 00:00:00 +0000
+Subject: ath11k: add 6 GHz LPI fallback rule to world regulatory domain
+
+When ath11k receives a non-EXT regulatory event (WMI_REG_CHAN_LIST_CC_EVENTID)
+is_ext_reg_event is false and ath11k_reg_build_regd() produces a regdomain
+with no 6 GHz rules.  cfg80211 then marks every 6 GHz channel DISABLED for
+the self-managed wiphy, blocking any AP or STA on those channels.
+
+This happens on chips where current_cc_support = false (e.g. QCN9074 PCIe)
+because ath11k_reg_notifier() responds to user country-code hints with
+WMI_INIT_COUNTRY_CMDID, which triggers a non-EXT response instead of the
+EXT event that carries 6 GHz rules.
+
+Add a conservative 6 GHz LPI rule (NO_IR, indoor-only, 30 dBm ceiling)
+to ath11k_world_regd so that the fall-back world domain keeps 6 GHz
+channels usable.  Proper per-country power limits are still applied
+whenever the firmware does supply a 6 GHz EXT event (which takes
+precedence via regulatory_set_wiphy_regd on new_regd updates).
+
+Signed-off-by: OpenWrt Community <openwrt@example.com>
+---
+ drivers/net/wireless/ath/ath11k/reg.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath11k/reg.c
++++ b/drivers/net/wireless/ath/ath11k/reg.c
+@@ -14,18 +14,24 @@
+ 					  NL80211_RRF_NO_IR)
+ #define ATH11K_5GHZ_5725_5850    REG_RULE(5725 - 10, 5850 + 10, 80, 0, 30,\
+ 					  NL80211_RRF_NO_IR)
++/* 6 GHz LPI fallback: conservative indoor-only rule covering the full
++ * unlicensed 6 GHz band.  Used when firmware does not supply 6 GHz rules.
++ */
++#define ATH11K_6GHZ_5925_7125    REG_RULE(5925 - 10, 7125 + 10, 320, 0, 30,\
++					  NL80211_RRF_NO_IR)
+ 
+ #define ETSI_WEATHER_RADAR_BAND_LOW		5590
+ #define ETSI_WEATHER_RADAR_BAND_HIGH		5650
+ #define ETSI_WEATHER_RADAR_BAND_CAC_TIMEOUT	600000
+ 
+ static const struct ieee80211_regdomain ath11k_world_regd = {
+-	.n_reg_rules = 3,
++	.n_reg_rules = 4,
+ 	.alpha2 =  "00",
+ 	.reg_rules = {
+ 		ATH11K_2GHZ_CH01_11,
+ 		ATH11K_5GHZ_5150_5350,
+ 		ATH11K_5GHZ_5725_5850,
++		ATH11K_6GHZ_5925_7125,
+ 	}
+ };
+ 

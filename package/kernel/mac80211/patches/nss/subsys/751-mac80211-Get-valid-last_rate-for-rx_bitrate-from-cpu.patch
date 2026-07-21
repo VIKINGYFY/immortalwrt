@@ -21,11 +21,21 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  
  static struct ieee80211_sta_rx_stats *
 -sta_get_last_rx_stats(struct sta_info *sta, int link_id)
-+sta_get_last_rx_stats(struct sta_info *sta, int link_id,  bool is_rx_bitrate)
++sta_get_last_rx_stats(struct sta_info *sta, int link_id, bool is_rx_bitrate)
  {
  	struct ieee80211_sta_rx_stats *stats;
  	struct link_sta_info *link_sta_info;
-@@ -2513,8 +2513,13 @@ sta_get_last_rx_stats(struct sta_info *s
+@@ -2505,7 +2505,8 @@ sta_get_last_rx_stats(struct sta_info *s
+ 
+ 	stats = &link_sta_info->rx_stats;
+ 
+-	if (ieee80211_hw_check(&sta->local->hw, SUPPORTS_NSS_OFFLOAD))
++	if (!is_rx_bitrate &&
++	    ieee80211_hw_check(&sta->local->hw, SUPPORTS_NSS_OFFLOAD))
+ 		return stats;
+ 
+ 	if (!link_sta_info->pcpu_rx_stats)
+@@ -2513,8 +2514,14 @@ sta_get_last_rx_stats(struct sta_info *s
  
  	for_each_possible_cpu(cpu) {
  		struct ieee80211_sta_rx_stats *cpustats;
@@ -34,12 +44,13 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  		cpustats = per_cpu_ptr(link_sta_info->pcpu_rx_stats, cpu);
 +		rate = READ_ONCE(cpustats->last_rate);
 +
-+		if(!cpustats->last_rx || (is_rx_bitrate && (rate == STA_STATS_RATE_INVALID)))
++		if (!cpustats->last_rx ||
++		    (is_rx_bitrate && rate == STA_STATS_RATE_INVALID))
 +			continue;
  
  		if (time_after(cpustats->last_rx, stats->last_rx))
  			stats = cpustats;
-@@ -2592,7 +2597,7 @@ static void sta_stats_decode_rate(struct
+@@ -2592,7 +2599,7 @@ static void sta_stats_decode_rate(struct
  static int sta_set_rate_info_rx(struct sta_info *sta, struct rate_info *rinfo,
  				int link_id)
  {
@@ -48,7 +59,7 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  
  	if (rate == STA_STATS_RATE_INVALID)
  		return -EINVAL;
-@@ -2761,7 +2766,7 @@ static void sta_set_link_sinfo(struct st
+@@ -2761,7 +2768,7 @@ static void sta_set_link_sinfo(struct st
  	struct link_sta_info *link_sta_info;
  	u32 thr = 0;
  
@@ -57,7 +68,7 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  
  	link_sta_info = wiphy_dereference(sta->local->hw.wiphy,
  					  sta->link[link_id]);
-@@ -3020,7 +3025,7 @@ void sta_set_sinfo(struct sta_info *sta,
+@@ -3020,7 +3027,7 @@ void sta_set_sinfo(struct sta_info *sta,
  	int i, ac, cpu;
  	struct ieee80211_sta_rx_stats *last_rxstats;
  
@@ -66,7 +77,7 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  
  	sinfo->generation = sdata->local->sta_generation;
  
-@@ -3312,7 +3317,7 @@ unsigned long ieee80211_sta_last_active(
+@@ -3312,7 +3319,7 @@ unsigned long ieee80211_sta_last_active(
  	struct ieee80211_sta_rx_stats *stats;
  	struct link_sta_info *link_sta_info;
  
