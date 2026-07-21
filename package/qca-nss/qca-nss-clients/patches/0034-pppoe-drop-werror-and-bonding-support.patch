@@ -1,0 +1,26 @@
+pppoe: drop -Werror and the LAG/bonding path
+
+The EDMA-rework kernel does not carry the qca bonding patches
+(bond_get_id), so BONDING_SUPPORT must never be defined even if
+CONFIG_BONDING is enabled elsewhere, or modpost fails on the missing
+symbol. Without it netif_is_bond_master() PPPoE sessions fail
+gracefully at runtime. -Werror goes because openwrt main's
+KERNEL_WERROR already injects it and the vendor code is not
+warning-clean either way.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/pppoe/Makefile
++++ b/pppoe/Makefile
+@@ -1,10 +1,6 @@
+ # Makefile for pppoe client
+ ccflags-y += -I$(obj)/../exports -I$(obj)/..  -I$(obj)/nss_hal/include
+ ccflags-y += -DNSS_PPPOE_DEBUG_LEVEL=0
+-ccflags-y += -Wall -Werror
++ccflags-y += -Wall
+ obj-m += qca-nss-pppoe.o
+ qca-nss-pppoe-objs := nss_connmgr_pppoe.o
+-
+-ifneq (,$(filter $(CONFIG_BONDING),y m))
+-ccflags-y += -DBONDING_SUPPORT
+-endif

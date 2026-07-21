@@ -1,0 +1,29 @@
+From: nss-edma-rework
+Subject: [PATCH] arm64: dts: qcom: ipq8074: add ramoops pstore region
+
+Add a 1MB ramoops reserved-memory region so kernel panics and the
+console log survive a reboot. Primary crash-forensics channel on
+devices without serial console access.
+
+Based on qosmio/openwrt-ipq 0911-arm64-dts-qcom-ipq8074-add-ramoops.patch,
+with console-size added to capture the full boot console log.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
+@@ -198,6 +198,14 @@
+ 			no-map;
+ 			reg = <0x0 0x51000000 0x0 0x100000>;
+ 		};
++
++		ramoops_region: ramoops@51200000 {
++			compatible = "ramoops";
++			reg = <0x0 0x51200000 0x0 0x100000>;
++			no-map;
++			record-size = <0x1000>;
++			console-size = <0x40000>;
++		};
+ 	};
+ 
+ 	firmware {

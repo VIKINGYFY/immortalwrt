@@ -19,6 +19,7 @@ the counters ride the peer stats sync that nss_peer_stats_config
 already controls.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
 --- a/drivers/net/wireless/ath/ath11k/debugfs_sta.c
 +++ b/drivers/net/wireless/ath/ath11k/debugfs_sta.c
 @@ -1104,11 +1104,84 @@ static const struct file_operations fops
@@ -108,7 +109,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  				    &fops_tx_stats);
 --- a/drivers/net/wireless/ath/ath11k/nss.c
 +++ b/drivers/net/wireless/ath/ath11k/nss.c
-@@ -206,6 +206,27 @@ static void ath11k_nss_get_peer_stats(st
+@@ -199,6 +199,27 @@ static void ath11k_nss_get_peer_stats(st
  			pstats->rx.err.decrypt_err;
  		peer->nss.nss_stats->rx_dropped += rx_dropped;
  
@@ -138,7 +139,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  		else
 --- a/drivers/net/wireless/ath/ath11k/nss.h
 +++ b/drivers/net/wireless/ath/ath11k/nss.h
-@@ -148,6 +148,21 @@ struct peer_stats {
+@@ -139,6 +139,21 @@ struct peer_stats {
  	u32 rx_dropped;
  	u32 last_rxdrop;
  	struct rate_info rxrate;

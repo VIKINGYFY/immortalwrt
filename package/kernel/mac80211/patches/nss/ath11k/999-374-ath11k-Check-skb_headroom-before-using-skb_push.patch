@@ -33,9 +33,11 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  drivers/net/wireless/ath/ath11k/dp_rx.c | 70 +++++++++++++++++++++++++
  1 file changed, 70 insertions(+)
 
+[julius: cross-cutting hardening layer, kept standalone on purpose: its hunks patch code from four origins (999-233's dot11-hdr reconstruction, 113's 8023 undecap, stock backports code in deliver_msdu, and the h_mpdu path) - blame-verified, so folding it into any one parent would misattribute the rest.]
+
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -2449,16 +2449,27 @@ static void ath11k_get_dot11_hdr_from_rx
+@@ -2301,16 +2301,27 @@ static void ath11k_get_dot11_hdr_from_rx
  	size_t hdr_len, crypto_len;
  	struct ieee80211_hdr *hdr;
  	u16 fc, qos_ctl = 0;
@@ -63,7 +65,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	skb_push(msdu, hdr_len);
  	hdr = (struct ieee80211_hdr *)msdu->data;
  	hdr->frame_control = fc;
-@@ -2494,6 +2505,7 @@ static void ath11k_dp_rx_h_undecap_nwifi
+@@ -2346,6 +2357,7 @@ static void ath11k_dp_rx_h_undecap_nwifi
  	u8 da[ETH_ALEN];
  	u8 sa[ETH_ALEN];
  	u16 qos_ctl = 0;
@@ -71,7 +73,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	u8 *qos, *crypto_hdr;
  	bool add_qos_ctrl = false;
  
-@@ -2538,26 +2550,46 @@ static void ath11k_dp_rx_h_undecap_nwifi
+@@ -2390,26 +2402,46 @@ static void ath11k_dp_rx_h_undecap_nwifi
  	}
  
  	if (!(status->flag & RX_FLAG_IV_STRIPPED)) {
@@ -123,7 +125,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	memcpy(skb_push(msdu, hdr_len), hdr, hdr_len);
  
  	/* original 802.11 header has a different DA and in
-@@ -2666,6 +2698,7 @@ static void ath11k_dp_rx_h_undecap_eth(s
+@@ -2518,6 +2550,7 @@ static void ath11k_dp_rx_h_undecap_eth(s
  	u8 da[ETH_ALEN];
  	u8 sa[ETH_ALEN];
  	void *rfc1042;
@@ -131,7 +133,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	struct ath11k_skb_rxcb *rxcb = ATH11K_SKB_RXCB(msdu);
  	struct ath11k_dp_rfc1042_hdr rfc = {0xaa, 0xaa, 0x03, {0x00, 0x00, 0x00}};
  
-@@ -2675,6 +2708,11 @@ static void ath11k_dp_rx_h_undecap_eth(s
+@@ -2527,6 +2560,11 @@ static void ath11k_dp_rx_h_undecap_eth(s
  		ether_addr_copy(sa, eth->h_source);
  		rfc.snap_type = eth->h_proto;
  		skb_pull(msdu, sizeof(struct ethhdr));
@@ -143,7 +145,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  		memcpy(skb_push(msdu, sizeof(struct ath11k_dp_rfc1042_hdr)), &rfc,
  		       sizeof(struct ath11k_dp_rfc1042_hdr));
  		ath11k_get_dot11_hdr_from_rx_desc(ar, msdu, rxcb, status, enctype);
-@@ -2692,6 +2730,11 @@ static void ath11k_dp_rx_h_undecap_eth(s
+@@ -2544,6 +2582,11 @@ static void ath11k_dp_rx_h_undecap_eth(s
  	skb_pull(msdu, sizeof(struct ethhdr));
  
  	/* push rfc1042/llc/snap */
@@ -155,7 +157,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	memcpy(skb_push(msdu, sizeof(struct ath11k_dp_rfc1042_hdr)), rfc1042,
  	       sizeof(struct ath11k_dp_rfc1042_hdr));
  
-@@ -2700,12 +2743,22 @@ static void ath11k_dp_rx_h_undecap_eth(s
+@@ -2552,12 +2595,22 @@ static void ath11k_dp_rx_h_undecap_eth(s
  	hdr_len = ieee80211_hdrlen(hdr->frame_control);
  
  	if (!(status->flag & RX_FLAG_IV_STRIPPED)) {
@@ -182,7 +184,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	memcpy(skb_push(msdu, hdr_len), hdr, hdr_len);
  
  exit:
-@@ -2726,6 +2779,7 @@ static void ath11k_dp_rx_h_undecap_snap(
+@@ -2578,6 +2631,7 @@ static void ath11k_dp_rx_h_undecap_snap(
  	struct ieee80211_hdr *hdr;
  	size_t hdr_len;
  	u8 l3_pad_bytes;
@@ -190,7 +192,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	struct hal_rx_desc *rx_desc;
  	struct ath11k_skb_rxcb *rxcb = ATH11K_SKB_RXCB(msdu);
  
-@@ -2750,12 +2804,22 @@ static void ath11k_dp_rx_h_undecap_snap(
+@@ -2602,12 +2656,22 @@ static void ath11k_dp_rx_h_undecap_snap(
  	hdr_len = ieee80211_hdrlen(hdr->frame_control);
  
  	if (!(status->flag & RX_FLAG_IV_STRIPPED)) {
@@ -217,7 +219,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	memcpy(skb_push(msdu, hdr_len), hdr, hdr_len);
  }
  
-@@ -2884,7 +2948,7 @@ static void ath11k_dp_rx_h_mpdu(struct a
+@@ -2736,7 +2800,7 @@ static void ath11k_dp_rx_h_mpdu(struct a
  				struct ieee80211_rx_status *rx_status,
  				bool *fast_rx)
  {
@@ -226,7 +228,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  	enum hal_encrypt_type enctype;
  	bool is_decrypted = false;
  	struct ath11k_skb_rxcb *rxcb;
-@@ -3117,10 +3181,16 @@ static void ath11k_dp_rx_deliver_msdu(st
+@@ -2969,10 +3033,16 @@ static void ath11k_dp_rx_deliver_msdu(st
  	u8 decap = DP_RX_DECAP_TYPE_RAW;
  	bool is_mcbc = rxcb->is_mcbc;
  	bool is_eapol = rxcb->is_eapol;
@@ -243,7 +245,7 @@ Signed-off-by: Tamizh Chelvam Raja <quic_tamizhr@quicinc.com>
  		he = skb_push(msdu, sizeof(known));
  		memcpy(he, &known, sizeof(known));
  		status->flag |= RX_FLAG_RADIOTAP_HE;
-@@ -3176,6 +3246,7 @@ static void ath11k_dp_rx_deliver_msdu(st
+@@ -3028,6 +3098,7 @@ static void ath11k_dp_rx_deliver_msdu(st
  	    !(is_mcbc && rx_status->flag & RX_FLAG_DECRYPTED))
  		rx_status->flag |= RX_FLAG_8023;
  

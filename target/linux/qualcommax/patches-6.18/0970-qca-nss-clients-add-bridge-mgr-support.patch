@@ -1,0 +1,111 @@
+qca-nss-clients: bridge-mgr kernel support (FDB-move notifier payload)
+
+nss-bridge-mgr (and the qca-nss-ecm node FDB-move handler) consume the
+br_fdb_update_notifier_list with a struct br_fdb_event payload. The
+ECM CORE patch leaves the br_fdb_cleanup()/br_fdb_update() call sites
+passing only the bare MAC, so the consumers would dereference a
+bare 6-byte buffer as a br_fdb_event. Upgrade those two call sites to
+populate and pass a struct br_fdb_event (addr for cleanup; addr + br +
+orig_dev + dev for the station-move case in update), and export
+br_fdb_bridge_dev_get_and_hold() so a consumer can resolve the bridge
+netdev from the event. Ported verbatim from qosmio/openwrt-ipq.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+--- a/include/linux/if_bridge.h
++++ b/include/linux/if_bridge.h
+@@ -271,4 +271,8 @@ typedef struct net_bridge_port *br_get_d
+ extern br_get_dst_hook_t __rcu *br_get_dst_hook;
+ /* QCA NSS ECM support - End */
+ 
++/* QCA NSS bridge-mgr support - Start */
++extern struct net_device *br_fdb_bridge_dev_get_and_hold(struct net_bridge *br);
++/* QCA NSS bridge-mgr support - End */
++
+ #endif
+--- a/net/bridge/br_fdb.c
++++ b/net/bridge/br_fdb.c
+@@ -204,12 +204,15 @@ static void fdb_notify(struct net_bridge
+ 		int event;
+ 		struct br_fdb_event fdb_event;
+ 
++		memset(&fdb_event, 0, sizeof(fdb_event)); /* QCA NSS bridge-mgr support */
++
+ 		if (type == RTM_NEWNEIGH)
+ 			event = BR_FDB_EVENT_ADD;
+ 		else
+ 			event = BR_FDB_EVENT_DEL;
+ 
+ 		fdb_event.dev = fdb->dst->dev;
++		fdb_event.br = br; /* QCA NSS bridge-mgr support */
+ 		ether_addr_copy(fdb_event.addr, fdb->key.addr.addr);
+ 		fdb_event.is_local = test_bit(BR_FDB_LOCAL, &fdb->flags);
+ 		atomic_notifier_call_chain(&br_fdb_notifier_list,
+@@ -597,7 +600,7 @@ void br_fdb_cleanup(struct work_struct *
+ 	unsigned long delay = hold_time(br);
+ 	unsigned long work_delay = delay;
+ 	unsigned long now = jiffies;
+-	u8 mac_addr[6]; /* QCA NSS ECM support */
++	struct br_fdb_event fdb_event; /* QCA NSS bridge-mgr support */
+ 
+ 	/* this part is tricky, in order to avoid blocking learning and
+ 	 * consequently forwarding, we rely on rcu to delete objects with
+@@ -625,12 +628,13 @@ void br_fdb_cleanup(struct work_struct *
+ 		} else {
+ 			spin_lock_bh(&br->hash_lock);
+ 			if (!hlist_unhashed(&f->fdb_node)) {
+-				ether_addr_copy(mac_addr, f->key.addr.addr);
++				memset(&fdb_event, 0, sizeof(fdb_event));
++				ether_addr_copy(fdb_event.addr, f->key.addr.addr);
+ 				fdb_delete(br, f, true);
+ 				/* QCA NSS ECM support - Start */
+ 				atomic_notifier_call_chain(
+ 					&br_fdb_update_notifier_list, 0,
+-					(void *)mac_addr);
++					(void *)&fdb_event);
+ 				/* QCA NSS ECM support - End */
+ 			}
+ 			spin_unlock_bh(&br->hash_lock);
+@@ -1055,10 +1059,21 @@ static bool __fdb_mark_active(struct net
+ 		  test_and_clear_bit(BR_FDB_NOTIFY_INACTIVE, &fdb->flags));
+ }
+ 
++/* QCA NSS bridge-mgr support - Start */
++/* Get the bridge device */
++struct net_device *br_fdb_bridge_dev_get_and_hold(struct net_bridge *br)
++{
++	dev_hold(br->dev);
++	return br->dev;
++}
++EXPORT_SYMBOL_GPL(br_fdb_bridge_dev_get_and_hold);
++/* QCA NSS bridge-mgr support - End */
++
+ void br_fdb_update(struct net_bridge *br, struct net_bridge_port *source,
+ 		   const unsigned char *addr, u16 vid, unsigned long flags)
+ {
+ 	struct net_bridge_fdb_entry *fdb;
++	struct br_fdb_event fdb_event; /* QCA NSS bridge-mgr support */
+ 
+ 	/* some users want to always flood. */
+ 	if (hold_time(br) == 0)
+@@ -1084,6 +1099,12 @@ void br_fdb_update(struct net_bridge *br
+ 			if (unlikely(source != READ_ONCE(fdb->dst) &&
+ 				     !test_bit(BR_FDB_STICKY, &fdb->flags))) {
+ 				br_switchdev_fdb_notify(br, fdb, RTM_DELNEIGH);
++				/* QCA NSS bridge-mgr support - Start */
++				ether_addr_copy(fdb_event.addr, addr);
++				fdb_event.br = br;
++				fdb_event.orig_dev = fdb->dst->dev;
++				fdb_event.dev = source->dev;
++				/* QCA NSS bridge-mgr support - End */
+ 				WRITE_ONCE(fdb->dst, source);
+ 				fdb_modified = true;
+ 				/* Take over HW learned entry */
+@@ -1100,7 +1121,7 @@ void br_fdb_update(struct net_bridge *br
+ 				/* QCA NSS ECM support - Start */
+ 				atomic_notifier_call_chain(
+ 					&br_fdb_update_notifier_list,
+-					0, (void *)addr);
++					0, (void *)&fdb_event);
+ 				/* QCA NSS ECM support - End */
+ 			}
+ 

@@ -1,6 +1,10 @@
+ath11k-nss-use-wrapper-to-avoid-cast
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
 --- a/drivers/net/wireless/ath/ath11k/nss.c
 +++ b/drivers/net/wireless/ath/ath11k/nss.c
-@@ -307,13 +307,14 @@ static void ath11k_nss_peer_mem_free(str
+@@ -301,13 +301,14 @@ static void ath11k_nss_peer_mem_free(str
  
  /*-----------------------------Events/Callbacks------------------------------*/
  
@@ -16,7 +20,7 @@
  
  	if (!ab)
  		return;
-@@ -505,6 +506,17 @@ ath11k_nss_wifili_ext_callback_fn(struct
+@@ -491,6 +492,17 @@ ath11k_nss_wifili_ext_callback_fn(struct
  	}
  }
  
@@ -34,79 +38,7 @@
  void ath11k_nss_vdev_cfg_cb(void *app_data, struct nss_cmn_msg *msg)
  {
  	struct ath11k_vif *arvif = (struct ath11k_vif *)app_data;
-@@ -1356,7 +1368,7 @@ int ath11k_nss_mesh_exception_flags(stru
- 	nss_tx_status_t status;
- 	int ret = 0;
- 
--	msg_cb = (nss_wifi_mesh_msg_callback_t)ath11k_nss_mesh_wifili_event_receive;
-+	msg_cb = ath11k_nss_mesh_wifili_event_receive;
- 
- 	status = (nss_tx_status_t)nss_wifi_meshmgr_mesh_path_exception(arvif->nss.mesh_handle, nss_msg,
- 			msg_cb, arvif->ar->ab);
-@@ -1457,7 +1469,7 @@ static int ath11k_nss_mesh_mpath_add(str
- 	if (!msg)
- 		return -ENOMEM;
- 
--	msg_cb = (nss_wifi_mesh_msg_callback_t)ath11k_nss_mesh_wifili_event_receive;
-+	msg_cb = ath11k_nss_mesh_wifili_event_receive;
- 
- 	ether_addr_copy(msg->dest_mac_addr, path->mesh_da);
- 	ether_addr_copy(msg->next_hop_mac_addr, path->next_hop);
-@@ -1503,7 +1515,7 @@ static int ath11k_nss_mesh_mpath_update(
- 	if (!msg)
- 		return -ENOMEM;
- 
--	msg_cb = (nss_wifi_mesh_msg_callback_t)ath11k_nss_mesh_wifili_event_receive;
-+	msg_cb = ath11k_nss_mesh_wifili_event_receive;
- 
- 	ether_addr_copy(msg->dest_mac_addr, path->mesh_da);
- 	ether_addr_copy(msg->next_hop_mac_addr, path->next_hop);
-@@ -1559,7 +1571,7 @@ static int ath11k_nss_mesh_mpath_del(str
- 	if (!msg)
- 		return -ENOMEM;
- 
--	msg_cb = (nss_wifi_mesh_msg_callback_t)ath11k_nss_mesh_wifili_event_receive;
-+	msg_cb = ath11k_nss_mesh_wifili_event_receive;
- 
- 	ether_addr_copy(msg->mesh_dest_mac_addr, path->mesh_da);
- 	ether_addr_copy(msg->next_hop_mac_addr, path->next_hop);
-@@ -1595,7 +1607,7 @@ static int ath11k_nss_mesh_mpp_add_cmd(s
- 	if (!msg)
- 		return -ENOMEM;
- 
--	msg_cb = (nss_wifi_mesh_msg_callback_t)ath11k_nss_mesh_wifili_event_receive;
-+	msg_cb = ath11k_nss_mesh_wifili_event_receive;
- 
- 	ether_addr_copy(msg->dest_mac_addr, path->da);
- 	ether_addr_copy(msg->mesh_dest_mac, path->mesh_da);
-@@ -1631,7 +1643,7 @@ static int ath11k_nss_mesh_mpp_update_cm
- 	if (!msg)
- 		return -ENOMEM;
- 
--	msg_cb = (nss_wifi_mesh_msg_callback_t)ath11k_nss_mesh_wifili_event_receive;
-+	msg_cb = ath11k_nss_mesh_wifili_event_receive;
- 
- 	ether_addr_copy(msg->dest_mac_addr, path->da);
- 	ether_addr_copy(msg->mesh_dest_mac, path->mesh_da);
-@@ -1669,7 +1681,7 @@ static int ath11k_nss_mesh_mpp_del_cmd(s
- 	if (!msg)
- 		return -ENOMEM;
- 
--	msg_cb = (nss_wifi_mesh_msg_callback_t)ath11k_nss_mesh_wifili_event_receive;
-+	msg_cb = ath11k_nss_mesh_wifili_event_receive;
- 
- 	ether_addr_copy(msg->dest_mac_addr, path->da);
- 	ether_addr_copy(msg->mesh_dest_mac_addr, path->mesh_da);
-@@ -1858,7 +1870,7 @@ void ath11k_nss_mpp_timer_cb(struct time
- 	LIST_HEAD(local_entry);
- 	nss_tx_status_t status;
- 
--	msg_cb = (nss_wifi_mesh_msg_callback_t)ath11k_nss_mesh_wifili_event_receive;
-+	msg_cb = ath11k_nss_mesh_wifili_event_receive;
- 
- 	if (!arvif->nss.mpp_dump_req)
- 		arvif->nss.mpp_dump_num_entries = 0;
-@@ -3006,7 +3018,7 @@ int ath11k_nss_ext_vdev_wds_4addr_allow(
+@@ -1559,7 +1571,7 @@ int ath11k_nss_ext_vdev_wds_4addr_allow(
  	cfg_4addr_msg->if_num = arvif->nss.if_num;
  	cfg_4addr_msg->enable = true;
  
@@ -115,7 +47,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ar->ab->nss.if_num,
  			 NSS_WIFILI_PEER_4ADDR_EVENT_MSG,
-@@ -3409,7 +3421,7 @@ int ath11k_nss_set_peer_sec_type(struct
+@@ -1962,7 +1974,7 @@ int ath11k_nss_set_peer_sec_type(struct
  		memcpy(&sec_msg->mic_key[0], mic_key, NSS_WIFILI_MIC_KEY_LEN);
  	}
  
@@ -124,7 +56,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ar->ab->nss.if_num,
  			 NSS_WIFILI_PEER_SECURITY_TYPE_MSG,
-@@ -3448,7 +3460,7 @@ int ath11k_nss_set_peer_authorize(struct
+@@ -2001,7 +2013,7 @@ int ath11k_nss_set_peer_authorize(struct
  	auth_msg->peer_id = peer_id;
  	auth_msg->auth_flag = 1;
  
@@ -133,7 +65,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ar->ab->nss.if_num,
  			 NSS_WIFILI_PEER_UPDATE_AUTH_FLAG,
-@@ -3680,7 +3692,7 @@ int ath11k_nss_peer_delete(struct ath11k
+@@ -2233,7 +2245,7 @@ int ath11k_nss_peer_delete(struct ath11k
  	peer_msg->vdev_id = peer->vdev_id;
  	peer_msg->peer_id = peer->peer_id;
  
@@ -142,7 +74,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
  			 NSS_WIFILI_PEER_DELETE_MSG,
-@@ -3778,7 +3790,7 @@ int ath11k_nss_peer_create(struct ath11k
+@@ -2331,7 +2343,7 @@ int ath11k_nss_peer_create(struct ath11k
  	peer_msg->nss_peer_mem = peer->nss.paddr;
  	peer_msg->psta_vdev_id = peer->vdev_id;
  
@@ -151,7 +83,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
  			 NSS_WIFILI_PEER_CREATE_MSG,
-@@ -3846,7 +3858,7 @@ int ath11k_nss_add_wds_peer(struct ath11
+@@ -2399,7 +2411,7 @@ int ath11k_nss_add_wds_peer(struct ath11
  	ether_addr_copy(wds_peer_msg->peer_mac, peer->addr);
  	ether_addr_copy(wds_peer_msg->dest_mac, dest_mac);
  
@@ -160,7 +92,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
  			 NSS_WIFILI_WDS_PEER_ADD_MSG,
-@@ -3892,7 +3904,7 @@ int ath11k_nss_update_wds_peer(struct at
+@@ -2445,7 +2457,7 @@ int ath11k_nss_update_wds_peer(struct at
  	ether_addr_copy(wds_peer_msg->peer_mac, peer->addr);
  	ether_addr_copy(wds_peer_msg->dest_mac, dest_mac);
  
@@ -169,7 +101,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
  			 NSS_WIFILI_WDS_PEER_UPDATE_MSG,
-@@ -3943,7 +3955,7 @@ int ath11k_nss_map_wds_peer(struct ath11
+@@ -2496,7 +2508,7 @@ int ath11k_nss_map_wds_peer(struct ath11
  
  	ether_addr_copy(wds_peer_map_msg->dest_mac, dest_mac);
  
@@ -178,7 +110,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
  			 NSS_WIFILI_WDS_PEER_MAP_MSG,
-@@ -3989,7 +4001,7 @@ int ath11k_nss_del_wds_peer(struct ath11
+@@ -2542,7 +2554,7 @@ int ath11k_nss_del_wds_peer(struct ath11
  	ether_addr_copy(wds_peer_msg->peer_mac, peer_addr);
  	ether_addr_copy(wds_peer_msg->dest_mac, dest_mac);
  
@@ -187,16 +119,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
  			 NSS_WIFILI_WDS_PEER_DEL_MSG,
-@@ -4303,7 +4315,7 @@ static int ath11k_nss_mesh_capability(st
- 	if (!wlmsg)
- 		return -ENOMEM;
- 
--	msg_cb = (nss_wifili_msg_callback_t)ath11k_nss_wifili_event_receive;
-+	msg_cb = ath11k_nss_wifili_event_receive;
- 
- 	reinit_completion(&ab->nss.complete);
- 
-@@ -4420,7 +4432,7 @@ static int ath11k_nss_init(struct ath11k
+@@ -2928,7 +2940,7 @@ static int ath11k_nss_init(struct ath11k
  
  	/* register callbacks for events and exceptions with nss */
  	nss_contex = nss_register_wifili_if(ab->nss.if_num, NULL,
@@ -205,7 +128,7 @@
  					    (nss_wifili_msg_callback_t)ath11k_nss_wifili_event_receive,
  					    (struct net_device *)ab, features);
  
-@@ -4439,7 +4451,7 @@ static int ath11k_nss_init(struct ath11k
+@@ -2947,7 +2959,7 @@ static int ath11k_nss_init(struct ath11k
  	 */
  	ab->nss.ctx = nss_contex;
  
@@ -214,7 +137,7 @@
  
  	/* Initialize the common part of the wlmsg */
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
-@@ -4510,7 +4522,7 @@ static int ath11k_nss_stats_cfg(struct a
+@@ -3007,7 +3019,7 @@ static int ath11k_nss_stats_cfg(struct a
  	stats_cfg = &wlmsg->msg.scm;
  	stats_cfg->cfg = enable;
  
@@ -223,7 +146,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
  			 nss_msg,
-@@ -4621,7 +4633,7 @@ int ath11k_nss_pdev_init(struct ath11k_b
+@@ -3118,7 +3130,7 @@ int ath11k_nss_pdev_init(struct ath11k_b
  	refill_ring_id = ar->dp.rx_refill_buf_ring.refill_buf_ring.ring_id;
  	ath11k_nss_fill_srng_info(ab, refill_ring_id, &pdevmsg->rxdma_ring);
  
@@ -232,7 +155,7 @@
  
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
  			 NSS_WIFILI_PDEV_INIT_MSG,
-@@ -4695,7 +4707,7 @@ int ath11k_nss_start(struct ath11k_base
+@@ -3192,7 +3204,7 @@ int ath11k_nss_start(struct ath11k_base
  	if (!wlmsg)
  		return -ENOMEM;
  
@@ -241,7 +164,7 @@
  
  	/* Empty message for NSS Start message */
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
-@@ -4753,7 +4765,7 @@ static void ath11k_nss_reset(struct ath1
+@@ -3250,7 +3262,7 @@ static void ath11k_nss_reset(struct ath1
  		return;
  	}
  
@@ -250,7 +173,7 @@
  
  	/* Empty message for NSS Reset message */
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
-@@ -4806,7 +4818,7 @@ static int ath11k_nss_stop(struct ath11k
+@@ -3303,7 +3315,7 @@ static int ath11k_nss_stop(struct ath11k
  	if (!wlmsg)
  		return -ENOMEM;
  
@@ -259,7 +182,7 @@
  
  	/* Empty message for Stop command */
  	nss_cmn_msg_init(&wlmsg->cm, ab->nss.if_num,
-@@ -4873,7 +4885,7 @@ int ath11k_nss_pdev_deinit(struct ath11k
+@@ -3370,7 +3382,7 @@ int ath11k_nss_pdev_deinit(struct ath11k
  	deinit = &wlmsg->msg.pdevdeinit;
  	deinit->ifnum = radio_id;
  

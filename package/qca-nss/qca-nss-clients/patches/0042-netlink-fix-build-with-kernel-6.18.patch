@@ -1,0 +1,32 @@
+netlink: fix build with kernel 6.18
+
+- Drop -Werror: the vendor code is not warning-clean on GCC 15 /
+  kernel 6.18, and kbuild dropped EXTRA_CFLAGS support in 6.15 so the
+  packaging can no longer demote errors from outside.
+- struct genl_info lost its userhdr member; use the
+  genl_info_userhdr() accessor.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/netlink/Makefile
++++ b/netlink/Makefile
+@@ -2,7 +2,7 @@ CAPWAP_ENABLED := $(strip $(if $(filter
+ IPSEC_ENABLED := $(strip $(if $(filter $(ipsecmgr), y), 1 , 0))
+ DTLS_ENABLED := $(strip $(if $(filter $(dtlsmgr), y), 1 , 0))
+ 
+-ccflags-y := -Wall -Werror
++ccflags-y := -Wall
+ ccflags-y += -I$(obj)/include
+ ccflags-y += -I$(obj)/../exports
+ ccflags-y += -DNSS_NL_DEBUG_LEVEL=4
+--- a/netlink/nss_nl.c
++++ b/netlink/nss_nl.c
+@@ -475,7 +475,7 @@ struct nss_nlcmn *nss_nl_get_msg(struct
+ 	/*
+ 	 * validate the common message header version & magic
+ 	 */
+-	cm = info->userhdr;
++	cm = genl_info_userhdr(info);
+ 	if (nss_nlcmn_chk_ver(cm, family->version) == false) {
+ 		nss_nl_error("%d, %s: version mismatch (%d)\n", pid, family->name, cm->version);
+ 		return NULL;

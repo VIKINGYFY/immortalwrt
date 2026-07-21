@@ -1,6 +1,10 @@
+ath11k-make-debugfs-sta-htt-stats-modular
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
 --- a/drivers/net/wireless/ath/ath11k/Kconfig
 +++ b/drivers/net/wireless/ath/ath11k/Kconfig
-@@ -74,6 +74,24 @@ config ATH11K_DEBUGFS
+@@ -72,6 +72,24 @@ config ATH11K_DEBUGFS
  
  	  If unsure, say Y to make it easier to debug problems.
  
@@ -120,7 +124,7 @@
  			    &fops_peer_ps_state);
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -1714,8 +1714,10 @@ ath11k_update_per_peer_tx_stats(struct a
+@@ -1646,8 +1646,10 @@ ath11k_update_per_peer_tx_stats(struct a
  		peer_stats->mu_pos   = mu_pos;
  		peer_stats->ru_tones = arsta->txrate.he_ru_alloc;
  
@@ -130,8 +134,8 @@
 +#endif
  	}
  
- 	usr_stats->rate_stats_updated = true;
-@@ -2161,7 +2163,9 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
+ 	spin_unlock_bh(&ab->base_lock);
+@@ -2013,7 +2015,9 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
  		ath11k_htt_pull_ppdu_stats(ab, skb);
  		break;
  	case HTT_T2H_MSG_TYPE_EXT_STATS_CONF:
@@ -176,7 +180,7 @@
  	spin_unlock_bh(&ab->base_lock);
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -10592,7 +10592,7 @@ static const struct ieee80211_ops ath11k
+@@ -10555,7 +10555,7 @@ static const struct ieee80211_ops ath11k
  	.set_wakeup			= ath11k_wow_op_set_wakeup,
  #endif
  
@@ -187,7 +191,7 @@
  #endif
 --- a/local-symbols
 +++ b/local-symbols
-@@ -164,6 +164,8 @@ ATH11K_NSS_SUPPORT=
+@@ -165,6 +165,8 @@ ATH11K_MEM_PROFILE_256M=
  ATH11K_MEM_PROFILE_512M=
  ATH11K_DEBUG=
  ATH11K_DEBUGFS=

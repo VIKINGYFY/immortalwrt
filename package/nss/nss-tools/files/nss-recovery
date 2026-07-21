@@ -1,0 +1,93 @@
+#!/bin/sh
+# Datapath recovery of last resort for a headless router: when the box
+# reaches a state that historically needed a power cycle, capture the
+# full diagnostic state to flash and reboot. This is not a heal loop -
+# it fires only on objective death signals, logs loudly, and preserves
+# the evidence a power cycle would destroy.
+#
+# Trigger 1: NSS plane armed but the firmware heartbeat is dead for
+#            HB_ROUNDS consecutive checks (a dead or wedged plane).
+# Trigger 2: the WAN interface is up with a default route, but no
+#            anchor host answers for WAN_ROUNDS consecutive checks
+#            (black-holed datapath; two anchors so a single host
+#            outage never counts).
+# Guards: never within SETTLE_S of boot, at most one auto-reboot per
+#            MIN_GAP_S (a recovery reboot that does not help must not
+#            loop), disabled via nss.recovery.enabled='0'.
+
+INTERVAL=60
+HB_ROUNDS=3
+WAN_ROUNDS=10
+SETTLE_S=900
+MIN_GAP_S=21600
+STAMP=/overlay/.nss-recovery-last
+CAPDIR=/root/auto-recovery
+
+DRV=/sys/kernel/debug/qca-nss-drv/stats
+GLUE=/sys/kernel/debug/qca-ppe-nss
+
+n2h_sum() {
+	awk '$1 == "n2h_rx_pkts" {s += $3} END {print s + 0}' "$DRV/n2h" 2>/dev/null
+}
+
+capture_and_reboot() {
+	reason="$1"
+	now=$(date +%s)
+	last=$(cat "$STAMP" 2>/dev/null || echo 0)
+	if [ $((now - last)) -lt $MIN_GAP_S ]; then
+		logger -t nss-recovery "trigger '$reason' suppressed: last auto-reboot too recent"
+		return
+	fi
+	echo "$now" > "$STAMP"
+
+	d="$CAPDIR/$(date +%Y%m%d-%H%M%S)"
+	mkdir -p "$d"
+	logger -t nss-recovery "RECOVERY REBOOT: $reason (capture in $d)"
+	{ echo "reason: $reason"; date; uptime; } > "$d/reason.txt"
+	nss-status -d > "$d/nss-status.txt" 2>&1
+	dmesg > "$d/dmesg.txt" 2>&1
+	logread | tail -300 > "$d/logread.txt" 2>&1
+	cat "$GLUE/status" > "$d/glue-status.txt" 2>&1
+	ip -s link > "$d/iplink.txt" 2>&1
+	ls -dt "$CAPDIR"/*/ 2>/dev/null | tail -n +6 | xargs rm -rf 2>/dev/null
+	sync
+	sleep 3
+	reboot -f
+}
+
+hb_dead=0
+wan_dead=0
+
+while :; do
+	sleep "$INTERVAL"
+
+	[ "$(uci -q get nss.recovery.enabled)" = "0" ] && continue
+	up=$(cut -d. -f1 /proc/uptime)
+	[ "$up" -lt "$SETTLE_S" ] && continue
+
+	if [ "$(cat $GLUE/fw_mask 2>/dev/null)" != "0x0" ] && [ -r "$DRV/n2h" ]; then
+		a=$(n2h_sum); sleep 3; b=$(n2h_sum)
+		if [ "$((b - a))" -eq 0 ]; then
+			hb_dead=$((hb_dead + 1))
+			logger -t nss-recovery "fw heartbeat silent ($hb_dead/$HB_ROUNDS)"
+		else
+			hb_dead=0
+		fi
+		[ "$hb_dead" -ge "$HB_ROUNDS" ] && capture_and_reboot "armed plane with dead fw heartbeat"
+	else
+		hb_dead=0
+	fi
+
+	if ip route show default 2>/dev/null | grep -q default; then
+		if ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1 || \
+		   ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1; then
+			wan_dead=0
+		else
+			wan_dead=$((wan_dead + 1))
+			logger -t nss-recovery "WAN anchors unreachable ($wan_dead/$WAN_ROUNDS)"
+		fi
+		[ "$wan_dead" -ge "$WAN_ROUNDS" ] && capture_and_reboot "default route present but no WAN anchor reachable"
+	else
+		wan_dead=0
+	fi
+done

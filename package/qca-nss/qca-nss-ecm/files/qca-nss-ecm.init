@@ -1,4 +1,4 @@
-#!/bin/sh /etc/rc.common
+#!/bin/sh  /etc/rc.common
 # shellcheck disable=3043,3060,2086,2034
 #
 # Copyright (c) 2014, 2019-2020 The Linux Foundation. All rights reserved.
@@ -15,161 +15,217 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-START=26
+# No START on purpose: without it the build system cannot enable this
+# service, so ECM can never start at boot. (The historical extra-space
+# shebang trick no longer fools current openwrt main — it shipped
+# images with S26 enabled, which modprobe'd ecm at boot, pulled in
+# qca-nss-drv via module deps and booted the NSS firmware without any
+# armed ports = all wired RX dead.) ECM is loaded strictly at runtime,
+# after the NSS data plane is up: /etc/init.d/qca-nss-ecm start.
+
 USE_PROCD=1
 
-write_if_writable() {
-	local file="$1"
-	local value="$2"
-
-	[ -w "$file" ] && echo "$value" > "$file"
-	return 0
-}
-
 sysctl_update() {
-	local name value file
+  local name value file
 
-	name=${1//\//\\/}
-	value=${2//\//\\/}
-	file=${3:-/etc/sysctl.d/qca-nss-ecm.conf}
+  name=${1//\//\\/}
+  value=${2//\//\\/}
+  file=${3:-/etc/sysctl.d/qca-nss-ecm.conf}
 
-	if [ -r "/proc/sys/${name//./\/}" ]; then
-		sed -i -e '/^#\?\(\s*'"${name}"'\s*=\s*\).*/{s//\1'"${value}"'/;:a;n;ba;q}' \
-			-e '$a'"${name}"'='"${value}" "${file}"
-		sysctl -w "${name}=${value}"
-	else
-		# If the sysctl value is not available but it is found in the file, disable it to avoid
-		# sysctl throwing warnings
-		if grep -qE '^#?\s*'"${name}\s*?=" "${file}"; then
-			sed -i -e '/^#\?\(\s*'"${name}"'\s*=\s*\).*/{s//\#\1'"${value}"'/;:a;n;ba;q}' \
-				-e '$a'"#${name}"'='"${value}" "${file}"
-		fi
-	fi
+  if [ -r "/proc/sys/${name//./\/}" ]; then
+    sed -i -e '/^#\?\(\s*'"${name}"'\s*=\s*\).*/{s//\1'"${value}"'/;:a;n;ba;q}' \
+      -e '$a'"${name}"'='"${value}" "${file}"
+    sysctl -w ${name}=${value}
+  else
+    # If the sysctl value is not available but it is found in the file, disable it to avoid
+    # sysctl throwing warnings
+    if grep -qE '^#?\s*'"${name}\s*?=" "${file}"; then
+      sed -i -e '/^#\?\(\s*'"${name}"'\s*=\s*\).*/{s//\#\1'"${value}"'/;:a;n;ba;q}' \
+        -e '$a'"#${name}"'='"${value}" "${file}"
+    fi
+  fi
 }
 
 get_front_end_mode() {
-	echo '0'
+  config_load "ecm"
+
+  config_get front_end global acceleration_engine "auto"
+
+  # shellcheck disable=2154
+  case $front_end in
+    auto)
+      echo '0'
+      ;;
+    nss)
+      echo '1'
+      ;;
+    sfe)
+      echo '2'
+      ;;
+    both)
+      echo '4'
+      ;;
+    *)
+      echo '0'
+      ;;
+  esac
 }
 
 disable_packet_steering() {
-	uci -q set network.globals.packet_steering=0
-	uci -q del network.globals.steering_flows
-	uci -q commit network
+  uci -q set network.globals.packet_steering=0 && uci commit network.globals.packet_steering
+  uci -q del network.globals.steering_flows    && uci commit network.globals.steering_flows
 
-	if [ -e "/usr/libexec/platform/packet-steering.sh" ]; then
-		/usr/libexec/platform/packet-steering.sh 0
-	else
-		/usr/libexec/network/packet-steering.uc -l 0 0
-	fi
+  if [ -e "/usr/libexec/platform/packet-steering.sh" ]; then
+    /usr/libexec/platform/packet-steering.sh 0
+  else
+    /usr/libexec/network/packet-steering.uc -l 0 0
+  fi
 }
 
 disable_bridge_filtering() {
-	sysctl_update net.bridge.bridge-nf-call-arptables 0
-	sysctl_update net.bridge.bridge-nf-call-iptables 0
-	sysctl_update net.bridge.bridge-nf-call-ip6tables 0
+  sysctl_update net.bridge.bridge-nf-call-arptables 0
+  sysctl_update net.bridge.bridge-nf-call-iptables 0
+  sysctl_update net.bridge.bridge-nf-call-ip6tables 0
+}
+
+enable_bridge_filtering() {
+
+  # If bridge filtering is enabled, apply and persist the sysctl flags
+  config_load ecm
+  config_get enable_bridge_filtering general enable_bridge_filtering 0
+
+  # shellcheck disable=2154
+  if [ "$enable_bridge_filtering" -eq 1 ]; then
+    sysctl_update net.bridge.bridge-nf-call-arptables 1
+    sysctl_update net.bridge.bridge-nf-call-iptables 1
+    sysctl_update net.bridge.bridge-nf-call-ip6tables 1
+  else
+    disable_bridge_filtering
+  fi
 }
 
 set_front_end() {
-	local get_front_end_mode=${1:-0}
-	local module_conf=/etc/modules.conf
-	[ ! -r "$module_conf" ] && touch "$module_conf"
-	# If "options ecm" exists, modify or append front_end_selection
-	if grep -q "^options ecm" "$module_conf"; then
-		if grep -q "front_end_selection=" "$module_conf"; then
-			sed -i -E "s/(options ecm.*)front_end_selection=[0-9]+/\1front_end_selection=$get_front_end_mode/" "$module_conf"
-		else
-			# Append front_end_selection if missing
-			sed -i -E "s/^(options ecm.*)/\1 front_end_selection=$get_front_end_mode/" "$module_conf"
-		fi
-	else
-		# Add new "options ecm" line
-		echo "options ecm front_end_selection=$get_front_end_mode" >> "$module_conf"
-	fi
+  local get_front_end_mode=${1:-0}
+  local module_conf=/etc/modules.conf
+  [ ! -r "$module_conf" ] && touch "$module_conf"
+  # If "options ecm" exists, modify or append front_end_selection
+  if grep -q "^options ecm" "$module_conf"; then
+    if grep -q "front_end_selection=" "$module_conf"; then
+      sed -i -E "s/(options ecm.*)front_end_selection=[0-9]+/\1front_end_selection=$get_front_end_mode/" "$module_conf"
+    else
+      # Append front_end_selection if missing
+      sed -i -E "s/^(options ecm.*)/\1 front_end_selection=$get_front_end_mode/" "$module_conf"
+    fi
+  else
+    # Add new "options ecm" line
+    echo "options ecm front_end_selection=$get_front_end_mode" >> "$module_conf"
+  fi
 }
 
 load_ecm() {
-	[ -d /sys/module/ecm ] || {
-		local get_front_end_mode
-		get_front_end_mode="$(get_front_end_mode)"
-		modinfo ecm | awk '/depends/{gsub(",","\n",$NF);print $NF}' | xargs -r -n 1 modprobe
-		set_front_end $get_front_end_mode
-		modprobe ecm
-		write_if_writable /sys/kernel/debug/ecm/ecm_classifier_default/accel_delay_pkts 1
-	}
+  # Loading ecm pulls in qca-nss-drv via module dependencies and boots
+  # the NSS firmware; on the EDMA data plane that is only safe after
+  # the glue armed the ports (fw_mask) and the firmware took them over.
+  [ -d /sys/module/qca_nss_drv ] || {
+    logger -p user.err -s "qca-nss-ecm: NSS data plane is not up (qca-nss-drv not loaded) - refusing to load ecm. Bring the NSS data plane up first (e.g. nss-up.sh: arm fw_mask, then modprobe qca-nss-drv)."
+    return 1
+  }
 
-	# shellcheck disable=1091
-	if [ -r /lib/netifd/offload/disable_offloads.sh ]; then
-		. /lib/netifd/offload/disable_offloads.sh
-		disable_offload
-	fi
+  [ -d /sys/module/ecm ] || {
+    local get_front_end_mode
+    get_front_end_mode="$(get_front_end_mode)"
+    modinfo ecm | awk '/depends/{gsub(",","\n",$NF);print $NF}' | xargs -r -n 1 modprobe
+    set_front_end $get_front_end_mode
+    modprobe ecm
+    echo 1 > /sys/kernel/debug/ecm/ecm_classifier_default/accel_delay_pkts
+  }
 
-	#Flushout stale accelerated connections if any
-	write_if_writable /sys/kernel/debug/ecm/ecm_db/defunct_all 1
-	write_if_writable /proc/net/nf_conntrack f
+  # shellcheck disable=1091
+  . /lib/netifd/offload/disable_offloads.sh
 
-	# Set conntrack event mode to 1 for 6.1 kernel to get the conntrack events from ECM
-	local kernel_major
-	kernel_major=$(uname -r | cut -d. -f1)
-	if [ "$kernel_major" -eq 6 ]; then
-		write_if_writable /proc/sys/net/netfilter/nf_conntrack_events 1
-	fi
+  disable_offload
+
+  #Flushout stale accelerated connections if any
+  echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
+  echo f > /proc/net/nf_conntrack
+
+  # Set conntrack event mode to 1 for 6.1 kernel to get the conntrack events from ECM
+  local kernel_major
+  kernel_major=$(uname -r | cut -d. -f1)
+  if [ "$kernel_major" -eq 6 ]; then
+    echo 1 > /proc/sys/net/netfilter/nf_conntrack_events
+  fi
 }
 
 unload_ecm() {
-	disable_bridge_filtering
+  disable_bridge_filtering
 
-	# Change it back to 6.1 linux's default setting
-	local kernel_major
-	kernel_major="$(uname -r | cut -d. -f1)"
-	if [ "$kernel_major" -eq 6 ]; then
-		write_if_writable /proc/sys/net/netfilter/nf_conntrack_events 2
-	fi
+  # Change it back to 6.1 linux's default setting
+  local kernel_major
+  kernel_major="$(uname -r | cut -d. -f1)"
+  if [ "$kernel_major" -eq 6 ]; then
+    echo 2 > /proc/sys/net/netfilter/nf_conntrack_events
+  fi
 
-	if [ -d /sys/module/ecm ]; then
-		#
-		# Stop ECM frontends
-		#
-		write_if_writable /sys/kernel/debug/ecm/front_end_ipv4_stop 1
-		write_if_writable /sys/kernel/debug/ecm/front_end_ipv6_stop 1
+  if [ -d /sys/module/ecm ]; then
+    #
+    # Stop ECM frontends
+    #
+    echo 1 > /sys/kernel/debug/ecm/front_end_ipv4_stop
+    echo 1 > /sys/kernel/debug/ecm/front_end_ipv6_stop
 
-		#
-		# Defunct the connections
-		#
-		write_if_writable /sys/kernel/debug/ecm/ecm_db/defunct_all 1
-		write_if_writable /proc/net/nf_conntrack f
+    #
+    # Defunct the connections
+    #
+    echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
+    echo f > /proc/net/nf_conntrack
 
-		sleep 1
-		rmmod ecm
-	fi
+    sleep 1
+    rmmod ecm
+  fi
+}
+
+service_triggers() {
+  procd_add_reload_trigger "network"
+  procd_add_reload_trigger "packet_steering"
+}
+
+reload_service() {
+  disable_packet_steering
 }
 
 start_service() {
-	load_ecm
+  load_ecm
 
-	disable_packet_steering
+  disable_packet_steering
 
-	disable_bridge_filtering
+  # Only enable bridge filtering if using deprecated fw3
+  if [ ! -r /sbin/fw4 ]; then
+    enable_bridge_filtering
+  else
+    disable_bridge_filtering
+  fi
 
-	# If the acceleration engine is NSS, enable wifi redirect
-	[ -d /sys/kernel/debug/ecm/ecm_nss_ipv4 ] && [ -w /proc/sys/dev/nss/general/redirect ] && sysctl -w dev.nss.general.redirect=1
+  # If the acceleration engine is NSS, enable wifi redirect
+  [ -d /sys/kernel/debug/ecm/ecm_nss_ipv4 ] && sysctl -w dev.nss.general.redirect=1
 
-	if [ -d /sys/module/qca_ovsmgr ]; then
-		insmod ecm_ovs
-	fi
+  if [ -d /sys/module/qca_ovsmgr ]; then
+    insmod ecm_ovs
+  fi
 }
 
 stop_service() {
-	# If ECM is already not loaded, just return
-	if [ ! -d /sys/module/ecm ]; then
-		return
-	fi
+  # If ECM is already not loaded, just return
+  if [ ! -d /sys/module/ecm ]; then
+    return
+  fi
 
-	# If the acceleration engine is NSS, disable wifi redirect
-	[ -d /sys/kernel/debug/ecm/ecm_nss_ipv4 ] && [ -w /proc/sys/dev/nss/general/redirect ] && sysctl -w dev.nss.general.redirect=0
+  # If the acceleration engine is NSS, disable wifi redirect
+  [ -d /sys/kernel/debug/ecm/ecm_nss_ipv4 ] && sysctl -w dev.nss.general.redirect=0
 
-	if [ -d /sys/module/ecm_ovs ]; then
-		rmmod ecm_ovs
-	fi
+  if [ -d /sys/module/ecm_ovs ]; then
+    rmmod ecm_ovs
+  fi
 
-	unload_ecm
+  unload_ecm
 }

@@ -1,0 +1,204 @@
+nss_qdisc-poll-per-node-statistics-on-the-11.4-firmware
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/nss_qdisc/nss_qdisc_stats.c
++++ b/nss_qdisc/nss_qdisc_stats.c
+@@ -19,6 +19,192 @@
+ 
+ #include "nss_qdisc.h"
+ 
++#ifdef NSS_FIRMWARE_VERSION_11_4
++/*
++ * The 11.4 firmware predates the stats-sync-many message: the same
++ * shaper-configure type is the per-node basic-stats request there, with a
++ * different payload. Poll every shaper node individually (the way the
++ * 11.4-era client did) and translate each response into the current
++ * response layout before handing it to the per-type stats callbacks.
++ */
++
++/*
++ * nss_qdisc_stats_basic_stats_callback()
++ *	Update one shaper node's statistics from a basic-stats response.
++ */
++static void nss_qdisc_stats_basic_stats_callback(void *app_data,
++				struct nss_if_msg *nim)
++{
++	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
++	struct Qdisc *qdisc = nq->qdisc;
++	struct nss_shaper_node_basic_stats_get *wire;
++	struct nss_shaper_node_stats_response response;
++	struct gnet_stats_basic_sync *bstats;
++	struct gnet_stats_queue *qstats;
++	refcount_t *refcnt;
++
++	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
++		nss_qdisc_warning("Qdisc %px (type %d): receive stats FAILED - "
++				"response: type: %d\n", qdisc, nq->type,
++				nim->msg.shaper_configure.config.response_type);
++		atomic_sub(1, &nq->pending_stat_requests);
++		wake_up(&nq->wait_queue);
++		return;
++	}
++
++	/*
++	 * The 11.4 response has no leading qos_tag: rebuild the current
++	 * response layout so the per-type stats callbacks find their fields
++	 * at the offsets they expect.
++	 */
++	wire = &nim->msg.shaper_configure.config.msg.shaper_node_stats_get;
++	response.qos_tag = nq->qos_tag;
++	memcpy(&response.sn_stats, &wire->response.sn_stats,
++			sizeof(response.sn_stats));
++	memcpy(&response.per_sn_stats, &wire->response.per_sn_stats,
++			sizeof(response.per_sn_stats));
++
++	/*
++	 * Get the right stats pointers based on whether it is a class
++	 * or a qdisc.
++	 */
++	if (nq->is_class) {
++		bstats = &nq->bstats;
++		qstats = &nq->qstats;
++		refcnt = &nq->refcnt;
++	} else {
++		bstats = &qdisc->bstats;
++		qstats = &qdisc->qstats;
++		refcnt = &qdisc->refcnt;
++		qdisc->q.qlen = response.sn_stats.qlen_packets;
++	}
++
++	spin_lock_bh(&nq->lock);
++	u64_stats_add(&bstats->bytes, (__u64)response.sn_stats.delta.dequeued_bytes);
++	u64_stats_add(&bstats->packets, response.sn_stats.delta.dequeued_packets);
++	qstats->backlog = response.sn_stats.qlen_bytes;
++	qstats->drops += (response.sn_stats.delta.enqueued_packets_dropped +
++			response.sn_stats.delta.dequeued_packets_dropped);
++	qstats->qlen = response.sn_stats.qlen_packets;
++	qstats->requeues = 0;
++	qstats->overlimits += response.sn_stats.delta.queue_overrun;
++	spin_unlock_bh(&nq->lock);
++
++	/*
++	 * Shapers that maintain additional unique statistics process them
++	 * via their registered callback.
++	 */
++	if (nq->stats_cb) {
++		nq->stats_cb(nq, &response);
++	}
++
++	if (refcount_read(refcnt) == 0) {
++		atomic_sub(1, &nq->pending_stat_requests);
++		wake_up(&nq->wait_queue);
++		return;
++	}
++
++	/*
++	 * Request stats again in one second.
++	 */
++	nq->stats_get_timer.expires += HZ;
++	if (nq->stats_get_timer.expires <= jiffies) {
++		nq->stats_get_timer.expires = jiffies + HZ;
++	}
++	add_timer(&nq->stats_get_timer);
++}
++
++/*
++ * nss_qdisc_stats_get_timer_callback()
++ *	Send the periodic per-node stats request.
++ */
++static void nss_qdisc_stats_get_timer_callback(struct timer_list *tm)
++{
++	struct nss_qdisc *nq = timer_container_of(nq, tm, stats_get_timer);
++	nss_tx_status_t rc;
++	struct nss_if_msg nim;
++	int msg_type;
++
++	msg_type = nss_qdisc_get_interface_msg(nq->is_bridge, NSS_QDISC_IF_SHAPER_CONFIG);
++	nss_qdisc_msg_init(&nim, nq->nss_interface_number, msg_type,
++			sizeof(struct nss_if_shaper_configure),
++			nss_qdisc_stats_basic_stats_callback, nq);
++	nim.msg.shaper_configure.config.request_type = NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_BASIC_STATS_GET;
++	nim.msg.shaper_configure.config.msg.shaper_node_stats_get.qos_tag = nq->qos_tag;
++	rc = nss_if_tx_msg(nq->nss_shaping_ctx, &nim);
++	if (rc != NSS_TX_SUCCESS) {
++		/*
++		 * Retry in 100ms instead of a full second.
++		 */
++		nq->stats_get_timer.expires = jiffies + HZ / 10;
++		add_timer(&nq->stats_get_timer);
++	}
++}
++
++/*
++ * The work-queue/sync-many machinery does not exist on 11.4: the entry
++ * points the rest of the module calls become the per-node polling above.
++ */
++bool nss_qdisc_stats_work_queue_init(void)
++{
++	return true;
++}
++
++void nss_qdisc_stats_work_queue_exit(void)
++{
++}
++
++bool nss_qdisc_stats_sync_many_init(struct nss_qdisc *nq)
++{
++	return true;
++}
++
++void nss_qdisc_stats_sync_many_exit(struct nss_qdisc *nq)
++{
++}
++
++void nss_qdisc_stats_qdisc_attach(struct nss_qdisc *nq)
++{
++	if (atomic_read(&nq->pending_stat_requests)) {
++		return;
++	}
++
++	timer_setup(&nq->stats_get_timer, nss_qdisc_stats_get_timer_callback, 0);
++	nq->stats_get_timer.expires = jiffies + HZ;
++	atomic_set(&nq->pending_stat_requests, 1);
++	add_timer(&nq->stats_get_timer);
++}
++
++void nss_qdisc_stats_qdisc_detach(struct nss_qdisc *nq)
++{
++	if (timer_delete(&nq->stats_get_timer) > 0) {
++		/*
++		 * The timer had not fired: no response can be in flight.
++		 */
++		atomic_set(&nq->pending_stat_requests, 0);
++		return;
++	}
++
++	/*
++	 * The timer has fired: wait for the pending response to drain.
++	 */
++	if (!wait_event_timeout(nq->wait_queue,
++			atomic_read(&nq->pending_stat_requests) == 0,
++			NSS_QDISC_COMMAND_TIMEOUT)) {
++		nss_qdisc_error("Stats request command for %x timedout!\n", nq->qos_tag);
++	}
++}
++
++void nss_qdisc_stats_start_polling(struct nss_qdisc *nq)
++{
++}
++
++void nss_qdisc_stats_stop_polling(struct nss_qdisc *nq)
++{
++}
++
++#else /* !NSS_FIRMWARE_VERSION_11_4 */
++
+ static LIST_HEAD(nss_qdisc_stats_list);			/* List of stats request nodes */
+ static DEFINE_SPINLOCK(nss_qdisc_stats_list_lock);	/* Lock for the stats list */
+ static struct workqueue_struct *nss_qdisc_stats_workqueue;
+@@ -706,3 +892,4 @@ void nss_qdisc_stats_qdisc_detach(struct
+ 	nss_qdisc_htable_entry_del(&rnq->stats_wq->nqt, nq);
+ }
+ 
++#endif /* !NSS_FIRMWARE_VERSION_11_4 */

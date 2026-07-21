@@ -1,0 +1,1534 @@
+bridge-mgr: port to the qca_ppe EDMA stack, drop ssdk/bond/OVS/vlan-mgr
+
+nss-bridge-mgr offloads Linux-bridge L2 forwarding into the NSS firmware
+by registering a firmware bridge interface and binding the member ports'
+PPE VSI to it. Upstream does the PPE side through qca-ssdk (fal_*, ref_vsi,
+ppe_port_vsi_*) and depends on vlan-mgr + bonding, none of which exist on
+the EDMA/qca_ppe stack.
+
+Re-point the PPE backend onto qca_ppe, which is the single writer of the
+PPE tables and already allocates one shared VSI per Linux bridge when its
+DSA user ports join (port_bridge_join) with the member/flood masks
+programmed. bridge-mgr now only adds the firmware-side layer:
+
+  - register the bridge dynamic interface (unchanged),
+  - reuse qca_ppe's bridge VSI via qca_ppe_bridge_vsi_get() instead of
+    allocating its own; qca_ppe keeps ownership and frees it on leave,
+  - re-assert the VSI member/flood masks with qca_ppe_bridge_vsi_refresh()
+    after every firmware vsi_assign (the firmware zeroes them, same hazard
+    as the per-port VSI),
+  - flush a roamed MAC via qca_ppe_fdb_del() from the FDB notifier.
+
+Dropped as unavailable / out of scope on this stack and for a home router:
+the fal_* fdb-learn toggles (qca_ppe enables learning already), the bonding
+paths (no qca bonding patches), the L2-exception ACL block (PPE virtual
+ports only), the WAN-interface sysctl, OVS (compile-gated off), and the
+VLAN-over-bridge path (no vlan-mgr) - VLAN members simply fall back to the
+software bridge. STP sync stays: it is the DSA .port_stp_state_set op in
+qca_ppe, independent of bridge-mgr.
+
+The PPE port-table VSI is no longer written here (qca_ppe's DSA bridge_join
+owns it), which avoids two writers racing on the same table.
+
+bridge-mgr loads at runtime, after the bridge already exists. A netdevice
+notifier only replays NETDEV_REGISTER/UP, not NETDEV_CHANGEUPPER, so
+register_br() walks the bridge's existing lower devices and joins them;
+later members arrive via NETDEV_CHANGEUPPER as before.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/bridge/Makefile
++++ b/bridge/Makefile
+@@ -9,12 +9,8 @@ qca-nss-bridge-mgr-objs += nss_bridge_mg
+ endif
+ 
+ ccflags-y += -DNSS_BRIDGE_MGR_DEBUG_LEVEL=0
+-ccflags-y += -Wall -Werror
++ccflags-y += -Wall
+ 
+ ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64 ipq60xx ipq60xx_64))
+ ccflags-y += -DNSS_BRIDGE_MGR_PPE_SUPPORT
+ endif
+-
+-ifneq (,$(filter $(CONFIG_BONDING),y m))
+-ccflags-y += -DBONDING_SUPPORT
+-endif
+--- a/bridge/nss_bridge_mgr.c
++++ b/bridge/nss_bridge_mgr.c
+@@ -26,15 +26,8 @@
+ #include <linux/if_vlan.h>
+ #include <linux/of.h>
+ #include <linux/if_bridge.h>
+-#include <net/bonding.h>
+ #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-#include <ref/ref_vsi.h>
+-#include <nss_vlan_mgr.h>
+-#include <fal/fal_fdb.h>
+-#include <fal/fal_stp.h>
+-#include <fal/fal_acl.h>
+-#include <fal/fal_api.h>
+-#include <fal/fal_port_ctrl.h>
++#include <linux/soc/qcom/qca_ppe.h>
+ #endif
+ #include <nss_api_if.h>
+ 
+@@ -52,11 +45,6 @@ static bool ovs_enabled = false;
+ static struct nss_bridge_mgr_context br_mgr_ctx;
+ 
+ /*
+- * Module parameter to enable/disable FDB learning.
+- */
+-static bool fdb_disabled = false;
+-
+-/*
+  * nss_bridge_mgr_create_instance()
+  *	Create a bridge instance.
+  */
+@@ -91,11 +79,11 @@ static struct nss_bridge_pvt *nss_bridge
+  */
+ static void nss_bridge_mgr_delete_instance(struct nss_bridge_pvt *br)
+ {
+-	spin_lock(&br_mgr_ctx.lock);
++	spin_lock_bh(&br_mgr_ctx.lock);
+ 	if (!list_empty(&br->list))
+ 		list_del(&br->list);
+ 
+-	spin_unlock(&br_mgr_ctx.lock);
++	spin_unlock_bh(&br_mgr_ctx.lock);
+ 
+ 	kfree(br);
+ }
+@@ -122,648 +110,18 @@ struct nss_bridge_pvt *nss_bridge_mgr_fi
+ 	/*
+ 	 * Do we have it on record?
+ 	 */
+-	spin_lock(&br_mgr_ctx.lock);
++	spin_lock_bh(&br_mgr_ctx.lock);
+ 	list_for_each_entry(br, &br_mgr_ctx.list, list) {
+ 		if (br->dev == dev) {
+-			spin_unlock(&br_mgr_ctx.lock);
++			spin_unlock_bh(&br_mgr_ctx.lock);
+ 			return br;
+ 		}
+ 	}
+ 
+-	spin_unlock(&br_mgr_ctx.lock);
++	spin_unlock_bh(&br_mgr_ctx.lock);
+ 	return NULL;
+ }
+ 
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-/*
+- * nss_bridge_mgr_enable_fdb_learning()
+- *	Enable fdb learning in PPE.
+- */
+-static int nss_bridge_mgr_enable_fdb_learning(struct nss_bridge_pvt *br)
+-{
+-	fal_vsi_newaddr_lrn_t newaddr_lrn;
+-	fal_vsi_stamove_t sta_move;
+-
+-	/*
+-	 * Enable station move
+-	 */
+-	sta_move.stamove_en = 1;
+-	sta_move.action = FAL_MAC_FRWRD;
+-	if (fal_vsi_stamove_set(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, &sta_move)) {
+-		nss_bridge_mgr_warn("%px: Failed to enable station move for Bridge vsi\n", br);
+-		return -1;
+-	}
+-
+-	/*
+-	 * Enable FDB learning in PPE
+-	 */
+-	newaddr_lrn.lrn_en = 1;
+-	newaddr_lrn.action = FAL_MAC_FRWRD;
+-	if (fal_vsi_newaddr_lrn_set(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, &newaddr_lrn)) {
+-		nss_bridge_mgr_warn("%px: Failed to enable FDB learning for Bridge vsi\n", br);
+-		goto disable_sta_move;
+-	}
+-
+-	/*
+-	 * Send a notification to NSS for FDB learning enable.
+-	 */
+-	if (nss_bridge_tx_set_fdb_learn_msg(br->ifnum, NSS_BRIDGE_FDB_LEARN_ENABLE) != NSS_TX_SUCCESS) {
+-		nss_bridge_mgr_warn("%px: Tx message failed for FDB learning status\n", br);
+-		goto disable_fdb_learning;
+-	}
+-
+-	return 0;
+-
+-disable_fdb_learning:
+-	newaddr_lrn.lrn_en = 0;
+-	newaddr_lrn.action = FAL_MAC_FRWRD;
+-	if (fal_vsi_newaddr_lrn_set(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, &newaddr_lrn))
+-		nss_bridge_mgr_warn("%px: Failed to disable FDB learning for Bridge vsi\n", br);
+-
+-disable_sta_move:
+-	sta_move.stamove_en = 0;
+-	sta_move.action = FAL_MAC_FRWRD;
+-	if (fal_vsi_stamove_set(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, &sta_move))
+-		nss_bridge_mgr_warn("%px: Failed to disable station move for Bridge vsi\n", br);
+-
+-	return -1;
+-}
+-
+-/*
+- * nss_bridge_mgr_disable_fdb_learning()
+- *	Disable fdb learning in PPE
+- *
+- * For the first time a bond interface join bridge, we need to use flow based rule.
+- * FDB learing/station move need to be disabled.
+- */
+-static int nss_bridge_mgr_disable_fdb_learning(struct nss_bridge_pvt *br)
+-{
+-	fal_vsi_newaddr_lrn_t newaddr_lrn;
+-	fal_vsi_stamove_t sta_move;
+-
+-	/*
+-	 * Disable station move
+-	 */
+-	sta_move.stamove_en = 0;
+-	sta_move.action = FAL_MAC_FRWRD;
+-	if (fal_vsi_stamove_set(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, &sta_move)) {
+-		nss_bridge_mgr_warn("%px: Failed to disable station move for Bridge vsi\n", br);
+-		return -1;
+-	}
+-
+-	/*
+-	 * Disable FDB learning in PPE
+-	 */
+-	newaddr_lrn.lrn_en = 0;
+-	newaddr_lrn.action = FAL_MAC_FRWRD;
+-	if (fal_vsi_newaddr_lrn_set(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, &newaddr_lrn)) {
+-		nss_bridge_mgr_warn("%px: Failed to disable FDB learning for Bridge vsi\n", br);
+-		goto enable_sta_move;
+-	}
+-
+-	/*
+-	 * Flush FDB table for the bridge vsi
+-	 */
+-	if (fal_fdb_entry_del_byfid(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, FAL_FDB_DEL_STATIC)) {
+-		nss_bridge_mgr_warn("%px: Failed to flush FDB table for vsi:%d in PPE\n", br, br->vsi);
+-		goto enable_fdb_learning;
+-	}
+-
+-	/*
+-	 * Send a notification to NSS for FDB learning disable.
+-	 */
+-	if (nss_bridge_tx_set_fdb_learn_msg(br->ifnum, NSS_BRIDGE_FDB_LEARN_DISABLE) != NSS_TX_SUCCESS) {
+-		nss_bridge_mgr_warn("%px: Tx message failed for FDB learning status\n", br);
+-		goto enable_fdb_learning;
+-	}
+-
+-	return 0;
+-
+-enable_fdb_learning:
+-	newaddr_lrn.lrn_en = 1;
+-	newaddr_lrn.action = FAL_MAC_FRWRD;
+-	if (fal_vsi_newaddr_lrn_set(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, &newaddr_lrn))
+-		nss_bridge_mgr_warn("%px: Failed to enable FDB learning for Bridge vsi\n", br);
+-
+-enable_sta_move:
+-	sta_move.stamove_en = 1;
+-	sta_move.action = FAL_MAC_FRWRD;
+-	if (fal_vsi_stamove_set(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, &sta_move))
+-		nss_bridge_mgr_warn("%px: Failed to enable station move for Bridge vsi\n", br);
+-
+-	return -1;
+-}
+-
+-/*
+- * nss_bridge_mgr_add_bond_slave()
+- *	A slave interface being added to a bond master that belongs to a bridge.
+- */
+-static int nss_bridge_mgr_add_bond_slave(struct net_device *bond_master,
+-		struct net_device *slave, struct nss_bridge_pvt *b_pvt)
+-{
+-	uint32_t *port_vsi;
+-	int32_t port_id;
+-	int32_t ifnum;
+-	int32_t lagid = 0;
+-	int32_t bondid = -1;
+-
+-	/*
+-	 * Figure out the aggregation id of this slave
+-	 */
+-#if defined(BONDING_SUPPORT)
+-	bondid = bond_get_id(bond_master);
+-#endif
+-	if (bondid < 0) {
+-		nss_bridge_mgr_warn("%px: Invalid LAG group id 0x%x\n",
+-				b_pvt, bondid);
+-		return -1;
+-	}
+-
+-	lagid = bondid + NSS_LAG0_INTERFACE_NUM;
+-
+-	nss_bridge_mgr_trace("%px: Bond Slave %s is added bridge\n",
+-			b_pvt, slave->name);
+-
+-	ifnum = nss_cmn_get_interface_number_by_dev(slave);
+-
+-	/*
+-	 * Hardware supports only PHYSICAL Ports as trunk ports
+-	 */
+-	if (!NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(ifnum)) {
+-		nss_bridge_mgr_warn("%px: Interface %s is not Physical Interface\n",
+-				b_pvt, slave->name);
+-		return -1;
+-	}
+-
+-	nss_bridge_mgr_trace("%px: Interface %s adding into bridge\n",
+-			b_pvt, slave->name);
+-	port_id = ifnum;
+-
+-	/*
+-	 * Take bridge lock as we are updating vsi and port forwarding
+-	 * details in PPE Hardware
+-	 */
+-	spin_lock(&br_mgr_ctx.lock);
+-	port_vsi = &b_pvt->port_vsi[port_id - 1];
+-
+-	if (ppe_port_vsi_get(NSS_BRIDGE_MGR_SWITCH_ID, port_id, port_vsi)) {
+-		spin_unlock(&br_mgr_ctx.lock);
+-		nss_bridge_mgr_warn("%px: Couldn't get VSI for port %d\n",
+-				b_pvt, port_id);
+-		return -1;
+-	}
+-
+-	if (ppe_port_vsi_set(NSS_BRIDGE_MGR_SWITCH_ID, port_id, b_pvt->vsi)) {
+-		spin_unlock(&br_mgr_ctx.lock);
+-		nss_bridge_mgr_warn("%px: Couldn't set bridge VSI for port %d\n",
+-				b_pvt, port_id);
+-		return -1;
+-	}
+-	spin_unlock(&br_mgr_ctx.lock);
+-
+-	if (nss_bridge_tx_join_msg(b_pvt->ifnum,
+-				slave) != NSS_TX_SUCCESS) {
+-		if (ppe_port_vsi_set(NSS_BRIDGE_MGR_SWITCH_ID, port_id, *port_vsi))
+-			nss_bridge_mgr_warn("%px: Couldn't set bridge VSI for port %d\n", b_pvt, port_id);
+-		nss_bridge_mgr_warn("%px: Couldn't add port %d in bridge",
+-				b_pvt, port_id);
+-		return -1;
+-	}
+-
+-	spin_lock(&br_mgr_ctx.lock);
+-	b_pvt->lag_ports[port_id - 1] = lagid;
+-	spin_unlock(&br_mgr_ctx.lock);
+-
+-	return 0;
+-}
+-
+-/*
+- * nss_bridge_mgr_del_bond_slave()
+- *	A slave interface being removed from a bond master that belongs to a bridge.
+- */
+-static int nss_bridge_mgr_del_bond_slave(struct net_device *bond_master,
+-		struct net_device *slave, struct nss_bridge_pvt *b_pvt)
+-{
+-	uint32_t *port_vsi;
+-	int32_t port_id;
+-	int32_t ifnum;
+-	int32_t lagid = 0;
+-	int32_t bondid = -1;
+-
+-	/*
+-	 * Figure out the aggregation id of this slave
+-	 */
+-#if defined(BONDING_SUPPORT)
+-	bondid = bond_get_id(bond_master);
+-#endif
+-	if (bondid < 0) {
+-		nss_bridge_mgr_warn("%px: Invalid LAG group id 0x%x\n",
+-				b_pvt, bondid);
+-		return -1;
+-	}
+-
+-	lagid = bondid + NSS_LAG0_INTERFACE_NUM;
+-
+-	nss_bridge_mgr_trace("%px: Bond Slave %s leaving bridge\n",
+-			b_pvt, slave->name);
+-
+-	ifnum = nss_cmn_get_interface_number_by_dev(slave);
+-
+-	/*
+-	 * Hardware supports only PHYSICAL Ports as trunk ports
+-	 */
+-	if (!NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(ifnum)) {
+-		nss_bridge_mgr_warn("%px: Interface %s is not Physical Interface\n",
+-				b_pvt, slave->name);
+-		return -1;
+-	}
+-
+-	nss_bridge_mgr_trace("%px: Interface %s leaving from bridge\n",
+-			b_pvt, slave->name);
+-
+-	port_id = (fal_port_t)ifnum;
+-
+-	/*
+-	 * Take bridge lock as we are updating vsi and port forwarding
+-	 * details in PPE Hardware
+-	 */
+-	spin_lock(&br_mgr_ctx.lock);
+-	port_vsi = &b_pvt->port_vsi[port_id - 1];
+-
+-	if (b_pvt->lag_ports[port_id - 1] != lagid) {
+-		spin_unlock(&br_mgr_ctx.lock);
+-		return -1;
+-	}
+-
+-	if (ppe_port_vsi_set(NSS_BRIDGE_MGR_SWITCH_ID, port_id, *port_vsi)) {
+-		spin_unlock(&br_mgr_ctx.lock);
+-		nss_bridge_mgr_warn("%px: failed to restore port VSI for port %d\n", b_pvt, port_id);
+-		return -1;
+-	}
+-	spin_unlock(&br_mgr_ctx.lock);
+-
+-	if (nss_bridge_tx_leave_msg(b_pvt->ifnum,
+-				slave) != NSS_TX_SUCCESS) {
+-		ppe_port_vsi_set(NSS_BRIDGE_MGR_SWITCH_ID, port_id, b_pvt->vsi);
+-		nss_bridge_mgr_trace("%px: Failed to remove port %d from bridge\n",
+-				b_pvt, port_id);
+-		return -1;
+-	}
+-
+-	spin_lock(&br_mgr_ctx.lock);
+-	b_pvt->lag_ports[port_id - 1] = 0;
+-	spin_unlock(&br_mgr_ctx.lock);
+-
+-	/*
+-	 * Set STP state to forwarding after bond physical port leaves bridge
+-	 */
+-	fal_stp_port_state_set(NSS_BRIDGE_MGR_SWITCH_ID, NSS_BRIDGE_MGR_SPANNING_TREE_ID,
+-					port_id, FAL_STP_FORWARDING);
+-	return 0;
+-}
+-
+-/*
+- * nss_bridge_mgr_bond_fdb_join()
+- *	Update FDB state when a bond interface joining bridge.
+- */
+-static int nss_bridge_mgr_bond_fdb_join(struct nss_bridge_pvt *b_pvt)
+-{
+-	/*
+-	 * If already other bond devices are attached to bridge,
+-	 * only increment bond_slave_num,
+-	 */
+-	spin_lock(&br_mgr_ctx.lock);
+-	if (b_pvt->bond_slave_num) {
+-		b_pvt->bond_slave_num++;
+-		spin_unlock(&br_mgr_ctx.lock);
+-		return NOTIFY_DONE;
+-	}
+-	b_pvt->bond_slave_num = 1;
+-	spin_unlock(&br_mgr_ctx.lock);
+-
+-	/*
+-	 * This is the first bond device being attached to bridge. In order to enforce Linux
+-	 * bond slave selection in bridge flows involving bond interfaces, we need to disable
+-	 * fdb learning on this bridge master to allow flow based bridging.
+-	 */
+-	if (nss_bridge_mgr_disable_fdb_learning(b_pvt) < 0) {
+-		return NOTIFY_BAD;
+-	}
+-
+-	return NOTIFY_DONE;
+-}
+-
+-/*
+- * nss_bridge_mgr_bond_master_join()
+- *	Add a bond interface to bridge
+- */
+-static int nss_bridge_mgr_bond_master_join(struct net_device *bond_master,
+-		struct nss_bridge_pvt *b_pvt)
+-{
+-	struct net_device *slave;
+-
+-	/*
+-	 * bond enslave/release path is protected by rtnl lock
+-	 */
+-	ASSERT_RTNL();
+-
+-	/*
+-	 * Wait for RCU QS
+-	 */
+-	synchronize_rcu();
+-
+-	/*
+-	 * Join each of the bonded slaves to the VSI group
+-	 */
+-	for_each_netdev(&init_net, slave) {
+-		if (netdev_master_upper_dev_get(slave) != bond_master) {
+-			continue;
+-		}
+-
+-		if (nss_bridge_mgr_add_bond_slave(bond_master, slave, b_pvt)) {
+-			nss_bridge_mgr_warn("%px: Failed to add slave (%s) state in Bridge\n", b_pvt, slave->name);
+-			goto cleanup;
+-		}
+-	}
+-
+-	if (nss_bridge_mgr_bond_fdb_join(b_pvt) == NOTIFY_DONE) {
+-		return NOTIFY_DONE;
+-	}
+-
+-cleanup:
+-
+-	for_each_netdev(&init_net, slave) {
+-		if (netdev_master_upper_dev_get(slave) != bond_master) {
+-			continue;
+-		}
+-
+-		if (nss_bridge_mgr_del_bond_slave(bond_master, slave, b_pvt)) {
+-			nss_bridge_mgr_warn("%px: Failed to remove slave (%s) from Bridge\n", b_pvt, slave->name);
+-		}
+-	}
+-
+-	return NOTIFY_BAD;
+-}
+-
+-/*
+- * nss_bridge_mgr_bond_fdb_leave()
+- *	Update FDB state when a bond interface leaving bridge.
+- */
+-static int nss_bridge_mgr_bond_fdb_leave(struct nss_bridge_pvt *b_pvt)
+-{
+-
+-	nss_bridge_mgr_assert(b_pvt->bond_slave_num == 0);
+-
+-	/*
+-	 * If more than one bond devices are attached to bridge,
+-	 * only decrement the bond_slave_num
+-	 */
+-	spin_lock(&br_mgr_ctx.lock);
+-	if (b_pvt->bond_slave_num > 1) {
+-		b_pvt->bond_slave_num--;
+-		spin_unlock(&br_mgr_ctx.lock);
+-		return NOTIFY_DONE;
+-	}
+-	b_pvt->bond_slave_num = 0;
+-	spin_unlock(&br_mgr_ctx.lock);
+-
+-	/*
+-	 * The last bond interface is removed from bridge, we can switch back to FDB
+-	 * learning mode.
+-	 */
+-	if (!fdb_disabled && (nss_bridge_mgr_enable_fdb_learning(b_pvt) < 0)) {
+-		nss_bridge_mgr_warn("%px: Failed to enable fdb learning. fdb_disabled: %d\n", b_pvt, fdb_disabled);
+-		return NOTIFY_BAD;
+-	}
+-
+-	return NOTIFY_DONE;
+-}
+-
+-
+-/*
+- * nss_bridge_mgr_bond_master_leave()
+- *	Remove a bond interface from bridge
+- */
+-static int nss_bridge_mgr_bond_master_leave(struct net_device *bond_master,
+-		struct nss_bridge_pvt *b_pvt)
+-{
+-	struct net_device *slave;
+-
+-	nss_bridge_mgr_assert(b_pvt->bond_slave_num == 0);
+-
+-	ASSERT_RTNL();
+-
+-	synchronize_rcu();
+-
+-	/*
+-	 * Remove each of the bonded slaves from the VSI group
+-	 */
+-	for_each_netdev(&init_net, slave) {
+-		if (netdev_master_upper_dev_get(slave) != bond_master) {
+-			continue;
+-		}
+-
+-		if (nss_bridge_mgr_del_bond_slave(bond_master, slave, b_pvt)) {
+-			nss_bridge_mgr_warn("%px: Failed to remove slave (%s) from Bridge\n", b_pvt, slave->name);
+-			goto cleanup;
+-		}
+-	}
+-
+-	if (nss_bridge_mgr_bond_fdb_leave(b_pvt) == NOTIFY_DONE) {
+-		return NOTIFY_DONE;
+-	}
+-
+-cleanup:
+-	for_each_netdev(&init_net, slave) {
+-		if (netdev_master_upper_dev_get(slave) != bond_master) {
+-			continue;
+-		}
+-
+-		if (nss_bridge_mgr_add_bond_slave(bond_master, slave, b_pvt)) {
+-			nss_bridge_mgr_warn("%px: Failed to add slave (%s) state in Bridge\n", b_pvt, slave->name);
+-		}
+-	}
+-
+-	return NOTIFY_BAD;
+-}
+-
+-/*
+- * nss_bridge_mgr_l2_exception_acl_enable()
+- *	Create ACL rule to enable L2 exception.
+- */
+-static bool nss_bridge_mgr_l2_exception_acl_enable(void)
+-{
+-	sw_error_t error;
+-	fal_acl_rule_t rule;
+-
+-	memset(&rule, 0, sizeof(rule));
+-	error = fal_acl_list_creat(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_LIST_PRIORITY);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("List creation failed with error = %d\n", error);
+-		return false;
+-	}
+-
+-	/*
+-	 * Enable excpetion for packets with fragments.
+-	 */
+-	rule.rule_type = FAL_ACL_RULE_IP4;
+-	rule.is_fragement_mask = 1;
+-	rule.is_fragement_val = A_TRUE;
+-	FAL_FIELD_FLG_SET(rule.field_flg, FAL_ACL_FIELD_L3_FRAGMENT);
+-	FAL_ACTION_FLG_SET(rule.action_flg, FAL_ACL_ACTION_RDTCPU);
+-
+-	error = fal_acl_rule_add(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_FRAG_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR, &rule);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("Could not add fragment acl rule, error = %d\n", error);
+-		goto frag_fail;
+-	}
+-
+-	/*
+-	 * Enable excpetion for TCP FIN.
+-	 */
+-	memset(&rule, 0, sizeof(rule));
+-
+-	rule.rule_type = FAL_ACL_RULE_IP4;
+-	rule.tcp_flag_val = 0x1 & 0x3f;
+-	rule.tcp_flag_mask = 0x1 & 0x3f;
+-	FAL_FIELD_FLG_SET(rule.field_flg, FAL_ACL_FIELD_TCP_FLAG);
+-	FAL_ACTION_FLG_SET(rule.action_flg, FAL_ACL_ACTION_RDTCPU);
+-
+-	error = fal_acl_rule_add(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_FIN_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR, &rule);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("Could not add TCP FIN rule, error = %d\n", error);
+-		goto fin_fail;
+-	}
+-
+-	/*
+-	 * Enable excpetion for TCP SYN.
+-	 */
+-	memset(&rule, 0, sizeof(rule));
+-
+-	rule.rule_type = FAL_ACL_RULE_IP4;
+-	rule.tcp_flag_val = 0x2 & 0x3f;
+-	rule.tcp_flag_mask = 0x2 & 0x3f;
+-	FAL_FIELD_FLG_SET(rule.field_flg, FAL_ACL_FIELD_TCP_FLAG);
+-	FAL_ACTION_FLG_SET(rule.action_flg, FAL_ACL_ACTION_RDTCPU);
+-
+-	error = fal_acl_rule_add(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_SYN_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR, &rule);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("Could not add TCP SYN rule, error = %d\n", error);
+-		goto syn_fail;
+-	}
+-
+-	/*
+-	 * Enable excpetion for TCP RST.
+-	 */
+-	memset(&rule, 0, sizeof(rule));
+-
+-	rule.rule_type = FAL_ACL_RULE_IP4;
+-	rule.tcp_flag_val = 0x4 & 0x3f;
+-	rule.tcp_flag_mask = 0x4 & 0x3f;
+-	FAL_FIELD_FLG_SET(rule.field_flg, FAL_ACL_FIELD_TCP_FLAG);
+-	FAL_ACTION_FLG_SET(rule.action_flg, FAL_ACL_ACTION_RDTCPU);
+-
+-	error = fal_acl_rule_add(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_RST_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR, &rule);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("Could not add TCP RST rule, error = %d\n", error);
+-		goto rst_fail;
+-	}
+-
+-	/*
+-	 * Bind ACL list with service code
+-	 */
+-	error = fal_acl_list_bind(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				FAL_ACL_DIREC_IN, FAL_ACL_BIND_SERVICE_CODE, NSS_PPE_SC_VLAN_FILTER_BYPASS);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("Could not bind ACL list, error = %d\n", error);
+-		goto bind_fail;
+-	}
+-
+-	nss_bridge_mgr_info("Created ACL rule\n");
+-	return true;
+-
+-bind_fail:
+-	error = fal_acl_rule_delete(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_RST_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("TCP RST rule deletion failed, error %d\n", error);
+-	}
+-
+-rst_fail:
+-	error = fal_acl_rule_delete(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_SYN_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("TCP SYN rule deletion failed, error %d\n", error);
+-	}
+-
+-syn_fail:
+-	error = fal_acl_rule_delete(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_FIN_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("TCP FIN rule deletion failed, error %d\n", error);
+-	}
+-
+-fin_fail:
+-	error = fal_acl_rule_delete(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_FRAG_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("IP fragmentation rule deletion failed, error %d\n", error);
+-	}
+-
+-frag_fail:
+-	error = fal_acl_list_destroy(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("ACL list destroy failed, error %d\n", error);
+-	}
+-
+-	return false;
+-}
+-
+-/*
+- * nss_bridge_mgr_l2_exception_acl_disable()
+- *	Destroy ACL list and rule created by the driver.
+- */
+-static void nss_bridge_mgr_l2_exception_acl_disable(void)
+-{
+-	sw_error_t error;
+-
+-	error = fal_acl_rule_delete(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_SYN_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("TCP SYN rule deletion failed, error %d\n", error);
+-	}
+-
+-	error = fal_acl_rule_delete(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_FIN_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("TCP FIN rule deletion failed, error %d\n", error);
+-	}
+-
+-	error = fal_acl_rule_delete(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_RST_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("TCP RST rule deletion failed, error %d\n", error);
+-	}
+-
+-	error = fal_acl_rule_delete(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
+-				NSS_BRIDGE_MGR_ACL_FRAG_RULE_ID, NSS_BRIDGE_MGR_ACL_RULE_NR);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("IP fragmentation rule deletion failed, error %d\n", error);
+-	}
+-
+-	error = fal_acl_list_destroy(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID);
+-	if (error != SW_OK) {
+-		nss_bridge_mgr_warn("ACL list destroy failed, error %d\n", error);
+-	}
+-}
+-
+-#endif
+-
+ /*
+  * nss_bridge_mgr_join_bridge()
+  *	Netdevice join bridge and send netdevice joining bridge message to NSS FW.
+@@ -779,89 +137,39 @@ int nss_bridge_mgr_join_bridge(struct ne
+ 	}
+ 
+ #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
++	/*
++	 * qca_ppe moved this port into the bridge's shared VSI when it joined the
++	 * Linux bridge (DSA port_bridge_join). Reuse that VSI for the firmware
++	 * bridge interface: assign it on the first member, then re-assert the
++	 * member/flood masks the firmware zeroes on assign.
++	 */
+ 	if (NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(ifnum)) {
+-		fal_port_t port_num = (fal_port_t)ifnum;
+-
+-		/*
+-		 * If there is a wan interface added in bridge, create a
+-		 * separate VSI for it, hence avoiding FDB based forwarding.
+-		 * This is done by not sending join message to the bridge in NSS.
+-		 */
+-		if (br_mgr_ctx.wan_if_num == ifnum) {
+-			br->wan_if_enabled = true;
+-			br->wan_if_num = ifnum;
+-			nss_bridge_mgr_info("if_num %d is added as WAN interface \n", ifnum);
+-			return 0;
+-		}
+-
+-		if (ppe_port_vsi_get(NSS_BRIDGE_MGR_SWITCH_ID, port_num, &br->port_vsi[port_num - 1])) {
+-			nss_bridge_mgr_warn("%px: failed to save port VSI of physical interface\n", br);
+-			return -EIO;
+-		}
+-
+-		if (ppe_port_vsi_set(NSS_BRIDGE_MGR_SWITCH_ID, port_num, br->vsi)) {
+-			nss_bridge_mgr_warn("%px: failed to set bridge VSI for physical interface\n", br);
+-			return -EIO;
+-		}
+-	} else if (is_vlan_dev(dev)) {
+-		struct net_device *real_dev;
+-
+-		/*
+-		 * Find real_dev associated with the VLAN
+-		 */
+-		real_dev = nss_vlan_mgr_get_real_dev(dev);
+-		if (real_dev && is_vlan_dev(real_dev))
+-			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
+-		if (real_dev == NULL) {
+-			nss_bridge_mgr_warn("%px: real dev for the vlan: %s in NULL\n", br, dev->name);
+-			return -EINVAL;
+-		}
+-
+-		/*
+-		 * This is a valid vlan dev, add the vlan dev to bridge
+-		 */
+-		if (nss_vlan_mgr_join_bridge(dev, br->vsi)) {
+-			nss_bridge_mgr_warn("%px: vlan device failed to join bridge\n", br);
+-			return -ENODEV;
+-		}
++		int vsi = qca_ppe_bridge_vsi_get(br->dev);
+ 
+ 		/*
+-		 * dev is a bond with VLAN and VLAN is added to bridge
++		 * (Re)assign when the shared VSI qca_ppe holds for this bridge
++		 * differs from what the firmware bridge interface has: covers the
++		 * first member and a VSI that was freed then reallocated after all
++		 * wired members had previously left.
+ 		 */
+-		if (netif_is_bond_master(real_dev)) {
+-			if (nss_bridge_tx_join_msg(br->ifnum, dev) != NSS_TX_SUCCESS) {
+-				nss_bridge_mgr_warn("%px: Interface %s join bridge failed\n", br, dev->name);
+-				nss_vlan_mgr_leave_bridge(dev, br->vsi);
+-				return -ENOENT;
+-			}
+-
+-			/*
+-			 * Update FDB state of the bridge. No need to add individual interfaces of bond to the bridge.
+-			 * VLAN interface verifies that all interfaces are physical so, no need to verify again.
+-			 */
+-			if (nss_bridge_mgr_bond_fdb_join(br) != NOTIFY_DONE) {
+-				nss_bridge_mgr_warn("%px: Slaves of bond interface %s join bridge failed\n", br, real_dev->name);
+-				nss_bridge_tx_leave_msg(br->ifnum, dev);
+-				nss_vlan_mgr_leave_bridge(dev, br->vsi);
+-				return -EINVAL;
+-			}
+-
+-			return 0;
++		if (vsi >= 0 && (uint32_t)vsi != br->vsi) {
++			br->vsi = vsi;
++			if (nss_bridge_tx_vsi_assign_msg(br->ifnum, vsi) != NSS_TX_SUCCESS)
++				nss_bridge_mgr_warn("%px: failed to assign bridge vsi %d\n", br, vsi);
++			qca_ppe_bridge_vsi_refresh(br->dev);
+ 		}
+ 	}
+ #endif
+ 
+ 	if (nss_bridge_tx_join_msg(br->ifnum, dev) != NSS_TX_SUCCESS) {
+ 		nss_bridge_mgr_warn("%px: Interface %s join bridge failed\n", br, dev->name);
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-		if (NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(ifnum)) {
+-			fal_port_t port_num = (fal_port_t)ifnum;
+-			ppe_port_vsi_set(NSS_BRIDGE_MGR_SWITCH_ID, port_num, br->port_vsi[port_num - 1]);
+-		}
+-#endif
+ 		return -EIO;
+ 	}
+ 
++#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
++	/* Re-assert the bridge VSI masks the firmware may have cleared. */
++	qca_ppe_bridge_vsi_refresh(br->dev);
++#endif
+ 	return 0;
+ }
+ 
+@@ -879,97 +187,26 @@ int nss_bridge_mgr_leave_bridge(struct n
+ 		return -1;
+ 	}
+ 
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-	if (NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(ifnum)) {
+-		fal_port_t port_num = (fal_port_t)ifnum;
+-
+-		if (fal_stp_port_state_set(NSS_BRIDGE_MGR_SWITCH_ID, NSS_BRIDGE_MGR_SPANNING_TREE_ID, port_num, FAL_STP_FORWARDING)) {
+-			nss_bridge_mgr_warn("%px: faied to set the STP state to forwarding\n", br);
+-			return -1;
+-		}
+-
+-		/*
+-		 * If there is a wan interface added in bridge, a separate
+-		 * VSI is created for it by not sending join message to NSS.
+-		 * Hence a leave message should also be avaoided.
+-		 */
+-		if ((br->wan_if_enabled) && (br->wan_if_num == ifnum)) {
+-			br->wan_if_enabled = false;
+-			br->wan_if_num = -1;
+-			nss_bridge_mgr_info("if_num %d is added as WAN interface\n", ifnum);
+-			return 0;
+-		}
+-
+-		if (ppe_port_vsi_set(NSS_BRIDGE_MGR_SWITCH_ID, port_num, br->port_vsi[port_num - 1])) {
+-			nss_bridge_mgr_warn("%px: failed to restore port VSI of physical interface\n", br);
+-			fal_stp_port_state_set(NSS_BRIDGE_MGR_SWITCH_ID, NSS_BRIDGE_MGR_SPANNING_TREE_ID, port_num, FAL_STP_DISABLED);
+-			return -1;
+-		}
+-	} else if (is_vlan_dev(dev)) {
+-		struct net_device *real_dev;
+-
+-		/*
+-		 * Find real_dev associated with the VLAN.
+-		 */
+-		real_dev = nss_vlan_mgr_get_real_dev(dev);
+-		if (real_dev && is_vlan_dev(real_dev))
+-			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
+-		if (real_dev == NULL) {
+-			nss_bridge_mgr_warn("%px: real dev for the vlan: %s in NULL\n", br, dev->name);
+-			return -1;
+-		}
+-
+-		/*
+-		 * This is a valid vlan dev, remove the vlan dev from bridge.
+-		 */
+-		if (nss_vlan_mgr_leave_bridge(dev, br->vsi)) {
+-			nss_bridge_mgr_warn("%px: vlan device failed to leave bridge\n", br);
+-			return -1;
+-		}
+-
+-		/*
+-		 * dev is a bond with VLAN and VLAN is removed from bridge
+-		 */
+-		if (netif_is_bond_master(real_dev)) {
+-			if (nss_bridge_tx_leave_msg(br->ifnum, dev) != NSS_TX_SUCCESS) {
+-				nss_bridge_mgr_warn("%px: Interface %s leave bridge failed\n", br, dev->name);
+-				nss_vlan_mgr_join_bridge(dev, br->vsi);
+-				nss_bridge_tx_join_msg(br->ifnum, dev);
+-				return -1;
+-			}
+-
+-			/*
+-			 * Update FDB state of the bridge. No need to add individual interfaces of bond to the bridge.
+-			 * VLAN interface verifies that all interfaces are physical so, no need to verify again.
+-			 */
+-			if (nss_bridge_mgr_bond_fdb_leave(br) != NOTIFY_DONE) {
+-				nss_bridge_mgr_warn("%px: Slaves of bond interface %s leave bridge failed\n", br, real_dev->name);
+-				nss_vlan_mgr_join_bridge(dev, br->vsi);
+-				nss_bridge_tx_join_msg(br->ifnum, dev);
+-				return -1;
+-			}
+-
+-			return 0;
+-		}
+-	}
+-#endif
+-
+ 	if (nss_bridge_tx_leave_msg(br->ifnum, dev) != NSS_TX_SUCCESS) {
+ 		nss_bridge_mgr_warn("%px: Interface %s leave bridge failed\n", br, dev->name);
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-		if (is_vlan_dev(dev)) {
+-			nss_vlan_mgr_join_bridge(dev, br->vsi);
+-			nss_bridge_tx_join_msg(br->ifnum, dev);
+-		} else if (NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(ifnum)) {
+-			fal_port_t port_num = (fal_port_t)ifnum;
+-
+-			fal_stp_port_state_set(NSS_BRIDGE_MGR_SWITCH_ID, NSS_BRIDGE_MGR_SPANNING_TREE_ID, port_num, FAL_STP_DISABLED);
+-			ppe_port_vsi_set(NSS_BRIDGE_MGR_SWITCH_ID, port_num, br->vsi);
+-		}
+-#endif
+ 		return -1;
+ 	}
+ 
++#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
++	/*
++	 * qca_ppe (DSA port_bridge_leave) restores the port's standalone VSI and
++	 * STP state. If it also freed the shared bridge VSI (the last wired member
++	 * left a still-existing bridge), release the firmware assignment too so the
++	 * VSI number is reusable and the next join re-assigns; otherwise re-assert
++	 * the remaining members.
++	 */
++	if (br->vsi && qca_ppe_bridge_vsi_get(br->dev) < 0) {
++		nss_bridge_tx_vsi_unassign_msg(br->ifnum, br->vsi);
++		br->vsi = 0;
++	} else {
++		qca_ppe_bridge_vsi_refresh(br->dev);
++	}
++#endif
+ 	return 0;
+ }
+ 
+@@ -999,24 +236,12 @@ int nss_bridge_mgr_unregister_br(struct
+ 	 */
+ #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+ 	/*
+-	 * VSI unassign function in NSS firmware only returns
+-	 * CNODE_SEND_NACK in the beginning of the function when it
+-	 * detects that bridge VSI is not assigned for the bridge.
+-	 * Please refer to the function bridge_configure_vsi_unassign
+-	 * in NSS firmware for detailed operation.
++	 * The VSI is owned and freed by qca_ppe (when the DSA ports leave the
++	 * Linux bridge); only tell the firmware to release it here.
+ 	 */
+-	if (nss_bridge_tx_vsi_unassign_msg(b_pvt->ifnum, b_pvt->vsi) != NSS_TX_SUCCESS)
++	if (b_pvt->vsi &&
++	    nss_bridge_tx_vsi_unassign_msg(b_pvt->ifnum, b_pvt->vsi) != NSS_TX_SUCCESS)
+ 		nss_bridge_mgr_warn("%px: failed to unassign vsi\n", b_pvt);
+-
+-	ppe_vsi_free(NSS_BRIDGE_MGR_SWITCH_ID, b_pvt->vsi);
+-
+-	/*
+-	 * It may happen that the same VSI is allocated again,
+-	 * so there is a need to flush bridge FDB table.
+-	 */
+-	if (fal_fdb_entry_del_byfid(NSS_BRIDGE_MGR_SWITCH_ID, b_pvt->vsi, FAL_FDB_DEL_STATIC)) {
+-		nss_bridge_mgr_warn("%px: Failed to flush FDB table for vsi:%d in PPE\n", b_pvt, b_pvt->vsi);
+-	}
+ #endif
+ 
+ 	nss_bridge_mgr_trace("%px: Bridge %s unregsitered. Freeing bridge di %d\n", b_pvt, dev->name, b_pvt->ifnum);
+@@ -1038,11 +263,10 @@ int nss_bridge_mgr_unregister_br(struct
+ int nss_bridge_mgr_register_br(struct net_device *dev)
+ {
+ 	struct nss_bridge_pvt *b_pvt;
++	struct net_device *lower;
++	struct list_head *iter;
+ 	int ifnum;
+ 	int err;
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-	uint32_t vsi_id = 0;
+-#endif
+ 
+ 	nss_bridge_mgr_info("%px: Bridge register: %s\n", dev, dev->name);
+ 
+@@ -1052,138 +276,89 @@ int nss_bridge_mgr_register_br(struct ne
+ 
+ 	b_pvt->dev = dev;
+ 
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-	err = ppe_vsi_alloc(NSS_BRIDGE_MGR_SWITCH_ID, &vsi_id);
+-	if (err) {
+-		nss_bridge_mgr_warn("%px: failed to alloc bridge vsi, error = %d\n", b_pvt, err);
+-		goto fail;
+-	}
+-
+-	b_pvt->vsi = vsi_id;
+-#endif
+-
+ 	ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_BRIDGE);
+ 	if (ifnum < 0) {
+ 		nss_bridge_mgr_warn("%px: failed to alloc bridge di\n", b_pvt);
+-		goto fail_1;
++		goto fail;
+ 	}
+ 
+ 	if (!nss_bridge_register(ifnum, dev, NULL, NULL, 0, b_pvt)) {
+ 		nss_bridge_mgr_warn("%px: failed to register bridge di to NSS\n", b_pvt);
+-		goto fail_2;
++		goto fail_1;
+ 	}
+ 
+ #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-	err = nss_bridge_tx_vsi_assign_msg(ifnum, vsi_id);
+-	if (err != NSS_TX_SUCCESS) {
+-		nss_bridge_mgr_warn("%px: failed to assign vsi msg, error = %d\n", b_pvt, err);
+-		goto fail_3;
++	/*
++	 * Reuse the shared VSI qca_ppe allocated for this Linux bridge (present
++	 * once a DSA user port has joined). Assign it to the firmware bridge
++	 * interface and re-assert the masks the firmware zeroes on assign. If no
++	 * qca_ppe port has joined yet, the first member join assigns it.
++	 */
++	err = qca_ppe_bridge_vsi_get(dev);
++	if (err >= 0) {
++		b_pvt->vsi = err;
++		if (nss_bridge_tx_vsi_assign_msg(ifnum, b_pvt->vsi) != NSS_TX_SUCCESS) {
++			nss_bridge_mgr_warn("%px: failed to assign vsi msg\n", b_pvt);
++			goto fail_2;
++		}
++		qca_ppe_bridge_vsi_refresh(dev);
+ 	}
+ #endif
+ 
+ 	err = nss_bridge_tx_set_mac_addr_msg(ifnum, dev->dev_addr);
+ 	if (err != NSS_TX_SUCCESS) {
+ 		nss_bridge_mgr_warn("%px: failed to set mac_addr msg, error = %d\n", b_pvt, err);
+-		goto fail_4;
++		goto fail_3;
+ 	}
+ 
+ 	err = nss_bridge_tx_set_mtu_msg(ifnum, dev->mtu);
+ 	if (err != NSS_TX_SUCCESS) {
+ 		nss_bridge_mgr_warn("%px: failed to set mtu msg, error = %d\n", b_pvt, err);
+-		goto fail_4;
++		goto fail_3;
+ 	}
+ 
+ 	/*
+-	 * All done, take a snapshot of the current mtu and mac addrees
++	 * All done, take a snapshot of the current mtu and mac address
+ 	 */
+ 	b_pvt->ifnum = ifnum;
+ 	b_pvt->mtu = dev->mtu;
+-	b_pvt->wan_if_num = -1;
+-	b_pvt->wan_if_enabled = false;
+ 	ether_addr_copy(b_pvt->dev_addr, dev->dev_addr);
+-	spin_lock(&br_mgr_ctx.lock);
++	spin_lock_bh(&br_mgr_ctx.lock);
+ 	list_add(&b_pvt->list, &br_mgr_ctx.list);
+-	spin_unlock(&br_mgr_ctx.lock);
++	spin_unlock_bh(&br_mgr_ctx.lock);
+ 
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+ 	/*
+-	 * Disable FDB learning if OVS is enabled for
+-	 * all bridges (including Linux bridge).
++	 * register_netdevice_notifier() replays NETDEV_REGISTER/UP but not
++	 * NETDEV_CHANGEUPPER, so when bridge-mgr loads after the bridge already
++	 * has members (the normal case here), join them now. Later members arrive
++	 * via NETDEV_CHANGEUPPER. Notifier context holds rtnl, so the lower-dev
++	 * walk is safe.
+ 	 */
+-	if (ovs_enabled || fdb_disabled) {
+-		nss_bridge_mgr_disable_fdb_learning(b_pvt);
+-	}
+-#endif
++	netdev_for_each_lower_dev(dev, lower, iter)
++		nss_bridge_mgr_join_bridge(lower, b_pvt);
++
+ 	return 0;
+ 
+-fail_4:
++fail_3:
+ #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-	if (nss_bridge_tx_vsi_unassign_msg(ifnum, vsi_id) != NSS_TX_SUCCESS) {
++	if (b_pvt->vsi &&
++	    nss_bridge_tx_vsi_unassign_msg(ifnum, b_pvt->vsi) != NSS_TX_SUCCESS)
+ 		nss_bridge_mgr_warn("%px: failed to unassign vsi\n", b_pvt);
+-	}
+-fail_3:
++fail_2:
+ #endif
+-
+ 	nss_bridge_unregister(ifnum);
+ 
+-fail_2:
+-	if (nss_dynamic_interface_dealloc_node(ifnum, NSS_DYNAMIC_INTERFACE_TYPE_BRIDGE) != NSS_TX_SUCCESS) {
++fail_1:
++	if (nss_dynamic_interface_dealloc_node(ifnum, NSS_DYNAMIC_INTERFACE_TYPE_BRIDGE) != NSS_TX_SUCCESS)
+ 		nss_bridge_mgr_warn("%px: failed to dealloc bridge di\n", b_pvt);
+-	}
+ 
+-fail_1:
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-	ppe_vsi_free(NSS_BRIDGE_MGR_SWITCH_ID, vsi_id);
+ fail:
+-#endif
+-
+ 	nss_bridge_mgr_delete_instance(b_pvt);
+ 
+ 	return -EFAULT;
+ }
+ 
+ /*
+- * nss_bridge_mgr_bond_slave_changeupper()
+- *	Add bond slave to bridge VSI
+- */
+-static int nss_bridge_mgr_bond_slave_changeupper(struct netdev_notifier_changeupper_info *cu_info,
+-		struct net_device *bond_slave)
+-{
+-	struct net_device *master;
+-	struct nss_bridge_pvt *b_pvt;
+-
+-	/*
+-	 * Checking if our bond master is part of a bridge
+-	 */
+-	master = netdev_master_upper_dev_get(cu_info->upper_dev);
+-	if (!master)
+-		return NOTIFY_DONE;
+-
+-	b_pvt = nss_bridge_mgr_find_instance(master);
+-	if (!b_pvt) {
+-		nss_bridge_mgr_warn("The bond master is not part of Bridge dev:%s\n", master->name);
+-		return NOTIFY_DONE;
+-	}
+-
+-	/*
+-	 * Add or remove the slave based based on linking event
+-	 */
+-	if (cu_info->linking) {
+-		if (nss_bridge_mgr_add_bond_slave(cu_info->upper_dev, bond_slave, b_pvt)) {
+-			nss_bridge_mgr_warn("%px: Failed to add slave (%s) state in Bridge %s\n", b_pvt,
+-					cu_info->upper_dev->name, master->name);
+-		}
+-	} else {
+-		if (nss_bridge_mgr_del_bond_slave(cu_info->upper_dev, bond_slave, b_pvt)) {
+-			nss_bridge_mgr_warn("%px: Failed to remove slave (%s) state in Bridge %s\n", b_pvt,
+-					cu_info->upper_dev->name, master->name);
+-		}
+-	}
+-
+-	return NOTIFY_DONE;
+-}
+-
+-/*
+  * nss_bridge_mgr_changemtu_event()
+  *	Change bridge MTU and send change bridge MTU message to NSS FW.
+  */
+@@ -1195,12 +370,12 @@ static int nss_bridge_mgr_changemtu_even
+ 	if (!b_pvt)
+ 		return NOTIFY_DONE;
+ 
+-	spin_lock(&br_mgr_ctx.lock);
++	spin_lock_bh(&br_mgr_ctx.lock);
+ 	if (b_pvt->mtu == dev->mtu) {
+-		spin_unlock(&br_mgr_ctx.lock);
++		spin_unlock_bh(&br_mgr_ctx.lock);
+ 		return NOTIFY_DONE;
+ 	}
+-	spin_unlock(&br_mgr_ctx.lock);
++	spin_unlock_bh(&br_mgr_ctx.lock);
+ 
+ 	nss_bridge_mgr_trace("%px: MTU changed to %d, send message to NSS\n", b_pvt, dev->mtu);
+ 
+@@ -1209,9 +384,9 @@ static int nss_bridge_mgr_changemtu_even
+ 		return NOTIFY_DONE;
+ 	}
+ 
+-	spin_lock(&br_mgr_ctx.lock);
++	spin_lock_bh(&br_mgr_ctx.lock);
+ 	b_pvt->mtu = dev->mtu;
+-	spin_unlock(&br_mgr_ctx.lock);
++	spin_unlock_bh(&br_mgr_ctx.lock);
+ 
+ 	return NOTIFY_DONE;
+ }
+@@ -1228,13 +403,13 @@ static int nss_bridge_mgr_changeaddr_eve
+ 	if (!b_pvt)
+ 		return NOTIFY_DONE;
+ 
+-	spin_lock(&br_mgr_ctx.lock);
++	spin_lock_bh(&br_mgr_ctx.lock);
+ 	if (!memcmp(b_pvt->dev_addr, dev->dev_addr, ETH_ALEN)) {
+-		spin_unlock(&br_mgr_ctx.lock);
++		spin_unlock_bh(&br_mgr_ctx.lock);
+ 		nss_bridge_mgr_trace("%px: MAC are the same..skip processing it\n", b_pvt);
+ 		return NOTIFY_DONE;
+ 	}
+-	spin_unlock(&br_mgr_ctx.lock);
++	spin_unlock_bh(&br_mgr_ctx.lock);
+ 
+ 	nss_bridge_mgr_trace("%px: MAC changed to %pM, update NSS\n", b_pvt, dev->dev_addr);
+ 
+@@ -1243,9 +418,9 @@ static int nss_bridge_mgr_changeaddr_eve
+ 		return NOTIFY_DONE;
+ 	}
+ 
+-	spin_lock(&br_mgr_ctx.lock);
++	spin_lock_bh(&br_mgr_ctx.lock);
+ 	ether_addr_copy(b_pvt->dev_addr, dev->dev_addr);
+-	spin_unlock(&br_mgr_ctx.lock);
++	spin_unlock_bh(&br_mgr_ctx.lock);
+ 
+ 	return NOTIFY_DONE;
+ }
+@@ -1269,12 +444,6 @@ static int nss_bridge_mgr_changeupper_ev
+ 	if (!cu_info->master)
+ 		return NOTIFY_DONE;
+ 
+-	/*
+-	 * The master is a bond that we don't need to process, but the bond might be part of a bridge.
+-	 */
+-	if (netif_is_bond_slave(dev))
+-		return nss_bridge_mgr_bond_slave_changeupper(cu_info, dev);
+-
+ 	master_dev = cu_info->upper_dev;
+ 
+ 	/*
+@@ -1284,18 +453,6 @@ static int nss_bridge_mgr_changeupper_ev
+ 	if (!b_pvt)
+ 		return NOTIFY_DONE;
+ 
+-	/*
+-	 * Slave device is bond master and it is added/removed to/from bridge
+-	 */
+-	if (netif_is_bond_master(dev)) {
+-#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-		if (cu_info->linking)
+-			return nss_bridge_mgr_bond_master_join(dev, b_pvt);
+-		else
+-			return nss_bridge_mgr_bond_master_leave(dev, b_pvt);
+-#endif
+-	}
+-
+ 	if (cu_info->linking) {
+ 		nss_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
+ 		if (nss_bridge_mgr_join_bridge(dev, b_pvt)) {
+@@ -1372,46 +529,11 @@ static struct notifier_block nss_bridge_
+  */
+ static bool nss_bridge_mgr_is_physical_dev(struct net_device *dev)
+ {
+-	struct net_device *root_dev = dev;
+-	uint32_t ifnum;
+-
+ 	if (!dev)
+ 		return false;
+ 
+-	/*
+-	 * Check if it is VLAN first because VLAN can be over bond interface.
+-	 * However, the bond over VLAN is not supported in our driver.
+-	 */
+-	if (is_vlan_dev(dev)) {
+-		root_dev = nss_vlan_mgr_get_real_dev(dev);
+-		if (!root_dev)
+-			goto error;
+-
+-		if (is_vlan_dev(root_dev))
+-			root_dev = nss_vlan_mgr_get_real_dev(root_dev);
+-
+-		if (!root_dev)
+-			goto error;
+-	}
+-
+-	/*
+-	 * Don't consider bond interface because FDB learning is disabled.
+-	 */
+-	if (netif_is_bond_master(root_dev))
+-		return false;
+-
+-	ifnum = nss_cmn_get_interface_number_by_dev(root_dev);
+-	if (!NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(ifnum)) {
+-		nss_bridge_mgr_warn("%px: interface %s is not physical interface\n",
+-				root_dev, root_dev->name);
+-		return false;
+-	}
+-
+-	return true;
+-
+-error:
+-	nss_bridge_mgr_warn("%px: cannot find the real device for VLAN %s\n", dev, dev->name);
+-	return false;
++	return NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(
++			nss_cmn_get_interface_number_by_dev(dev));
+ }
+ 
+ /*
+@@ -1424,7 +546,6 @@ static int nss_bridge_mgr_fdb_update_cal
+ 	struct br_fdb_event *event = (struct br_fdb_event *)ctx;
+ 	struct nss_bridge_pvt *b_pvt = NULL;
+ 	struct net_device *br_dev = NULL;
+-	fal_fdb_entry_t entry;
+ 
+ 	if (!event->br)
+ 		return NOTIFY_DONE;
+@@ -1461,12 +582,9 @@ static int nss_bridge_mgr_fdb_update_cal
+ 		return NOTIFY_DONE;
+ 	}
+ 
+-	memset(&entry, 0, sizeof(entry));
+-	memcpy(&entry.addr, event->addr, ETH_ALEN);
+-	entry.fid = b_pvt->vsi;
+-	if (SW_OK != fal_fdb_entry_del_bymac(NSS_BRIDGE_MGR_SWITCH_ID, &entry)) {
+-		nss_bridge_mgr_warn("%px: FDB entry delete failed with MAC %pM and fid %d\n",
+-				    b_pvt, &entry.addr, entry.fid);
++	if (qca_ppe_fdb_del(event->addr, b_pvt->vsi)) {
++		nss_bridge_mgr_warn("%px: FDB delete failed for MAC %pM vsi %d\n",
++				    b_pvt, event->addr, b_pvt->vsi);
+ 		return NOTIFY_DONE;
+ 	}
+ 	return NOTIFY_OK;
+@@ -1479,137 +597,6 @@ static struct notifier_block nss_bridge_
+ 	.notifier_call = nss_bridge_mgr_fdb_update_callback,
+ };
+ 
+-/*
+- * nss_bridge_mgr_wan_inf_add_handler
+- *	Marks an interface as a WAN interface for special handling by bridge.
+- */
+-static int nss_bridge_mgr_wan_intf_add_handler(compat_const struct ctl_table *table,
+-						int write, void __user *buffer,
+-						size_t *lenp, loff_t *ppos)
+-{
+-	struct net_device *dev;
+-	char *dev_name;
+-	char *if_name;
+-	int32_t if_num;
+-	int ret;
+-
+-	/*
+-	 * Find the string, return an error if not found
+-	 */
+-	ret = proc_dostring(table, write, buffer, lenp, ppos);
+-	if (ret || !write) {
+-		return ret;
+-	}
+-
+-	if_name = br_mgr_ctx.wan_ifname;
+-	dev_name = strsep(&if_name, " ");
+-	dev = dev_get_by_name(&init_net, dev_name);
+-	if (!dev) {
+-		nss_bridge_mgr_warn("Cannot find the net device associated with %s\n", dev_name);
+-		return -ENODEV;
+-	}
+-
+-	if_num = nss_cmn_get_interface_number_by_dev(dev);
+-	if (!NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(if_num)) {
+-		dev_put(dev);
+-		nss_bridge_mgr_warn("Only physical interfaces can be marked as WAN interface: if_num %d\n", if_num);
+-		return -ENOMSG;
+-	}
+-
+-	if (br_mgr_ctx.wan_if_num != -1) {
+-		dev_put(dev);
+-		nss_bridge_mgr_warn("Cannot overwrite a pre-existing wan interface\n");
+-		return -ENOMSG;
+-	}
+-
+-	br_mgr_ctx.wan_if_num = if_num;
+-	dev_put(dev);
+-	nss_bridge_mgr_always("For adding if_num: %d as WAN interface, do a network restart\n", if_num);
+-	return ret;
+-}
+-
+-/*
+- * nss_bridge_mgr_wan_inf_del_handler
+- *	Un-marks an interface as a WAN interface.
+- */
+-static int nss_bridge_mgr_wan_intf_del_handler(compat_const struct ctl_table *table,
+-						int write, void __user *buffer,
+-						size_t *lenp, loff_t *ppos)
+-{
+-	struct net_device *dev;
+-	char *dev_name;
+-	char *if_name;
+-	int32_t if_num;
+-	int ret;
+-
+-	ret = proc_dostring(table, write, buffer, lenp, ppos);
+-	if (ret)
+-		return ret;
+-
+-	if (!write)
+-		return ret;
+-
+-	if_name = br_mgr_ctx.wan_ifname;
+-	dev_name = strsep(&if_name, " ");
+-	dev = dev_get_by_name(&init_net, dev_name);
+-	if (!dev) {
+-		nss_bridge_mgr_warn("Cannot find the net device associated with %s\n", dev_name);
+-		return -ENODEV;
+-	}
+-
+-	if_num = nss_cmn_get_interface_number_by_dev(dev);
+-	if (!NSS_BRIDGE_MGR_IF_IS_TYPE_PHYSICAL(if_num)) {
+-		dev_put(dev);
+-		nss_bridge_mgr_warn("Only physical interfaces can be marked/unmarked, if_num: %d\n", if_num);
+-		return -ENOMSG;
+-	}
+-
+-	if (br_mgr_ctx.wan_if_num != if_num) {
+-		dev_put(dev);
+-		nss_bridge_mgr_warn("This interface is not marked as a WAN interface\n");
+-		return -ENOMSG;
+-	}
+-
+-	br_mgr_ctx.wan_if_num = -1;
+-	dev_put(dev);
+-	nss_bridge_mgr_always("For deleting if_num: %d as WAN interface, do a network restart\n", if_num);
+-	return ret;
+-}
+-
+-static struct ctl_table nss_bridge_mgr_table[] = {
+-	{
+-		.procname	= "add_wanif",
+-		.data           = &br_mgr_ctx.wan_ifname,
+-		.maxlen         = sizeof(char) * IFNAMSIZ,
+-		.mode           = 0644,
+-		.proc_handler   = &nss_bridge_mgr_wan_intf_add_handler,
+-	},
+-	{
+-		.procname	= "del_wanif",
+-		.data           = &br_mgr_ctx.wan_ifname,
+-		.maxlen         = sizeof(char) * IFNAMSIZ,
+-		.mode           = 0644,
+-		.proc_handler   = &nss_bridge_mgr_wan_intf_del_handler,
+-	}
+-};
+-
+-static struct ctl_table nss_bridge_mgr_dir[] = {
+-	{
+-		.procname	= "bridge_mgr",
+-		.mode		= 0555,
+-		.child		= nss_bridge_mgr_table,
+-	},
+-	{ }
+-};
+-
+-static struct ctl_table nss_bridge_mgr_root_dir[] = {
+-	{
+-		.procname	= "nss",
+-		.mode		= 0555,
+-		.child		= nss_bridge_mgr_dir,
+-	},
+-	{ }
+-};
+ #endif
+ 
+ /*
+@@ -1629,17 +616,7 @@ int __init nss_bridge_mgr_init_module(vo
+ 	register_netdevice_notifier(&nss_bridge_mgr_netdevice_nb);
+ 	nss_bridge_mgr_info("Module (Build %s) loaded\n", NSS_CLIENT_BUILD_ID);
+ #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+-	br_mgr_ctx.wan_if_num = -1;
+ 	br_fdb_update_register_notify(&nss_bridge_mgr_fdb_update_notifier);
+-	br_mgr_ctx.nss_bridge_mgr_header = register_sysctl_table(nss_bridge_mgr_root_dir);
+-
+-	/*
+-	 * Enable ACL rule to enable L2 exception. This is needed if PPE Virtual ports is added to bridge.
+-	 *  It is assumed that VP is using flow based bridging, hence L2 exceptions will need to be enabled on PPE bridge.
+-	 */
+-	if (!nss_bridge_mgr_l2_exception_acl_enable()) {
+-		nss_bridge_mgr_warn("Failed to enable ACL\n");
+-	}
+ #endif
+ #if defined (NSS_BRIDGE_MGR_OVS_ENABLE)
+ 	nss_bridge_mgr_ovs_init();
+@@ -1657,16 +634,6 @@ void __exit nss_bridge_mgr_exit_module(v
+ 	nss_bridge_mgr_info("Module unloaded\n");
+ #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+ 	br_fdb_update_unregister_notify(&nss_bridge_mgr_fdb_update_notifier);
+-
+-	if (br_mgr_ctx.nss_bridge_mgr_header) {
+-		unregister_sysctl_table(br_mgr_ctx.nss_bridge_mgr_header);
+-	}
+-
+-	/*
+-	 * Disable the PPE L2 exceptions which were enabled during module init for PPE virtual ports.
+-	 */
+-	nss_bridge_mgr_l2_exception_acl_disable();
+-
+ #endif
+ #if defined (NSS_BRIDGE_MGR_OVS_ENABLE)
+ 	nss_bridge_mgr_ovs_exit();
+@@ -1681,6 +648,3 @@ MODULE_DESCRIPTION("NSS bridge manager")
+ 
+ module_param(ovs_enabled, bool, 0644);
+ MODULE_PARM_DESC(ovs_enabled, "OVS bridge is enabled");
+-
+-module_param(fdb_disabled, bool, 0644);
+-MODULE_PARM_DESC(fdb_disabled, "fdb learning is disabled");

@@ -1,0 +1,36 @@
+kernel 6.12 build compat
+
+- mc_snooping.c: <asm/unaligned.h> moved to <linux/unaligned.h> in 6.12.
+- mc_osdep.h: br_pass_frame_up() gained a `bool promisc` argument
+  (mainline >= 6.6.29); call the two-arg form.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/mc_osdep.h
++++ b/mc_osdep.h
+@@ -25,7 +25,11 @@
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
+ static inline int os_br_pass_frame_up(struct sk_buff *skb)
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 29))
++	return br_pass_frame_up(skb, false);
++#else
+ 	return br_pass_frame_up(skb);
++#endif
+ }
+ #else
+ static inline int os_br_pass_frame_up(struct sk_buff *skb)
+--- a/mc_snooping.c
++++ b/mc_snooping.c
+@@ -22,7 +22,11 @@
+ #include <linux/etherdevice.h>
+ #include <linux/rculist.h>
+ #include <linux/timer.h>
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
++#include <linux/unaligned.h>
++#else
+ #include <asm/unaligned.h>
++#endif
+ #include <asm/atomic.h>
+ #include <linux/random.h>
+ #include <net/ip.h>

@@ -1,0 +1,20 @@
+#!/bin/sh
+# Fan local receive processing out to cores 1-3 (companion to the nss-up
+# stage that does this at bring-up): firmware RPS hashes host-terminated
+# flows onto N2H queue 0 whose NAPI runs on core 0, so the delivery netdevs
+# spread the receive softirq work with Linux RPS. VAP netdevs are recreated
+# on every wifi reload, which silently resets their rps_cpus - re-apply
+# whenever a delivery netdev (re)appears.
+[ "$ACTION" = "add" ] || exit 0
+
+# Delivery netdevs: the Wi-Fi VAPs and any bridge (whatever its name).
+case "$DEVICENAME" in
+	phy*-ap*) ;;
+	*) [ -d "/sys/class/net/$DEVICENAME/bridge" ] || exit 0 ;;
+esac
+
+# Applied unconditionally: writing rps_cpus is harmless in host mode, and
+# there is no reliable ordering between a VAP's netdev-add event and the
+# firmware arming - gating on fw_mask here races and leaves the mask at 0
+# for any VAP created in that window (seen at boot).
+echo e > "/sys/class/net/$DEVICENAME/queues/rx-0/rps_cpus" 2>/dev/null

@@ -1,0 +1,30 @@
+nss_qdisc: allow disabling PPE and bridge support
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/nss_qdisc/Makefile
++++ b/nss_qdisc/Makefile
+@@ -2,9 +2,11 @@ ccflags-y := -I$(obj)/../exports -I$(src
+ 
+ # If NSS_QDISC_PPE_SUPPORT is removed, then remove/disable
+ # nss_ppe.o nss_ppe_mc.o from qca-nss-qdisc-objs list.
++ifneq ($(NSS_QDISC_PPE_ENABLE),n)
+ ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64 ipq60xx ipq60xx_64))
+ ccflags-y += -DNSS_QDISC_PPE_SUPPORT -DNSS_QDISC_BRIDGE_SUPPORT
+ endif
++endif
+ 
+ ccflags-y += -Wall -Werror
+ 
+@@ -22,9 +24,11 @@ qca-nss-qdisc-objs := 	nss_bf.o \
+ 			nss_wred.o \
+ 			nss_wrr.o
+ 
++ifneq ($(NSS_QDISC_PPE_ENABLE),n)
+ ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64 ipq60xx ipq60xx_64))
+ qca-nss-qdisc-objs += 	nss_ppe.o \
+ 			nss_ppe_mc.o
+ endif
++endif
+ 
+ obj-$(igs)+= igs/

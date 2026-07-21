@@ -1,0 +1,10 @@
+NSS-accelerated SQM for the EDMA stack (nsstbl + nssfq_codel, flat hierarchy).
+Set the SQM interface to the physical WAN port netdev (e.g. wan), not pppoe-wan.
+Rates are gross L2 rates incl. PPPoE/VLAN headers; ~95% of line sync is right.
+ECN settings are ignored: the NSS firmware does not implement CoDel ECN marking.
+Per-flow upload isolation: list wired LAN ports in `option igs_upload 'lan1 lan2 lan3'`
+to shape their upload pre-encapsulation in dedicated IGS trees (~0 ms loaded latency).
+Strict-priority DSCP fast lane (both directions, on by default, `option fastlane '0'`
+to disable): firewall-mark a flow with `ip dscp set <class> meta priority set 100:0`
+(nftables mangle forward chain, per direction) to bypass the default queue entirely.
+Requires kmod-qca-nss-drv-qdisc + kmod-qca-nss-drv-igs and an armed NSS data plane.

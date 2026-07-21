@@ -1,0 +1,148 @@
+#!/bin/sh
+# edma-dump: register-level dump of the IPQ807x EDMA engine (base 0x3ab00000).
+# Shows the global configuration (port/DMA control, interrupt mask/status, the
+# QID2RID queue-to-ring table, the ring cross-maps) and per-ring control +
+# producer/consumer indices for all four ring types. Useful for inspecting how
+# the host driver and the NSS firmware have partitioned the shared EDMA block.
+#
+# Based on the QSDK edma_dump utility, reworked for the IPQ807x register
+# layout of the upstream qca_edma driver. Requires busybox devmem.
+#
+# Usage: edma-dump [general|txdesc|txcmpl|rxdesc|rxfill|full] [ring_num]
+
+BASE=0x3ab00000
+
+# IPQ807x ring geometry (qca_edma ipq807x_data): the host driver owns the
+# highest ring of each type (txdesc 23, txcmpl 7, rxfill 7, rxdesc 15); the
+# NSS firmware uses the lower rings once it is booted.
+TXDESC_NUM=24
+TXCMPL_NUM=8
+RXFILL_NUM=8
+RXDESC_NUM=16
+TXCMPL_BASE=0x19000
+TX_INT_BASE=0x21000
+RXFILL_BASE=0x29000
+RXFILL_INT_BASE=0x31000
+RXDESC_BASE=0x39000
+RXDESC_INT_BASE=0x49000
+QID2RID_BASE=0x5a000
+
+command -v devmem >/dev/null 2>&1 || {
+	echo "edma-dump: busybox devmem not available" >&2
+	exit 1
+}
+
+# reg NAME OFFSET - print one register as "NAME 0xADDR : VALUE"
+reg() {
+	addr=$((BASE + $2))
+	printf '%-28s 0x%08x : %s\n' "$1" "$addr" "$(devmem "$addr")"
+}
+
+# host-ring marker for the labels
+host() {
+	[ "$1" = "$2" ] && echo " (host)" || echo ""
+}
+
+general_dump() {
+	echo "---- EDMA general registers ----"
+	reg MAS_CTRL 0x0
+	reg PORT_CTRL 0x4
+	reg TXDESC2CMPL_MAP_0 0x0c
+	reg TXDESC2CMPL_MAP_1 0x10
+	reg TXDESC2CMPL_MAP_2 0x14
+	reg RXDESC2FILL_MAP_0 0x18
+	reg RXDESC2FILL_MAP_1 0x1c
+	reg DMAR_CTRL 0x48
+	reg AXIW_CTRL 0x50
+	reg MISC_INT_STAT 0x5c
+	reg MISC_INT_MASK 0x60
+	echo "---- QID2RID table (queue -> RX ring) ----"
+	q=0
+	while [ $q -lt 64 ]; do
+		reg "QID2RID[$q]" $((QID2RID_BASE + 4 * q))
+		q=$((q + 1))
+	done
+}
+
+txdesc_dump() {
+	n=$1
+	echo "---- TXDESC ring $n$(host "$n" 23) ----"
+	reg "TXDESC_BA[$n]" $((0x1000 + 0x1000 * n))
+	reg "TXDESC_PROD_IDX[$n]" $((0x1004 + 0x1000 * n))
+	reg "TXDESC_CONS_IDX[$n]" $((0x1008 + 0x1000 * n))
+	reg "TXDESC_RING_SIZE[$n]" $((0x100c + 0x1000 * n))
+	reg "TXDESC_CTRL[$n]" $((0x1010 + 0x1000 * n))
+}
+
+txcmpl_dump() {
+	n=$1
+	echo "---- TXCMPL ring $n$(host "$n" 7) ----"
+	reg "TXCMPL_BA[$n]" $((TXCMPL_BASE + 0x1000 * n))
+	reg "TXCMPL_PROD_IDX[$n]" $((TXCMPL_BASE + 0x004 + 0x1000 * n))
+	reg "TXCMPL_CONS_IDX[$n]" $((TXCMPL_BASE + 0x008 + 0x1000 * n))
+	reg "TXCMPL_RING_SIZE[$n]" $((TXCMPL_BASE + 0x00c + 0x1000 * n))
+	reg "TXCMPL_CTRL[$n]" $((TXCMPL_BASE + 0x014 + 0x1000 * n))
+	reg "TX_INT_STAT[$n]" $((TX_INT_BASE + 0x1000 * n))
+	reg "TX_INT_MASK[$n]" $((TX_INT_BASE + 0x004 + 0x1000 * n))
+}
+
+rxfill_dump() {
+	n=$1
+	echo "---- RXFILL ring $n$(host "$n" 7) ----"
+	reg "RXFILL_BA[$n]" $((RXFILL_BASE + 0x1000 * n))
+	reg "RXFILL_PROD_IDX[$n]" $((RXFILL_BASE + 0x004 + 0x1000 * n))
+	reg "RXFILL_CONS_IDX[$n]" $((RXFILL_BASE + 0x008 + 0x1000 * n))
+	reg "RXFILL_RING_SIZE[$n]" $((RXFILL_BASE + 0x00c + 0x1000 * n))
+	reg "RXFILL_RING_EN[$n]" $((RXFILL_BASE + 0x01c + 0x1000 * n))
+	reg "RXFILL_INT_STAT[$n]" $((RXFILL_INT_BASE + 0x1000 * n))
+	reg "RXFILL_INT_MASK[$n]" $((RXFILL_INT_BASE + 0x004 + 0x1000 * n))
+}
+
+rxdesc_dump() {
+	n=$1
+	echo "---- RXDESC ring $n$(host "$n" 15) ----"
+	reg "RXDESC_BA[$n]" $((RXDESC_BASE + 0x1000 * n))
+	reg "RXDESC_PROD_IDX[$n]" $((RXDESC_BASE + 0x004 + 0x1000 * n))
+	reg "RXDESC_CONS_IDX[$n]" $((RXDESC_BASE + 0x008 + 0x1000 * n))
+	reg "RXDESC_RING_SIZE[$n]" $((RXDESC_BASE + 0x00c + 0x1000 * n))
+	reg "RXDESC_CTRL[$n]" $((RXDESC_BASE + 0x018 + 0x1000 * n))
+	reg "RXDESC_INT_STAT[$n]" $((RXDESC_INT_BASE + 0x1000 * n))
+	reg "RXDESC_INT_MASK[$n]" $((RXDESC_INT_BASE + 0x004 + 0x1000 * n))
+}
+
+# ring_loop DUMP_FN NUM_RINGS [ring_num]
+ring_loop() {
+	if [ -n "$3" ]; then
+		[ "$3" -ge 0 ] 2>/dev/null && [ "$3" -lt "$2" ] || {
+			echo "edma-dump: ring number out of range (0..$(($2 - 1)))" >&2
+			exit 1
+		}
+		"$1" "$3"
+		return
+	fi
+	i=0
+	while [ $i -lt "$2" ]; do
+		"$1" $i
+		i=$((i + 1))
+	done
+}
+
+cmd=${1:-full}
+case "$cmd" in
+	general) general_dump ;;
+	txdesc)  ring_loop txdesc_dump $TXDESC_NUM "$2" ;;
+	txcmpl)  ring_loop txcmpl_dump $TXCMPL_NUM "$2" ;;
+	rxfill)  ring_loop rxfill_dump $RXFILL_NUM "$2" ;;
+	rxdesc)  ring_loop rxdesc_dump $RXDESC_NUM "$2" ;;
+	full)
+		general_dump
+		ring_loop txdesc_dump $TXDESC_NUM
+		ring_loop txcmpl_dump $TXCMPL_NUM
+		ring_loop rxfill_dump $RXFILL_NUM
+		ring_loop rxdesc_dump $RXDESC_NUM
+		;;
+	*)
+		echo "Usage: edma-dump [general|txdesc|txcmpl|rxdesc|rxfill|full] [ring_num]" >&2
+		exit 1
+		;;
+esac

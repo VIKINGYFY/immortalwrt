@@ -1,0 +1,51 @@
+#!/bin/sh
+# sqm-scripts' own iface hotplug (11-sqm) starts a queue section only when
+# its 'interface' option names the event's L3 netdev ($DEVICE) or a bridge
+# port of it. The NSS shaper must sit on the physical WAN port below the
+# VLAN/PPPoE encapsulation (the firmware refuses shaper nodes on the ppp
+# netdev), so such a section names a LOWER device of $DEVICE and 11-sqm
+# never starts it. Converge those sections here.
+
+[ "$ACTION" = "ifup" ] || exit 0
+/etc/init.d/sqm enabled || exit 0
+
+. /lib/functions.sh
+. /lib/functions/network.sh
+
+# The device stack below the interface that came up: netifd's L2 device
+# plus its transitive sysfs lowers (VLAN -> port -> conduit). PPP netdevs
+# carry no lower links, so the walk starts from the L2 device, not $DEVICE.
+network_get_physdev phys "$INTERFACE"
+[ -n "$phys" ] || exit 0
+
+lowers=""
+walk="$phys"
+while [ -n "$walk" ]; do
+	next=""
+	for d in $walk; do
+		lowers="$lowers $d"
+		for l in "/sys/class/net/$d/lower_"*; do
+			[ -e "$l" ] && next="$next ${l##*/lower_}"
+		done
+	done
+	walk="$next"
+done
+
+nss_sqm_converge() {
+	local queue="$1" enabled iface
+	config_get_bool enabled "$queue" enabled 0
+	config_get iface "$queue" interface
+	[ "$enabled" = 1 ] || return 0
+	[ "$iface" != "$DEVICE" ] || return 0
+	case " $lowers " in
+	*" $iface "*) ;;
+	*) return 0 ;;
+	esac
+	tc qdisc show dev "$iface" 2>/dev/null | head -n1 | \
+		grep -q '^qdisc nsstbl' && return 0
+	/usr/lib/sqm/run.sh stop "$iface"
+	/usr/lib/sqm/run.sh start "$iface"
+}
+
+config_load sqm || exit 0
+config_foreach nss_sqm_converge queue

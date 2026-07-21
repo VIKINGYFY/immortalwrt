@@ -1,69 +1,66 @@
 PKG_DRIVERS += \
-	ath ath5k ath6kl ath6kl-sdio ath6kl-usb ath9k ath9k-common ath9k-htc ath10k ath10k-sdio ath10k-smallbuffers \
+	ath ath5k ath6kl ath6kl-sdio ath6kl-usb ath9k ath9k-common ath9k-htc ath10k ath10k-smallbuffers \
 	ath11k ath11k-ahb ath11k-pci ath12k carl9170 owl-loader ar5523 wil6210 qcom-qmi-helpers
 
 PKG_CONFIG_DEPENDS += \
-	CONFIG_ATH_USER_REGD \
+	CONFIG_PACKAGE_ATH_DEBUG \
+	CONFIG_PACKAGE_ATH_DFS \
+	CONFIG_PACKAGE_ATH_SPECTRAL \
+	CONFIG_PACKAGE_ATH_DYNACK \
 	CONFIG_ATH9K_HWRNG \
 	CONFIG_ATH9K_SUPPORT_PCOEM \
 	CONFIG_ATH9K_TX99 \
 	CONFIG_ATH10K_LEDS \
 	CONFIG_ATH10K_THERMAL \
-	CONFIG_ATH11K_DEBUGFS_HTT_STATS \
-	CONFIG_ATH11K_DEBUGFS_STA \
-	CONFIG_ATH11K_NSS_SUPPORT \
 	CONFIG_ATH11K_THERMAL \
 	CONFIG_ATH12K_THERMAL \
-	CONFIG_PACKAGE_ATH_DEBUG \
-	CONFIG_PACKAGE_ATH_DFS \
-	CONFIG_PACKAGE_ATH_DYNACK \
-	CONFIG_PACKAGE_ATH_SPECTRAL
+	CONFIG_ATH_USER_REGD \
+	CONFIG_ATH11K_NSS_SUPPORT \
+	CONFIG_ATH11K_NSS_MESH_SUPPORT \
+	CONFIG_NSS_FIRMWARE_VERSION_11_4 \
+	CONFIG_NSS_FIRMWARE_VERSION_12_5 \
+	CONFIG_ATH11K_MEM_PROFILE_1G \
+	CONFIG_ATH11K_MEM_PROFILE_512M \
+	CONFIG_ATH11K_MEM_PROFILE_256M \
+	CONFIG_ATH11K_DEBUGFS_STA \
+	CONFIG_ATH11K_DEBUGFS_HTT_STATS
 
 ifdef CONFIG_PACKAGE_MAC80211_DEBUGFS
   config-y += \
-	ATH5K_DEBUG \
-	ATH6KL_DEBUG \
 	ATH9K_DEBUGFS \
 	ATH9K_HTC_DEBUGFS \
 	ATH10K_DEBUGFS \
 	ATH11K_DEBUGFS \
 	ATH12K_DEBUGFS \
 	CARL9170_DEBUGFS \
+	ATH5K_DEBUG \
+	ATH6KL_DEBUG \
 	WIL6210_DEBUGFS
 endif
 
 ifdef CONFIG_PACKAGE_MAC80211_TRACING
   config-y += \
-	ATH_TRACEPOINTS \
-	ATH5K_TRACER \
-	ATH6KL_TRACING \
 	ATH10K_TRACING \
 	ATH11K_TRACING \
 	ATH12K_TRACING \
+	ATH6KL_TRACING \
+	ATH_TRACEPOINTS \
+	ATH5K_TRACER \
 	WIL6210_TRACING
 endif
 
-config-$(call config_package,ar5523) += AR5523
-config-$(call config_package,ath,regular sdio smallbuffers) += ATH_CARDS ATH_COMMON
-config-$(call config_package,ath5k) += ATH5K ATH5K_PCI
-config-$(call config_package,ath6kl) += ATH6KL
-config-$(call config_package,ath6kl-sdio) += ATH6KL_SDIO
-config-$(call config_package,ath6kl-usb) += ATH6KL_USB
+config-$(call config_package,qcom-qmi-helpers) += QCOM_QMI_HELPERS
+config-$(call config_package,ath,regular smallbuffers) += ATH_CARDS ATH_COMMON
+config-$(CONFIG_PACKAGE_ATH_DEBUG) += ATH_DEBUG ATH10K_DEBUG ATH11K_DEBUG ATH12K_DEBUG ATH9K_STATION_STATISTICS
+config-$(CONFIG_PACKAGE_ATH_DFS) += ATH9K_DFS_CERTIFIED ATH10K_DFS_CERTIFIED
+config-$(CONFIG_PACKAGE_ATH_SPECTRAL) += ATH9K_COMMON_SPECTRAL ATH10K_SPECTRAL ATH11K_SPECTRAL
+config-$(CONFIG_PACKAGE_ATH_DYNACK) += ATH9K_DYNACK
 config-$(call config_package,ath9k) += ATH9K
 config-$(call config_package,ath9k-common) += ATH9K_COMMON
-config-$(call config_package,ath9k-htc) += ATH9K_HTC
-config-$(call config_package,ath10k,regular) += ATH10K ATH10K_PCI
-config-$(call config_package,ath10k-sdio,sdio) += ATH10K ATH10K_SDIO
-config-$(call config_package,ath10k-smallbuffers,smallbuffers) += ATH10K ATH10K_PCI ATH10K_SMALLBUFFERS
-config-$(call config_package,ath11k) += ATH11K
-config-$(call config_package,ath11k-ahb) += ATH11K_AHB
-config-$(call config_package,ath11k-pci) += ATH11K_PCI
-config-$(call config_package,ath12k) += ATH12K
-config-$(call config_package,carl9170) += CARL9170
 config-$(call config_package,owl-loader) += ATH9K_PCI_NO_EEPROM
-config-$(call config_package,qcom-qmi-helpers) += QCOM_QMI_HELPERS
-config-$(call config_package,wil6210) += WIL6210
-
+config-$(CONFIG_TARGET_ath79) += ATH9K_AHB
+config-$(CONFIG_TARGET_ipq40xx) += ATH10K_AHB
+config-$(CONFIG_PCI) += ATH9K_PCI
 config-$(CONFIG_ATH_USER_REGD) += ATH_USER_REGD ATH_REG_DYNAMIC_USER_REG_HINTS
 config-$(CONFIG_ATH9K_HWRNG) += ATH9K_HWRNG
 config-$(CONFIG_ATH9K_SUPPORT_PCOEM) += ATH9K_PCOEM
@@ -71,18 +68,34 @@ config-$(CONFIG_ATH9K_TX99) += ATH9K_TX99
 config-$(CONFIG_ATH9K_UBNTHSR) += ATH9K_UBNTHSR
 config-$(CONFIG_ATH10K_LEDS) += ATH10K_LEDS
 config-$(CONFIG_ATH10K_THERMAL) += ATH10K_THERMAL
-config-$(CONFIG_ATH11K_DEBUGFS_HTT_STATS) += ATH11K_DEBUGFS_HTT_STATS
-config-$(CONFIG_ATH11K_DEBUGFS_STA) += ATH11K_DEBUGFS_STA
-config-$(CONFIG_ATH11K_NSS_SUPPORT) += ATH11K_NSS_SUPPORT ATH11K_NSS_MESH_SUPPORT ATH11K_MEM_PROFILE_512M
 config-$(CONFIG_ATH11K_THERMAL) += ATH11K_THERMAL
 config-$(CONFIG_ATH12K_THERMAL) += ATH12K_THERMAL
-config-$(CONFIG_PACKAGE_ATH_DEBUG) += ATH_DEBUG ATH10K_DEBUG ATH11K_DEBUG ATH12K_DEBUG ATH9K_STATION_STATISTICS
-config-$(CONFIG_PACKAGE_ATH_DFS) += ATH9K_DFS_CERTIFIED ATH10K_DFS_CERTIFIED
-config-$(CONFIG_PACKAGE_ATH_DYNACK) += ATH9K_DYNACK
-config-$(CONFIG_PACKAGE_ATH_SPECTRAL) += ATH9K_COMMON_SPECTRAL ATH10K_SPECTRAL ATH11K_SPECTRAL
-config-$(CONFIG_PCI) += ATH9K_PCI
-config-$(CONFIG_TARGET_ath79) += ATH9K_AHB
-config-$(CONFIG_TARGET_ipq40xx) += ATH10K_AHB
+config-$(CONFIG_ATH11K_NSS_SUPPORT) += ATH11K_NSS_SUPPORT
+config-$(CONFIG_ATH11K_NSS_MESH_SUPPORT) += ATH11K_NSS_MESH_SUPPORT
+config-$(CONFIG_ATH11K_MEM_PROFILE_1G) += ATH11K_MEM_PROFILE_1G
+config-$(CONFIG_ATH11K_MEM_PROFILE_512M) += ATH11K_MEM_PROFILE_512M
+config-$(CONFIG_ATH11K_MEM_PROFILE_256M) += ATH11K_MEM_PROFILE_256M
+config-$(CONFIG_ATH11K_DEBUGFS_STA) += ATH11K_DEBUGFS_STA
+config-$(CONFIG_ATH11K_DEBUGFS_HTT_STATS) += ATH11K_DEBUGFS_HTT_STATS
+
+config-$(call config_package,ath9k-htc) += ATH9K_HTC
+config-$(call config_package,ath10k,regular) += ATH10K ATH10K_PCI
+config-$(call config_package,ath10k-smallbuffers,smallbuffers) += ATH10K ATH10K_PCI ATH10K_SMALLBUFFERS
+config-$(call config_package,ath11k) += ATH11K
+config-$(call config_package,ath11k-ahb) += ATH11K_AHB
+config-$(call config_package,ath11k-pci) += ATH11K_PCI
+config-$(call config_package,ath12k) += ATH12K
+
+config-$(call config_package,ath5k) += ATH5K ATH5K_PCI
+
+config-$(call config_package,ath6kl) += ATH6KL
+config-$(call config_package,ath6kl-sdio) += ATH6KL_SDIO
+config-$(call config_package,ath6kl-usb) += ATH6KL_USB
+
+config-$(call config_package,carl9170) += CARL9170
+config-$(call config_package,ar5523) += AR5523
+
+config-$(call config_package,wil6210) += WIL6210
 
 define KernelPackage/ath/config
   if PACKAGE_kmod-ath
@@ -304,28 +317,8 @@ define KernelPackage/ath10k/config
 
        config ATH10K_THERMAL
                bool "Enable thermal sensors and throttling support"
-               default y
-               depends on PACKAGE_kmod-ath10k || PACKAGE_kmod-ath10k-sdio || PACKAGE_kmod-ath10k-smallbuffers
+               depends on PACKAGE_kmod-ath10k || PACKAGE_kmod-ath10k-smallbuffers
 
-endef
-
-define KernelPackage/ath10k-sdio
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=Atheros 802.11ac SDIO wireless cards support
-  URL:=https://wireless.wiki.kernel.org/en/users/drivers/ath10k
-  DEPENDS+= +kmod-ath +kmod-mmc +@DRIVER_11AC_SUPPORT \
-	+ATH10K_THERMAL:kmod-hwmon-core +ATH10K_THERMAL:kmod-thermal
-  FILES:= \
-	$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath10k/ath10k_core.ko \
-	$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath10k/ath10k_sdio.ko
-  AUTOLOAD:=$(call AutoProbe,ath10k_core)
-  MODPARAMS.ath10k_core:=frame_mode=2
-  VARIANT:=sdio
-endef
-
-define KernelPackage/ath10k-sdio/description
-This module adds support for wireless adapters based on
-Atheros IEEE 802.11ac family of chipsets with SDIO bus.
 endef
 
 define KernelPackage/ath10k-smallbuffers
@@ -341,12 +334,20 @@ define KernelPackage/ath11k
   URL:=https://wireless.wiki.kernel.org/en/users/drivers/ath11k
   DEPENDS+= +kmod-ath +@DRIVER_11AC_SUPPORT +@DRIVER_11AX_SUPPORT \
   +kmod-crypto-michael-mic +ATH11K_THERMAL:kmod-hwmon-core \
-  +ATH11K_THERMAL:kmod-thermal +kmod-qcom-qmi-helpers \
-  +ATH11K_NSS_SUPPORT:kmod-qca-nss-drv-wifi-meshmgr
+  +ATH11K_THERMAL:kmod-thermal +kmod-qcom-qmi-helpers
+  # NSS Wi-Fi offload pulls (qca-nss-drv + its wifi-offload flags) are done via
+  # 'select' inside config ATH11K_NSS_SUPPORT below, NOT here: kmod-mac80211's
+  # DEPENDS (package/kernel/mac80211/Makefile:138) carries
+  # '+ATH11K_NSS_SUPPORT:kmod-qca-nss-drv', and ath11k depends on mac80211, so a
+  # conditional dependency on ATH11K_NSS_SUPPORT here too would form a kconfig
+  # recursive-dependency cycle through mac80211.
   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath11k/ath11k.ko
 ifdef CONFIG_ATH11K_NSS_SUPPORT
+  # ath11k needs its own modules.d entry so frame_mode reaches the module at
+  # boot; NSS offload itself stays opt-in (nss_offload defaults to 0 and is
+  # flipped at runtime before rebinding the radio).
   AUTOLOAD:=$(call AutoProbe,ath11k)
-  MODPARAMS.ath11k:=nss_offload=1 frame_mode=2
+  MODPARAMS.ath11k:=frame_mode=2
 endif
 endef
 
@@ -355,22 +356,74 @@ This module adds support for Qualcomm Technologies 802.11ax family of
 chipsets.
 endef
 
+define KernelPackage/ath11k/conffiles
+/etc/config/pbuf
+endef
+
 define KernelPackage/ath11k/config
 
        config ATH11K_THERMAL
                bool "Enable thermal sensors and throttling support"
-               depends on TARGET_qualcommax
                depends on PACKAGE_kmod-ath11k
-               default y
+               default y if TARGET_qualcommax
 
        config ATH11K_NSS_SUPPORT
-               bool "Enable NSS WiFi Mesh offload"
-               depends on TARGET_qualcommax
-               default y
+               bool "Enable NSS WiFi offload"
+               # No 'depends on PACKAGE_kmod-ath11k': kmod-mac80211
+               # (package/kernel/mac80211/Makefile:138) carries
+               # '+ATH11K_NSS_SUPPORT:kmod-qca-nss-drv' and ath11k depends on
+               # mac80211, so gating this symbol on PACKAGE_kmod-ath11k forms a
+               # kconfig recursive-dependency cycle through mac80211. This config
+               # is still emitted inside KernelPackage/ath11k/config and only has
+               # effect when ath11k is built; it pulls the NSS data-plane driver
+               # + wifi-offload feature flags via 'select'.
+               select PACKAGE_kmod-qca-nss-drv
+               select NSS_DRV_WIFIOFFLOAD_ENABLE
+               select NSS_DRV_WIFI_EXT_VDEV_ENABLE
+               select ATH11K_MEM_PROFILE_512M if (TARGET_qualcommax_ipq807x_DEVICE_edimax_cax1800 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_compex_wpq873 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_linksys_mx4200v1 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_redmi_ax6 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_xiaomi_ax3600 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_zte_mf269 )
+               select ATH11K_MEM_PROFILE_256M if TARGET_qualcommax_ipq807x_DEVICE_netgear_wax218
+               default n
                help
-                  Say Y to enable NSS WiFi offload support
+                  Say Y to offload the ath11k data path to the NSS cores
+                  (wifili). Requires the qca-ppe-nss glue to arm the NSS
+                  data plane before the firmware is booted; Wi-Fi starts
+                  in host mode and is rebound with nss_offload=1 at runtime.
 
-      config ATH11K_DEBUGFS_STA
+       config ATH11K_NSS_MESH_SUPPORT
+               bool "Enable NSS 802.11s mesh offload (requires 11.4 firmware)"
+               depends on ATH11K_NSS_SUPPORT
+               # Hard requirement: every published NSS firmware newer than
+               # 11.4 rejects mesh interfaces at the firmware level (the
+               # capability probe reports no mesh support, and forcing past
+               # it gets the mesh-manager interface create NACKed - verified
+               # on 12.5-210 with both memory profiles). Mesh offload only
+               # works on the 11.4 firmware line.
+               # 'depends on' rather than 'select' because
+               # NSS_FIRMWARE_VERSION_11_4 is a choice member and selecting
+               # into a choice is unreliable.
+               depends on NSS_FIRMWARE_VERSION_11_4
+               # Same recursion constraint as ATH11K_NSS_SUPPORT above: the
+               # meshmgr module pull lives on kmod-mac80211's DEPENDS
+               # ('+ATH11K_NSS_MESH_SUPPORT:kmod-qca-nss-drv-wifi-meshmgr'),
+               # feature flags and packages are pulled via 'select' here.
+               select PACKAGE_kmod-qca-nss-drv-wifi-meshmgr
+               select NSS_DRV_WIFI_MESH_ENABLE
+               select PACKAGE_MAC80211_MESH
+               default n
+               help
+                  Say Y to offload 802.11s mesh forwarding (mesh path and
+                  proxy path tables) to the NSS cores via the Wi-Fi mesh
+                  manager. Only available with NSS firmware 11.4, the last
+                  firmware line that supports mesh; on newer firmware
+                  802.11s works on the host path only. Mesh interfaces use
+                  the NSS path only when the radio runs with nss_offload=1.
+
+       config ATH11K_DEBUGFS_STA
                bool "Enable ath11k station statistics"
                depends on PACKAGE_kmod-ath11k
                depends on PACKAGE_MAC80211_DEBUGFS
@@ -378,7 +431,7 @@ define KernelPackage/ath11k/config
                help
                   Say Y to enable access to the station statistics via debugfs.
 
-      config ATH11K_DEBUGFS_HTT_STATS
+       config ATH11K_DEBUGFS_HTT_STATS
                bool "Enable ath11k HTT statistics"
                depends on PACKAGE_kmod-ath11k
                depends on PACKAGE_MAC80211_DEBUGFS
@@ -386,6 +439,29 @@ define KernelPackage/ath11k/config
                help
                   Say Y to enable access to the HTT statistics via debugfs.
 
+       choice
+            prompt "Memory Profile"
+            depends on PACKAGE_kmod-ath11k
+            default ATH11K_MEM_PROFILE_1G
+            help
+            	This option allows you to select the memory profile.
+            	It should correspond to the total RAM of your board.
+
+          config ATH11K_MEM_PROFILE_1G
+               bool "Use 1G memory profile"
+               help
+                  This allows configuring ath11k for boards with 1GB+ memory.
+
+          config ATH11K_MEM_PROFILE_512M
+               bool "Use 512MB memory profile"
+               help
+                  This allows configuring ath11k for boards with 512M memory.
+
+          config ATH11K_MEM_PROFILE_256M
+               bool "Use 256MB memory profile"
+               help
+                  This allows configuring ath11k for boards with 256M memory.
+       endchoice
 endef
 
 define KernelPackage/ath11k-ahb
@@ -394,7 +470,6 @@ define KernelPackage/ath11k-ahb
   URL:=https://wireless.wiki.kernel.org/en/users/drivers/ath11k
   DEPENDS+= @TARGET_qualcommax +kmod-ath11k +kmod-qrtr-smd
   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath11k/ath11k_ahb.ko
-  AUTOLOAD:=$(call AutoProbe,ath11k_ahb)
 endef
 
 define KernelPackage/ath11k-ahb/description

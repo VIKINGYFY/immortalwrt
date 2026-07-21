@@ -1,0 +1,21 @@
+ecm_front_end_common: drop the ctl_table sentinel
+
+Since kernel 6.11 sysctl tables are sized with ARRAY_SIZE and an empty
+terminating entry fails the registration check ("sysctl table check
+failed: net/ecm/(null) procname is null"), so the whole net/ecm table
+- front_end_conn_limit, udp/tcp_denied_ports, unidir_accel_*,
+udp_ipsec_port - silently failed to register. This is the only
+sentinel left in code this package compiles.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/frontends/ecm_front_end_common.c
++++ b/frontends/ecm_front_end_common.c
+@@ -1436,7 +1436,6 @@ static struct ctl_table ecm_front_end_sy
+ 		.proc_handler	= &ecm_front_end_esp_spi_passthrough_enable_handler,
+ 	},
+ #endif
+-	{}
+ };
+ 
+ /*

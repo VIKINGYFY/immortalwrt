@@ -1,0 +1,156 @@
+vlan-mgr: drive the PPE through qca-ppe and drop the QCA bonding paths
+
+The EDMA-rework tree has no ssdk, so the manager's fal-based PPE half
+cannot build - but the PPE side is not optional on IPQ807x: attaching
+a VSI to the firmware VLAN interface and programming the ingress
+translation and egress tagging is what makes the firmware treat the
+VLAN as a switching domain. Loading the manager with the PPE half
+compiled out (the ipq806x mode) brings core 0 down with a coredump
+the moment the first VLAN device registers. Replace it with the
+qca-ppe port VLAN helpers: qca-ppe allocates the VSI and owns every
+PPE table write, the manager attaches that VSI to the firmware VLAN
+interface and re-asserts the VSI masks after the attach (the firmware
+zeroes them, the same hazard the bridge manager handles). Only
+single-tagged 802.1Q uppers of physical ports are registered; double
+tags and 802.1ad bail out at create.
+
+The kernel also does not carry the QCA bonding hooks (bond_get_id,
+for_each_netdev_in_bond_rcu), so VLAN-over-LAG stays off and the two
+loops that used those hooks outside a BONDING_SUPPORT guard are
+brought under it, failing instance creation for bond masters.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+---
+--- a/vlan/Makefile
++++ b/vlan/Makefile
+@@ -4,13 +4,7 @@ ccflags-y += -DNSS_CLIENT_BUILD_ID="$(BU
+ obj-m += qca-nss-vlan.o
+ qca-nss-vlan-objs := nss_vlan_mgr.o
+ 
+-ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64 ipq60xx ipq60xx_64))
+-ccflags-y += -DNSS_VLAN_MGR_PPE_SUPPORT
+-endif
++ccflags-y += -DNSS_VLAN_MGR_QCA_PPE
+ 
+ ccflags-y += -DNSS_VLAN_MGR_DEBUG_LEVEL=0
+ ccflags-y += -Wall -Werror
+-
+-ifneq (,$(filter $(CONFIG_BONDING),y m))
+-ccflags-y += -DBONDING_SUPPORT
+-endif
+--- a/vlan/nss_vlan_mgr.c
++++ b/vlan/nss_vlan_mgr.c
+@@ -27,6 +27,9 @@
+ #include <linux/sysctl.h>
+ #include <linux/module.h>
+ #include <net/bonding.h>
++#ifdef NSS_VLAN_MGR_QCA_PPE
++#include <linux/soc/qcom/qca_ppe.h>
++#endif
+ #include <nss_api_if.h>
+ #ifdef NSS_VLAN_MGR_PPE_SUPPORT
+ #include <ref/ref_vsi.h>
+@@ -113,6 +116,10 @@ struct nss_vlan_pvt {
+ 	int ifindex;				/* netdev ifindex */
+ 	int32_t port[NSS_VLAN_PHY_PORT_MAX];	/* real physical port of this vlan */
+ 	int32_t bond_ifnum;			/* bond interface number, if vlan is created over bond */
++#ifdef NSS_VLAN_MGR_QCA_PPE
++	struct net_device *qca_ppe_real_dev;
++	uint32_t qca_ppe_vsi;
++#endif
+ 	uint32_t vid;				/* vid info */
+ 	uint32_t tpid;				/* tpid info */
+ 	uint32_t mtu;				/* mtu info */
+@@ -751,6 +758,14 @@ static void nss_vlan_mgr_instance_free(s
+ 	}
+ #endif
+ 
++#ifdef NSS_VLAN_MGR_QCA_PPE
++	if (v->qca_ppe_real_dev) {
++		if (nss_vlan_tx_vsi_detach_msg(v->nss_if, v->qca_ppe_vsi))
++			nss_vlan_mgr_warn("%px: Failed to detach vsi %d\n", v, v->qca_ppe_vsi);
++		qca_ppe_port_vlan_vsi_put(v->qca_ppe_real_dev, v->vid);
++	}
++#endif
++
+ 	if (v->nss_if) {
+ 		nss_unregister_vlan_if(v->nss_if);
+ 		if (nss_dynamic_interface_dealloc_node(v->nss_if, NSS_DYNAMIC_INTERFACE_TYPE_VLAN) != NSS_TX_SUCCESS)
+@@ -850,6 +865,7 @@ static struct nss_vlan_pvt *nss_vlan_mgr
+ 				kfree(v);
+ 				return NULL;
+ 			}
++#if defined(BONDING_SUPPORT)
+ 			rcu_read_lock();
+ 			for_each_netdev_in_bond_rcu(real_dev, slave) {
+ 				port = nss_cmn_get_interface_number_by_dev(slave);
+@@ -863,6 +879,7 @@ static struct nss_vlan_pvt *nss_vlan_mgr
+ 			}
+ 			rcu_read_unlock();
+ 			v->bond_ifnum = bondid + NSS_LAG0_INTERFACE_NUM;
++#endif
+ 		}
+ 	} else if (!v->parent->parent) {
+ 		if (is_vlan_dev(real_dev)) {
+@@ -872,6 +889,7 @@ static struct nss_vlan_pvt *nss_vlan_mgr
+ 		if (!netif_is_bond_master(real_dev)) {
+ 			v->port[0] = v->parent->port[0];
+ 		} else {
++#if defined(BONDING_SUPPORT)
+ 			rcu_read_lock();
+ 			for_each_netdev_in_bond_rcu(real_dev, slave) {
+ 				port = nss_cmn_get_interface_number_by_dev(slave);
+@@ -885,6 +903,12 @@ static struct nss_vlan_pvt *nss_vlan_mgr
+ 			}
+ 			rcu_read_unlock();
+ 			v->bond_ifnum = v->parent->bond_ifnum;
++#else
++			nss_vlan_mgr_warn("%s: vlan over bond is not supported\n", dev->name);
++			nss_vlan_mgr_instance_deref(v->parent);
++			kfree(v);
++			return NULL;
++#endif
+ 		}
+ 	} else {
+ 		nss_vlan_mgr_warn("%s: don't support more than 2 vlans\n", dev->name);
+@@ -1009,6 +1033,14 @@ static int nss_vlan_mgr_register_event(s
+ 	if (!v)
+ 		return NOTIFY_DONE;
+ 
++#ifdef NSS_VLAN_MGR_QCA_PPE
++	if (v->parent || v->tpid != ETH_P_8021Q) {
++		nss_vlan_mgr_warn("%s: only single-tagged 802.1Q VLANs are supported\n", dev->name);
++		nss_vlan_mgr_instance_deref(v);
++		return NOTIFY_DONE;
++	}
++#endif
++
+ 	/*
+ 	 * Allocate the VSI here.
+ 	 */
+@@ -1039,6 +1071,25 @@ static int nss_vlan_mgr_register_event(s
+ 	}
+ 	is_bond_master = netif_is_bond_master(real_dev);
+ 
++#ifdef NSS_VLAN_MGR_QCA_PPE
++	{
++		int vsi = qca_ppe_port_vlan_vsi_get(real_dev, v->vid);
++
++		if (vsi < 0) {
++			nss_vlan_mgr_warn("%s: failed to get PPE VSI for vlan\n", dev->name);
++			goto vlan_instance_free;
++		}
++		if (nss_vlan_tx_vsi_attach_msg(v->nss_if, vsi) != NSS_TX_SUCCESS) {
++			nss_vlan_mgr_warn("%s: failed to attach VSI to vlan interface\n", dev->name);
++			qca_ppe_port_vlan_vsi_put(real_dev, v->vid);
++			goto vlan_instance_free;
++		}
++		v->qca_ppe_vsi = vsi;
++		v->qca_ppe_real_dev = real_dev;
++		qca_ppe_port_vlan_vsi_refresh(real_dev, v->vid);
++	}
++#endif
++
+ #ifdef NSS_VLAN_MGR_PPE_SUPPORT
+ 	if (!is_bond_master)
+ 		ret = nss_vlan_mgr_configure_ppe(v, dev, vsi);

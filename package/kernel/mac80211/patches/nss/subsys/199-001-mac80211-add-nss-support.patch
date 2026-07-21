@@ -119,6 +119,63 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
  			struct ieee80211_bss_conf *link_conf);
  	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+--- a/local-symbols
++++ b/local-symbols
+@@ -53,6 +53,7 @@ MAC80211_MESH_PS_DEBUG=
+ MAC80211_TDLS_DEBUG=
+ MAC80211_DEBUG_COUNTERS=
+ MAC80211_STA_HASH_MAX_SIZE=
++MAC80211_NSS_SUPPORT=
+ QCOM_AOSS_QMP=
+ QCOM_COMMAND_DB=
+ QCOM_GENI_SE=
+--- a/net/mac80211/Kconfig
++++ b/net/mac80211/Kconfig
+@@ -115,6 +115,15 @@ menuconfig MAC80211_DEBUG_MENU
+ 	help
+ 	  This option collects various mac80211 debug settings.
+ 
++config MAC80211_NSS_SUPPORT
++	bool "QTI mac80211 nss support"
++	depends on ATH11K_NSS_SUPPORT
++	default n
++	---help---
++	  Enables NSS offload support for ATH11K driver
++
++	  If unsure, say Y to enable NSS offload support.
++
+ config MAC80211_NOINLINE
+ 	bool "Do not inline TX/RX handlers"
+ 	depends on MAC80211_DEBUG_MENU
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -2954,7 +2954,7 @@ static int ieee80211_change_bss(struct w
+ 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+ 	struct ieee80211_link_data *link;
+ 	struct ieee80211_supported_band *sband;
+-	u64 changed = 0;
++	u64 changed = 0, nss_changed = 0;
+ 
+ 	link = ieee80211_link_or_deflink(sdata, params->link_id, true);
+ 	if (IS_ERR(link))
+@@ -3004,6 +3004,8 @@ static int ieee80211_change_bss(struct w
+ 			sdata->flags |= IEEE80211_SDATA_DONT_BRIDGE_PACKETS;
+ 		else
+ 			sdata->flags &= ~IEEE80211_SDATA_DONT_BRIDGE_PACKETS;
++		sdata->vif.bss_conf.nss_ap_isolate = params->ap_isolate;
++		nss_changed |= BSS_CHANGED_NSS_AP_ISOLATE;
+ 		ieee80211_check_fast_rx_iface(sdata);
+ 	}
+ 
+@@ -3032,6 +3034,8 @@ static int ieee80211_change_bss(struct w
+ 
+ 	ieee80211_link_info_change_notify(sdata, link, changed);
+ 
++	ieee80211_nss_bss_info_change_notify(sdata, nss_changed);
++
+ 	return 0;
+ }
+ 
 --- a/net/mac80211/debugfs.c
 +++ b/net/mac80211/debugfs.c
 @@ -503,6 +503,7 @@ static const char *hw_flag_names[] = {
@@ -129,31 +186,55 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  #undef FLAG
  };
  
---- a/net/mac80211/util.c
-+++ b/net/mac80211/util.c
-@@ -941,6 +941,22 @@ u32 ieee80211_chandef_radio_mask(struct
- 	return mask;
- }
+--- a/net/mac80211/driver-ops.h
++++ b/net/mac80211/driver-ops.h
+@@ -182,6 +182,23 @@ void drv_link_info_changed(struct ieee80
+ 			   struct ieee80211_bss_conf *info,
+ 			   int link_id, u64 changed);
  
-+struct wireless_dev *ieee80211_vif_to_wdev_relaxed(struct ieee80211_vif *vif)
++static inline void drv_nss_bss_info_changed(struct ieee80211_local *local,
++					struct ieee80211_sub_if_data *sdata,
++					struct ieee80211_bss_conf *info,
++					u64 changed)
 +{
-+	struct ieee80211_sub_if_data *sdata;
++	might_sleep();
 +
-+	if (!vif)
-+		return NULL;
++	if (!check_sdata_in_driver(sdata))
++		return;
 +
-+	sdata = vif_to_sdata(vif);
-+
-+	if (sdata)
-+		return &sdata->wdev;
-+
-+	return NULL;
++	trace_drv_nss_bss_info_changed(local, sdata, info, changed);
++	if (local->ops->nss_bss_info_changed) {
++		local->ops->nss_bss_info_changed(&local->hw, &sdata->vif, changed);
++	}
++	trace_drv_nss_return_void(local);
 +}
-+EXPORT_SYMBOL(ieee80211_vif_to_wdev_relaxed);
 +
- /*
-  * Nothing should have been stuffed into the workqueue during
-  * the suspend->resume cycle. Since we can't check each caller
+ static inline u64 drv_prepare_multicast(struct ieee80211_local *local,
+ 					struct netdev_hw_addr_list *mc_list)
+ {
+--- a/net/mac80211/ieee80211_i.h
++++ b/net/mac80211/ieee80211_i.h
+@@ -1932,6 +1932,8 @@ void ieee80211_vif_cfg_change_notify(str
+ void ieee80211_link_info_change_notify(struct ieee80211_sub_if_data *sdata,
+ 				       struct ieee80211_link_data *link,
+ 				       u64 changed);
++void ieee80211_nss_bss_info_change_notify(struct ieee80211_sub_if_data *sdata,
++					  u64 changed);
+ void ieee80211_configure_filter(struct ieee80211_local *local);
+ u64 ieee80211_reset_erp_info(struct ieee80211_sub_if_data *sdata);
+ 
+--- a/net/mac80211/iface.c
++++ b/net/mac80211/iface.c
+@@ -1037,7 +1037,8 @@ static bool ieee80211_set_sdata_offload_
+ 		    local->hw.wiphy->frag_threshold != (u32)-1)
+ 			flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
+ 
+-		if (local->virt_monitors)
++		if (local->virt_monitors &&
++		    !ieee80211_hw_check(&local->hw, SUPPORTS_NSS_OFFLOAD))
+ 			flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
+ 	} else {
+ 		flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
 --- a/net/mac80211/main.c
 +++ b/net/mac80211/main.c
 @@ -428,6 +428,17 @@ void ieee80211_link_info_change_notify(s
@@ -218,6 +299,47 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	if (!link_sta_info->pcpu_rx_stats)
  		return stats;
  
+--- a/net/mac80211/trace.h
++++ b/net/mac80211/trace.h
+@@ -430,6 +430,38 @@ TRACE_EVENT(drv_config,
+ 		LOCAL_PR_ARG, __entry->radio_idx, __entry->changed, CHANDEF_PR_ARG
+ 	)
+ );
++TRACE_EVENT(drv_nss_bss_info_changed,
++	TP_PROTO(struct ieee80211_local *local,
++		 struct ieee80211_sub_if_data *sdata,
++		 struct ieee80211_bss_conf *info,
++		 u64 changed),
++
++	TP_ARGS(local, sdata, info, changed),
++
++	TP_STRUCT__entry(
++		LOCAL_ENTRY
++		VIF_ENTRY
++		__field(u32, changed)
++		__field(bool, nss_ap_isolate)
++	),
++
++	TP_fast_assign(
++		LOCAL_ASSIGN;
++		VIF_ASSIGN;
++		__entry->changed = changed;
++		__entry->nss_ap_isolate = info->nss_ap_isolate;
++	),
++
++	TP_printk(
++		LOCAL_PR_FMT  VIF_PR_FMT " changed:%#x",
++		LOCAL_PR_ARG, VIF_PR_ARG, __entry->changed
++	)
++);
++
++DEFINE_EVENT(local_only_evt, drv_nss_return_void,
++	TP_PROTO(struct ieee80211_local *local),
++	TP_ARGS(local)
++);
+ 
+ TRACE_EVENT(drv_vif_cfg_changed,
+ 	TP_PROTO(struct ieee80211_local *local,
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
 @@ -1029,11 +1029,23 @@ ieee80211_tx_h_stats(struct ieee80211_tx
@@ -278,6 +400,31 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  
  	ieee80211_tpt_led_trig_tx(local, len);
  
+--- a/net/mac80211/util.c
++++ b/net/mac80211/util.c
+@@ -941,6 +941,22 @@ u32 ieee80211_chandef_radio_mask(struct
+ 	return mask;
+ }
+ 
++struct wireless_dev *ieee80211_vif_to_wdev_relaxed(struct ieee80211_vif *vif)
++{
++	struct ieee80211_sub_if_data *sdata;
++
++	if (!vif)
++		return NULL;
++
++	sdata = vif_to_sdata(vif);
++
++	if (sdata)
++		return &sdata->wdev;
++
++	return NULL;
++}
++EXPORT_SYMBOL(ieee80211_vif_to_wdev_relaxed);
++
+ /*
+  * Nothing should have been stuffed into the workqueue during
+  * the suspend->resume cycle. Since we can't check each caller
 --- a/net/wireless/util.c
 +++ b/net/wireless/util.c
 @@ -2666,6 +2666,9 @@ EXPORT_SYMBOL(cfg80211_link_sinfo_alloc_
@@ -290,150 +437,3 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	sinfo->pertid = kcalloc(IEEE80211_NUM_TIDS + 1,
  				sizeof(*(sinfo->pertid)),
  				gfp);
---- a/net/mac80211/cfg.c
-+++ b/net/mac80211/cfg.c
-@@ -2954,7 +2954,7 @@ static int ieee80211_change_bss(struct w
- 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
- 	struct ieee80211_link_data *link;
- 	struct ieee80211_supported_band *sband;
--	u64 changed = 0;
-+	u64 changed = 0, nss_changed = 0;
- 
- 	link = ieee80211_link_or_deflink(sdata, params->link_id, true);
- 	if (IS_ERR(link))
-@@ -3004,6 +3004,8 @@ static int ieee80211_change_bss(struct w
- 			sdata->flags |= IEEE80211_SDATA_DONT_BRIDGE_PACKETS;
- 		else
- 			sdata->flags &= ~IEEE80211_SDATA_DONT_BRIDGE_PACKETS;
-+		sdata->vif.bss_conf.nss_ap_isolate = params->ap_isolate;
-+		nss_changed |= BSS_CHANGED_NSS_AP_ISOLATE;
- 		ieee80211_check_fast_rx_iface(sdata);
- 	}
- 
-@@ -3032,6 +3034,8 @@ static int ieee80211_change_bss(struct w
- 
- 	ieee80211_link_info_change_notify(sdata, link, changed);
- 
-+	ieee80211_nss_bss_info_change_notify(sdata, nss_changed);
-+
- 	return 0;
- }
- 
---- a/net/mac80211/driver-ops.h
-+++ b/net/mac80211/driver-ops.h
-@@ -182,6 +182,23 @@ void drv_link_info_changed(struct ieee80
- 			   struct ieee80211_bss_conf *info,
- 			   int link_id, u64 changed);
- 
-+static inline void drv_nss_bss_info_changed(struct ieee80211_local *local,
-+					struct ieee80211_sub_if_data *sdata,
-+					struct ieee80211_bss_conf *info,
-+					u64 changed)
-+{
-+	might_sleep();
-+
-+	if (!check_sdata_in_driver(sdata))
-+		return;
-+
-+	trace_drv_nss_bss_info_changed(local, sdata, info, changed);
-+	if (local->ops->nss_bss_info_changed) {
-+		local->ops->nss_bss_info_changed(&local->hw, &sdata->vif, changed);
-+	}
-+	trace_drv_nss_return_void(local);
-+}
-+
- static inline u64 drv_prepare_multicast(struct ieee80211_local *local,
- 					struct netdev_hw_addr_list *mc_list)
- {
---- a/net/mac80211/ieee80211_i.h
-+++ b/net/mac80211/ieee80211_i.h
-@@ -1932,6 +1932,8 @@ void ieee80211_vif_cfg_change_notify(str
- void ieee80211_link_info_change_notify(struct ieee80211_sub_if_data *sdata,
- 				       struct ieee80211_link_data *link,
- 				       u64 changed);
-+void ieee80211_nss_bss_info_change_notify(struct ieee80211_sub_if_data *sdata,
-+					  u64 changed);
- void ieee80211_configure_filter(struct ieee80211_local *local);
- u64 ieee80211_reset_erp_info(struct ieee80211_sub_if_data *sdata);
- 
---- a/net/mac80211/trace.h
-+++ b/net/mac80211/trace.h
-@@ -430,6 +430,38 @@ TRACE_EVENT(drv_config,
- 		LOCAL_PR_ARG, __entry->radio_idx, __entry->changed, CHANDEF_PR_ARG
- 	)
- );
-+TRACE_EVENT(drv_nss_bss_info_changed,
-+	TP_PROTO(struct ieee80211_local *local,
-+		 struct ieee80211_sub_if_data *sdata,
-+		 struct ieee80211_bss_conf *info,
-+		 u64 changed),
-+
-+	TP_ARGS(local, sdata, info, changed),
-+
-+	TP_STRUCT__entry(
-+		LOCAL_ENTRY
-+		VIF_ENTRY
-+		__field(u32, changed)
-+		__field(bool, nss_ap_isolate)
-+	),
-+
-+	TP_fast_assign(
-+		LOCAL_ASSIGN;
-+		VIF_ASSIGN;
-+		__entry->changed = changed;
-+		__entry->nss_ap_isolate = info->nss_ap_isolate;
-+	),
-+
-+	TP_printk(
-+		LOCAL_PR_FMT  VIF_PR_FMT " changed:%#x",
-+		LOCAL_PR_ARG, VIF_PR_ARG, __entry->changed
-+	)
-+);
-+
-+DEFINE_EVENT(local_only_evt, drv_nss_return_void,
-+	TP_PROTO(struct ieee80211_local *local),
-+	TP_ARGS(local)
-+);
- 
- TRACE_EVENT(drv_vif_cfg_changed,
- 	TP_PROTO(struct ieee80211_local *local,
---- a/net/mac80211/iface.c
-+++ b/net/mac80211/iface.c
-@@ -1037,7 +1037,8 @@ static bool ieee80211_set_sdata_offload_
- 		    local->hw.wiphy->frag_threshold != (u32)-1)
- 			flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
- 
--		if (local->virt_monitors)
-+		if (local->virt_monitors &&
-+		    !ieee80211_hw_check(&local->hw, SUPPORTS_NSS_OFFLOAD))
- 			flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
- 	} else {
- 		flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
---- a/net/mac80211/Kconfig
-+++ b/net/mac80211/Kconfig
-@@ -115,6 +115,15 @@ menuconfig MAC80211_DEBUG_MENU
- 	help
- 	  This option collects various mac80211 debug settings.
- 
-+config MAC80211_NSS_SUPPORT
-+	bool "QTI mac80211 nss support"
-+	depends on ATH11K_NSS_SUPPORT
-+	default n
-+	---help---
-+	  Enables NSS offload support for ATH11K driver
-+
-+	  If unsure, say Y to enable NSS offload support.
-+
- config MAC80211_NOINLINE
- 	bool "Do not inline TX/RX handlers"
- 	depends on MAC80211_DEBUG_MENU
---- a/local-symbols
-+++ b/local-symbols
-@@ -53,6 +53,7 @@ MAC80211_MESH_PS_DEBUG=
- MAC80211_TDLS_DEBUG=
- MAC80211_DEBUG_COUNTERS=
- MAC80211_STA_HASH_MAX_SIZE=
-+MAC80211_NSS_SUPPORT=
- QCOM_AOSS_QMP=
- QCOM_COMMAND_DB=
- QCOM_GENI_SE=

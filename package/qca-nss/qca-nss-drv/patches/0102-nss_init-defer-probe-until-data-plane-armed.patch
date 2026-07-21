@@ -1,0 +1,40 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Subject: [PATCH] nss_init: defer probe until the data-plane glue is armed
+
+With ath11k NSS offload, ath11k.ko and mac80211.ko carry hard symbol
+references to qca-nss-drv, so kmodloader loads it at every boot. The
+probe boots the NSS firmware, and an unarmed firmware boot takes over
+all PPE CPU-port delivery (QID2RID rewrite, measured) and kills host
+ethernet RX. Gate the probe on the qca-ppe-nss glue: return
+-EPROBE_DEFER until at least one port is armed via fw_mask; the glue
+re-attaches the deferred core devices when arming happens.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+--- a/nss_init.c
++++ b/nss_init.c
+@@ -37,6 +37,7 @@
+ #include "nss_strings.h"
+ 
+ #include <nss_hal.h>
++#include <nss_dp_api_if.h>
+ 
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+@@ -116,6 +117,17 @@ extern struct of_device_id nss_dt_ids[];
+  */
+ static inline int nss_probe(struct platform_device *nss_dev)
+ {
++	int ret;
++
++	/*
++	 * Do not boot the NSS firmware until the data-plane glue has at
++	 * least one port armed; an unarmed firmware boot takes over all
++	 * PPE CPU-port delivery and kills host ethernet RX.
++	 */
++	ret = nss_dp_probe_gate(&nss_dev->dev);
++	if (ret)
++		return ret;
++
+ 	return nss_hal_probe(nss_dev);
+ }
+ 

@@ -1,0 +1,44 @@
+Add kernel 6.12 support (residual hunks)
+
+Most of the original 6.12 port is now upstream in NHSS.QSDK.14.0.r8
+(commit a52268c: strscpy, const ctl_table handlers, sentinel-less
+ctl_table arrays, timer_delete_sync). Only two adaptations remain that
+14.0.r8 does NOT carry, because they target the OpenWrt 6.12 kernel
+rather than the QSDK kernel:
+
+- <asm/unaligned.h> was removed in OpenWrt's 6.10+ kernel and replaced
+  by <linux/unaligned.h>; 14.0.r8 still #includes the old path in the
+  NSS/PPE frontends. A compat shim header redirects it.
+- the Makefile gains -I$(obj)/compat so the shim is found, plus the
+  GCC 15 missing-prototype/declaration silencers from the original port.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+--- a/Makefile
++++ b/Makefile
+@@ -572,4 +572,10 @@ endif
+ 
+ ccflags-y += -Wall -Werror
+ 
++# Kernel 6.12 compat headers
++ccflags-y += -I$(obj)/compat
++
++# GCC 15+ has stricter checks for prototypes and declarations. Silence them
++ccflags-y += -Wno-missing-prototypes -Wno-missing-declarations
++
+ obj ?= .
+--- /dev/null
++++ b/compat/asm/unaligned.h
+@@ -0,0 +1,13 @@
++/* Compatibility header for <asm/unaligned.h> moved to <linux/unaligned.h> in kernel 6.10+ */
++#ifndef _ASM_UNALIGNED_H
++#define _ASM_UNALIGNED_H
++
++#include <linux/version.h>
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,10,0)
++#include <linux/unaligned.h>
++#else
++#include_next <asm/unaligned.h>
++#endif
++
++#endif /* _ASM_UNALIGNED_H */

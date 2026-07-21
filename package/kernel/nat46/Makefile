@@ -13,6 +13,10 @@ PKG_MAINTAINER:=Hans Dedecker <dedeckeh@gmail.com>
 PKG_LICENSE:=GPL-2.0
 
 PKG_BUILD_PARALLEL:=1
+
+# The module builds out of a subdirectory; collect_module_symvers must
+# look there for Module.symvers/modules.order, or dependent packages
+# (qca-nss-ecm MAP-T) fail modpost with the nat46 exports unresolved.
 PKG_EXTMOD_SUBDIRS:=nat46/modules
 
 include $(INCLUDE_DIR)/package.mk
@@ -40,7 +44,6 @@ define Build/Compile
 		MODFLAGS="-DMODULE -mlong-calls" \
 		EXTRA_CFLAGS="-DNAT46_VERSION=\\\"$(PKG_SOURCE_VERSION)\\\"" \
 		modules
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/nat46/modules/Module.symvers $(PKG_BUILD_DIR)/Module.symvers
 endef
 
 else

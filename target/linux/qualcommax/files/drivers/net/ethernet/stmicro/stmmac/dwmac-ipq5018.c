@@ -35,7 +35,7 @@ struct ipq5018_gmac {
 	struct clk *tx_clk;
 };
 
-static void ipq5018_gmac_fix_speed(void *priv, unsigned int speed, unsigned int mode)
+static void ipq5018_gmac_fix_speed(void *priv, int speed, unsigned int mode)
 {
 	struct ipq5018_gmac *gmac = priv;
 	unsigned long rate;

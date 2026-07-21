@@ -1,0 +1,713 @@
+#!/bin/sh
+# shellcheck disable=2086,3010,1091,3043,2034
+###############################################################################
+# nss-edma.qos -- HW-accelerated SQM for the NSS-on-EDMA stack (IPQ807x)
+#
+# Flat qdisc hierarchy: nsstbl (shaper) -> nssfq_codel (AQM), per direction.
+# All packet scheduling runs on the NSS cores (accel_mode 0); the host CPU
+# stays ~99% idle at full shaped line rate.
+#
+# Derived from nss-zk.qos (JuliusBairaktaris/sqm-scripts-nss, itself from
+# qosmio/rickkdotnet/michaelchen644 lineage), curated for the EDMA driver
+# stack with behavior verified by direct firmware-level testing on
+# NSS.FW.12.5-210-HK.R / kernel 6.12:
+#
+#  * SHAPING POINT: the SQM interface must be the PHYSICAL port netdev
+#    (e.g. 'wan'), not pppoe-wan. The firmware refuses shaper nodes on
+#    PPPoE session interfaces (__nss_qdisc_init times out, tested), so
+#    the shaper sits at the PPE port where frames are fully encapsulated
+#    (ETH+VLAN+PPPoE). Consequences:
+#      - The configured rates are GROSS L2 rates including all
+#        encapsulation headers (FCS/preamble excluded). The usual
+#        "95% of line sync" guidance is correct as-is.
+#      - The L2 overhead auto-detection below is used only for queue
+#        limit and burst arithmetic, not per-packet rate accounting
+#        (the firmware already sees the real frame length; nsstbl has
+#        no per-packet overhead parameter).
+#  * FLOW ISOLATION comes from the firmware's IGS engine (act_nssmirred
+#    ingress redirects). The IGS node parses every frame itself (through
+#    PPPoE/VLAN encapsulation), looks up the accelerated-connection entry
+#    and isolates flows even for offloaded traffic:
+#      - DOWNLOAD (ingress): redirect <wan> ingress into ifb@<wan>; the
+#        shaper there operates on decapsulated inner-IP flows, so a sparse
+#        latency probe gets its own flow-queue -> RTT under download
+#        saturation stays at idle levels.
+#      - UPLOAD: `option igs_upload '<ports>'` gives each listed wired LAN
+#        port its own redirect into ifb-<port>, shaped at IGS_RATE_PCT% of
+#        the upload rate. LAN-side frames are plain Ethernet/IP, so the
+#        firmware isolates the inner 5-tuple where the encapsulated WAN
+#        egress hash cannot (~44% "new flow" reads there). Measured on
+#        NSS.FW.12.5-210: saturated upload through a LAN-port IGS adds
+#        ~0 ms to a sparse probe (idle-equal RTT), download unchanged.
+#        The egress shaper on <wan> stays installed as the aggregate
+#        authority and covers sources without an IGS tree.
+#    Upload-IGS caveats (all by construction):
+#      - Wired ports only; Wi-Fi vdevs are not valid IGS sources, so Wi-Fi
+#        upload rides the (tightly tuned) egress codel instead.
+#      - act_nssmirred maps ports to IFBs strictly 1:1, so each listed
+#        port shapes independently at IGS_RATE_PCT%. Simultaneous upload
+#        saturation from several IGS'd ports can exceed the line rate and
+#        queue at the egress shaper until the bursts subside.
+#      - Routed LAN-to-LAN traffic entering a listed port passes that
+#        port's IGS shaper too (cross-subnet LAN transfers see the
+#        upload-rate cap; same-subnet bridged traffic is PPE-switched in
+#        hardware and bypasses IGS entirely).
+#      - Port bridge-membership changes must go through netifd. Manually
+#        rewiring a live port around its bridge can leave stale firmware
+#        bridge/VSI state on the port datapath and wedge it.
+#  * FAST LANE (default on, `option fastlane '0'` to disable): both the
+#    egress and the ingress tree carry a strict-priority band ahead of the
+#    default nssfq_codel:
+#
+#      nsstbl (1:) -> nssprio (2:) -> 2:1  nsspfifo 100:    fast lane
+#                                     2:2  nssfq_codel 10:  default (set_default)
+#
+#    A flow enters the fast lane per direction when the firewall marks its
+#    packets with BOTH of (one nftables rule, mangle forward chain):
+#
+#      ip dscp set <class> meta priority set 100:0
+#
+#    - `ip dscp set` validates the conntrack DSCP-remark extension, which
+#      makes ECM's DSCP classifier attach to the connection (no steering
+#      happens without it).
+#    - `meta priority set 100:0` (= the fast-lane qdisc handle) is copied
+#      into the acceleration rule: the egress direction as the flow's
+#      qos_tag (firmware steers by shaper-node match), the ingress
+#      direction as the 16-bit IGS qos_tag via the act_nssmirred forward
+#      hook. Mark BOTH directions of a connection to fast-lane both ways.
+#    All of this steers ACCELERATED flows (verified at firmware level,
+#    fw 12.5-210: 311k/311k egress and 152k/152k ingress packets steered
+#    with 5 and 3 slow-path packets respectively). Host-path leftovers:
+#    egress steers via the packet's priority too; ingress host-path
+#    packets bypass the IFB firmware tree entirely (never shaped) - a
+#    non-issue since bulk traffic is accelerated.
+#    Caveats: the fast lane is strict-priority with a small FIFO - mark
+#    sparse traffic only (VoIP, gaming, DNS), a bulk flow marked into it
+#    starves the default band. The per-port upload IGS trees stay
+#    single-band: their per-flow isolation already gives sparse flows
+#    idle-equal latency. NOTE: tc handles are HEX - `100:` is qos_tag
+#    0x01000000. An earlier experiment concluded band steering was broken;
+#    it had probed 0x00640000 (decimal-100 confusion) which names no node.
+#  * ECN: the NSS firmware does NOT implement CoDel ECN marking. The
+#    full plumbing exists (tc option, kernel module, fw config field,
+#    fw ecn_mark statistic) and the firmware ACKs the configuration,
+#    but under verified congestion with packets force-marked ECT(0)
+#    (nftables, counter-checked) it drops instead of marks: ecn_mark
+#    stays 0. SQM ECN settings are therefore ignored, with a log line.
+#  * QUEUE LIMITS: pbuf budget on the 512MB (MEDIUM) profile is 9984
+#    default + 1736 OCM payloads, shared with the whole data plane, and
+#    the firmware buffers up to ~2x the configured limit per qdisc.
+#    Auto-calculated limits are capped at NSS_LIMIT_CAP packets per
+#    direction to keep SQM from starving the pool at high rates.
+#
+# FIRMWARE LINES: works unchanged on both the 12.5 and the 11.4 (mesh
+# offload) firmware. The two lines share the shaper configuration ABI; the
+# statistics wire format difference is a kernel-module concern, selected at
+# build time by the same config choice that picks the firmware blob, so any
+# image is internally consistent.
+#
+# Maintainer: Julius Bairaktaris <julius@bairaktaris.de>
+#
+
+. /lib/functions.sh
+. /lib/functions/network.sh
+. "${SQM_LIB_DIR}/defaults.sh"
+
+###############################################################################
+# Hotplug guard
+#
+# On kernel 5.15+, bringing up the IFB interface under high load can crash
+# the router when triggered by hotplug. If the shaper is already installed
+# on the IFB device, skip re-initialization entirely. The check must be for
+# the script's own root discipline (nsstbl), not for the device or for any
+# root qdisc: a start that fails after creating the IFB (interface without
+# an IP yet, NSS plane not up yet) leaves the device behind with the
+# kernel's default root (noqueue or fq_codel), and treating that as
+# "present" would disable every later hotplug recovery.
+###############################################################################
+if [ -n "${ACTION}" ] && [ -n "${INTERFACE}" ] && [ -n "${DEVICE}" ]; then
+	DEV="ifb@${INTERFACE}"
+	sqm_debug "hotplug: ${ACTION} for ${INTERFACE} (${DEVICE})"
+	if $TC qdisc show dev $DEV 2>/dev/null | head -n1 | grep -q '^qdisc nsstbl'; then
+		sqm_log "hotplug: shaper already present on $DEV, skipping"
+		exit 0
+	fi
+fi
+
+###############################################################################
+# Constants
+###############################################################################
+
+# Maximum queue depth in milliseconds. Used with speed and MTU to auto-calculate
+# the fq_codel packet limit when not set by the user.
+# 15ms compensates for NSS firmware buffering ~2× the configured limit,
+# yielding ~30ms effective queue depth. At 285 Mbps/MTU 1536 this gives
+# limit=347p, well above MINLIMIT.
+MAXQLIMIT_MS=15
+
+# Floor for the auto-calculated queue limit. CoDel controls by sojourn TIME,
+# not packet count, so it does not need a large packet floor -- the old
+# value (200) was both unjustified and harmful: at typical upload rates the
+# formula yields ~170p and 200 clamped it UP, enlarging the egress queue
+# (and, since the egress cannot isolate flows, the bufferbloat with it).
+# 64p is plenty for CoDel to operate while not inflating the calculation;
+# the egress should anyway pin a tight explicit `elimit` (see header).
+MINLIMIT=64
+
+# Ceiling for auto-calculated queue limit. The firmware backs each queued
+# packet with a pbuf from a pool shared with the entire data plane (9984
+# default + 1736 OCM payloads on the 512MB MEDIUM profile) and buffers up
+# to ~2x the configured limit. 2048p per direction keeps worst-case SQM
+# pbuf usage well under half the pool.
+NSS_LIMIT_CAP=2048
+
+# Fast-lane FIFO depth in packets. Marked traffic is sparse by contract;
+# 64 packets bound the lane's own queue to a few milliseconds at shaped
+# rates (64 x 1514B = ~5.4ms at 142.5 Mbit/s egress, ~2.6ms at 295 ingress)
+# while still absorbing bursts. No AQM on purpose: dropping or delaying
+# this class is exactly what it exists to avoid.
+FASTLANE_LIMIT=64
+
+# Upload-IGS shaper rate as percent of UPLINK. The per-port IGS trees
+# shape DECAPSULATED bytes while the egress shaper on the WAN port shapes
+# the same traffic ETH+VLAN+PPPoE-encapsulated (~+2.5% at full MTU, more
+# for small packets). 93% keeps the IGS trees the effective bottleneck so
+# the (isolation-blind) egress queue stays empty for IGS'd traffic.
+IGS_RATE_PCT=93
+
+###############################################################################
+# Utility functions
+###############################################################################
+
+# Verify the interface has an IP before proceeding.
+# PPPoE/DS-Lite/MAP interfaces may not have an IP yet at boot time;
+# we detect them by protocol and wait for hotplug to re-trigger SQM.
+# Static/DHCP interfaces always have IPs by the time SQM runs.
+check_addr() {
+	local proto iface_addr
+
+	proto=$(uci -q get "network.${IFACE}.proto")
+	case "$proto" in
+	pppoe|dslite|map) ;;
+	*) return 0 ;;
+	esac
+
+	network_get_ipaddr iface_addr "${IFACE}"
+	if [ -z "$iface_addr" ]; then
+		sqm_error "check_addr: no IP on ${IFACE} (proto=${proto}), waiting for hotplug or manual restart"
+		return 1
+	fi
+	sqm_debug "check_addr: ${IFACE} has IP ${iface_addr} (proto=${proto})"
+}
+
+# Auto-detect L2 overhead from UCI network config.
+#
+# Base:    18 bytes  (14 ethernet header + 4 FCS)
+# NSS:    + 4 bytes  (internal framing, always present)
+# PPPoE:  +10 bytes  (8 PPPoE header + 2 PPP protocol ID)
+# DS-Lite: +40 bytes (IPv6 header encapsulation)
+# MAP-E:  +20 bytes  (IPv4-in-IPv6 mapping)
+# VLAN:   + 4 bytes  (802.1Q tag, detected by dot in device name)
+#
+# Only feeds burst/limit arithmetic on this stack (see header).
+# Returns the overhead value on stdout.
+auto_detect_overhead() {
+	local proto device oh=22 # 18 ethernet + 4 NSS
+
+	proto=$(uci -q get "network.${IFACE}.proto")
+	device=$(uci -q get "network.${IFACE}.device")
+
+	case "$proto" in
+	pppoe)  oh=$((oh + 10)) ;;
+	dslite) oh=$((oh + 40)) ;;
+	map)    oh=$((oh + 20)) ;;
+	esac
+
+	# VLAN device names contain a dot (e.g. wan.7)
+	case "$device" in
+	*.*) oh=$((oh + 4)) ;;
+	esac
+
+	sqm_log "auto_detect_overhead: proto=${proto:-static} device=${device:-$IFACE} -> ${oh} bytes"
+	echo $oh
+}
+
+# Calculate the fq_codel packet limit from bandwidth, MTU, and delay.
+# Formula: limit = (speed_kbps * 125) * (delay_ms / 1000) / mtu
+# Clamps to [MINLIMIT, NSS_LIMIT_CAP] -- see the constants above.
+calc_limit() {
+	local speed=$1 mtu=$2 delay_ms=$3
+	local limit
+
+	limit=$(( speed * 125 * delay_ms / 1000 / mtu ))
+
+	if [ "$limit" -lt "$MINLIMIT" ]; then
+		sqm_debug "calc_limit: ${limit}p too low for CoDel, raising to ${MINLIMIT}p"
+		limit=$MINLIMIT
+	elif [ "$limit" -gt "$NSS_LIMIT_CAP" ]; then
+		sqm_debug "calc_limit: ${limit}p exceeds NSS pbuf budget, capping to ${NSS_LIMIT_CAP}p"
+		limit=$NSS_LIMIT_CAP
+	else
+		sqm_debug "calc_limit: ${limit}p (${speed} kbps, MTU ${mtu}, ${delay_ms}ms window)"
+	fi
+	echo $limit
+}
+
+# Resolve effective MTU (interface MTU + overhead) for a given direction.
+# Auto-detects overhead when OVERHEAD is 0 or unset.
+# Prints the effective MTU on stdout.
+calc_effective_mtu() {
+	local direction=$1
+	local mtu overhead
+
+	mtu=$(get_mtu $IFACE)
+	overhead="${OVERHEAD}"
+
+	if [ "${overhead}" -eq 0 ] 2>/dev/null || [ -z "${overhead}" ]; then
+		overhead=$(auto_detect_overhead)
+		sqm_log "${direction}: overhead not configured, auto-detected ${overhead} bytes"
+	fi
+
+	echo $((mtu + overhead))
+}
+
+###############################################################################
+# Qdisc setup
+###############################################################################
+
+# Add the root nsstbl (token bucket limiter) shaper.
+# Args: $1=interface  $2=speed_kbps  $3=burst_duration_us  $4=mtu
+add_nsstbl() {
+	local iface=$1 speed=$2 burst_us=$3 mtu=$4
+	local burst
+
+	sqm_debug "add_nsstbl: ${iface} rate=${speed}kbps burst=${burst_us}us mtu=${mtu}"
+
+	# Burst: tradeoff between CPU load and shaper strictness. The SQM default
+	# of 1000us is a good sweet spot for NSS -- minimal effect either way.
+	burst=$(get_burst ${mtu} ${speed} ${burst_us})
+	# Round to nearest MTU multiple for clean packet boundaries.
+	burst=$(( ((burst + mtu / 2) / mtu) * mtu ))
+
+	$TC qdisc add dev $iface root handle 1: \
+		nsstbl rate "${speed}kbit" burst "$burst" mtu "$mtu" accel_mode 0
+}
+
+# Add nssfq_codel as child of the root nsstbl (or of the nssprio band
+# passed as $8 when the fast lane is active).
+# Args: $1=interface  $2=speed_kbps  $3=target  $4=limit  $5=mtu  $6=qdisc_opts  $7=ecn  [$8=parent]
+#
+# ECN is ignored: the NSS firmware does not implement CoDel ECN marking
+# (verified at fw level -- see the header). The stock tc on this tree
+# also rejects the option, by Qualcomm's own design ("Illegal, ECN not
+# supported"). If the user enabled ECN in SQM we say so once and move on.
+add_nssfq_codel() {
+	local iface=$1 speed=$2 target=$3 limit=$4 mtu=$5 opts=$6 ecn=$7 parent=${8:-1:}
+	local quantum
+
+	if [ -n "$ecn" ] && [ "$(get_ecn "$ecn")" = "ecn" ]; then
+		sqm_log "add_nssfq_codel: NSS firmware does not implement CoDel ECN marking; ignoring ECN setting"
+	fi
+
+	sqm_debug "add_nssfq_codel: ${iface} speed=${speed} target=${target} limit=${limit} mtu=${mtu} opts=[${opts}]"
+
+	# --- interval ---
+	# Set the CoDel interval (worst-case RTT to your services). Default 100ms
+	# works for most connections. Override via "interval XXms" in advanced opts.
+	case "$opts" in
+	*interval*) ;;
+	*)
+		opts="interval 100ms ${opts}"
+		sqm_debug "add_nssfq_codel: no interval specified, defaulting to 100ms"
+		;;
+	esac
+
+	# --- quantum ---
+	# Bytes dequeued per round. At MTU, all packets have equal weight.
+	# Lower quantum gives small packets (games, VoIP) higher dequeue priority.
+	# At <100 Mbps, default to ~MTU/5 per bufferbloat.net best practices.
+	case "$opts" in
+	*quantum*) ;;
+	*)
+		quantum=$mtu
+		if [ "$speed" -lt 100000 ]; then
+			quantum=$(((mtu / 5) + 1))
+			sqm_debug "add_nssfq_codel: speed <100Mbps, quantum lowered to ${quantum}"
+		else
+			sqm_debug "add_nssfq_codel: quantum set to MTU (${quantum})"
+		fi
+		opts="$(get_quantum ${quantum}) ${opts}"
+		;;
+	esac
+
+	# --- flows ---
+	# Number of hash buckets for flow classification. 1024 is the nssfq_codel
+	# default. Note: on PPPoE/VLAN WAN ports the fw cannot hash on the inner
+	# IP header, so bucketing is coarse there regardless of this value.
+	case "$opts" in
+	*flows*) ;;
+	*) opts="flows 1024 ${opts}" ;;
+	esac
+
+	# shellcheck disable=2046
+	$TC qdisc add dev $iface parent $parent handle 10: nssfq_codel \
+		$(get_limit "$limit") $(get_target "$target" "$speed") \
+		${opts} set_default accel_mode 0
+}
+
+# sqm-scripts exports a section's built-in options but not the section
+# name, and the section id need not equal the shaped interface: a user may
+# name the queue section 'wan' while shaping netdev '10g-1'. Read our
+# custom options (fastlane, igs_upload) from the section whose 'interface'
+# matches $IFACE, so they resolve regardless of how the section is named
+# (keying on the section name silently dropped them on such devices).
+_sqm_opt_match() {
+	local dev
+	config_get dev "$1" interface
+	[ "$dev" = "$IFACE" ] && config_get SQM_OPT_VAL "$1" "$SQM_OPT_KEY"
+}
+
+sqm_opt() {
+	SQM_OPT_KEY=$1 SQM_OPT_VAL=
+	config_load sqm
+	config_foreach _sqm_opt_match queue
+	echo "$SQM_OPT_VAL"
+}
+
+# Fast lane on unless explicitly disabled (`option fastlane '0'`).
+fastlane_enabled() {
+	[ "$(sqm_opt fastlane)" != "0" ]
+}
+
+# Insert the strict-priority fast lane between the root nsstbl and the
+# default nssfq_codel (see the header for structure and firewall contract).
+# Args mirror add_nssfq_codel minus parent: $1=iface $2=speed $3=target
+# $4=limit $5=mtu $6=opts $7=ecn
+add_fastlane() {
+	local iface=$1
+
+	$TC qdisc add dev $iface parent 1: handle 2: nssprio bands 2 accel_mode 0 || return 1
+	$TC qdisc add dev $iface parent 2:1 handle 100: nsspfifo limit ${FASTLANE_LIMIT} accel_mode 0 || return 1
+	# Default band keeps the exact tuning of the non-fastlane tree.
+	add_nssfq_codel "$1" "$2" "$3" "$4" "$5" "$6" "$7" "2:2"
+}
+
+# Add the nssmirred redirect filter with retries. act_nssmirred tears its
+# port->IFB mapping down asynchronously (the firmware CLEAR is acked after
+# `tc qdisc del ... ingress` has already returned), so an immediate re-add
+# during an sqm restart can race the teardown and fail with EEXIST while
+# the stale mapping drains. One retry suffices.
+add_nssmirred_redirect() {
+	local port=$1 dev=$2 try
+
+	for try in 1 2 3; do
+		$TC filter add dev $port parent ffff: protocol all \
+			u32 match u32 0 0 action nssmirred redirect dev $dev fromdev $port 2>/dev/null && return 0
+		sqm_debug "add_nssmirred_redirect: ${port} -> ${dev} attempt ${try} failed, retrying"
+		sleep 1
+	done
+	return 1
+}
+
+###############################################################################
+# Upload IGS (per-port ingress redirect, see header)
+###############################################################################
+
+# Set up one IGS tree per port listed in `option igs_upload '<ports>'`:
+#   <port> ingress -> act_nssmirred -> ifb-<port> -> nsstbl -> nssfq_codel
+# The firmware redirects the port's ingress (including accelerated flows)
+# into the IGS node, which shapes decapsulated frames with per-flow
+# isolation. Failures are per-port and non-fatal: SQM stays functional on
+# the egress shaper alone.
+upload_igs_start() {
+	local ports port dev rate mtu limit wan_rate pspeed pcap
+
+	ports=$(sqm_opt igs_upload)
+	[ -z "$ports" ] && return 0
+
+	# Aggregate ceiling: per-port trees sit below the WAN egress shaper.
+	wan_rate=$((UPLINK * IGS_RATE_PCT / 100))
+	# LAN-side frames are plain Ethernet; encapsulation happens later.
+	mtu=1514
+
+	for port in $ports; do
+		dev="ifb-${port}"
+		if [ ! -e "/sys/class/net/${port}" ]; then
+			sqm_warn "upload_igs: port ${port} does not exist, skipping"
+			continue
+		fi
+
+		# Cap the shaper just below the port's own link when it is slower
+		# than the WAN-derived rate (a 10/100M device): keep the IGS node
+		# the bottleneck so its codel engages, else the queue forms in the
+		# switch MAC FIFO where there is no AQM and the port self-bufferbloats.
+		# Link speed (Mbit/s) from sysfs; fall back to the WAN rate when the
+		# port is down / speed unreadable (re-read on the next sqm start).
+		rate=$wan_rate
+		pspeed=$(cat "/sys/class/net/${port}/speed" 2>/dev/null)
+		if [ "${pspeed:-0}" -gt 0 ] 2>/dev/null; then
+			pcap=$((pspeed * 1000 * IGS_RATE_PCT / 100))
+			[ "$pcap" -lt "$rate" ] && rate=$pcap
+		fi
+		limit=$(calc_limit ${rate} ${mtu} ${MAXQLIMIT_MS})
+
+		# Reuse an existing IFB (same rationale as ifb@<wan>).
+		if ! [ -e /sys/devices/virtual/net/$dev ]; then
+			$IP link add name $dev type ifb || {
+				sqm_warn "upload_igs: cannot create ${dev}, skipping ${port}"
+				continue
+			}
+		fi
+		$IP link set dev $dev up
+
+		SILENT=1 $TC qdisc del dev $port ingress 2>/dev/null
+		$TC qdisc add dev $port handle ffff: ingress || {
+			sqm_warn "upload_igs: no ingress qdisc on ${port}, skipping"
+			continue
+		}
+		add_nssmirred_redirect $port $dev || {
+			sqm_warn "upload_igs: redirect ${port} -> ${dev} failed, skipping"
+			SILENT=1 $TC qdisc del dev $port ingress 2>/dev/null
+			continue
+		}
+
+		add_nsstbl ${dev} ${rate} ${ESHAPER_BURST_DUR_US} ${mtu} || {
+			sqm_warn "upload_igs: nsstbl on ${dev} failed, removing redirect"
+			SILENT=1 $TC qdisc del dev $port ingress 2>/dev/null
+			continue
+		}
+		# Defaults on purpose (no EQDISC_OPTS): with per-flow isolation the
+		# standard CoDel target/interval are correct; the tight egress
+		# tuning exists only for the isolation-blind encapsulated queue.
+		add_nssfq_codel ${dev} ${rate} "5ms" ${limit} ${mtu} "" "" || {
+			sqm_warn "upload_igs: nssfq_codel on ${dev} failed, removing redirect"
+			SILENT=1 $TC qdisc del dev $port ingress 2>/dev/null
+			SILENT=1 $TC qdisc del dev $dev root 2>/dev/null
+			continue
+		}
+		sqm_log "upload_igs: ${port} -> ${dev} shaping at ${rate} kbps (per-flow isolated)"
+	done
+	return 0
+}
+
+# Tear down the per-port IGS trees. Deleting the port's ingress qdisc
+# destroys the nssmirred action, which un-redirects the port in firmware;
+# the IFB devices are kept for reuse (mirrors ifb@<wan> handling). Order
+# matters: the redirect must go before the IFB's shaper tree.
+upload_igs_stop() {
+	local port dev
+
+	for port in $(sqm_opt igs_upload); do
+		dev="ifb-${port}"
+		SILENT=1 $TC qdisc del dev $port ingress 2>/dev/null
+		if [ -e /sys/devices/virtual/net/$dev ]; then
+			SILENT=1 $TC qdisc del dev $dev root 2>/dev/null
+		fi
+	done
+	return 0
+}
+
+###############################################################################
+# Direction setup
+###############################################################################
+
+egress() {
+	local mtu
+
+	[ -z "$ETARGET" ] && ETARGET="5ms"
+
+	mtu=$(calc_effective_mtu "egress")
+	[ -z "$ELIMIT" ] && ELIMIT=$(calc_limit ${UPLINK} ${mtu} ${MAXQLIMIT_MS})
+
+	add_nsstbl ${IFACE} ${UPLINK} ${ESHAPER_BURST_DUR_US} ${mtu} || {
+		sqm_error "egress: failed to add nsstbl shaper"
+		return 1
+	}
+
+	if fastlane_enabled; then
+		# shellcheck disable=2153
+		add_fastlane ${IFACE} ${UPLINK} "${ETARGET}" ${ELIMIT} ${mtu} "${EQDISC_OPTS}" "${EECN}" || {
+			sqm_error "egress: failed to add fast lane"
+			return 1
+		}
+		sqm_log "egress: fast lane active (mark: ip dscp set <class> meta priority set 100:0)"
+		return 0
+	fi
+
+	# shellcheck disable=2153
+	add_nssfq_codel ${IFACE} ${UPLINK} ${ETARGET} ${ELIMIT} ${mtu} "${EQDISC_OPTS}" "${EECN}" || {
+		sqm_error "egress: failed to add nssfq_codel"
+		return 1
+	}
+}
+
+ingress() {
+	local mtu
+
+	[ -z "$ITARGET" ] && ITARGET="5ms"
+
+	mtu=$(calc_effective_mtu "ingress")
+	[ -z "$ILIMIT" ] && ILIMIT=$(calc_limit ${DOWNLINK} ${mtu} ${MAXQLIMIT_MS})
+
+	# Create IFB device for ingress shaping and redirect all inbound traffic to it.
+	# Reuse existing IFB to avoid kernel crashes on link up under high load.
+	if ! [ -e /sys/devices/virtual/net/$DEV ]; then
+		$IP link add name $DEV type ifb
+		sqm_log "ingress: created $DEV"
+	fi
+	$IP link set dev $DEV up
+
+	# Remove stale ingress qdisc if present (deleting qdisc removes all filters).
+	SILENT=1 $TC qdisc del dev $IFACE ingress 2>/dev/null
+
+	$TC qdisc add dev $IFACE handle ffff: ingress || {
+		sqm_error "ingress: failed to add ingress qdisc"
+		return 1
+	}
+
+	add_nssmirred_redirect $IFACE $DEV || {
+		sqm_error "ingress: failed to add redirect filter"
+		return 1
+	}
+
+	add_nsstbl ${DEV} ${DOWNLINK} ${ISHAPER_BURST_DUR_US} ${mtu} || {
+		sqm_error "ingress: failed to add nsstbl shaper"
+		return 1
+	}
+
+	if fastlane_enabled; then
+		# shellcheck disable=2153
+		add_fastlane ${DEV} ${DOWNLINK} "${ITARGET}" ${ILIMIT} ${mtu} "${IQDISC_OPTS}" "${IECN}" || {
+			sqm_error "ingress: failed to add fast lane"
+			return 1
+		}
+		sqm_log "ingress: fast lane active"
+		return 0
+	fi
+
+	# shellcheck disable=2153
+	add_nssfq_codel ${DEV} ${DOWNLINK} ${ITARGET} ${ILIMIT} ${mtu} "${IQDISC_OPTS}" "${IECN}" || {
+		sqm_error "ingress: failed to add nssfq_codel"
+		return 1
+	}
+}
+
+###############################################################################
+# SQM lifecycle
+###############################################################################
+
+sqm_prepare_script() {
+	local module
+
+	# EDMA-stack guard: the NSS qdisc modules bind interfaces to the
+	# NSS firmware, and booting the firmware with no armed ports kills
+	# all wired RX. A loaded qca-nss-drv module is NOT the right check:
+	# Wi-Fi offload builds always carry it at boot with its probe
+	# deferred until arming. Only proceed once ports are actually armed
+	# (non-zero fw_mask); SQM's hotplug retries on interface up.
+	case "$(cat /sys/kernel/debug/qca-ppe-nss/fw_mask 2>/dev/null)" in
+	""|0x0)
+		sqm_error "sqm_prepare_script: NSS data plane is not armed; refusing to load NSS qdisc modules"
+		return 1
+		;;
+	esac
+
+	if [ ! -d /sys/module/ifb ]; then
+		insmod ifb numifbs=0 2>>"${OUTPUT_TARGET}" || {
+			sqm_error "sqm_prepare_script: failed to load ifb module"
+			return 1
+		}
+	fi
+
+	for module in qca_nss_qdisc act_nssmirred; do
+		if [ ! -d /sys/module/$module ]; then
+			sqm_log "sqm_prepare_script: loading $module"
+			modprobe -v $module 2>>"${OUTPUT_TARGET}" || {
+				sqm_error "sqm_prepare_script: failed to load $module"
+				return 1
+			}
+		fi
+	done
+}
+
+sqm_start() {
+	local protocol
+
+	[ -n "$IFACE" ] || return 1
+
+	network_get_protocol protocol "$IFACE"
+
+	if [ "$protocol" = "wireguard" ]; then
+		sqm_error "sqm_start: Wireguard (${IFACE}) is not supported by NSS"
+		return 1
+	fi
+
+	DEV="ifb@${IFACE}"
+
+	ipt_log_restart
+	check_addr || return $?
+	sqm_prepare_script || return $?
+
+	if [ "${UPLINK}" -ne 0 ]; then
+		CUR_DIRECTION="egress"
+		if fn_exists egress && egress; then
+			sqm_log "sqm_start: egress shaping activated"
+			upload_igs_start
+		else
+			sqm_warn "sqm_start: egress setup failed"
+		fi
+	else
+		SILENT=1 $TC qdisc del dev ${IFACE} root 2>/dev/null
+		sqm_log "sqm_start: egress shaping disabled (UPLINK=0)"
+	fi
+
+	if [ "${DOWNLINK}" -ne 0 ]; then
+		CUR_DIRECTION="ingress"
+		if fn_exists ingress && ingress; then
+			sqm_log "sqm_start: ingress shaping activated"
+		else
+			sqm_warn "sqm_start: ingress setup failed"
+		fi
+	else
+		SILENT=1 $TC qdisc del dev ${DEV} root 2>/dev/null
+		sqm_log "sqm_start: ingress shaping disabled (DOWNLINK=0)"
+	fi
+
+	return 0
+}
+
+sqm_stop() {
+	local module
+
+	[ -n "$IFACE" ] || return 1
+
+	DEV="ifb@${IFACE}"
+	sqm_log "sqm_stop: tearing down SQM on ${IFACE} (${DEV})"
+
+	# Flat hierarchy: deleting root removes nsstbl + nssfq_codel in one call.
+	SILENT=1 $TC qdisc del dev $IFACE root 2>/dev/null
+
+	# Remove ingress qdisc (and all associated filters).
+	SILENT=1 $TC qdisc del dev $IFACE ingress 2>/dev/null
+
+	# Tear down the per-port upload IGS trees.
+	upload_igs_stop
+
+	# Tear down the IFB device qdisc but keep the device itself.
+	# Deleting and recreating IFB under traffic can cause kernel panics on some kernels.
+	if [ -e /sys/devices/virtual/net/$DEV ]; then
+		$TC qdisc del dev $DEV root 2>/dev/null
+		sqm_log "sqm_stop: removed $DEV qdisc (device kept for reuse)"
+	fi
+
+	# Undo any iptables rules logged during setup.
+	ipt_log_rewind
+
+	# Keep kernel modules loaded to avoid crashes on reload.
+	# NSS modules are safe to leave resident and avoid potential race conditions.
+	sqm_debug "sqm_stop: keeping NSS modules loaded (safer for restart)"
+
+	return 0
+}
+
+# vim: ft=sh ts=2 sw=2 sts=2 et

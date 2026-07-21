@@ -1,0 +1,19 @@
+Makefile: do not build with -Werror
+
+The vendor code is not warning-clean on GCC 15 / kernel 6.18, and
+kbuild dropped EXTRA_CFLAGS support in 6.15 so errors can no longer be
+demoted from the packaging.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/Makefile
++++ b/Makefile
+@@ -570,7 +570,7 @@ ccflags-y += -DECM_PPE_SOURCE_INTERFACE_
+ endif
+ endif
+ 
+-ccflags-y += -Wall -Werror
++ccflags-y += -Wall
+ 
+ # Kernel 6.12 compat headers
+ ccflags-y += -I$(obj)/compat

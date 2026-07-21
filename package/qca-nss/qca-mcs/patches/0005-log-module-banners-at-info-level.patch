@@ -1,0 +1,27 @@
+Log the module banners at info level
+
+The load/unload banners use a bare printk and end up at the default
+(warning) log level.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/mc_main.c
++++ b/mc_main.c
+@@ -46,7 +46,7 @@ static int __init mc_init(void)
+ #ifdef MC_SUPPORT_OVS
+ 	mc_ovs_init();
+ #endif
+-	printk("QCA multicast snooping installed successfully\n");
++	printk(KERN_INFO "QCA multicast snooping installed successfully\n");
+ 	return 0;
+ 
+ netfilter_clean:
+@@ -71,7 +71,7 @@ static void __exit mc_exit(void)
+ 	mc_event_stop();
+ 	mc_snooping_exit();
+ 
+-	printk("QCA multicast snooping uninstalled\n");
++	printk(KERN_INFO "QCA multicast snooping uninstalled\n");
+ }
+ 
+ 

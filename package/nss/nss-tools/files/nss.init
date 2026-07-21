@@ -1,0 +1,83 @@
+#!/bin/sh /etc/rc.common
+# NSS offload data-plane bring-up, split around netifd.
+#
+# start_service (START=19, before netifd): make the data-path decision once
+# and load Wi-Fi accordingly. With nss.general.enabled unset/'1' the wired
+# plane is armed first (glue -> fw_mask -> qca-nss-drv; the fw_mask write
+# boots the firmware synchronously), the pbuf n2h/clock tuning is applied,
+# and ath11k loads with nss_offload=1 - the radios bind once, straight onto
+# the NSS data path (wifili), with no later rebind and exactly one WCSS
+# remoteproc boot. With enabled='0', or when arming fails, ath11k loads in
+# plain host mode. ath11k has no module autoload in this tree - this
+# service brings Wi-Fi up on either path; wired EDMA networking never
+# depends on it.
+#
+# The rest of the plane - bridge/multicast/ECM/PPPoE managers, WAN, SQM -
+# is layered on by the /usr/sbin/nss-up instance once netifd has built the
+# topology. A reboot always re-runs this decision; to stay on the host
+# stack permanently:
+#   uci set nss.general.enabled='0'; uci commit nss
+# (the uci flag survives sysupgrade, unlike an rc.d disable).
+
+START=19
+USE_PROCD=1
+
+NSSOFF=/sys/module/ath11k/parameters/nss_offload
+
+wifi_load_host() {
+	modprobe ath11k 2>/dev/null
+	[ -w $NSSOFF ] && echo 0 > $NSSOFF
+	modprobe ath11k_ahb 2>/dev/null
+}
+
+start_service() {
+	local wifi_offload=1
+	if [ "$(uci -q get nss.general.enabled)" = "0" ]; then
+		logger -t nss "NSS bring-up disabled via uci (nss.general.enabled=0), staying on the host stack"
+		wifi_load_host
+		return 0
+	fi
+
+	. /lib/nss/functions.sh
+	# 802.11s mesh is offloadable only on the mesh-capable firmware line
+	# with a mesh-enabled build; otherwise mesh keeps Wi-Fi on the host
+	# path while the wired offload still arms - mesh works normally there.
+	nss_mesh_state
+	if [ "$NSS_MESH_CFG" = 1 ] && [ "$NSS_MESH_CAPABLE" != 1 ]; then
+		logger -t nss "mesh interface configured: Wi-Fi stays on the host path (mesh offload needs the 11.4 NSS firmware and a mesh-enabled build)"
+		wifi_offload=0
+	fi
+
+	modprobe qca-ppe-nss 2>/dev/null
+	modprobe qca-nss-drv 2>/dev/null
+	FWM=/sys/kernel/debug/qca-ppe-nss/fw_mask
+	# "all" arms every wired port the board exposes - the glue discovers
+	# the per-device DSA port<->if_num map from the live topology, so this
+	# works across the ipq807x family with no board-specific mask.
+	[ "$(cat $FWM 2>/dev/null)" = "0x0" ] && echo all > $FWM 2>/dev/null
+	if [ "$(cat $FWM 2>/dev/null || echo 0x0)" = "0x0" ]; then
+		logger -t nss "firmware arming failed - staying on the host stack"
+		wifi_load_host
+		return 0
+	fi
+
+	# Order matters: the n2h pool/clock tuning goes in before the radios
+	# bind, so the wifili registration already sees the tuned pool and no
+	# Wi-Fi reload is needed afterwards. pbuf self-gates on nss_offload,
+	# so a host-path Wi-Fi decision skips the Wi-Fi pool tuning by itself.
+	modprobe ath11k 2>/dev/null
+	[ -w $NSSOFF ] && echo "$wifi_offload" > $NSSOFF
+	/etc/init.d/qca-nss-pbuf start >/dev/null 2>&1
+	modprobe ath11k_ahb 2>/dev/null
+
+	procd_open_instance nss-up
+	procd_set_param command /usr/sbin/nss-up
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+stop_service() {
+	echo "The NSS plane cannot be detached at runtime; reboot to return to the host stack."
+	echo "To keep it off across reboots: uci set nss.general.enabled='0'; uci commit nss"
+}

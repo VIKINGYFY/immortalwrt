@@ -33,17 +33,20 @@ PKG_DRIVERS = \
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_kmod-mac80211 \
 	CONFIG_PACKAGE_CFG80211_TESTMODE \
-	CONFIG_PACKAGE_IWLWIFI_DEBUG \
-	CONFIG_PACKAGE_IWLWIFI_DEBUGFS \
 	CONFIG_PACKAGE_MAC80211_DEBUGFS \
 	CONFIG_PACKAGE_MAC80211_MESH \
 	CONFIG_PACKAGE_MAC80211_TRACING \
-	CONFIG_PACKAGE_RTLWIFI_DEBUG
+	CONFIG_PACKAGE_MAC80211_NSS_SUPPORT \
+	CONFIG_PACKAGE_IWLWIFI_DEBUG \
+	CONFIG_PACKAGE_IWLWIFI_DEBUGFS \
+	CONFIG_PACKAGE_RTLWIFI_DEBUG \
 
 include $(INCLUDE_DIR)/package.mk
 
 WMENU:=Wireless Drivers
-NSS_PATCH:= subsys ath10k ath11k
+
+# NSS Wi-Fi offload patch sets (applied only with CONFIG_ATH11K_NSS_SUPPORT)
+NSS_PATCH:=subsys ath11k
 
 define KernelPackage/mac80211/Default
   SUBMENU:=$(WMENU)
@@ -60,12 +63,12 @@ config_package=$(if $(and $(CONFIG_PACKAGE_kmod-$(1)),$(call mac80211_variant_ch
 mac80211_variant_check=$(if $(ALL_VARIANTS),$(filter $(BUILD_VARIANT),$(if $(1),$(1),$(firstword $(ALL_VARIANTS)))),y)
 
 config-y:= \
+	WLAN \
 	CFG80211_CERTIFICATION_ONUS \
-	MAC80211_RC_DEFAULT_MINSTREL \
 	MAC80211_RC_MINSTREL \
 	MAC80211_RC_MINSTREL_HT \
 	MAC80211_RC_MINSTREL_VHT \
-	WLAN \
+	MAC80211_RC_DEFAULT_MINSTREL \
 	WLAN_VENDOR_ADMTEK \
 	WLAN_VENDOR_ATH \
 	WLAN_VENDOR_ATMEL \
@@ -80,7 +83,7 @@ config-y:= \
 	WLAN_VENDOR_RSI \
 	WLAN_VENDOR_ST \
 	WLAN_VENDOR_TI \
-	WLAN_VENDOR_ZYDAS
+	WLAN_VENDOR_ZYDAS \
 
 config-$(call config_package,cfg80211,$(ALL_VARIANTS)) += CFG80211
 config-$(CONFIG_PACKAGE_CFG80211_TESTMODE) += NL80211_TESTMODE
@@ -131,7 +134,9 @@ define KernelPackage/mac80211
   $(call KernelPackage/mac80211/Default)
   TITLE:=Linux 802.11 Wireless Networking Stack
   # +kmod-crypto-cmac is a runtime only dependency of net/mac80211/aes_cmac.c
-  DEPENDS+= +kmod-cfg80211 +kmod-crypto-cmac +kmod-crypto-ccm +kmod-crypto-gcm +hostapd-common
+  DEPENDS+= +kmod-cfg80211 +kmod-crypto-cmac +kmod-crypto-ccm +kmod-crypto-gcm +hostapd-common \
+	+ATH11K_NSS_SUPPORT:kmod-qca-nss-drv \
+	+ATH11K_NSS_MESH_SUPPORT:kmod-qca-nss-drv-wifi-meshmgr
   KCONFIG:=\
 	CONFIG_AVERAGE=y
   FILES:= $(PKG_BUILD_DIR)/net/mac80211/mac80211.ko
@@ -141,6 +146,14 @@ endef
 
 define KernelPackage/mac80211/config
   if PACKAGE_kmod-mac80211
+
+	config PACKAGE_MAC80211_NSS_SUPPORT
+		bool "Enable NSS offload support in mac80211"
+		depends on PACKAGE_kmod-qca-nss-drv
+		default y
+		help
+		  Compile mac80211 with support for handing vifs over to the
+		  Qualcomm NSS cores (required for ath11k NSS Wi-Fi offload).
 
 	config PACKAGE_MAC80211_DEBUGFS
 		bool "Export mac80211 internals in DebugFS"
@@ -266,6 +279,7 @@ endif
 config-$(call config_package,mac80211-hwsim) += MAC80211_HWSIM
 config-$(call config_package,mt7601u) += MT7601U
 config-y += WL_MEDIATEK
+
 config-$(call config_package,wlcore) += WLCORE WLCORE_SDIO
 config-$(call config_package,wl12xx) += WL12XX
 config-$(call config_package,wl18xx) += WL18XX
@@ -282,9 +296,7 @@ ifeq ($(BUILD_VARIANT),smallbuffers)
 	C_DEFINES+= -DCONFIG_ATH10K_SMALLBUFFERS
 endif
 
-ifdef CONFIG_ATH11K_NSS_SUPPORT
-	IREMAP_CFLAGS+=-I$(STAGING_DIR)/usr/include/qca-nss-drv -I$(STAGING_DIR)/usr/include/qca-nss-clients
-endif
+config-$(CONFIG_PACKAGE_MAC80211_NSS_SUPPORT) += MAC80211_NSS_SUPPORT
 
 MAKE_OPTS:= \
 	$(subst -C $(LINUX_DIR),-C "$(PKG_BUILD_DIR)",$(KERNEL_MAKEOPTS)) \
@@ -294,6 +306,25 @@ MAKE_OPTS:= \
 	KLIB=$(TARGET_MODULES_DIR) \
 	KERNEL_SUBLEVEL=$(lastword $(subst ., ,$(KERNEL_PATCHVER))) \
 	KBUILD_LDFLAGS_MODULE_PREREQ=
+
+# kbuild >= 6.15 ignores EXTRA_CFLAGS, and backports folds $(CFLAGS) into
+# NOSTDINC_FLAGS (Makefile.kernel), so the staged qca-nss-drv include path
+# must travel via CFLAGS.
+ifdef CONFIG_ATH11K_NSS_SUPPORT
+  # qca-nss-clients staging carries nss_wifi_meshmgr.h for the ath11k
+  # mesh offload path; the directory only exists once qca-nss-clients is
+  # staged, which the kmod-qca-nss-drv-wifi-meshmgr dependency guarantees.
+  # The 11.4 firmware line uses older wifili exception metadata: the
+  # ath11k NSS patches key the differing decode paths on
+  # CONFIG_NSS_FIRMWARE_VERSION_11_4, which kbuild does not export to
+  # external modules, so pass it explicitly.
+  # The qca-nss-drv export headers gate NSS firmware-version dependent
+  # struct fields on the UNPREFIXED NSS_FIRMWARE_VERSION_* macros (the drv
+  # itself builds with them). ath11k must see the same definitions or the
+  # shared wifili message layouts (e.g. the per-peer stats array stride)
+  # silently diverge from what the driver and firmware fill.
+  MAKE_OPTS += CFLAGS="-I$(STAGING_DIR)/usr/include/qca-nss-drv$(if $(CONFIG_ATH11K_NSS_MESH_SUPPORT), -I$(STAGING_DIR)/usr/include/qca-nss-clients)$(if $(CONFIG_NSS_FIRMWARE_VERSION_11_4), -DCONFIG_NSS_FIRMWARE_VERSION_11_4 -DNSS_FIRMWARE_VERSION_11_4)$(if $(CONFIG_NSS_FIRMWARE_VERSION_12_5), -DNSS_FIRMWARE_VERSION_12_5)"
+endif
 
 define ConfigVars
 $(subst $(space),,$(foreach opt,$(config-$(1)),CPTCFG_$(opt)=$(1)
@@ -362,6 +393,9 @@ ifdef CONFIG_ATH11K_NSS_SUPPORT
 	$(foreach driver,$(NSS_PATCH),
 		$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/nss/$(driver),nss/$(driver)/)
 	)
+ifdef CONFIG_ATH11K_NSS_MESH_SUPPORT
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/nss/mesh,nss/mesh/)
+endif
 endif
 	$(if $(QUILT),touch $(PKG_BUILD_DIR)/.quilt_used)
 endef
@@ -384,6 +418,9 @@ ifdef CONFIG_ATH11K_NSS_SUPPORT
 	$(foreach driver,$(NSS_PATCH),
 		$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/nss/$(driver),nss/$(driver)/)
 	)
+ifdef CONFIG_ATH11K_NSS_MESH_SUPPORT
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/nss/mesh,nss/mesh/)
+endif
 endif
 endef
 
@@ -406,11 +443,13 @@ define Build/InstallDev
 	rm -f $(1)/usr/include/mac80211-backport/linux/module.h
 endef
 
+
 ifdef CONFIG_ATH11K_NSS_SUPPORT
 define KernelPackage/ath11k/install
-	$(INSTALL_DIR) $(1)/etc/init.d $(1)/usr/bin $(1)/etc/hotplug.d/net
+	$(INSTALL_DIR) $(1)/etc/init.d $(1)/etc/config $(1)/usr/bin
 	$(INSTALL_BIN) ./files/qca-nss-pbuf.init $(1)/etc/init.d/qca-nss-pbuf
-	$(INSTALL_DATA) ./files/disable_mesh_chksum_ath11k.hotplug $(1)/etc/hotplug.d/net/99-disable_mesh_chksum_ath11k
+	$(INSTALL_DATA) ./files/pbuf.uci $(1)/etc/config/pbuf
+	$(INSTALL_BIN) ./files/nss_diag.sh $(1)/usr/bin/nss_diag
 endef
 endif
 

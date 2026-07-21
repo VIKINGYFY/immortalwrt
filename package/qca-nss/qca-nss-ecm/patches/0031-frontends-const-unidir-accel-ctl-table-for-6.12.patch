@@ -1,0 +1,20 @@
+frontends: const-ify unidir_accel ctl_table proc_handler for kernel 6.12
+
+14.0.r8's ecm_front_end_unidir_accel_proc_handler (added in 78265ae) was
+missed by the a52268c ECM_CTL_TABLE_CONST sweep and kept the old non-const
+ctl_table + __user buffer signature. Kernel 6.12 makes the proc_handler
+ctl_table const, so match the other handlers in this file.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/frontends/ecm_front_end_common.c
++++ b/frontends/ecm_front_end_common.c
+@@ -1357,7 +1357,7 @@ static int ecm_front_end_tcp_denied_port
+  * ecm_front_end_unidir_accel_proc_handler()
+  *	Per-direction acceleration sysctl handler.
+  */
+-int ecm_front_end_unidir_accel_proc_handler(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
++int ecm_front_end_unidir_accel_proc_handler(ECM_CTL_TABLE_CONST struct ctl_table *ctl, int write, void *buffer, size_t *lenp, loff_t *ppos)
+ {
+ 	int ret;
+ 

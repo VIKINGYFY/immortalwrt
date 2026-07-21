@@ -1,0 +1,232 @@
+qca-nss-ecm-support-netfilter-DSCPREMARK
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/net/netfilter/Kconfig
++++ b/net/netfilter/Kconfig
+@@ -174,6 +174,13 @@ config NF_CONNTRACK_TIMEOUT
+ 
+ 	  If unsure, say `N'.
+ 
++config NF_CONNTRACK_DSCPREMARK_EXT
++	bool  'Connection tracking extension for dscp remark target'
++	depends on NETFILTER_ADVANCED
++	help
++	  This option enables support for connection tracking extension
++	  for dscp remark.
++
+ config NF_CONNTRACK_TIMESTAMP
+ 	bool  'Connection tracking timestamping'
+ 	depends on NETFILTER_ADVANCED
+--- a/include/net/netfilter/nf_conntrack_extend.h
++++ b/include/net/netfilter/nf_conntrack_extend.h
+@@ -31,6 +31,10 @@ enum nf_ct_ext_id {
+ #if IS_ENABLED(CONFIG_NET_ACT_CT)
+ 	NF_CT_EXT_ACT_CT,
+ #endif
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	NF_CT_EXT_DSCPREMARK,   /* QCA NSS ECM support */
++#endif
++
+ 	NF_CT_EXT_NUM,
+ };
+ 
+--- a/net/netfilter/nf_conntrack_extend.c
++++ b/net/netfilter/nf_conntrack_extend.c
+@@ -23,6 +23,7 @@
+ #include <net/netfilter/nf_conntrack_labels.h>
+ #include <net/netfilter/nf_conntrack_synproxy.h>
+ #include <net/netfilter/nf_conntrack_act_ct.h>
++#include <net/netfilter/nf_conntrack_dscpremark_ext.h>
+ #include <net/netfilter/nf_nat.h>
+ 
+ #define NF_CT_EXT_PREALLOC	128u /* conntrack events are on by default */
+@@ -54,6 +55,9 @@ static const u8 nf_ct_ext_type_len[NF_CT
+ #if IS_ENABLED(CONFIG_NET_ACT_CT)
+ 	[NF_CT_EXT_ACT_CT] = sizeof(struct nf_conn_act_ct_ext),
+ #endif
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	[NF_CT_EXT_DSCPREMARK] = sizeof(struct nf_ct_dscpremark_ext),
++#endif
+ };
+ 
+ static __always_inline unsigned int total_extension_size(void)
+@@ -86,6 +90,9 @@ static __always_inline unsigned int tota
+ #if IS_ENABLED(CONFIG_NET_ACT_CT)
+ 		+ sizeof(struct nf_conn_act_ct_ext)
+ #endif
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	    + sizeof(struct nf_ct_dscpremark_ext)
++#endif
+ 	;
+ }
+ 
+--- a/net/netfilter/Makefile
++++ b/net/netfilter/Makefile
+@@ -14,6 +14,7 @@ nf_conntrack-$(CONFIG_NF_CONNTRACK_LABEL
+ nf_conntrack-$(CONFIG_NF_CONNTRACK_OVS) += nf_conntrack_ovs.o
+ nf_conntrack-$(CONFIG_NF_CT_PROTO_SCTP) += nf_conntrack_proto_sctp.o
+ nf_conntrack-$(CONFIG_NF_CT_PROTO_GRE) += nf_conntrack_proto_gre.o
++nf_conntrack-$(CONFIG_NF_CONNTRACK_DSCPREMARK_EXT) += nf_conntrack_dscpremark_ext.o
+ ifeq ($(CONFIG_NF_CONNTRACK),m)
+ nf_conntrack-$(CONFIG_DEBUG_INFO_BTF_MODULES) += nf_conntrack_bpf.o
+ else ifeq ($(CONFIG_NF_CONNTRACK),y)
+--- a/net/netfilter/nf_conntrack_core.c
++++ b/net/netfilter/nf_conntrack_core.c
+@@ -45,6 +45,9 @@
+ #include <net/netfilter/nf_conntrack_zones.h>
+ #include <net/netfilter/nf_conntrack_timestamp.h>
+ #include <net/netfilter/nf_conntrack_timeout.h>
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++#include <net/netfilter/nf_conntrack_dscpremark_ext.h>
++#endif
+ #include <net/netfilter/nf_conntrack_labels.h>
+ #include <net/netfilter/nf_conntrack_synproxy.h>
+ #include <net/netfilter/nf_nat.h>
+@@ -1796,6 +1799,9 @@ init_conntrack(struct net *net, struct n
+ 	nf_ct_acct_ext_add(ct, GFP_ATOMIC);
+ 	nf_ct_tstamp_ext_add(ct, GFP_ATOMIC);
+ 	nf_ct_labels_ext_add(ct);
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	nf_ct_dscpremark_ext_add(ct, GFP_ATOMIC);
++#endif
+ 
+ #ifdef CONFIG_NF_CONNTRACK_EVENTS
+ 	ecache = tmpl ? nf_ct_ecache_find(tmpl) : NULL;
+--- a/net/netfilter/xt_DSCP.c
++++ b/net/netfilter/xt_DSCP.c
+@@ -15,6 +15,9 @@
+ 
+ #include <linux/netfilter/x_tables.h>
+ #include <linux/netfilter/xt_DSCP.h>
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++#include <net/netfilter/nf_conntrack_dscpremark_ext.h>
++#endif
+ 
+ MODULE_AUTHOR("Harald Welte <laforge@netfilter.org>");
+ MODULE_DESCRIPTION("Xtables: DSCP/TOS field modification");
+@@ -31,6 +34,10 @@ dscp_tg(struct sk_buff *skb, const struc
+ {
+ 	const struct xt_DSCP_info *dinfo = par->targinfo;
+ 	u_int8_t dscp = ipv4_get_dsfield(ip_hdr(skb)) >> XT_DSCP_SHIFT;
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	struct nf_conn *ct;
++	enum ip_conntrack_info ctinfo;
++#endif
+ 
+ 	if (dscp != dinfo->dscp) {
+ 		if (skb_ensure_writable(skb, sizeof(struct iphdr)))
+@@ -39,6 +46,13 @@ dscp_tg(struct sk_buff *skb, const struc
+ 		ipv4_change_dsfield(ip_hdr(skb), XT_DSCP_ECN_MASK,
+ 				    dinfo->dscp << XT_DSCP_SHIFT);
+ 
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++		ct = nf_ct_get(skb, &ctinfo);
++		if (!ct)
++			return XT_CONTINUE;
++
++		nf_conntrack_dscpremark_ext_set_dscp_rule_valid(ct);
++#endif
+ 	}
+ 	return XT_CONTINUE;
+ }
+@@ -48,13 +62,24 @@ dscp_tg6(struct sk_buff *skb, const stru
+ {
+ 	const struct xt_DSCP_info *dinfo = par->targinfo;
+ 	u_int8_t dscp = ipv6_get_dsfield(ipv6_hdr(skb)) >> XT_DSCP_SHIFT;
+-
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	struct nf_conn *ct;
++	enum ip_conntrack_info ctinfo;
++#endif
+ 	if (dscp != dinfo->dscp) {
+ 		if (skb_ensure_writable(skb, sizeof(struct ipv6hdr)))
+ 			return NF_DROP;
+ 
+ 		ipv6_change_dsfield(ipv6_hdr(skb), XT_DSCP_ECN_MASK,
+ 				    dinfo->dscp << XT_DSCP_SHIFT);
++
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++		ct = nf_ct_get(skb, &ctinfo);
++		if (!ct)
++			return XT_CONTINUE;
++
++		nf_conntrack_dscpremark_ext_set_dscp_rule_valid(ct);
++#endif
+ 	}
+ 	return XT_CONTINUE;
+ }
+--- a/net/netfilter/nft_payload.c
++++ b/net/netfilter/nft_payload.c
+@@ -25,6 +25,13 @@
+ #include <linux/ipv6.h>
+ #include <net/sctp/checksum.h>
+ 
++/* QCA NSS ECM support - Start */
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++#include <net/netfilter/nf_conntrack.h>
++#include <net/netfilter/nf_conntrack_dscpremark_ext.h>
++#endif
++/* QCA NSS ECM support - End */
++
+ static bool nft_payload_rebuild_vlan_hdr(const struct sk_buff *skb, int mac_off,
+ 					 struct vlan_ethhdr *veth)
+ {
+@@ -860,6 +867,11 @@ static void nft_payload_set_eval(const s
+ 	int offset, csum_offset, vlan_hlen = 0;
+ 	struct sk_buff *skb = pkt->skb;
+ 	__wsum fsum, tsum;
++	/* QCA NSS ECM support - Start */
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	bool dscp_hooked = false;
++#endif
++	/* QCA NSS ECM support - End */
+ 
+ 	switch (priv->base) {
+ 	case NFT_PAYLOAD_LL_HEADER:
+@@ -919,10 +931,45 @@ static void nft_payload_set_eval(const s
+ 			goto err;
+ 	}
+ 
++	/* QCA NSS ECM support - Start */
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	/* Flag a network-header write targeting the DSCP byte (e.g. an nft
++	 * 'ip dscp set' statement), so the conntrack DSCP-remark extension
++	 * can be marked valid below. Deliberately fires even when the
++	 * written value equals the current one: xt_DSCP validates the
++	 * extension whenever the target runs, and an 'ip dscp set' rule
++	 * must count as a QoS rule for flows that already carry the wanted
++	 * DSCP, or idempotent firewall configs would silently lose QoS
++	 * treatment. ECN-only writes hit the same byte and are accepted as
++	 * false positives: the resulting acceleration rule remarks with the
++	 * packet's own DSCP, a no-op.
++	 */
++	if (priv->base == NFT_PAYLOAD_NETWORK_HEADER && priv->offset <= 1) {
++		switch (nft_pf(pkt)) {
++		case NFPROTO_IPV4:
++		case NFPROTO_IPV6:
++			dscp_hooked = true;
++			break;
++		}
++	}
++#endif
++	/* QCA NSS ECM support - End */
+ 	if (skb_ensure_writable(skb, max(offset + priv->len, 0)) ||
+ 	    skb_store_bits(skb, offset, src, priv->len) < 0)
+ 		goto err;
+ 
++	/* QCA NSS ECM support - Start */
++#ifdef CONFIG_NF_CONNTRACK_DSCPREMARK_EXT
++	if (dscp_hooked) {
++		enum ip_conntrack_info ctinfo;
++		struct nf_conn *ct = nf_ct_get(skb, &ctinfo);
++
++		if (ct)
++			nf_conntrack_dscpremark_ext_set_dscp_rule_valid(ct);
++	}
++#endif
++	/* QCA NSS ECM support - End */
++
+ 	if (priv->csum_type == NFT_PAYLOAD_CSUM_SCTP &&
+ 	    pkt->tprot == IPPROTO_SCTP &&
+ 	    skb->ip_summed != CHECKSUM_PARTIAL) {

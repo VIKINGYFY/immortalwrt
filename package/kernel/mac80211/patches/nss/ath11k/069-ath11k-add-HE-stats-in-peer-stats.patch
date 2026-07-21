@@ -729,20 +729,6 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  out_unlock_data:
  	spin_unlock_bh(&ar->data_lock);
  
---- a/drivers/net/wireless/ath/ath11k/rx_desc.h
-+++ b/drivers/net/wireless/ath/ath11k/rx_desc.h
-@@ -1495,6 +1495,11 @@ struct hal_rx_desc {
- 	} u;
- } __packed;
- 
-+#define MAX_USER_POS 8
-+#define MAX_MU_GROUP_ID 64
-+#define MAX_MU_GROUP_SHOW 16
-+#define MAX_MU_GROUP_LENGTH (6 * MAX_MU_GROUP_SHOW)
-+
- #define HAL_RX_RU_ALLOC_TYPE_MAX 6
- #define RU_26  1
- #define RU_52  2
 --- a/drivers/net/wireless/ath/ath11k/peer.h
 +++ b/drivers/net/wireless/ath/ath11k/peer.h
 @@ -7,6 +7,17 @@
@@ -772,3 +758,17 @@ Signed-off-by: Miles Hu <milehu@codeaurora.org>
  };
  
  void ath11k_peer_unmap_event(struct ath11k_base *ab, u16 peer_id);
+--- a/drivers/net/wireless/ath/ath11k/rx_desc.h
++++ b/drivers/net/wireless/ath/ath11k/rx_desc.h
+@@ -1495,6 +1495,11 @@ struct hal_rx_desc {
+ 	} u;
+ } __packed;
+ 
++#define MAX_USER_POS 8
++#define MAX_MU_GROUP_ID 64
++#define MAX_MU_GROUP_SHOW 16
++#define MAX_MU_GROUP_LENGTH (6 * MAX_MU_GROUP_SHOW)
++
+ #define HAL_RX_RU_ALLOC_TYPE_MAX 6
+ #define RU_26  1
+ #define RU_52  2

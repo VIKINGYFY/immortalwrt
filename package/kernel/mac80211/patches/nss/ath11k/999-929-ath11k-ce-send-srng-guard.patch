@@ -20,6 +20,7 @@ ath11k_hal_srng_setup() sets ->initialized before ->tp_addr without a
 barrier, so an ->initialized check could still race the CE ring rebuild.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
 --- a/drivers/net/wireless/ath/ath11k/ce.c
 +++ b/drivers/net/wireless/ath/ath11k/ce.c
 @@ -751,6 +751,19 @@ int ath11k_ce_send(struct ath11k_base *a

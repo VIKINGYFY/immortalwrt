@@ -1,0 +1,73 @@
+#!/bin/sh
+# Resolves the 'domain' lists of /etc/config/nssqos rules into the nft sets
+# <rule>_v4 / <rule>_v6 of table inet nssqos (declared by the nssqos
+# service render). 'once' runs a single pass (the service uses it right
+# after every (re)render so the sets never sit empty); without arguments it
+# loops as the procd resolver instance, re-reading the config every tick.
+#
+# Standalone on purpose, NOT an /etc/init.d/nssqos extra command: a
+# long-lived instance routed through rc.common inherits the procd service
+# lock fd and deadlocks every later start/stop/reload of the service.
+
+SETFILE=/var/etc/nssqos-sets.nft
+
+# Names of enabled rules carrying at least one 'domain' entry.
+domain_rules() {
+	uci -q show nssqos | sed -n 's/^nssqos\.\([^.]*\)\.domain=.*/\1/p' | \
+	while read -r s; do
+		[ "$(uci -q get "nssqos.$s.enabled")" = 1 ] && echo "$s"
+	done
+}
+
+# All A/AAAA answers for one name, one per line (busybox nslookup; the
+# 'answer:' anchor skips the resolver's own Server/Address header).
+resolve_name() {
+	nslookup "$1" 2>/dev/null | sed -n '/answer:/,$p' | awk '/^Address/{print $NF}'
+}
+
+# One resolve pass: atomically swap every domain rule's set elements (one
+# nft transaction). A name that stops resolving keeps its last-known
+# elements rather than dropping coverage on a DNS hiccup.
+pass() {
+	local cfg d a v4 v6 batch=""
+	[ "$(uci -q get nssqos.global.enabled)" = 0 ] && return 0
+	for cfg in $(domain_rules); do
+		v4="" v6=""
+		for d in $(uci -q get "nssqos.$cfg.domain"); do
+			for a in $(resolve_name "$d"); do
+				# DNS answers are attacker-influenced and go verbatim
+				# into the root `nft -f` batch below; accept only IP
+				# literals so a crafted record can't inject ruleset
+				# statements (and junk tokens don't fail the batch).
+				case "$a" in
+				*[!0-9A-Fa-f:./]*) continue ;;
+				*:*) v6="$v6 $a" ;;
+				*) v4="$v4 $a" ;;
+				esac
+			done
+		done
+		v4=$(echo $v4 | tr ' ' '\n' | sort -u | xargs)
+		v6=$(echo $v6 | tr ' ' '\n' | sort -u | xargs)
+		[ -n "$v4" ] && batch="$batch
+flush set inet nssqos ${cfg}_v4
+add element inet nssqos ${cfg}_v4 { $(echo "$v4" | sed 's/ /, /g') }"
+		[ -n "$v6" ] && batch="$batch
+flush set inet nssqos ${cfg}_v6
+add element inet nssqos ${cfg}_v6 { $(echo "$v6" | sed 's/ /, /g') }"
+	done
+	[ -n "$batch" ] || return 0
+	mkdir -p "$(dirname "$SETFILE")"
+	echo "$batch" > "$SETFILE"
+	nft -f "$SETFILE" || logger -t nssqos "domain set update failed"
+}
+
+if [ "$1" = "once" ]; then
+	pass
+	exit 0
+fi
+
+while :; do
+	pass
+	interval=$(uci -q get nssqos.global.resolve_interval)
+	sleep "${interval:-300}"
+done

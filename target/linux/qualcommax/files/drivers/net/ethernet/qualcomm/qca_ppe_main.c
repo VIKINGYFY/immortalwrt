@@ -11,9 +11,30 @@
 #include <linux/phylink.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
+#include <linux/rtnetlink.h>
 #include <linux/if_bridge.h>
+#include <linux/etherdevice.h>
+#include <linux/slab.h>
+#include <linux/workqueue.h>
+#include <linux/soc/qcom/qca_edma.h>
+#include <linux/soc/qcom/qca_ppe.h>
 
 #include "qca_ppe.h"
+
+/*
+ * The single PPE switch instance on this SoC. Recorded at probe so callers
+ * that key off a bridge netdev or a bare MAC (the NSS bridge manager) can
+ * reach the switch without a DSA user port to resolve through. qca-ppe stays
+ * the single writer of the PPE tables; these callers only request actions.
+ */
+static struct qca_ppe_priv *qca_ppe_instance;
+
+/*
+ * Workqueue for deferred FDB deletes requested from the atomic bridge
+ * FDB-update notifier. Drained in remove() before the PPE clocks are
+ * disabled so a pending delete never touches freed/clock-gated state.
+ */
+static struct workqueue_struct *qca_ppe_wq;
 
 static void ppe_port_gmac_set(struct qca_ppe_priv *priv, int port,
 			     bool tx_en, bool rx_en)
@@ -56,6 +77,14 @@ static void ppe_port_bridge_txmac_set(struct qca_ppe_priv *priv, int port,
 	regmap_update_bits(priv->regmap, PPE_PORT_BRIDGE_CTRL(port),
 			   PPE_PORT_BRIDGE_CTRL_TXMAC_EN,
 			   enable ? PPE_PORT_BRIDGE_CTRL_TXMAC_EN : 0);
+}
+
+static struct net_device *ppe_port_conduit(struct dsa_port *dp)
+{
+	if (!dp || !dsa_port_is_user(dp))
+		return NULL;
+
+	return dsa_port_to_conduit(dp);
 }
 
 static void ppe_gmac_link_up(struct qca_ppe_priv *priv, int port,
@@ -437,8 +466,10 @@ static int qca_ppe_setup(struct dsa_switch *ds)
 
 	port_mask = BIT(num_ports) - 1;
 
-	for (i = 0; i < num_ports; i++)
+	for (i = 0; i < num_ports; i++) {
 		priv->port_vsi[i] = PPE_VSI_INVALID;
+		priv->port_fw_vsi[i] = PPE_VSI_INVALID;
+	}
 
 	regmap_write(priv->regmap, PPE_FDB_OP, 0);
 
@@ -479,8 +510,10 @@ static int qca_ppe_setup(struct dsa_switch *ds)
 	regmap_write(priv->regmap, PPE_VSI_TBL(0) + 4,
 		PPE_VSI_TBL_NEW_ADDR_LRN_EN | PPE_VSI_TBL_STA_MOVE_LRN_EN);
 
-	for (i = 1; i < num_ports; i++)
+	for (i = 1; i < num_ports; i++) {
 		ppe_port_vsi_set(priv, i, 0);
+		priv->port_vsi[i] = 0;
+	}
 
 	ppe_fdb_flush(priv);
 
@@ -520,6 +553,9 @@ static int qca_ppe_port_enable(struct dsa_switch *ds, int port,
 static void qca_ppe_port_disable(struct dsa_switch *ds, int port)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct dsa_port *dp = dsa_to_port(ds, port);
+
+	qca_edma_port_transition_begin(ppe_port_conduit(dp), port);
 
 	ppe_port_bridge_txmac_set(priv, port, false);
 }
@@ -622,9 +658,10 @@ static void qca_ppe_port_bridge_leave(struct dsa_switch *ds, int port,
 	if (!bvsi)
 		return;
 
-	priv->port_vsi[port] = PPE_VSI_INVALID;
+	/* Back to the probe-time default VSI, like any standalone port */
+	priv->port_vsi[port] = 0;
 	priv->port_br_dev[port] = NULL;
-	ppe_port_vsi_set(priv, port, PPE_VSI_INVALID);
+	ppe_port_vsi_set(priv, port, 0);
 	bridge_vsi_members_update(priv, bvsi);
 	bridge_vsi_put(priv, bvsi);
 }
@@ -962,6 +999,8 @@ static void qca_ppe_mac_config(struct phylink_config *config,
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
 
+	qca_edma_port_transition_begin(ppe_port_conduit(dp), port);
+
 	if (state->interface == PHY_INTERFACE_MODE_USXGMII ||
 	    state->interface == PHY_INTERFACE_MODE_10GBASER) {
 		qca_ppe_xgmac_config(priv, port);
@@ -981,6 +1020,10 @@ static void qca_ppe_mac_link_down(struct phylink_config *config,
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
+
+	qca_edma_port_transition_begin(ppe_port_conduit(dp), port);
+
+	ppe_port_bridge_txmac_set(priv, port, false);
 
 	switch (interface) {
 	case PHY_INTERFACE_MODE_SGMII:
@@ -1006,6 +1049,19 @@ static void qca_ppe_mac_link_down(struct phylink_config *config,
 	return;
 }
 
+static bool qca_ppe_port_uses_xgmac(unsigned int mode, phy_interface_t interface)
+{
+	switch (interface) {
+	case PHY_INTERFACE_MODE_2500BASEX:
+		return phylink_autoneg_inband(mode);
+	case PHY_INTERFACE_MODE_USXGMII:
+	case PHY_INTERFACE_MODE_10GBASER:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static void qca_ppe_mac_link_up(struct phylink_config *config,
 				     struct phy_device *phydev,
 				     unsigned int mode,
@@ -1024,6 +1080,8 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	     interface == PHY_INTERFACE_MODE_10GBASER) &&
 	     port < 5)
 		return;
+
+	priv->port_xgmac[port] = qca_ppe_port_uses_xgmac(mode, interface);
 
 	switch (interface) {
 	case PHY_INTERFACE_MODE_SGMII:
@@ -1124,6 +1182,20 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	default:
 		return;
 	}
+
+	ppe_port_bridge_txmac_set(priv, port, true);
+
+	qca_edma_port_transition_end(ppe_port_conduit(dp), port);
+}
+
+static int qca_ppe_mac_enable_tx_lpi(struct phylink_config *config, u32 timer,
+				     bool tx_clk_stop)
+{
+	return 0;
+}
+
+static void qca_ppe_mac_disable_tx_lpi(struct phylink_config *config)
+{
 }
 
 static const struct phylink_mac_ops qca_ppe_phylink_mac_ops = {
@@ -1131,6 +1203,8 @@ static const struct phylink_mac_ops qca_ppe_phylink_mac_ops = {
 	.mac_config	= qca_ppe_mac_config,
 	.mac_link_down	= qca_ppe_mac_link_down,
 	.mac_link_up	= qca_ppe_mac_link_up,
+	.mac_enable_tx_lpi	= qca_ppe_mac_enable_tx_lpi,
+	.mac_disable_tx_lpi	= qca_ppe_mac_disable_tx_lpi,
 };
 
 struct qca_ppe_mib_desc {
@@ -1185,6 +1259,25 @@ static const struct qca_ppe_mib_desc qca_ppe_mib[] = {
 	MIB32(PPE_MIB_TXUNI,		"tx_unicast"),
 };
 
+static u32 qca_ppe_mib_read(struct qca_ppe_priv *priv, int gmac,
+			    unsigned int offset)
+{
+	u32 val = 0;
+
+	regmap_read(priv->regmap, PPE_GMAC_MIB(gmac, offset), &val);
+
+	return val;
+}
+
+static u64 qca_ppe_mib_read64(struct qca_ppe_priv *priv, int gmac,
+			      unsigned int offset)
+{
+	u32 lo = qca_ppe_mib_read(priv, gmac, offset);
+	u32 hi = qca_ppe_mib_read(priv, gmac, offset + 4);
+
+	return (u64)hi << 32 | lo;
+}
+
 static void qca_ppe_get_strings(struct dsa_switch *ds, int port,
 				    u32 stringset, uint8_t *data)
 {
@@ -1220,17 +1313,60 @@ static void qca_ppe_get_ethtool_stats(struct dsa_switch *ds, int port,
 
 	for (i = 0; i < ARRAY_SIZE(qca_ppe_mib); i++) {
 		const struct qca_ppe_mib_desc *mib = &qca_ppe_mib[i];
-		u32 val, hi;
 
-		regmap_read(priv->regmap, PPE_GMAC_MIB(gmac, mib->offset), &val);
 		if (mib->size == 2)
-			regmap_read(priv->regmap,
-				    PPE_GMAC_MIB(gmac, mib->offset + 4), &hi);
-
-		data[i] = val;
-		if (mib->size == 2)
-			data[i] |= (u64)hi << 32;
+			data[i] = qca_ppe_mib_read64(priv, gmac, mib->offset);
+		else
+			data[i] = qca_ppe_mib_read(priv, gmac, mib->offset);
 	}
+}
+
+static void qca_ppe_get_stats64(struct dsa_switch *ds, int port,
+				struct rtnl_link_stats64 *s)
+{
+	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	u32 rx_multi, tx_multi;
+	int gmac = port - 1;
+
+	if (port < 1 || port >= ds->num_ports)
+		return;
+
+	if (priv->port_xgmac[port]) {
+		dev_get_tstats64(dsa_to_port(ds, port)->user, s);
+		return;
+	}
+
+	rx_multi = qca_ppe_mib_read(priv, gmac, PPE_MIB_RXMULTI);
+	tx_multi = qca_ppe_mib_read(priv, gmac, PPE_MIB_TXMULTI);
+
+	s->rx_packets = qca_ppe_mib_read(priv, gmac, PPE_MIB_RXUNI) +
+			qca_ppe_mib_read(priv, gmac, PPE_MIB_RXBROAD) +
+			rx_multi;
+	s->tx_packets = qca_ppe_mib_read(priv, gmac, PPE_MIB_TXUNI) +
+			qca_ppe_mib_read(priv, gmac, PPE_MIB_TXBROAD) +
+			tx_multi;
+	s->rx_bytes = qca_ppe_mib_read64(priv, gmac, PPE_MIB_RXGOODBYTE_L);
+	s->tx_bytes = qca_ppe_mib_read64(priv, gmac, PPE_MIB_TXBYTE_L);
+	s->multicast = rx_multi;
+
+	s->rx_crc_errors = qca_ppe_mib_read(priv, gmac, PPE_MIB_RXFCSERR) +
+			   qca_ppe_mib_read(priv, gmac, PPE_MIB_RXJUMBOFCSERR);
+	s->rx_frame_errors = qca_ppe_mib_read(priv, gmac, PPE_MIB_RXALIGNERR) +
+			     qca_ppe_mib_read(priv, gmac,
+					      PPE_MIB_RXJUMBOALIGNERR);
+	s->rx_length_errors = qca_ppe_mib_read(priv, gmac, PPE_MIB_RXRUNT) +
+			      qca_ppe_mib_read(priv, gmac, PPE_MIB_RXFRAG) +
+			      qca_ppe_mib_read(priv, gmac, PPE_MIB_RXTOOLONG);
+	s->rx_errors = s->rx_crc_errors + s->rx_frame_errors +
+		       s->rx_length_errors;
+
+	s->tx_fifo_errors = qca_ppe_mib_read(priv, gmac, PPE_MIB_TXUNDERRUN);
+	s->tx_aborted_errors = qca_ppe_mib_read(priv, gmac, PPE_MIB_TXABORTCOL);
+	s->tx_window_errors = qca_ppe_mib_read(priv, gmac, PPE_MIB_TXLATECOL);
+	s->tx_errors = s->tx_fifo_errors + s->tx_aborted_errors +
+		       s->tx_window_errors;
+
+	s->collisions = qca_ppe_mib_read(priv, gmac, PPE_MIB_TXCOLLISIONS);
 }
 
 static void qca_ppe_port_stp_state_set(struct dsa_switch *ds, int port,
@@ -1281,7 +1417,219 @@ static const struct dsa_switch_ops qca_ppe_ops = {
 	.get_strings		= qca_ppe_get_strings,
 	.get_sset_count		= qca_ppe_get_sset_count,
 	.get_ethtool_stats	= qca_ppe_get_ethtool_stats,
+	.get_stats64		= qca_ppe_get_stats64,
 };
+
+/*
+ * qca_ppe_port_fw_vsi_get - per-port private VSI for the NSS firmware
+ * @netdev: DSA user netdev on a qca-ppe switch
+ *
+ * The NSS firmware's physical-interface model predates this driver's
+ * shared bridge VSIs: the firmware accepts exactly one port per VSI
+ * (the old qca-ssdk stack gave every port a unique default VSI;
+ * bridge VSI sharing went through the firmware's own bridge interface
+ * instead, which is nss-bridge-mgr territory). Allocate a dedicated
+ * VSI for the port on first use, with VSI 0 semantics: the port and
+ * the CPU port as members, all flooding to the CPU port only, so the
+ * Linux bridge remains the forwarding authority and inter-port
+ * traffic takes the firmware slow path.
+ *
+ * The VSI stays allocated for the switch lifetime (one per user port,
+ * out of 32). Callers hold rtnl. Returns the VSI or -errno.
+ */
+struct qca_ppe_priv *qca_ppe_user_port_resolve(struct net_device *netdev,
+					       int *port)
+{
+	struct dsa_port *dp;
+
+	ASSERT_RTNL();
+
+	if (!netdev || !dsa_user_dev_check(netdev))
+		return NULL;
+
+	dp = dsa_port_from_netdev(netdev);
+	if (IS_ERR(dp) || dp->ds->ops != &qca_ppe_ops)
+		return NULL;
+
+	*port = dp->index;
+	return ds_to_priv(dp->ds);
+}
+
+/*
+ * The private VSI carries the port and the CPU port, but floods only
+ * toward the CPU port copy of each direction: source-port pruning
+ * makes a wire-ingress flood reach the CPU port only and a firmware
+ * (CPU-sourced) flood reach the wire only, so the Linux bridge stays
+ * the forwarding authority with no duplicate delivery.
+ */
+static void fw_vsi_tbl_write(struct qca_ppe_priv *priv, int port, u32 vsi)
+{
+	regmap_write(priv->regmap, PPE_VSI_TBL(vsi),
+		     FIELD_PREP(PPE_VSI_TBL_MEMBER,
+				BIT(port) | BIT(QCA_PPE_CPU_PORT)) |
+		     FIELD_PREP(PPE_VSI_TBL_UUC,
+				BIT(port) | BIT(QCA_PPE_CPU_PORT)) |
+		     FIELD_PREP(PPE_VSI_TBL_UMC,
+				BIT(port) | BIT(QCA_PPE_CPU_PORT)) |
+		     FIELD_PREP(PPE_VSI_TBL_BC,
+				BIT(port) | BIT(QCA_PPE_CPU_PORT)));
+	regmap_write(priv->regmap, PPE_VSI_TBL(vsi) + 4,
+		     PPE_VSI_TBL_NEW_ADDR_LRN_EN | PPE_VSI_TBL_STA_MOVE_LRN_EN);
+}
+
+int qca_ppe_port_fw_vsi_get(struct net_device *netdev)
+{
+	struct qca_ppe_priv *priv;
+	int port, vsi;
+
+	priv = qca_ppe_user_port_resolve(netdev, &port);
+	if (!priv)
+		return -ENODEV;
+
+	if (priv->port_fw_vsi[port] != PPE_VSI_INVALID)
+		return priv->port_fw_vsi[port];
+
+	vsi = ppe_vsi_alloc(priv);
+	if (vsi < 0)
+		return vsi;
+
+	fw_vsi_tbl_write(priv, port, vsi);
+	priv->port_fw_vsi[port] = vsi;
+
+	return vsi;
+}
+EXPORT_SYMBOL_GPL(qca_ppe_port_fw_vsi_get);
+
+/*
+ * qca_ppe_port_fw_vsi_refresh - re-assert a private VSI's table entry
+ * @netdev: DSA user netdev whose private VSI was assigned to the fw
+ *
+ * The firmware rewrites the VSI table entry of a VSI it is assigned
+ * (measured: members and flood masks read back zeroed), which kills
+ * its own broadcast egress - the firmware floods H2N broadcasts per
+ * the VSI flood masks, so an emptied mask means host-originated ARP
+ * requests never reach the wire while unicast (FDB hit) still flows.
+ * Call after every firmware vsi_assign to re-assert the masks.
+ */
+int qca_ppe_port_fw_vsi_refresh(struct net_device *netdev)
+{
+	struct qca_ppe_priv *priv;
+	int port;
+
+	priv = qca_ppe_user_port_resolve(netdev, &port);
+	if (!priv)
+		return -ENODEV;
+
+	if (priv->port_fw_vsi[port] == PPE_VSI_INVALID)
+		return -ENOENT;
+
+	fw_vsi_tbl_write(priv, port, priv->port_fw_vsi[port]);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qca_ppe_port_fw_vsi_refresh);
+
+/*
+ * qca_ppe_bridge_vsi_get - VSI of the shared bridge a Linux bridge maps to
+ * @br_dev: a Linux bridge netdev
+ *
+ * qca-ppe already allocates one shared VSI per Linux bridge when its DSA user
+ * ports join (port_bridge_join), with the member/flood masks programmed. The
+ * NSS bridge manager reuses that VSI for the firmware bridge interface instead
+ * of allocating its own, so qca-ppe stays the single PPE-table writer. Returns
+ * the VSI, or -ENODEV if the bridge has no qca-ppe ports (nothing to offload).
+ */
+int qca_ppe_bridge_vsi_get(struct net_device *br_dev)
+{
+	struct qca_ppe_priv *priv = qca_ppe_instance;
+	struct qca_ppe_bridge_vsi *bvsi;
+
+	ASSERT_RTNL();	/* reads priv->bridges[]/port_vsi[], mutated under rtnl */
+
+	if (!priv || !br_dev)
+		return -ENODEV;
+
+	bvsi = bridge_vsi_find(priv, br_dev);
+	if (!bvsi)
+		return -ENODEV;
+
+	return bvsi->vsi;
+}
+EXPORT_SYMBOL_GPL(qca_ppe_bridge_vsi_get);
+
+/*
+ * qca_ppe_bridge_vsi_refresh - re-assert a bridge VSI's member/flood masks
+ * @br_dev: a Linux bridge netdev
+ *
+ * The firmware zeroes a VSI's member and flood masks when it is assigned to a
+ * bridge interface (same hazard as the per-port VSI). Re-apply the masks
+ * qca-ppe computed from the bridged ports. Call after every firmware
+ * vsi_assign and after each member join. Returns 0, or -ENODEV.
+ */
+int qca_ppe_bridge_vsi_refresh(struct net_device *br_dev)
+{
+	struct qca_ppe_priv *priv = qca_ppe_instance;
+	struct qca_ppe_bridge_vsi *bvsi;
+
+	ASSERT_RTNL();	/* reads priv->bridges[]/port_vsi[], mutated under rtnl */
+
+	if (!priv || !br_dev)
+		return -ENODEV;
+
+	bvsi = bridge_vsi_find(priv, br_dev);
+	if (!bvsi)
+		return -ENODEV;
+
+	bridge_vsi_members_update(priv, bvsi);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qca_ppe_bridge_vsi_refresh);
+
+/*
+ * qca_ppe_fdb_del - flush a learned FDB entry by MAC + bridge VSI
+ *
+ * Called from the bridge FDB-update notifier when a MAC roams off a physical
+ * port, so the PPE stops forwarding to the stale port before it ages out.
+ * That notifier runs in atomic context (br->hash_lock held) while the PPE
+ * regmap takes a mutex, so the actual delete is deferred to a workqueue.
+ */
+struct qca_ppe_fdb_del_work {
+	struct work_struct work;
+	struct qca_ppe_priv *priv;
+	unsigned char addr[ETH_ALEN];
+	u32 vsi;
+};
+
+static void qca_ppe_fdb_del_worker(struct work_struct *work)
+{
+	struct qca_ppe_fdb_del_work *w =
+		container_of(work, struct qca_ppe_fdb_del_work, work);
+
+	ppe_fdb_op(w->priv, w->addr, 0, w->vsi, PPE_FDB_OP_DEL);
+	kfree(w);
+}
+
+int qca_ppe_fdb_del(const unsigned char *addr, u32 vsi)
+{
+	struct qca_ppe_priv *priv = qca_ppe_instance;
+	struct qca_ppe_fdb_del_work *w;
+
+	if (!priv || !qca_ppe_wq || !addr)
+		return -ENODEV;
+
+	w = kzalloc(sizeof(*w), GFP_ATOMIC);
+	if (!w)
+		return -ENOMEM;
+
+	INIT_WORK(&w->work, qca_ppe_fdb_del_worker);
+	w->priv = priv;
+	ether_addr_copy(w->addr, addr);
+	w->vsi = vsi;
+	/* Dedicated wq so remove() can drain it while the PPE is still live. */
+	queue_work(qca_ppe_wq, &w->work);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qca_ppe_fdb_del);
 
 static void ppe_vsi_init(struct qca_ppe_priv *priv)
 {
@@ -1498,6 +1846,9 @@ static int qca_ppe_probe(struct platform_device *pdev)
 		goto err_clk;
 
 	platform_set_drvdata(pdev, priv);
+	/* Best-effort: a failed wq just disables deferred FDB flush. */
+	qca_ppe_wq = alloc_workqueue("qca_ppe_fdb", 0, 0);
+	qca_ppe_instance = priv;
 
 	return 0;
 
@@ -1510,6 +1861,11 @@ static void qca_ppe_remove(struct platform_device *pdev)
 {
 	struct qca_ppe_priv *priv = platform_get_drvdata(pdev);
 
+	qca_ppe_instance = NULL;	/* no new lookups / queued FDB work after this */
+	if (qca_ppe_wq) {
+		destroy_workqueue(qca_ppe_wq);	/* drain pending FDB deletes while live */
+		qca_ppe_wq = NULL;
+	}
 	dsa_unregister_switch(&priv->ds);
 	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 }

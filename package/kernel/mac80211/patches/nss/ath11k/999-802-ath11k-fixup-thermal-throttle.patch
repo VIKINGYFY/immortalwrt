@@ -1,3 +1,19 @@
+ath11k-fixup-thermal-throttle
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -6825,6 +6825,9 @@ static int ath11k_mac_op_start(struct ie
+ 		}
+ 	}
+ 
++	/* set default thermal throttling */
++	ath11k_thermal_set_throttling(ar, 1);
++
+ 	mutex_unlock(&ar->conf_mutex);
+ 
+ 	rcu_assign_pointer(ab->pdevs_active[ar->pdev_idx],
 --- a/drivers/net/wireless/ath/ath11k/thermal.c
 +++ b/drivers/net/wireless/ath/ath11k/thermal.c
 @@ -135,16 +135,69 @@ int ath11k_thermal_set_throttling(struct
@@ -137,7 +153,7 @@
  #define ATH11K_HWMON_NAME_LEN           15
 --- a/drivers/net/wireless/ath/ath11k/wmi.c
 +++ b/drivers/net/wireless/ath/ath11k/wmi.c
-@@ -3245,6 +3245,7 @@ ath11k_wmi_send_thermal_mitigation_param
+@@ -3241,6 +3241,7 @@ ath11k_wmi_send_thermal_mitigation_param
  		lvl_conf->temp_hwm = param->levelconf[i].tmphwm;
  		lvl_conf->dc_off_percent = param->levelconf[i].dcoffpercent;
  		lvl_conf->prio = param->levelconf[i].priority;
@@ -147,7 +163,7 @@
  
 --- a/drivers/net/wireless/ath/ath11k/wmi.h
 +++ b/drivers/net/wireless/ath/ath11k/wmi.h
-@@ -4060,12 +4060,14 @@ struct wmi_11d_new_cc_ev {
+@@ -4058,12 +4058,14 @@ struct wmi_11d_new_cc_ev {
  	u32 new_alpha2;
  } __packed;
  
@@ -163,7 +179,7 @@
  };
  
  struct thermal_mitigation_params {
-@@ -4076,6 +4078,14 @@ struct thermal_mitigation_params {
+@@ -4074,6 +4076,14 @@ struct thermal_mitigation_params {
  	struct tt_level_config levelconf[THERMAL_LEVELS];
  };
  
@@ -178,7 +194,7 @@
  struct wmi_therm_throt_config_request_cmd {
  	u32 tlv_header;
  	u32 pdev_id;
-@@ -4083,14 +4093,48 @@ struct wmi_therm_throt_config_request_cm
+@@ -4081,14 +4091,48 @@ struct wmi_therm_throt_config_request_cm
  	u32 dc;
  	u32 dc_per_event;
  	u32 therm_throt_levels;
@@ -227,15 +243,3 @@
  } __packed;
  
  struct wmi_delba_send_cmd {
---- a/drivers/net/wireless/ath/ath11k/mac.c
-+++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6840,6 +6840,9 @@ static int ath11k_mac_op_start(struct ie
- 		}
- 	}
- 
-+	/* set default thermal throttling */
-+	ath11k_thermal_set_throttling(ar, 1);
-+
- 	mutex_unlock(&ar->conf_mutex);
- 
- 	rcu_assign_pointer(ab->pdevs_active[ar->pdev_idx],

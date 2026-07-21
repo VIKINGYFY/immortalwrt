@@ -1,0 +1,15 @@
+# With firmware RPS and the Linux RPS fan-out, bursts to host-terminated
+# flows land on the per-CPU receive backlogs; the 1000-packet default
+# overflows at line-rate bursts (softnet_stat column-2 drops). 4096 absorbs
+# them with no measured drops at ~1.5 Gbit/s offered.
+net.core.netdev_max_backlog=4096
+
+# Default RPS mask (cores 1-3, keeping core 0 for N2H queue 0) applied to
+# every rx queue at creation. This is what durably steers the Wi-Fi VAP
+# receive softirq off core 0: a 160 MHz 5 GHz VAP is torn down and recreated
+# by the DFS-CAC -> AP-ENABLED transition after bring-up has finished, so a
+# one-shot rps_cpus write races and loses. Applying it as the queue-creation
+# default survives every recreation. Only affects netdevs created after this
+# runs (the late VAPs); the early wired ports keep the default and don't need
+# host RPS under offload anyway.
+net.core.rps_default_mask=e

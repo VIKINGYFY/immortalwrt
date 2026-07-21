@@ -1,0 +1,209 @@
+use-pr_debug-for-wifi-event-chatter
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/mc_wifi_events.c
++++ b/mc_wifi_events.c
+@@ -97,20 +97,20 @@ void mc_sta_leave_event(struct net_devic
+ 	pdev = netdev_master_upper_dev_get(dev);
+ 	if (!pdev) {
+ 		rtnl_unlock();
+-		printk(KERN_DEBUG "%s: STA leave received for interface without a master \n", __func__);
++		pr_debug("%s: STA leave received for interface without a master \n", __func__);
+ 		return;
+ 	}
+ 
+ 	if (!netif_is_bridge_master(pdev)) {
+ 		rtnl_unlock();
+-		printk(KERN_DEBUG "%s: pdev is not a bridge netdevice\n", __func__);
++		pr_debug("%s: pdev is not a bridge netdevice\n", __func__);
+ 		return;
+ 	}
+ 
+ 	mc = MC_DEV(pdev);
+ 	if (!mc) {
+ 		rtnl_unlock();
+-		printk(KERN_DEBUG "%s: MC_DEV returned NULL for device %s\n", __func__, pdev->name);
++		pr_debug("%s: MC_DEV returned NULL for device %s\n", __func__, pdev->name);
+ 		return;
+ 	}
+ 
+@@ -163,12 +163,12 @@ void mc_process_sta_leave_event(struct n
+ 	int res;
+ 
+ 	if (nlh->nlmsg_len < nlmsg_msg_size(GENL_HDRLEN)) {
+-		printk(KERN_DEBUG "%px: Invalid NL response message header length\n", nlh);
++		pr_debug("%px: Invalid NL response message header length\n", nlh);
+ 		return;
+ 	}
+ 	tb = (struct nlattr **)kzalloc((sizeof(struct nlattr *) * (NL80211_ATTR_MAX + 1)), GFP_ATOMIC | __GFP_NOWARN);
+ 	if (!tb) {
+-		printk(KERN_DEBUG"%px: Not able to allocate array to parse the events \n", nlh);
++		pr_debug("%px: Not able to allocate array to parse the events \n", nlh);
+ 		return;
+ 	}
+ 
+@@ -178,7 +178,7 @@ void mc_process_sta_leave_event(struct n
+ 	res = nla_parse(tb, NL80211_ATTR_MAX, nlmsg_attrdata(nlh, GENL_HDRLEN),
+ 			nlmsg_attrlen(nlh, GENL_HDRLEN), NULL, NULL);
+ 	if (res < 0) {
+-		printk(KERN_DEBUG"%px: Error in parsing the Wi-Fi event \n", nlh);
++		pr_debug("%px: Error in parsing the Wi-Fi event \n", nlh);
+ 		goto free;
+ 	}
+ 
+@@ -364,20 +364,20 @@ void mc_handle_vbss_event(struct net_dev
+         pdev = netdev_master_upper_dev_get(dev);
+         if (!pdev) {
+                 rtnl_unlock();
+-                printk(KERN_DEBUG "%s: VBSS event received for interface without a master \n", __func__);
++                pr_debug("%s: VBSS event received for interface without a master \n", __func__);
+                 return;
+         }
+ 
+         if (!netif_is_bridge_master(pdev)) {
+                 rtnl_unlock();
+-                printk(KERN_DEBUG "%s: pdev is not a bridge netdevice\n", __func__);
++                pr_debug("%s: pdev is not a bridge netdevice\n", __func__);
+                 return;
+         }
+ 
+         mc = MC_DEV(pdev);
+         if (!mc) {
+                 rtnl_unlock();
+-                printk(KERN_DEBUG "%s: MC_DEV returned NULL for device %s\n", __func__, pdev->name);
++                pr_debug("%s: MC_DEV returned NULL for device %s\n", __func__, pdev->name);
+                 return;
+         }
+ 
+@@ -448,7 +448,7 @@ void mc_process_vendor_event(struct nlms
+ 	struct nlattr **tb=NULL;
+ 
+ 	if (nlh->nlmsg_len < nlmsg_msg_size(GENL_HDRLEN)) {
+-		printk(KERN_DEBUG "%px: Invalid NL response message header length\n", nlh);
++		pr_debug("%px: Invalid NL response message header length\n", nlh);
+ 		return;
+ 	}
+ 
+@@ -457,14 +457,14 @@ void mc_process_vendor_event(struct nlms
+ 	 */
+ 	tb = (struct nlattr **)kzalloc((sizeof(struct nlattr *) * (NL80211_ATTR_MAX + 1)), GFP_ATOMIC | __GFP_NOWARN);
+ 	if (!tb) {
+-    		printk(KERN_DEBUG"Failed to allocate memory for nlattr array\n");
++    		pr_debug("Failed to allocate memory for nlattr array\n");
+     		return;
+ 	}
+ 
+ 	res = nla_parse(tb, NL80211_ATTR_MAX, nlmsg_attrdata(nlh, GENL_HDRLEN),
+ 			nlmsg_attrlen(nlh, GENL_HDRLEN), NULL, NULL);
+ 	if (res < 0) {
+-		printk(KERN_DEBUG"%px: Error in parsing the Wi-Fi event \n", nlh);
++		pr_debug("%px: Error in parsing the Wi-Fi event \n", nlh);
+ 		goto free;
+ 	}
+ 
+@@ -472,18 +472,18 @@ void mc_process_vendor_event(struct nlms
+ 	 * Get the vendor ID
+  	 */
+ 	if (!tb[NL80211_ATTR_VENDOR_ID]){
+-		printk(KERN_DEBUG "Vendor ID attribute missing\n");
++		pr_debug("Vendor ID attribute missing\n");
+ 		goto free;
+ 	}
+ 
+ 	vendor_id = nla_get_u32(tb[NL80211_ATTR_VENDOR_ID]);
+ 	if (vendor_id != OUI_QCA){
+-		printk(KERN_DEBUG "Unsupported vendor ID: 0x%x\n", vendor_id);
++		pr_debug("Unsupported vendor ID: 0x%x\n", vendor_id);
+ 		goto free;
+ 	}
+ 
+ 	if (!tb[NL80211_ATTR_IFINDEX]) {
+-		printk(KERN_DEBUG "Interface index attribute missing\n");
++		pr_debug("Interface index attribute missing\n");
+ 		goto free;
+ 	}
+ 
+@@ -538,7 +538,7 @@ static int mc_event_handler(void *buf, i
+ 		hdr = NLMSG_DATA(nlh);
+ 		switch (hdr->cmd) {
+ 		case NL80211_CMD_DEL_STATION:
+-			printk(KERN_DEBUG "MCS: Processing station leave event\n");
++			pr_debug("MCS: Processing station leave event\n");
+ 			mc_process_sta_leave_event(nlh, hdr->cmd);
+ 			break;
+ 
+@@ -629,10 +629,10 @@ int mc_parse_genl_ctrl_response(struct n
+ 	        return -1;
+ 	}
+ 	if (res_mlme >= 0)
+-		printk(KERN_DEBUG"MLME group found");
++		pr_debug("MLME group found");
+ 
+ 	if (res_vendor >= 0)
+-		printk(KERN_DEBUG"VENDOR group found");
++		pr_debug("VENDOR group found");
+ 
+ 	return 0;
+ }
+@@ -769,7 +769,7 @@ int mc_resolve_nl80211_family(struct soc
+ 	 */
+ 	nlh = (struct nlmsghdr *)buf;
+ 	while (NLMSG_OK(nlh, size)) {
+-		printk(KERN_DEBUG"%px: Received an NL response, length %d type %d\n", nlh, nlh->nlmsg_len, nlh->nlmsg_type);
++		pr_debug("%px: Received an NL response, length %d type %d\n", nlh, nlh->nlmsg_len, nlh->nlmsg_type);
+ 		ret = mc_parse_genl_ctrl_response(nlh, &mlme_id, &vendor_id);
+ 		if (ret < 0) {
+ 			printk(KERN_WARNING"%px: Failed to parse the multicast group message %d\n", sock, ret);
+@@ -796,7 +796,7 @@ int mc_resolve_nl80211_family(struct soc
+ 			return ret;
+ 		}
+ 
+-		printk(KERN_DEBUG"%px: Adding a this sokcet as a member to NL80211 MLME multicast group %d \n", sock, mlme_id);
++		pr_debug("%px: Adding a this sokcet as a member to NL80211 MLME multicast group %d \n", sock, mlme_id);
+ 	}
+ 
+ 	if (vendor_id != MCS_NL80211_MC_GROUP_INVALID_ID) {
+@@ -806,7 +806,7 @@ int mc_resolve_nl80211_family(struct soc
+ 			return ret;
+ 		}
+ 
+-		printk(KERN_DEBUG"%px: Adding a this sokcet as a member to NL80211 VENDOR multicast group %d \n", sock, vendor_id);
++		pr_debug("%px: Adding a this sokcet as a member to NL80211 VENDOR multicast group %d \n", sock, vendor_id);
+ 	}
+ 
+ 	return 0;
+@@ -865,7 +865,7 @@ static void mc_event_thread(void)
+ 	/*
+ 	 * Start listening to the Wi-Fi events.
+ 	 */
+-	printk(KERN_DEBUG"mc_event thread started\n");
++	pr_debug("mc_event thread started\n");
+ 	while (!kthread_should_stop()) {
+ 		size = mc_event_recv(__ewn.sock, &saddr, buf, len);
+ 
+@@ -880,7 +880,7 @@ static void mc_event_thread(void)
+ 	}
+ 
+ 	kfree(buf);
+-	printk(KERN_DEBUG"mc_event thread stopped\n");
++	pr_debug("mc_event thread stopped\n");
+ exit2:
+ 	sock_release(__ewn.sock);
+ exit1:
+@@ -917,12 +917,12 @@ int mc_event_stop(void)
+ 		return 0;
+ 	}
+ 
+-	printk(KERN_DEBUG"kill mc_event thread\n");
++	pr_debug("kill mc_event thread\n");
+ 	send_sig(SIGKILL, __ewn.thread, 1);
+-	printk(KERN_DEBUG"Stopping kthread.\n");
++	pr_debug("Stopping kthread.\n");
+ 	err = kthread_stop(__ewn.thread);
+ 	__ewn.thread = NULL;
+-	printk(KERN_DEBUG"Stopped kthread.\n");
++	pr_debug("Stopped kthread.\n");
+ 
+ 	return err;
+ }

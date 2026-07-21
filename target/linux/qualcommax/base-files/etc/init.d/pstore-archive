@@ -1,0 +1,33 @@
+#!/bin/sh /etc/rc.common
+# Archive pstore crash dumps to persistent storage early in boot, then
+# clear pstore so the next crash has free records.
+#
+# This runs before NTP has synced (and sysfixtime only offers the newest
+# file mtime), so the wall clock can lag reality and barely advance between
+# consecutive reboots - date-only directory names from back-to-back boots
+# then land seconds apart and read like repeat archives of a single boot.
+# Suffix the kernel's per-boot boot_id so every directory maps to exactly
+# one boot regardless of clock state.
+START=11
+
+boot() {
+	local boot_id dir d
+
+	grep -q pstore /proc/filesystems || return 0
+	mkdir -p /sys/fs/pstore
+	grep -q ' /sys/fs/pstore pstore ' /proc/mounts || \
+		mount -t pstore pstore /sys/fs/pstore 2>/dev/null
+	ls /sys/fs/pstore/ 2>/dev/null | grep -q . || return 0
+
+	boot_id="$(cut -c1-8 /proc/sys/kernel/random/boot_id 2>/dev/null)"
+	dir="/root/pstore/$(date +%Y%m%d-%H%M%S)${boot_id:+-$boot_id}"
+	mkdir -p "$dir"
+	cp /sys/fs/pstore/* "$dir/" 2>/dev/null
+	rm -f /sys/fs/pstore/*
+	logger -t pstore-archive "crash dumps archived to $dir"
+
+	# keep the newest 20 archives - flash space over unbounded history
+	for d in $(ls -dt /root/pstore/*/ 2>/dev/null | tail -n +21); do
+		rm -rf "$d"
+	done
+}

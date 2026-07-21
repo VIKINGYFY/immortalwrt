@@ -415,6 +415,7 @@ static void qca_uniphy_pcs_get_state_10base_r(struct qca_uniphy *uniphy,
 }
 
 static void qca_uniphy_pcs_get_state(struct phylink_pcs *pcs,
+				     unsigned int neg_mode,
 				     struct phylink_link_state *state)
 {
 	struct qca_uniphy_pcs *upcs = to_qca_uniphy_pcs(pcs);
@@ -474,6 +475,7 @@ static int qca_uniphy_pcs_config_mode(struct phylink_pcs *pcs,
 		break;
 	case PHY_INTERFACE_MODE_PSGMII:
 		mode_ctrl = UNIPHY_CH0_PSGMII_QSGMII;
+		mode_ctrl |= FIELD_PREP(UNIPHY_CH0_MODE_CTRL_25M, UNIPHY_CH0_MODE_MAC);
 		misc2_phy_mode = 0;
 		break;
 	case PHY_INTERFACE_MODE_USXGMII:
@@ -504,6 +506,19 @@ static int qca_uniphy_pcs_config_mode(struct phylink_pcs *pcs,
 			clk_prepare_enable(uniphy->ref_clk.hw.clk);
 	}
 
+	/* TODO: Fix for IPQ6018 and IPQ8074 */
+	if (uniphy->data->uniphy_type == UNIPHY_IPQ5018) {
+		//set force mode for fixed link
+		if (neg_mode == PHYLINK_PCS_NEG_OUTBAND && !phylink_expects_phy(pcs->phylink)) {
+			regmap_set_bits(uniphy->regmap,
+					UNIPHY_CH_CTRL(upcs->channel),
+					UNIPHY_CH_FORCE_MODE);
+		}
+	}
+
+	if (uniphy->interface == interface)
+		return 0;
+
 	/* First update misc2 PHY mode... */
 	regmap_update_bits(uniphy->regmap, UNIPHY_MISC2_PHY_MODE,
 			   UNIPHY_MISC2_PHY_MODE_MASK, misc2_phy_mode);
@@ -523,16 +538,6 @@ static int qca_uniphy_pcs_config_mode(struct phylink_pcs *pcs,
 	/* ...and disable PHY clock */
 	clk_disable(uniphy->clks[port_rx_clk_idx(upcs)].clk);
 	clk_disable(uniphy->clks[port_tx_clk_idx(upcs)].clk);
-
-	/* TODO: Fix for IPQ6018 and IPQ8074 */
-	if (uniphy->data->uniphy_type == UNIPHY_IPQ5018) {
-		//set force mode for fixed link
-		if (neg_mode == PHYLINK_PCS_NEG_OUTBAND && !phylink_expects_phy(pcs->phylink)) {
-			regmap_set_bits(uniphy->regmap,
-					UNIPHY_CH_CTRL(upcs->channel),
-					UNIPHY_CH_FORCE_MODE);
-		}
-	}
 
 	/* Third update the mode ctrl... */
 	regmap_update_bits(uniphy->regmap, UNIPHY_MODE_CTRL,
@@ -562,6 +567,8 @@ static int qca_uniphy_pcs_config_mode(struct phylink_pcs *pcs,
 		dev_err(uniphy->dev, "PCS calibration timeout\n");
 		return -EINVAL;
 	}
+
+	uniphy->interface = interface;
 
 	/* Trigger UNIPHY ref clock to recal rate */
 	clk_hw_recalc_rate(&uniphy->rx_clk.hw);
@@ -974,7 +981,6 @@ static int qca_uniphy_probe(struct platform_device *pdev)
 
 	for (i = 0; i < QCA_UNIPHY_CHANNELS; i++) {
 		uniphy->port_pcs[i].pcs.ops = &qca_uniphy_pcs_ops;
-		uniphy->port_pcs[i].pcs.neg_mode = true;
 		uniphy->port_pcs[i].pcs.poll = true;
 		uniphy->port_pcs[i].uniphy = uniphy;
 		uniphy->port_pcs[i].channel = i;

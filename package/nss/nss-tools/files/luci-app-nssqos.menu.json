@@ -1,0 +1,34 @@
+{
+	"admin/network/nssqos": {
+		"title": "QoS Marking (NSS)",
+		"order": 61,
+		"action": {
+			"type": "view",
+			"path": "nss/qos"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-nssqos"
+			],
+			"fs": {
+				"/etc/init.d/nssqos": "executable"
+			}
+		}
+	},
+	"admin/status/nssconns": {
+		"title": "NSS Connections",
+		"order": 56,
+		"action": {
+			"type": "view",
+			"path": "nss/connections"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-nssqos"
+			],
+			"fs": {
+				"/usr/sbin/nssqos-conns": "executable"
+			}
+		}
+	}
+}

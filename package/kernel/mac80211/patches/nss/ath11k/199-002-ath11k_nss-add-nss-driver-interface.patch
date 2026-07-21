@@ -46,6 +46,148 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  
  obj-$(CPTCFG_ATH11K_AHB) += ath11k_ahb.o
  ath11k_ahb-y += ahb.o
+--- a/drivers/net/wireless/ath/ath11k/core.h
++++ b/drivers/net/wireless/ath/ath11k/core.h
+@@ -909,6 +909,8 @@ struct ath11k_soc_dp_tx_err_stats {
+ 	 * idr unavailable etc.
+ 	 */
+ 	atomic_t misc_fail;
++	/* Tx failures due to NSS Tx error status */
++	atomic_t nss_tx_fail;
+ };
+ 
+ struct ath11k_soc_dp_stats {
+@@ -959,6 +961,7 @@ struct ath11k_base {
+ 	struct ath11k_htc htc;
+ 
+ 	struct ath11k_dp dp;
++	struct ath11k_soc_nss nss;
+ 
+ 	void __iomem *mem;
+ 	void __iomem *mem_ce;
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -994,6 +994,29 @@ unlock_exit:
+ 	spin_unlock_bh(&ab->base_lock);
+ }
+ 
++/* Sends WMI config to filter packets to route packets to WBM release ring */
++int ath11k_dp_rx_pkt_type_filter(struct ath11k *ar, enum ath11k_routing_pkt_type pkt_type, u32 meta_data)
++{
++	struct ath11k_wmi_pkt_route_param param;
++	int ret;
++
++	/* Routing Eapol packets to CCE is only allowed now */
++	if (pkt_type != ATH11K_PKT_TYPE_EAP)
++		return -EINVAL;
++
++	param.opcode = ATH11K_WMI_PKTROUTE_ADD;
++	param.meta_data = meta_data;
++	param.dst_ring = ATH11K_ROUTE_WBM_RELEASE;
++	param.dst_ring_handler = ATH11K_WMI_PKTROUTE_USE_CCE;
++	param.route_type_bmap = 1 << pkt_type;
++
++	ret = ath11k_wmi_send_pdev_pkt_route(ar, &param);
++	if (ret)
++		ath11k_warn(ar->ab, "failed to configure pkt route %d", ret);
++
++	return ret;
++}
++
+ int ath11k_peer_rx_tid_setup(struct ath11k *ar, const u8 *peer_mac, int vdev_id,
+ 			     u8 tid, u32 ba_win_sz, u16 ssn,
+ 			     enum hal_pn_type pn_type)
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.h
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.h
+@@ -21,6 +21,34 @@
+ #define DP_RX_MPDU_ERR_MPDU_LEN			BIT(6)
+ #define DP_RX_MPDU_ERR_UNENCRYPTED_FRAME	BIT(7)
+ 
++/* different supported pkt types for routing */
++enum ath11k_routing_pkt_type {
++	ATH11K_PKT_TYPE_ARP_IPV4,
++	ATH11K_PKT_TYPE_NS_IPV6,
++	ATH11K_PKT_TYPE_IGMP_IPV4,
++	ATH11K_PKT_TYPE_MLD_IPV6,
++	ATH11K_PKT_TYPE_DHCP_IPV4,
++	ATH11K_PKT_TYPE_DHCP_IPV6,
++	ATH11K_PKT_TYPE_DNS_TCP_IPV4,
++	ATH11K_PKT_TYPE_DNS_TCP_IPV6,
++	ATH11K_PKT_TYPE_DNS_UDP_IPV4,
++	ATH11K_PKT_TYPE_DNS_UDP_IPV6,
++	ATH11K_PKT_TYPE_ICMP_IPV4,
++	ATH11K_PKT_TYPE_ICMP_IPV6,
++	ATH11K_PKT_TYPE_TCP_IPV4,
++	ATH11K_PKT_TYPE_TCP_IPV6,
++	ATH11K_PKT_TYPE_UDP_IPV4,
++	ATH11K_PKT_TYPE_UDP_IPV6,
++	ATH11K_PKT_TYPE_IPV4,
++	ATH11K_PKT_TYPE_IPV6,
++	ATH11K_PKT_TYPE_EAP,
++	ATH11K_PKT_TYPE_MAX
++};
++
++#define ATH11K_RX_PROTOCOL_TAG_START_OFFSET  128
++#define ATH11K_ROUTE_WBM_RELEASE	5
++#define ATH11K_ROUTE_EAP_METADATA	(ATH11K_RX_PROTOCOL_TAG_START_OFFSET + ATH11K_PKT_TYPE_EAP)
++
+ enum dp_rx_decap_type {
+ 	DP_RX_DECAP_TYPE_RAW,
+ 	DP_RX_DECAP_TYPE_NATIVE_WIFI,
+@@ -76,6 +104,9 @@ void ath11k_peer_rx_tid_delete(struct at
+ int ath11k_peer_rx_tid_setup(struct ath11k *ar, const u8 *peer_mac, int vdev_id,
+ 			     u8 tid, u32 ba_win_sz, u16 ssn,
+ 			     enum hal_pn_type pn_type);
++int ath11k_dp_rx_pkt_type_filter(struct ath11k *ar,
++				  enum ath11k_routing_pkt_type pkt_type,
++				  u32 meta_data);
+ void ath11k_dp_htt_htc_t2h_msg_handler(struct ath11k_base *ab,
+ 				       struct sk_buff *skb);
+ int ath11k_dp_pdev_reo_setup(struct ath11k_base *ab);
+--- a/drivers/net/wireless/ath/ath11k/hif.h
++++ b/drivers/net/wireless/ath/ath11k/hif.h
+@@ -33,6 +33,7 @@ struct ath11k_hif_ops {
+ 	void (*get_ce_msi_idx)(struct ath11k_base *ab, u32 ce_id, u32 *msi_idx);
+ 	void (*coredump_download)(struct ath11k_base *ab);
+ 	void (*config_static_window)(struct ath11k_base *ab);
++	u32 (*get_window_offset)(struct ath11k_base *ab, u32 offset);
+ };
+ 
+ static inline void ath11k_hif_ce_irq_enable(struct ath11k_base *ab)
+@@ -145,6 +146,14 @@ static inline void ath11k_get_msi_addres
+ 	ab->hif.ops->get_msi_address(ab, msi_addr_lo, msi_addr_hi);
+ }
+ 
++static inline u32 ath11k_hif_get_window_offset(struct ath11k_base *ab, u32 offset)
++{
++	if (ab->hif.ops->get_window_offset)
++		return ab->hif.ops->get_window_offset(ab, offset);
++
++	return offset;
++}
++
+ static inline void ath11k_get_ce_msi_idx(struct ath11k_base *ab, u32 ce_id,
+ 					 u32 *msi_data_idx)
+ {
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -6383,6 +6383,16 @@ static int ath11k_mac_op_start(struct ie
+ 		goto err;
+ 	}
+ 
++	/* nss offload requires eapol packets to be routed to wbm release ring */
++	if (ab->nss.enabled) {
++		ret = ath11k_dp_rx_pkt_type_filter(ar, ATH11K_PKT_TYPE_EAP,
++						   ATH11K_ROUTE_EAP_METADATA);
++		if (ret) {
++			ath11k_err(ar->ab, "failed to configure EAP pkt route: %d\n", ret);
++			goto err;
++		}
++	}
++
+ 	__ath11k_set_antenna(ar, ar->cfg_tx_chainmask, ar->cfg_rx_chainmask);
+ 
+ 	/* TODO: Do we need to enable ANI? */
 --- /dev/null
 +++ b/drivers/net/wireless/ath/ath11k/nss.c
 @@ -0,0 +1,2399 @@
@@ -2758,31 +2900,6 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
 +}
 +#endif /* CPTCFG_ATH11K_NSS_SUPPORT */
 +#endif
---- a/drivers/net/wireless/ath/ath11k/hif.h
-+++ b/drivers/net/wireless/ath/ath11k/hif.h
-@@ -33,6 +33,7 @@ struct ath11k_hif_ops {
- 	void (*get_ce_msi_idx)(struct ath11k_base *ab, u32 ce_id, u32 *msi_idx);
- 	void (*coredump_download)(struct ath11k_base *ab);
- 	void (*config_static_window)(struct ath11k_base *ab);
-+	u32 (*get_window_offset)(struct ath11k_base *ab, u32 offset);
- };
- 
- static inline void ath11k_hif_ce_irq_enable(struct ath11k_base *ab)
-@@ -145,6 +146,14 @@ static inline void ath11k_get_msi_addres
- 	ab->hif.ops->get_msi_address(ab, msi_addr_lo, msi_addr_hi);
- }
- 
-+static inline u32 ath11k_hif_get_window_offset(struct ath11k_base *ab, u32 offset)
-+{
-+	if (ab->hif.ops->get_window_offset)
-+		return ab->hif.ops->get_window_offset(ab, offset);
-+
-+	return offset;
-+}
-+
- static inline void ath11k_get_ce_msi_idx(struct ath11k_base *ab, u32 ce_id,
- 					 u32 *msi_data_idx)
- {
 --- a/drivers/net/wireless/ath/ath11k/pci.c
 +++ b/drivers/net/wireless/ath/ath11k/pci.c
 @@ -72,6 +72,20 @@ static u32 ath11k_pci_get_window_start(s
@@ -2814,41 +2931,9 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	.get_ce_msi_idx = ath11k_pcic_get_ce_msi_idx,
  #ifdef CONFIG_DEV_COREDUMP
  	.coredump_download = ath11k_pci_coredump_download,
---- a/drivers/net/wireless/ath/ath11k/dp_rx.c
-+++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -994,6 +994,29 @@ unlock_exit:
- 	spin_unlock_bh(&ab->base_lock);
- }
- 
-+/* Sends WMI config to filter packets to route packets to WBM release ring */
-+int ath11k_dp_rx_pkt_type_filter(struct ath11k *ar, enum ath11k_routing_pkt_type pkt_type, u32 meta_data)
-+{
-+	struct ath11k_wmi_pkt_route_param param;
-+	int ret;
-+
-+	/* Routing Eapol packets to CCE is only allowed now */
-+	if (pkt_type != ATH11K_PKT_TYPE_EAP)
-+		return -EINVAL;
-+
-+	param.opcode = ATH11K_WMI_PKTROUTE_ADD;
-+	param.meta_data = meta_data;
-+	param.dst_ring = ATH11K_ROUTE_WBM_RELEASE;
-+	param.dst_ring_handler = ATH11K_WMI_PKTROUTE_USE_CCE;
-+	param.route_type_bmap = 1 << pkt_type;
-+
-+	ret = ath11k_wmi_send_pdev_pkt_route(ar, &param);
-+	if (ret)
-+		ath11k_warn(ar->ab, "failed to configure pkt route %d", ret);
-+
-+	return ret;
-+}
-+
- int ath11k_peer_rx_tid_setup(struct ath11k *ar, const u8 *peer_mac, int vdev_id,
- 			     u8 tid, u32 ba_win_sz, u16 ssn,
- 			     enum hal_pn_type pn_type)
 --- a/drivers/net/wireless/ath/ath11k/wmi.c
 +++ b/drivers/net/wireless/ath/ath11k/wmi.c
-@@ -1171,6 +1171,44 @@ int ath11k_wmi_send_pdev_set_regdomain(s
+@@ -1169,6 +1169,44 @@ int ath11k_wmi_send_pdev_set_regdomain(s
  	return ret;
  }
  
@@ -2949,88 +3034,3 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  int ath11k_wmi_set_sta_ps_param(struct ath11k *ar, u32 vdev_id,
  				u32 param, u32 param_value);
  int ath11k_wmi_force_fw_hang_cmd(struct ath11k *ar, u32 type, u32 delay_time_ms);
---- a/drivers/net/wireless/ath/ath11k/dp_rx.h
-+++ b/drivers/net/wireless/ath/ath11k/dp_rx.h
-@@ -21,6 +21,34 @@
- #define DP_RX_MPDU_ERR_MPDU_LEN			BIT(6)
- #define DP_RX_MPDU_ERR_UNENCRYPTED_FRAME	BIT(7)
- 
-+/* different supported pkt types for routing */
-+enum ath11k_routing_pkt_type {
-+	ATH11K_PKT_TYPE_ARP_IPV4,
-+	ATH11K_PKT_TYPE_NS_IPV6,
-+	ATH11K_PKT_TYPE_IGMP_IPV4,
-+	ATH11K_PKT_TYPE_MLD_IPV6,
-+	ATH11K_PKT_TYPE_DHCP_IPV4,
-+	ATH11K_PKT_TYPE_DHCP_IPV6,
-+	ATH11K_PKT_TYPE_DNS_TCP_IPV4,
-+	ATH11K_PKT_TYPE_DNS_TCP_IPV6,
-+	ATH11K_PKT_TYPE_DNS_UDP_IPV4,
-+	ATH11K_PKT_TYPE_DNS_UDP_IPV6,
-+	ATH11K_PKT_TYPE_ICMP_IPV4,
-+	ATH11K_PKT_TYPE_ICMP_IPV6,
-+	ATH11K_PKT_TYPE_TCP_IPV4,
-+	ATH11K_PKT_TYPE_TCP_IPV6,
-+	ATH11K_PKT_TYPE_UDP_IPV4,
-+	ATH11K_PKT_TYPE_UDP_IPV6,
-+	ATH11K_PKT_TYPE_IPV4,
-+	ATH11K_PKT_TYPE_IPV6,
-+	ATH11K_PKT_TYPE_EAP,
-+	ATH11K_PKT_TYPE_MAX
-+};
-+
-+#define ATH11K_RX_PROTOCOL_TAG_START_OFFSET  128
-+#define ATH11K_ROUTE_WBM_RELEASE	5
-+#define ATH11K_ROUTE_EAP_METADATA	(ATH11K_RX_PROTOCOL_TAG_START_OFFSET + ATH11K_PKT_TYPE_EAP)
-+
- enum dp_rx_decap_type {
- 	DP_RX_DECAP_TYPE_RAW,
- 	DP_RX_DECAP_TYPE_NATIVE_WIFI,
-@@ -76,6 +104,9 @@ void ath11k_peer_rx_tid_delete(struct at
- int ath11k_peer_rx_tid_setup(struct ath11k *ar, const u8 *peer_mac, int vdev_id,
- 			     u8 tid, u32 ba_win_sz, u16 ssn,
- 			     enum hal_pn_type pn_type);
-+int ath11k_dp_rx_pkt_type_filter(struct ath11k *ar,
-+				  enum ath11k_routing_pkt_type pkt_type,
-+				  u32 meta_data);
- void ath11k_dp_htt_htc_t2h_msg_handler(struct ath11k_base *ab,
- 				       struct sk_buff *skb);
- int ath11k_dp_pdev_reo_setup(struct ath11k_base *ab);
---- a/drivers/net/wireless/ath/ath11k/mac.c
-+++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6386,6 +6386,16 @@ static int ath11k_mac_op_start(struct ie
- 		goto err;
- 	}
- 
-+	/* nss offload requires eapol packets to be routed to wbm release ring */
-+	if (ab->nss.enabled) {
-+		ret = ath11k_dp_rx_pkt_type_filter(ar, ATH11K_PKT_TYPE_EAP,
-+						   ATH11K_ROUTE_EAP_METADATA);
-+		if (ret) {
-+			ath11k_err(ar->ab, "failed to configure EAP pkt route: %d\n", ret);
-+			goto err;
-+		}
-+	}
-+
- 	__ath11k_set_antenna(ar, ar->cfg_tx_chainmask, ar->cfg_rx_chainmask);
- 
- 	/* TODO: Do we need to enable ANI? */
---- a/drivers/net/wireless/ath/ath11k/core.h
-+++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -909,6 +909,8 @@ struct ath11k_soc_dp_tx_err_stats {
- 	 * idr unavailable etc.
- 	 */
- 	atomic_t misc_fail;
-+	/* Tx failures due to NSS Tx error status */
-+	atomic_t nss_tx_fail;
- };
- 
- struct ath11k_soc_dp_stats {
-@@ -959,6 +961,7 @@ struct ath11k_base {
- 	struct ath11k_htc htc;
- 
- 	struct ath11k_dp dp;
-+	struct ath11k_soc_nss nss;
- 
- 	void __iomem *mem;
- 	void __iomem *mem_ce;

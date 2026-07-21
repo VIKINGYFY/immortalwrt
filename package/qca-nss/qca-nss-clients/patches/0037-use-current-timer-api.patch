@@ -1,0 +1,95 @@
+Use the current timer API
+
+Kernel 6.15 removed the del_timer()/del_timer_sync() wrappers and 6.18
+removed from_timer(); use timer_delete(), timer_delete_sync() and
+timer_container_of().
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/netlink/nss_nludp_st.c
++++ b/netlink/nss_nludp_st.c
+@@ -164,7 +164,7 @@ static void nss_nludp_st_time_sync_timer
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0))
+ 	struct nss_nludp_st_private *priv = (struct nss_nludp_st_private *)data;
+ #else
+-	struct nss_nludp_st_private *priv = from_timer(priv, t, time_sync_timer);
++	struct nss_nludp_st_private *priv = timer_container_of(priv, t, time_sync_timer);
+ #endif
+ 	/*
+ 	 * Check if stop is called or test duration is over.
+@@ -198,7 +198,7 @@ static void nss_nludp_st_test_duration_t
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0))
+ 	struct nss_nludp_st_private *priv = (struct nss_nludp_st_private *)data;
+ #else
+-	struct nss_nludp_st_private *priv = from_timer(priv, t, test_duration_timer);
++	struct nss_nludp_st_private *priv = timer_container_of(priv, t, test_duration_timer);
+ #endif
+ 	atomic_set(&priv->disable_time_sync_timer, 1);
+ }
+@@ -235,7 +235,7 @@ static void nss_nludp_st_process_resp_ti
+ 			 * Update time sync timer disable flag and delete test duration timer.
+ 			 */
+ 			atomic_set(&global.disable_time_sync_timer, 1);
+-			del_timer(&global.test_duration_timer);
++			timer_delete(&global.test_duration_timer);
+ 			break;
+ 
+ 		case NSS_UDP_ST_RESET_STATS_MSG:
+--- a/nss_qdisc/nss_qdisc_stats.c
++++ b/nss_qdisc/nss_qdisc_stats.c
+@@ -82,7 +82,7 @@ static void nss_qdisc_stats_sync_restart
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0))
+ 	struct nss_qdisc *nq = (struct nss_qdisc *)data;
+ #else
+-	struct nss_qdisc_stats_wq *nqsw = from_timer(nqsw, tm, stats_get_timer);
++	struct nss_qdisc_stats_wq *nqsw = timer_container_of(nqsw, tm, stats_get_timer);
+ 	struct nss_qdisc *nq = nqsw->nq;
+ #endif
+ 
+@@ -490,7 +490,7 @@ void nss_qdisc_stats_sync_many_exit(stru
+ 	 * We will have to wait until we have received the pending response.
+ 	 */
+ cleanup:
+-	if (del_timer(&nqsw->stats_get_timer) > 0) {
++	if (timer_delete(&nqsw->stats_get_timer) > 0) {
+ 		/*
+ 		 * The timer was still active (counting down) when it was deleted.
+ 		 * Therefore we are sure that there are no pending stats request
+--- a/tls/nss_tlsmgr_tun.c
++++ b/tls/nss_tlsmgr_tun.c
+@@ -225,7 +225,7 @@ static void nss_tlsmgr_notify_event(stru
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0))
+ 	struct nss_tlsmgr_tun *tun = (struct nss_tlsmgr_tun *)data;
+ #else
+-	struct nss_tlsmgr_tun *tun = from_timer(tun, tm, notify.timer);
++	struct nss_tlsmgr_tun *tun = timer_container_of(tun, tm, notify.timer);
+ #endif
+ 	nss_tlsmgr_notify_callback_t cb;
+ 	struct nss_tlsmgr_stats stats;
+@@ -257,7 +257,7 @@ static void nss_tlsmgr_notify_decongesti
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0))
+ 	struct nss_tlsmgr_tun *tun = (struct nss_tlsmgr_tun *)data;
+ #else
+-	struct nss_tlsmgr_tun *tun = from_timer(tun, tm, notify.timer);
++	struct nss_tlsmgr_tun *tun = timer_container_of(tun, tm, notify.timer);
+ #endif
+ 	nss_tlsmgr_decongest_callback_t cb;
+ 	void *app_data;
+@@ -325,7 +325,7 @@ void nss_tlsmgr_unregister_notify(struct
+ 	write_unlock_bh(&tun->lock);
+ 
+ 	BUG_ON(in_atomic());
+-	del_timer_sync(&tun->notify.timer);
++	timer_delete_sync(&tun->notify.timer);
+ }
+ 
+ /*
+@@ -452,7 +452,7 @@ void nss_tlsmgr_tun_del(struct net_devic
+ 
+ 	nss_tlsmgr_unregister_notify(dev);
+ 
+-	del_timer_sync(&tun->decongest.timer);
++	timer_delete_sync(&tun->decongest.timer);
+ 	tun->decongest.app_data = NULL;
+ 	tun->decongest.cb = NULL;
+ 	tun->decongest.ticks = 0;

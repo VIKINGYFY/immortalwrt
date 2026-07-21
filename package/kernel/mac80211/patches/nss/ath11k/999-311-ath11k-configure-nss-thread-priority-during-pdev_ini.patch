@@ -22,7 +22,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  
  #include "debug.h"
  #include "mac.h"
-@@ -4362,6 +4363,7 @@ static int ath11k_nss_init(struct ath11k
+@@ -2842,6 +2843,7 @@ static int ath11k_nss_init(struct ath11k
  	nss_tx_status_t status;
  	struct ath11k_dp *dp;
  	int i, ret;
@@ -30,7 +30,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  
  	dp = &ab->dp;
  
-@@ -4381,6 +4383,8 @@ static int ath11k_nss_init(struct ath11k
+@@ -2861,6 +2863,8 @@ static int ath11k_nss_init(struct ath11k
  	/* fill rx parameters to initialize rx context */
  	wim->wrip.tlv_size = ab->hw_params.hal_desc_sz;
  	wim->wrip.rx_buf_len = DP_RXDMA_NSS_REFILL_RING_SIZE;
@@ -39,7 +39,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  
  	/* fill hal srng message */
  	wim->hssm.dev_base_addr = (u32)ab->mem_pa;
-@@ -4569,11 +4573,13 @@ int ath11k_nss_pdev_init(struct ath11k_b
+@@ -3038,11 +3042,13 @@ int ath11k_nss_pdev_init(struct ath11k_b
  	struct nss_wifili_msg *wlmsg = NULL;
  	nss_wifili_msg_callback_t msg_cb;
  	nss_tx_status_t status;
@@ -54,7 +54,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  
  	dyn_if_type = ath11k_nss_get_dynamic_interface_type(ab);
  
-@@ -4602,6 +4608,17 @@ int ath11k_nss_pdev_init(struct ath11k_b
+@@ -3071,6 +3077,17 @@ int ath11k_nss_pdev_init(struct ath11k_b
  	ath11k_dbg(ab, ATH11K_DBG_NSS, "nss pdev init - id:%d init ctxt:%p ifnum:%d\n",
  		   ar->pdev->pdev_id, ar->nss.ctx, ar->nss.if_num);
  
@@ -72,7 +72,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  	wlmsg = kzalloc(sizeof(struct nss_wifili_msg), GFP_ATOMIC);
  	if (!wlmsg) {
  		ret = -ENOMEM;
-@@ -4614,6 +4631,7 @@ int ath11k_nss_pdev_init(struct ath11k_b
+@@ -3083,6 +3100,7 @@ int ath11k_nss_pdev_init(struct ath11k_b
  	pdevmsg->lmac_id = ar->lmac_id;
  	pdevmsg->target_pdev_id = ar->pdev->pdev_id;
  	pdevmsg->num_rx_swdesc = WIFILI_RX_DESC_POOL_WEIGHT * DP_RXDMA_BUF_RING_SIZE;
@@ -80,7 +80,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  
  	/* Store rxdma ring info to the message */
  	refill_ring_id = ar->dp.rx_refill_buf_ring.refill_buf_ring.ring_id;
-@@ -4907,6 +4925,10 @@ int ath11k_nss_pdev_deinit(struct ath11k
+@@ -3376,6 +3394,10 @@ int ath11k_nss_pdev_deinit(struct ath11k
  	/* pdev deinit msg success, dealloc, deregister and return */
  	ret = 0;
  
@@ -93,7 +93,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  free:
 --- a/drivers/net/wireless/ath/ath11k/nss.h
 +++ b/drivers/net/wireless/ath/ath11k/nss.h
-@@ -70,6 +70,7 @@ struct hal_rx_user_status;
+@@ -64,6 +64,7 @@ struct hal_rx_user_status;
  /* Init Flags */
  #define WIFILI_NSS_CCE_DISABLED 0x1
  #define WIFILI_ADDTL_MEM_SEG_SET 0x000000002
@@ -101,7 +101,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  
  /* ATH11K NSS PEER Info */
  /* Host memory allocated for peer info storage in nss */
-@@ -122,6 +123,8 @@ enum ath11k_nss_vdev_cmd {
+@@ -116,6 +117,8 @@ enum ath11k_nss_vdev_cmd {
  /* Enables the MCBC exception in NSS fw, 1 = enable */
  #define ATH11K_NSS_ENABLE_MCBC_EXC	1
  
@@ -110,7 +110,7 @@ Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
  enum ath11k_nss_opmode {
  	ATH11K_NSS_OPMODE_UNKNOWN,
  	ATH11K_NSS_OPMODE_AP,
-@@ -266,6 +269,8 @@ struct ath11k_soc_nss {
+@@ -215,6 +218,8 @@ struct ath11k_soc_nss {
  	/* Response to nss messages are stored here on msg callback
  	* used only in contention free messages during init */
  	int response;

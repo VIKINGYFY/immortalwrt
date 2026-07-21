@@ -1,0 +1,124 @@
+ppp: add lockless channel accessors for the NSS ECM PPPoE offload
+
+__ppp_is_multilink()/__ppp_hold_channels(): variants of the existing
+accessors for callers that already hold the ppp xmit lock. The ECM
+PPPoE interface-establish path runs in a context where taking the ppp
+lock again deadlocks (qca-nss-ecm patch
+0025-ecm_interface-fix-ppp-deadlock-use-lockless-functions).
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/include/linux/ppp_channel.h
++++ b/include/linux/ppp_channel.h
+@@ -111,12 +111,16 @@ extern void ppp_release_channels(struct
+ extern int ppp_hold_channels(struct net_device *dev,
+ 				struct ppp_channel *channels[],
+ 				unsigned int chan_sz);
++extern int __ppp_hold_channels(struct net_device *dev,
++				struct ppp_channel *channels[],
++				unsigned int chan_sz);
+ 
+ /* Test if ppp xmit lock is locked */
+ extern bool ppp_is_xmit_locked(struct net_device *dev);
+ 
+ /* Test if the ppp device is a multi-link ppp device */
+ extern int ppp_is_multilink(struct net_device *dev);
++extern int __ppp_is_multilink(struct net_device *dev);
+ 
+ /* Register the PPP channel connect notifier */
+ extern void ppp_channel_connection_register_notify(struct notifier_block *nb);
+--- a/drivers/net/ppp/ppp_generic.c
++++ b/drivers/net/ppp/ppp_generic.c
+@@ -3781,6 +3781,32 @@ int ppp_is_multilink(struct net_device *
+ }
+ EXPORT_SYMBOL(ppp_is_multilink);
+ 
++/* __ppp_is_multilink()
++ *      Returns >0 if the device is a multilink PPP netdevice, 0 if not or < 0
++ *      if the device is not PPP. Caller should acquire ppp_lock before calling
++ *      this function
++ */
++int __ppp_is_multilink(struct net_device *dev)
++{
++	struct ppp *ppp;
++	unsigned int flags;
++
++	if (!dev)
++		return -1;
++
++	if (dev->type != ARPHRD_PPP)
++		return -1;
++
++	ppp = netdev_priv(dev);
++	flags = ppp->flags;
++
++	if (flags & SC_MULTILINK)
++		return 1;
++
++	return 0;
++}
++EXPORT_SYMBOL(__ppp_is_multilink);
++
+ /* ppp_channel_get_protocol()
+  *	Call this to obtain the underlying protocol of the PPP channel,
+  *	e.g. PX_PROTO_OE
+@@ -3919,6 +3945,59 @@ int ppp_hold_channels(struct net_device
+ }
+ EXPORT_SYMBOL(ppp_hold_channels);
+ 
++/* __ppp_hold_channels()
++ *	Returns the PPP channels of the PPP device, storing each one into
++ *	channels[].
++ *
++ * channels[] has chan_sz elements.
++ * This function returns the number of channels stored, up to chan_sz.
++ * It will return < 0 if the device is not PPP.
++ *
++ * You MUST release the channels using ppp_release_channels().
++ */
++int __ppp_hold_channels(struct net_device *dev, struct ppp_channel *channels[],
++		      unsigned int chan_sz)
++{
++	struct ppp *ppp;
++	int c;
++	struct channel *pch;
++
++	if (!dev)
++		return -1;
++
++	if (dev->type != ARPHRD_PPP)
++		return -1;
++
++	ppp = netdev_priv(dev);
++
++	c = 0;
++	list_for_each_entry(pch, &ppp->channels, clist) {
++		struct ppp_channel *chan;
++
++		if (!pch->chan) {
++			/* Channel is going / gone away */
++			continue;
++		}
++
++		if (c == chan_sz) {
++			/* No space to record channel */
++			return c;
++		}
++
++		/* Hold the channel, if supported */
++		chan = pch->chan;
++		if (!chan->ops->hold)
++			continue;
++
++		chan->ops->hold(chan);
++
++		 /* Record the channel */
++		channels[c++] = chan;
++	}
++	return c;
++}
++EXPORT_SYMBOL(__ppp_hold_channels);
++
+ /* ppp_release_channels()
+  *	Releases channels
+  */

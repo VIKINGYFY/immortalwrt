@@ -1,10 +1,14 @@
+ath11k-Add-threaded-napi
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
 @@ -387,6 +387,7 @@ static void ath11k_ahb_ext_irq_enable(st
  		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
  
  		if (!irq_grp->napi_enabled) {
-+			dev_set_threaded(irq_grp->napi_ndev, true);
++			dev_set_threaded(irq_grp->napi_ndev, NETDEV_NAPI_THREADED_ENABLED);
  			napi_enable(&irq_grp->napi);
  			irq_grp->napi_enabled = true;
  		}
@@ -41,7 +45,7 @@
  		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
  
  		if (!irq_grp->napi_enabled) {
-+			dev_set_threaded(irq_grp->napi_ndev, true);
++			dev_set_threaded(irq_grp->napi_ndev, NETDEV_NAPI_THREADED_ENABLED);
  			napi_enable(&irq_grp->napi);
  			irq_grp->napi_enabled = true;
  		}

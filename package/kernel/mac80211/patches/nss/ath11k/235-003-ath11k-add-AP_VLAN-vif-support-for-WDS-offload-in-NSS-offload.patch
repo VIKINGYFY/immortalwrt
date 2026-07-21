@@ -41,6 +41,56 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	/* Must be last - ends in a flexible-array member.
  	 *
  	 * FIXME: Driver should not copy struct ieee80211_chanctx_conf,
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -1113,12 +1113,13 @@ int ath11k_peer_rx_tid_setup(struct ath1
+ 	return ret;
+ }
+ 
+-int ath11k_dp_rx_ampdu_start(struct ath11k *ar,
++int ath11k_dp_rx_ampdu_start(struct ath11k_vif *arvif,
+ 			     struct ieee80211_ampdu_params *params)
+ {
++	struct ath11k *ar = arvif->ar;
+ 	struct ath11k_base *ab = ar->ab;
+ 	struct ath11k_sta *arsta = ath11k_sta_to_arsta(params->sta);
+-	int vdev_id = arsta->arvif->vdev_id;
++	int vdev_id = arvif->vdev_id;
+ 	int ret;
+ 
+ 	ret = ath11k_peer_rx_tid_setup(ar, params->sta->addr, vdev_id,
+@@ -1130,14 +1131,14 @@ int ath11k_dp_rx_ampdu_start(struct ath1
+ 	return ret;
+ }
+ 
+-int ath11k_dp_rx_ampdu_stop(struct ath11k *ar,
++int ath11k_dp_rx_ampdu_stop(struct ath11k_vif *arvif,
+ 			    struct ieee80211_ampdu_params *params)
+ {
++	struct ath11k *ar = arvif->ar;
+ 	struct ath11k_base *ab = ar->ab;
+ 	struct ath11k_peer *peer;
+-	struct ath11k_sta *arsta = ath11k_sta_to_arsta(params->sta);
+ 	struct dp_rx_tid *rx_tid;
+-	int vdev_id = arsta->arvif->vdev_id;
++	int vdev_id = arvif->vdev_id;
+ 	int ret;
+ 
+ 	spin_lock_bh(&ab->base_lock);
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.h
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.h
+@@ -89,9 +89,9 @@ static inline u32 ath11k_he_gi_to_nl8021
+ 	return ret;
+ }
+ 
+-int ath11k_dp_rx_ampdu_start(struct ath11k *ar,
++int ath11k_dp_rx_ampdu_start(struct ath11k_vif *arvif,
+ 			     struct ieee80211_ampdu_params *params);
+-int ath11k_dp_rx_ampdu_stop(struct ath11k *ar,
++int ath11k_dp_rx_ampdu_stop(struct ath11k_vif *arvif,
+ 			    struct ieee80211_ampdu_params *params);
+ int ath11k_dp_peer_rx_pn_replay_config(struct ath11k_vif *arvif,
+ 				       const u8 *peer_addr,
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
 @@ -4930,6 +4930,11 @@ static void ath11k_sta_rc_update_wk(stru
@@ -214,7 +264,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  		ieee80211_queue_work(ar->hw, &arsta->set_4addr_wk);
  		arsta->use_4addr_set = true;
  	}
-@@ -6668,6 +6792,9 @@ static void ath11k_mac_op_update_vif_off
+@@ -6665,6 +6789,9 @@ static void ath11k_mac_op_update_vif_off
  	u32 param_id, param_value;
  	int ret;
  
@@ -224,7 +274,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	param_id = WMI_VDEV_PARAM_TX_ENCAP_TYPE;
  	if (ath11k_frame_mode != ATH11K_HW_TXRX_ETHERNET ||
  	    (vif->type != NL80211_IFTYPE_STATION &&
-@@ -6896,7 +7023,8 @@ static int ath11k_mac_op_add_interface(s
+@@ -6893,7 +7020,8 @@ static int ath11k_mac_op_add_interface(s
  		goto err;
  	}
  
@@ -234,7 +284,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  		ath11k_warn(ab, "failed to create vdev %u, reached max vdev limit %d\n",
  			    ar->num_created_vdevs, TARGET_NUM_VDEVS(ab));
  		ret = -EBUSY;
-@@ -6909,6 +7037,28 @@ static int ath11k_mac_op_add_interface(s
+@@ -6906,6 +7034,28 @@ static int ath11k_mac_op_add_interface(s
  	arvif->vif = vif;
  
  	INIT_LIST_HEAD(&arvif->list);
@@ -263,7 +313,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	INIT_WORK(&arvif->bcn_tx_work, ath11k_mac_bcn_tx_work);
  	INIT_DELAYED_WORK(&arvif->connection_loss_work,
  			  ath11k_mac_vif_sta_connection_loss_work);
-@@ -6941,6 +7091,7 @@ static int ath11k_mac_op_add_interface(s
+@@ -6938,6 +7088,7 @@ static int ath11k_mac_op_add_interface(s
  		fallthrough;
  	case NL80211_IFTYPE_AP:
  		arvif->vdev_type = WMI_VDEV_TYPE_AP;
@@ -271,7 +321,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  		if (vif->p2p)
  			arvif->vdev_subtype = WMI_VDEV_SUBTYPE_P2P_GO;
  		break;
-@@ -7175,14 +7326,31 @@ static void ath11k_mac_op_remove_interfa
+@@ -7172,14 +7323,31 @@ static void ath11k_mac_op_remove_interfa
  	struct ath11k *ar = hw->priv;
  	struct ath11k_vif *arvif = ath11k_vif_to_arvif(vif);
  	struct ath11k_base *ab = ar->ab;
@@ -305,7 +355,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	ath11k_dbg(ab, ATH11K_DBG_MAC, "remove interface (vdev %d)\n",
  		   arvif->vdev_id);
  
-@@ -7199,6 +7367,14 @@ static void ath11k_mac_op_remove_interfa
+@@ -7196,6 +7364,14 @@ static void ath11k_mac_op_remove_interfa
  		if (ret)
  			ath11k_warn(ab, "failed to submit AP self-peer removal on vdev %d: %d\n",
  				    arvif->vdev_id, ret);
@@ -320,7 +370,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	}
  
  	ret = ath11k_mac_vdev_delete(ar, arvif);
-@@ -7242,6 +7418,7 @@ err_vdev_del:
+@@ -7239,6 +7415,7 @@ err_vdev_del:
  
  	/* TODO: recalc traffic pause state based on the available vdevs */
  
@@ -328,7 +378,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	mutex_unlock(&ar->conf_mutex);
  }
  
-@@ -7303,16 +7480,17 @@ static int ath11k_mac_op_ampdu_action(st
+@@ -7300,16 +7477,17 @@ static int ath11k_mac_op_ampdu_action(st
  				      struct ieee80211_ampdu_params *params)
  {
  	struct ath11k *ar = hw->priv;
@@ -348,7 +398,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  		break;
  	case IEEE80211_AMPDU_TX_START:
  	case IEEE80211_AMPDU_TX_STOP_CONT:
-@@ -9330,6 +9508,7 @@ static void ath11k_mac_op_sta_statistics
+@@ -9327,6 +9505,7 @@ static void ath11k_mac_op_sta_statistics
  {
  	struct ath11k_sta *arsta = ath11k_sta_to_arsta(sta);
  	struct ath11k *ar = arsta->arvif->ar;
@@ -356,7 +406,7 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  	s8 signal;
  	bool db2dbm = test_bit(WMI_TLV_SERVICE_HW_DB2DBM_CONVERSION_SUPPORT,
  			       ar->ab->wmi_ab.svc_map);
-@@ -9391,7 +9570,8 @@ static void ath11k_mac_op_sta_statistics
+@@ -9388,7 +9567,8 @@ static void ath11k_mac_op_sta_statistics
  
  	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_SIGNAL_AVG);
  
@@ -366,67 +416,60 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  }
  
  #if IS_ENABLED(CONFIG_IPV6)
---- a/drivers/net/wireless/ath/ath11k/wmi.h
-+++ b/drivers/net/wireless/ath/ath11k/wmi.h
-@@ -5114,6 +5114,8 @@ enum wmi_vdev_subtype {
- 	WMI_VDEV_SUBTYPE_MESH_11S,
+--- a/drivers/net/wireless/ath/ath11k/nss.c
++++ b/drivers/net/wireless/ath/ath11k/nss.c
+@@ -124,7 +124,10 @@ static void ath11k_nss_get_peer_stats(st
+ 
+ 		peer->nss.nss_stats->tx_failed += tx_dropped;
+ 
+-		ATH11K_NSS_TXRX_NETDEV_STATS(tx, peer->vif, tx_bytes, tx_packets);
++		if (peer->nss.ext_vdev_up)
++			ATH11K_NSS_TXRX_NETDEV_STATS(tx, peer->nss.ext_vif, tx_bytes, tx_packets);
++		else
++			ATH11K_NSS_TXRX_NETDEV_STATS(tx, peer->vif, tx_bytes, tx_packets);
+ 
+ 		rx_packets = pstats->rx.rx_recvd;
+ 		peer->nss.nss_stats->rx_packets += rx_packets;
+@@ -134,7 +137,10 @@ static void ath11k_nss_get_peer_stats(st
+ 			pstats->rx.err.decrypt_err;
+ 		peer->nss.nss_stats->rx_dropped += rx_dropped;
+ 
+-		ATH11K_NSS_TXRX_NETDEV_STATS(rx, peer->vif, rx_bytes, rx_packets);
++		if (peer->nss.ext_vdev_up)
++			ATH11K_NSS_TXRX_NETDEV_STATS(rx, peer->nss.ext_vif, rx_bytes, rx_packets);
++		else
++			ATH11K_NSS_TXRX_NETDEV_STATS(rx, peer->vif, rx_bytes, rx_packets);
+ 
+ 		spin_unlock_bh(&ab->base_lock);
+ 		rcu_read_unlock();
+@@ -1000,6 +1006,9 @@ int ath11k_nss_vdev_set_cmd(struct ath11
+ 	case ATH11K_NSS_WIFI_VDEV_DECAP_TYPE_CMD:
+ 		cmd = NSS_WIFI_VDEV_DECAP_TYPE_CMD;
+ 		break;
++	case ATH11K_NSS_WIFI_VDEV_CFG_WDS_BACKHAUL_CMD:
++		cmd = NSS_WIFI_VDEV_CFG_WDS_BACKHAUL_CMD;
++		break;
+ 	default:
+ 		return -EINVAL;
+ 	}
+--- a/drivers/net/wireless/ath/ath11k/nss.h
++++ b/drivers/net/wireless/ath/ath11k/nss.h
+@@ -108,6 +108,7 @@ enum ath11k_nss_vdev_cmd {
+ 	ATH11K_NSS_WIFI_VDEV_SECURITY_TYPE_CMD,
+ 	ATH11K_NSS_WIFI_VDEV_ENCAP_TYPE_CMD,
+ 	ATH11K_NSS_WIFI_VDEV_DECAP_TYPE_CMD,
++	ATH11K_NSS_WIFI_VDEV_CFG_WDS_BACKHAUL_CMD,
  };
  
-+#define MIN_IDLE_INACTIVE_TIME_SECS 256
-+
- enum wmi_sta_powersave_param {
- 	WMI_STA_PS_PARAM_RX_WAKE_POLICY = 0,
- 	WMI_STA_PS_PARAM_TX_WAKE_THRESHOLD = 1,
---- a/drivers/net/wireless/ath/ath11k/dp_rx.c
-+++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -1113,12 +1113,13 @@ int ath11k_peer_rx_tid_setup(struct ath1
- 	return ret;
- }
- 
--int ath11k_dp_rx_ampdu_start(struct ath11k *ar,
-+int ath11k_dp_rx_ampdu_start(struct ath11k_vif *arvif,
- 			     struct ieee80211_ampdu_params *params)
- {
-+	struct ath11k *ar = arvif->ar;
- 	struct ath11k_base *ab = ar->ab;
- 	struct ath11k_sta *arsta = ath11k_sta_to_arsta(params->sta);
--	int vdev_id = arsta->arvif->vdev_id;
-+	int vdev_id = arvif->vdev_id;
- 	int ret;
- 
- 	ret = ath11k_peer_rx_tid_setup(ar, params->sta->addr, vdev_id,
-@@ -1130,14 +1131,14 @@ int ath11k_dp_rx_ampdu_start(struct ath1
- 	return ret;
- }
- 
--int ath11k_dp_rx_ampdu_stop(struct ath11k *ar,
-+int ath11k_dp_rx_ampdu_stop(struct ath11k_vif *arvif,
- 			    struct ieee80211_ampdu_params *params)
- {
-+	struct ath11k *ar = arvif->ar;
- 	struct ath11k_base *ab = ar->ab;
- 	struct ath11k_peer *peer;
--	struct ath11k_sta *arsta = ath11k_sta_to_arsta(params->sta);
- 	struct dp_rx_tid *rx_tid;
--	int vdev_id = arsta->arvif->vdev_id;
-+	int vdev_id = arvif->vdev_id;
- 	int ret;
- 
- 	spin_lock_bh(&ab->base_lock);
---- a/drivers/net/wireless/ath/ath11k/dp_rx.h
-+++ b/drivers/net/wireless/ath/ath11k/dp_rx.h
-@@ -89,9 +89,9 @@ static inline u32 ath11k_he_gi_to_nl8021
- 	return ret;
- }
- 
--int ath11k_dp_rx_ampdu_start(struct ath11k *ar,
-+int ath11k_dp_rx_ampdu_start(struct ath11k_vif *arvif,
- 			     struct ieee80211_ampdu_params *params);
--int ath11k_dp_rx_ampdu_stop(struct ath11k *ar,
-+int ath11k_dp_rx_ampdu_stop(struct ath11k_vif *arvif,
- 			    struct ieee80211_ampdu_params *params);
- int ath11k_dp_peer_rx_pn_replay_config(struct ath11k_vif *arvif,
- 				       const u8 *peer_addr,
+ enum ath11k_nss_opmode {
+@@ -152,6 +153,7 @@ struct ath11k_nss_peer {
+ 	uint32_t *vaddr;
+ 	dma_addr_t paddr;
+ 	bool ext_vdev_up;
++	struct ieee80211_vif *ext_vif;
+ 	struct peer_stats *nss_stats;
+ 	struct completion complete;
+ };
 --- a/drivers/net/wireless/ath/ath11k/peer.c
 +++ b/drivers/net/wireless/ath/ath11k/peer.c
 @@ -140,6 +140,24 @@ struct ath11k_ast_entry *ath11k_peer_ast
@@ -516,57 +559,14 @@ Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
  
  static inline int ath11k_peer_add_ast(struct ath11k *ar, struct ath11k_peer *peer,
  				      u8* mac_addr, enum ath11k_ast_entry_type type)
---- a/drivers/net/wireless/ath/ath11k/nss.c
-+++ b/drivers/net/wireless/ath/ath11k/nss.c
-@@ -124,7 +124,10 @@ static void ath11k_nss_get_peer_stats(st
- 
- 		peer->nss.nss_stats->tx_failed += tx_dropped;
- 
--		ATH11K_NSS_TXRX_NETDEV_STATS(tx, peer->vif, tx_bytes, tx_packets);
-+		if (peer->nss.ext_vdev_up)
-+			ATH11K_NSS_TXRX_NETDEV_STATS(tx, peer->nss.ext_vif, tx_bytes, tx_packets);
-+		else
-+			ATH11K_NSS_TXRX_NETDEV_STATS(tx, peer->vif, tx_bytes, tx_packets);
- 
- 		rx_packets = pstats->rx.rx_recvd;
- 		peer->nss.nss_stats->rx_packets += rx_packets;
-@@ -134,7 +137,10 @@ static void ath11k_nss_get_peer_stats(st
- 			pstats->rx.err.decrypt_err;
- 		peer->nss.nss_stats->rx_dropped += rx_dropped;
- 
--		ATH11K_NSS_TXRX_NETDEV_STATS(rx, peer->vif, rx_bytes, rx_packets);
-+		if (peer->nss.ext_vdev_up)
-+			ATH11K_NSS_TXRX_NETDEV_STATS(rx, peer->nss.ext_vif, rx_bytes, rx_packets);
-+		else
-+			ATH11K_NSS_TXRX_NETDEV_STATS(rx, peer->vif, rx_bytes, rx_packets);
- 
- 		spin_unlock_bh(&ab->base_lock);
- 		rcu_read_unlock();
-@@ -1000,6 +1006,9 @@ int ath11k_nss_vdev_set_cmd(struct ath11
- 	case ATH11K_NSS_WIFI_VDEV_DECAP_TYPE_CMD:
- 		cmd = NSS_WIFI_VDEV_DECAP_TYPE_CMD;
- 		break;
-+	case ATH11K_NSS_WIFI_VDEV_CFG_WDS_BACKHAUL_CMD:
-+		cmd = NSS_WIFI_VDEV_CFG_WDS_BACKHAUL_CMD;
-+		break;
- 	default:
- 		return -EINVAL;
- 	}
---- a/drivers/net/wireless/ath/ath11k/nss.h
-+++ b/drivers/net/wireless/ath/ath11k/nss.h
-@@ -108,6 +108,7 @@ enum ath11k_nss_vdev_cmd {
- 	ATH11K_NSS_WIFI_VDEV_SECURITY_TYPE_CMD,
- 	ATH11K_NSS_WIFI_VDEV_ENCAP_TYPE_CMD,
- 	ATH11K_NSS_WIFI_VDEV_DECAP_TYPE_CMD,
-+	ATH11K_NSS_WIFI_VDEV_CFG_WDS_BACKHAUL_CMD,
+--- a/drivers/net/wireless/ath/ath11k/wmi.h
++++ b/drivers/net/wireless/ath/ath11k/wmi.h
+@@ -5102,6 +5102,8 @@ enum wmi_vdev_subtype {
+ 	WMI_VDEV_SUBTYPE_MESH_11S,
  };
  
- enum ath11k_nss_opmode {
-@@ -152,6 +153,7 @@ struct ath11k_nss_peer {
- 	uint32_t *vaddr;
- 	dma_addr_t paddr;
- 	bool ext_vdev_up;
-+	struct ieee80211_vif *ext_vif;
- 	struct peer_stats *nss_stats;
- 	struct completion complete;
- };
++#define MIN_IDLE_INACTIVE_TIME_SECS 256
++
+ enum wmi_sta_powersave_param {
+ 	WMI_STA_PS_PARAM_RX_WAKE_POLICY = 0,
+ 	WMI_STA_PS_PARAM_TX_WAKE_THRESHOLD = 1,

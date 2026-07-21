@@ -1,6 +1,43 @@
+ath11k-NSS-use-ath11k_nss_get_arvif_from_dev
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+[julius: carries the ath11k_nss_get_arvif_from_dev definition (originally introduced by the mesh offload patch); the non-mesh ext-vdev path this patch converts needs it, so it belongs on the non-mesh side of the mesh split.]
+
 --- a/drivers/net/wireless/ath/ath11k/nss.c
 +++ b/drivers/net/wireless/ath/ath11k/nss.c
-@@ -903,36 +903,20 @@ ath11k_nss_vdev_data_receive(struct net_
+@@ -33,6 +33,30 @@ ath11k_nss_get_vdev_opmode(struct ath11k
+ 	return ATH11K_NSS_OPMODE_UNKNOWN;
+ }
+ 
++static struct ath11k_vif *ath11k_nss_get_arvif_from_dev(struct net_device *dev)
++{
++	struct wireless_dev *wdev;
++	struct ieee80211_vif *vif;
++	struct ath11k_vif *arvif;
++
++	if (!dev)
++		return NULL;
++
++	wdev = dev->ieee80211_ptr;
++	if (!wdev)
++		return NULL;
++
++	vif = wdev_to_ieee80211_vif(wdev);
++	if (!vif)
++		return NULL;
++
++	arvif = (struct ath11k_vif *)vif->drv_priv;
++	if (!arvif)
++		return NULL;
++
++	return arvif;
++}
++
+ static void ath11k_nss_wifili_stats_sync(struct ath11k_base *ab,
+ 					 struct nss_wifili_stats_sync_msg *wlsoc_stats)
+ {
+@@ -888,36 +912,20 @@ ath11k_nss_vdev_data_receive(struct net_
  			     __attribute__((unused)) struct napi_struct *napi)
  {
  	struct wireless_dev *wdev = NULL;
@@ -40,7 +77,7 @@
  	ab = arvif->ar->ab;
  
  	skb->dev = dev;
-@@ -941,7 +925,7 @@ ath11k_nss_vdev_data_receive(struct net_
+@@ -926,7 +934,7 @@ ath11k_nss_vdev_data_receive(struct net_
  	ath11k_dbg_dump(ab, ATH11K_DBG_DP_RX, "", "dp rx msdu from nss: ",
  			skb->data, skb->len);
  

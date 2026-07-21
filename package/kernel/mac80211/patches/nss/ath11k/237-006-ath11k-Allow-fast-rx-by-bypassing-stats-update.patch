@@ -421,7 +421,7 @@ Signed-off-by: P Praneesh <ppranees@codeaurora.org>
  	.rx_desc_get_ldpc_support = ath11k_hw_ipq8074_rx_desc_get_ldpc_support,
  	.rx_desc_get_mpdu_seq_ctl_vld = ath11k_hw_ipq8074_rx_desc_get_mpdu_seq_ctl_vld,
  	.rx_desc_get_mpdu_fc_valid = ath11k_hw_ipq8074_rx_desc_get_mpdu_fc_valid,
-@@ -1148,6 +1171,7 @@ const struct ath11k_hw_ops wcn6750_ops =
+@@ -1066,6 +1089,7 @@ const struct ath11k_hw_ops qcn9074_ops =
  	.rx_desc_get_encrypt_type = ath11k_hw_qcn9074_rx_desc_get_encrypt_type,
  	.rx_desc_get_decap_type = ath11k_hw_qcn9074_rx_desc_get_decap_type,
  	.rx_desc_get_mesh_ctl = ath11k_hw_qcn9074_rx_desc_get_mesh_ctl,
@@ -449,7 +449,7 @@ Signed-off-by: P Praneesh <ppranees@codeaurora.org>
  	bool (*rx_desc_get_mpdu_fc_valid)(struct hal_rx_desc *desc);
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -10461,6 +10461,14 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10458,6 +10458,14 @@ static int ath11k_mac_op_sta_state(struc
  		}
  	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
  		   new_state == IEEE80211_STA_ASSOC) {

@@ -15,6 +15,10 @@ echo 1 > /sys/kernel/debug/ath11k/ipq8074\ hw2.0/stats_disable
 
 Signed-off-by: Sriram R <srirrama@codeaurora.org>
 Signed-off-by: P Praneesh <ppranees@codeaurora.org>
+[julius: initialize 'flags' from skb_cb in the tx completion path too -
+ it was read uninitialized, so status-requested frames (EAPOL) could
+ take the stats-disable fast free and never report their tx status]
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 ---
  drivers/net/wireless/ath/ath11k/core.h  |   1 +
  drivers/net/wireless/ath/ath11k/dp.c    |   7 +-
@@ -24,6 +28,48 @@ Signed-off-by: P Praneesh <ppranees@codeaurora.org>
  drivers/net/wireless/ath/ath11k/mac.c   |   9 ++-
  6 files changed, 88 insertions(+), 58 deletions(-)
 
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -108,7 +108,8 @@ static struct ath11k_hw_params ath11k_hw
+ 		.supports_regdb = false,
+ 		.fix_l1ss = true,
+ 		.credit_flow = false,
+-		.max_tx_ring = DP_TCL_NUM_RING_MAX,
++		/* In addition to TCL ring use TCL_CMD ring also for tx */
++		.max_tx_ring = DP_TCL_NUM_RING_MAX + 1,
+ 		.hal_params = &ath11k_hw_hal_params_ipq8074,
+ 		.supports_dynamic_smps_6ghz = false,
+ 		.alloc_cacheable_memory = true,
+@@ -193,7 +194,8 @@ static struct ath11k_hw_params ath11k_hw
+ 		.supports_regdb = false,
+ 		.fix_l1ss = true,
+ 		.credit_flow = false,
+-		.max_tx_ring = DP_TCL_NUM_RING_MAX,
++		/* In addition to TCL ring use TCL_CMD ring also for tx */
++		.max_tx_ring = DP_TCL_NUM_RING_MAX + 1,
+ 		.hal_params = &ath11k_hw_hal_params_ipq8074,
+ 		.supports_dynamic_smps_6ghz = false,
+ 		.alloc_cacheable_memory = true,
+@@ -368,7 +370,8 @@ static struct ath11k_hw_params ath11k_hw
+ 		.supports_regdb = false,
+ 		.fix_l1ss = true,
+ 		.credit_flow = false,
+-		.max_tx_ring = DP_TCL_NUM_RING_MAX,
++		/* In addition to TCL ring use TCL_CMD ring also for tx */
++		.max_tx_ring = DP_TCL_NUM_RING_MAX + 1,
+ 		.hal_params = &ath11k_hw_hal_params_ipq8074,
+ 		.supports_dynamic_smps_6ghz = true,
+ 		.alloc_cacheable_memory = true,
+@@ -2734,6 +2737,9 @@ int ath11k_core_pre_init(struct ath11k_b
+ 	if (nss_offload)
+ 		ab->nss.stats_enabled = 1;
+ 
++	if (ab->nss.enabled && ab->hw_params.max_tx_ring > DP_TCL_NUM_RING_MAX)
++		ab->hw_params.max_tx_ring = DP_TCL_NUM_RING_MAX;
++
+ 	return 0;
+ }
+ EXPORT_SYMBOL(ath11k_core_pre_init);
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
 @@ -124,6 +124,7 @@ static inline enum wme_ac ath11k_tid_to_
@@ -48,6 +94,31 @@ Signed-off-by: P Praneesh <ppranees@codeaurora.org>
  	/* Tx failures due to NSS Tx error status */
  	atomic_t nss_tx_fail;
  };
+--- a/drivers/net/wireless/ath/ath11k/debugfs.c
++++ b/drivers/net/wireless/ath/ath11k/debugfs.c
+@@ -713,10 +713,22 @@ static ssize_t ath11k_debugfs_dump_soc_d
+ 		len += scnprintf(buf + len, size - len, "ring%d: %u\n",
+ 				 i, soc_stats->tx_err.desc_na[i]);
+ 
++	len += scnprintf(buf + len, size - len, "\nTCL Ring idr Failures:\n");
++	for (i = 0; i < DP_TCL_NUM_RING_MAX; i++)
++		len += scnprintf(buf + len, size - len, "ring%d: %u\n",
++				 i, soc_stats->tx_err.idr_na[i]);
++
++	len += scnprintf(buf + len, size - len, "\nMax Transmit Failures: %d\n",
++			 atomic_read(&soc_stats->tx_err.max_fail));
++
+ 	len += scnprintf(buf + len, size - len,
+ 			 "\nMisc Transmit Failures: %d\n",
+ 			 atomic_read(&soc_stats->tx_err.misc_fail));
+ 
++	len += scnprintf(buf + len, size - len,
++			 "\nNSS Transmit Failures: %d\n",
++			 atomic_read(&soc_stats->tx_err.nss_tx_fail));
++
+ 	len += ath11k_debugfs_dump_soc_ring_bp_stats(ab, buf + len, size - len);
+ 
+ 	if (len > size)
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
 @@ -361,7 +361,7 @@ void ath11k_dp_stop_shadow_timers(struct
@@ -412,126 +483,6 @@ Signed-off-by: P Praneesh <ppranees@codeaurora.org>
  	}
  }
  
---- a/drivers/net/wireless/ath/ath11k/mac.c
-+++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6620,12 +6620,22 @@ static void ath11k_mac_op_tx(struct ieee
- 	if (control->sta)
- 		arsta = ath11k_sta_to_arsta(control->sta);
- 
-+	/* Must call mac80211 tx status handler, else when stats is disabled we free
-+	 * the skb from driver. Own tx packets on monitor will also be disabled.
-+	 */
-+	if ((info->flags & (IEEE80211_TX_CTL_REQ_TX_STATUS | IEEE80211_TX_INTFL_NL80211_FRAME_TX)) ||
-+	    info->status_data || vif->type == NL80211_IFTYPE_MESH_POINT ||
-+	    test_bit(ATH11K_FLAG_MONITOR_VDEV_CREATED, &ar->monitor_flags))
-+		skb_cb->flags |= ATH11K_SKB_TX_STATUS;
-+
- 	if (ar->ab->nss.enabled)
- 		ret = ath11k_nss_tx(arvif, skb);
- 	else
- 		ret = ath11k_dp_tx(ar, arvif, arsta, skb);
-+
- 	if (unlikely(ret)) {
--		ath11k_warn(ar->ab, "failed to transmit frame %d\n", ret);
-+		if (!ar->ab->nss.enabled && ret != -ENOSPC && ret != -ENOMEM)
-+			ath11k_warn(ar->ab, "failed to transmit frame %d\n", ret);
- 		ieee80211_free_txskb(ar->hw, skb);
- 		return;
- 	}
-@@ -7598,7 +7608,7 @@ err_vdev_del:
- 	idr_for_each(&ar->txmgmt_idr,
- 		     ath11k_mac_vif_txmgmt_idr_remove, vif);
- 
--	for (i = 0; i < ab->hw_params.max_tx_ring; i++) {
-+	for (i = 0; i < DP_TCL_NUM_RING_MAX; i++) {
- 		spin_lock_bh(&ab->dp.tx_ring[i].tx_idr_lock);
- 		idr_for_each(&ab->dp.tx_ring[i].txbuf_idr,
- 			     ath11k_mac_vif_unref, vif);
---- a/drivers/net/wireless/ath/ath11k/debugfs.c
-+++ b/drivers/net/wireless/ath/ath11k/debugfs.c
-@@ -713,10 +713,22 @@ static ssize_t ath11k_debugfs_dump_soc_d
- 		len += scnprintf(buf + len, size - len, "ring%d: %u\n",
- 				 i, soc_stats->tx_err.desc_na[i]);
- 
-+	len += scnprintf(buf + len, size - len, "\nTCL Ring idr Failures:\n");
-+	for (i = 0; i < DP_TCL_NUM_RING_MAX; i++)
-+		len += scnprintf(buf + len, size - len, "ring%d: %u\n",
-+				 i, soc_stats->tx_err.idr_na[i]);
-+
-+	len += scnprintf(buf + len, size - len, "\nMax Transmit Failures: %d\n",
-+			 atomic_read(&soc_stats->tx_err.max_fail));
-+
- 	len += scnprintf(buf + len, size - len,
- 			 "\nMisc Transmit Failures: %d\n",
- 			 atomic_read(&soc_stats->tx_err.misc_fail));
- 
-+	len += scnprintf(buf + len, size - len,
-+			 "\nNSS Transmit Failures: %d\n",
-+			 atomic_read(&soc_stats->tx_err.nss_tx_fail));
-+
- 	len += ath11k_debugfs_dump_soc_ring_bp_stats(ab, buf + len, size - len);
- 
- 	if (len > size)
---- a/drivers/net/wireless/ath/ath11k/core.c
-+++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -108,7 +108,8 @@ static struct ath11k_hw_params ath11k_hw
- 		.supports_regdb = false,
- 		.fix_l1ss = true,
- 		.credit_flow = false,
--		.max_tx_ring = DP_TCL_NUM_RING_MAX,
-+		/* In addition to TCL ring use TCL_CMD ring also for tx */
-+		.max_tx_ring = DP_TCL_NUM_RING_MAX + 1,
- 		.hal_params = &ath11k_hw_hal_params_ipq8074,
- 		.supports_dynamic_smps_6ghz = false,
- 		.alloc_cacheable_memory = true,
-@@ -193,7 +194,8 @@ static struct ath11k_hw_params ath11k_hw
- 		.supports_regdb = false,
- 		.fix_l1ss = true,
- 		.credit_flow = false,
--		.max_tx_ring = DP_TCL_NUM_RING_MAX,
-+		/* In addition to TCL ring use TCL_CMD ring also for tx */
-+		.max_tx_ring = DP_TCL_NUM_RING_MAX + 1,
- 		.hal_params = &ath11k_hw_hal_params_ipq8074,
- 		.supports_dynamic_smps_6ghz = false,
- 		.alloc_cacheable_memory = true,
-@@ -368,7 +370,8 @@ static struct ath11k_hw_params ath11k_hw
- 		.supports_regdb = false,
- 		.fix_l1ss = true,
- 		.credit_flow = false,
--		.max_tx_ring = DP_TCL_NUM_RING_MAX,
-+		/* In addition to TCL ring use TCL_CMD ring also for tx */
-+		.max_tx_ring = DP_TCL_NUM_RING_MAX + 1,
- 		.hal_params = &ath11k_hw_hal_params_ipq8074,
- 		.supports_dynamic_smps_6ghz = true,
- 		.alloc_cacheable_memory = true,
-@@ -2734,6 +2737,9 @@ int ath11k_core_pre_init(struct ath11k_b
- 	if (nss_offload)
- 		ab->nss.stats_enabled = 1;
- 
-+	if (ab->nss.enabled && ab->hw_params.max_tx_ring > DP_TCL_NUM_RING_MAX)
-+		ab->hw_params.max_tx_ring = DP_TCL_NUM_RING_MAX;
-+
- 	return 0;
- }
- EXPORT_SYMBOL(ath11k_core_pre_init);
---- a/drivers/net/wireless/ath/ath11k/hal_tx.h
-+++ b/drivers/net/wireless/ath/ath11k/hal_tx.h
-@@ -18,7 +18,7 @@
- 
- struct hal_tx_info {
- 	u16 meta_data_flags; /* %HAL_TCL_DATA_CMD_INFO0_META_ */
--	u8 ring_id;
-+	u8 buf_id;
- 	u32 desc_id;
- 	enum hal_tcl_desc_type type;
- 	enum hal_tcl_encap_type encap_type;
-@@ -70,5 +70,5 @@ int ath11k_hal_reo_cmd_send(struct ath11
- 			    enum hal_reo_cmd_type type,
- 			    struct ath11k_hal_reo_cmd *cmd);
- void ath11k_hal_tx_init_data_ring(struct ath11k_base *ab,
--				  struct hal_srng *srng);
-+				  struct hal_srng *srng, enum hal_ring_type type);
- #endif
 --- a/drivers/net/wireless/ath/ath11k/hal_tx.c
 +++ b/drivers/net/wireless/ath/ath11k/hal_tx.c
 @@ -37,18 +37,18 @@ static const u8 dscp_tid_map[DSCP_TID_MA
@@ -611,3 +562,56 @@ Signed-off-by: P Praneesh <ppranees@codeaurora.org>
  	ath11k_hal_srng_get_params(ab, srng, &params);
  	desc = (u8 *)params.ring_base_vaddr;
  
+--- a/drivers/net/wireless/ath/ath11k/hal_tx.h
++++ b/drivers/net/wireless/ath/ath11k/hal_tx.h
+@@ -18,7 +18,7 @@
+ 
+ struct hal_tx_info {
+ 	u16 meta_data_flags; /* %HAL_TCL_DATA_CMD_INFO0_META_ */
+-	u8 ring_id;
++	u8 buf_id;
+ 	u32 desc_id;
+ 	enum hal_tcl_desc_type type;
+ 	enum hal_tcl_encap_type encap_type;
+@@ -70,5 +70,5 @@ int ath11k_hal_reo_cmd_send(struct ath11
+ 			    enum hal_reo_cmd_type type,
+ 			    struct ath11k_hal_reo_cmd *cmd);
+ void ath11k_hal_tx_init_data_ring(struct ath11k_base *ab,
+-				  struct hal_srng *srng);
++				  struct hal_srng *srng, enum hal_ring_type type);
+ #endif
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -6617,12 +6617,22 @@ static void ath11k_mac_op_tx(struct ieee
+ 	if (control->sta)
+ 		arsta = ath11k_sta_to_arsta(control->sta);
+ 
++	/* Must call mac80211 tx status handler, else when stats is disabled we free
++	 * the skb from driver. Own tx packets on monitor will also be disabled.
++	 */
++	if ((info->flags & (IEEE80211_TX_CTL_REQ_TX_STATUS | IEEE80211_TX_INTFL_NL80211_FRAME_TX)) ||
++	    info->status_data || vif->type == NL80211_IFTYPE_MESH_POINT ||
++	    test_bit(ATH11K_FLAG_MONITOR_VDEV_CREATED, &ar->monitor_flags))
++		skb_cb->flags |= ATH11K_SKB_TX_STATUS;
++
+ 	if (ar->ab->nss.enabled)
+ 		ret = ath11k_nss_tx(arvif, skb);
+ 	else
+ 		ret = ath11k_dp_tx(ar, arvif, arsta, skb);
++
+ 	if (unlikely(ret)) {
+-		ath11k_warn(ar->ab, "failed to transmit frame %d\n", ret);
++		if (!ar->ab->nss.enabled && ret != -ENOSPC && ret != -ENOMEM)
++			ath11k_warn(ar->ab, "failed to transmit frame %d\n", ret);
+ 		ieee80211_free_txskb(ar->hw, skb);
+ 		return;
+ 	}
+@@ -7595,7 +7605,7 @@ err_vdev_del:
+ 	idr_for_each(&ar->txmgmt_idr,
+ 		     ath11k_mac_vif_txmgmt_idr_remove, vif);
+ 
+-	for (i = 0; i < ab->hw_params.max_tx_ring; i++) {
++	for (i = 0; i < DP_TCL_NUM_RING_MAX; i++) {
+ 		spin_lock_bh(&ab->dp.tx_ring[i].tx_idr_lock);
+ 		idr_for_each(&ab->dp.tx_ring[i].txbuf_idr,
+ 			     ath11k_mac_vif_unref, vif);

@@ -95,7 +95,7 @@ Signed-off-by: Rameshkumar Sundaram <ramess@codeaurora.org>
  	/* must be last */
 --- a/drivers/net/wireless/ath/ath11k/nss.c
 +++ b/drivers/net/wireless/ath/ath11k/nss.c
-@@ -647,8 +647,9 @@ static void ath11k_nss_wds_type_rx(struc
+@@ -609,8 +609,9 @@ static void ath11k_nss_wds_type_rx(struc
  	spin_unlock_bh(&ab->base_lock);
  }
  
@@ -106,7 +106,7 @@ Signed-off-by: Rameshkumar Sundaram <ramess@codeaurora.org>
  	struct ath11k_base *ab = ar->ab;
  	struct ath11k_peer *peer = ar->bss_peer;
  	u8 mac_addr[ETH_ALEN];
-@@ -675,7 +676,7 @@ static void ath11k_nss_mec_handler(struc
+@@ -637,7 +638,7 @@ static void ath11k_nss_mec_handler(struc
  	memcpy(mac_addr, mac_addr_h16, ETH_ALEN - 4);
  	memcpy(mac_addr + 2, mac_addr_l32, 4);
  
@@ -115,7 +115,7 @@ Signed-off-by: Rameshkumar Sundaram <ramess@codeaurora.org>
  		spin_lock_bh(&ab->base_lock);
  		ath11k_peer_add_ast(ar, peer, mac_addr,
  				    ATH11K_AST_TYPE_MEC);
-@@ -710,7 +711,7 @@ static void ath11k_nss_vdev_spl_receive_
+@@ -672,7 +673,7 @@ static void ath11k_nss_vdev_spl_receive_
  					       addr4_valid, peer_id);
  			break;
  		case NSS_WIFI_VDEV_WDS_TYPE_MEC:
@@ -124,7 +124,7 @@ Signed-off-by: Rameshkumar Sundaram <ramess@codeaurora.org>
  			break;
  		default:
  			ath11k_warn(ab, "unsupported wds_type %d\n", wds_type);
-@@ -3816,11 +3817,7 @@ int ath11k_nss_add_wds_peer(struct ath11
+@@ -2341,11 +2342,7 @@ int ath11k_nss_add_wds_peer(struct ath11
  	wds_peer_msg->ast_type = type;
  	wds_peer_msg->peer_id = peer->peer_id;
  
@@ -137,7 +137,7 @@ Signed-off-by: Rameshkumar Sundaram <ramess@codeaurora.org>
  	ether_addr_copy(wds_peer_msg->dest_mac, dest_mac);
  
  	msg_cb = (nss_wifili_msg_callback_t)ath11k_nss_wifili_event_receive;
-@@ -3943,7 +3940,7 @@ msg_free:
+@@ -2468,7 +2465,7 @@ msg_free:
  	return ret;
  }
  
@@ -146,7 +146,7 @@ Signed-off-by: Rameshkumar Sundaram <ramess@codeaurora.org>
  			    u8 *dest_mac)
  {
  	struct ath11k_base *ab = ar->ab;
-@@ -3961,8 +3958,8 @@ int ath11k_nss_del_wds_peer(struct ath11
+@@ -2486,8 +2483,8 @@ int ath11k_nss_del_wds_peer(struct ath11
  
  	wds_peer_msg->pdev_id = ar->pdev->pdev_id;
  	wds_peer_msg->ast_type = ATH11K_AST_TYPE_NONE;
@@ -159,7 +159,7 @@ Signed-off-by: Rameshkumar Sundaram <ramess@codeaurora.org>
  	msg_cb = (nss_wifili_msg_callback_t)ath11k_nss_wifili_event_receive;
 --- a/drivers/net/wireless/ath/ath11k/nss.h
 +++ b/drivers/net/wireless/ath/ath11k/nss.h
-@@ -290,8 +290,8 @@ int ath11k_nss_update_wds_peer(struct at
+@@ -239,8 +239,8 @@ int ath11k_nss_update_wds_peer(struct at
  			       u8 *dest_mac);
  int ath11k_nss_map_wds_peer(struct ath11k *ar, struct ath11k_peer *peer,
  			    u8 *dest_mac, enum ath11k_ast_entry_type type);
@@ -170,7 +170,7 @@ Signed-off-by: Rameshkumar Sundaram <ramess@codeaurora.org>
  int ath11k_nss_ext_vdev_cfg_wds_peer(struct ath11k_vif *arvif,
  				     u8 *wds_addr, u32 wds_peer_id);
  int ath11k_nss_ext_vdev_wds_4addr_allow(struct ath11k_vif *arvif,
-@@ -413,8 +413,8 @@ static inline int ath11k_nss_map_wds_pee
+@@ -339,8 +339,8 @@ static inline int ath11k_nss_map_wds_pee
  	return 0;
  }
  

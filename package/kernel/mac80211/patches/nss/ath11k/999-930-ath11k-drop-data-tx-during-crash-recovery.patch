@@ -17,6 +17,7 @@ Guard the TX path against the crash-flush window, mirroring the guard
 ath11k_ce_send() already has for the WMI path.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
 --- a/drivers/net/wireless/ath/ath11k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
 @@ -131,6 +131,16 @@ int ath11k_dp_tx(struct ath11k *ar, stru

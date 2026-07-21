@@ -1,0 +1,13 @@
+#!/bin/sh /etc/rc.common
+# Datapath recovery of last resort (see /usr/sbin/nss-recovery).
+# Disable with: uci set nss.recovery.enabled='0'; uci commit nss
+
+START=99
+USE_PROCD=1
+
+start_service() {
+	procd_open_instance nss-recovery
+	procd_set_param command /usr/sbin/nss-recovery
+	procd_set_param respawn 3600 5 0
+	procd_close_instance
+}

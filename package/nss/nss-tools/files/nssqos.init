@@ -1,0 +1,306 @@
+#!/bin/sh /etc/rc.common
+# NSS QoS marking: renders /etc/config/nssqos into a standalone nftables
+# table (inet nssqos, mangle-priority forward chain). Rules DSCP-mark
+# matching connections and optionally steer them into the SQM fast lane
+# (`meta priority set 100:0`, consumed by nss-edma.qos trees and, via ECM,
+# by the NSS firmware for accelerated flows in both directions).
+#
+# The table is our own, so firewall (fw4) reloads never touch it, and
+# deleting it removes every trace. LuCI edits reload this service through
+# the procd config trigger.
+
+START=51
+USE_PROCD=1
+
+RULESET=/var/etc/nssqos.nft
+
+# DSCP classes the fast lane accepts by default ('fastlane auto'): the
+# real-time and above classes (RFC 4594 CS4 up, plus EF/VA voice).
+AUTO_FAST_CLASSES="cs4 cs5 cs6 cs7 ef va"
+
+# Class name -> DSCP value. Rendered numerically; some class mnemonics
+# (va, le) are not understood by every nft userspace.
+class_to_dscp() {
+	case "$1" in
+	cs0) echo 0 ;;  cs1) echo 8 ;;  cs2) echo 16 ;; cs3) echo 24 ;;
+	cs4) echo 32 ;; cs5) echo 40 ;; cs6) echo 48 ;; cs7) echo 56 ;;
+	af11) echo 10 ;; af12) echo 12 ;; af13) echo 14 ;;
+	af21) echo 18 ;; af22) echo 20 ;; af23) echo 22 ;;
+	af31) echo 26 ;; af32) echo 28 ;; af33) echo 30 ;;
+	af41) echo 34 ;; af42) echo 36 ;; af43) echo 38 ;;
+	ef) echo 46 ;; va) echo 44 ;; le) echo 1 ;;
+	*) return 1 ;;
+	esac
+}
+
+# 'a b-c,d' -> '{ a, b-c, d }' (nft set), empty input -> empty output.
+# Used for port lists and address lists alike. A named-set reference
+# ('@name', from a domain rule) passes through verbatim.
+to_set() {
+	local in out
+	case "$1" in
+	@*) echo "$1"; return 0 ;;
+	esac
+	in=$(echo "$1" | tr ',' ' ')
+	set -- $in
+	[ $# -eq 0 ] && return 0
+	out=$(echo "$*" | sed 's/ /, /g')
+	echo "{ $out }"
+}
+
+# Subset of an IP/CIDR list belonging to one family ('ip' or 'ip6'). Lists may
+# mix families (e.g. a service's published v4+v6 ranges); each family's rule
+# gets its own subset. A '@name' set reference maps to the family's named set.
+addrs_of() {
+	local a out=""
+	for a in $1; do
+		case "$a" in
+		@*) [ "$2" = ip6 ] && out="$out ${a}_v6" || out="$out ${a}_v4" ;;
+		*:*) [ "$2" = ip6 ] && out="$out $a" ;;
+		*) [ "$2" = ip ] && out="$out $a" ;;
+		esac
+	done
+	echo $out
+}
+
+# Rules with 'domain' entries (filled by collect_domain_rule): each gets a
+# pair of named sets <cfg>_v4/<cfg>_v6 that /usr/sbin/nssqos-resolve keeps
+# populated.
+DOMAIN_RULES=""
+
+collect_domain_rule() {
+	local cfg="$1" enabled domains
+	config_get_bool enabled "$cfg" enabled 0
+	config_get domains "$cfg" domain
+	[ "$enabled" = 1 ] && [ -n "$domains" ] && DOMAIN_RULES="$DOMAIN_RULES $cfg"
+}
+
+# Trust boundary: /etc/config/nssqos is writable by any LuCI role granted the
+# nssqos ACL, and its values are rendered verbatim into the root `nft -f`
+# ruleset below. The LuCI form's datatype checks run only in the browser, so
+# re-validate here - a field carrying an nft metacharacter could otherwise
+# break out of the statement we build and inject arbitrary ruleset commands
+# (e.g. close the rule and `flush ruleset`). Addresses, ports, device and rule
+# names never legitimately contain those characters.
+valid_addr_list() {	# space/comma-separated IPs or CIDRs; empty = "any"
+	local t
+	for t in $(echo "$1" | tr ',' ' '); do
+		case "$t" in *[!0-9A-Fa-f:./]*) return 1 ;; esac
+	done
+	return 0
+}
+valid_port_list() {	# space/comma-separated ports or ranges; empty = "any"
+	local t
+	for t in $(echo "$1" | tr ',' ' '); do
+		case "$t" in *[!0-9-]*) return 1 ;; esac
+	done
+	return 0
+}
+valid_dev() {		# a netdev name (iifname/oifname match)
+	case "$1" in ''|*[!A-Za-z0-9._@-]*) return 1 ;; esac
+	return 0
+}
+# Cosmetic field (nft comment + log line only): strip anything that could close
+# the comment string or start a new ruleset line rather than reject the rule.
+sanitize_name() { printf '%s' "$1" | tr -d '"\\\n\r'; }
+
+# Emit the nft rules for one direction of one uci rule.
+# Args: $1=proto-match $2=src_ip $3=dest_ip $4=src_ports $5=dest_ports
+#       $6=dscp value  $7=fastlane(0/1)  $8=rule name
+emit_direction() {
+	# Quote every assignment: ash's 'local' field-splits unquoted values,
+	# and $1 carries spaces ("meta l4proto tcp").
+	local proto="$1" sip="$2" dip="$3" sports="$4" dports="$5" dscp="$6" fast="$7" name="$8"
+	local fam fsip fdip match action emitted=0
+
+	# Per family, restrict each address list to that family's subset. An
+	# address list with no entry in a family excludes the rule from it.
+	for fam in ip ip6; do
+		fsip=$(addrs_of "$sip" $fam)
+		fdip=$(addrs_of "$dip" $fam)
+		[ -n "$sip" ] && [ -z "$fsip" ] && continue
+		[ -n "$dip" ] && [ -z "$fdip" ] && continue
+		emitted=1
+		match="$proto"
+		[ -n "$fsip" ] && match="$match $fam saddr $(to_set "$fsip")"
+		[ -n "$fdip" ] && match="$match $fam daddr $(to_set "$fdip")"
+		[ -n "$sports" ] && match="$match th sport $sports"
+		[ -n "$dports" ] && match="$match th dport $dports"
+		action="$fam dscp set $dscp"
+		[ "$fast" = 1 ] && action="$action meta priority set 100:0"
+		# Record the class in the ct mark (dscp | 0x80, qosmate-compatible)
+		# so LuCI Status -> Realtime -> Connections can show it per flow.
+		action="$action ct mark set $(printf 0x%x $((0x80 | dscp)))"
+		printf '%s\n' "$match $action counter comment \"$name\"" >> "$RULESET"
+	done
+	[ "$emitted" = 1 ] || \
+		logger -t nssqos "rule '$name': src/dest address families never overlap, skipping"
+}
+
+render_rule() {
+	local cfg="$1"
+	local name enabled proto src_ip dest_ip src_port dest_port class fastlane
+	local dscp fast pmatch sset dset domains
+
+	config_get_bool enabled "$cfg" enabled 0
+	[ "$enabled" = 1 ] || return 0
+
+	config_get name "$cfg" name "$cfg"
+	config_get proto "$cfg" proto udp
+	config_get src_ip "$cfg" src_ip
+	config_get dest_ip "$cfg" dest_ip
+	config_get src_port "$cfg" src_port
+	config_get dest_port "$cfg" dest_port
+	config_get class "$cfg" class
+	config_get fastlane "$cfg" fastlane auto
+	config_get domains "$cfg" domain
+
+	name=$(sanitize_name "$name")
+	if ! valid_addr_list "$src_ip" || ! valid_addr_list "$dest_ip"; then
+		logger -t nssqos "rule '$name': invalid address field, skipping"
+		return 0
+	fi
+	if ! valid_port_list "$src_port" || ! valid_port_list "$dest_port"; then
+		logger -t nssqos "rule '$name': invalid port field, skipping"
+		return 0
+	fi
+
+	dscp=$(class_to_dscp "$class") || {
+		logger -t nssqos "rule '$name': unknown class '$class', skipping"
+		return 0
+	}
+
+	case "$proto" in
+	tcp|udp) pmatch="meta l4proto $proto" ;;
+	tcpudp) pmatch="meta l4proto { tcp, udp }" ;;
+	*)
+		logger -t nssqos "rule '$name': unknown proto '$proto', skipping"
+		return 0
+		;;
+	esac
+
+	fast=0
+	case "$fastlane" in
+	1) fast=1 ;;
+	0) ;;
+	*) case " $AUTO_FAST_CLASSES " in *" $class "*) fast=1 ;; esac ;;
+	esac
+
+	sset=$(to_set "$src_port")
+	dset=$(to_set "$dest_port")
+
+	# Domain rules match the rule's resolved-address sets as destination
+	# (plus the mirrored reply direction). dest_ip, if also given, is an
+	# additional alternative; dest-less literal rules are suppressed so a
+	# domain-only rule never widens to match-everything.
+	if [ -n "$domains" ]; then
+		emit_direction "$pmatch" "$src_ip" "@$cfg" "$sset" "$dset" "$dscp" "$fast" "$name"
+		emit_direction "$pmatch" "@$cfg" "$src_ip" "$dset" "$sset" "$dscp" "$fast" "$name"
+		[ -n "$dest_ip" ] || return 0
+	fi
+
+	# As written, plus the mirrored reply direction.
+	emit_direction "$pmatch" "$src_ip" "$dest_ip" "$sset" "$dset" "$dscp" "$fast" "$name"
+	emit_direction "$pmatch" "$dest_ip" "$src_ip" "$dset" "$sset" "$dscp" "$fast" "$name"
+}
+
+# L3 device the WAN forward path uses (pppoe-wan on a PPPoE uplink) —
+# deterministic from uci at any boot stage, no live-network query needed.
+wan_l3_device() {
+	local dev
+	dev=$(uci -q get nssqos.global.wan_device)
+	if [ -n "$dev" ]; then
+		# nssqos-namespace value (ACL-writable) -> validate before it lands
+		# in an iifname/oifname match; network.wan.* below is system config.
+		valid_dev "$dev" && { echo "$dev"; return; }
+		logger -t nssqos "ignoring invalid wan_device '$dev'"
+	fi
+	if [ "$(uci -q get network.wan.proto)" = "pppoe" ]; then
+		echo "pppoe-wan"
+	else
+		uci -q get network.wan.device
+	fi
+}
+
+start_service() {
+	local enabled wash_egress wash_ingress wandev cfg
+
+	config_load nssqos
+	config_get_bool enabled global enabled 1
+	if [ "$enabled" != 1 ]; then
+		nft delete table inet nssqos 2>/dev/null
+		return 0
+	fi
+
+	config_foreach collect_domain_rule rule
+
+	mkdir -p "$(dirname "$RULESET")"
+	{
+		printf '%s\n' "table inet nssqos"
+		printf '%s\n' "flush table inet nssqos"
+		printf '%s\n' "table inet nssqos {"
+		for cfg in $DOMAIN_RULES; do
+			printf 'set %s_v4 { type ipv4_addr; }\n' "$cfg"
+			printf 'set %s_v6 { type ipv6_addr; }\n' "$cfg"
+		done
+		printf '%s\n' "chain forward {"
+		printf '%s\n' "type filter hook forward priority mangle; policy accept;"
+	} > "$RULESET"
+
+	config_get_bool wash_ingress global wash_ingress 0
+	config_get_bool wash_egress global wash_egress 0
+	wandev=$(wan_l3_device)
+
+	# Ingress wash first: inbound DSCP from the ISP is untrusted; marking
+	# rules below re-mark whatever they match, wash covers the rest.
+	if [ "$wash_ingress" = 1 ] && [ -n "$wandev" ]; then
+		printf '%s\n' "iifname \"$wandev\" ip dscp != cs0 ip dscp set cs0 counter comment \"wash ingress\"" >> "$RULESET"
+		printf '%s\n' "iifname \"$wandev\" ip6 dscp != cs0 ip6 dscp set cs0 counter comment \"wash ingress\"" >> "$RULESET"
+	fi
+
+	config_foreach render_rule rule
+
+	# Egress wash last: the wire leaves as CS0, but fast-lane steering is
+	# carried by the priority mark and survives the wash (the firmware
+	# remarks accelerated packets to the post-wash value).
+	if [ "$wash_egress" = 1 ] && [ -n "$wandev" ]; then
+		printf '%s\n' "oifname \"$wandev\" ip dscp != cs0 ip dscp set cs0 counter comment \"wash egress\"" >> "$RULESET"
+		printf '%s\n' "oifname \"$wandev\" ip6 dscp != cs0 ip6 dscp set cs0 counter comment \"wash egress\"" >> "$RULESET"
+	fi
+
+	{
+		printf '%s\n' "}"
+		printf '%s\n' "}"
+	} >> "$RULESET"
+
+	if ! nft -f "$RULESET"; then
+		logger -t nssqos "failed to apply $RULESET"
+		return 1
+	fi
+
+	# Immediate pass so domain-rule sets never sit empty after a
+	# (re)render; the resolver instance's next tick could be minutes away.
+	[ -n "$DOMAIN_RULES" ] && /usr/sbin/nssqos-resolve once &
+
+	# The resolver registers only on start/restart (procd's reload path
+	# holds procd_lock with no service context open, so instance calls
+	# no-op there). It re-reads the config every tick itself, so reloads
+	# that add/remove domain rules need no instance changes.
+	procd_open_instance resolver
+	procd_set_param command /usr/sbin/nssqos-resolve
+	procd_set_param respawn
+	procd_close_instance
+}
+
+stop_service() {
+	nft delete table inet nssqos 2>/dev/null
+	return 0
+}
+
+reload_service() {
+	start_service
+}
+
+service_triggers() {
+	procd_add_reload_trigger "nssqos"
+}

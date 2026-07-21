@@ -5,7 +5,7 @@ Subject: [PATCH] ath11k: QOS null frame tx over wmi
 
 Added support to send qos null frame through FW.
 NSS driver does not support QOS null frame tx.
-Hence this is brought for nss offload case to send 
+Hence this is brought for nss offload case to send
 qos null frame. QOS null packet queued from mac80211
 is sent to FW through wmi interface. This happens only if FW supports
 qos null tx, this is based on service bit received in ext2 service
@@ -22,7 +22,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6148,6 +6148,16 @@ static int ath11k_mac_mgmt_tx_wmi(struct
+@@ -6145,6 +6145,16 @@ static int ath11k_mac_mgmt_tx_wmi(struct
  
  	ATH11K_SKB_CB(skb)->paddr = paddr;
  
@@ -39,7 +39,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	ret = ath11k_wmi_mgmt_send(ar, arvif->vdev_id, buf_id, skb);
  	if (ret) {
  		ath11k_warn(ar->ab, "failed to send mgmt frame: %d\n", ret);
-@@ -6215,8 +6225,8 @@ static void ath11k_mgmt_over_wmi_tx_work
+@@ -6212,8 +6222,8 @@ static void ath11k_mgmt_over_wmi_tx_work
  	}
  }
  
@@ -50,7 +50,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  {
  	struct sk_buff_head *q = &ar->wmi_mgmt_tx_queue;
  
-@@ -6278,7 +6288,7 @@ static void ath11k_mac_op_tx(struct ieee
+@@ -6275,7 +6285,7 @@ static void ath11k_mac_op_tx(struct ieee
  	} else if (ieee80211_is_mgmt(hdr->frame_control)) {
  		frm_type = FIELD_GET(IEEE80211_FCTL_STYPE, hdr->frame_control);
  		is_prb_rsp = ieee80211_is_probe_resp(hdr->frame_control);
@@ -59,7 +59,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  		if (ret) {
  			if (ret != -EBUSY)
  				ath11k_warn(ar->ab, "failed to queue management frame %d\n",
-@@ -6293,6 +6303,20 @@ static void ath11k_mac_op_tx(struct ieee
+@@ -6290,6 +6300,20 @@ static void ath11k_mac_op_tx(struct ieee
  			spin_unlock_bh(&ar->data_lock);
  		}
  		return;
@@ -91,7 +91,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	[WMI_TAG_SCAN_EVENT]
  		= { .min_len = sizeof(struct wmi_scan_event) },
  	[WMI_TAG_PEER_STA_KICKOUT_EVENT]
-@@ -708,6 +708,55 @@ int ath11k_wmi_mgmt_send(struct ath11k *
+@@ -704,6 +704,55 @@ int ath11k_wmi_mgmt_send(struct ath11k *
  	return ret;
  }
  
@@ -147,7 +147,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  int ath11k_wmi_vdev_create(struct ath11k *ar, u8 *macaddr,
  			   struct vdev_create_params *param)
  {
-@@ -6032,8 +6081,8 @@ static int ath11k_pull_mgmt_rx_params_tl
+@@ -6027,8 +6076,8 @@ static int ath11k_pull_mgmt_rx_params_tl
  	return 0;
  }
  
@@ -158,7 +158,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  {
  	struct sk_buff *msdu;
  	struct ieee80211_tx_info *info;
-@@ -6074,6 +6123,11 @@ static int wmi_process_mgmt_tx_comp(stru
+@@ -6069,6 +6118,11 @@ static int wmi_process_mgmt_tx_comp(stru
  			info->status.ack_signal = tx_compl_param->ack_rssi;
  	}
  
@@ -170,7 +170,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	hdr = (struct ieee80211_hdr *)msdu->data;
  	frm_type = FIELD_GET(IEEE80211_FCTL_STYPE, hdr->frame_control);
  
-@@ -6092,10 +6146,13 @@ static int wmi_process_mgmt_tx_comp(stru
+@@ -6087,10 +6141,13 @@ static int wmi_process_mgmt_tx_comp(stru
  	arvif = ath11k_vif_to_arvif(vif);
  	mgmt_stats = &arvif->mgmt_stats;
  
@@ -188,7 +188,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	spin_unlock_bh(&ar->data_lock);
  
  skip_mgmt_stats:
-@@ -6117,12 +6174,13 @@ skip_mgmt_stats:
+@@ -6112,12 +6169,13 @@ skip_mgmt_stats:
  	return 0;
  }
  
@@ -206,7 +206,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	int ret;
  
  	tb = ath11k_wmi_tlv_parse_alloc(ab, skb, GFP_ATOMIC);
-@@ -6132,7 +6190,7 @@ static int ath11k_pull_mgmt_tx_compl_par
+@@ -6127,7 +6185,7 @@ static int ath11k_pull_mgmt_tx_compl_par
  		return ret;
  	}
  
@@ -215,7 +215,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	if (!ev) {
  		ath11k_warn(ab, "failed to fetch mgmt tx compl ev");
  		kfree(tb);
-@@ -7850,10 +7908,11 @@ exit:
+@@ -7845,10 +7903,11 @@ exit:
  
  static void ath11k_mgmt_tx_compl_event(struct ath11k_base *ab, struct sk_buff *skb)
  {
@@ -229,7 +229,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  		ath11k_warn(ab, "failed to extract mgmt tx compl event");
  		return;
  	}
-@@ -7866,7 +7925,7 @@ static void ath11k_mgmt_tx_compl_event(s
+@@ -7861,7 +7920,7 @@ static void ath11k_mgmt_tx_compl_event(s
  		goto exit;
  	}
  
@@ -238,7 +238,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  
  	ath11k_dbg(ab, ATH11K_DBG_MGMT,
  		   "event mgmt tx compl ev pdev_id %d, desc_id %d, status %d ack_rssi %d",
-@@ -7877,6 +7936,36 @@ exit:
+@@ -7872,6 +7931,36 @@ exit:
  	rcu_read_unlock();
  }
  
@@ -275,7 +275,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  static struct ath11k *ath11k_get_ar_on_scan_state(struct ath11k_base *ab,
  						  u32 vdev_id,
  						  enum ath11k_scan_state state)
-@@ -9156,6 +9245,10 @@ static void ath11k_wmi_tlv_op_rx(struct
+@@ -9080,6 +9169,10 @@ static void ath11k_wmi_tlv_op_rx(struct
  	case WMI_WDS_PEER_EVENTID:
  		ath11k_wmi_wds_peer_event(ab, skb);
  		break;
@@ -305,7 +305,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	WMI_TX_DELBA_COMPLETE_EVENTID = WMI_TLV_CMD(WMI_GRP_BA_NEG),
  	WMI_TX_ADDBA_COMPLETE_EVENTID,
  	WMI_BA_RSP_SSN_EVENTID,
-@@ -1895,6 +1898,9 @@ enum wmi_tlv_tag {
+@@ -1893,6 +1896,9 @@ enum wmi_tlv_tag {
  	WMI_TAG_PDEV_NON_SRG_OBSS_BSSID_ENABLE_BITMAP_CMD,
  	WMI_TAG_REGULATORY_RULE_EXT_STRUCT = 0x3A9,
  	WMI_TAG_REG_CHAN_LIST_CC_EXT_EVENT,
@@ -315,7 +315,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	WMI_TAG_VDEV_SET_TPC_POWER_CMD = 0x3B5,
  	WMI_TAG_VDEV_CH_POWER_INFO,
  	WMI_TAG_PDEV_SET_BIOS_SAR_TABLE_CMD = 0x3D8,
-@@ -2126,7 +2132,17 @@ enum wmi_tlv_service {
+@@ -2124,7 +2130,17 @@ enum wmi_tlv_service {
  	WMI_TLV_SERVICE_PEER_POWER_SAVE_DURATION_SUPPORT = 246,
  	WMI_TLV_SERVICE_SRG_SRP_SPATIAL_REUSE_SUPPORT = 249,
  	WMI_TLV_SERVICE_MBSS_PARAM_IN_VDEV_START_SUPPORT = 253,
@@ -333,7 +333,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  
  	/* The second 128 bits */
  	WMI_MAX_EXT_SERVICE = 256,
-@@ -3884,6 +3900,7 @@ struct wmi_scan_prob_req_oui_cmd {
+@@ -3882,6 +3898,7 @@ struct wmi_scan_prob_req_oui_cmd {
  }  __packed;
  
  #define WMI_MGMT_SEND_DOWNLD_LEN	64
@@ -341,7 +341,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  
  #define WMI_TX_PARAMS_DWORD0_POWER		GENMASK(7, 0)
  #define WMI_TX_PARAMS_DWORD0_MCS_MASK		GENMASK(19, 8)
-@@ -3894,9 +3911,10 @@ struct wmi_scan_prob_req_oui_cmd {
+@@ -3892,9 +3909,10 @@ struct wmi_scan_prob_req_oui_cmd {
  #define WMI_TX_PARAMS_DWORD1_BW_MASK		GENMASK(14, 8)
  #define WMI_TX_PARAMS_DWORD1_PREAMBLE_TYPE	GENMASK(19, 15)
  #define WMI_TX_PARAMS_DWORD1_FRAME_TYPE		BIT(20)
@@ -354,7 +354,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	u32 tlv_header;
  	u32 tx_params_dword0;
  	u32 tx_params_dword1;
-@@ -4990,7 +5008,7 @@ struct wmi_rssi_ctl_ext {
+@@ -4978,7 +4996,7 @@ struct wmi_rssi_ctl_ext {
  	u32 rssi_ctl_ext[MAX_ANTENNA_EIGHT - ATH_MAX_ANTENNA];
  };
  
@@ -363,7 +363,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	u32 desc_id;
  	u32 status;
  	u32 pdev_id;
-@@ -5822,6 +5840,17 @@ struct wmi_debug_log_config_cmd_fixed_pa
+@@ -5810,6 +5828,17 @@ struct wmi_debug_log_config_cmd_fixed_pa
  	u32 value;
  } __packed;
  
@@ -381,7 +381,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  #define MAX_RADIOS 3
  
  #define WMI_SERVICE_READY_TIMEOUT_HZ (5 * HZ)
-@@ -6436,6 +6465,8 @@ int ath11k_wmi_mgmt_send(struct ath11k *
+@@ -6424,6 +6453,8 @@ int ath11k_wmi_mgmt_send(struct ath11k *
  			 struct sk_buff *frame);
  int ath11k_wmi_p2p_go_bcn_ie(struct ath11k *ar, u32 vdev_id,
  			     const u8 *p2p_ie);

@@ -1,0 +1,34 @@
+frontends: declare 'in' on the VXLAN-GPE node-establish path
+
+ecm_ipv{4,6}_node_establish_and_ref() use a local 'in' (struct net_device *)
+in the ECM_DB_IFACE_TYPE_VXLAN / VXLAN-GPE branch, but 'in' is only declared
+under #if defined(MAP_T||GRE_TUN||XFRM) (v4) / (GRE_TUN||XFRM) (v6) - not under
+VXLAN. So with kmod-vxlan selected but GRE_TUN/MAP_T/XFRM all off the build
+fails: ecm_ipv6.c: error: 'in' undeclared. Add ECM_INTERFACE_VXLAN_ENABLE to
+the 'in' declaration guard in both files (v4/v6 parity; VXLAN-GPE uses 'in'
+in both).
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/frontends/cmn/ecm_ipv4.c
++++ b/frontends/cmn/ecm_ipv4.c
+@@ -191,7 +191,7 @@ struct ecm_db_node_instance *ecm_ipv4_no
+ 	struct net_device *local_dev;
+ #endif
+ 
+-#if defined(ECM_INTERFACE_MAP_T_ENABLE) || defined(ECM_INTERFACE_GRE_TUN_ENABLE) || defined(ECM_XFRM_ENABLE)
++#if defined(ECM_INTERFACE_VXLAN_ENABLE) || defined(ECM_INTERFACE_MAP_T_ENABLE) || defined(ECM_INTERFACE_GRE_TUN_ENABLE) || defined(ECM_XFRM_ENABLE)
+ 	struct net_device *in;
+ #endif
+ 
+--- a/frontends/cmn/ecm_ipv6.c
++++ b/frontends/cmn/ecm_ipv6.c
+@@ -188,7 +188,7 @@ struct ecm_db_node_instance *ecm_ipv6_no
+ 	struct inet6_dev *ip6_inetdev;
+ #endif
+ 
+-#if defined(ECM_INTERFACE_GRE_TUN_ENABLE) || defined(ECM_XFRM_ENABLE)
++#if defined(ECM_INTERFACE_VXLAN_ENABLE) || defined(ECM_INTERFACE_GRE_TUN_ENABLE) || defined(ECM_XFRM_ENABLE)
+ 	struct net_device *in;
+ #endif
+ 

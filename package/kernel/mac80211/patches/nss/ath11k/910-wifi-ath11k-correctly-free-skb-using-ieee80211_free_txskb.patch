@@ -13,6 +13,9 @@ not clean up related information in its internal data structures.
 Hence fix the issue by properly using ieee80211_free_txskb().
 
 Signed-off-by: Sarika Sharma <quic_sarishar@quicinc.com>
+[julius: keep the fast free for frames without a tx status request
+ only, so status-requested frames flow back through mac80211]
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 ---
  drivers/net/wireless/ath/ath11k/dp_tx.c | 3 ++-
  1 file changed, 2 insertions(+), 1 deletion(-)

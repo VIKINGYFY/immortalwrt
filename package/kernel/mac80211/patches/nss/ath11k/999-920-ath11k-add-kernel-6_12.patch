@@ -1,6 +1,10 @@
+ath11k-add-kernel-6_12
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2936,13 +2936,13 @@ err_sc_free:
+@@ -2920,13 +2920,13 @@ err_sc_free:
  }
  EXPORT_SYMBOL(ath11k_core_alloc);
  
@@ -18,7 +22,7 @@
  }
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -1823,7 +1823,7 @@ struct htt_ppdu_stats_info *ath11k_dp_ht
+@@ -1753,7 +1753,7 @@ struct htt_ppdu_stats_info *ath11k_dp_ht
  	return ppdu_info;
  }
  
@@ -27,7 +31,7 @@
  				  struct htt_ppdu_user_stats* usr_stats)
  {
  	peer->ppdu_stats_delayba.reserved0 = usr_stats->rate.reserved0;
-@@ -1838,7 +1838,7 @@ void ath11k_copy_to_delay_stats(struct a
+@@ -1768,7 +1768,7 @@ void ath11k_copy_to_delay_stats(struct a
  	peer->delayba_flag = true;
  }
  
@@ -36,7 +40,7 @@
  			struct htt_ppdu_user_stats* usr_stats)
  {
  	usr_stats->rate.reserved0 = peer->ppdu_stats_delayba.reserved0;
-@@ -6312,7 +6312,7 @@ static void ath11k_dp_rx_mon_dest_proces
+@@ -6164,7 +6164,7 @@ static void ath11k_dp_rx_mon_dest_proces
  	}
  }
  
@@ -58,15 +62,7 @@
  	int i;
 --- a/drivers/net/wireless/ath/ath11k/nss.c
 +++ b/drivers/net/wireless/ath/ath11k/nss.c
-@@ -3,6 +3,7 @@
-  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
-  */
- #include <linux/of.h>
-+#include <linux/timer.h>
- 
- #include "debug.h"
- #include "mac.h"
-@@ -307,7 +308,7 @@ static void ath11k_nss_peer_mem_free(str
+@@ -301,7 +301,7 @@ static void ath11k_nss_peer_mem_free(str
  
  /*-----------------------------Events/Callbacks------------------------------*/
  
@@ -75,7 +71,7 @@
  {
  	u32 msg_type = msg->cm.type;
  	enum nss_cmn_response response = msg->cm.response;
-@@ -418,7 +419,7 @@ void ath11k_nss_wifili_event_receive(voi
+@@ -406,7 +406,7 @@ void ath11k_nss_wifili_event_receive(voi
  	}
  }
  
@@ -84,7 +80,7 @@
  {
  	struct ath11k_vif *arvif;
  	struct ath11k_peer *peer = NULL;
-@@ -517,7 +518,7 @@ static inline void ath11k_nss_wifili_ext
+@@ -503,7 +503,7 @@ static inline void ath11k_nss_wifili_ext
  	ath11k_nss_wifili_ext_callback_fn(ab, skb, napi);
  }
  
@@ -93,43 +89,7 @@
  {
  	struct ath11k_vif *arvif = (struct ath11k_vif *)app_data;
  
-@@ -1000,7 +1001,7 @@ ath11k_nss_ext_vdev_data_receive(struct
- #ifdef CPTCFG_ATH11K_NSS_MESH_SUPPORT
- /*------Mesh offload------*/
- 
--void ath11k_nss_mesh_wifili_event_receive(void *app_data,
-+static void ath11k_nss_mesh_wifili_event_receive(void *app_data,
- 					  struct nss_cmn_msg *cmn_msg)
- {
- 	struct nss_wifi_mesh_msg *msg = (struct nss_wifi_mesh_msg *)cmn_msg;
-@@ -1861,7 +1862,7 @@ int ath11k_nss_dump_mpp_request(struct a
- 	return 0;
- }
- 
--void ath11k_nss_mpp_timer_cb(struct timer_list *timer)
-+static void ath11k_nss_mpp_timer_cb(struct timer_list *timer)
- {
- 	nss_wifi_mesh_msg_callback_t msg_cb;
- 	struct arvif_nss *nss = timer_container_of(nss, timer, mpp_expiry_timer);
-@@ -2546,7 +2547,7 @@ static void ath11k_nss_mesh_vdev_free(st
- }
- #endif
- 
--void ath11k_nss_vdev_free(struct ath11k_vif *arvif)
-+static void ath11k_nss_vdev_free(struct ath11k_vif *arvif)
- {
- 	struct ath11k_base *ab = arvif->ar->ab;
- 	nss_tx_status_t status;
-@@ -2578,7 +2579,7 @@ void ath11k_nss_vdev_free(struct ath11k_
- }
- 
- #ifdef CPTCFG_ATH11K_NSS_MESH_SUPPORT
--struct arvif_nss *ath11k_nss_find_arvif_by_if_num(int if_num)
-+static struct arvif_nss *ath11k_nss_find_arvif_by_if_num(int if_num)
- {
- 	struct arvif_nss *nss;
- 
-@@ -4565,7 +4566,7 @@ void ath11k_nss_peer_stats_enable(struct
+@@ -3059,7 +3059,7 @@ void ath11k_nss_peer_stats_enable(struct
  			     ATH11K_NSS_STATS_ENABLE);
  }
  
@@ -138,7 +98,7 @@
  {
  	struct ath11k *ar = ab->pdevs[radio_id].ar;
  	struct nss_wifili_pdev_init_msg *pdevmsg;
-@@ -4699,7 +4700,7 @@ dealloc:
+@@ -3193,7 +3193,7 @@ dealloc:
  /* TODO : Check if start, reset and stop messages can be done using single function as
   * body is similar, having it now for clarity */
  
@@ -147,7 +107,7 @@
  {
  	struct nss_wifili_msg *wlmsg = NULL;
  	nss_wifili_msg_callback_t msg_cb;
-@@ -4864,7 +4865,7 @@ free:
+@@ -3358,7 +3358,7 @@ free:
  	return ret;
  }
  
@@ -156,23 +116,3 @@
  {
  	struct ath11k *ar = ab->pdevs[radio_id].ar;
  	struct nss_wifili_pdev_deinit_msg *deinit;
---- a/drivers/net/wireless/ath/ath11k/nss.h
-+++ b/drivers/net/wireless/ath/ath11k/nss.h
-@@ -179,7 +179,7 @@ struct ath11k_nss_mpath_entry {
- 	struct list_head list;
- 	u32 num_entries;
- #ifdef CPTCFG_ATH11K_NSS_MESH_SUPPORT
--	struct nss_wifi_mesh_path_dump_entry mpath[0];
-+	struct nss_wifi_mesh_path_dump_entry mpath[];
- #endif
- };
- 
-@@ -187,7 +187,7 @@ struct ath11k_nss_mpp_entry {
- 	struct list_head list;
- 	u32 num_entries;
- #ifdef CPTCFG_ATH11K_NSS_MESH_SUPPORT
--	struct nss_wifi_mesh_proxy_path_dump_entry mpp[0];
-+	struct nss_wifi_mesh_proxy_path_dump_entry mpp[];
- #endif
- };
- 

@@ -211,6 +211,118 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	unsigned long mem_len;
  
  	struct {
+--- a/drivers/net/wireless/ath/ath11k/debugfs.c
++++ b/drivers/net/wireless/ath/ath11k/debugfs.c
+@@ -13,11 +13,10 @@
+ #include "core.h"
+ #include "debug.h"
+ #include "wmi.h"
+-#include "hal_rx.h"
+ #include "dp_tx.h"
+ #include "debugfs_htt_stats.h"
+-#include "peer.h"
+ #include "hif.h"
++#include "qmi.h"
+ 
+ struct dentry *debugfs_ath11k;
+ 
+@@ -546,6 +545,7 @@ static ssize_t ath11k_write_extd_rx_stat
+ 			HTT_RX_FP_DATA_FILTER_FLASG3;
+ 	} else {
+ 		tlv_filter = ath11k_mac_mon_status_filter_default;
++		ath11k_nss_ext_rx_stats(ar->ab, &tlv_filter);
+ 	}
+ 
+ 	ar->debug.rx_filter = tlv_filter.rx_filter;
+@@ -1568,6 +1568,76 @@ static const struct file_operations fops
+ 	.open = simple_open
+ };
+ 
++
++static ssize_t ath11k_write_nss_stats(struct file *file,
++				      const char __user *ubuf,
++				      size_t count, loff_t *ppos)
++{
++	struct ath11k *ar = file->private_data;
++	struct ath11k_base *ab = ar->ab;
++	u8 nss_stats;
++	int ret;
++
++	if (!ab->nss.enabled) {
++		ath11k_warn(ab, "nss offload not enabled\n");
++		return -EINVAL;
++	}
++
++	if (kstrtou8_from_user(ubuf, count, 0, &nss_stats))
++		return -EINVAL;
++
++	mutex_lock(&ar->conf_mutex);
++
++	if (ar->state != ATH11K_STATE_ON) {
++		ret = -ENETDOWN;
++		goto out;
++	}
++
++	if (nss_stats == ab->nss.stats_enabled) {
++		ret = count;
++		goto out;
++	}
++
++	if (nss_stats > 0) {
++		ab->nss.stats_enabled = 1;
++		ath11k_nss_peer_stats_enable(ar);
++	} else {
++		ab->nss.stats_enabled = 0;
++		ath11k_nss_peer_stats_disable(ar);
++	}
++
++	ret = count;
++out:
++	mutex_unlock(&ar->conf_mutex);
++	return ret;
++}
++
++static ssize_t ath11k_read_nss_stats(struct file *file,
++				     char __user *ubuf,
++				     size_t count, loff_t *ppos)
++
++{
++	char buf[32] = {0};
++	struct ath11k *ar = file->private_data;
++	struct ath11k_base *ab = ar->ab;
++	int len = 0;
++
++	mutex_lock(&ar->conf_mutex);
++	len = scnprintf(buf, sizeof(buf) - len, "%08x\n",
++			ab->nss.stats_enabled);
++	mutex_unlock(&ar->conf_mutex);
++
++	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
++}
++
++static const struct file_operations fops_nss_stats = {
++	.read = ath11k_read_nss_stats,
++	.write = ath11k_write_nss_stats,
++	.open = simple_open,
++	.owner = THIS_MODULE,
++	.llseek = default_llseek,
++};
++
+ int ath11k_debugfs_register(struct ath11k *ar)
+ {
+ 	struct ath11k_base *ab = ar->ab;
+@@ -1634,6 +1704,11 @@ int ath11k_debugfs_register(struct ath11
+ 				    &fops_reset_ps_duration);
+ 	}
+ 
++	if (ab->nss.enabled)
++		debugfs_create_file("nss_peer_stats_config", 0644,
++				    ar->debug.debugfs_pdev, ar,
++				    &fops_nss_stats);
++
+ 	return 0;
+ }
+ 
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
 @@ -49,12 +49,17 @@ int ath11k_dp_peer_setup(struct ath11k *
@@ -475,6 +587,28 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
 +void ath11k_dp_rx_from_nss(struct ath11k *ar, struct sk_buff *msdu,
 +				      struct napi_struct *napi);
  #endif /* ATH11K_DP_RX_H */
+--- a/drivers/net/wireless/ath/ath11k/dp_tx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
+@@ -13,7 +13,7 @@
+ #include "peer.h"
+ #include "mac.h"
+ 
+-static enum hal_tcl_encap_type
++enum hal_tcl_encap_type
+ ath11k_dp_tx_get_encap_type(struct ath11k_vif *arvif, struct sk_buff *skb)
+ {
+ 	struct ieee80211_tx_info *tx_info = IEEE80211_SKB_CB(skb);
+--- a/drivers/net/wireless/ath/ath11k/dp_tx.h
++++ b/drivers/net/wireless/ath/ath11k/dp_tx.h
+@@ -39,6 +39,8 @@ int ath11k_dp_tx_htt_rx_filter_setup(str
+ 				     int mac_id, enum hal_ring_type ring_type,
+ 				     int rx_buf_size,
+ 				     struct htt_rx_ring_tlv_filter *tlv_filter);
++enum hal_tcl_encap_type
++ath11k_dp_tx_get_encap_type(struct ath11k_vif *arvif, struct sk_buff *skb);
+ 
+ int ath11k_dp_tx_htt_rx_full_mon_setup(struct ath11k_base *ab, int mac_id,
+ 				       bool config);
 --- a/drivers/net/wireless/ath/ath11k/hal.h
 +++ b/drivers/net/wireless/ath/ath11k/hal.h
 @@ -424,6 +424,8 @@ enum hal_srng_ring_id {
@@ -501,6 +635,87 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  		switch (ppdu_info->preamble_type) {
  		case HAL_RX_PREAMBLE_11N:
  			ppdu_info->ht_flags = 1;
+--- a/drivers/net/wireless/ath/ath11k/hw.c
++++ b/drivers/net/wireless/ath/ath11k/hw.c
+@@ -104,8 +104,10 @@ static void ath11k_init_wmi_config_qca63
+ 
+ static void ath11k_hw_ipq8074_reo_setup(struct ath11k_base *ab)
+ {
++	u8 frag_dest_ring = HAL_SRNG_RING_ID_REO2SW1;
+ 	u32 reo_base = HAL_SEQ_WCSS_UMAC_REO_REG;
+ 	u32 val;
++
+ 	/* Each hash entry uses three bits to map to a particular ring. */
+ 	u32 ring_hash_map = HAL_HASH_ROUTING_RING_SW1 << 0 |
+ 		HAL_HASH_ROUTING_RING_SW2 << 3 |
+@@ -116,11 +118,14 @@ static void ath11k_hw_ipq8074_reo_setup(
+ 		HAL_HASH_ROUTING_RING_SW3 << 18 |
+ 		HAL_HASH_ROUTING_RING_SW4 << 21;
+ 
++	if (ab->nss.enabled)
++		frag_dest_ring = HAL_SRNG_REO_ALTERNATE_SELECT;
++
+ 	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_GEN_ENABLE);
+ 
+ 	val &= ~HAL_REO1_GEN_ENABLE_FRAG_DST_RING;
+ 	val |= FIELD_PREP(HAL_REO1_GEN_ENABLE_FRAG_DST_RING,
+-			HAL_SRNG_RING_ID_REO2SW1) |
++			  frag_dest_ring) |
+ 		FIELD_PREP(HAL_REO1_GEN_ENABLE_AGING_LIST_ENABLE, 1) |
+ 		FIELD_PREP(HAL_REO1_GEN_ENABLE_AGING_FLUSH_ENABLE, 1);
+ 	ath11k_hif_write32(ab, reo_base + HAL_REO1_GEN_ENABLE, val);
+@@ -134,6 +139,10 @@ static void ath11k_hw_ipq8074_reo_setup(
+ 	ath11k_hif_write32(ab, reo_base + HAL_REO1_AGING_THRESH_IX_3(ab),
+ 			   HAL_DEFAULT_REO_TIMEOUT_USEC);
+ 
++	/* REO Dest ring setup is not required in NSS offload case */
++	if (ab->nss.enabled)
++		return;
++
+ 	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_0,
+ 			   FIELD_PREP(HAL_REO_DEST_RING_CTRL_HASH_RING_MAP,
+ 				      ring_hash_map));
+@@ -758,8 +767,10 @@ static u8 *ath11k_hw_wcn6855_rx_desc_mpd
+ 
+ static void ath11k_hw_wcn6855_reo_setup(struct ath11k_base *ab)
+ {
++	u8 frag_dest_ring = HAL_SRNG_RING_ID_REO2SW1;
+ 	u32 reo_base = HAL_SEQ_WCSS_UMAC_REO_REG;
+ 	u32 val;
++
+ 	/* Each hash entry uses four bits to map to a particular ring. */
+ 	u32 ring_hash_map = HAL_HASH_ROUTING_RING_SW1 << 0 |
+ 		HAL_HASH_ROUTING_RING_SW2 << 4 |
+@@ -770,6 +781,9 @@ static void ath11k_hw_wcn6855_reo_setup(
+ 		HAL_HASH_ROUTING_RING_SW3 << 24 |
+ 		HAL_HASH_ROUTING_RING_SW4 << 28;
+ 
++	if (ab->nss.enabled)
++		frag_dest_ring = HAL_SRNG_REO_ALTERNATE_SELECT;
++
+ 	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_GEN_ENABLE);
+ 	val |= FIELD_PREP(HAL_REO1_GEN_ENABLE_AGING_LIST_ENABLE, 1) |
+ 		FIELD_PREP(HAL_REO1_GEN_ENABLE_AGING_FLUSH_ENABLE, 1);
+@@ -777,7 +791,7 @@ static void ath11k_hw_wcn6855_reo_setup(
+ 
+ 	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_MISC_CTL(ab));
+ 	val &= ~HAL_REO1_MISC_CTL_FRAGMENT_DST_RING;
+-	val |= FIELD_PREP(HAL_REO1_MISC_CTL_FRAGMENT_DST_RING, HAL_SRNG_RING_ID_REO2SW1);
++	val |= FIELD_PREP(HAL_REO1_MISC_CTL_FRAGMENT_DST_RING, frag_dest_ring);
+ 	ath11k_hif_write32(ab, reo_base + HAL_REO1_MISC_CTL(ab), val);
+ 
+ 	ath11k_hif_write32(ab, reo_base + HAL_REO1_AGING_THRESH_IX_0(ab),
+@@ -789,6 +803,10 @@ static void ath11k_hw_wcn6855_reo_setup(
+ 	ath11k_hif_write32(ab, reo_base + HAL_REO1_AGING_THRESH_IX_3(ab),
+ 			   HAL_DEFAULT_REO_TIMEOUT_USEC);
+ 
++	/* REO Dest ring setup is not required in NSS offload case */
++	if (ab->nss.enabled)
++		return;
++
+ 	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_2,
+ 			   ring_hash_map);
+ 	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_3,
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
 @@ -24,6 +24,7 @@
@@ -627,7 +842,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  exit:
  	mutex_unlock(&ar->conf_mutex);
  	return ret;
-@@ -6235,10 +6298,14 @@ static void ath11k_mac_op_tx(struct ieee
+@@ -6232,10 +6295,14 @@ static void ath11k_mac_op_tx(struct ieee
  	if (control->sta)
  		arsta = ath11k_sta_to_arsta(control->sta);
  
@@ -643,7 +858,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	}
  }
  
-@@ -6260,6 +6327,8 @@ static int ath11k_mac_config_mon_status_
+@@ -6257,6 +6324,8 @@ static int ath11k_mac_config_mon_status_
  
  	if (enable) {
  		tlv_filter = ath11k_mac_mon_status_filter_default;
@@ -652,7 +867,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  		if (ath11k_debugfs_rx_filter(ar))
  			tlv_filter.rx_filter = ath11k_debugfs_rx_filter(ar);
  	}
-@@ -6742,6 +6811,8 @@ static int ath11k_mac_vdev_delete(struct
+@@ -6739,6 +6808,8 @@ static int ath11k_mac_vdev_delete(struct
  
  	reinit_completion(&ar->vdev_delete_done);
  
@@ -661,7 +876,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	ret = ath11k_wmi_vdev_delete(ar, arvif->vdev_id);
  	if (ret) {
  		ath11k_warn(ar->ab, "failed to delete WMI vdev %d: %d\n",
-@@ -6895,8 +6966,34 @@ static int ath11k_mac_op_add_interface(s
+@@ -6892,8 +6963,34 @@ static int ath11k_mac_op_add_interface(s
  	list_add(&arvif->list, &ar->arvifs);
  	spin_unlock_bh(&ar->data_lock);
  
@@ -696,7 +911,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	nss = get_num_chains(ar->cfg_tx_chainmask) ? : 1;
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    WMI_VDEV_PARAM_NSS, nss);
-@@ -7025,6 +7122,7 @@ err_peer_del:
+@@ -7022,6 +7119,7 @@ err_peer_del:
  	}
  
  err_vdev_del:
@@ -704,7 +919,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	ath11k_mac_vdev_delete(ar, arvif);
  	spin_lock_bh(&ar->data_lock);
  	list_del(&arvif->list);
-@@ -7541,6 +7639,10 @@ ath11k_mac_update_vif_chan(struct ath11k
+@@ -7538,6 +7636,10 @@ ath11k_mac_update_vif_chan(struct ath11k
  				    arvif->vdev_id, ret);
  			continue;
  		}
@@ -715,7 +930,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	}
  
  	/* Restart the internal monitor vdev on new channel */
-@@ -9264,6 +9366,8 @@ static void ath11k_mac_op_sta_statistics
+@@ -9261,6 +9363,8 @@ static void ath11k_mac_op_sta_statistics
  		sinfo->signal_avg += ATH11K_DEFAULT_NOISE_FLOOR;
  
  	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_SIGNAL_AVG);
@@ -724,7 +939,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  }
  
  #if IS_ENABLED(CONFIG_IPV6)
-@@ -9939,6 +10043,7 @@ static const struct ieee80211_ops ath11k
+@@ -9936,6 +10040,7 @@ static const struct ieee80211_ops ath11k
  	.update_vif_offload		= ath11k_mac_op_update_vif_offload,
  	.config                         = ath11k_mac_op_config,
  	.bss_info_changed               = ath11k_mac_op_bss_info_changed,
@@ -732,7 +947,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	.configure_filter		= ath11k_mac_op_configure_filter,
  	.hw_scan                        = ath11k_mac_op_hw_scan,
  	.cancel_hw_scan                 = ath11k_mac_op_cancel_hw_scan,
-@@ -10385,7 +10490,8 @@ static int __ath11k_mac_register(struct
+@@ -10382,7 +10487,8 @@ static int __ath11k_mac_register(struct
  		ieee80211_hw_set(ar->hw, TX_AMPDU_SETUP_IN_HW);
  		ieee80211_hw_set(ar->hw, SUPPORTS_REORDERING_BUFFER);
  		ieee80211_hw_set(ar->hw, SUPPORTS_AMSDU_IN_AMPDU);
@@ -742,7 +957,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	}
  
  	ar->hw->wiphy->features |= NL80211_FEATURE_STATIC_SMPS;
-@@ -10500,6 +10606,9 @@ static int __ath11k_mac_register(struct
+@@ -10495,6 +10601,9 @@ static int __ath11k_mac_register(struct
  	    ab->hw_params.bios_sar_capa)
  		ar->hw->wiphy->sar_capa = ab->hw_params.bios_sar_capa;
  
@@ -752,219 +967,6 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	ret = ieee80211_register_hw(ar->hw);
  	if (ret) {
  		ath11k_err(ar->ab, "ieee80211 registration failed: %d\n", ret);
---- a/drivers/net/wireless/ath/ath11k/peer.c
-+++ b/drivers/net/wireless/ath/ath11k/peer.c
-@@ -7,6 +7,7 @@
- #include "core.h"
- #include "peer.h"
- #include "debug.h"
-+#include "nss.h"
- 
- static struct ath11k_peer *ath11k_peer_find_list_by_id(struct ath11k_base *ab,
- 						       int peer_id)
-@@ -150,6 +151,8 @@ void ath11k_peer_map_event(struct ath11k
- 		ether_addr_copy(peer->addr, mac_addr);
- 		list_add(&peer->list, &ab->peers);
- 		wake_up(&ab->peer_mapping_wq);
-+		if (ab->nss.enabled)
-+			ath11k_nss_peer_create(ab, peer);
- 	}
- 
- 	ath11k_dbg(ab, ATH11K_DBG_DP_HTT, "peer map vdev %d peer %pM id %d\n",
-@@ -312,17 +315,13 @@ static int __ath11k_peer_delete(struct a
- 
- 	lockdep_assert_held(&ar->conf_mutex);
- 
-+	reinit_completion(&ar->peer_delete_done);
-+	ath11k_nss_peer_delete(ar->ab, addr);
-+
- 	mutex_lock(&ab->tbl_mtx_lock);
- 	spin_lock_bh(&ab->base_lock);
- 
- 	peer = ath11k_peer_find_by_addr(ab, addr);
--	/* Check if the found peer is what we want to remove.
--	 * While the sta is transitioning to another band we may
--	 * have 2 peer with the same addr assigned to different
--	 * vdev_id. Make sure we are deleting the correct peer.
--	 */
--	if (peer && peer->vdev_id == vdev_id)
--		ath11k_peer_rhash_delete(ab, peer);
- 
- 	/* Fallback to peer list search if the correct peer can't be found.
- 	 * Skip the deletion of the peer from the rhash since it has already
-@@ -341,10 +340,17 @@ static int __ath11k_peer_delete(struct a
- 		return -EINVAL;
- 	}
- 
-+	/* Check if the found peer is what we want to remove.
-+	 * While the sta is transitioning to another band we may
-+	 * have 2 peer with the same addr assigned to different
-+	 * vdev_id. Make sure we are deleting the correct peer.
-+	 */
-+	if (peer && peer->vdev_id == vdev_id)
-+		ath11k_peer_rhash_delete(ab, peer);
-+
- 	spin_unlock_bh(&ab->base_lock);
- 	mutex_unlock(&ab->tbl_mtx_lock);
- 
--	reinit_completion(&ar->peer_delete_done);
- 
- 	ret = ath11k_wmi_send_peer_delete_cmd(ar, addr, vdev_id);
- 	if (ret) {
---- a/drivers/net/wireless/ath/ath11k/peer.h
-+++ b/drivers/net/wireless/ath/ath11k/peer.h
-@@ -28,6 +28,7 @@ struct ath11k_peer {
- 	u16 ast_hash;
- 	u8 pdev_idx;
- 	u16 hw_peer_id;
-+	struct ath11k_nss_peer nss;
- 
- 	/* protected by ab->data_lock */
- 	struct ieee80211_key_conf *keys[WMI_MAX_KEY_INDEX + 1];
---- a/drivers/net/wireless/ath/ath11k/pci.c
-+++ b/drivers/net/wireless/ath/ath11k/pci.c
-@@ -601,6 +601,7 @@ static int ath11k_pci_claim(struct ath11
- 	}
- 
- 	ab->mem_ce = ab->mem;
-+	ab->mem_pa = pci_resource_start(pdev, ATH11K_PCI_BAR_NUM);
- 
- 	ath11k_dbg(ab, ATH11K_DBG_BOOT, "pci_mem 0x%p\n", ab->mem);
- 	return 0;
---- a/drivers/net/wireless/ath/ath11k/debugfs.c
-+++ b/drivers/net/wireless/ath/ath11k/debugfs.c
-@@ -13,11 +13,10 @@
- #include "core.h"
- #include "debug.h"
- #include "wmi.h"
--#include "hal_rx.h"
- #include "dp_tx.h"
- #include "debugfs_htt_stats.h"
--#include "peer.h"
- #include "hif.h"
-+#include "qmi.h"
- 
- struct dentry *debugfs_ath11k;
- 
-@@ -546,6 +545,7 @@ static ssize_t ath11k_write_extd_rx_stat
- 			HTT_RX_FP_DATA_FILTER_FLASG3;
- 	} else {
- 		tlv_filter = ath11k_mac_mon_status_filter_default;
-+		ath11k_nss_ext_rx_stats(ar->ab, &tlv_filter);
- 	}
- 
- 	ar->debug.rx_filter = tlv_filter.rx_filter;
-@@ -1568,6 +1568,76 @@ static const struct file_operations fops
- 	.open = simple_open
- };
- 
-+
-+static ssize_t ath11k_write_nss_stats(struct file *file,
-+				      const char __user *ubuf,
-+				      size_t count, loff_t *ppos)
-+{
-+	struct ath11k *ar = file->private_data;
-+	struct ath11k_base *ab = ar->ab;
-+	u8 nss_stats;
-+	int ret;
-+
-+	if (!ab->nss.enabled) {
-+		ath11k_warn(ab, "nss offload not enabled\n");
-+		return -EINVAL;
-+	}
-+
-+	if (kstrtou8_from_user(ubuf, count, 0, &nss_stats))
-+		return -EINVAL;
-+
-+	mutex_lock(&ar->conf_mutex);
-+
-+	if (ar->state != ATH11K_STATE_ON) {
-+		ret = -ENETDOWN;
-+		goto out;
-+	}
-+
-+	if (nss_stats == ab->nss.stats_enabled) {
-+		ret = count;
-+		goto out;
-+	}
-+
-+	if (nss_stats > 0) {
-+		ab->nss.stats_enabled = 1;
-+		ath11k_nss_peer_stats_enable(ar);
-+	} else {
-+		ab->nss.stats_enabled = 0;
-+		ath11k_nss_peer_stats_disable(ar);
-+	}
-+
-+	ret = count;
-+out:
-+	mutex_unlock(&ar->conf_mutex);
-+	return ret;
-+}
-+
-+static ssize_t ath11k_read_nss_stats(struct file *file,
-+				     char __user *ubuf,
-+				     size_t count, loff_t *ppos)
-+
-+{
-+	char buf[32] = {0};
-+	struct ath11k *ar = file->private_data;
-+	struct ath11k_base *ab = ar->ab;
-+	int len = 0;
-+
-+	mutex_lock(&ar->conf_mutex);
-+	len = scnprintf(buf, sizeof(buf) - len, "%08x\n",
-+			ab->nss.stats_enabled);
-+	mutex_unlock(&ar->conf_mutex);
-+
-+	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
-+}
-+
-+static const struct file_operations fops_nss_stats = {
-+	.read = ath11k_read_nss_stats,
-+	.write = ath11k_write_nss_stats,
-+	.open = simple_open,
-+	.owner = THIS_MODULE,
-+	.llseek = default_llseek,
-+};
-+
- int ath11k_debugfs_register(struct ath11k *ar)
- {
- 	struct ath11k_base *ab = ar->ab;
-@@ -1634,6 +1704,11 @@ int ath11k_debugfs_register(struct ath11
- 				    &fops_reset_ps_duration);
- 	}
- 
-+	if (ab->nss.enabled)
-+		debugfs_create_file("nss_peer_stats_config", 0644,
-+				    ar->debug.debugfs_pdev, ar,
-+				    &fops_nss_stats);
-+
- 	return 0;
- }
- 
---- a/drivers/net/wireless/ath/ath11k/dp_tx.c
-+++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
-@@ -13,7 +13,7 @@
- #include "peer.h"
- #include "mac.h"
- 
--static enum hal_tcl_encap_type
-+enum hal_tcl_encap_type
- ath11k_dp_tx_get_encap_type(struct ath11k_vif *arvif, struct sk_buff *skb)
- {
- 	struct ieee80211_tx_info *tx_info = IEEE80211_SKB_CB(skb);
---- a/drivers/net/wireless/ath/ath11k/dp_tx.h
-+++ b/drivers/net/wireless/ath/ath11k/dp_tx.h
-@@ -39,6 +39,8 @@ int ath11k_dp_tx_htt_rx_filter_setup(str
- 				     int mac_id, enum hal_ring_type ring_type,
- 				     int rx_buf_size,
- 				     struct htt_rx_ring_tlv_filter *tlv_filter);
-+enum hal_tcl_encap_type
-+ath11k_dp_tx_get_encap_type(struct ath11k_vif *arvif, struct sk_buff *skb);
- 
- int ath11k_dp_tx_htt_rx_full_mon_setup(struct ath11k_base *ab, int mac_id,
- 				       bool config);
 --- a/drivers/net/wireless/ath/ath11k/nss.c
 +++ b/drivers/net/wireless/ath/ath11k/nss.c
 @@ -8,6 +8,8 @@
@@ -1087,87 +1089,16 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  {
  	return 0;
  }
---- a/drivers/net/wireless/ath/ath11k/hw.c
-+++ b/drivers/net/wireless/ath/ath11k/hw.c
-@@ -104,8 +104,10 @@ static void ath11k_init_wmi_config_qca63
+--- a/drivers/net/wireless/ath/ath11k/pci.c
++++ b/drivers/net/wireless/ath/ath11k/pci.c
+@@ -601,6 +601,7 @@ static int ath11k_pci_claim(struct ath11
+ 	}
  
- static void ath11k_hw_ipq8074_reo_setup(struct ath11k_base *ab)
- {
-+	u8 frag_dest_ring = HAL_SRNG_RING_ID_REO2SW1;
- 	u32 reo_base = HAL_SEQ_WCSS_UMAC_REO_REG;
- 	u32 val;
-+
- 	/* Each hash entry uses three bits to map to a particular ring. */
- 	u32 ring_hash_map = HAL_HASH_ROUTING_RING_SW1 << 0 |
- 		HAL_HASH_ROUTING_RING_SW2 << 3 |
-@@ -116,11 +118,14 @@ static void ath11k_hw_ipq8074_reo_setup(
- 		HAL_HASH_ROUTING_RING_SW3 << 18 |
- 		HAL_HASH_ROUTING_RING_SW4 << 21;
+ 	ab->mem_ce = ab->mem;
++	ab->mem_pa = pci_resource_start(pdev, ATH11K_PCI_BAR_NUM);
  
-+	if (ab->nss.enabled)
-+		frag_dest_ring = HAL_SRNG_REO_ALTERNATE_SELECT;
-+
- 	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_GEN_ENABLE);
- 
- 	val &= ~HAL_REO1_GEN_ENABLE_FRAG_DST_RING;
- 	val |= FIELD_PREP(HAL_REO1_GEN_ENABLE_FRAG_DST_RING,
--			HAL_SRNG_RING_ID_REO2SW1) |
-+			  frag_dest_ring) |
- 		FIELD_PREP(HAL_REO1_GEN_ENABLE_AGING_LIST_ENABLE, 1) |
- 		FIELD_PREP(HAL_REO1_GEN_ENABLE_AGING_FLUSH_ENABLE, 1);
- 	ath11k_hif_write32(ab, reo_base + HAL_REO1_GEN_ENABLE, val);
-@@ -134,6 +139,10 @@ static void ath11k_hw_ipq8074_reo_setup(
- 	ath11k_hif_write32(ab, reo_base + HAL_REO1_AGING_THRESH_IX_3(ab),
- 			   HAL_DEFAULT_REO_TIMEOUT_USEC);
- 
-+	/* REO Dest ring setup is not required in NSS offload case */
-+	if (ab->nss.enabled)
-+		return;
-+
- 	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_0,
- 			   FIELD_PREP(HAL_REO_DEST_RING_CTRL_HASH_RING_MAP,
- 				      ring_hash_map));
-@@ -758,8 +767,10 @@ static u8 *ath11k_hw_wcn6855_rx_desc_mpd
- 
- static void ath11k_hw_wcn6855_reo_setup(struct ath11k_base *ab)
- {
-+	u8 frag_dest_ring = HAL_SRNG_RING_ID_REO2SW1;
- 	u32 reo_base = HAL_SEQ_WCSS_UMAC_REO_REG;
- 	u32 val;
-+
- 	/* Each hash entry uses four bits to map to a particular ring. */
- 	u32 ring_hash_map = HAL_HASH_ROUTING_RING_SW1 << 0 |
- 		HAL_HASH_ROUTING_RING_SW2 << 4 |
-@@ -770,6 +781,9 @@ static void ath11k_hw_wcn6855_reo_setup(
- 		HAL_HASH_ROUTING_RING_SW3 << 24 |
- 		HAL_HASH_ROUTING_RING_SW4 << 28;
- 
-+	if (ab->nss.enabled)
-+		frag_dest_ring = HAL_SRNG_REO_ALTERNATE_SELECT;
-+
- 	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_GEN_ENABLE);
- 	val |= FIELD_PREP(HAL_REO1_GEN_ENABLE_AGING_LIST_ENABLE, 1) |
- 		FIELD_PREP(HAL_REO1_GEN_ENABLE_AGING_FLUSH_ENABLE, 1);
-@@ -777,7 +791,7 @@ static void ath11k_hw_wcn6855_reo_setup(
- 
- 	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_MISC_CTL(ab));
- 	val &= ~HAL_REO1_MISC_CTL_FRAGMENT_DST_RING;
--	val |= FIELD_PREP(HAL_REO1_MISC_CTL_FRAGMENT_DST_RING, HAL_SRNG_RING_ID_REO2SW1);
-+	val |= FIELD_PREP(HAL_REO1_MISC_CTL_FRAGMENT_DST_RING, frag_dest_ring);
- 	ath11k_hif_write32(ab, reo_base + HAL_REO1_MISC_CTL(ab), val);
- 
- 	ath11k_hif_write32(ab, reo_base + HAL_REO1_AGING_THRESH_IX_0(ab),
-@@ -789,6 +803,10 @@ static void ath11k_hw_wcn6855_reo_setup(
- 	ath11k_hif_write32(ab, reo_base + HAL_REO1_AGING_THRESH_IX_3(ab),
- 			   HAL_DEFAULT_REO_TIMEOUT_USEC);
- 
-+	/* REO Dest ring setup is not required in NSS offload case */
-+	if (ab->nss.enabled)
-+		return;
-+
- 	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_2,
- 			   ring_hash_map);
- 	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_3,
+ 	ath11k_dbg(ab, ATH11K_DBG_BOOT, "pci_mem 0x%p\n", ab->mem);
+ 	return 0;
 --- a/drivers/net/wireless/ath/ath11k/pcic.c
 +++ b/drivers/net/wireless/ath/ath11k/pcic.c
 @@ -611,6 +611,12 @@ static int ath11k_pcic_ext_irq_config(st
@@ -1183,6 +1114,75 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  		if (ab->hw_params.ring_mask->tx[i] ||
  		    ab->hw_params.ring_mask->rx[i] ||
  		    ab->hw_params.ring_mask->rx_err[i] ||
+--- a/drivers/net/wireless/ath/ath11k/peer.c
++++ b/drivers/net/wireless/ath/ath11k/peer.c
+@@ -7,6 +7,7 @@
+ #include "core.h"
+ #include "peer.h"
+ #include "debug.h"
++#include "nss.h"
+ 
+ static struct ath11k_peer *ath11k_peer_find_list_by_id(struct ath11k_base *ab,
+ 						       int peer_id)
+@@ -150,6 +151,8 @@ void ath11k_peer_map_event(struct ath11k
+ 		ether_addr_copy(peer->addr, mac_addr);
+ 		list_add(&peer->list, &ab->peers);
+ 		wake_up(&ab->peer_mapping_wq);
++		if (ab->nss.enabled)
++			ath11k_nss_peer_create(ab, peer);
+ 	}
+ 
+ 	ath11k_dbg(ab, ATH11K_DBG_DP_HTT, "peer map vdev %d peer %pM id %d\n",
+@@ -312,17 +315,13 @@ static int __ath11k_peer_delete(struct a
+ 
+ 	lockdep_assert_held(&ar->conf_mutex);
+ 
++	reinit_completion(&ar->peer_delete_done);
++	ath11k_nss_peer_delete(ar->ab, addr);
++
+ 	mutex_lock(&ab->tbl_mtx_lock);
+ 	spin_lock_bh(&ab->base_lock);
+ 
+ 	peer = ath11k_peer_find_by_addr(ab, addr);
+-	/* Check if the found peer is what we want to remove.
+-	 * While the sta is transitioning to another band we may
+-	 * have 2 peer with the same addr assigned to different
+-	 * vdev_id. Make sure we are deleting the correct peer.
+-	 */
+-	if (peer && peer->vdev_id == vdev_id)
+-		ath11k_peer_rhash_delete(ab, peer);
+ 
+ 	/* Fallback to peer list search if the correct peer can't be found.
+ 	 * Skip the deletion of the peer from the rhash since it has already
+@@ -341,10 +340,17 @@ static int __ath11k_peer_delete(struct a
+ 		return -EINVAL;
+ 	}
+ 
++	/* Check if the found peer is what we want to remove.
++	 * While the sta is transitioning to another band we may
++	 * have 2 peer with the same addr assigned to different
++	 * vdev_id. Make sure we are deleting the correct peer.
++	 */
++	if (peer && peer->vdev_id == vdev_id)
++		ath11k_peer_rhash_delete(ab, peer);
++
+ 	spin_unlock_bh(&ab->base_lock);
+ 	mutex_unlock(&ab->tbl_mtx_lock);
+ 
+-	reinit_completion(&ar->peer_delete_done);
+ 
+ 	ret = ath11k_wmi_send_peer_delete_cmd(ar, addr, vdev_id);
+ 	if (ret) {
+--- a/drivers/net/wireless/ath/ath11k/peer.h
++++ b/drivers/net/wireless/ath/ath11k/peer.h
+@@ -28,6 +28,7 @@ struct ath11k_peer {
+ 	u16 ast_hash;
+ 	u8 pdev_idx;
+ 	u16 hw_peer_id;
++	struct ath11k_nss_peer nss;
+ 
+ 	/* protected by ab->data_lock */
+ 	struct ieee80211_key_conf *keys[WMI_MAX_KEY_INDEX + 1];
 --- a/local-symbols
 +++ b/local-symbols
 @@ -160,6 +160,7 @@ WCN36XX_DEBUGFS=

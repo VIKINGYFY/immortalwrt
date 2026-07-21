@@ -1,0 +1,113 @@
+act_nssmirred-derive-igs-qos-tags-from-forward-chain-priority
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/nss_qdisc/igs/nss_ifb.c
++++ b/nss_qdisc/igs/nss_ifb.c
+@@ -93,6 +93,64 @@ unsigned int nss_ifb_igs_ip_pre_routing_
+ }
+ 
+ /*
++ * nss_ifb_igs_ip_forward_hook()
++ *	Copy a firewall-assigned class-id to Linux CT structure.
++ *
++ * The pre-routing hook above runs before the mangle tables, so a class-id
++ * assigned by the firewall (e.g. an nftables 'meta priority set' statement
++ * in a mangle forward chain) is never visible to it. This hook runs right
++ * after mangle forward and copies the class-id major from skb->priority
++ * into the ingress QoS fields of the DSCP CT extension. Accelerated flows
++ * can therefore be steered into ingress (IFB) shaper bands with the same
++ * firewall statement that already steers the egress shaper, without any
++ * tc ingress filter.
++ *
++ * skb->priority itself is left untouched: the egress path still needs it.
++ */
++unsigned int nss_ifb_igs_ip_forward_hook(void *priv, struct sk_buff *skb,
++		 const struct nf_hook_state *state)
++{
++	struct nf_conn *ct;
++	struct nf_ct_dscpremark_ext *dscpcte;
++	enum ip_conntrack_info ctinfo;
++	uint16_t qostag;
++
++	if (unlikely(!skb))
++		return NF_ACCEPT;
++
++	/*
++	 * Return if no class-id major is set in the packet's priority.
++	 */
++	qostag = (uint16_t)(skb->priority >> 16);
++	if (likely(!qostag))
++		return NF_ACCEPT;
++
++	ct = nf_ct_get(skb, &ctinfo);
++	if (!ct)
++		return NF_ACCEPT;
++
++	spin_lock_bh(&ct->lock);
++	dscpcte = nf_ct_dscpremark_ext_find(ct);
++	if (!dscpcte) {
++		spin_unlock_bh(&ct->lock);
++		return NF_ACCEPT;
++	}
++
++	/*
++	 * Copy the class-id major to the ingress qostag field of the
++	 * packet's direction.
++	 */
++	if (IP_CT_DIR_ORIGINAL == CTINFO2DIR(ctinfo)) {
++		dscpcte->igs_flow_qos_tag = qostag;
++	} else {
++		dscpcte->igs_reply_qos_tag = qostag;
++	}
++	spin_unlock_bh(&ct->lock);
++
++	return NF_ACCEPT;
++}
++
++/*
+  * nss_ifb_list_del()
+  *	API to delete member in ifb list.
+  */
+--- a/nss_qdisc/igs/nss_ifb.h
++++ b/nss_qdisc/igs/nss_ifb.h
+@@ -51,6 +51,13 @@ extern unsigned int nss_ifb_igs_ip_pre_r
+ 		 const struct nf_hook_state *state);
+ 
+ /*
++ * nss_ifb_igs_ip_forward_hook()
++ * 	Forward hook function for IGS.
++ */
++extern unsigned int nss_ifb_igs_ip_forward_hook(void *priv, struct sk_buff *skb,
++		 const struct nf_hook_state *state);
++
++/*
+  * nss_ifb_list_del()
+  *	API to delete member in ifb list.
+  */
+--- a/nss_qdisc/igs/nss_mirred.c
++++ b/nss_qdisc/igs/nss_mirred.c
+@@ -679,6 +679,23 @@ struct nf_hook_ops nss_mirred_igs_nf_ops
+ 		.hooknum	=	NF_INET_PRE_ROUTING,
+ 		.priority	=	NF_IP_PRI_CONNTRACK + 1,
+ 	},
++
++	/*
++	 * Forward hook runs right after the mangle forward chain and copies
++	 * a firewall-assigned class-id (skb->priority) to the ECM rule.
++	 */
++	{
++		.hook		=	nss_ifb_igs_ip_forward_hook,
++		.pf		=	NFPROTO_IPV4,
++		.hooknum	=	NF_INET_FORWARD,
++		.priority	=	NF_IP_PRI_MANGLE + 1,
++	},
++	{
++		.hook		=	nss_ifb_igs_ip_forward_hook,
++		.pf		=	NFPROTO_IPV6,
++		.hooknum	=	NF_INET_FORWARD,
++		.priority	=	NF_IP_PRI_MANGLE + 1,
++	},
+ };
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))

@@ -1,0 +1,31 @@
+Fix mismatched header guards
+
+The #ifndef/#define pairs in mc_ovs.h and mc_wifi_events.h name
+different macros, so the headers are not actually protected against
+double inclusion. Kernel 6.18 builds external modules with
+-Werror=header-guard, which turns this into a hard build failure.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/mc_ovs.h
++++ b/mc_ovs.h
+@@ -14,7 +14,7 @@
+  */
+ 
+ #ifndef _MC_OVS_H_
+-#define _MC_OVS_H
++#define _MC_OVS_H_
+ 
+ int mc_ovs_init(void);
+ void mc_ovs_exit(void);
+--- a/mc_wifi_events.h
++++ b/mc_wifi_events.h
+@@ -4,7 +4,7 @@
+  */
+ 
+ #ifndef _MC_WIFI_EVENTS_H
+-#define _MC_WIFI_EVENTS_H_
++#define _MC_WIFI_EVENTS_H
+ 
+ #include <linux/netdevice.h>
+ #include <linux/if_ether.h>

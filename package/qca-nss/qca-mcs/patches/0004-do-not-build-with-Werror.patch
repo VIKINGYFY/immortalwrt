@@ -1,0 +1,19 @@
+Do not build with -Werror
+
+The vendor code is not warning-clean on current kernels (GCC 15,
+kernel 6.18 kbuild), and kbuild dropped EXTRA_CFLAGS support in 6.15,
+so the packaging can no longer demote the errors from outside.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+
+--- a/Makefile
++++ b/Makefile
+@@ -37,7 +37,7 @@ ccflags-$(CONFIG_SUPPORT_MLD) += -DMC_SU
+ ccflags-$(CONFIG_WLAN_FEATURE_VBSS) += -DWLAN_FEATURE_VBSS
+ 
+ # Module extra compilation flags
+-ccflags-y += -Werror -Wall -g
++ccflags-y += -Wall -g
+ 
+ 
+ ifneq ($(KERNELRELEASE),)

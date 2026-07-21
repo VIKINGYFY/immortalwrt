@@ -1,0 +1,306 @@
+#!/bin/sh
+# nss-status: one-shot health report for the NSS offload data plane.
+# Human-readable by default; -j emits JSON (used by the LuCI status page);
+# -d/--debug appends a diagnostics snapshot (firmware EDMA/N2H counters,
+# ECM totals, recent NSS kernel messages). Read-only: safe to run at any time.
+
+. /lib/nss/functions.sh
+
+GLUE=/sys/kernel/debug/qca-ppe-nss
+DRV=/sys/kernel/debug/qca-nss-drv/stats
+ECM=/sys/kernel/debug/ecm
+
+JSON=0
+DEBUG=0
+L2=0
+case "$1" in
+	-j) JSON=1 ;;
+	-d|--debug) DEBUG=1 ;;
+	-l2) L2=1 ;;
+esac
+
+mod() { [ -d "/sys/module/$1" ] && echo 1 || echo 0; }
+
+# --- collect ---------------------------------------------------------------
+
+fw_version=$(nss_fw_version)
+[ -n "$fw_version" ] || fw_version="unknown"
+
+# 802.11s mesh state, same decision nss-up takes.
+nss_mesh_state
+mesh_cfg=$NSS_MESH_CFG
+mesh_capable=$NSS_MESH_CAPABLE
+
+fw_mask=$(cat "$GLUE/fw_mask" 2>/dev/null)
+[ -n "$fw_mask" ] || fw_mask="0x0"
+
+n2h_sum() { awk '$1 == "n2h_rx_pkts" {s += $3} END {print s + 0}' "$DRV/n2h" 2>/dev/null; }
+
+heartbeat=0
+if [ -r "$DRV/n2h" ]; then
+	a=$(n2h_sum); sleep 1; b=$(n2h_sum)
+	heartbeat=$((b - a))
+fi
+
+# "Core N:" then a Min/Avg/Max percent line; keep the Avg column per core.
+core_loads=$(awk '/^Core [0-9]+:/ {c=$2; sub(":","",c)}
+	/%/ {gsub("%",""); print c":"$2}' "$DRV/cpu_load_ubi" 2>/dev/null)
+
+# if_num N: netdev=lanX armed=1 overridden=1 started=1 fw_vsi=N tx_redirect_pkts=N tx_busy=N rx_fw_pkts=N
+#
+# The glue counters are the host<->firmware exception path: tx_redirect_pkts is
+# what the host handed to the firmware to egress the port, rx_fw_pkts is what
+# the firmware punted back up. The port's own totals come from the netdev, whose
+# counters are the MAC's MIB and therefore see every frame on the wire. What the
+# firmware forwarded on its own - the offloaded share - is the difference.
+ports=$(awk '/^if_num/ {
+	sub(":", "", $2)
+	split($3, nd, "="); split($6, st, "="); split($8, tx, "="); split($10, rx, "=")
+	if (nd[2] != "-") print $2 " " nd[2] " " st[2] " " tx[2] " " rx[2]
+}' "$GLUE/status" 2>/dev/null)
+
+# ifnum netdev started host_tx fw_rx tx_total rx_total tx_offl rx_offl tx_pct rx_pct
+ports=$(echo "$ports" | while read -r ifnum nd st htx frx; do
+	[ -n "$ifnum" ] || continue
+	ttx=$(cat "/sys/class/net/$nd/statistics/tx_packets" 2>/dev/null || echo 0)
+	trx=$(cat "/sys/class/net/$nd/statistics/rx_packets" 2>/dev/null || echo 0)
+	echo "$ifnum $nd $st $htx $frx $ttx $trx" | LC_ALL=C awk '{
+		otx = $6 - $4; orx = $7 - $5
+		if (otx < 0) otx = 0
+		if (orx < 0) orx = 0
+		ptx = ($6 > 0) ? 100 * otx / $6 : 0
+		prx = ($7 > 0) ? 100 * orx / $7 : 0
+		printf "%s %s %s %s %s %s %s %d %d %.1f %.1f\n",
+		       $1, $2, $3, $4, $5, $6, $7, otx, orx, ptx, prx
+	}'
+done)
+
+ecm_loaded=$(mod ecm)
+ecm_v4=$(cat "$ECM/ecm_nss_ipv4/accelerated_count" 2>/dev/null || echo 0)
+ecm_v6=$(cat "$ECM/ecm_nss_ipv6/accelerated_count" 2>/dev/null || echo 0)
+
+bridge_mgr=$(mod qca_nss_bridge_mgr)
+mcs=$(mod qca_mcs)
+pppoe_mgr=$(mod qca_nss_pppoe)
+
+wifi_offload=$(cat /sys/module/ath11k/parameters/nss_offload 2>/dev/null || echo -1)
+
+nss_sqm_section
+sqm_sec=$NSS_SQM_SEC
+sqm_dev=$NSS_SQM_DEV
+sqm_active=0
+[ -n "$sqm_dev" ] && tc qdisc show dev "$sqm_dev" 2>/dev/null | grep -q nsstbl && sqm_active=1
+
+# Fast lane: nsspfifo band packet counters (egress tree + ingress IFB tree).
+fastlane_pkts() {
+	tc -s qdisc show dev "$1" 2>/dev/null | grep -A1 nsspfifo | \
+		sed -n 's/.*Sent [0-9]* bytes \([0-9]*\) pkt.*/\1/p' | head -1
+}
+fl_egress=$(fastlane_pkts "$sqm_dev")
+fl_ingress=$(fastlane_pkts "ifb@${sqm_dev}")
+fl_active=0
+[ -n "$fl_egress$fl_ingress" ] && fl_active=1
+qos_rules=$(nft list chain inet nssqos forward 2>/dev/null | grep -c 'dscp set')
+igs_ports=""
+for p in $(uci -q get "sqm.${sqm_sec}.igs_upload"); do
+	if tc qdisc show dev "ifb-$p" 2>/dev/null | grep -q nsstbl; then
+		igs_ports="$igs_ports $p:1"
+	else
+		igs_ports="$igs_ports $p:0"
+	fi
+done
+
+state=host
+if [ "$fw_mask" != "0x0" ]; then
+	if [ "$heartbeat" -gt 0 ]; then
+		state=active
+	else
+		state=stalled
+	fi
+fi
+
+# Kernel log sweep: a WARN/oops anywhere in this boot is worth surfacing even
+# when everything else looks healthy (WARN_ON_ONCE fires once and scrolls away).
+kwarns=$(dmesg 2>/dev/null | grep -c 'cut here')
+koops=$(dmesg 2>/dev/null | grep -cE 'Oops:|BUG:|Kernel panic')
+
+# --- emit ------------------------------------------------------------------
+
+if [ "$JSON" = 1 ]; then
+	pjson=""
+	for line in $(echo "$ports" | tr ' ' ',' ); do
+		# line: ifnum,netdev,started,tx,rx
+		set -- $(echo "$line" | tr ',' ' ')
+		[ -n "$1" ] || continue
+		pjson="$pjson{\"ifnum\":$1,\"netdev\":\"$2\",\"started\":$3,\"tx_host_pkts\":$4,\"rx_host_pkts\":$5,\"tx_total\":$6,\"rx_total\":$7,\"tx_offloaded\":$8,\"rx_offloaded\":$9,\"tx_offload_pct\":${10},\"rx_offload_pct\":${11}},"
+	done
+	pjson="[${pjson%,}]"
+
+	cjson=""
+	for c in $core_loads; do
+		cjson="$cjson{\"core\":${c%%:*},\"avg\":${c##*:}},"
+	done
+	cjson="[${cjson%,}]"
+
+	ijson=""
+	for i in $igs_ports; do
+		ijson="$ijson{\"port\":\"${i%%:*}\",\"active\":${i##*:}},"
+	done
+	ijson="[${ijson%,}]"
+
+	cat <<-EOF
+	{"state":"$state","fw_version":"$fw_version","fw_mask":"$fw_mask",
+	"heartbeat_pps":$heartbeat,"cores":$cjson,"ports":$pjson,
+	"ecm":{"loaded":$ecm_loaded,"ipv4_accel":$ecm_v4,"ipv6_accel":$ecm_v6},
+	"modules":{"bridge_mgr":$bridge_mgr,"mcs":$mcs,"pppoe":$pppoe_mgr},
+	"wifi_offload":$wifi_offload,
+	"mesh":{"configured":$mesh_cfg,"fw_capable":$mesh_capable},
+	"kernel_log":{"warns":$kwarns,"oopses":$koops},
+	"sqm":{"active":$sqm_active,"device":"$sqm_dev","igs":$ijson,
+	"fastlane":{"active":$fl_active,"egress_pkts":${fl_egress:-0},"ingress_pkts":${fl_ingress:-0}},
+	"qos_marking_rules":$qos_rules}}
+	EOF
+	exit 0
+fi
+
+# --- L2 per-port datapath view (-l2) ---------------------------------------
+# host<->fw<->wire counters per offloaded port. The pointer that localises an
+# egress stall: a link-up port whose host->fw (glue tx_redirect) climbs while
+# the client stays unreachable is not putting frames on the wire.
+if [ "$L2" = 1 ]; then
+	edp=/sys/kernel/debug/qca-nss-drv/stats/edma/ports
+	echo "NSS L2 per-port datapath:"
+	printf "  %-6s %-4s %-4s %-4s %13s %12s %12s %12s\n" port ifn car vsi "host->fw" "fw->host" "wire->fw" "fw->wire"
+	for pn in 2 3 4 5; do
+		line=$(grep "if_num $pn:" "$GLUE/status" 2>/dev/null)
+		nd=$(echo "$line" | sed -n 's/.*netdev=\([^ ]*\).*/\1/p')
+		[ -z "$nd" ] || [ "$nd" = "-" ] && continue
+		vsi=$(echo "$line" | sed -n 's/.*fw_vsi=\([^ ]*\).*/\1/p')
+		txr=$(echo "$line" | sed -n 's/.*tx_redirect_pkts=\([^ ]*\).*/\1/p')
+		rxf=$(echo "$line" | sed -n 's/.*rx_fw_pkts=\([^ ]*\).*/\1/p')
+		car=$(cat "/sys/class/net/$nd/carrier" 2>/dev/null)
+		etx=$(cat "$edp/$pn"/* 2>/dev/null | awk '/tx_pkts/{print $3}')
+		erx=$(cat "$edp/$pn"/* 2>/dev/null | awk '/rx_pkts/{print $3}')
+		printf "  %-6s %-4s %-4s %-4s %13s %12s %12s %12s\n" "$nd" "$pn" "${car:-?}" "${vsi:-?}" "${txr:-?}" "${rxf:-?}" "${etx:-?}" "${erx:-?}"
+	done
+	echo "  host->fw=glue tx_redirect  fw->host=glue rx_fw  wire->fw=edma ingress  fw->wire=edma egress"
+	echo "  link-up + host->fw climbing + client unreachable => egress stall (see /root/wedge-captures)"
+	exit 0
+fi
+
+echo "NSS offload status: $state"
+echo "  firmware:    $fw_version (fw_mask $fw_mask, heartbeat ${heartbeat} pkts/s)"
+if [ -n "$core_loads" ]; then
+	echo -n "  NSS cores:  "
+	for c in $core_loads; do echo -n " core${c%%:*} ${c##*:}% avg"; done
+	echo ""
+fi
+if [ -n "$ports" ]; then
+	echo "  ports:       offloaded = forwarded by the firmware, never reached the host"
+	printf "    %-6s %3s %3s  %18s %10s  %18s %10s\n" \
+	       "port" "if" "up" "tx offloaded" "via host" "rx offloaded" "to host"
+	echo "$ports" | while read -r ifnum nd st htx frx ttx trx otx orx ptx prx; do
+		[ -n "$ifnum" ] || continue
+		printf "    %-6s %3s %3s  %18s %10s  %18s %10s\n" \
+		       "$nd" "$ifnum" "$st" "$otx ($ptx%)" "$htx" "$orx ($prx%)" "$frx"
+	done
+	echo "    (via host / to host = the host<->firmware exception path, i.e. what was"
+	echo "     NOT offloaded: broadcast/multicast discovery, connection setup and"
+	echo "     short-lived flows, and traffic addressed to the router itself. A quiet"
+	echo "     port carries little else, so its share reads low. Port totals: ifconfig)"
+fi
+echo "  ECM:         loaded=$ecm_loaded, accelerated: $ecm_v4 IPv4 / $ecm_v6 IPv6"
+echo "  modules:     bridge-mgr=$bridge_mgr qca-mcs=$mcs pppoe-mgr=$pppoe_mgr"
+case "$wifi_offload" in
+	1)  if [ "$mesh_cfg" = 1 ]; then
+	        echo "  Wi-Fi:       NSS offload active (wifili, 802.11s mesh offloaded)"
+	    else
+	        echo "  Wi-Fi:       NSS offload active (wifili)"
+	    fi ;;
+	0)  if [ "$mesh_cfg" = 1 ] && [ "$mesh_capable" = 1 ]; then
+	        echo "  Wi-Fi:       host mode (mesh configured; firmware supports mesh offload - armed by nss-up)"
+	    elif [ "$mesh_cfg" = 1 ]; then
+	        echo "  Wi-Fi:       host mode (mesh configured; mesh offload needs the 11.4 NSS firmware and a mesh-enabled build)"
+	    else
+	        echo "  Wi-Fi:       host mode"
+	    fi ;;
+	*)  echo "  Wi-Fi:       ath11k not loaded" ;;
+esac
+if [ "$sqm_active" = 1 ]; then
+	igs_human=$(echo "$igs_ports" | sed 's/\([a-z0-9]*\):1/\1/g; s/\([a-z0-9]*\):0/\1(MISSING)/g')
+	echo "  SQM:         nsstbl shaper on $sqm_dev, upload IGS:${igs_human:- none}"
+	if [ "$fl_active" = 1 ]; then
+		echo "  fast lane:   egress ${fl_egress:-0} pkts / ingress ${fl_ingress:-0} pkts, ${qos_rules} marking rules active"
+	fi
+else
+	echo "  SQM:         no NSS shaper${sqm_dev:+ on $sqm_dev}"
+fi
+if [ "$kwarns" -gt 0 ] || [ "$koops" -gt 0 ]; then
+	echo "  kernel log:  $kwarns WARN / $koops oops this boot - see 'nss-status -d' or dmesg"
+else
+	echo "  kernel log:  clean (no WARN/oops this boot)"
+fi
+case "$state" in
+	active)  echo "  verdict:     OFFLOAD ACTIVE" ;;
+	stalled) echo "  verdict:     FIRMWARE ARMED BUT HEARTBEAT SILENT - check logread; reboot returns to the host stack" ;;
+	host)    echo "  verdict:     host stack (NSS plane not armed - run nss-up or 'service nss start')" ;;
+esac
+
+[ "$DEBUG" = 1 ] || exit 0
+
+# --- debug snapshot (-d) -----------------------------------------------------
+# Every source is optional: with the NSS plane down most of these do not exist.
+
+sec() {
+	echo ""
+	echo "=== $1 ==="
+}
+
+sec "firmware EDMA error/pressure counters ($DRV/edma/err_stats)"
+if [ -r "$DRV/edma/err_stats" ]; then
+	cat "$DRV/edma/err_stats"
+else
+	echo "(not available - qca-nss-drv not loaded / firmware not armed)"
+fi
+
+sec "N2H (firmware-to-host) statistics ($DRV/n2h)"
+if [ -r "$DRV/n2h" ]; then
+	# The raw file repeats identical stat names once per core, told apart only
+	# by a banner line - prefix every stat line with its core so greps and
+	# over-time comparisons can never mix the two cores.
+	awk '/N2H [01]/ { core = $3 } { sub(/^\tn2h_/, "\tcore" core ".n2h_"); print }' "$DRV/n2h"
+	echo ""
+	echo "note: payload_alloc_fails = per-packet retries while the fw payload pool"
+	echo "  runs dry; bursts by design under saturating load. rx_queue[N]_drops ="
+	echo "  host-bound queue back-pressure at its limit (sysctl"
+	echo "  dev.nss.n2hcfg.n2h_queue_limit_coreN); neither touches offloaded flows."
+else
+	echo "(not available - qca-nss-drv not loaded / firmware not armed)"
+fi
+
+sec "ECM connection totals ($ECM)"
+if [ -d "$ECM" ]; then
+	for f in ecm_db/connection_count \
+		 ecm_nss_ipv4/accelerated_count ecm_nss_ipv4/pending_accel_count \
+		 ecm_nss_ipv4/pending_decel_count \
+		 ecm_nss_ipv6/accelerated_count ecm_nss_ipv6/pending_accel_count \
+		 ecm_nss_ipv6/pending_decel_count; do
+		[ -r "$ECM/$f" ] && echo "$f: $(cat "$ECM/$f" 2>/dev/null)"
+	done
+else
+	echo "(not available - ecm not loaded)"
+fi
+
+sec "kernel warnings/oopses this boot (dmesg)"
+if [ "$kwarns" -gt 0 ] || [ "$koops" -gt 0 ]; then
+	dmesg 2>/dev/null | grep -B2 -A44 -E 'cut here|Oops:|BUG:|Kernel panic' | tail -150
+else
+	echo "(none)"
+fi
+
+sec "recent NSS kernel messages (dmesg)"
+dmesg 2>/dev/null | grep -i nss | tail -40
+
+sec "hints"
+echo "sysctl -w dev.nss.project.wt_stats=1 enables per-worker-thread firmware"
+echo "statistics under $DRV/project/"
