@@ -1,0 +1,67 @@
+From: OpenWrt Build System <openwrt@localhost>
+Subject: [PATCH] qca-nss-dp: rate-limit EDMA warnings
+
+EDMA warning sites can execute from packet RX and completion paths. Use the
+kernel ratelimited printk helper for the v1 per-packet warnings and at the v2
+common macro so repeated descriptor errors cannot amplify a dataplane stall
+through console output. Existing v2 call-site limits remain valid and provide
+an additional global network-message budget for malformed packet reports.
+
+--- a/hal/dp_ops/edma_dp/edma_v1/edma_tx_rx.c
++++ b/hal/dp_ops/edma_dp/edma_v1/edma_tx_rx.c
+@@ -177,7 +177,7 @@ uint32_t edma_clean_tx(struct edma_hw *e
+ 		ehw->tx_skb_store[store_index] = NULL;
+ 
+ 		if (unlikely(!skb)) {
+-			pr_warn("Invalid skb: cons_idx:%u prod_idx:%u status %x\n",
++			pr_warn_ratelimited("Invalid skb: cons_idx:%u prod_idx:%u status %x\n",
+ 				  cons_idx, prod_idx, txcmpl->status);
+ 			goto next_txcmpl_desc;
+ 		}
+@@ -312,7 +312,7 @@ static uint32_t edma_clean_rx(struct edm
+ 		skb = ehw->rx_skb_store[store_index];
+ 		ehw->rx_skb_store[store_index] = NULL;
+ 		if (unlikely(!skb)) {
+-			pr_warn("WARN: empty skb reference in rx_store:%d\n",
++			pr_warn_ratelimited("WARN: empty skb reference in rx_store:%d\n",
+ 					cons_idx);
+ 			goto next_rx_desc;
+ 		}
+@@ -325,7 +325,7 @@ static uint32_t edma_clean_rx(struct edm
+ 			src_port_num = rxph->src_info &
+ 				EDMA_PREHDR_PORTNUM_BITS;
+ 		} else {
+-			pr_warn("WARN: src_info_type:0x%x. Drop skb:%px\n",
++			pr_warn_ratelimited("WARN: src_info_type:0x%x. Drop skb:%px\n",
+ 				  EDMA_RXPH_SRC_INFO_TYPE_GET(rxph), skb);
+ 			dev_kfree_skb_any(skb);
+ 			goto next_rx_desc;
+@@ -338,7 +338,7 @@ static uint32_t edma_clean_rx(struct edm
+ 
+ 		if (unlikely((src_port_num < EDMA_START_GMACS) ||
+ 			(src_port_num > EDMA_MAX_GMACS))) {
+-			pr_warn("WARN: Port number error :%d. Drop skb:%px\n",
++			pr_warn_ratelimited("WARN: Port number error :%d. Drop skb:%px\n",
+ 					src_port_num, skb);
+ 			dev_kfree_skb_any(skb);
+ 			goto next_rx_desc;
+@@ -352,7 +352,7 @@ static uint32_t edma_clean_rx(struct edm
+ 		 */
+ 		ndev = ehw->netdev_arr[src_port_num - 1];
+ 		if (unlikely(!ndev)) {
+-			pr_warn("WARN: netdev Null src_info_type:0x%x. Drop skb:%px\n",
++			pr_warn_ratelimited("WARN: netdev Null src_info_type:0x%x. Drop skb:%px\n",
+ 					src_port_num, skb);
+ 			dev_kfree_skb_any(skb);
+ 			goto next_rx_desc;
+--- a/hal/dp_ops/edma_dp/edma_v2/edma_debug.h
++++ b/hal/dp_ops/edma_dp/edma_v2/edma_debug.h
+@@ -26,7 +26,7 @@
+ #if (EDMA_DEBUG_LEVEL < 2)
+ #define edma_warn(s, ...)
+ #else
+-#define edma_warn(s, ...) pr_warn("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
++#define edma_warn(s, ...) pr_warn_ratelimited("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
+ #endif
+ 
+ #if (EDMA_DEBUG_LEVEL < 3)

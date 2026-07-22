@@ -1,0 +1,64 @@
+From: OpenWrt Build System <openwrt@localhost>
+Subject: [PATCH] nss-drv: reject frequency work before core init
+
+The frequency sysctls are registered before probe-gated NSS cores have
+finished booting. A write in that window can queue clock and regulator work
+against uninitialized resources. Reject those requests at the sysctl handlers
+and guard the IPQ60xx and IPQ807x workqueue consumers so every producer is
+covered.
+
+--- a/nss_init.c
++++ b/nss_init.c
+@@ -190,6 +190,10 @@ static int nss_current_freq_handler(cons
+ 		return ret;
+ 	}
+ 
++	/* Delayed probe can expose this sysctl before the core is ready. */
++	if (nss_top_main.nss[NSS_CORE_0].state != NSS_CORE_STATE_INITIALIZED)
++		return ret;
++
+ 	/*
+ 	 * Check if frequency exists in frequency Table
+ 	 */
+@@ -255,6 +259,9 @@ static int nss_auto_scale_handler(const
+ 		return ret;
+ 	}
+ 
++	if (nss_top_main.nss[NSS_CORE_0].state != NSS_CORE_STATE_INITIALIZED)
++		return ret;
++
+ 	if (nss_cmd_buf.auto_scale != 1) {
+ 		/*
+ 		 * Disable frequency scaling, but keep core stats reporting
+--- a/nss_hal/ipq60xx/nss_hal_pvt.c
++++ b/nss_hal/ipq60xx/nss_hal_pvt.c
+@@ -141,6 +141,13 @@ void nss_hal_wq_function(struct work_str
+ {
+ 	nss_work_t *my_work = (nss_work_t *)work;
+ 
++	if (unlikely(nss_top_main.nss[NSS_CORE_0].state !=
++			NSS_CORE_STATE_INITIALIZED)) {
++		nss_warning("frequency request before IPQ60xx NSS core initialization\n");
++		kfree((void *)work);
++		return;
++	}
++
+ 	mutex_lock(&nss_top_main.wq_lock);
+ 
+ 	nss_freq_change(&nss_top_main.nss[NSS_CORE_0], my_work->frequency, my_work->stats_enable, 0);
+--- a/nss_hal/ipq807x/nss_hal_pvt.c
++++ b/nss_hal/ipq807x/nss_hal_pvt.c
+@@ -149,6 +149,13 @@ void nss_hal_wq_function(struct work_str
+ {
+ 	nss_work_t *my_work = (nss_work_t *)work;
+ 
++	if (unlikely(nss_top_main.nss[NSS_CORE_0].state !=
++			NSS_CORE_STATE_INITIALIZED || !npu_reg)) {
++		nss_warning("frequency request before IPQ807x NSS core initialization\n");
++		kfree((void *)work);
++		return;
++	}
++
+ 	mutex_lock(&nss_top_main.wq_lock);
+ 
+ 	if (my_work->frequency > NSS_FREQ_1497) {

@@ -4,7 +4,7 @@
 # shellcheck disable=2155,3019,3043,3057,3060
 ######################################################################
 
-START=29
+START=94
 
 PROG=smp_affinity
 
@@ -65,19 +65,26 @@ bitmask_to_cpus() {
 ######################################################################
 
 set_affinity() {
-	local irq_name="$1" affinity="$2" bitmask irq
-	awk -v irq_name="$1" '$0 ~ irq_name { print substr($1, 1, length($1)-1); exit }' /proc/interrupts | while read -r irq; do
-		$enable_log && log_msg "$irq_name" "$affinity" "$irq"
-		bitmask=$(cpus_to_bitmask "$affinity") && echo "$bitmask" > "/proc/irq/$irq/smp_affinity"
+	local irq_name="$1" affinity="$2" affinity_file bitmask irq
+
+	bitmask=$(cpus_to_bitmask "$affinity") || return
+	awk -v irq_name="$irq_name" '
+		$NF == irq_name || index($NF, irq_name "_") == 1 {
+			sub(/:$/, "", $1)
+			print $1
+		}' /proc/interrupts | while read -r irq; do
+		affinity_file="/proc/irq/$irq/smp_affinity"
+		[ -w "$affinity_file" ] || continue
+		if echo "$bitmask" > "$affinity_file"; then
+			$enable_log && log_msg "$irq_name" "$affinity" "$irq"
+		fi
 	done
 }
 
 enable_affinity() {
-	# assign 4 lan/wan
-	set_affinity 'edma_txcmpl' 3
-	set_affinity 'edma_rxfill' 3
-	set_affinity 'edma_rxdesc' 3
-	set_affinity 'edma_misc'   3
+	# Keep the hot RX and TX completion paths on separate CPUs.
+	set_affinity 'edma_rxdesc' 1
+	set_affinity 'edma_txcmpl' 2
 }
 
 start() {
