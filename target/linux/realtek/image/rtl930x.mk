@@ -66,6 +66,7 @@ define Device/hasivo_s1100wp-8gt-se
   SOC := rtl9303
   DEVICE_VENDOR := Hasivo
   DEVICE_MODEL := S1100WP-8GT-SE
+  DEVICE_PACKAGES := kmod-pse-hasivo-hs104 kmod-mfd-hasivo-stc8
   IMAGE_SIZE := 12288k
   $(Device/kernel-lzma)
 endef
@@ -75,6 +76,7 @@ define Device/hasivo_s600wp-5gt-2sx-se
   SOC := rtl9303
   DEVICE_VENDOR := Hasivo
   DEVICE_MODEL := S600WP-5GT-2SX-SE
+  DEVICE_PACKAGES := kmod-pse-hasivo-hs104 kmod-mfd-hasivo-stc8
   IMAGE_SIZE := 12288k
   $(Device/kernel-lzma)
 endef
@@ -161,16 +163,6 @@ define Device/ubnt_usw-aggregation
   $(Device/kernel-lzma)
 endef
 TARGET_DEVICES += ubnt_usw-aggregation
-
-define Device/ubnt_usw-pro-max-24-poe
-  SOC := rtl9302
-  DEVICE_VENDOR := Ubiquiti
-  DEVICE_MODEL := UniFi USW Pro Max 24 PoE
-  IMAGE_SIZE := 30272k
-  DEVICE_PACKAGES := kmod-hwmon-adt7475
-  $(Device/kernel-lzma)
-endef
-TARGET_DEVICES += ubnt_usw-pro-max-24-poe
 
 define Device/vimin_vm-s100-0800ms
   SOC := rtl9303
@@ -346,11 +338,11 @@ TARGET_DEVICES += zyxel_xgs1250-12-b1
 define Device/zyxel_xgs1930-28hp
   SOC := rtl9301
   DEVICE_MODEL := XGS1930-28HP
-  DEVICE_PACKAGES := kmod-hwmon-gpiofan
   FLASH_ADDR := 0xb4260000
   IMAGE_SIZE := 30336k
   ZYNFW_ALIGN := 0x10000
   $(Device/zyxel_zynos)
+  DEVICE_PACKAGES += kmod-hwmon-gpiofan kmod-pse-realtek-mcu-i2c
 endef
 TARGET_DEVICES += zyxel_xgs1930-28hp
 
@@ -371,6 +363,6 @@ TARGET_DEVICES += zyxel_xmg1915-10e
 define Device/zyxel_xmg1915-10ep
   DEVICE_MODEL := XMG1915-10EP
   $(Device/zyxel_xmg1915)
-  DEVICE_PACKAGES := realtek-poe
+  DEVICE_PACKAGES += kmod-pse-realtek-mcu-uart
 endef
 TARGET_DEVICES += zyxel_xmg1915-10ep

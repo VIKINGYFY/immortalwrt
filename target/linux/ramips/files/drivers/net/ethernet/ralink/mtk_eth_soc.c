@@ -344,8 +344,8 @@ static void fe_txd_unmap(struct device *dev, struct fe_tx_buf *tx_buf)
 			       dma_unmap_len(tx_buf, dma_len1),
 			       DMA_TO_DEVICE);
 
-	dma_unmap_len_set(tx_buf, dma_addr0, 0);
-	dma_unmap_len_set(tx_buf, dma_addr1, 0);
+	dma_unmap_len_set(tx_buf, dma_len0, 0);
+	dma_unmap_len_set(tx_buf, dma_len1, 0);
 	if (tx_buf->skb && (tx_buf->skb != (struct sk_buff *)DMA_DUMMY_DESC))
 		dev_kfree_skb_any(tx_buf->skb);
 	tx_buf->skb = NULL;
@@ -791,8 +791,6 @@ err_out:
 }
 
 #if IS_ENABLED(CONFIG_NET_DSA)
-#define MTK_HDR_LEN 4
-
 static netdev_features_t fe_features_check(struct sk_buff *skb,
 					   struct net_device *dev,
 					   netdev_features_t features)
@@ -804,21 +802,17 @@ static netdev_features_t fe_features_check(struct sk_buff *skb,
 	if (skb->ip_summed != CHECKSUM_PARTIAL)
 		return features;
 
-	/* DSA tag might break existing offload checks as offload feature flags
-	 * are copied to slave ports and this driver does not use csum_start. */
 	if (netdev_uses_dsa(dev)) {
 		const struct dsa_device_ops *tag_ops = dev->dsa_ptr->tag_ops;
 
-		/* If tag is Mediatek, checksum should work */
-		if (tag_ops->proto == DSA_TAG_PROTO_MTK)
-			/* However, make sure that it is not stacking another
-			 * L2 protocol, possibly a second incompatible DSA tag
-			 * 802.1Q does not increase the mac header size because
-			 * it is embedded inside mediatek tag */
-			if (skb_mac_header_len(skb) <= ETH_HLEN + MTK_HDR_LEN)
-				return features;
-
-		features &= ~(NETIF_F_CSUM_MASK | NETIF_F_GSO_MASK);
+		/* RTL8_4 hides the L2 ethertype this driver relies on for
+		 * offload. RTL8_4T (the trailing-tag variant) is unaffected
+		 * because its rtl8_4t tagger already checksums the frame in
+		 * software before appending the tag, so ip_summed is no longer
+		 * CHECKSUM_PARTIAL by the time this driver sees it.
+		 */
+		if (tag_ops->proto == DSA_TAG_PROTO_RTL8_4)
+			features &= ~(NETIF_F_CSUM_MASK | NETIF_F_GSO_MASK);
 	}
 
 	return features;
@@ -976,6 +970,16 @@ static int fe_poll_rx(struct napi_struct *napi, int budget,
 				 ring->rx_buf_size, DMA_FROM_DEVICE);
 		pktlen = RX_DMA_GET_PLEN0(trxd.rxd2);
 		skb->dev = netdev;
+		if (unlikely(pktlen > skb_tailroom(skb))) {
+			if (net_ratelimit())
+				netdev_warn(netdev,
+					    "dropping invalid RX length %u (buffer %u, descriptor %08x)\n",
+					    pktlen, skb_tailroom(skb), trxd.rxd2);
+			stats->rx_length_errors++;
+			stats->rx_dropped++;
+			dev_kfree_skb_any(skb);
+			goto replace_desc;
+		}
 		skb_put(skb, pktlen);
 		if (trxd.rxd4 & checksum_bit)
 			skb->ip_summed = CHECKSUM_UNNECESSARY;
@@ -993,6 +997,7 @@ static int fe_poll_rx(struct napi_struct *napi, int budget,
 
 		napi_gro_receive(napi, skb);
 
+replace_desc:
 		ring->rx_data[idx] = new_data;
 		rxd->rxd1 = (unsigned int)dma_addr;
 
