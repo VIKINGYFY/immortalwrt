@@ -49,9 +49,10 @@ ecm_is_ready() {
 #			Mounts the state file of the module, if supported
 #
 module_state_mount() {
-	local module_name=$1
-	local mount_dir=$2
+	local module_name="$1"
+	local mount_dir="$2"
 	local state_file="/sys/kernel/debug/ecm/${module_name}/state_dev_major"
+	local major
 
 	if [ -e "${mount_dir}/${module_name}" ]; then
 		# already mounted
@@ -64,9 +65,12 @@ module_state_mount() {
 		return 1
 	fi
 
-	local major="`cat $state_file`"
+	major=$(cat "$state_file") || return 1
+	case "$major" in
+		'' | *[!0-9]*) return 1 ;;
+	esac
 	#echo "... Mounting state $state_file with major: $major"
-	mknod "${mount_dir}/${module_name}" c $major 0
+	mknod "${mount_dir}/${module_name}" c "$major" 0
 }
 
 #
@@ -78,14 +82,14 @@ ecm_is_ready || {
 }
 
 # all state files are mounted under MOUNT_ROOT, so make sure it exists
-mkdir -p ${MOUNT_ROOT}
+mkdir -p "${MOUNT_ROOT}"
 
 #
 # attempt to mount state files for the requested module and cat it
 # if the mount succeeded
 #
-module_state_mount ${ECM_MODULE} ${MOUNT_ROOT} && {
-	cat ${MOUNT_ROOT}/${ECM_MODULE}
+module_state_mount "${ECM_MODULE}" "${MOUNT_ROOT}" && {
+	cat "${MOUNT_ROOT}/${ECM_MODULE}"
 	exit 0
 }
 

@@ -1,0 +1,70 @@
+#!/bin/sh
+
+clock_dir=/proc/sys/dev/nss/clock
+current_freq="$clock_dir/current_freq"
+auto_scale="$clock_dir/auto_scale"
+compatible=/proc/device-tree/compatible
+
+die() {
+	echo "nss_freq: $*" >&2
+	exit 1
+}
+
+format_frequency() {
+	case "$1" in
+		''|*[!0-9]*) echo "Unknown" ;;
+		*) awk -v hz="$1" 'BEGIN { printf "%.1f MHz", hz / 1000000 }' ;;
+	esac
+}
+
+show_status() {
+	status_current="$(cat "$current_freq" 2>/dev/null)" || die "NSS frequency control is unavailable"
+	status_scale="$(cat "$auto_scale" 2>/dev/null)" || die "NSS frequency mode is unavailable"
+	case "$status_scale" in
+		1) status_mode="Auto" ;;
+		0) status_mode="Fixed" ;;
+		*) status_mode="Unknown" ;;
+	esac
+
+	echo "NSS MODE: $status_mode"
+	echo "NSS FREQ: $(format_frequency "$status_current")"
+}
+
+select_frequencies() {
+	[ -r "$compatible" ] || die "device-tree compatible data is unavailable"
+
+	if grep -q 'qcom,ipq6018' "$compatible"; then
+		mid_frequency=748800000
+		high_frequency=1497600000
+	elif grep -q 'qcom,ipq8074' "$compatible"; then
+		mid_frequency=748800000
+		high_frequency=1689600000
+	else
+		die "unsupported platform"
+	fi
+}
+
+case "${1:-status}" in
+	status)
+		show_status
+		exit 0
+		;;
+	mid|high)
+		level="$1"
+		;;
+	*)
+		echo "Usage: nss_freq {mid|high|status}" >&2
+		exit 2
+		;;
+esac
+
+select_frequencies
+[ -w "$current_freq" ] || die "run as root after the NSS driver has initialized"
+
+case "$level" in
+	mid) target_frequency=$mid_frequency ;;
+	high) target_frequency=$high_frequency ;;
+esac
+
+printf '%s\n' "$target_frequency" > "$current_freq" || die "failed to set NSS frequency"
+show_status

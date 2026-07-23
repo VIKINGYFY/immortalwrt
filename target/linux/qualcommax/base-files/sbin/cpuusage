@@ -2,16 +2,10 @@
 # Copyright (C) 2024 YumesomeZakura <1552037053@qq.com>
 
 read -r usr sys < <(top -bn1 | awk 'NR==2 {print $2, $4}')
-output="USR: ${usr} SYS: ${sys}"
+cpu_load="USR: ${usr} SYS: ${sys}"
 
-if [ -f "/sys/kernel/debug/qca-nss-drv/stats/cpu_load_ubi" ]; then
-	hwe="$(cat "/sys/kernel/debug/qca-nss-drv/stats/cpu_load_ubi" | awk 'NR==6 {print $2}')"
-	[ -n "$hwe" ] && output="${output} HWE: ${hwe}"
-fi
+nss_load="$(awk 'NR == 6 { print $2; exit }' /sys/kernel/debug/qca-nss-drv/stats/cpu_load_ubi 2>/dev/null)"
+nss_freq="$(awk 'NF { printf "%.1fMHz", $1 / 1000000; exit }' /proc/sys/dev/nss/clock/current_freq 2>/dev/null)"
+nss_ecm="$(cat /sys/kernel/debug/ecm/ecm_db/connection_count_simple 2>/dev/null)"
 
-if [ -f "/sys/kernel/debug/ecm/ecm_db/connection_count_simple" ]; then
-	ecm="$(cat /sys/kernel/debug/ecm/ecm_db/connection_count_simple)"
-	[ -n "$ecm" ] && output="${output} ECM: ${ecm}"
-fi
-
-echo -n "$output"
+echo -n "${cpu_load} NSS: load ${nss_load:-N/A} freq ${nss_freq:-N/A} ECM: ${nss_ecm:-N/A}"

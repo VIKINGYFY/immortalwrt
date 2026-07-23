@@ -23,6 +23,19 @@ system="$(cat /etc/openwrt_release 2>/dev/null | awk -F "'" '/DESCRIPTION/ {prin
 # 获取固件版本信息
 nss_fw="$(grep -m1 -hao 'NSS.[^[:cntrl:]]*' /lib/firmware/qca-nss0.bin 2>/dev/null || echo "N/A")"
 mac80211_fw="$(awk '/version/{print $NF;exit}' /lib/modules/*/compat.ko 2>/dev/null || echo "N/A")"
+nss_freq="$(cat /proc/sys/dev/nss/clock/current_freq 2>/dev/null)"
+nss_freq=${nss_freq:-N/A}
+case "$nss_freq" in
+	*[!0-9]*) nss_frequency="N/A" ;;
+	*) nss_frequency="$(awk -v hz="$nss_freq" 'BEGIN { printf "%.1f MHz", hz / 1000000 }')" ;;
+esac
+nss_auto_scale="$(cat /proc/sys/dev/nss/clock/auto_scale 2>/dev/null)"
+nss_auto_scale=${nss_auto_scale:-N/A}
+case "$nss_auto_scale" in
+	1) nss_mode="Auto" ;;
+	0) nss_mode="Fixed" ;;
+	*) nss_mode="N/A" ;;
+esac
 
 # 获取ATH11K固件信息
 ath11k_fw=""
@@ -38,6 +51,8 @@ ath11k_fw=${ath11k_fw:-"N/A"}
 echo -e "${bold}${magenta}    DEVICE${reset}: ${cyan}${device}${reset}"
 echo -e "${bold}${magenta}    KERNEL${reset}: ${cyan}${kernel}${reset}"
 echo -e "${bold}${magenta}  CPU MODE${reset}: ${cyan}${cpu_mode}${reset}"
+echo -e "${bold}${magenta}  NSS MODE${reset}: ${blue}${nss_mode}${reset}"
+echo -e "${bold}${magenta}  NSS FREQ${reset}: ${blue}${nss_frequency}${reset}"
 echo -e "${bold}${magenta}    SYSTEM${reset}: ${yellow}${system}${reset}"
 echo -e "${bold}${magenta}    NSS FW${reset}: ${blue}${nss_fw}${reset}"
 echo -e "${bold}${magenta}  MAC80211${reset}: ${blue}${mac80211_fw}${reset}"
@@ -51,7 +66,7 @@ for iface in /sys/class/net/br-lan/device /sys/class/net/*/device; do
 	iface=${iface##*/}
 	ethtool -k "$iface" | awk -v count=$count -v face="$iface" -v rst="${reset}" -v red="${red}" -v green="${green}" '
 	BEGIN { settings=""; if(count>0) space="            " }
-	/tx-checksumming|rx-gro-list/ {
+	/rx-checksumming|tx-checksumming|generic-receive-offload|rx-gro-list/ {
 		color=green
 		if($2=="off") color=red
 		settings = settings $1 " " sprintf("%s%-3s%s", color,$2,rst) " ";

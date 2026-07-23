@@ -1,0 +1,986 @@
+From: OpenWrt Build System <openwrt@localhost>
+Subject: [PATCH] qca-nss-dp: split EDMA v1 Rx and Tx NAPI
+
+Move legacy EDMA v1 receive and Tx completion handling to independent
+NAPI contexts so their budgets and interrupt masks no longer interfere.
+Expose GRO as an optional feature and enable it by default.
+
+Also correct IRQ unwind, descriptor indexing and DMA mapping lifetime
+issues found while auditing the QSDK data path. Hardware checksum offload
+is not advertised because the v1 descriptor format has no verified
+checksum fields.
+
+Signed-off-by: OpenWrt Build System <openwrt@localhost>
+---
+--- a/hal/dp_ops/edma_dp/edma_v1/edma_cfg.c
++++ b/hal/dp_ops/edma_dp/edma_v1/edma_cfg.c
+@@ -40,6 +40,7 @@ static void edma_cleanup_rxfill_ring_res
+ 	uint32_t reg_data = 0;
+ 	struct edma_rx_preheader *rxph = NULL;
+ 	int store_idx;
++	dma_addr_t dma_addr;
+ 
+ 	/*
+ 	 * Read RXFILL ring producer index
+@@ -62,19 +63,23 @@ static void edma_cleanup_rxfill_ring_res
+ 		/*
+ 		 * Get Rx preheader
+ 		 */
+-		rxph = (struct edma_rx_preheader *)
+-			phys_to_virt(rxfill_desc->buffer_addr);
++		dma_addr = le32_to_cpu(rxfill_desc->buffer_addr);
++		rxph = (struct edma_rx_preheader *)phys_to_virt(dma_addr);
+ 
+-		dma_unmap_single(&pdev->dev, rxfill_desc->buffer_addr,
++		dma_unmap_single(&pdev->dev, dma_addr,
+ 					ehw->rx_alloc_size, DMA_FROM_DEVICE);
+ 
+ 		/*
+ 		 * Get sk_buff and free it
+ 		 */
+ 		store_idx = rxph->opaque;
++		if (store_idx < 0 || store_idx >= EDMA_RING_SIZE)
++			goto next_rxfill_desc;
+ 		skb = ehw->rx_skb_store[store_idx];
+ 		ehw->rx_skb_store[store_idx] = NULL;
+ 		dev_kfree_skb_any(skb);
++
++next_rxfill_desc:
+ 		cons_idx++;
+ 		if (cons_idx == rxfill_ring->count)
+ 			cons_idx = 0;
+@@ -154,6 +159,7 @@ static void edma_cleanup_rxdesc_ring_res
+ 	uint16_t prod_idx = 0;
+ 	uint16_t cons_idx = 0;
+ 	int store_idx;
++	dma_addr_t dma_addr;
+ 
+ 	cons_idx = edma_reg_read(EDMA_REG_RXDESC_CONS_IDX(rxdesc_ring->id))
+ 					& EDMA_RXDESC_CONS_IDX_MASK;
+@@ -167,16 +173,19 @@ static void edma_cleanup_rxdesc_ring_res
+ 	while (cons_idx != prod_idx) {
+ 		rxdesc_desc = EDMA_RXDESC_DESC(rxdesc_ring, cons_idx);
+ 
+-		rxph = (struct edma_rx_preheader *)
+-			phys_to_virt(rxdesc_desc->buffer_addr);
++		dma_addr = le32_to_cpu(rxdesc_desc->buffer_addr);
++		rxph = (struct edma_rx_preheader *)phys_to_virt(dma_addr);
+ 
+-		dma_unmap_single(&pdev->dev, rxdesc_desc->buffer_addr,
++		dma_unmap_single(&pdev->dev, dma_addr,
+ 					ehw->rx_alloc_size, DMA_FROM_DEVICE);
+ 		store_idx = rxph->opaque;
++		if (store_idx < 0 || store_idx >= EDMA_RING_SIZE)
++			goto next_rxdesc_desc;
+ 		skb = ehw->rx_skb_store[store_idx];
+ 		ehw->rx_skb_store[store_idx] = NULL;
+ 		dev_kfree_skb_any(skb);
+ 
++next_rxdesc_desc:
+ 		/*
+ 		 * Update consumer index
+ 		 */
+@@ -210,7 +219,7 @@ static void edma_cleanup_txcmpl_ring_res
+ 	/*
+ 	 * Free any buffers assigned to any descriptors
+ 	 */
+-	edma_clean_tx(ehw, txcmpl_ring);
++	edma_clean_tx(ehw, txcmpl_ring, 0);
+ 
+ 	/*
+ 	 * Free TxCmpl ring descriptors
+@@ -257,9 +266,7 @@ static void edma_cleanup_txdesc_ring_res
+ {
+ 	struct platform_device *pdev = ehw->pdev;
+ 	struct sk_buff *skb = NULL;
+-	struct edma_txdesc_desc *txdesc = NULL;
+ 	uint16_t prod_idx, cons_idx;
+-	size_t buf_len;
+ 	uint32_t data;
+ 	int store_idx;
+ 
+@@ -273,19 +280,18 @@ static void edma_cleanup_txdesc_ring_res
+ 	cons_idx = data & EDMA_TXDESC_CONS_IDX_MASK;
+ 
+ 	while (cons_idx != prod_idx) {
+-		txdesc = EDMA_TXDESC_DESC(txdesc_ring, cons_idx);
+-		store_idx = txdesc->buffer_addr;
++		store_idx = cons_idx;
+ 		skb = ehw->tx_skb_store[store_idx];
+ 		ehw->tx_skb_store[store_idx] = NULL;
+ 
+-		buf_len = (txdesc->word1 & EDMA_TXDESC_DATA_LENGTH_MASK) >>
+-				EDMA_TXDESC_DATA_LENGTH_SHIFT;
+-
+-		dma_unmap_single(&pdev->dev, (dma_addr_t)skb->data,
+-				buf_len + EDMA_TX_PREHDR_SIZE, DMA_TO_DEVICE);
++		if (skb) {
++			dma_unmap_single(&pdev->dev,
++					ehw->tx_dma_store[store_idx],
++					skb_headlen(skb), DMA_TO_DEVICE);
++			ehw->tx_dma_store[store_idx] = 0;
++			dev_kfree_skb_any(skb);
++		}
+ 
+-		dev_kfree_skb_any(skb);
+-		cons_idx = (cons_idx + 1) & (txdesc_ring->count - 1);
+ 		cons_idx++;
+ 		if (cons_idx == txdesc_ring->count)
+ 			cons_idx = 0;
+@@ -683,6 +689,7 @@ static void edma_configure_rings(struct
+ 	for (i = 0; i < EDMA_RING_SIZE; i++) {
+ 		ehw->tx_skb_store[i] = NULL;
+ 		ehw->rx_skb_store[i] = NULL;
++		ehw->tx_dma_store[i] = 0;
+ 	}
+ 
+ 	/*
+--- a/hal/dp_ops/edma_dp/edma_v1/edma_data_plane.c
++++ b/hal/dp_ops/edma_dp/edma_v1/edma_data_plane.c
+@@ -341,11 +341,9 @@ void edma_cleanup(bool is_dp_override)
+ 	/*
+ 	 * Disable Tx rings used by this driver
+ 	 */
+-	for (i = edma_hw.txdesc_ring_start; i < edma_hw.txdesc_ring_end; i++) {
+-		txcmpl_ring = &edma_hw.txcmpl_ring[i];
++	for (i = edma_hw.txdesc_ring_start; i < edma_hw.txdesc_ring_end; i++)
+ 		edma_reg_write(EDMA_REG_TXDESC_CTRL(i),
+ 				EDMA_RING_DISABLE);
+-	}
+ 
+ 	/*
+ 	 * Disable RxFill Rings used by this driver
+@@ -407,7 +405,8 @@ void edma_cleanup(bool is_dp_override)
+ 		synchronize_irq(edma_hw.misc_intr);
+ 		free_irq(edma_hw.misc_intr, (void *)(edma_hw.pdev));
+ 
+-		netif_napi_del(&edma_hw.napi);
++		netif_napi_del(&edma_hw.rx_napi);
++		netif_napi_del(&edma_hw.tx_napi);
+ 		edma_hw.napi_added = 0;
+ 	}
+ 
+@@ -451,7 +450,8 @@ static int edma_if_open(struct nss_dp_da
+ 	if (edma_hw.active++ != 0)
+ 		return NSS_DP_SUCCESS;
+ 
+-	napi_enable(&edma_hw.napi);
++	napi_enable(&edma_hw.rx_napi);
++	napi_enable(&edma_hw.tx_napi);
+ 
+ 	/*
+ 	 * Enable the interrupt masks.
+@@ -478,7 +478,8 @@ static int edma_if_close(struct nss_dp_d
+ 	/*
+ 	 * Disable NAPI
+ 	 */
+-	napi_disable(&edma_hw.napi);
++	napi_disable(&edma_hw.tx_napi);
++	napi_disable(&edma_hw.rx_napi);
+ 	return NSS_DP_SUCCESS;
+ }
+ 
+@@ -530,7 +531,7 @@ static netdev_tx_t edma_if_xmit(struct n
+ 	skbq = skb_get_queue_mapping(skb);
+ 	tx_ring = 0;
+ 	if ((edma_hw.txdesc_rings > 1) && (skbq > 0))
+-		tx_ring = edma_hw.txdesc_rings % skbq;
++		tx_ring = skbq % edma_hw.txdesc_rings;
+ 
+ 	/*
+ 	 * Check for non-linear skb
+@@ -597,10 +598,12 @@ drop:
+  */
+ static void edma_if_set_features(struct nss_dp_data_plane_ctx *dpc)
+ {
+-	/*
+-	 * TODO - add flags to support HIGHMEM/cksum offload VLAN
+-	 * the features are enabled.
+-	 */
++	struct net_device *netdev = dpc->dev;
++
++	/* GRO is safe for the normal receive path and remains user-toggleable. */
++	netdev->hw_features |= NETIF_F_GRO;
++	netdev->vlan_features |= NETIF_F_GRO;
++	netdev->features |= NETIF_F_GRO;
+ }
+ 
+ /* TODO - check if this is needed */
+@@ -657,6 +660,7 @@ static int edma_irq_init(void)
+ {
+ 	int err;
+ 	uint32_t entry_num, i;
++	uint32_t tx_irqs = 0, rxfill_irqs = 0, rxdesc_irqs = 0;
+ 
+ 	/*
+ 	 * Get TXCMPL rings IRQ numbers
+@@ -671,7 +675,7 @@ static int edma_irq_init(void)
+ 			return -1;
+ 		}
+ 
+-		pr_debug("%s: txcmpl_intr[%u] = %u\n",
++		pr_debug("%s: txcmpl_intr[%u] = %d\n",
+ 				 (edma_hw.device_node)->name,
+ 				 i, edma_hw.txcmpl_intr[i]);
+ 	}
+@@ -688,7 +692,7 @@ static int edma_irq_init(void)
+ 			return -1;
+ 		}
+ 
+-		pr_debug("%s: rxfill_intr[%u] = %u\n",
++		pr_debug("%s: rxfill_intr[%u] = %d\n",
+ 				 (edma_hw.device_node)->name,
+ 				 i, edma_hw.rxfill_intr[i]);
+ 	}
+@@ -706,7 +710,7 @@ static int edma_irq_init(void)
+ 			return -1;
+ 		}
+ 
+-		pr_debug("%s: rxdesc_intr[%u] = %u\n",
++		pr_debug("%s: rxdesc_intr[%u] = %d\n",
+ 				 (edma_hw.device_node)->name,
+ 				 i, edma_hw.rxdesc_intr[i]);
+ 	}
+@@ -715,7 +719,12 @@ static int edma_irq_init(void)
+ 	 * Get misc IRQ number
+ 	 */
+ 	edma_hw.misc_intr = platform_get_irq(edma_hw.pdev, entry_num);
+-	pr_debug("%s: misc IRQ:%u\n",
++	if (edma_hw.misc_intr < 0) {
++		pr_warn("%s: misc irq get failed\n",
++			(edma_hw.device_node)->name);
++		return -1;
++	}
++	pr_debug("%s: misc IRQ:%d\n",
+ 			  (edma_hw.device_node)->name,
+ 			  edma_hw.misc_intr);
+ 
+@@ -724,14 +733,14 @@ static int edma_irq_init(void)
+ 	 */
+ 	for (i = 0; i < edma_hw.txcmpl_rings; i++) {
+ 		err = request_irq(edma_hw.txcmpl_intr[i],
+-				  edma_handle_irq, IRQF_SHARED,
++				  edma_handle_tx_irq, IRQF_SHARED,
+ 				  "edma_txcmpl", (void *)edma_hw.pdev);
+ 		if (err) {
+ 			pr_debug("TXCMPL ring IRQ:%d request failed\n",
+ 					edma_hw.txcmpl_intr[i]);
+-			return -1;
+-
++			goto tx_cmpl_ring_intr_req_fail;
+ 		}
++		tx_irqs++;
+ 	}
+ 
+ 	/*
+@@ -739,13 +748,14 @@ static int edma_irq_init(void)
+ 	 */
+ 	for (i = 0; i < edma_hw.rxfill_rings; i++) {
+ 		err = request_irq(edma_hw.rxfill_intr[i],
+-				  edma_handle_irq, IRQF_SHARED,
++				  edma_handle_rx_irq, IRQF_SHARED,
+ 				  "edma_rxfill", (void *)edma_hw.pdev);
+ 		if (err) {
+ 			pr_debug("RXFILL ring IRQ:%d request failed\n",
+ 					edma_hw.rxfill_intr[i]);
+ 			goto rx_fill_ring_intr_req_fail;
+ 		}
++		rxfill_irqs++;
+ 	}
+ 
+ 	/*
+@@ -753,13 +763,14 @@ static int edma_irq_init(void)
+ 	 */
+ 	for (i = 0; i < edma_hw.rxdesc_rings; i++) {
+ 		err = request_irq(edma_hw.rxdesc_intr[i],
+-				  edma_handle_irq, IRQF_SHARED,
++				  edma_handle_rx_irq, IRQF_SHARED,
+ 				  "edma_rxdesc", (void *)edma_hw.pdev);
+ 		if (err) {
+ 			pr_debug("RXDESC ring IRQ:%d request failed\n",
+ 					edma_hw.rxdesc_intr[i]);
+ 			goto rx_desc_ring_intr_req_fail;
+ 		}
++		rxdesc_irqs++;
+ 	}
+ 
+ 	/*
+@@ -781,10 +792,11 @@ misc_intr_req_fail:
+ 	/*
+ 	 * Free IRQ for RXDESC rings
+ 	 */
+-	for (i = 0; i < edma_hw.rxdesc_rings; i++) {
+-		synchronize_irq(edma_hw.rxdesc_intr[i]);
+-		free_irq(edma_hw.rxdesc_intr[i],
+-				(void *)&(edma_hw.pdev)->dev);
++	while (rxdesc_irqs) {
++		rxdesc_irqs--;
++		synchronize_irq(edma_hw.rxdesc_intr[rxdesc_irqs]);
++		free_irq(edma_hw.rxdesc_intr[rxdesc_irqs],
++				(void *)edma_hw.pdev);
+ 	}
+ 
+ rx_desc_ring_intr_req_fail:
+@@ -792,22 +804,24 @@ rx_desc_ring_intr_req_fail:
+ 	/*
+ 	 * Free IRQ for RXFILL rings
+ 	 */
+-	for (i = 0; i < edma_hw.rxfill_rings; i++) {
+-		synchronize_irq(edma_hw.rxfill_intr[i]);
+-		free_irq(edma_hw.rxfill_intr[i],
+-				(void *)&(edma_hw.pdev)->dev);
++	while (rxfill_irqs) {
++		rxfill_irqs--;
++		synchronize_irq(edma_hw.rxfill_intr[rxfill_irqs]);
++		free_irq(edma_hw.rxfill_intr[rxfill_irqs],
++				(void *)edma_hw.pdev);
+ 	}
+ 
+ rx_fill_ring_intr_req_fail:
++tx_cmpl_ring_intr_req_fail:
+ 
+ 	/*
+ 	 * Free IRQ for TXCMPL rings
+ 	 */
+-	for (i = 0; i < edma_hw.txcmpl_rings; i++) {
+-
+-		synchronize_irq(edma_hw.txcmpl_intr[i]);
+-		free_irq(edma_hw.txcmpl_intr[i],
+-				(void *)&(edma_hw.pdev)->dev);
++	while (tx_irqs) {
++		tx_irqs--;
++		synchronize_irq(edma_hw.txcmpl_intr[tx_irqs]);
++		free_irq(edma_hw.txcmpl_intr[tx_irqs],
++				(void *)edma_hw.pdev);
+ 	}
+ 
+ 	return -1;
+@@ -844,12 +858,19 @@ static int edma_register_netdevice(struc
+ 	 * NAPI add
+ 	 */
+ 	if (!edma_hw.napi_added) {
+-		netif_napi_add(netdev, &edma_hw.napi, edma_napi);
++		netif_napi_add_weight(netdev, &edma_hw.rx_napi,
++				edma_rx_napi, EDMA_NAPI_WORK);
++		netif_napi_add_weight(netdev, &edma_hw.tx_napi,
++				edma_tx_napi, EDMA_NAPI_WORK);
+ 		/*
+ 		 * Register the interrupt handlers and enable interrupts
+ 		 */
+-		if (edma_irq_init() < 0)
++		if (edma_irq_init() < 0) {
++			netif_napi_del(&edma_hw.tx_napi);
++			netif_napi_del(&edma_hw.rx_napi);
++			edma_hw.netdev_arr[macid - 1] = NULL;
+ 			return -EINVAL;
++		}
+ 
+ 		edma_hw.napi_added = 1;
+ 	}
+@@ -878,6 +899,8 @@ static int edma_if_init(struct nss_dp_da
+ 		return NSS_DP_FAILURE;
+ 	}
+ 
++	edma_if_set_features(dpc);
++
+ 	/*
+ 	 * Headroom needed for Tx preheader
+ 	 */
+--- a/hal/dp_ops/edma_dp/edma_v1/edma_data_plane.h
++++ b/hal/dp_ops/edma_dp/edma_v1/edma_data_plane.h
+@@ -171,8 +171,10 @@ enum edma_tx {
+  * EDMA private data structure
+  */
+ struct edma_hw {
+-	struct napi_struct napi;
+-			/* napi structure */
++	struct napi_struct rx_napi;
++			/* Rx NAPI structure */
++	struct napi_struct tx_napi;
++			/* Tx completion NAPI structure */
+ 	struct net_device *netdev_arr[EDMA_MAX_GMACS];
+ 			/* netdev for each gmac port */
+ 	struct device_node *device_node;
+@@ -205,6 +207,7 @@ struct edma_hw {
+ 	 */
+ 	struct sk_buff *rx_skb_store[EDMA_RING_SIZE];
+ 	struct sk_buff *tx_skb_store[EDMA_RING_SIZE];
++	dma_addr_t tx_dma_store[EDMA_RING_SIZE];
+ 
+ 	struct edma_rxfill_ring *rxfill_ring;
+ 			/* Rx Fill Ring, SW is producer */
+@@ -239,13 +242,13 @@ struct edma_hw {
+ 			/* Id of first RxDesc ring */
+ 	uint32_t rxdesc_ring_end;
+ 			/* Id of last RxDesc ring */
+-	uint32_t txcmpl_intr[EDMA_MAX_TXCMPL_RINGS];
++	int txcmpl_intr[EDMA_MAX_TXCMPL_RINGS];
+ 			/* TxCmpl ring IRQ numbers */
+-	uint32_t rxfill_intr[EDMA_MAX_RXFILL_RINGS];
++	int rxfill_intr[EDMA_MAX_RXFILL_RINGS];
+ 			/* Rx fill ring IRQ numbers */
+-	uint32_t rxdesc_intr[EDMA_MAX_RXDESC_RINGS];
++	int rxdesc_intr[EDMA_MAX_RXDESC_RINGS];
+ 			/* Rx desc ring IRQ numbers */
+-	uint32_t misc_intr;
++	int misc_intr;
+ 			/* Misc IRQ number */
+ 
+ 	uint32_t tx_intr_mask;
+@@ -278,10 +281,13 @@ enum edma_tx edma_ring_xmit(struct edma_
+ 			    struct sk_buff *skb,
+ 			    struct edma_txdesc_ring *txdesc_ring);
+ uint32_t edma_clean_tx(struct edma_hw *ehw,
+-			struct edma_txcmpl_ring *txcmpl_ring);
+-irqreturn_t edma_handle_irq(int irq, void *ctx);
++			struct edma_txcmpl_ring *txcmpl_ring,
++			int budget);
++irqreturn_t edma_handle_rx_irq(int irq, void *ctx);
++irqreturn_t edma_handle_tx_irq(int irq, void *ctx);
+ irqreturn_t edma_handle_misc_irq(int irq, void *ctx);
+-int edma_napi(struct napi_struct *napi, int budget);
++int edma_rx_napi(struct napi_struct *napi, int budget);
++int edma_tx_napi(struct napi_struct *napi, int budget);
+ void edma_cleanup_rings(struct edma_hw *ehw);
+ int edma_hw_init(struct edma_hw *ehw);
+ #endif /* __NSS_DP_EDMA_DATAPLANE__ */
+--- a/hal/dp_ops/edma_dp/edma_v1/edma_tx_rx.c
++++ b/hal/dp_ops/edma_dp/edma_v1/edma_tx_rx.c
+@@ -40,6 +40,7 @@ int edma_alloc_rx_buffer(struct edma_hw
+ 	uint32_t store_index = 0;
+ 	uint32_t alloc_size = ehw->rx_alloc_size;
+ 	struct edma_rx_preheader *rxph = NULL;
++	dma_addr_t dma_addr;
+ 
+ 	/*
+ 	 * Read RXFILL ring producer index
+@@ -98,17 +99,14 @@ int edma_alloc_rx_buffer(struct edma_hw
+ 		/*
+ 		 * Map Rx buffer for DMA
+ 		 */
+-		rxfill_desc->buffer_addr = cpu_to_le32(dma_map_single(
+-						&pdev->dev,
+-						skb->data,
+-						alloc_size,
+-						DMA_FROM_DEVICE));
+-
+-		if (!rxfill_desc->buffer_addr) {
++		dma_addr = dma_map_single(&pdev->dev, skb->data, alloc_size,
++					  DMA_FROM_DEVICE);
++		if (dma_mapping_error(&pdev->dev, dma_addr)) {
+ 			dev_kfree_skb_any(skb);
+ 			ehw->rx_skb_store[store_index] = NULL;
+ 			break;
+ 		}
++		rxfill_desc->buffer_addr = cpu_to_le32(dma_addr);
+ 
+ 		num_alloc++;
+ 		next = counter;
+@@ -138,7 +136,8 @@ int edma_alloc_rx_buffer(struct edma_hw
+  *	Reap Tx descriptors
+  */
+ uint32_t edma_clean_tx(struct edma_hw *ehw,
+-			struct edma_txcmpl_ring *txcmpl_ring)
++			struct edma_txcmpl_ring *txcmpl_ring,
++			int budget)
+ {
+ 	struct platform_device *pdev = ehw->pdev;
+ 	struct edma_txcmpl_desc *txcmpl = NULL;
+@@ -163,7 +162,8 @@ uint32_t edma_clean_tx(struct edma_hw *e
+ 	data = edma_reg_read(EDMA_REG_TXCMPL_CONS_IDX(txcmpl_ring->id));
+ 	cons_idx = data & EDMA_TXCMPL_CONS_IDX_MASK;
+ 
+-	while (cons_idx != prod_idx) {
++	while ((cons_idx != prod_idx) &&
++			(!budget || (txcmpl_consumed < budget))) {
+ 		txcmpl = &(((struct edma_txcmpl_desc *)
+ 					(txcmpl_ring->desc))[cons_idx]);
+ 
+@@ -172,9 +172,16 @@ uint32_t edma_clean_tx(struct edma_hw *e
+ 		 * tx header contains the index in the field
+ 		 * buffer address (opaque) of txcmpl
+ 		 */
+-		store_index = txcmpl->buffer_addr;
++		store_index = le32_to_cpu(txcmpl->buffer_addr);
++		if (unlikely(store_index < 0 || store_index >= EDMA_RING_SIZE)) {
++			pr_warn_ratelimited("Invalid skb index:%d cons_idx:%u prod_idx:%u\n",
++					store_index, cons_idx, prod_idx);
++			goto next_txcmpl_desc;
++		}
+ 		skb = ehw->tx_skb_store[store_index];
+ 		ehw->tx_skb_store[store_index] = NULL;
++		daddr = ehw->tx_dma_store[store_index];
++		ehw->tx_dma_store[store_index] = 0;
+ 
+ 		if (unlikely(!skb)) {
+ 			pr_warn_ratelimited("Invalid skb: cons_idx:%u prod_idx:%u status %x\n",
+@@ -183,14 +190,16 @@ uint32_t edma_clean_tx(struct edma_hw *e
+ 		}
+ 
+ 		len = skb_headlen(skb);
+-		daddr = (dma_addr_t)virt_to_phys(skb->data);
+ 
+ 		pr_debug("skb:%px cons_idx:%d prod_idx:%d word1:0x%x\n",
+ 			   skb, cons_idx, prod_idx, txcmpl->status);
+ 
+ 		dma_unmap_single(&pdev->dev, daddr,
+ 				 len, DMA_TO_DEVICE);
+-		dev_kfree_skb_any(skb);
++		if (budget)
++			napi_consume_skb(skb, budget);
++		else
++			dev_kfree_skb_any(skb);
+ 
+ next_txcmpl_desc:
+ 		if (++cons_idx == txcmpl_ring->count)
+@@ -271,6 +280,7 @@ static uint32_t edma_clean_rx(struct edm
+ 	uint16_t cons_idx = 0;
+ 	uint32_t work_done = 0;
+ 	int store_index;
++	dma_addr_t dma_addr;
+ 
+ 	/*
+ 	 * Read Rx ring consumer index
+@@ -297,18 +307,21 @@ static uint32_t edma_clean_rx(struct edm
+ 		/*
+ 		 * Get Rx preheader
+ 		 */
+-		rxph = (struct edma_rx_preheader *)
+-			phys_to_virt(rxdesc_desc->buffer_addr);
++		dma_addr = le32_to_cpu(rxdesc_desc->buffer_addr);
++		rxph = (struct edma_rx_preheader *)phys_to_virt(dma_addr);
+ 
+ 		/*
+ 		 * DMA unmap Rx buffer
+ 		 */
+-		dma_unmap_single(&pdev->dev,
+-				 rxdesc_desc->buffer_addr,
+-				 ehw->rx_alloc_size,
++		dma_unmap_single(&pdev->dev, dma_addr, ehw->rx_alloc_size,
+ 				 DMA_FROM_DEVICE);
+ 
+ 		store_index = rxph->opaque;
++		if (unlikely(store_index < 0 || store_index >= EDMA_RING_SIZE)) {
++			pr_warn_ratelimited("Invalid Rx skb index:%d cons_idx:%u prod_idx:%u\n",
++					store_index, cons_idx, prod_idx);
++			goto next_rx_desc;
++		}
+ 		skb = ehw->rx_skb_store[store_index];
+ 		ehw->rx_skb_store[store_index] = NULL;
+ 		if (unlikely(!skb)) {
+@@ -397,6 +410,8 @@ static uint32_t edma_clean_rx(struct edm
+ 		if (unlikely(EDMA_RXPH_SERVICE_CODE_GET(rxph) ==
+ 					NSS_PTP_EVENT_SERVICE_CODE))
+ 			nss_phy_tstamp_rx_buf(ndev, skb);
++		else if (likely(ndev->features & NETIF_F_GRO))
++			napi_gro_receive(&ehw->rx_napi, skb);
+ 		else
+ 			netif_receive_skb(skb);
+ 
+@@ -413,8 +428,6 @@ next_rx_desc:
+ 		work_done++;
+ 	}
+ 
+-	edma_alloc_rx_buffer(ehw, rxdesc_ring->rxfill);
+-
+ 	/*
+ 	 * make sure the consumer index is updated
+ 	 * before updating the hardware
+@@ -425,90 +438,116 @@ next_rx_desc:
+ }
+ 
+ /*
+- * edma_napi()
+- *	EDMA NAPI handler
++ * edma_rx_napi()
++ *	Process Rx descriptors and refill rings independently from Tx.
+  */
+-int edma_napi(struct napi_struct *napi, int budget)
++int edma_rx_napi(struct napi_struct *napi, int budget)
+ {
+-	struct edma_hw *ehw = container_of(napi, struct edma_hw, napi);
+-	struct edma_txcmpl_ring *txcmpl_ring = NULL;
+-	struct edma_rxdesc_ring *rxdesc_ring = NULL;
+-	struct edma_rxfill_ring *rxfill_ring = NULL;
+-
+-	struct net_device *ndev;
++	struct edma_hw *ehw = container_of(napi, struct edma_hw, rx_napi);
++	struct edma_rxdesc_ring *rxdesc_ring;
++	struct edma_rxfill_ring *rxfill_ring;
++	uint32_t status;
+ 	int work_done = 0;
+ 	int i;
+ 
+-	for (i = 0; i < ehw->rxdesc_rings; i++) {
++	for (i = 0; i < ehw->rxdesc_rings && work_done < budget; i++) {
+ 		rxdesc_ring = &ehw->rxdesc_ring[i];
+-		work_done += edma_clean_rx(ehw, budget, rxdesc_ring);
++		work_done += edma_clean_rx(ehw, budget - work_done,
++					   rxdesc_ring);
+ 	}
+ 
+-	for (i = 0; i < ehw->txcmpl_rings; i++) {
+-		txcmpl_ring = &ehw->txcmpl_ring[i];
+-		work_done += edma_clean_tx(ehw, txcmpl_ring);
+-	}
++	for (i = 0; i < ehw->rxfill_rings; i++)
++		edma_alloc_rx_buffer(ehw, &ehw->rxfill_ring[i]);
+ 
+-	for (i = 0; i < ehw->rxfill_rings; i++) {
+-		rxfill_ring = &ehw->rxfill_ring[i];
+-		work_done += edma_alloc_rx_buffer(ehw, rxfill_ring);
+-	}
++	if (work_done < budget) {
++		status = 0;
++		for (i = 0; i < ehw->rxdesc_rings; i++) {
++			rxdesc_ring = &ehw->rxdesc_ring[i];
++			status |= edma_reg_read(
++				EDMA_REG_RXDESC_INT_STAT(rxdesc_ring->id)) &
++				EDMA_RXDESC_RING_INT_STATUS_MASK;
++		}
+ 
+-	/*
+-	 * Resume netdev Tx queue
+-	 */
+-	/*
+-	 * TODO works currently since we have a single queue.
+-	 * Need to make sure we have support in place when there is
+-	 * support for multiple queues
+-	 */
+-	for (i = 0; i < EDMA_MAX_GMACS; i++) {
+-		ndev = ehw->netdev_arr[i];
+-		if (!ndev)
+-			continue;
++		for (i = 0; i < ehw->rxfill_rings; i++) {
++			rxfill_ring = &ehw->rxfill_ring[i];
++			status |= edma_reg_read(
++				EDMA_REG_RXFILL_INT_STAT(rxfill_ring->id)) &
++				EDMA_RXFILL_RING_INT_STATUS_MASK;
++		}
++
++		if (status)
++			return budget;
+ 
+-		if (netif_queue_stopped(ndev) && netif_carrier_ok(ndev))
+-			netif_start_queue(ndev);
++		if (napi_complete_done(napi, work_done)) {
++			for (i = 0; i < ehw->rxdesc_rings; i++) {
++				rxdesc_ring = &ehw->rxdesc_ring[i];
++				edma_reg_write(
++					EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->id),
++					ehw->rxdesc_intr_mask);
++			}
++
++			for (i = 0; i < ehw->rxfill_rings; i++) {
++				rxfill_ring = &ehw->rxfill_ring[i];
++				edma_reg_write(
++					EDMA_REG_RXFILL_INT_MASK(rxfill_ring->id),
++					ehw->rxfill_intr_mask);
++			}
++		}
+ 	}
+ 
+-	/*
+-	 * TODO - rework and fix the budget control
+-	 */
+-	if (work_done < budget) {
+-		/*
+-		 * TODO per core NAPI
+-		 */
+-		napi_complete(napi);
++	return work_done;
++}
+ 
+-		/*
+-		 * Set RXDESC ring interrupt mask
+-		 */
+-		for (i = 0; i < ehw->rxdesc_rings; i++) {
+-			rxdesc_ring = &ehw->rxdesc_ring[i];
+-			edma_reg_write(
+-				EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->id),
+-				ehw->rxdesc_intr_mask);
++/*
++ * edma_tx_napi()
++ *	Process Tx completions independently from Rx.
++ */
++int edma_tx_napi(struct napi_struct *napi, int budget)
++{
++	struct edma_hw *ehw = container_of(napi, struct edma_hw, tx_napi);
++	struct edma_txcmpl_ring *txcmpl_ring;
++	struct net_device *ndev;
++	uint32_t status;
++	int work_done = 0;
++	int i;
++
++	for (i = 0; i < ehw->txcmpl_rings && work_done < budget; i++) {
++		txcmpl_ring = &ehw->txcmpl_ring[i];
++		work_done += edma_clean_tx(ehw, txcmpl_ring,
++					   budget - work_done);
++	}
++
++	if (work_done) {
++		for (i = 0; i < EDMA_MAX_GMACS; i++) {
++			ndev = ehw->netdev_arr[i];
++			if (ndev && netif_queue_stopped(ndev) &&
++					netif_carrier_ok(ndev))
++				netif_wake_queue(ndev);
+ 		}
++	}
+ 
+-		/*
+-		 * Set TXCMPL ring interrupt mask
+-		 */
++	if (work_done < budget) {
++		status = 0;
+ 		for (i = 0; i < ehw->txcmpl_rings; i++) {
+ 			txcmpl_ring = &ehw->txcmpl_ring[i];
+-			edma_reg_write(EDMA_REG_TX_INT_MASK(txcmpl_ring->id),
+-					ehw->txcmpl_intr_mask);
++			status |= edma_reg_read(
++				EDMA_REG_TX_INT_STAT(txcmpl_ring->id)) &
++				EDMA_TXCMPL_RING_INT_STATUS_MASK;
+ 		}
+ 
+-		/*
+-		 * Set RXFILL ring interrupt mask
+-		 */
+-		for (i = 0; i < ehw->rxfill_rings; i++) {
+-			rxfill_ring = &ehw->rxfill_ring[i];
+-			edma_reg_write(EDMA_REG_RXFILL_INT_MASK(
+-						rxfill_ring->id),
+-						edma_hw.rxfill_intr_mask);
++		if (status)
++			return budget;
++
++		if (napi_complete_done(napi, work_done)) {
++			for (i = 0; i < ehw->txcmpl_rings; i++) {
++				txcmpl_ring = &ehw->txcmpl_ring[i];
++				edma_reg_write(
++					EDMA_REG_TX_INT_MASK(txcmpl_ring->id),
++					ehw->txcmpl_intr_mask);
++			}
+ 		}
+ 	}
++
+ 	return work_done;
+ }
+ 
+@@ -528,6 +567,7 @@ enum edma_tx edma_ring_xmit(struct edma_
+ 	uint32_t data;
+ 	uint32_t store_index = 0;
+ 	struct edma_tx_preheader *txph = NULL;
++	dma_addr_t dma_addr;
+ 
+ 	/*
+ 	 * TODO - revisit locking
+@@ -559,6 +599,12 @@ enum edma_tx edma_ring_xmit(struct edma_
+ 		return EDMA_TX_DESC;
+ 	}
+ 
++	store_index = hw_next_to_use & (txdesc_ring->count - 1);
++	if (unlikely(ehw->tx_skb_store[store_index] != NULL)) {
++		spin_unlock_bh(&txdesc_ring->tx_lock);
++		return EDMA_TX_DESC;
++	}
++
+ #if defined(NSS_DP_EDMA_TX_SMALL_PKT_WAR)
+ 	/*
+ 	 * IPQ807x EDMA hardware can't process the packet if the packet size is
+@@ -600,16 +646,6 @@ enum edma_tx edma_ring_xmit(struct edma_
+ 	txph->dst_info = (EDMA_PREHDR_DSTINFO_PORTID_IND << 8) |
+ 			(dp_dev->macid & 0x0fff);
+ 
+-	/*
+-	 * Store the skb in tx_store
+-	 */
+-	store_index = hw_next_to_use & (txdesc_ring->count - 1);
+-	if (unlikely(ehw->tx_skb_store[store_index] != NULL)) {
+-		spin_unlock_bh(&txdesc_ring->tx_lock);
+-		return EDMA_TX_DESC;
+-	}
+-
+-	ehw->tx_skb_store[store_index] = skb;
+ 	memcpy(skb->data, &store_index, 4);
+ 
+ 	/*
+@@ -621,21 +657,20 @@ enum edma_tx edma_ring_xmit(struct edma_
+ 	/*
+ 	 * Map buffer to DMA address
+ 	 */
+-	txdesc->buffer_addr = cpu_to_le32(dma_map_single(&(ehw->pdev)->dev,
+-				       skb->data,
+-				       buf_len + EDMA_TX_PREHDR_SIZE,
+-				       DMA_TO_DEVICE));
+-	if (!txdesc->buffer_addr) {
++	dma_addr = dma_map_single(&(ehw->pdev)->dev, skb->data,
++				  buf_len + EDMA_TX_PREHDR_SIZE, DMA_TO_DEVICE);
++	if (dma_mapping_error(&(ehw->pdev)->dev, dma_addr)) {
+ 		/*
+ 		 * DMA map failed for this address. Drop it
+ 		 * and make sure does not got to stack again
+ 		 */
+ 		dev_kfree_skb_any(skb);
+-
+-		ehw->tx_skb_store[store_index] = NULL;
+ 		spin_unlock_bh(&txdesc_ring->tx_lock);
+ 		return EDMA_TX_OK;
+ 	}
++	txdesc->buffer_addr = cpu_to_le32(dma_addr);
++	ehw->tx_skb_store[store_index] = skb;
++	ehw->tx_dma_store[store_index] = dma_addr;
+ 
+ 	/*
+ 	 * Populate Tx descriptor
+@@ -699,96 +734,85 @@ irqreturn_t edma_handle_misc_irq(int irq
+ }
+ 
+ /*
+- * edma_handle_irq()
+- *	Process IRQ and schedule napi
++ * edma_handle_tx_irq()
++ *	Mask Tx completion interrupts and schedule Tx NAPI.
+  */
+-irqreturn_t edma_handle_irq(int irq, void *ctx)
++irqreturn_t edma_handle_tx_irq(int irq, void *ctx)
+ {
+-	uint32_t reg_data = 0;
+-	uint32_t rxdesc_intr_status = 0;
+-	uint32_t txcmpl_intr_status = 0;
+-	uint32_t rxfill_intr_status = 0;
++	struct platform_device *pdev = ctx;
++	struct edma_txcmpl_ring *txcmpl_ring;
++	struct edma_hw *ehw;
++	uint32_t status = 0;
+ 	int i;
+-	struct edma_txcmpl_ring *txcmpl_ring = NULL;
+-	struct edma_rxdesc_ring *rxdesc_ring = NULL;
+-	struct edma_rxfill_ring *rxfill_ring = NULL;
+-	struct edma_hw *ehw = NULL;
+-	struct platform_device *pdev = (struct platform_device *)ctx;
+ 
+ 	ehw = platform_get_drvdata(pdev);
+-	if (!ehw) {
+-		pr_info("Unable to retrieve platrofm data");
+-		return IRQ_HANDLED;
+-	}
+-
+-	/*
+-	 * Read RxDesc intr status
+-	 */
+-	for (i = 0; i < ehw->rxdesc_rings; i++) {
+-		rxdesc_ring = &ehw->rxdesc_ring[i];
+-		reg_data = edma_reg_read(
+-				EDMA_REG_RXDESC_INT_STAT(rxdesc_ring->id));
+-		rxdesc_intr_status |= reg_data &
+-				EDMA_RXDESC_RING_INT_STATUS_MASK;
+-
+-		/*
+-		 * Disable RxDesc intr
+-		 */
+-		edma_reg_write(EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->id),
+-			       EDMA_MASK_INT_DISABLE);
+-	}
++	if (unlikely(!ehw))
++		return IRQ_NONE;
+ 
+-	/*
+-	 * Read TxCmpl intr status
+-	 */
+ 	for (i = 0; i < ehw->txcmpl_rings; i++) {
+ 		txcmpl_ring = &ehw->txcmpl_ring[i];
+-		reg_data = edma_reg_read(
+-				EDMA_REG_TX_INT_STAT(txcmpl_ring->id));
+-		txcmpl_intr_status |= reg_data &
+-				EDMA_TXCMPL_RING_INT_STATUS_MASK;
++		if (!(edma_reg_read(EDMA_REG_TX_INT_STAT(txcmpl_ring->id)) &
++				EDMA_TXCMPL_RING_INT_STATUS_MASK))
++			continue;
+ 
+-		/*
+-		 * Disable TxCmpl intr
+-		 */
++		status = 1;
+ 		edma_reg_write(EDMA_REG_TX_INT_MASK(txcmpl_ring->id),
+ 				EDMA_MASK_INT_DISABLE);
+ 	}
+ 
+-	/*
+-	 * Read RxFill intr status
+-	 */
+-	for (i = 0; i < ehw->rxfill_rings; i++) {
+-		rxfill_ring = &ehw->rxfill_ring[i];
+-		reg_data = edma_reg_read(
+-				EDMA_REG_RXFILL_INT_STAT(rxfill_ring->id));
+-		rxfill_intr_status |= reg_data &
+-				EDMA_RXFILL_RING_INT_STATUS_MASK;
++	if (!status)
++		return IRQ_NONE;
+ 
+-		/*
+-		 * Disable RxFill intr
+-		 */
+-		edma_reg_write(EDMA_REG_RXFILL_INT_MASK(rxfill_ring->id),
+-			       EDMA_MASK_INT_DISABLE);
++	if (likely(napi_schedule_prep(&ehw->tx_napi)))
++		__napi_schedule(&ehw->tx_napi);
+ 
+-	}
++	return IRQ_HANDLED;
++}
+ 
+-	if ((rxdesc_intr_status == 0) && (txcmpl_intr_status == 0) &&
+-			(rxfill_intr_status == 0))
++/*
++ * edma_handle_rx_irq()
++ *	Mask Rx descriptor/fill interrupts and schedule Rx NAPI.
++ */
++irqreturn_t edma_handle_rx_irq(int irq, void *ctx)
++{
++	struct platform_device *pdev = ctx;
++	struct edma_rxdesc_ring *rxdesc_ring;
++	struct edma_rxfill_ring *rxfill_ring;
++	struct edma_hw *ehw;
++	uint32_t status = 0;
++	int i;
++
++	ehw = platform_get_drvdata(pdev);
++	if (unlikely(!ehw))
+ 		return IRQ_NONE;
+ 
+ 	for (i = 0; i < ehw->rxdesc_rings; i++) {
+ 		rxdesc_ring = &ehw->rxdesc_ring[i];
++		if (!(edma_reg_read(EDMA_REG_RXDESC_INT_STAT(rxdesc_ring->id)) &
++				EDMA_RXDESC_RING_INT_STATUS_MASK))
++			continue;
++
++		status = 1;
+ 		edma_reg_write(EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->id),
+-			       EDMA_MASK_INT_DISABLE);
++				EDMA_MASK_INT_DISABLE);
+ 	}
+ 
+-	/*
+-	 *TODO - per core NAPI
+-	 */
+-	if (rxdesc_intr_status || txcmpl_intr_status || rxfill_intr_status)
+-		if (likely(napi_schedule_prep(&ehw->napi)))
+-			__napi_schedule(&ehw->napi);
++	for (i = 0; i < ehw->rxfill_rings; i++) {
++		rxfill_ring = &ehw->rxfill_ring[i];
++		if (!(edma_reg_read(EDMA_REG_RXFILL_INT_STAT(rxfill_ring->id)) &
++				EDMA_RXFILL_RING_INT_STATUS_MASK))
++			continue;
++
++		status = 1;
++		edma_reg_write(EDMA_REG_RXFILL_INT_MASK(rxfill_ring->id),
++				EDMA_MASK_INT_DISABLE);
++	}
++
++	if (!status)
++		return IRQ_NONE;
++
++	if (likely(napi_schedule_prep(&ehw->rx_napi)))
++		__napi_schedule(&ehw->rx_napi);
+ 
+ 	return IRQ_HANDLED;
+ }

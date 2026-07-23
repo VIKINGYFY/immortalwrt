@@ -8,6 +8,9 @@ START=94
 
 PROG=smp_affinity
 
+gro_state=on
+checksum_state=on
+
 log_msg() {
 	local irq_name="$1" affinity="$2" irq="$3"
 	msg="$(printf "Pinning IRQ($irq) %-24s to CPU ${affinity}\n" "$irq_name")"
@@ -87,9 +90,23 @@ enable_affinity() {
 	set_affinity 'edma_txcmpl' 2
 }
 
+configure_edma_offloads() {
+	local dev dev_path
+
+	command -v ethtool >/dev/null 2>&1 || return
+	for dev_path in /sys/class/net/eth*; do
+		[ -e "$dev_path" ] || continue
+		dev="${dev_path##*/}"
+		ethtool -K "$dev" gro "$gro_state" >/dev/null 2>&1
+		ethtool -K "$dev" rx "$checksum_state" >/dev/null 2>&1
+		ethtool -K "$dev" tx "$checksum_state" >/dev/null 2>&1
+	done
+}
+
 start() {
 	enable_log=true
 	enable_affinity
+	configure_edma_offloads
 }
 
 boot() {

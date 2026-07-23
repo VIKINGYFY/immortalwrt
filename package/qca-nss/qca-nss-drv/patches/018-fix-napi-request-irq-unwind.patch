@@ -1,0 +1,49 @@
+From: OpenWrt Build System <openwrt@localhost>
+Subject: [PATCH] qca-nss-drv: unwind NAPI when IRQ setup fails
+
+The modern HAL paths register NAPI before requesting their IRQ. Remove
+the NAPI instance when request_irq() fails so probe error handling cannot
+leave a stale object attached to the dummy netdev.
+
+Signed-off-by: OpenWrt Build System <openwrt@localhost>
+---
+--- a/nss_hal/ipq50xx/nss_hal_pvt.c
++++ b/nss_hal/ipq50xx/nss_hal_pvt.c
+@@ -604,6 +604,7 @@ static int __nss_hal_request_irq(struct
+ 	err = request_irq(irq, nss_hal_handle_irq, 0, irq_name, int_ctx);
+ 	if (err) {
+ 		nss_warning("%px: nss%d: request_irq failed for irq# %d\n", nss_ctx, nss_ctx->id, irq_num);
++		netif_napi_del(&int_ctx->napi);
+ 		return err;
+ 	}
+ 	int_ctx->irq = irq;
+--- a/nss_hal/ipq60xx/nss_hal_pvt.c
++++ b/nss_hal/ipq60xx/nss_hal_pvt.c
+@@ -719,6 +719,7 @@ static int __nss_hal_request_irq(struct
+ 	err = request_irq(irq, nss_hal_handle_irq, 0, irq_name, int_ctx);
+ 	if (err) {
+ 		nss_warning("%px: nss%d: request_irq failed for irq# %d\n", nss_ctx, nss_ctx->id, irq_num);
++		netif_napi_del(&int_ctx->napi);
+ 		return err;
+ 	}
+ 
+--- a/nss_hal/ipq807x/nss_hal_pvt.c
++++ b/nss_hal/ipq807x/nss_hal_pvt.c
+@@ -763,6 +763,7 @@ static int __nss_hal_request_irq(struct
+ 	err = request_irq(irq, nss_hal_handle_irq, 0, irq_name, int_ctx);
+ 	if (err) {
+ 		nss_warning("%px: nss%d: request_irq failed for irq# %d\n", nss_ctx, nss_ctx->id, irq_num);
++		netif_napi_del(&int_ctx->napi);
+ 		return err;
+ 	}
+ 	int_ctx->irq = irq;
+--- a/nss_hal/ipq95xx/nss_hal_pvt.c
++++ b/nss_hal/ipq95xx/nss_hal_pvt.c
+@@ -898,6 +898,7 @@ static int __nss_hal_request_irq(struct
+ 	err = request_irq(irq, nss_hal_handle_irq, 0, irq_name, int_ctx);
+ 	if (err) {
+ 		nss_warning("%px: nss%d: request_irq failed for irq# %d\n", nss_ctx, nss_ctx->id, irq_num);
++		netif_napi_del(&int_ctx->napi);
+ 		return err;
+ 	}
+ 	int_ctx->irq = irq;

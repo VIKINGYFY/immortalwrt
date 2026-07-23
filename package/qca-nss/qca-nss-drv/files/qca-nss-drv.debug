@@ -33,16 +33,32 @@ function color(c, s) {
 }
 {
 		color(0, $0)
-}' $*
+}' "$@"
 
 }
 
-current=$(sysctl -q -n dev.nss.stats.non_zero_stats)
+stats_sysctl=dev.nss.stats.non_zero_stats
+current=$(sysctl -q -n "$stats_sysctl" 2>/dev/null)
 
-sysctl -q dev.nss.stats.non_zero_stats=1
+restore_stats() {
+	[ -n "$current" ] && sysctl -q "$stats_sysctl=$current" >/dev/null 2>&1
+}
 
-if [ -n "$1" ] && [[ $1 =~ help ]]; then
-	avail=$(ls /sys/kernel/debug/qca-nss-drv/stats | grep -Ev "ppe|project")
+trap restore_stats 0 1 2 15
+
+sysctl -q "$stats_sysctl=1"
+
+case "$1" in
+*help*)
+	avail=
+	for path in /sys/kernel/debug/qca-nss-drv/stats/*; do
+		[ -e "$path" ] || continue
+		obj=${path##*/}
+		case "$obj" in
+			*ppe* | *project*) continue ;;
+		esac
+		avail="${avail}${avail:+ }${obj}"
+	done
 	if [ -n "$avail" ]; then
 		echo "Available stats objects:"
 		for obj in $avail; do
@@ -54,16 +70,19 @@ if [ -n "$1" ] && [[ $1 =~ help ]]; then
 		echo "Default with no parameters shows all"
 	fi
 	exit 0
-fi
+;;
+esac
 
 if [ $# -gt 0 ]; then
 	for i in "$@"; do
-		[[ $i =~ "cpu" ]] && i=cpu_load_ubi
-		[[ $i =~ "mesh" ]] && i=wifi_mesh
-		[ "$i" = "wifi" ] && i=wifili
+		case "$i" in
+			*cpu*) i=cpu_load_ubi ;;
+			*mesh*) i=wifi_mesh ;;
+			wifi) i=wifili ;;
+		esac
 		if [ -f /sys/kernel/debug/qca-nss-drv/stats/$i ]; then
 			search_string="$search_string /sys/kernel/debug/qca-nss-drv/stats/$i"
-		elif subdir=$(find /sys/kernel/debug/qca-nss-drv/stats -name $i -type d | head -1 | grep "."); then
+		elif subdir=$(find /sys/kernel/debug/qca-nss-drv/stats -name "$i" -type d | head -1 | grep "."); then
 			search_string="$search_string $(find "$subdir" -type f)"
 		else
 			echo "Unknown stats object $i"
@@ -74,7 +93,7 @@ if [ $# -gt 0 ]; then
 	if [ -n "$search_string" ]; then
 		color $search_string
 	else
-		echo "Stats are empty for $@"
+		echo "Stats are empty for $*"
 	fi
 else
 	search_string="$(grep -lrE "= [1-9]+" /sys/kernel/debug/qca-nss-drv/stats)"
@@ -85,5 +104,3 @@ else
 	color /sys/kernel/debug/qca-nss-drv/stats/cpu_load_ubi
 	echo "________________________________________________________________________________"
 fi
-
-sysctl -q dev.nss.stats.non_zero_stats="$current"

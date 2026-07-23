@@ -1,0 +1,134 @@
+--- a/nss_n2h.c
++++ b/nss_n2h.c
+@@ -1193,11 +1193,17 @@ failure:
+ 	return NSS_TX_FAILURE;
+ }
+ 
+-static inline void nss_n2h_buf_pool_free(struct nss_n2h_buf_pool *buf_pool)
++static inline void nss_n2h_buf_pool_free(struct nss_ctx_instance *nss_ctx,
++					 struct nss_n2h_buf_pool *buf_pool,
++					 int num_pages)
+ {
+ 	int page_count;
+-	for (page_count = 0; page_count < buf_pool->nss_buf_num_pages; page_count++) {
++	for (page_count = 0; page_count < num_pages; page_count++) {
++		dma_unmap_single(nss_ctx->dev, buf_pool->nss_buf_pool_addr[page_count],
++				 PAGE_SIZE, DMA_TO_DEVICE);
+ 		kfree((void *)buf_pool->nss_buf_pool_vaddr[page_count]);
++		buf_pool->nss_buf_pool_addr[page_count] = 0;
++		buf_pool->nss_buf_pool_vaddr[page_count] = 0;
+ 	}
+ }
+ 
+@@ -1230,22 +1236,33 @@ static nss_tx_status_t nss_n2h_buf_pool_
+ 		buf_pool->nss_buf_page_size = PAGE_SIZE;
+ 
+ 		for (page_count = 0; page_count < MAX_PAGES_PER_MSG && num_pages; page_count++, num_pages--) {
++			dma_addr_t dma_addr;
+ 			void *kern_addr = kzalloc(PAGE_SIZE, GFP_ATOMIC);
+ 			if (!kern_addr) {
+-				BUG_ON(!page_count);
+-				break;
++				nss_warning("%px: memory allocation failed for pbuf pool\n", nss_ctx);
++				nss_n2h_buf_pool_free(nss_ctx, buf_pool, page_count);
++				goto failure;
+ 			}
+ 
+ 			kmemleak_not_leak(kern_addr);
+ 			buf_pool->nss_buf_pool_vaddr[page_count] = (nss_ptr_t)kern_addr;
+-			buf_pool->nss_buf_pool_addr[page_count] = dma_map_single(nss_ctx->dev, kern_addr, PAGE_SIZE, DMA_TO_DEVICE);
++			dma_addr = dma_map_single(nss_ctx->dev, kern_addr, PAGE_SIZE, DMA_TO_DEVICE);
++			if (dma_mapping_error(nss_ctx->dev, dma_addr)) {
++				kfree(kern_addr);
++				buf_pool->nss_buf_pool_vaddr[page_count] = 0;
++				nss_warning("%px: DMA mapping failed for pbuf pool\n", nss_ctx);
++				nss_n2h_buf_pool_free(nss_ctx, buf_pool, page_count);
++				goto failure;
++			}
++
++			buf_pool->nss_buf_pool_addr[page_count] = dma_addr;
+ 		}
+ 
+ 		buf_pool->nss_buf_num_pages = page_count;
+ 		nss_tx_status = nss_n2h_tx_msg(nss_ctx, &nnm);
+ 		if (nss_tx_status != NSS_TX_SUCCESS) {
+ 
+-			nss_n2h_buf_pool_free(buf_pool);
++			nss_n2h_buf_pool_free(nss_ctx, buf_pool, buf_pool->nss_buf_num_pages);
+ 			nss_warning("%px: nss_tx error setting pbuf\n", nss_ctx);
+ 			goto failure;
+ 		}
+@@ -1264,7 +1281,7 @@ static nss_tx_status_t nss_n2h_buf_pool_
+ 		 */
+ 		if (NSS_FAILURE == nss_n2h_bufcp[core_num].response) {
+ 
+-			nss_n2h_buf_pool_free(buf_pool);
++			nss_n2h_buf_pool_free(nss_ctx, buf_pool, buf_pool->nss_buf_num_pages);
+ 			goto failure;
+ 		}
+ 
+@@ -1976,11 +1993,17 @@ nss_tx_status_t nss_n2h_cfg_empty_pool_s
+ 	return nss_tx_status;
+ }
+ 
+-static inline void nss_n2h_shaper_pool_free(struct nss_n2h_shaper_mem_cfg_msg *nnsmcm, int num_blks)
++static inline void nss_n2h_shaper_pool_free(struct nss_ctx_instance *nss_ctx,
++						    struct nss_n2h_shaper_mem_cfg_msg *nnsmcm,
++						    int num_blks)
+ {
+ 	int blk_count;
+ 	for (blk_count = 0; blk_count < num_blks; blk_count++) {
++		dma_unmap_single(nss_ctx->dev, nnsmcm->pool_addr[blk_count],
++				 PAGE_SIZE, DMA_TO_DEVICE);
+ 		kfree((void *)nnsmcm->pool_vaddr[blk_count]);
++		nnsmcm->pool_addr[blk_count] = 0;
++		nnsmcm->pool_vaddr[blk_count] = 0;
+ 	}
+ }
+ 
+@@ -1996,7 +2019,7 @@ static void nss_n2h_cfg_qos_mem_size_cal
+ 
+ 	if (nnm->cm.response != NSS_CMN_RESPONSE_ACK) {
+ 		nss_warning("%px: Shaper pool configuration failed with error: %d\n", nss_ctx, nnm->cm.error);
+-		nss_n2h_shaper_pool_free(nnsmcm, nnsmcm->num_blks);
++		nss_n2h_shaper_pool_free(nss_ctx, nnsmcm, nnsmcm->num_blks);
+ 		return;
+ 	}
+ 
+@@ -2030,15 +2053,26 @@ static nss_tx_status_t nss_n2h_cfg_shape
+ 	nnsmcm = &nnm.msg.shaper_mem_cfg;
+ 
+ 	for (blk_count = 0; blk_count < MAX_PAGES_PER_MSG; blk_count++) {
++		dma_addr_t dma_addr;
+ 		void *kern_addr = kzalloc(PAGE_SIZE, GFP_ATOMIC);
+ 		if (!kern_addr) {
+ 			nss_warning("%px: memory allocation failed for shaper pool", nss_ctx);
++			nss_n2h_shaper_pool_free(nss_ctx, nnsmcm, blk_count);
+ 			return NSS_TX_FAILURE;
+ 		}
+ 
+ 		kmemleak_not_leak(kern_addr);
+ 		nnsmcm->pool_vaddr[blk_count] = (nss_ptr_t)kern_addr;
+-		nnsmcm->pool_addr[blk_count] = dma_map_single(nss_ctx->dev, kern_addr, PAGE_SIZE, DMA_TO_DEVICE);
++		dma_addr = dma_map_single(nss_ctx->dev, kern_addr, PAGE_SIZE, DMA_TO_DEVICE);
++		if (dma_mapping_error(nss_ctx->dev, dma_addr)) {
++			kfree(kern_addr);
++			nnsmcm->pool_vaddr[blk_count] = 0;
++			nss_warning("%px: DMA mapping failed for shaper pool", nss_ctx);
++			nss_n2h_shaper_pool_free(nss_ctx, nnsmcm, blk_count);
++			return NSS_TX_FAILURE;
++		}
++
++		nnsmcm->pool_addr[blk_count] = dma_addr;
+ 	}
+ 
+ 	nnsmcm->mem_blk_size = htonl(PAGE_SIZE);
+@@ -2046,7 +2080,7 @@ static nss_tx_status_t nss_n2h_cfg_shape
+ 	nss_tx_status = nss_n2h_tx_msg(nss_ctx, &nnm);
+ 
+ 	if (nss_tx_status != NSS_TX_SUCCESS) {
+-		nss_n2h_shaper_pool_free(nnsmcm, blk_count);
++		nss_n2h_shaper_pool_free(nss_ctx, nnsmcm, blk_count);
+ 		nss_warning("%px: nss_tx error setting shaper pool\n", nss_ctx);
+ 		return NSS_TX_FAILURE;
+ 	}

@@ -24,18 +24,14 @@ log() {
 disable_feature() {
 	local feature="$1"
 	local interface="$2"
-	local cmd
 	local current_state
 
 	current_state=$(ethtool -k "$interface" 2>/dev/null | awk -v feature="^$feature:" '$0 ~ feature {print $2}')
 
 	# Only disable and log if the feature is currently enabled
 	if [ "$current_state" = "on" ]; then
-		# Construct ethtool command line
-		cmd="-K $interface $feature off"
-
 		# Try to disable the feature
-		ethtool $cmd 1> /dev/null 2> /dev/null
+		ethtool -K "$interface" "$feature" off 1> /dev/null 2> /dev/null
 		log $? "Disabling feature: $feature" "($interface)"
 	fi
 }

@@ -227,7 +227,7 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
  obj-$(CONFIG_STM32_IPCC) 	+= stm32-ipcc.o
 --- /dev/null
 +++ b/drivers/mailbox/qcom-tmel-qmp.c
-@@ -0,0 +1,947 @@
+@@ -0,0 +1,975 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -745,6 +745,7 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +						     DMA_BIDIRECTIONAL);
 +		ret = dma_mapping_error(tdev->dev, tdev->sram_dma_addr);
 +		if (ret) {
++			ret = -EIO;
 +			dev_err(tdev->dev, "SRAM DMA mapping error: %d\n", ret);
 +			return ret;
 +		}
@@ -757,6 +758,20 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +	}
 +
 +	return 0;
++}
++
++/**
++ * tmel_unmap_message() - Release the SRAM DMA mapping
++ * @tdev: the tmel device
++ * @msg_size: size of the mapped payload
++ */
++static inline void tmel_unmap_message(struct tmel *tdev, size_t msg_size)
++{
++	if (tdev->ipc_pkt->msg_hdr.ipc_type != IPC_MBOX_SRAM)
++		return;
++
++	dma_unmap_single(tdev->dev, tdev->sram_dma_addr, msg_size, DMA_BIDIRECTIONAL);
++	tdev->sram_dma_addr = 0;
 +}
 +
 +/**
@@ -773,8 +788,7 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +	if (ipc_pkt->msg_hdr.ipc_type == IPC_MBOX_MEM) {
 +		memcpy(msg_buf, mbox_payload, msg_size);
 +	} else if (ipc_pkt->msg_hdr.ipc_type == IPC_MBOX_SRAM) {
-+		dma_unmap_single(tdev->dev, tdev->sram_dma_addr, msg_size, DMA_BIDIRECTIONAL);
-+		tdev->sram_dma_addr = 0;
++		tmel_unmap_message(tdev, msg_size);
 +	}
 +}
 +
@@ -816,22 +830,27 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +	tdev->pkt.iov_len = sizeof(struct tmel_ipc_pkt);
 +	tdev->pkt.iov_base = (void *)tdev->ipc_pkt;
 +
-+	tmel_qmp_send_data(mdev, &tdev->pkt);
++	ret = tmel_qmp_send_data(mdev, &tdev->pkt);
++	if (ret) {
++		tmel_unmap_message(tdev, msg_size);
++		return ret;
++	}
 +	jiffies = msecs_to_jiffies(QMP_SEND_TIMEOUT);
 +
-+	time_left = wait_event_interruptible_timeout(tdev->waitq,
-+						     tmel_rx_done(tdev),
-+						     jiffies);
++	time_left = wait_event_timeout(tdev->waitq, tmel_rx_done(tdev), jiffies);
 +
 +	if (!time_left) {
 +		dev_err(tdev->dev, "Request timed out\n");
 +		atomic_set(&mdev->tx_sent, 0);
 +		mbox_chan_txdone(chan, ret);
++		tmel_unmap_message(tdev, msg_size);
 +		return -ETIMEDOUT;
 +	}
 +
-+	if (tdev->pkt.iov_len != sizeof(struct tmel_ipc_pkt))
++	if (tdev->pkt.iov_len != sizeof(struct tmel_ipc_pkt)) {
++		tmel_unmap_message(tdev, msg_size);
 +		return -EPROTO;
++	}
 +
 +	resp_ipc_pkt = (struct tmel_ipc_pkt *)tdev->pkt.iov_base;
 +	tmel_unprepare_message(tdev, msg_buf, msg_size);
@@ -853,7 +872,8 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +
 +	elf_buf_phys = smsg->msg.req.elf_buf.buf;
 +	size = smsg->msg.req.elf_buf.buf_len;
-+	dma_free_coherent(smsg->dev, size, elf_buf, elf_buf_phys);
++	if (elf_buf)
++		dma_free_coherent(smsg->dev, size, elf_buf, elf_buf_phys);
 +	kfree(smsg);
 +}
 +
@@ -873,10 +893,14 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +	void *elf_buf;
 +	int ret;
 +
-+	if (!dev || !metadata)
++	if (!dev || !metadata || !size || size > U32_MAX)
 +		return -EINVAL;
 +
 +	smsg = kzalloc(sizeof(*smsg), GFP_KERNEL);
++	if (!smsg)
++		return -ENOMEM;
++
++	smsg->dev = dev;
 +
 +	elf_buf = dma_alloc_coherent(dev, size, &elf_buf_phys, GFP_KERNEL);
 +	if (!elf_buf)
@@ -884,7 +908,6 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +
 +	memcpy(elf_buf, metadata, size);
 +
-+	smsg->dev = dev;
 +	smsg->elf_buf = elf_buf;
 +
 +	smsg->msg.req.sw_id = sw_id;
@@ -1088,7 +1111,7 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +	mdev->dev = &pdev->dev;
 +	mdev->mcore_desc = devm_platform_ioremap_resource(pdev, 0);
 +	if (IS_ERR(mdev->mcore_desc))
-+		return ERR_PTR(-EIO);
++		return ERR_PTR(PTR_ERR(mdev->mcore_desc));
 +
 +	mdev->ucore_desc = mdev->mcore_desc + QMP_UCORE_DESC_OFFSET;
 +
@@ -1133,11 +1156,13 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +
 +	tdev = tmel_init(pdev);
 +	if (IS_ERR(tdev))
-+		return dev_err_probe(tdev->dev, ret, "tmel device init failed\n");
++		return dev_err_probe(&pdev->dev, PTR_ERR(tdev),
++				     "tmel device init failed\n");
 +
 +	mdev = qmp_init(pdev);
 +	if (IS_ERR(mdev))
-+		return dev_err_probe(tdev->dev, ret, "qmp device init failed\n");
++		return dev_err_probe(&pdev->dev, PTR_ERR(mdev),
++				     "qmp device init failed\n");
 +
 +	tdev->mdev = mdev;
 +
@@ -1150,6 +1175,9 @@ Signed-off-by: Sricharan Ramabadhran <quic_srichara@quicinc.com>
 +		return dev_err_probe(tdev->dev, ret, "failed to register mbox controller");
 +
 +	ret = platform_get_irq(pdev, 0);
++	if (ret < 0)
++		return ret;
++
 +	ret = devm_request_threaded_irq(tdev->dev, ret, NULL, tmel_qmp_irq_handler,
 +					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 +					node->name, (void *)tdev);

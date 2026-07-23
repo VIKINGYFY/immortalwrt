@@ -4,6 +4,6 @@
 FILE="/usr/share/rpcd/ucode/luci"
 
 #添加NSS状态显示
-[ -f "$FILE" ] && sed -i "s#const fd = popen('top.*')#const fd = popen('/sbin/cpuusage')#g" $FILE
+[ -f "$FILE" ] && sed -i "s#const fd = popen('top.*')#const fd = popen('/sbin/cpuusage')#g" "$FILE"
 
 exit 0

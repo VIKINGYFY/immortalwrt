@@ -1,0 +1,33 @@
+From: OpenWrt Build System <openwrt@localhost>
+Subject: [PATCH] nss-drv: preserve current frequency sysctl reads
+
+The current frequency handler used the write-path completion check for
+reads and cleared the returned length. This made
+/proc/sys/dev/nss/clock/current_freq appear empty even though the NSS clock
+was running at a valid frequency. Keep the read result intact and avoid
+touching the frequency workqueue for reads or before it has been created.
+
+--- a/nss_init.c
++++ b/nss_init.c
+@@ -180,15 +180,15 @@ static int nss_current_freq_handler(cons
+ {
+ 	int ret, i;
+ 
+-	BUG_ON(!nss_wq);
+-
+ 	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+ 
+-	if (!*lenp || (*ppos && !write)) {
+-		printk("Frequency Set to %d\n", nss_cmd_buf.current_freq);
+-		*lenp = 0;
++	if (ret || !write || !*lenp)
++		return ret;
++
++	if (!nss_wq)
+ 		return ret;
+-	}
++
++	printk("Frequency Set to %d\n", nss_cmd_buf.current_freq);
+ 
+ 	/* Delayed probe can expose this sysctl before the core is ready. */
+ 	if (nss_top_main.nss[NSS_CORE_0].state != NSS_CORE_STATE_INITIALIZED)

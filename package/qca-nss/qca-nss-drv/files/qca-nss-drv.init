@@ -13,7 +13,9 @@ log_msg() {
 
 	msg="$(printf "Pinning IRQ($irq) %-24s to CPU ${affinity}\n" "$irq_name")"
 
-	[[ $irq_name =~ "nss" ]] && msg="$msg (NSS Core $((occurrence - 1)))"
+	case "$irq_name" in
+		*nss*) msg="$msg (NSS Core $((occurrence - 1)))" ;;
+	esac
 
 	logger -t "$PROG" "$msg"
 }
