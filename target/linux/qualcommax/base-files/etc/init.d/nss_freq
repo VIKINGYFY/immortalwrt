@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+
+START=95
+
+start() {
+	local level
+
+	config_load nss_freq
+	config_get level settings level mid
+	case "$level" in
+		mid|high) ;;
+		*) level=mid ;;
+	esac
+
+	/usr/bin/nss_freq "$level" >/dev/null 2>&1
+}

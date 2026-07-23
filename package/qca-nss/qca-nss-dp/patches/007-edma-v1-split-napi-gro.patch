@@ -14,7 +14,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
 ---
 --- a/hal/dp_ops/edma_dp/edma_v1/edma_cfg.c
 +++ b/hal/dp_ops/edma_dp/edma_v1/edma_cfg.c
-@@ -40,6 +40,7 @@ static void edma_cleanup_rxfill_ring_res
+@@ -40,6 +40,7 @@
  	uint32_t reg_data = 0;
  	struct edma_rx_preheader *rxph = NULL;
  	int store_idx;
@@ -22,7 +22,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Read RXFILL ring producer index
-@@ -62,19 +63,23 @@ static void edma_cleanup_rxfill_ring_res
+@@ -62,19 +63,23 @@
  		/*
  		 * Get Rx preheader
  		 */
@@ -49,7 +49,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  		cons_idx++;
  		if (cons_idx == rxfill_ring->count)
  			cons_idx = 0;
-@@ -154,6 +159,7 @@ static void edma_cleanup_rxdesc_ring_res
+@@ -154,6 +159,7 @@
  	uint16_t prod_idx = 0;
  	uint16_t cons_idx = 0;
  	int store_idx;
@@ -57,7 +57,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	cons_idx = edma_reg_read(EDMA_REG_RXDESC_CONS_IDX(rxdesc_ring->id))
  					& EDMA_RXDESC_CONS_IDX_MASK;
-@@ -167,16 +173,19 @@ static void edma_cleanup_rxdesc_ring_res
+@@ -167,16 +173,19 @@
  	while (cons_idx != prod_idx) {
  		rxdesc_desc = EDMA_RXDESC_DESC(rxdesc_ring, cons_idx);
  
@@ -80,7 +80,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  		/*
  		 * Update consumer index
  		 */
-@@ -210,7 +219,7 @@ static void edma_cleanup_txcmpl_ring_res
+@@ -210,7 +219,7 @@
  	/*
  	 * Free any buffers assigned to any descriptors
  	 */
@@ -89,7 +89,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Free TxCmpl ring descriptors
-@@ -257,9 +266,7 @@ static void edma_cleanup_txdesc_ring_res
+@@ -257,9 +266,7 @@
  {
  	struct platform_device *pdev = ehw->pdev;
  	struct sk_buff *skb = NULL;
@@ -99,7 +99,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	uint32_t data;
  	int store_idx;
  
-@@ -273,19 +280,18 @@ static void edma_cleanup_txdesc_ring_res
+@@ -273,19 +280,18 @@
  	cons_idx = data & EDMA_TXDESC_CONS_IDX_MASK;
  
  	while (cons_idx != prod_idx) {
@@ -127,7 +127,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  		cons_idx++;
  		if (cons_idx == txdesc_ring->count)
  			cons_idx = 0;
-@@ -683,6 +689,7 @@ static void edma_configure_rings(struct
+@@ -683,6 +689,7 @@
  	for (i = 0; i < EDMA_RING_SIZE; i++) {
  		ehw->tx_skb_store[i] = NULL;
  		ehw->rx_skb_store[i] = NULL;
@@ -137,7 +137,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	/*
 --- a/hal/dp_ops/edma_dp/edma_v1/edma_data_plane.c
 +++ b/hal/dp_ops/edma_dp/edma_v1/edma_data_plane.c
-@@ -341,11 +341,9 @@ void edma_cleanup(bool is_dp_override)
+@@ -341,11 +341,9 @@
  	/*
  	 * Disable Tx rings used by this driver
  	 */
@@ -150,7 +150,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Disable RxFill Rings used by this driver
-@@ -407,7 +405,8 @@ void edma_cleanup(bool is_dp_override)
+@@ -407,7 +405,8 @@
  		synchronize_irq(edma_hw.misc_intr);
  		free_irq(edma_hw.misc_intr, (void *)(edma_hw.pdev));
  
@@ -160,7 +160,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  		edma_hw.napi_added = 0;
  	}
  
-@@ -451,7 +450,8 @@ static int edma_if_open(struct nss_dp_da
+@@ -451,7 +450,8 @@
  	if (edma_hw.active++ != 0)
  		return NSS_DP_SUCCESS;
  
@@ -170,7 +170,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Enable the interrupt masks.
-@@ -478,7 +478,8 @@ static int edma_if_close(struct nss_dp_d
+@@ -478,7 +478,8 @@
  	/*
  	 * Disable NAPI
  	 */
@@ -180,7 +180,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	return NSS_DP_SUCCESS;
  }
  
-@@ -530,7 +531,7 @@ static netdev_tx_t edma_if_xmit(struct n
+@@ -530,7 +531,7 @@
  	skbq = skb_get_queue_mapping(skb);
  	tx_ring = 0;
  	if ((edma_hw.txdesc_rings > 1) && (skbq > 0))
@@ -189,7 +189,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Check for non-linear skb
-@@ -597,10 +598,12 @@ drop:
+@@ -597,10 +598,12 @@
   */
  static void edma_if_set_features(struct nss_dp_data_plane_ctx *dpc)
  {
@@ -206,7 +206,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  }
  
  /* TODO - check if this is needed */
-@@ -657,6 +660,7 @@ static int edma_irq_init(void)
+@@ -657,6 +660,7 @@
  {
  	int err;
  	uint32_t entry_num, i;
@@ -214,7 +214,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Get TXCMPL rings IRQ numbers
-@@ -671,7 +675,7 @@ static int edma_irq_init(void)
+@@ -671,7 +675,7 @@
  			return -1;
  		}
  
@@ -223,7 +223,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  				 (edma_hw.device_node)->name,
  				 i, edma_hw.txcmpl_intr[i]);
  	}
-@@ -688,7 +692,7 @@ static int edma_irq_init(void)
+@@ -688,7 +692,7 @@
  			return -1;
  		}
  
@@ -232,7 +232,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  				 (edma_hw.device_node)->name,
  				 i, edma_hw.rxfill_intr[i]);
  	}
-@@ -706,7 +710,7 @@ static int edma_irq_init(void)
+@@ -706,7 +710,7 @@
  			return -1;
  		}
  
@@ -241,7 +241,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  				 (edma_hw.device_node)->name,
  				 i, edma_hw.rxdesc_intr[i]);
  	}
-@@ -715,7 +719,12 @@ static int edma_irq_init(void)
+@@ -715,7 +719,12 @@
  	 * Get misc IRQ number
  	 */
  	edma_hw.misc_intr = platform_get_irq(edma_hw.pdev, entry_num);
@@ -255,7 +255,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  			  (edma_hw.device_node)->name,
  			  edma_hw.misc_intr);
  
-@@ -724,14 +733,14 @@ static int edma_irq_init(void)
+@@ -724,14 +733,14 @@
  	 */
  	for (i = 0; i < edma_hw.txcmpl_rings; i++) {
  		err = request_irq(edma_hw.txcmpl_intr[i],
@@ -273,7 +273,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	}
  
  	/*
-@@ -739,13 +748,14 @@ static int edma_irq_init(void)
+@@ -739,13 +748,14 @@
  	 */
  	for (i = 0; i < edma_hw.rxfill_rings; i++) {
  		err = request_irq(edma_hw.rxfill_intr[i],
@@ -289,7 +289,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	}
  
  	/*
-@@ -753,13 +763,14 @@ static int edma_irq_init(void)
+@@ -753,13 +763,14 @@
  	 */
  	for (i = 0; i < edma_hw.rxdesc_rings; i++) {
  		err = request_irq(edma_hw.rxdesc_intr[i],
@@ -305,7 +305,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	}
  
  	/*
-@@ -781,10 +792,11 @@ misc_intr_req_fail:
+@@ -781,10 +792,11 @@
  	/*
  	 * Free IRQ for RXDESC rings
  	 */
@@ -321,7 +321,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	}
  
  rx_desc_ring_intr_req_fail:
-@@ -792,22 +804,24 @@ rx_desc_ring_intr_req_fail:
+@@ -792,22 +804,24 @@
  	/*
  	 * Free IRQ for RXFILL rings
  	 */
@@ -355,15 +355,13 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	}
  
  	return -1;
-@@ -844,12 +858,19 @@ static int edma_register_netdevice(struc
+@@ -844,12 +858,17 @@
  	 * NAPI add
  	 */
  	if (!edma_hw.napi_added) {
 -		netif_napi_add(netdev, &edma_hw.napi, edma_napi);
-+		netif_napi_add_weight(netdev, &edma_hw.rx_napi,
-+				edma_rx_napi, EDMA_NAPI_WORK);
-+		netif_napi_add_weight(netdev, &edma_hw.tx_napi,
-+				edma_tx_napi, EDMA_NAPI_WORK);
++		netif_napi_add(netdev, &edma_hw.rx_napi, edma_rx_napi);
++		netif_napi_add_tx(netdev, &edma_hw.tx_napi, edma_tx_napi);
  		/*
  		 * Register the interrupt handlers and enable interrupts
  		 */
@@ -377,7 +375,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  		edma_hw.napi_added = 1;
  	}
-@@ -878,6 +899,8 @@ static int edma_if_init(struct nss_dp_da
+@@ -878,6 +897,8 @@
  		return NSS_DP_FAILURE;
  	}
  
@@ -388,7 +386,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	 */
 --- a/hal/dp_ops/edma_dp/edma_v1/edma_data_plane.h
 +++ b/hal/dp_ops/edma_dp/edma_v1/edma_data_plane.h
-@@ -171,8 +171,10 @@ enum edma_tx {
+@@ -171,8 +171,10 @@
   * EDMA private data structure
   */
  struct edma_hw {
@@ -401,7 +399,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	struct net_device *netdev_arr[EDMA_MAX_GMACS];
  			/* netdev for each gmac port */
  	struct device_node *device_node;
-@@ -205,6 +207,7 @@ struct edma_hw {
+@@ -205,6 +207,7 @@
  	 */
  	struct sk_buff *rx_skb_store[EDMA_RING_SIZE];
  	struct sk_buff *tx_skb_store[EDMA_RING_SIZE];
@@ -409,7 +407,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	struct edma_rxfill_ring *rxfill_ring;
  			/* Rx Fill Ring, SW is producer */
-@@ -239,13 +242,13 @@ struct edma_hw {
+@@ -239,13 +242,13 @@
  			/* Id of first RxDesc ring */
  	uint32_t rxdesc_ring_end;
  			/* Id of last RxDesc ring */
@@ -427,7 +425,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  			/* Misc IRQ number */
  
  	uint32_t tx_intr_mask;
-@@ -278,10 +281,13 @@ enum edma_tx edma_ring_xmit(struct edma_
+@@ -278,10 +281,13 @@
  			    struct sk_buff *skb,
  			    struct edma_txdesc_ring *txdesc_ring);
  uint32_t edma_clean_tx(struct edma_hw *ehw,
@@ -446,7 +444,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  #endif /* __NSS_DP_EDMA_DATAPLANE__ */
 --- a/hal/dp_ops/edma_dp/edma_v1/edma_tx_rx.c
 +++ b/hal/dp_ops/edma_dp/edma_v1/edma_tx_rx.c
-@@ -40,6 +40,7 @@ int edma_alloc_rx_buffer(struct edma_hw
+@@ -40,6 +40,7 @@
  	uint32_t store_index = 0;
  	uint32_t alloc_size = ehw->rx_alloc_size;
  	struct edma_rx_preheader *rxph = NULL;
@@ -454,7 +452,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Read RXFILL ring producer index
-@@ -98,17 +99,14 @@ int edma_alloc_rx_buffer(struct edma_hw
+@@ -98,17 +99,14 @@
  		/*
  		 * Map Rx buffer for DMA
  		 */
@@ -476,7 +474,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  		num_alloc++;
  		next = counter;
-@@ -138,7 +136,8 @@ int edma_alloc_rx_buffer(struct edma_hw
+@@ -138,7 +136,8 @@
   *	Reap Tx descriptors
   */
  uint32_t edma_clean_tx(struct edma_hw *ehw,
@@ -486,7 +484,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  {
  	struct platform_device *pdev = ehw->pdev;
  	struct edma_txcmpl_desc *txcmpl = NULL;
-@@ -163,7 +162,8 @@ uint32_t edma_clean_tx(struct edma_hw *e
+@@ -163,7 +162,8 @@
  	data = edma_reg_read(EDMA_REG_TXCMPL_CONS_IDX(txcmpl_ring->id));
  	cons_idx = data & EDMA_TXCMPL_CONS_IDX_MASK;
  
@@ -496,7 +494,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  		txcmpl = &(((struct edma_txcmpl_desc *)
  					(txcmpl_ring->desc))[cons_idx]);
  
-@@ -172,9 +172,16 @@ uint32_t edma_clean_tx(struct edma_hw *e
+@@ -172,9 +172,16 @@
  		 * tx header contains the index in the field
  		 * buffer address (opaque) of txcmpl
  		 */
@@ -514,7 +512,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  		if (unlikely(!skb)) {
  			pr_warn_ratelimited("Invalid skb: cons_idx:%u prod_idx:%u status %x\n",
-@@ -183,14 +190,16 @@ uint32_t edma_clean_tx(struct edma_hw *e
+@@ -183,14 +190,16 @@
  		}
  
  		len = skb_headlen(skb);
@@ -533,7 +531,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  next_txcmpl_desc:
  		if (++cons_idx == txcmpl_ring->count)
-@@ -271,6 +280,7 @@ static uint32_t edma_clean_rx(struct edm
+@@ -271,6 +280,7 @@
  	uint16_t cons_idx = 0;
  	uint32_t work_done = 0;
  	int store_index;
@@ -541,7 +539,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Read Rx ring consumer index
-@@ -297,18 +307,21 @@ static uint32_t edma_clean_rx(struct edm
+@@ -297,18 +307,21 @@
  		/*
  		 * Get Rx preheader
  		 */
@@ -568,7 +566,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  		skb = ehw->rx_skb_store[store_index];
  		ehw->rx_skb_store[store_index] = NULL;
  		if (unlikely(!skb)) {
-@@ -397,6 +410,8 @@ static uint32_t edma_clean_rx(struct edm
+@@ -397,6 +410,8 @@
  		if (unlikely(EDMA_RXPH_SERVICE_CODE_GET(rxph) ==
  					NSS_PTP_EVENT_SERVICE_CODE))
  			nss_phy_tstamp_rx_buf(ndev, skb);
@@ -577,7 +575,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  		else
  			netif_receive_skb(skb);
  
-@@ -413,8 +428,6 @@ next_rx_desc:
+@@ -413,8 +428,6 @@
  		work_done++;
  	}
  
@@ -586,7 +584,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	/*
  	 * make sure the consumer index is updated
  	 * before updating the hardware
-@@ -425,90 +438,116 @@ next_rx_desc:
+@@ -425,90 +438,116 @@
  }
  
  /*
@@ -765,7 +763,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	return work_done;
  }
  
-@@ -528,6 +567,7 @@ enum edma_tx edma_ring_xmit(struct edma_
+@@ -528,6 +567,7 @@
  	uint32_t data;
  	uint32_t store_index = 0;
  	struct edma_tx_preheader *txph = NULL;
@@ -773,7 +771,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * TODO - revisit locking
-@@ -559,6 +599,12 @@ enum edma_tx edma_ring_xmit(struct edma_
+@@ -559,6 +599,12 @@
  		return EDMA_TX_DESC;
  	}
  
@@ -786,7 +784,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  #if defined(NSS_DP_EDMA_TX_SMALL_PKT_WAR)
  	/*
  	 * IPQ807x EDMA hardware can't process the packet if the packet size is
-@@ -600,16 +646,6 @@ enum edma_tx edma_ring_xmit(struct edma_
+@@ -600,16 +646,6 @@
  	txph->dst_info = (EDMA_PREHDR_DSTINFO_PORTID_IND << 8) |
  			(dp_dev->macid & 0x0fff);
  
@@ -803,7 +801,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  	memcpy(skb->data, &store_index, 4);
  
  	/*
-@@ -621,21 +657,20 @@ enum edma_tx edma_ring_xmit(struct edma_
+@@ -621,21 +657,20 @@
  	/*
  	 * Map buffer to DMA address
  	 */
@@ -831,7 +829,7 @@ Signed-off-by: OpenWrt Build System <openwrt@localhost>
  
  	/*
  	 * Populate Tx descriptor
-@@ -699,96 +734,85 @@ irqreturn_t edma_handle_misc_irq(int irq
+@@ -699,96 +734,85 @@
  }
  
  /*

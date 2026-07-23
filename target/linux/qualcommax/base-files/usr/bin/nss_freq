@@ -44,6 +44,14 @@ select_frequencies() {
 	fi
 }
 
+save_level() {
+	[ "$(uci -q get nss_freq.settings.level)" = "$level" ] && return
+
+	uci -q set nss_freq.settings=nss_freq || die "failed to save NSS frequency level"
+	uci -q set nss_freq.settings.level="$level" || die "failed to save NSS frequency level"
+	uci -q commit nss_freq || die "failed to save NSS frequency level"
+}
+
 case "${1:-status}" in
 	status)
 		show_status
@@ -67,4 +75,5 @@ case "$level" in
 esac
 
 printf '%s\n' "$target_frequency" > "$current_freq" || die "failed to set NSS frequency"
+save_level
 show_status
