@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ralf Lici <ralf@mandelbit.com>
+Date: Mon, 3 Aug 2026 09:23:02 +0200
+Subject: [PATCH] ovpn: account for the 6.18.40 recvmsg backport
+
+Linux 6.18.40 backported the removal of the addr_len argument from
+proto::recvmsg. Detect that stable-tree backport separately from the
+upstream 7.1 API change so the out-of-tree module matches both signatures.
+
+---
+ drivers/net/ovpn/tcp.c |  2 +-
+ linux-compat.h         | 11 +++++++++++
+ 2 files changed, 12 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/ovpn/tcp.c
++++ b/drivers/net/ovpn/tcp.c
+@@ -170,1 +170,1 @@
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
++#elif OVPN_PROTO_RECVMSG_HAS_ADDR_LEN
+--- a/linux-compat.h
++++ b/linux-compat.h
+@@ -55,0 +56,11 @@
++/*
++ * proto::recvmsg lost the noblock argument in v5.19 and lost the addr_len
++ * argument in v7.1. The addr_len removal was also backported to 6.18.y
++ * starting with v6.18.40 (gregkh/linux@073d957).
++ */
++#define OVPN_PROTO_RECVMSG_HAS_ADDR_LEN \
++	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0) && \
++	 LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0) && \
++	 !(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 40) && \
++	   LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)))
++
+ #include <linux/if_link.h>
+ 
+ #ifndef UDP_ENCAP_OVPNINUDP
