@@ -14,6 +14,10 @@
 点击链接加入群聊【LiBwrt-Ai学习】：https://qm.qq.com/q/HTa7OiWNCU
 该群为AI中转站群。
 
+# 本地编译器
+
+https://github.com/VIKINGYFY/OWRT-Tools.git
+
 # 分支说明
 
 main 为高通专用，无法编译其他平台，带满血NSS驱动。
