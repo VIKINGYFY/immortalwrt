@@ -480,9 +480,7 @@ define Device/tplink_tl-er2260t
 	PAGESIZE := 2048
 	DEVICE_DTS_CONFIG := config@hk07
 	SOC := ipq8070
-	DEVICE_PACKAGES := -kmod-ath -kmod-ath11k -kmod-ath11k-ahb \
-		-kmod-ath11k-pci -ath11k-firmware-ipq8074-ddwrt \
-		kmod-sfp kmod-usb-ledtrig-usbport
+	DEVICE_PACKAGES := kmod-usb-ledtrig-usbport qca-ssdk-shell
 endef
 TARGET_DEVICES += tplink_tl-er2260t
 

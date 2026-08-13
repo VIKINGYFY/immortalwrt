@@ -1,0 +1,55 @@
+#!/bin/sh /etc/rc.common
+
+START=15
+STOP=90
+
+USE_PROCD=1
+
+service_triggers() {
+	procd_add_reload_trigger network
+}
+
+start_service() {
+	case $(board_name) in
+	tplink,tl-er2260t)
+		sfp1_device=`uci -q show network | grep '@device' | grep 'name' | grep -v 'ifname' | grep -v 'lan5\.' | grep 'lan5' | cut -d '.' -f  1-2`
+		sfp2_device=`uci -q show network | grep '@device' | grep 'name' | grep -v 'ifname' | grep -v 'lan6\.' | grep 'lan6' | cut -d '.' -f  1-2`
+		sfp1_current_speed=`ssdk_sh port interfaceMode get 6 | grep 'Mode' | cut -d ':' -f 2`
+		sfp2_current_speed=`ssdk_sh port interfaceMode get 5 | grep 'Mode' | cut -d ':' -f 2`
+		sfp1_speed=`uci -q get $sfp1_device.sfp_speed`
+		sfp2_speed=`uci -q get $sfp2_device.sfp_speed`
+
+		if [ "$sfp1_speed" = "1" ] && [ "$sfp1_current_speed" != "sgmii_fiber" ]; then
+			logger -t "SFP Speeed Setting" "Setting lan5 Port Speed to 1GbE."
+			ssdk_sh port interfaceMode set 6 sgmii_fiber > /dev/null
+			ssdk_sh port interfaceMode apply > /dev/null
+		elif [ "$sfp1_speed" = "2" ] && [ "$sfp1_current_speed" != "sgmii_plus" ]; then
+			logger -t "SFP Speeed Setting" "Setting lan5 Port Speed to 2.5GbE."
+			ssdk_sh port interfaceMode set 6 sgmii_plus > /dev/null
+			ssdk_sh port interfaceMode apply > /dev/null
+		elif [ -z "$sfp1_speed" ] && [ "$sfp1_current_speed" != "10gbase_r" ]; then
+			logger -t "SFP Speeed Setting" "Setting lan5 Port Speed to 10GbE."
+			ssdk_sh port interfaceMode set 6 10gbase_r > /dev/null
+			ssdk_sh port interfaceMode apply > /dev/null
+		else
+			logger -t "SFP Speeed Setting" "lan5 Port Speed ($sfp1_current_speed) No need to Change."
+		fi
+
+		if [ "$sfp2_speed" = "1" ] && [ "$sfp2_current_speed" != "sgmii_fiber" ]; then
+			logger -t "SFP Speeed Setting" "Setting lan6 Port Speed to 1GbE."
+			ssdk_sh port interfaceMode set 5 sgmii_fiber > /dev/null
+			ssdk_sh port interfaceMode apply > /dev/null
+		elif [ "$sfp2_speed" = "2" ] && [ "$sfp2_current_speed" != "sgmii_plus" ]; then
+			logger -t "SFP Speeed Setting" "Setting lan6 Port Speed to 2.5GbE."
+			ssdk_sh port interfaceMode set 5 sgmii_plus > /dev/null
+			ssdk_sh port interfaceMode apply > /dev/null
+		elif [ -z "$sfp2_speed" ] && [ "$sfp2_current_speed" != "10gbase_r" ]; then
+			logger -t "SFP Speeed Setting" "Setting lan6 Port Speed to 10GbE."
+			ssdk_sh port interfaceMode set 5 10gbase_r > /dev/null
+			ssdk_sh port interfaceMode apply > /dev/null
+		else
+			logger -t "SFP Speed Setting" "lan6 Port Speed ($sfp2_current_speed) No need to Change."
+		fi
+	;;
+	esac
+}

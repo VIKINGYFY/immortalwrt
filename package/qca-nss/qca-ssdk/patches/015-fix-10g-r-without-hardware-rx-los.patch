@@ -1,0 +1,27 @@
+--- a/src/adpt/hppe/adpt_hppe_uniphy.c
++++ b/src/adpt/hppe/adpt_hppe_uniphy.c
+@@ -802,17 +802,23 @@ __adpt_hppe_uniphy_10g_r_mode_set(a_uin
+ 
+ 	hppe_uniphy_mode_ctrl_set(dev_id, uniphy_index, &uniphy_mode_ctrl);
+ 	if(__adpt_hppe_uniphy_rxlos_check(dev_id, uniphy_index))
+ 	{
++		/*
++		 * No board RX_LOS GPIO is available.  Do not select the Uniphy
++		 * hardware LOS inputs: on boards where those pins are not routed,
++		 * selecting all of them keeps an otherwise locked 10G-R PCS down.
++		 * Link state will be obtained from the PCS status register instead.
++		 */
+ #ifdef MRPPE
+ 		if (adpt_ppe_type_get(dev_id) == MRPPE_TYPE) {
+ 			rv = __adpt_hppe_uniphy_rxlos_sel(dev_id, uniphy_index);
+ 			SW_RTN_ON_ERROR(rv);
+ 		}
+ #endif
+ 		hppe_uniphy_instance_link_detect_get(dev_id, uniphy_index,
+ 			&uniphy_instance_link_detect);
+-		uniphy_instance_link_detect.bf.detect_los_from_sfp = UNIPHY_10GR_LINK_LOSS;
++		uniphy_instance_link_detect.bf.detect_los_from_sfp = 0;
+ 		hppe_uniphy_instance_link_detect_set(dev_id, uniphy_index,
+ 			&uniphy_instance_link_detect);
+ 	}
+ 	/* configure uniphy gcc software reset */

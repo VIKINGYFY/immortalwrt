@@ -1,0 +1,23 @@
+From: OpenWrt
+Subject: [PATCH] qca-ssdk: keep the SFP PHY driver bound on later ports
+
+The first I2C-backed SFP PHY device may need a temporary driver binding
+released before the QCA SFP driver is registered.  Once that driver has
+been registered, however, subsequent SFP PHY devices bind to it directly.
+Unconditionally releasing their driver leaves the second SFP port without
+a phylib state machine, so PCS link changes never reach the netdev carrier.
+
+Only release an existing binding when it is not the intended QCA SFP
+driver.
+
+--- a/src/hsl/phy/sfp_phy.c
++++ b/src/hsl/phy/sfp_phy.c
+@@ -680,7 +680,7 @@ int sfp_phy_device_setup(a_uint32_t dev_
+ 	}
+ #if defined(IN_PHY_I2C_MODE)
+ 	if (hsl_port_phy_access_type_get(dev_id, port) == PHY_I2C_ACCESS) {
+-		if(phydev->drv)
++		if(phydev->drv && phydev->drv != &sfp_phy_driver)
+ 			device_release_driver(&phydev->mdio.dev);
+ 	}
+ #endif

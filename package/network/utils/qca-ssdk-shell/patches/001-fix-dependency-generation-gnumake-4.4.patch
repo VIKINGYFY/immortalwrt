@@ -1,0 +1,23 @@
+From: OpenWrt
+Subject: [PATCH] build: avoid self-target dependency files with GNU make 4.4
+
+The generated dependency file is included through its absolute path.  Do
+not also list the relative .d name as a target, as GNU make 4.4 then tries
+to remake the included absolute target from an unrelated relative rule.
+
+--- a/make/target.mk
++++ b/make/target.mk
+@@ -9,12 +9,12 @@ dep: build_dir $(DEP_LIST)
+ 	$(DEP_LOOP)
+ 
+-$(OBJ_LIST): %.o : %.c %.d
++$(OBJ_LIST): %.o : %.c
+ 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c $< -o $(DST_DIR)/$@
+ 
+ $(DEP_LIST) : %.d : %.c
+ 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -MM $< > $(DST_DIR)/$@.tmp
+-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $(DST_DIR)/$@.tmp > $(DST_DIR)/$@
++	sed 's,\($*\)\.o[ :]*,\1.o : ,g' < $(DST_DIR)/$@.tmp > $(DST_DIR)/$@
+ 	$(RM) -f $(DST_DIR)/$@.tmp;
+ 
+ build_dir: $(DST_DIR)

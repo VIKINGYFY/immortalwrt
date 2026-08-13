@@ -1,0 +1,25 @@
+--- a/src/hsl/phy/sfp_phy.c
++++ b/src/hsl/phy/sfp_phy.c
+@@ -226,11 +226,17 @@ sfp_port_status_get_from_uniphy(a_uint32_t dev_id, a_uint32_t port_id,
+ 		{
+ 			case PORT_SGMII_PLUS:
+ 			case PORT_10GBASE_R:
+-				sfp_phy_rx_los_status_get(dev_id, port_id, &rx_los_status);
+-				SSDK_DEBUG("port %d rx_los_status is %x\n", port_id, rx_los_status);
+-				/*if uniphy is link up and rx los is 0, then link up,
+-				if uniphy is link up but rx los is 1, this is fake link*/
+-				if(rx_los_status)
++				/*
++				 * RX_LOS is optional.  If the board does not provide a
++				 * GPIO, use the PCS link indication instead of treating
++				 * the missing GPIO as a permanent loss of signal.
++				 */
++				rv = sfp_phy_rx_los_status_get(dev_id, port_id,
++					&rx_los_status);
++				if(rv == SW_OK)
++					SSDK_DEBUG("port %d rx_los_status is %x\n",
++						port_id, rx_los_status);
++				if(rv == SW_OK && rx_los_status)
+ 				{
+ 					return SW_OK;
+ 				}

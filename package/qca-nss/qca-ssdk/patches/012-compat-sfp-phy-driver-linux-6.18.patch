@@ -1,0 +1,37 @@
+From: OpenWrt
+Subject: [PATCH] qca-ssdk: update SFP PHY driver registration for Linux 6.18
+
+Linux 6.18 exposes only the array based PHY driver registration helpers.
+Use those helpers with a single element.  When replacing the temporary
+driver binding of an I2C-backed PHY, release that device from its driver
+instead of unregistering the shared driver globally.
+
+--- a/src/hsl/phy/sfp_phy.c
++++ b/src/hsl/phy/sfp_phy.c
+@@ -679,7 +679,7 @@ int sfp_phy_device_setup(a_uint32_t dev_
+ #if defined(IN_PHY_I2C_MODE)
+ 	if (hsl_port_phy_access_type_get(dev_id, port) == PHY_I2C_ACCESS) {
+ 		if(phydev->drv)
+-			phy_driver_unregister(phydev->drv);
++			device_release_driver(&phydev->mdio.dev);
+ 	}
+ #endif
+ 	return 0;
+@@ -720,7 +720,7 @@ int sfp_phy_driver_register(void)
+ 	int ret = 0;
+ 	if(sfp_phy_drv_registered == A_FALSE)
+ 	{
+-		ret = phy_driver_register(&sfp_phy_driver, THIS_MODULE);
++		ret = phy_drivers_register(&sfp_phy_driver, 1, THIS_MODULE);
+ 		sfp_phy_drv_registered = A_TRUE;
+ 	}
+ 	return ret;
+@@ -730,7 +730,7 @@ void sfp_phy_driver_unregister(void)
+ {
+ 	if (sfp_phy_drv_registered == A_TRUE)
+ 	{
+-		phy_driver_unregister(&sfp_phy_driver);
++		phy_drivers_unregister(&sfp_phy_driver, 1);
+ 		sfp_phy_drv_registered = A_FALSE;
+ 	}
+ }
