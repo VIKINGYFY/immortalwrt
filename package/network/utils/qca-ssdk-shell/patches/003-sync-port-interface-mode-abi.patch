@@ -1,0 +1,50 @@
+--- a/include/fal/fal_port_ctrl.h
++++ b/include/fal/fal_port_ctrl.h
+@@ -220,38 +220,39 @@ typedef enum {
+ 
+ /** Phy interface mode */
+ 	typedef enum {
+-		PHY_PSGMII_BASET = 0,
++		/* Values shared with Linux phy_interface_t (Linux 6.18). */
++		PHY_PSGMII_BASET = 18,
+ 				/**< PSGMII mode */
+ 		PHY_PSGMII_BX1000 = 1,
+ 				/**< PSGMII BX1000 mode */
+ 		PHY_PSGMII_FX100 = 2,
+ 				/**< PSGMII FX100 mode */
+ 		PHY_PSGMII_AMDET = 3,
+ 				/**< PSGMII Auto mode */
+ 		PHY_SGMII_BASET = 4,
+ 				/**< SGMII mode */
+-		PORT_QSGMII,
++		PORT_QSGMII = 19,
+ 				/**<QSGMII mode*/
+-		PORT_SGMII_PLUS,
++		PORT_SGMII_PLUS = 23,
+ 				/**<PORT_SGMII_PLUS mode*/
+-		PORT_USXGMII,
++		PORT_USXGMII = 29,
+ 				/**<PORT_USXGMII mode*/
+-		PORT_10GBASE_R,
++		PORT_10GBASE_R = 27,
+ 				/**<PORT_10GBASE_R mode*/
+-		PORT_RGMII_BASET,
++		PORT_RGMII_BASET = 9,
+ 				/**< RGMII mode */
+ 		PORT_RGMII_BX1000,
+ 				/**< RGMII BX1000 mode */
+ 		PORT_RGMII_FX100,
+ 				/**< RGMII FX100 mode */
+ 		PORT_RGMII_AMDET,
+ 				/**< RGMII Auto mode */
+ 		PHY_PSGMII_FIBER,
+ 				/** <PHY_PSGMII_FIBER mode */
+-		PORT_SGMII_FIBER,
++		PORT_SGMII_FIBER = 22,
+ 				/** <PORT SGMII_FIBER mode*/
+-		PORT_UQXGMII,
++		PORT_UQXGMII = 31,
+ 				/**<PORT_UQXGMII mode*/
+ 		PORT_UQXGMII_3CHANNELS,
+ 				/**<PORT_UQXGMII 3 port mode*/
+ 		PORT_INTERFACE_MODE_MAX = 0xFF

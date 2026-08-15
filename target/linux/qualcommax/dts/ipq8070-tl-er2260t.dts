@@ -9,8 +9,8 @@
 #include "ipq8074-common.dtsi"
 #include "ipq8074-hk-cpu.dtsi"
 
-#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/leds/common.h>
 
 / {
@@ -18,6 +18,7 @@
 	compatible = "tplink,tl-er2260t", "qcom,ipq8074";
 
 	aliases {
+		serial0 = &blsp1_uart5;
 		ethernet0 = &dp1;
 		ethernet1 = &dp2;
 		ethernet2 = &dp3;
@@ -25,8 +26,6 @@
 		ethernet4 = &dp5_syn;
 		ethernet5 = &dp6_syn;
 		label-mac-device = &dp5_syn;
-		serial0 = &blsp1_uart5;
-
 		led-boot = &led_system_green;
 		led-failsafe = &led_system_green;
 		led-running = &led_system_green;
@@ -35,11 +34,14 @@
 
 	chosen {
 		stdout-path = "serial0:115200n8";
+		/* Override the root device passed by the bootloader. */
 		bootargs-append = " root=/dev/ubiblock0_1 coherent_pool=2M swiotlb=noforce";
 	};
 
 	keys {
 		compatible = "gpio-keys";
+		pinctrl-0 = <&button_pins>;
+		pinctrl-names = "default";
 
 		reset {
 			label = "reset";
@@ -50,63 +52,90 @@
 
 	leds {
 		compatible = "gpio-leds";
+		pinctrl-0 = <&led_pins>;
+		pinctrl-names = "default";
 
-		led_system_green: system-green {
-			label = "green:system";
+		led_system_green: led-system-green {
+			function = LED_FUNCTION_STATUS;
+			color = <LED_COLOR_ID_GREEN>;
 			gpios = <&tlmm 21 GPIO_ACTIVE_HIGH>;
-			color = <LED_COLOR_ID_GREEN>;
 		};
 
-		led_usb_green {
-			label = "green:usb";
+		led-usb-green {
+			function = LED_FUNCTION_USB;
+			color = <LED_COLOR_ID_GREEN>;
 			gpios = <&tlmm 22 GPIO_ACTIVE_HIGH>;
-			color = <LED_COLOR_ID_GREEN>;
 		};
 
-		led_sfp1_speed_green {
+		led-sfp1-speed-green {
 			label = "green:sfp1-10g";
+			color = <LED_COLOR_ID_GREEN>;
 			gpios = <&tlmm 52 GPIO_ACTIVE_HIGH>;
-			color = <LED_COLOR_ID_GREEN>;
 		};
 
-		led_sfp1_speed_amber {
+		led-sfp1-speed-amber {
 			label = "amber:sfp1-1g";
+			color = <LED_COLOR_ID_AMBER>;
 			gpios = <&tlmm 54 GPIO_ACTIVE_HIGH>;
-			color = <LED_COLOR_ID_AMBER>;
 		};
 
-		led_sfp1_act_green {
+		led-sfp1-activity-green {
 			label = "green:sfp1-act";
+			color = <LED_COLOR_ID_GREEN>;
 			gpios = <&tlmm 51 GPIO_ACTIVE_LOW>;
-			color = <LED_COLOR_ID_GREEN>;
 		};
 
-		led_sfp2_speed_green {
+		led-sfp2-speed-green {
 			label = "green:sfp2-10g";
+			color = <LED_COLOR_ID_GREEN>;
 			gpios = <&tlmm 56 GPIO_ACTIVE_HIGH>;
-			color = <LED_COLOR_ID_GREEN>;
 		};
 
-		led_sfp2_speed_amber {
+		led-sfp2-speed-amber {
 			label = "amber:sfp2-1g";
-			gpios = <&tlmm 64 GPIO_ACTIVE_HIGH>;
 			color = <LED_COLOR_ID_AMBER>;
+			gpios = <&tlmm 64 GPIO_ACTIVE_HIGH>;
 		};
 
-		led_sfp2_act_green {
+		led-sfp2-activity-green {
 			label = "green:sfp2-act";
-			gpios = <&tlmm 55 GPIO_ACTIVE_LOW>;
 			color = <LED_COLOR_ID_GREEN>;
+			gpios = <&tlmm 55 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
 
 &tlmm {
+	mdio_pins: mdio-pins {
+		mdc {
+			pins = "gpio68";
+			function = "mdc";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		mdio {
+			pins = "gpio69";
+			function = "mdio";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+
 	i2c_1_pins: i2c-1-pins {
 		pins = "gpio46", "gpio47";
 		function = "blsp2_i2c";
 		drive-strength = <8>;
 		bias-disable;
+	};
+
+	button_pins: button-state {
+		reset {
+			pins = "gpio50";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
 	};
 
 	uniphy_pins: uniphy-pinmux {
@@ -116,7 +145,7 @@
 			bias-disable;
 		};
 
-		sfp_tx {
+		sfp-tx-disable {
 			pins = "gpio59";
 			function = "gpio";
 			drive-strength = <8>;
@@ -124,38 +153,14 @@
 			output-low;
 		};
 	};
-};
 
-&qpic_nand {
-	status = "okay";
-
-	nand@0 {
-		reg = <0>;
-
-		nand-ecc-strength = <4>;
-		nand-ecc-step-size = <512>;
-		nand-bus-width = <8>;
-
-		partitions {
-			compatible = "qcom,smem-part";
-
-			partition-0-ethphyfw {
-				label = "0:ethphyfw";
-
-				nvmem-layout {
-					compatible = "fixed-layout";
-					#address-cells = <1>;
-					#size-cells = <1>;
-
-					macaddr_lan: macaddr@0 {
-						reg = <0x0 0x6>;
-					};
-
-					macaddr_wan: macaddr@1 {
-						reg = <0x6 0x6>;
-					};
-				};
-			};
+	led_pins: led-state {
+		mux {
+			pins = "gpio21", "gpio22", "gpio51", "gpio52",
+				"gpio54", "gpio55", "gpio56", "gpio64";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-down;
 		};
 	};
 };
@@ -167,9 +172,9 @@
 	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
 
 	ethernet-phy-package@0 {
-		compatible = "qcom,qca8075-package";
 		#address-cells = <1>;
 		#size-cells = <0>;
+		compatible = "qcom,qca8075-package";
 		reg = <0>;
 
 		qca8075_0: ethernet-phy@0 {
@@ -197,12 +202,15 @@
 &switch {
 	status = "okay";
 
-	switch_lan_bmp = <(ESS_PORT1 | ESS_PORT2 | ESS_PORT3 | ESS_PORT4 | ESS_PORT5)>;
-	switch_wan_bmp = <ESS_PORT6>;
-	switch_mac_mode = <MAC_MODE_QSGMII>;
-	switch_mac_mode1 = <MAC_MODE_10GBASE_R>;
-	switch_mac_mode2 = <MAC_MODE_10GBASE_R>;
+	pinctrl-0 = <&uniphy_pins>;
+	pinctrl-names = "default";
 
+	switch_cpu_bmp = <0x1>;  /* cpu port bitmap */
+	switch_lan_bmp = <(ESS_PORT1 | ESS_PORT2 | ESS_PORT3 | ESS_PORT4 | ESS_PORT6)>; /* lan port bitmap */
+	switch_wan_bmp = <ESS_PORT5>; /* wan port bitmap */
+	switch_mac_mode = <MAC_MODE_PSGMII>; /* mac mode for uniphy instance0 */
+	switch_mac_mode1 = <MAC_MODE_10GBASE_R>;  /* use 10g_baser mode for default */
+	switch_mac_mode2 = <MAC_MODE_10GBASE_R>; /* use 10g_baser mode for default */
 	cmnblk_clk = "external_50MHz";
 
 	qcom,port_phyinfo {
@@ -230,22 +238,19 @@
 			port_id = <5>;
 			phy_address = <29>;
 			phy_i2c_address = <29>;
-			phy-i2c-mode;
+			phy-i2c-mode; /* I2C access PHY */
 			media-type = "sfp";
+			sfp_rx_los_pin = <&tlmm 29 GPIO_ACTIVE_LOW>;
 		};
 
 		sfp_2: port@5 {
 			port_id = <6>;
 			phy_address = <30>;
 			phy_i2c_address = <30>;
-			phy-i2c-mode;
+			phy-i2c-mode; /* I2C access PHY */
 			media-type = "sfp";
 		};
 	};
-};
-
-&blsp1_i2c2 {
-	status = "okay";
 };
 
 &edma {
@@ -255,7 +260,7 @@
 &dp1 {
 	status = "okay";
 	phy-handle = <&qca8075_0>;
-	label = "ge1";
+	label = "lan1";
 	nvmem-cells = <&macaddr_lan>;
 	nvmem-cell-names = "mac-address";
 };
@@ -263,7 +268,7 @@
 &dp2 {
 	status = "okay";
 	phy-handle = <&qca8075_1>;
-	label = "ge2";
+	label = "lan2";
 	nvmem-cells = <&macaddr_lan>;
 	nvmem-cell-names = "mac-address";
 };
@@ -271,7 +276,7 @@
 &dp3 {
 	status = "okay";
 	phy-handle = <&qca8075_2>;
-	label = "ge3";
+	label = "lan3";
 	nvmem-cells = <&macaddr_lan>;
 	nvmem-cell-names = "mac-address";
 };
@@ -279,23 +284,206 @@
 &dp4 {
 	status = "okay";
 	phy-handle = <&qca8075_3>;
-	label = "ge4";
+	label = "lan4";
 	nvmem-cells = <&macaddr_lan>;
 	nvmem-cell-names = "mac-address";
 };
 
 &dp5_syn {
 	status = "okay";
-	phy-handle = <&sfp_1>;
-	label = "10ge1";
+	label = "lan6";
+	qcom,link-poll;
+	qcom,phy-mdio-addr = <29>;
+	mdio-bus = <&mdio>;
 	nvmem-cells = <&macaddr_wan>;
 	nvmem-cell-names = "mac-address";
 };
 
 &dp6_syn {
 	status = "okay";
-	phy-handle = <&sfp_2>;
-	label = "10ge2";
+	label = "lan5";
+	qcom,link-poll;
+	qcom,phy-mdio-addr = <30>;
+	mdio-bus = <&mdio>;
 	nvmem-cells = <&macaddr_lan>;
 	nvmem-cell-names = "mac-address";
+};
+
+&blsp1_i2c2 {
+	status = "okay";
+};
+
+&blsp1_i2c3 {
+	status = "okay";
+};
+
+&blsp1_uart5 {
+	status = "okay";
+};
+
+&qpic_bam {
+	status = "okay";
+};
+
+&qpic_nand {
+	status = "okay";
+
+	/*
+	 * Bootloader will find the NAND DT node by the compatible and
+	 * then "fixup" it by adding the partitions from the SMEM table
+	 * using the legacy bindings thus making it impossible for us
+	 * to change the partition table or utilize NVMEM for calibration.
+	 * So add a dummy partitions node that bootloader will populate
+	 * and set it as disabled so the kernel ignores it instead of
+	 * printing warnings due to the broken way bootloader adds the
+	 * partitions.
+	 */
+	partitions {
+		status = "disabled";
+	};
+
+	nand@0 {
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		nand-ecc-strength = <4>;
+		nand-ecc-step-size = <512>;
+		nand-bus-width = <8>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "0:sbl1";
+				reg = <0x0 0x80000>;
+				read-only;
+			};
+
+			partition@80000 {
+				label = "0:mibib";
+				reg = <0x80000 0x80000>;
+				read-only;
+			};
+
+			partition@100000 {
+				label = "0:qsee";
+				reg = <0x100000 0x200000>;
+				read-only;
+			};
+
+			partition@300000 {
+				label = "0:devcfg";
+				reg = <0x300000 0x20000>;
+				read-only;
+			};
+
+			partition@320000 {
+				label = "0:rpm";
+				reg = <0x320000 0x40000>;
+				read-only;
+			};
+
+			partition@360000 {
+				label = "0:cdt";
+				reg = <0x360000 0x20000>;
+				read-only;
+			};
+
+			partition@380000 {
+				label = "0:appsbl";
+				reg = <0x380000 0x180000>;
+				read-only;
+			};
+
+			partition@500000 {
+				label = "0:ethphyfw";
+				reg = <0x500000 0x80000>;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					macaddr_lan: macaddr@0 {
+						reg = <0x0 0x6>;
+					};
+
+					macaddr_wan: macaddr@1 {
+						reg = <0x6 0x6>;
+					};
+				};
+			};
+
+			partition@580000 {
+				label = "0:appsblenv";
+				reg = <0x580000 0x80000>;
+				read-only;
+			};
+
+			partition@600000 {
+				label = "0:art";
+				reg = <0x600000 0x20000>;
+				read-only;
+			};
+
+			partition@620000 {
+				label = "rootfs";
+				reg = <0x620000 0x7900000>;
+			};
+		};
+	};
+};
+
+&blsp1_spi1 {
+	pinctrl-0 = <&spi_0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0>;
+		linux,modalias = "m25p80", "mx25u6435f", "mx30uf2g18ac", "n25q128a11";
+		compatible = "micron,mx25u6435f", "jedec,spi-nor";
+		spi-max-frequency = <50000000>;
+		use-default-sizes;
+	};
+};
+
+&qusb_phy_0 {
+	status = "okay";
+};
+
+&qusb_phy_1 {
+	status = "okay";
+};
+
+&ssphy_0 {
+	status = "okay";
+};
+
+&ssphy_1 {
+	status = "okay";
+};
+
+&usb_0 {
+	status = "okay";
+};
+
+&usb_1 {
+	status = "okay";
+};
+
+&cryptobam {
+	status = "okay";
+};
+
+&crypto {
+	status = "okay";
+};
+
+&prng {
+	status = "okay";
 };

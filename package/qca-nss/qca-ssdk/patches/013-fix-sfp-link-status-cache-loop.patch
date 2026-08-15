@@ -1,0 +1,46 @@
+--- a/src/hsl/phy/sfp_phy.c
++++ b/src/hsl/phy/sfp_phy.c
+@@ -525,10 +525,10 @@ sfp_read_status(struct phy_device *pdev)
+ {
+ 	fal_port_t port;
+ 	struct qca_phy_priv *priv = pdev->priv;
++	struct port_phy_status phy_status = {0};
+ #ifdef MP
+ 	a_uint32_t port_mode = 0, uniphy_index = 0, uniphy_mode = 0;
+ 	adpt_api_t *p_api = NULL;
+-	struct port_phy_status phy_status = {0};
+ 	phy_info_t *phy_info = NULL;
+ #endif
+ 
+@@ -555,16 +555,25 @@ sfp_read_status(struct phy_device *pdev)
+ 	pdev->speed = phy_status.speed;
+ 	pdev->duplex = phy_status.duplex;
+ #else
+-	pdev->link = priv->port_old_link[port - 1];
+-	if(pdev->link == PORT_LINK_UP)
++	/*
++	 * Do not source the PHY state from port_old_link here.  The HPPE MAC
++	 * polling worker updates that cache by calling this read_status method,
++	 * so using the cache creates a loop which can never observe the first
++	 * SFP link-up transition.  Read PCS and RX_LOS directly, as the MP path
++	 * already does, and retain the cache only as an error fallback.
++	 */
++	if(sfp_port_status_get_from_uniphy(priv->device_id, port,
++		&phy_status) == SW_OK)
+ 	{
+-		pdev->speed = priv->port_old_speed[port - 1];
+-		pdev->duplex = priv->port_old_duplex[port - 1];
++		pdev->link = phy_status.link_status;
++		pdev->speed = phy_status.speed;
++		pdev->duplex = phy_status.duplex;
+ 	}
+ 	else
+ 	{
+-		pdev->speed = FAL_SPEED_BUTT;
+-		pdev->duplex = FAL_DUPLEX_BUTT;
++		pdev->link = priv->port_old_link[port - 1];
++		pdev->speed = priv->port_old_speed[port - 1];
++		pdev->duplex = priv->port_old_duplex[port - 1];
+ 	}
+ #endif
+ 	sfp_link_mode_adjust(pdev);
