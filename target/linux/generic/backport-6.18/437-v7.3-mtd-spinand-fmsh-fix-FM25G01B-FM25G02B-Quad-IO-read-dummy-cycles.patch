@@ -1,12 +1,7 @@
-From git@z Thu Jan  1 00:00:00 1970
-Subject: [PATCH v2] mtd: spinand: fmsh: fix FM25G01B/FM25G02B Quad I/O read
- dummy cycles
+From 8211f2d74b356a02fe38aeea5b74030ac156461f Mon Sep 17 00:00:00 2001
 From: Aleksandr Mineev <sanderrrs@gmail.com>
 Date: Fri, 17 Jul 2026 18:50:50 +0300
-Message-Id: <20260717155051.50-1-sanderrrs@gmail.com>
-MIME-Version: 1.0
-Content-Type: text/plain; charset="utf-8"
-Content-Transfer-Encoding: 7bit
+Subject: mtd: spinand: fmsh: fix FM25G01B/FM25G02B Quad I/O read dummy cycles
 
 The FM25G01B/FM25G02B datasheets specify a single dummy byte for the
 0xEB Quad I/O read-from-cache operation, but the generic
@@ -23,10 +18,8 @@ FM25G02B datasheet: https://www.fmsh.com/nvm/FM25G02B_ds_eng.pdf
 Fixes: d5a5c9eb2ee9 ("mtd: spinand: fmsh: add support for FM25G{01,02}B")
 Cc: stable@vger.kernel.org
 Signed-off-by: Aleksandr Mineev <sanderrrs@gmail.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
 ---
-v2:
-- Add Cc: stable tag (Miquel Raynal)
-
  drivers/mtd/nand/spi/fmsh.c | 12 ++++++++++--
  1 file changed, 10 insertions(+), 2 deletions(-)
 
