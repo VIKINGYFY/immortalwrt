@@ -11,7 +11,7 @@ available in Linux 6.18.
  	depends on m
  	depends on CFG80211
  	depends on CRYPTO
--	depends on CRYPTO_LIB_AES_CBC_MACS
+-	select BPAUTO_CRYPTO_LIB_AES_CBC_MACS
  	select BPAUTO_CRYPTO_LIB_ARC4
  	depends on CRYPTO_AES
  	depends on CRYPTO_CCM
@@ -189,7 +189,7 @@ available in Linux 6.18.
  	return TX_CONTINUE;
  }
  
-@@ -948,8 +951,10 @@ ieee80211_crypto_aes_cmac_decrypt(struct
+@@ -945,8 +948,10 @@ ieee80211_crypto_aes_cmac_decrypt(struct
  	if (!(status->flag & RX_FLAG_DECRYPTED)) {
  		/* hardware didn't decrypt/verify MIC */
  		bip_aad(skb, aad);

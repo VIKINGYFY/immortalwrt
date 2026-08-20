@@ -31,6 +31,8 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +			 * calibration is disabled. Older multi-PD firmware requires
 +			 * the reserved CALDB region to download calibration data.
  			 */
+-			ab->qmi.target_mem[idx].paddr = 0;
+-			ab->qmi.target_mem[idx].v.ioaddr = NULL;
 +			if (!of_property_read_bool(ab->dev->of_node,
 +						   "qcom,legacy-userpd-bootinfo")) {
 +				ab->qmi.target_mem[idx].paddr = 0;
@@ -66,8 +68,6 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +				ret = -EIO;
 +				goto out;
 +			}
--			ab->qmi.target_mem[idx].paddr = 0;
--			ab->qmi.target_mem[idx].v.ioaddr = NULL;
  			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
  			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
  			idx++;

@@ -22,7 +22,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -661,6 +661,33 @@ struct reserved_mem *ath12k_core_get_res
+@@ -662,6 +662,33 @@ struct reserved_mem *ath12k_core_get_res
  	return rmem;
  }
  
@@ -56,7 +56,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static inline
  void ath12k_core_to_group_ref_get(struct ath12k_base *ab)
  {
-@@ -2435,6 +2462,14 @@ struct ath12k_base *ath12k_core_alloc(st
+@@ -2362,6 +2389,14 @@ struct ath12k_base *ath12k_core_alloc(st
  	ab->qmi.num_radios = U8_MAX;
  	ab->single_chip_mlo_support = false;
  
@@ -73,7 +73,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	 * In Intra-device MLO, only one device present in a group,
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -1298,6 +1298,7 @@ void ath12k_fw_stats_free(struct ath12k_
+@@ -1302,6 +1302,7 @@ void ath12k_fw_stats_free(struct ath12k_
  void ath12k_fw_stats_reset(struct ath12k *ar);
  struct reserved_mem *ath12k_core_get_reserved_mem(struct ath12k_base *ab,
  						  int index);
@@ -83,7 +83,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static inline const char *ath12k_scan_state_str(enum ath12k_scan_state state)
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2659,8 +2659,7 @@ static int ath12k_qmi_get_mlo_reserved_m
+@@ -2657,8 +2657,7 @@ static int ath12k_qmi_get_mlo_reserved_m
  
  		fixed_mem = true;
  
@@ -93,7 +93,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		if (*rmem)
  			return 0;
  	}
-@@ -2839,6 +2838,105 @@ static int ath12k_qmi_alloc_target_mem_c
+@@ -2838,6 +2837,105 @@ err:
  	return ret;
  }
  
@@ -199,7 +199,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
  {
  	struct target_mem_chunk *chunk;
-@@ -2849,6 +2947,10 @@ static int ath12k_qmi_assign_target_mem_
+@@ -2848,6 +2946,10 @@ static int ath12k_qmi_assign_target_mem_
  	int i, idx, mlo_idx, ret;
  	int mlo_size = 0;
  
@@ -210,5 +210,3 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	mutex_lock(&ag->mutex);
  
  	if (!ag->mlo_mem.init_done) {
--- 
-2.47.3

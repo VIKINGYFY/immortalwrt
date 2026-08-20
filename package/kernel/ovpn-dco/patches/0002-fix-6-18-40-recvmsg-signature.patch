@@ -14,12 +14,21 @@ upstream 7.1 API change so the out-of-tree module matches both signatures.
 
 --- a/drivers/net/ovpn/tcp.c
 +++ b/drivers/net/ovpn/tcp.c
-@@ -170,1 +170,1 @@
+@@ -167,7 +167,7 @@ err_nopeer:
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+ 			    int noblock, int flags, int *addr_len)
 -#elif LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 +#elif OVPN_PROTO_RECVMSG_HAS_ADDR_LEN
+ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+ 			    int flags, int *addr_len)
+ #else
 --- a/linux-compat.h
 +++ b/linux-compat.h
-@@ -55,0 +56,11 @@
+@@ -53,6 +53,17 @@
+ 	(!OVPN_SUSE_PRODUCT_IS(SUSE_PRODUCT_CODE_SLE) || \
+ 	 SUSE_PRODUCT_CODE < SUSE_PRODUCT(SUSE_PRODUCT_CODE_SLE, v, pl, aux))
+ 
 +/*
 + * proto::recvmsg lost the noblock argument in v5.19 and lost the addr_len
 + * argument in v7.1. The addr_len removal was also backported to 6.18.y

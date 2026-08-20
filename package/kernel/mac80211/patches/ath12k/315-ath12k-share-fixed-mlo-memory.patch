@@ -25,7 +25,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -881,6 +881,8 @@
+@@ -885,6 +885,8 @@ struct ath12k_mlo_memory {
  	struct target_mem_chunk chunk[ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01];
  	int mlo_mem_size;
  	bool init_done;
@@ -36,7 +36,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  struct ath12k_hw_link {
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2505,11 +2505,16 @@
+@@ -2505,11 +2505,16 @@ void ath12k_qmi_reset_mlo_mem(struct ath
  	for (i = 0; i < ARRAY_SIZE(ag->mlo_mem.chunk); i++) {
  		mlo_chunk = &ag->mlo_mem.chunk[i];
  
@@ -58,7 +58,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  			memset(mlo_chunk->v.addr, 0, mlo_chunk->size);
  	}
  }
-@@ -2520,38 +2525,37 @@
+@@ -2520,38 +2525,37 @@ static void ath12k_qmi_free_mlo_mem_chun
  {
  	struct ath12k_hw_group *ag = ab->ag;
  	struct target_mem_chunk *mlo_chunk;
@@ -114,7 +114,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	chunk->paddr = 0;
  	chunk->size = 0;
  }
-@@ -2563,9 +2567,11 @@
+@@ -2563,9 +2567,11 @@ static void ath12k_qmi_free_target_mem_c
  
  	for (i = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
  		if (ab->qmi.target_mem[i].type == MLO_GLOBAL_MEM_REGION_TYPE) {
@@ -129,7 +129,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		} else {
  			if (test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags) &&
  			    ab->qmi.target_mem[i].v.ioaddr) {
-@@ -2586,6 +2592,8 @@
+@@ -2586,6 +2592,8 @@ static void ath12k_qmi_free_target_mem_c
  	if (!ag->num_started && ag->mlo_mem.init_done) {
  		ag->mlo_mem.init_done = false;
  		ag->mlo_mem.mlo_mem_size = 0;
@@ -138,7 +138,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	}
  }
  
-@@ -2630,9 +2638,118 @@
+@@ -2630,9 +2638,118 @@ this_chunk_done:
  	return 0;
  }
  
@@ -258,7 +258,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct ath12k_hw_group *ag = ab->ag;
  	int i, mlo_idx, ret;
  	int mlo_size = 0;
-@@ -2642,6 +2759,8 @@
+@@ -2642,6 +2759,8 @@ static int ath12k_qmi_alloc_target_mem_c
  	if (!ag->mlo_mem.init_done) {
  		memset(ag->mlo_mem.chunk, 0, sizeof(ag->mlo_mem.chunk));
  		ag->mlo_mem.init_done = true;
@@ -267,7 +267,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	}
  
  	ab->qmi.target_mem_delayed = false;
-@@ -2673,25 +2792,11 @@
+@@ -2673,25 +2792,11 @@ static int ath12k_qmi_alloc_target_mem_c
  				goto err;
  			}
  
@@ -298,7 +298,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  			mlo_idx++;
  
  			break;
-@@ -2735,12 +2840,24 @@
+@@ -2735,12 +2840,24 @@ err:
  
  static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
  {
@@ -325,7 +325,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		switch (ab->qmi.target_mem[i].type) {
  		case HOST_DDR_REGION_TYPE:
  			rmem = ath12k_core_get_reserved_mem(ab, 0);
-@@ -2862,6 +2979,28 @@
+@@ -2862,6 +2979,28 @@ static int ath12k_qmi_assign_target_mem_
  			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
  			idx++;
  			break;
@@ -354,7 +354,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		case M3_DUMP_REGION_TYPE:
  			rmem = ath12k_core_get_reserved_mem(ab, 1);
  			if (!rmem) {
-@@ -2900,9 +3039,22 @@
+@@ -2900,9 +3039,22 @@ static int ath12k_qmi_assign_target_mem_
  	}
  	ab->qmi.mem_seg_count = idx;
  

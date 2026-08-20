@@ -18,7 +18,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/block.c
 +++ b/block.c
-@@ -482,6 +482,7 @@ static bool mtdblock_is_nand(char *mtdnu
+@@ -490,6 +490,7 @@ static bool mtdblock_is_nand(char *mtdnu
  {
  	char tmppath[64];
  	char buf[16];
@@ -26,7 +26,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	FILE *fp;
  
  	snprintf(tmppath, sizeof(tmppath) - 1, "/sys/class/mtd/mtd%s/type", mtdnum);
-@@ -502,6 +503,14 @@ static bool mtdblock_is_nand(char *mtdnu
+@@ -508,6 +509,14 @@ static bool mtdblock_is_nand(char *mtdnu
  	if (strcmp(buf, "nand"))
  		return false;
  
@@ -41,5 +41,3 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/*
  	 * --- CUT HERE ---
  	 * Keep probing rootfs and rootfs_data in the meantime to not break
--- 
-2.50.1

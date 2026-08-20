@@ -23,7 +23,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -12653,6 +12653,39 @@ void ath12k_mac_op_flush(struct ieee8021
+@@ -12711,6 +12711,39 @@ void ath12k_mac_op_flush(struct ieee8021
  }
  EXPORT_SYMBOL(ath12k_mac_op_flush);
  
@@ -65,7 +65,8 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  				     enum nl80211_band band,
 --- a/drivers/net/wireless/ath/ath12k/mac.h
 +++ b/drivers/net/wireless/ath/ath12k/mac.h
-@@ -309,5 +309,8 @@ int ath12k_mac_op_get_survey(struct ieee
+@@ -307,6 +307,9 @@ int ath12k_mac_op_get_survey(struct ieee
+ 			     struct survey_info *survey);
  void ath12k_mac_op_flush(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
  			 u32 queues, bool drop);
 +void ath12k_mac_op_flush_sta(struct ieee80211_hw *hw,
@@ -76,7 +77,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  				  struct ieee80211_sta *sta,
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -1152,6 +1152,7 @@ static const struct ieee80211_ops ath12k
+@@ -1150,6 +1150,7 @@ static const struct ieee80211_ops ath12k
  	.set_bitrate_mask		= ath12k_mac_op_set_bitrate_mask,
  	.get_survey			= ath12k_mac_op_get_survey,
  	.flush				= ath12k_mac_op_flush,

@@ -17,7 +17,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2738,6 +2738,7 @@ static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
+@@ -2737,6 +2737,7 @@ static int ath12k_qmi_assign_target_mem_
  {
  	struct reserved_mem *rmem;
  	size_t avail_rmem_size;
@@ -25,8 +25,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	int i, idx, ret;
  
  	for (i = 0, idx = 0; i < ab->qmi.mem_seg_count; i++) {
-@@ -2779,19 +2780,35 @@ static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
- 				ret = -ENODEV;
+@@ -2778,7 +2779,20 @@ static int ath12k_qmi_assign_target_mem_
  				goto out;
  			}
  
@@ -48,10 +47,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
  				ath12k_dbg(ab, ATH12K_DBG_QMI,
  					   "failed to assign mem type %u req size %u avail size %zu\n",
- 					   ab->qmi.target_mem[i].type,
- 					   ab->qmi.target_mem[i].size,
- 					   avail_rmem_size);
- 				ret = -EINVAL;
+@@ -2789,7 +2803,10 @@ static int ath12k_qmi_assign_target_mem_
  				goto out;
  			}
  			ab->qmi.target_mem[idx].paddr =

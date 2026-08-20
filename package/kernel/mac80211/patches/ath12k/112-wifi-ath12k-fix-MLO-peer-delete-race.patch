@@ -43,7 +43,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -1527,7 +1527,7 @@ static void ath12k_core_pre_reconfigure_
+@@ -1524,7 +1524,7 @@ static void ath12k_core_pre_reconfigure_
  			complete_all(&ar->scan.completed);
  			complete(&ar->scan.on_channel);
  			complete(&ar->peer_assoc_done);
@@ -54,7 +54,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  			complete(&ar->vdev_delete_done);
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -665,7 +665,8 @@ struct ath12k {
+@@ -666,7 +666,8 @@ struct ath12k {
  
  	/* protects the radio specific data like debug stats, ppdu_stats_info stats,
  	 * vdev_stop_status info, scan data, ath12k_sta info, ath12k_link_vif info,
@@ -64,7 +64,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  	 */
  	spinlock_t data_lock;
  
-@@ -687,7 +688,7 @@ struct ath12k {
+@@ -688,7 +689,7 @@ struct ath12k {
  	u8 radio_idx;
  
  	struct completion peer_assoc_done;
@@ -75,7 +75,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  	struct completion install_key_done;
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -15047,11 +15047,11 @@ static void ath12k_mac_setup(struct ath1
+@@ -15123,11 +15123,11 @@ static void ath12k_mac_setup(struct ath1
  	spin_lock_init(&ar->dp.ppdu_list_lock);
  	INIT_LIST_HEAD(&ar->arvifs);
  	INIT_LIST_HEAD(&ar->dp.ppdu_stats_info);
@@ -250,7 +250,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  		if (ret)
  			return ret;
  
-@@ -283,13 +342,14 @@ u16 ath12k_peer_ml_alloc(struct ath12k_h
+@@ -308,13 +367,14 @@ void ath12k_peer_ml_free(struct ath12k_h
  
  int ath12k_peer_mlo_link_peers_delete(struct ath12k_vif *ahvif, struct ath12k_sta *ahsta)
  {
@@ -266,7 +266,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  	u8 link_id;
  
  	lockdep_assert_wiphy(ah->hw->wiphy);
-@@ -297,8 +357,19 @@ int ath12k_peer_mlo_link_peers_delete(st
+@@ -322,8 +382,19 @@ int ath12k_peer_mlo_link_peers_delete(st
  	if (!sta->mlo)
  		return -EINVAL;
  
@@ -288,7 +288,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  	 */
  	links = ahsta->links_map;
  	for_each_set_bit(link_id, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
-@@ -318,29 +389,36 @@ int ath12k_peer_mlo_link_peers_delete(st
+@@ -343,29 +414,36 @@ int ath12k_peer_mlo_link_peers_delete(st
  					     arvif->vdev_id, arsta->addr,
  					     ar->hw_link_id);
  
@@ -362,7 +362,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  					   const u8 *addr);
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -7095,25 +7095,29 @@ static void ath12k_peer_delete_resp_even
+@@ -7072,25 +7072,29 @@ static void ath12k_peer_delete_resp_even
  {
  	struct wmi_peer_delete_resp_event peer_del_resp;
  	struct ath12k *ar;

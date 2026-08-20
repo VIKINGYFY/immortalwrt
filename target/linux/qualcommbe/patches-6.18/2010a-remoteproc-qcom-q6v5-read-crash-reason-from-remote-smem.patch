@@ -93,7 +93,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
 --- a/drivers/remoteproc/qcom_q6v5_adsp.c
 +++ b/drivers/remoteproc/qcom_q6v5_adsp.c
-@@ -716,7 +716,8 @@ static int adsp_probe(struct platform_dev
+@@ -716,7 +716,8 @@ static int adsp_probe(struct platform_de
  	if (ret)
  		goto disable_pm;
  
@@ -105,14 +105,15 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		goto disable_pm;
 --- a/drivers/remoteproc/qcom_q6v5_mss.c
 +++ b/drivers/remoteproc/qcom_q6v5_mss.c
-@@ -27,5 +27,6 @@
+@@ -26,6 +26,7 @@
+ #include <linux/remoteproc.h>
  #include <linux/reset.h>
  #include <linux/soc/qcom/mdt_loader.h>
 +#include <linux/soc/qcom/smem.h>
  #include <linux/iopoll.h>
  #include <linux/slab.h>
  
-@@ -2164,7 +2165,8 @@ static int q6v5_probe(struct platform_dev
+@@ -2164,7 +2165,8 @@ static int q6v5_probe(struct platform_de
  	qproc->need_mem_protection = desc->need_mem_protection;
  	qproc->has_mba_logs = desc->has_mba_logs;
  
@@ -124,7 +125,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		goto detach_proxy_pds;
 --- a/drivers/remoteproc/qcom_q6v5_pas.c
 +++ b/drivers/remoteproc/qcom_q6v5_pas.c
-@@ -764,7 +764,8 @@ static int adsp_probe(struct platform_dev
+@@ -764,7 +764,8 @@ static int qcom_pas_probe(struct platfor
  		goto unassign_mem;
  	pas->proxy_pd_count = ret;
  
@@ -144,7 +145,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  #include "qcom_common.h"
  #include "qcom_pil_info.h"
  #include "qcom_q6v5.h"
-@@ -1015,7 +1016,8 @@ static int q6v5_wcss_probe(struct platfor
+@@ -1015,7 +1016,8 @@ static int q6v5_wcss_probe(struct platfo
  	if (ret)
  		return ret;
  
@@ -164,7 +165,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  #define WCSS_PAS_ID			0x6
  #define MPD_WCSS_PAS_ID			0xd
-@@ -270,7 +271,9 @@ static int wcss_sec_probe(struct platform
+@@ -270,7 +271,9 @@ static int wcss_sec_probe(struct platfor
  		return dev_err_probe(&pdev->dev, PTR_ERR(int_clk),
  				     "Failed to get interconnect clock\n");
  

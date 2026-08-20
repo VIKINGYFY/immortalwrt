@@ -21,7 +21,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
 
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -740,6 +740,43 @@ static void ipq_pcs_an_restart(struct ph
+@@ -879,6 +879,43 @@ static void ipq_pcs_an_restart(struct ph
  	/* Currently not used */
  }
  
@@ -65,7 +65,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  static void ipq_pcs_link_up(struct phylink_pcs *pcs,
  			    unsigned int neg_mode,
  			    phy_interface_t interface,
-@@ -750,6 +787,12 @@ static void ipq_pcs_link_up(struct phyli
+@@ -889,6 +926,12 @@ static void ipq_pcs_link_up(struct phyli
  	int index = qpcs_mii->index;
  	int ret;
  
@@ -78,7 +78,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  	switch (interface) {
  	case PHY_INTERFACE_MODE_SGMII:
  	case PHY_INTERFACE_MODE_QSGMII:
-@@ -772,6 +815,7 @@ static void ipq_pcs_link_up(struct phyli
+@@ -911,6 +954,7 @@ static void ipq_pcs_link_up(struct phyli
  		return;
  	}
  
@@ -86,7 +86,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  	if (ret)
  		dev_err(qpcs->dev, "PCS link up fail for interface %s\n",
  			phy_modes(interface));
-@@ -1048,6 +1092,7 @@ static int ipq9574_pcs_probe(struct plat
+@@ -1197,6 +1241,7 @@ static int ipq9574_pcs_probe(struct plat
  }
  
  static const struct of_device_id ipq9574_pcs_of_mtable[] = {

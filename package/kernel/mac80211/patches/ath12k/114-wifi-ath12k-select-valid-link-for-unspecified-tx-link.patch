@@ -1,0 +1,53 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Sat, 1 Aug 2026 12:00:00 +0530
+Subject: [PATCH] wifi: ath12k: select valid link for unspecified TX link
+
+Group addressed frames reach ath12k_mac_op_tx() with no STA and with the
+TX control link field set to IEEE80211_LINK_UNSPECIFIED, so
+ath12k_mac_get_tx_link() falls back to ahvif->deflink.link_id.
+
+deflink is preallocated storage that is reused for whichever link of an
+ML VIF comes up first, and ath12k_mac_unassign_link_vif() memsets it when
+that link goes away. Its link_id is then zero while the remaining links
+keep their own ids, so the fallback selects link zero. On a VIF whose
+links do not include link zero, for example an MLD covering only 5 GHz
+and 6 GHz, ahvif->link[0] is NULL and every such frame is warned about
+and dropped.
+
+Select the first driver-backed active link instead. The set of live links
+is the only valid source for this decision; deflink.link_id describes a
+storage slot, not a link. Intersect active_links with links_map so frames
+are not redirected to links which are being removed, and keep the
+existing fallback when no active driver link remains.
+
+The link zero case handled here is reached through the unspecified link
+field, which the check added in 113-wifi-ath12k-select-valid-link-when-
+link-zero-is-missing.patch does not cover as it matches an explicit zero
+in the TX control field.
+
+Fixes: 648a121bafa3 ("wifi: ath12k: ath12k_mac_op_tx(): MLO support")
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -9578,12 +9578,17 @@ u8 ath12k_mac_get_tx_link(struct ieee802
+ 	struct ieee80211_link_sta *link_sta;
+ 	struct ieee80211_bss_conf *bss_conf;
+ 	struct ath12k_sta *ahsta;
++	unsigned long links_map;
+ 
+ 	/* Use the link id passed or the default vif link */
+ 	if (!sta) {
+ 		if (link != IEEE80211_LINK_UNSPECIFIED)
+ 			return link;
+ 
++		links_map = vif->active_links & ahvif->links_map;
++		if (links_map)
++			return __ffs(links_map);
++
+ 		return ahvif->deflink.link_id;
+ 	}
+ 

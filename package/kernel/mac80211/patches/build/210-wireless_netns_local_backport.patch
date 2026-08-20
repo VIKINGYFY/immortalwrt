@@ -1,6 +1,6 @@
 --- a/net/wireless/core.c
 +++ b/net/wireless/core.c
-@@ -162,11 +162,19 @@ int cfg80211_switch_netns(struct cfg8021
+@@ -165,11 +165,19 @@ int cfg80211_switch_netns(struct cfg8021
  	list_for_each_entry(wdev, &rdev->wiphy.wdev_list, list) {
  		if (!wdev->netdev)
  			continue;
@@ -20,7 +20,7 @@
  	}
  
  	if (err) {
-@@ -178,11 +186,19 @@ int cfg80211_switch_netns(struct cfg8021
+@@ -181,11 +189,19 @@ int cfg80211_switch_netns(struct cfg8021
  						     list) {
  			if (!wdev->netdev)
  				continue;
@@ -40,7 +40,7 @@
  		}
  
  		return err;
-@@ -1549,7 +1565,11 @@ static int cfg80211_netdev_notifier_call
+@@ -1721,7 +1737,11 @@ static int cfg80211_netdev_notifier_call
  		SET_NETDEV_DEVTYPE(dev, &wiphy_type);
  		wdev->netdev = dev;
  		/* can only change netns with wiphy */
@@ -52,3 +52,17 @@
  
  		cfg80211_init_wdev(wdev);
  		break;
+--- a/net/wireless/sysfs.c
++++ b/net/wireless/sysfs.c
+@@ -160,7 +160,11 @@ static SIMPLE_DEV_PM_OPS(wiphy_pm_ops, w
+ #define WIPHY_PM_OPS NULL
+ #endif
+ 
++#if LINUX_VERSION_IS_LESS(6,19,0)
++static const void *wiphy_namespace(const struct device *d)
++#else
+ static const struct ns_common *wiphy_namespace(const struct device *d)
++#endif
+ {
+ 	struct wiphy *wiphy = container_of(d, struct wiphy, dev);
+ 

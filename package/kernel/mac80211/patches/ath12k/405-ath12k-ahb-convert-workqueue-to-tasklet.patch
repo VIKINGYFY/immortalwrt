@@ -6,7 +6,7 @@ the same to ahb.c so ATH12K_AHB builds against the backported ce.h.
 
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -144,7 +144,7 @@
+@@ -162,7 +162,7 @@ static void ath12k_ahb_write32(struct at
  		iowrite32(value, ab->mem + offset);
  }
  
@@ -15,7 +15,7 @@ the same to ahb.c so ATH12K_AHB builds against the backported ce.h.
  {
  	int i;
  
-@@ -154,7 +154,7 @@ static void ath12k_ahb_cancel_workqueue
+@@ -172,7 +172,7 @@ static void ath12k_ahb_cancel_workqueue(
  		if (ath12k_ce_get_attr_flags(ab, i) & CE_ATTR_DIS_INTR)
  			continue;
  
@@ -24,7 +24,7 @@ the same to ahb.c so ATH12K_AHB builds against the backported ce.h.
  	}
  }
  
-@@ -333,7 +333,7 @@
+@@ -351,7 +351,7 @@ static void ath12k_ahb_stop(struct ath12
  	if (!test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
  		ath12k_ahb_ce_irqs_disable(ab);
  	ath12k_ahb_sync_ce_irqs(ab);
@@ -33,7 +33,7 @@ the same to ahb.c so ATH12K_AHB builds against the backported ce.h.
  	timer_delete_sync(&ab->rx_replenish_retry);
  	ath12k_ce_cleanup_pipes(ab);
  }
-@@ -502,9 +502,9 @@
+@@ -644,9 +644,9 @@ static void ath12k_ahb_init_qmi_ce_confi
  	ab->qmi.service_ins_id = ab->hw_params->qmi_service_ins_id;
  }
  
@@ -45,7 +45,7 @@ the same to ahb.c so ATH12K_AHB builds against the backported ce.h.
  
  	ath12k_ce_per_engine_service(ce_pipe->ab, ce_pipe->pipe_num);
  
-@@ -520,7 +520,7 @@
+@@ -662,7 +662,7 @@ static irqreturn_t ath12k_ahb_ce_interru
  
  	ath12k_ahb_ce_irq_disable(ce_pipe->ab, ce_pipe->pipe_num);
  
@@ -54,7 +54,7 @@ the same to ahb.c so ATH12K_AHB builds against the backported ce.h.
  
  	return IRQ_HANDLED;
  }
-@@ -647,7 +647,7 @@
+@@ -795,7 +795,7 @@ static int ath12k_ahb_config_irq(struct
  
  		irq_idx = ATH12K_IRQ_CE0_OFFSET + i;
  

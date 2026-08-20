@@ -19,7 +19,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/htc.c
 +++ b/drivers/net/wireless/ath/ath12k/htc.c
-@@ -4,6 +4,7 @@
+@@ -5,6 +5,7 @@
   */
  #include <linux/skbuff.h>
  #include <linux/ctype.h>
@@ -27,7 +27,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  #include "debug.h"
  #include "hif.h"
-@@ -750,6 +751,7 @@ int ath12k_htc_init(struct ath12k_base *
+@@ -754,6 +755,7 @@ int ath12k_htc_init(struct ath12k_base *
  	struct ath12k_htc_svc_conn_req conn_req = { };
  	struct ath12k_htc_svc_conn_resp conn_resp = { };
  	int ret;
@@ -52,7 +52,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	conn_req.ep_ops.ep_rx_complete = ath12k_htc_control_rx_complete;
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2276,6 +2276,7 @@ static void ath12k_qmi_phy_cap_send(stru
+@@ -2282,6 +2282,7 @@ static void ath12k_qmi_phy_cap_send(stru
  {
  	struct qmi_wlanfw_phy_cap_req_msg_v01 req = {};
  	struct qmi_wlanfw_phy_cap_resp_msg_v01 resp = {};
@@ -60,7 +60,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct qmi_txn txn;
  	int ret;
  
-@@ -2310,6 +2311,13 @@ static void ath12k_qmi_phy_cap_send(stru
+@@ -2318,6 +2319,13 @@ static void ath12k_qmi_phy_cap_send(stru
  	}
  
  	ab->qmi.num_radios = resp.num_phy;

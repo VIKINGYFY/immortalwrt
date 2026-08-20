@@ -76,7 +76,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct ath12k_dp_link_peer *peer, *temp_peer;
 --- a/drivers/net/wireless/ath/ath12k/peer.h
 +++ b/drivers/net/wireless/ath/ath12k/peer.h
-@@ -20,7 +20,7 @@ void ath12k_peer_delete_wait_flush(struc
+@@ -20,7 +20,7 @@ void ath12k_peer_delete_resp_signal(stru
  void ath12k_peer_delete_wait_flush(struct ath12k *ar);
  
  void ath12k_peer_cleanup(struct ath12k *ar, u32 vdev_id);
@@ -380,7 +380,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	spin_lock_bh(&ab->base_lock);
  	ath12k_link_sta_rhash_delete(ab, arsta);
  	spin_unlock_bh(&ab->base_lock);
-@@ -7357,17 +7374,30 @@ static void ath12k_mac_ml_station_remove
+@@ -7357,17 +7374,30 @@ static int ath12k_mac_assign_link_sta(st
  static void ath12k_mac_ml_station_remove(struct ath12k_vif *ahvif,
  					 struct ath12k_sta *ahsta)
  {
@@ -426,5 +426,3 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  }
  
  static int ath12k_mac_handle_link_sta_state(struct ieee80211_hw *hw,
--- 
-2.51.0

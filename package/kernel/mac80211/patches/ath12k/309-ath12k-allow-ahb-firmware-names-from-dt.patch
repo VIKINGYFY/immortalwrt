@@ -21,7 +21,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -335,6 +335,27 @@ static void ath12k_ahb_stop(struct ath1
+@@ -331,6 +331,27 @@ static void ath12k_ahb_stop(struct ath12
  	ath12k_ce_cleanup_pipes(ab);
  }
  
@@ -49,7 +49,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static int ath12k_ahb_power_up(struct ath12k_base *ab)
  {
  	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
-@@ -359,9 +380,11 @@ static int ath12k_ahb_power_up(struct a
+@@ -359,9 +380,11 @@ static int ath12k_ahb_power_up(struct at
  		return PTR_ERR(mem_region);
  	}
  
@@ -64,7 +64,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	ret = request_firmware(&fw, fw_name, dev);
  	if (ret < 0) {
-@@ -393,8 +416,11 @@ static int ath12k_ahb_power_up(struct a
+@@ -393,8 +416,11 @@ static int ath12k_ahb_power_up(struct at
  		goto err_fw;
  	}
  
@@ -80,7 +80,8 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (ret < 0) {
 --- a/drivers/net/wireless/ath/ath12k/ahb.h
 +++ b/drivers/net/wireless/ath/ath12k/ahb.h
-@@ -30,6 +30,6 @@
+@@ -28,7 +28,7 @@
+ #define ATH12K_USERPD_READY_TIMEOUT		(10 * HZ)
  #define ATH12K_USERPD_STOP_TIMEOUT		(5 * HZ)
  #define ATH12K_USERPD_ID_MASK			GENMASK(9, 8)
 -#define ATH12K_USERPD_FW_NAME_LEN		35
@@ -90,7 +91,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	ATH12K_AHB_POWER_SAVE_ENTER = 1,
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -1359,7 +1359,8 @@ static inline void ath12k_core_create_f
+@@ -1363,7 +1363,8 @@ static inline void ath12k_core_create_fi
  {
  	const char *fw_name = NULL;
  

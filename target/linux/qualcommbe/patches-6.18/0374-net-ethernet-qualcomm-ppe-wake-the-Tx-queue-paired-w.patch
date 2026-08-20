@@ -1,0 +1,64 @@
+From: Akshay Kakatkar <claude@akshaykakatkar.tech>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: wake the Tx queue paired with
+ the Tx cmpl ring
+
+edma_tx_complete() wakes the Tx queue indexed by smp_processor_id(),
+but completions are reaped on whichever CPU the Tx cmpl IRQ is affine
+to (CPU0 by default for every ring). A Tx queue stopped by
+edma_port_xmit() on any other CPU is therefore never woken again:
+packets for that queue accumulate in the qdisc, their skbs are never
+freed, and TCP suppresses every retransmission of the affected flows
+(skb_still_in_host_queue()), permanently wedging them while all other
+queues keep flowing. Observed in production as BGP sessions on an
+IPsec-over-PPPoE WAN hanging with stuck Send-Q and
+TCPSpuriousRtxHostQueues climbing, after a traffic burst filled one
+CPU's Tx ring; reproducible with taskset-pinned pings (100% loss from
+the CPU whose queue was stopped, 0% from the rest).
+
+Tx desc and Tx cmpl rings are paired 1:1 per (port, queue), so derive
+the queue index from the ring id instead of the executing CPU.
+
+Signed-off-by: Akshay Kakatkar <claude@akshaykakatkar.tech>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+@@ -100,7 +100,7 @@ u32 edma_tx_complete(u32 work_to_do, str
+ 	struct edma_txcmpl_stats *txcmpl_stats = &txcmpl_ring->txcmpl_stats;
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+-	u32 cons_idx, end_idx, data, cpu_id;
++	u32 cons_idx, end_idx, data, queue_id;
+ 	struct device *dev = ppe_dev->dev;
+ 	u32 avail, count, txcmpl_errors;
+ 	struct edma_txcmpl_desc *txcmpl;
+@@ -210,17 +210,24 @@ u32 edma_tx_complete(u32 work_to_do, str
+ 	regmap_write(regmap, reg, cons_idx);
+ 
+ 	/* If tx_requeue_stop disabled (tx_requeue_stop = 0)
+-	 * Fetch the tx queue of interface and check if it is stopped.
+-	 * if queue is stopped and interface is up, wake up this queue.
++	 * Fetch the tx queue paired with this Tx cmpl ring and check if it
++	 * is stopped. if queue is stopped and interface is up, wake it up.
++	 *
++	 * The queue must be derived from the ring, not from the CPU running
++	 * this completion handler: Tx desc and Tx cmpl rings are paired
++	 * per (port, queue), but completions are reaped on whichever CPU
++	 * the IRQ is affine to. Waking the current CPU's queue leaves any
++	 * other stopped queue stopped forever once its ring fills.
+ 	 */
+ 	if (unlikely(!edma_ctx->tx_requeue_stop)) {
+-		cpu_id = smp_processor_id();
+-		nq = netdev_get_tx_queue(txcmpl_ring->napi.dev, cpu_id);
++		queue_id = (txcmpl_ring->id - edma_ctx->hw_info->txcmpl->ring_start) %
++			   num_possible_cpus();
++		nq = netdev_get_tx_queue(txcmpl_ring->napi.dev, queue_id);
+ 		if (unlikely(netif_tx_queue_stopped(nq)) &&
+ 		    netif_carrier_ok(txcmpl_ring->napi.dev)) {
+ 			dev_dbg(dev, "Waking queue number %d, for interface %s\n",
+-				cpu_id, txcmpl_ring->napi.dev->name);
+-			__netif_tx_lock(nq, cpu_id);
++				queue_id, txcmpl_ring->napi.dev->name);
++			__netif_tx_lock(nq, smp_processor_id());
+ 			netif_tx_wake_queue(nq);
+ 			__netif_tx_unlock(nq);
+ 		}

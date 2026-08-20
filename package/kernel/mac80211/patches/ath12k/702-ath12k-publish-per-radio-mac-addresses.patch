@@ -1,0 +1,93 @@
+From: Kenneth Kasilag <kenneth@kasilag.me>
+Date: Sat, 13 Jun 2026 00:00:00 +0000
+Subject: [PATCH] wifi: ath12k: publish per-radio MAC addresses
+
+The ath12k-wsi family, such as QCN9274, uses a multi-radio wiphy.  The
+MAC address of each radio is already stored in ar->mac_addr, but cfg80211
+also needs the addresses published through wiphy->addresses[] in order to
+associate each wiphy radio with its permanent address.
+
+Set perm_addr to the first radio address so it matches addresses[0], as
+required by cfg80211.  Free the address array together with the per-radio
+interface combinations.
+
+Adapted from the OpenWrt SBE1V1K per-radio MAC address patch.  Device tree
+address handling remains in ath12k core so it is not duplicated here.
+
+Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+---
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -14721,6 +14721,7 @@ static void ath12k_mac_cleanup_iface_com
+ 			ath12k_mac_cleanup_iface_comb(radio[i].iface_combinations);
+ 
+ 		kfree(wiphy->radio);
++		kfree(wiphy->addresses);
+ 	}
+ 
+ 	ath12k_mac_cleanup_iface_comb(wiphy->iface_combinations);
+@@ -14731,6 +14732,7 @@ static int ath12k_mac_setup_iface_combin
+ 	struct ieee80211_iface_combination *combinations, *comb;
+ 	struct wiphy *wiphy = ah->hw->wiphy;
+ 	struct wiphy_radio *radio;
++	struct mac_address *addresses;
+ 	int n_combinations = 1;
+ 	struct ath12k *ar;
+ 	int i, ret;
+@@ -14768,10 +14770,16 @@ static int ath12k_mac_setup_iface_combin
+ 
+ 	/* there are multiple radios */
+ 
++	addresses = kzalloc_objs(*addresses, ah->num_radio);
++	if (!addresses) {
++		ret = -ENOMEM;
++		goto err_free_combinations;
++	}
++
+ 	radio = kzalloc_objs(*radio, ah->num_radio);
+ 	if (!radio) {
+ 		ret = -ENOMEM;
+-		goto err_free_combinations;
++		goto err_free_addresses;
+ 	}
+ 
+ 	for_each_ar(ah, ar, i) {
+@@ -14794,6 +14802,8 @@ static int ath12k_mac_setup_iface_combin
+ 
+ 		radio[i].iface_combinations = comb;
+ 		radio[i].n_iface_combinations = 1;
++
++		ether_addr_copy(addresses[i].addr, ar->mac_addr);
+ 	}
+ 
+ 	ret = ath12k_mac_setup_global_iface_comb(ah, radio, ah->num_radio, combinations);
+@@ -14806,6 +14816,9 @@ static int ath12k_mac_setup_iface_combin
+ 	wiphy->radio = radio;
+ 	wiphy->n_radio = ah->num_radio;
+ 
++	wiphy->addresses = addresses;
++	wiphy->n_addresses = ah->num_radio;
++
+ out:
+ 	wiphy->iface_combinations = combinations;
+ 	wiphy->n_iface_combinations = n_combinations;
+@@ -14821,6 +14834,9 @@ err_free_radios:
+ 
+ 	kfree(radio);
+ 
++err_free_addresses:
++	kfree(addresses);
++
+ err_free_combinations:
+ 	kfree(combinations);
+ 
+@@ -15005,8 +15021,6 @@ static int ath12k_mac_hw_register(struct
+ 
+ 		if (i == 0)
+ 			mac_addr = ar->mac_addr;
+-		else
+-			mac_addr = ab->mac_addr;
+ 
+ 		mbssid_max_interfaces += TARGET_NUM_VDEVS(ar->ab);
+ 	}

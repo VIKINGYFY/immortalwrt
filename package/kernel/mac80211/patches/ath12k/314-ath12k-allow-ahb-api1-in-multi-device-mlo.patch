@@ -18,7 +18,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -2216,12 +2216,24 @@ void ath12k_core_hw_group_set_mlo_capabl
+@@ -2233,14 +2233,26 @@ void ath12k_core_hw_group_set_mlo_capabl
  		if (!ab)
  			continue;
  
@@ -43,3 +43,5 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +	ath12k_info(ag->ab[0], "WSI group %d: MLO enabled for %d devices\n",
 +		    ag->id, ag->num_devices);
  }
+ 
+ int ath12k_core_init(struct ath12k_base *ab)

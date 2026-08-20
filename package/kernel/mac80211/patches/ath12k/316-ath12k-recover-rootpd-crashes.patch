@@ -37,7 +37,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
 
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -461,6 +461,7 @@ static int ath12k_ahb_power_up(struct ath12k_base *ab)
+@@ -461,6 +461,7 @@ static int ath12k_ahb_power_up(struct at
  	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
  	char fw_name[ATH12K_USERPD_FW_NAME_LEN];
  	char fw2_name[ATH12K_USERPD_FW_NAME_LEN];
@@ -45,7 +45,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	struct device *dev = ab->dev;
  	const struct firmware *fw, *fw2;
  	struct reserved_mem *rmem = NULL;
-@@ -557,6 +558,9 @@ static int ath12k_ahb_power_up(struct ath12k_base *ab)
+@@ -557,6 +558,9 @@ static int ath12k_ahb_power_up(struct at
  		}
  	}
  
@@ -55,7 +55,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	/* Instruct Q6 to spawn userPD thread */
  	ret = qcom_smem_state_update_bits(ab_ahb->spawn_state, BIT(ab_ahb->spawn_bit),
  					  BIT(ab_ahb->spawn_bit));
-@@ -564,6 +568,7 @@ static int ath12k_ahb_power_up(struct ath12k_base *ab)
+@@ -564,6 +568,7 @@ static int ath12k_ahb_power_up(struct at
  		ath12k_err(ab, "Failed to update spawn state %d\n", ret);
  		goto err_fw2;
  	}
@@ -63,7 +63,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  
  	time_left = wait_for_completion_timeout(&ab_ahb->userpd_spawned,
  						ATH12K_USERPD_SPAWN_TIMEOUT);
-@@ -581,11 +586,13 @@ static int ath12k_ahb_power_up(struct ath12k_base *ab)
+@@ -581,11 +586,13 @@ static int ath12k_ahb_power_up(struct at
  		goto err_fw2;
  	}
  
@@ -79,7 +79,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	release_firmware(fw2);
  err_fw:
  	release_firmware(fw);
-@@ -599,6 +606,10 @@ static void ath12k_ahb_power_down(struct ath12k_base *ab, bool is_suspend)
+@@ -599,6 +606,10 @@ static void ath12k_ahb_power_down(struct
  	u32 pasid;
  	int ret;
  
@@ -90,7 +90,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	qcom_smem_state_update_bits(ab_ahb->stop_state, BIT(ab_ahb->stop_bit),
  				    BIT(ab_ahb->stop_bit));
  
-@@ -930,6 +941,35 @@ static void ath12k_ahb_release_crashed_userpd(struct ath12k_base *ab)
+@@ -930,6 +941,35 @@ static void ath12k_ahb_release_crashed_u
  			    ab_ahb->userpd_id, ret);
  }
  
@@ -126,7 +126,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  static int ath12k_ahb_root_pd_state_notifier(struct notifier_block *nb,
  					     const unsigned long event, void *data)
  {
-@@ -941,11 +981,22 @@ static int ath12k_ahb_root_pd_state_notifier(struct notifier_block *nb,
+@@ -941,11 +981,22 @@ static int ath12k_ahb_root_pd_state_noti
  	case QCOM_SSR_AFTER_POWERUP:
  		ath12k_dbg(ab, ATH12K_DBG_AHB, "Root PD is UP\n");
  		complete(&ab_ahb->rootpd_ready);

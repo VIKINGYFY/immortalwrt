@@ -1,9 +1,9 @@
 --- a/drivers/net/wireless/realtek/rtw88/usb.c
 +++ b/drivers/net/wireless/realtek/rtw88/usb.c
-@@ -974,8 +974,12 @@ static int rtw_usb_init_rx(struct rtw_de
+@@ -977,8 +977,12 @@ static int rtw_usb_init_rx(struct rtw_de
  	struct sk_buff *rx_skb;
  	int i;
-
+ 
 +#if LINUX_VERSION_IS_GEQ(6,9,0)
  	rtwusb->rxwq = alloc_workqueue("rtw88_usb: rx wq", WQ_BH | WQ_PERCPU,
  				       0);
