@@ -1,0 +1,40 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 25 Jul 2026 00:30:00 +0800
+Subject: [PATCH] wifi: ath12k: allow firmware memory mode override from DT
+
+ath12k selects the QCN9274 firmware memory mode from total system RAM.
+That heuristic cannot describe embedded designs where a discrete radio has
+to share memory and firmware resources with an integrated radio.
+
+Allow the board DTS to select one of the existing QMI memory modes. Keep the
+automatic RAM-based selection when the property is absent or invalid.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/core.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1794,8 +1794,21 @@
+ enum ath12k_qmi_mem_mode ath12k_core_get_memory_mode(struct ath12k_base *ab)
+ {
++	u32 mode;
+ 	unsigned long total_ram;
+ 	struct sysinfo si;
+ 
++	if (!of_property_read_u32(ab->dev->of_node,
++				  "qcom,ath12k-fw-memory-mode", &mode)) {
++		if (mode <= ATH12K_QMI_MEMORY_MODE_LOW_512_M) {
++			ath12k_info(ab, "firmware memory mode %u from device tree\n",
++				    mode);
++			return (enum ath12k_qmi_mem_mode)mode;
++		}
++
++		ath12k_warn(ab, "ignoring unsupported firmware memory mode %u\n",
++			    mode);
++	}
++
+ 	si_meminfo(&si);
+ 	total_ram = si.totalram * si.mem_unit;
+ 

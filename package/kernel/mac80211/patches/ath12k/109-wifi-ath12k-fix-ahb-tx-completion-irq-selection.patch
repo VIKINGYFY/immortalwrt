@@ -1,0 +1,39 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Mon, 27 Jul 2026 18:00:00 +0800
+Subject: [PATCH] wifi: ath12k: fix AHB TX completion IRQ selection
+
+The TX ring masks contain logical TCL ring indices.  The AHB IRQ setup
+instead compares these masks against the mapped hardware WBM ring number.
+
+This happens to work for the first three QCN9274 rings, whose logical TCL
+and WBM ring numbers are identical.  The fourth logical ring maps to WBM
+ring 4, however, so BIT(3) is compared against BIT(4) and its completion
+IRQ is never requested.  Frames submitted through that ring consequently
+remain pending and keep their TX descriptors and skbs allocated.
+
+Match the TX mask using the logical ring index, as also expected by the
+datapath service routine.  The IRQ resource remains selected by logical
+ring index, so the fourth ring now uses the
+wbm2host-tx-completions-ring4 resource.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/ahb.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/ahb.c
+@@ -583,9 +583,11 @@ static int ath12k_ahb_config_ext_irq(str
+ 		netif_napi_add(irq_grp->napi_ndev, &irq_grp->napi,
+ 			       ath12k_ahb_ext_grp_napi_poll);
+ 
++		/* TX masks use logical TCL ring indices.  WBM ring numbers are
++		 * hardware mappings and are not necessarily contiguous.
++		 */
+ 		for (j = 0; j < DP_TCL_NUM_RING_MAX; j++) {
+-			if (ring_mask->tx[i] &
+-			    BIT(ab->hal.tcl_to_wbm_rbm_map[j].wbm_ring_num) &&
++			if (ring_mask->tx[i] & BIT(j) &&
+ 			    num_irq < ATH12K_EXT_IRQ_NUM_MAX) {
+ 				irq_grp->irqs[num_irq++] =
+ 					wbm2host_tx_completions_ring1 - j;

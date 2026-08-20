@@ -1,0 +1,228 @@
+From 0d2a58e0bea5cee085a6f4b44f95dac8c1381c6f Mon Sep 17 00:00:00 2001
+From: JiaY-shi <shi05275@163.com>
+Date: Mon, 19 Jan 2026 18:03:44 +0800
+Subject: [PATCH] arm64: dts: qcom: add wifi node for IPQ5332 based RDP441
+
+RDP441 is based on IPQ5332. It has inbuilt AHB bus based IPQ5332 WiFi
+device.
+
+Describe and add WiFi node for RDP441. Also, reserve the memory
+required by IPQ5332 firmware.
+
+Depends-On: [PATCH V2 0/2] mailbox: tmel-qmp: Introduce QCOM TMEL QMP mailbox driver
+Depends-On: [PATCH V3 0/8] Add new driver for WCSS secure PIL loading
+Link: https://lore.kernel.org/lkml/20241231054900.2144961-1-quic_srichara@quicinc.com/
+Link: https://lore.kernel.org/lkml/20250107101647.2087358-1-quic_gokulsri@quicinc.com/
+
+Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+---
+ arch/arm64/boot/dts/qcom/ipq5332-rdp441.dts |  64 ++++++++++-
+ arch/arm64/boot/dts/qcom/ipq5332.dtsi       | 113 ++++++++++++++++++++
+ 2 files changed, 176 insertions(+), 1 deletion(-)
+
+--- a/arch/arm64/boot/dts/qcom/ipq5332-rdp441.dts
++++ b/arch/arm64/boot/dts/qcom/ipq5332-rdp441.dts
+@@ -2,7 +2,7 @@
+ /*
+  * IPQ5332 AP-MI01.2 board device tree source
+  *
+- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
++ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
+ /dts-v1/;
+@@ -12,6 +12,61 @@
+ / {
+ 	model = "Qualcomm Technologies, Inc. IPQ5332 MI01.2";
+ 	compatible = "qcom,ipq5332-ap-mi01.2", "qcom,ipq5332";
++
++	/*                 Default Profile
++	 * +============+==============+=====================+
++	 * |            |              |                     |
++	 * | Region     | Start Offset |       Size          |
++	 * |            |              |                     |
++	 * +------------+--------------+---------------------+
++	 * |            |              |                     |
++	 * |            |              |                     |
++	 * |            |              |                     |
++	 * | WLAN Q6    |  0x4A900000  |       43MB          |
++	 * |            |              |                     |
++	 * |            |              |                     |
++	 * +------------+--------------+---------------------+
++	 * | M3 Dump    |  0x4D400000  |       1MB           |
++	 * +------------+--------------+---------------------+
++	 * | Q6 caldb   |  0x4D500000  |       5MB           |
++	 * +------------+--------------+---------------------+
++	 * | MLO        |  0x4DB00000  |       18MB          |
++	 * +============+==============+=====================+
++	 * |                                                 |
++	 * |                                                 |
++	 * |                                                 |
++	 * |            Rest of memory for Linux             |
++	 * |                                                 |
++	 * |                                                 |
++	 * |                                                 |
++	 * +=================================================+
++	 */
++
++	reserved-memory {
++		#address-cells = <2>;
++		#size-cells = <2>;
++		ranges;
++
++		q6_region: wcss@4a900000 {
++			reg = <0x0 0x4a900000 0x0 0x02b00000>;
++			no-map;
++		};
++
++		m3_dump: m3-dump@4d400000 {
++			reg = <0x0 0x4d400000 0x0 0x100000>;
++			no-map;
++		};
++
++		q6_caldb: q6-caldb@4d500000 {
++			reg = <0x0 0x4d500000 0x0 0x500000>;
++			no-map;
++		};
++
++		mlo_mem: mlo-global-mem@4db00000 {
++			reg = <0x0 0x4db00000 0x0 0x01200000>;
++			no-map;
++		};
++	};
+ };
+ 
+ &blsp1_i2c1 {
+@@ -139,3 +194,10 @@
+ 		};
+ 	};
+ };
++
++&wifi0 {
++	memory-region = <&q6_region>, <&m3_dump>, <&q6_caldb>, <&mlo_mem>;
++	memory-region-names = "q6-region", "m3-dump", "q6-caldb", "mlo-global-mem";
++	qcom,rproc = <&q6v5_wcss>;
++	status = "okay";
++};
+--- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
+@@ -970,6 +970,119 @@
+ 			};
+ 		};
+ 
++		wifi0: wifi@c000000 {
++			compatible = "qcom,ipq5332-wifi";
++			reg = <0x0c000000 0x1000000>;
++			clocks = <&gcc GCC_XO_CLK>;
++			clock-names = "xo";
++			interrupts-extended = <&smp2p_wcss_in 8 IRQ_TYPE_NONE>,
++					      <&smp2p_wcss_in 9 IRQ_TYPE_NONE>,
++					      <&smp2p_wcss_in 12 IRQ_TYPE_NONE>,
++					      <&smp2p_wcss_in 11 IRQ_TYPE_NONE>,
++					      <&intc GIC_SPI 559 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 560 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 561 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 422 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 423 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 424 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 425 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 426 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 427 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 428 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 429 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 430 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 431 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 432 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 433 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 491 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 495 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 493 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 544 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 457 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 466 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 497 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 454 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 453 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 452 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 451 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 488 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 488 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 484 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 554 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 554 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 549 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 507 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 500 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 499 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 498 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 450 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 449 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 448 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 447 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 543 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 486 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 486 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 482 IRQ_TYPE_EDGE_RISING>,
++					      <&intc GIC_SPI 419 IRQ_TYPE_EDGE_RISING>;
++			interrupt-names = "fatal",
++					  "ready",
++					  "spawn",
++					  "stop-ack",
++					  "misc-pulse1",
++					  "misc-latch",
++					  "sw-exception",
++					  "ce0",
++					  "ce1",
++					  "ce2",
++					  "ce3",
++					  "ce4",
++					  "ce5",
++					  "ce6",
++					  "ce7",
++					  "ce8",
++					  "ce9",
++					  "ce10",
++					  "ce11",
++					  "host2wbm-desc-feed",
++					  "host2reo-re-injection",
++					  "host2reo-command",
++					  "host2rxdma-monitor-ring1",
++					  "reo2ost-exception",
++					  "wbm2host-rx-release",
++					  "reo2host-status",
++					  "reo2host-destination-ring4",
++					  "reo2host-destination-ring3",
++					  "reo2host-destination-ring2",
++					  "reo2host-destination-ring1",
++					  "rxdma2host-monitor-destination-mac3",
++					  "rxdma2host-monitor-destination-mac2",
++					  "rxdma2host-monitor-destination-mac1",
++					  "host2rxdma-host-buf-ring-mac3",
++					  "host2rxdma-host-buf-ring-mac2",
++					  "host2rxdma-host-buf-ring-mac1",
++					  "host2tcl-input-ring4",
++					  "host2tcl-input-ring3",
++					  "host2tcl-input-ring2",
++					  "host2tcl-input-ring1",
++					  "wbm2host-tx-completions-ring4",
++					  "wbm2host-tx-completions-ring3",
++					  "wbm2host-tx-completions-ring2",
++					  "wbm2host-tx-completions-ring1",
++					  "host2tx-monitor-ring1",
++					  "txmon2host-monitor-destination-mac3",
++					  "txmon2host-monitor-destination-mac2",
++					  "txmon2host-monitor-destination-mac1",
++					  "umac-reset";
++
++			qcom,smem-states = <&smp2p_wcss_out 8>,
++					   <&smp2p_wcss_out 9>,
++					   <&smp2p_wcss_out 10>;
++			qcom,smem-state-names = "shutdown",
++						"stop",
++						"spawn";
++			status = "disabled";
++		};
++
+ 		q6v5_wcss: remoteproc@d100000 {
+ 			compatible = "qcom,ipq5332-wcss-sec-pil";
+ 			reg = <0x0d100000 0x10000>;

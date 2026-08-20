@@ -1,0 +1,43 @@
+From: Sriram R <srirrama@qti.qualcomm.com>
+Date: Tue, 23 Sep 2025 10:48:21 +0530
+Subject: [PATCH] wifi: ath12k: guard non-transmit beacon setup during recovery
+
+During an MLO group recovery, mac80211 can ask ath12k to restore a
+non-transmitting BSS before its transmitting BSS has started. Passing that
+invalid ordering to firmware can cause another firmware failure and leaves
+beacon restoration stuck.
+
+Reject the non-transmitting beacon setup until the transmitting vif is
+started. Normal bring-up is unchanged because its transmitting vif is
+already active.
+
+Adapted from Qualcomm's downstream SSR recovery fix.
+
+Signed-off-by: Sriram R <srirrama@qti.qualcomm.com>
+Signed-off-by: Rajat Soni <rajson@qti.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -1818,8 +1818,17 @@ static int ath12k_mac_setup_bcn_tmpl(str
+ 
+ 	tx_arvif = ath12k_mac_get_tx_arvif(arvif, link_conf);
+ 	if (tx_arvif) {
+-		if (tx_arvif != arvif && arvif->is_up)
+-			return 0;
++		if (tx_arvif != arvif) {
++			if (!tx_arvif->is_started) {
++				ath12k_warn(ab,
++					    "transmit vif is not started before non-transmit beacon setup for vdev %d\n",
++					    arvif->vdev_id);
++				return -EINVAL;
++			}
++
++			if (arvif->is_up)
++				return 0;
++		}
+ 
+ 		if (link_conf->ema_ap)
+ 			return ath12k_mac_setup_bcn_tmpl_ema(arvif, tx_arvif,

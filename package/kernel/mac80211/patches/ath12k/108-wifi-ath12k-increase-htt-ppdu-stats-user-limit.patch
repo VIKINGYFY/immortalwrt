@@ -1,0 +1,30 @@
+From: Hariharan Ramanathan <quic_hramanat@quicinc.com>
+Date: Tue, 15 Apr 2025 18:45:34 +0530
+Subject: [PATCH] wifi: ath12k: increase HTT PPDU stats user limit
+
+HTT_PPDU_STATS_MAX_USERS includes a spare entry because the PPDU parser
+and update loops stop at MAX_USERS - 1.  With the current value of 8,
+firmware reports containing eight users are therefore rejected and emit
+repeated warnings.
+
+Use the limit of 37 from the Qualcomm ath11k and telemetry implementations.
+This lets ath12k retain statistics for up to 36 users instead of rejecting
+valid multi-user PPDU reports from QCN9274 firmware.
+
+Signed-off-by: Sowjanya vardhineni <quic_svardhin@quicinc.com>
+Signed-off-by: Hariharan Ramanathan <quic_hramanat@quicinc.com>
+---
+ drivers/net/wireless/ath/ath12k/dp_htt.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath12k/dp_htt.h
++++ b/drivers/net/wireless/ath/ath12k/dp_htt.h
+@@ -1267,7 +1267,7 @@ struct htt_ppdu_user_stats {
+ 	struct htt_ppdu_stats_usr_cmpltn_ack_ba_status ack_ba;
+ };
+ 
+-#define HTT_PPDU_STATS_MAX_USERS	8
++#define HTT_PPDU_STATS_MAX_USERS	37
+ #define HTT_PPDU_DESC_MAX_DEPTH	16
+ 
+ struct htt_ppdu_stats {

@@ -1,0 +1,65 @@
+failedmsg='######################################## Failed'
+
+if test -n "$soc_hw_version"; then
+	if test "$soc_hw_version" = "201a0101"; then
+		echo 'soc_hw_version : Validation success'
+	else
+		echo 'soc_hw_version : did not match, aborting upgrade'
+		exit 1
+	fi
+else
+	echo 'soc_hw_version : unknown, skipping validation'
+fi
+
+if test "$machid" = "8060001"; then
+	echo 'machid : Validation success'
+else
+	echo 'machid : unknown, aborting upgrade'
+	exit 1
+fi
+
+echo '######################################## Flashing ubi: Started'
+
+if nand device 0; then
+	echo 'nand device 0 : selected'
+else
+	echo "$failedmsg"
+	echo 'error: failed to select NAND device'
+	exit 1
+fi
+
+if smem; then
+	echo 'smem : initialized partition table'
+else
+	echo "$failedmsg"
+	echo 'error: failed to initialize SMEM partition table'
+	exit 1
+fi
+
+if imxtract $imgaddr ubi; then
+	echo "ubi extracted: addr=$fileaddr size=$filesize"
+else
+	echo "$failedmsg"
+	echo 'error: failed on image extraction'
+	exit 1
+fi
+
+if nand erase.part fs; then
+	echo 'fs partition erase : done'
+else
+	echo "$failedmsg"
+	echo 'error: failed on partition erase'
+	exit 1
+fi
+
+if nand write $fileaddr fs $filesize; then
+	echo 'fs partition write : done'
+else
+	echo "$failedmsg"
+	echo 'error: failed on partition write'
+	exit 1
+fi
+
+echo '######################################## Flashing ubi: Done'
+
+exit 0

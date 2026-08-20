@@ -1,0 +1,59 @@
+From: Ansuel Smith <ansuelsmth@gmail.com>
+Subject: [PATCH] wifi: ath12k: try to get MAC address from DTS
+
+Some embedded devices store the Wi-Fi MAC address in an NVMEM cell
+referenced by the device tree. Prefer that address over addresses supplied
+by firmware, which may be randomly generated when the board data does not
+contain a valid address.
+
+Clear pdevs_macaddr_valid so the existing ath12k per-radio derivation uses
+the device tree address as its base. Devices without a valid device tree
+address continue to use the address supplied by firmware.
+
+Signed-off-by: Ansuel Smith <ansuelsmth@gmail.com>
+---
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -11,6 +11,7 @@
+ #include <linux/firmware.h>
+ #include <linux/of.h>
+ #include <linux/of_graph.h>
++#include <linux/of_net.h>
+ #include "ahb.h"
+ #include "core.h"
+ #include "dp_tx.h"
+@@ -1152,6 +1153,20 @@ err_mlo_teardown:
+ 	return ret;
+ }
+ 
++static void ath12k_core_get_mac_address(struct ath12k_base *ab)
++{
++	u8 mac_addr[ETH_ALEN];
++
++	if (!ab->dev->of_node)
++		return;
++
++	if (of_get_mac_address(ab->dev->of_node, mac_addr))
++		return;
++
++	ether_addr_copy(ab->mac_addr, mac_addr);
++	ab->pdevs_macaddr_valid = false;
++}
++
+ static int ath12k_core_hw_group_start(struct ath12k_hw_group *ag)
+ {
+ 	struct ath12k_base *ab;
+@@ -1168,6 +1182,12 @@ static int ath12k_core_hw_group_start(st
+ 		goto core_pdev_create;
+ 	}
+ 
++	for (i = 0; i < ag->num_devices; i++) {
++		ab = ag->ab[i];
++		if (ab)
++			ath12k_core_get_mac_address(ab);
++	}
++
+ 	ret = ath12k_mac_allocate(ag);
+ 	if (WARN_ON(ret))
+ 		return ret;

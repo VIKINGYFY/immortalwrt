@@ -1,0 +1,34 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sun, 2 Aug 2026 02:30:00 +0800
+Subject: [PATCH] wifi: mac80211: complete restart reconfiguration without open interfaces
+
+ieee80211_restart_hw() marks the hardware as being reconfigured before it
+queues the restart worker. If all interfaces are closed before that worker
+runs, ieee80211_reconfig() skips driver start as expected. It also skips
+the reconfig_complete callback. Drivers which retain recovery state until
+that callback then remain stuck in recovery indefinitely.
+
+Call reconfig_complete when an explicit hardware restart is in progress,
+even if there are no open interfaces. Keep the open-count check for other
+reconfiguration paths so this does not add callbacks to an idle device
+outside ieee80211_restart_hw().
+
+This is a narrower adaptation of Qualcomm's downstream SSR recovery fix.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ net/mac80211/util.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/net/mac80211/util.c
++++ b/net/mac80211/util.c
+@@ -2342,7 +2342,8 @@ int ieee80211_reconfig(struct ieee80211_
+ 	 * If this is for hw restart things are still running.
+ 	 * We may want to change that later, however.
+ 	 */
+-	if (local->open_count && (!suspended || reconfig_due_to_wowlan))
++	if ((local->open_count || local->in_reconfig) &&
++	    (!suspended || reconfig_due_to_wowlan))
+ 		drv_reconfig_complete(local, IEEE80211_RECONFIG_TYPE_RESTART);
+ 
+ 	if (local->in_reconfig) {

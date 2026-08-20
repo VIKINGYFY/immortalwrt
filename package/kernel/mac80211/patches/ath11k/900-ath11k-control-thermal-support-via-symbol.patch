@@ -21,10 +21,10 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
 
 --- a/drivers/net/wireless/ath/ath11k/Kconfig
 +++ b/drivers/net/wireless/ath/ath11k/Kconfig
-@@ -62,3 +62,10 @@ config ATH11K_SPECTRAL
- 	  Enable ath11k spectral scan support
+@@ -72,3 +72,10 @@ config ATH11K_CFR
+	  enable, disable, and dump data.
  
- 	  Say Y to enable access to the FFT/spectral data via debugfs.
+	  Say Y to enable CFR data dump collection via debugfs.
 +
 +config ATH11K_THERMAL
 +	bool "ath11k thermal sensors and throttling support"
@@ -56,10 +56,11 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
  int ath11k_thermal_set_throttling(struct ath11k *ar, u32 throttle_state);
 --- a/local-symbols
 +++ b/local-symbols
-@@ -163,6 +163,7 @@ ATH11K_DEBUG=
+@@ -166,6 +166,7 @@ ATH11K_DEBUG=
  ATH11K_DEBUGFS=
  ATH11K_TRACING=
  ATH11K_SPECTRAL=
+ ATH11K_CFR=
 +ATH11K_THERMAL=
  ATH12K=
  ATH12K_AHB=

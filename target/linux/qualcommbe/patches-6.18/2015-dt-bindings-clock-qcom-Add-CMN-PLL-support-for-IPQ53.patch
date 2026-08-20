@@ -1,0 +1,52 @@
+From daa0d5ebf197b482ad93fe368a5dc7a36e389245 Mon Sep 17 00:00:00 2001
+From: Luo Jie <jie.luo@oss.qualcomm.com>
+Date: Tue, 6 Jan 2026 21:35:11 -0800
+Subject: [PATCH 2015/2034] dt-bindings: clock: qcom: Add CMN PLL support for
+ IPQ5332 SoC
+
+Add device tree bindings for the CMN PLL block in IPQ5332 SoC, which shares
+similarities with IPQ9574 but has different output clock frequencies.
+
+Add a new header file to export CMN PLL output clock specifiers for IPQ5332
+SoC.
+
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@oss.qualcomm.com>
+Signed-off-by: Luo Jie <jie.luo@oss.qualcomm.com>
+---
+ .../bindings/clock/qcom,ipq9574-cmn-pll.yaml  |  1 +
+ .../dt-bindings/clock/qcom,ipq5332-cmn-pll.h  | 19 +++++++++++++++++++
+ 2 files changed, 20 insertions(+)
+ create mode 100644 include/dt-bindings/clock/qcom,ipq5332-cmn-pll.h
+
+--- a/Documentation/devicetree/bindings/clock/qcom,ipq9574-cmn-pll.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,ipq9574-cmn-pll.yaml
+@@ -25,6 +25,7 @@ properties:
+   compatible:
+     enum:
+       - qcom,ipq5018-cmn-pll
++      - qcom,ipq5332-cmn-pll
+       - qcom,ipq5424-cmn-pll
+       - qcom,ipq9574-cmn-pll
+ 
+--- /dev/null
++++ b/include/dt-bindings/clock/qcom,ipq5332-cmn-pll.h
+@@ -0,0 +1,19 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ */
++
++#ifndef _DT_BINDINGS_CLK_QCOM_IPQ5332_CMN_PLL_H
++#define _DT_BINDINGS_CLK_QCOM_IPQ5332_CMN_PLL_H
++
++/* CMN PLL core clock. */
++#define IPQ5332_CMN_PLL_CLK			0
++
++/* The output clocks from CMN PLL of IPQ5332. */
++#define IPQ5332_XO_24MHZ_CLK			1
++#define IPQ5332_SLEEP_32KHZ_CLK			2
++#define IPQ5332_PCS_31P25MHZ_CLK		3
++#define IPQ5332_NSS_300MHZ_CLK			4
++#define IPQ5332_PPE_200MHZ_CLK			5
++#define IPQ5332_ETH_50MHZ_CLK			6
++#endif

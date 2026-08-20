@@ -1,0 +1,25 @@
+[ -e /lib/firmware/$FIRMWARE ] && exit 0
+
+. /lib/functions/caldata.sh
+
+board=$(board_name)
+
+case "$FIRMWARE" in
+"ath12k/IPQ5332/hw1.0/cal-ahb-c000000.wifi.bin")
+	case "$board" in
+	gl.inet,gl-be6500)
+		caldata_extract "0:art" 0x1000 0x20000
+		;;
+	esac
+	;;
+"ath12k/QCN9274/hw2.0/cal-pci-0001:01:00.0.bin")
+	case "$board" in
+	gl.inet,gl-be6500)
+		caldata_extract "0:art" 0x58800 0x18800
+		;;
+	esac
+	;;
+*)
+	exit 1
+	;;
+esac

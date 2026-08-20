@@ -29,11 +29,10 @@ Signed-off-by: Mathias Kresin <dev@kresin.me>
  };
 --- a/drivers/net/wireless/ath/ath10k/leds.c
 +++ b/drivers/net/wireless/ath/ath10k/leds.c
-@@ -69,7 +69,7 @@ int ath10k_leds_register(struct ath10k *
+@@ -69,6 +69,7 @@ int ath10k_leds_register(struct ath10k *
  
  	ar->leds.cdev.name = ar->leds.label;
  	ar->leds.cdev.brightness_set_blocking = ath10k_leds_set_brightness_blocking;
--	ar->leds.cdev.default_trigger = ar->leds.wifi_led.default_trigger;
 +	ar->leds.cdev.default_trigger = ar->led_default_trigger;
  
  	ret = led_classdev_register(wiphy_dev(ar->hw->wiphy), &ar->leds.cdev);

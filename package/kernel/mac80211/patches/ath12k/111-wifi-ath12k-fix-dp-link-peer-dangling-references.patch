@@ -1,0 +1,67 @@
+From f066e1a93703c5be0fd905109d00587541711c97 Mon Sep 17 00:00:00 2001
+From: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Date: Mon, 29 Jun 2026 15:01:17 +0800
+Subject: [PATCH] wifi: ath12k: fix dp_link_peer dangling references on AP vdev
+ rollback
+
+ath12k_mac_vdev_create() for an AP vdev creates the bss self-peer via
+ath12k_peer_create(), which finishes by calling
+ath12k_dp_link_peer_assign() to publish the dp_link_peer in the
+dp_hw->dp_peers[peerid_index] RCU table, in the dp_peer's
+link_peers[] array, and in the per-addr rhashtable.
+
+If a step after ath12k_peer_create() fails the function jumps to
+err_peer_del, which open-codes a WMI peer_delete and waits for the
+unmap / delete_resp events. The wait_for_peer_delete_done() path
+relies on ath12k_dp_link_peer_unmap_event() freeing the dp_link_peer
+when the unmap arrives, but err_peer_del never calls
+ath12k_dp_link_peer_unassign() first. The published references in
+the dp_hw RCU table, dp_peer->link_peers[] and the rhashtable are
+left pointing at the dp_link_peer that unmap_event then frees,
+producing dangling pointers and use-after-free on subsequent
+lookups.
+
+Replace the open-coded sequence with a call to ath12k_peer_delete(),
+which already does ath12k_dp_link_peer_unassign() before sending the
+WMI command. This drops the published references before the
+dp_link_peer is freed, in the same order as the normal teardown path
+in ath12k_mac_remove_link_interface().
+
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c7-00108-QCAHMTSWPL_V1.0_V2.0_SILICONZ_UPSTREAM-3
+
+Fixes: 5525f12fa671 ("wifi: ath12k: Attach and detach ath12k_dp_link_peer to ath12k_dp_peer")
+Signed-off-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260629-ath12k-mlo-peer-delete-race-v2-1-362b25590d19@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 18 ++----------------
+ 1 file changed, 2 insertions(+), 16 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -10568,22 +10568,8 @@ int ath12k_mac_vdev_create(struct ath12k
+ 
+ err_peer_del:
+ 	if (ahvif->vdev_type == WMI_VDEV_TYPE_AP) {
+-		reinit_completion(&ar->peer_delete_done);
+-
+-		ret = ath12k_wmi_send_peer_delete_cmd(ar, arvif->bssid,
+-						      arvif->vdev_id);
+-		if (ret) {
+-			ath12k_warn(ar->ab, "failed to delete peer vdev_id %d addr %pM\n",
+-				    arvif->vdev_id, arvif->bssid);
+-			goto err_dp_peer_del;
+-		}
+-
+-		ret = ath12k_wait_for_peer_delete_done(ar, arvif->vdev_id,
+-						       arvif->bssid);
+-		if (ret)
+-			goto err_dp_peer_del;
+-
+-		ar->num_peers--;
++		/* ignore return value: propagate the original error */
++		ath12k_peer_delete(ar, arvif->vdev_id, arvif->bssid);
+ 	}
+ 
+ err_dp_peer_del:

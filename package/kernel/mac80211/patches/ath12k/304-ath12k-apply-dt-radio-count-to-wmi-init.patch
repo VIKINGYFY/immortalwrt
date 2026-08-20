@@ -1,0 +1,51 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Fri, 26 Jun 2026 00:20:00 +0800
+Subject: [PATCH] wifi: ath12k: apply DT radio count to WMI init
+
+QCN9274 hw2.0 can report two PHYs in service-ready data even on boards
+where only one radio is wired. Limiting QMI and HTC setup is not enough
+in that case because service-ready parsing can still leave
+ab->num_radios at 2, which makes WMI_INIT_CMD advertise two band-to-mac
+entries and two-radio resources.
+
+Apply the qcom,num-radios override when parsing service-ready extended
+HAL capabilities. The override describes the radio count of this device,
+not the whole hardware group, so it must not disable MLO between
+separate devices.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/wmi.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -4604,17 +4604,27 @@ static int ath12k_wmi_ext_soc_hal_reg_ca
+ 	struct ath12k_wmi_svc_rdy_ext_parse *svc_rdy_ext = data;
+ 	u8 hw_mode_id = le32_to_cpu(svc_rdy_ext->pref_hw_mode_caps.hw_mode_id);
+ 	u32 phy_id_map;
++	u32 max_radios = MAX_RADIOS;
++	u32 num_radios;
+ 	int pdev_index = 0;
+ 	int ret;
+ 
+ 	svc_rdy_ext->soc_hal_reg_caps = ptr;
+ 	svc_rdy_ext->arg.num_phy = le32_to_cpu(svc_rdy_ext->soc_hal_reg_caps->num_phy);
++	if (!of_property_read_u32(soc->dev->of_node, "qcom,num-radios",
++				  &num_radios) && num_radios) {
++		max_radios = min_t(u32, num_radios, soc->hw_params->max_radios);
++		svc_rdy_ext->arg.num_phy = min_t(u32, svc_rdy_ext->arg.num_phy,
++						 max_radios);
++		ath12k_info(soc, "limiting service ready radios to %u\n",
++			    max_radios);
++	}
+ 
+ 	soc->num_radios = 0;
+ 	phy_id_map = le32_to_cpu(svc_rdy_ext->pref_hw_mode_caps.phy_id_map);
+ 	soc->fw_pdev_count = 0;
+ 
+-	while (phy_id_map && soc->num_radios < MAX_RADIOS) {
++	while (phy_id_map && soc->num_radios < max_radios) {
+ 		ret = ath12k_pull_mac_phy_cap_svc_ready_ext(wmi_handle,
+ 							    svc_rdy_ext,
+ 							    hw_mode_id, soc->num_radios,

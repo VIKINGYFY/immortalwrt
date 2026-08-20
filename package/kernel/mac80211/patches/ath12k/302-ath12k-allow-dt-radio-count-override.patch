@@ -1,0 +1,76 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 25 Jun 2026 23:40:00 +0800
+Subject: [PATCH] wifi: ath12k: allow DT radio count override
+
+QCN9274 hw2.0 can expose two PHYs for wideband designs, so ath12k uses
+max_radios = 2 for the generic hardware parameters. Some boards only wire
+one PHY and skip the second radio. On those boards firmware may still expose
+the second WMI service in the HTC setup path, causing the host to connect to
+WMI_CONTROL_MAC1 and fail before WMI service ready.
+
+Allow board DTS to provide qcom,num-radios and cap both the QMI phy count
+and the HTC WMI endpoint count to that value.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/htc.c | 10 ++++++++++
+ drivers/net/wireless/ath/ath12k/qmi.c |  8 ++++++++
+ 2 files changed, 18 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/htc.c
++++ b/drivers/net/wireless/ath/ath12k/htc.c
+@@ -4,6 +4,7 @@
+  */
+ #include <linux/skbuff.h>
+ #include <linux/ctype.h>
++#include <linux/of.h>
+ 
+ #include "debug.h"
+ #include "hif.h"
+@@ -750,6 +751,7 @@ int ath12k_htc_init(struct ath12k_base *
+ 	struct ath12k_htc_svc_conn_req conn_req = { };
+ 	struct ath12k_htc_svc_conn_resp conn_resp = { };
+ 	int ret;
++	u32 num_radios;
+ 
+ 	spin_lock_init(&htc->tx_lock);
+ 
+@@ -777,6 +779,14 @@ int ath12k_htc_init(struct ath12k_base *
+ 		break;
+ 	}
+ 
++	if (!of_property_read_u32(ab->dev->of_node, "qcom,num-radios",
++				  &num_radios) && num_radios) {
++		num_radios = min_t(u32, num_radios, ab->hw_params->max_radios);
++		htc->wmi_ep_count = min_t(u8, htc->wmi_ep_count, num_radios);
++		ath12k_dbg(ab, ATH12K_DBG_BOOT, "boot limiting WMI endpoints to %u\n",
++			   htc->wmi_ep_count);
++	}
++
+ 	/* setup our pseudo HTC control endpoint connection */
+ 	conn_req.ep_ops.ep_tx_complete = ath12k_htc_control_tx_complete;
+ 	conn_req.ep_ops.ep_rx_complete = ath12k_htc_control_rx_complete;
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -2276,6 +2276,7 @@ static void ath12k_qmi_phy_cap_send(stru
+ {
+ 	struct qmi_wlanfw_phy_cap_req_msg_v01 req = {};
+ 	struct qmi_wlanfw_phy_cap_resp_msg_v01 resp = {};
++	u32 num_radios;
+ 	struct qmi_txn txn;
+ 	int ret;
+ 
+@@ -2310,6 +2311,13 @@ static void ath12k_qmi_phy_cap_send(stru
+ 	}
+ 
+ 	ab->qmi.num_radios = resp.num_phy;
++	if (!of_property_read_u32(ab->dev->of_node, "qcom,num-radios",
++				  &num_radios) && num_radios) {
++		num_radios = min_t(u32, num_radios, ab->hw_params->max_radios);
++		ab->qmi.num_radios = min_t(u8, ab->qmi.num_radios, num_radios);
++		ath12k_dbg(ab, ATH12K_DBG_QMI, "phy capability limited num_phy %d\n",
++			   ab->qmi.num_radios);
++	}
+ 
+ 	ath12k_dbg(ab, ATH12K_DBG_QMI,
+ 		   "phy capability resp valid %d single_chip_mlo_support %d valid %d num_phy %d valid %d board_id %d\n",

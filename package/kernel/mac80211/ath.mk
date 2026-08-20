@@ -70,6 +70,10 @@ config-$(call config_package,ath11k) += ATH11K
 config-$(call config_package,ath11k-ahb) += ATH11K_AHB
 config-$(call config_package,ath11k-pci) += ATH11K_PCI
 config-$(call config_package,ath12k) += ATH12K
+ifdef CONFIG_PACKAGE_kmod-ath12k
+  config-y += ATH12K_AHB
+  config-$(CONFIG_TARGET_qualcommbe) += ATH12K_COREDUMP
+endif
 
 config-$(call config_package,ath5k) += ATH5K ATH5K_PCI
 
@@ -391,10 +395,13 @@ define KernelPackage/ath12k
   URL:=https://wireless.wiki.kernel.org/en/users/drivers/ath12k
   DEPENDS+= @PCI_SUPPORT +kmod-ath +@DRIVER_11AC_SUPPORT +@DRIVER_11AX_SUPPORT \
   +kmod-crypto-michael-mic +kmod-qrtr-mhi \
+  +TARGET_qualcommax:kmod-qrtr-smd +TARGET_qualcommbe:kmod-qrtr-smd \
   +kmod-qcom-qmi-helpers +@DRIVER_11BE_SUPPORT \
   +ATH12K_THERMAL:kmod-hwmon-core +ATH12K_THERMAL:kmod-thermal
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath12k/ath12k.ko
-  AUTOLOAD:=$(call AutoProbe,ath12k)
+  FILES:= \
+	$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath12k/ath12k.ko \
+	$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath12k/wifi7/ath12k_wifi7.ko
+  AUTOLOAD:=$(call AutoProbe,ath12k ath12k_wifi7)
 endef
 
 define KernelPackage/ath12k/description

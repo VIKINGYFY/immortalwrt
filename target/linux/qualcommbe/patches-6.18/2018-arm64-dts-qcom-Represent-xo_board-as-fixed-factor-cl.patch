@@ -1,0 +1,50 @@
+From bdb4b6b30ba61da75108a49bfcd2de20d949f248 Mon Sep 17 00:00:00 2001
+From: Luo Jie <jie.luo@oss.qualcomm.com>
+Date: Tue, 6 Jan 2026 21:35:14 -0800
+Subject: [PATCH 2018/2034] arm64: dts: qcom: Represent xo_board as
+ fixed-factor clock on IPQ5332
+
+The xo_board clock is derived from the 48 MHz WiFi output clock (divided
+by 2), and not a standalone fixed frequency source.
+
+The previous implementation incorrectly modelled it as a fixed-clock with
+fixed frequency, which doesn't reflect the actual hardware clock tree.
+Update for fixed-factor-clock compatibility, and properly reference the
+source clock.
+
+Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
+Signed-off-by: Luo Jie <jie.luo@oss.qualcomm.com>
+---
+ arch/arm64/boot/dts/qcom/ipq5332-rdp-common.dtsi | 7 ++++++-
+ arch/arm64/boot/dts/qcom/ipq5332.dtsi            | 3 ++-
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+--- a/arch/arm64/boot/dts/qcom/ipq5332-rdp-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5332-rdp-common.dtsi
+@@ -70,8 +70,13 @@
+ 	clock-frequency = <32000>;
+ };
+ 
++/*
++ * The frequency of xo_board is fixed to 24 MHZ, which is routed
++ * from WiFi output clock 48 MHZ divided by 2.
++ */
+ &xo_board {
+-	clock-frequency = <24000000>;
++	clock-div = <2>;
++	clock-mult = <1>;
+ };
+ 
+ &xo_clk {
+--- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
+@@ -42,7 +42,8 @@
+ 		};
+ 
+ 		xo_board: xo-board-clk {
+-			compatible = "fixed-clock";
++			compatible = "fixed-factor-clock";
++			clocks = <&ref_48mhz_clk>;
+ 			#clock-cells = <0>;
+ 		};
+ 

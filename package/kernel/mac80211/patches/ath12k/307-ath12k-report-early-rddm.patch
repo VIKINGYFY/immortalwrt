@@ -1,0 +1,43 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Fri, 24 Jul 2026 12:10:00 +0800
+Subject: [PATCH] wifi: ath12k: report firmware crashes before QMI ready
+
+An MHI RDDM notification received during initial firmware boot only emits a
+debug message. Recovery is then skipped because QMI firmware ready has not
+completed, leaving the later WMI ready timeout as the first visible error.
+
+Report the RDDM transition and explain why early recovery is skipped so the
+actual firmware failure is visible without enabling the full debug mask.
+Collect the crash dump before returning because the normal recovery path,
+which performs the collection, cannot run until QMI firmware ready completes.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/core.c | 4 +++-
+ drivers/net/wireless/ath/ath12k/mhi.c  | 2 ++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1704,7 +1704,9 @@ static void ath12k_core_reset(struct wor
+ 	long time_left;
+ 
+ 	if (!(test_bit(ATH12K_FLAG_QMI_FW_READY_COMPLETE, &ab->dev_flags))) {
+-		ath12k_warn(ab, "ignore reset dev flags 0x%lx\n", ab->dev_flags);
++		ath12k_warn(ab, "firmware crashed before QMI ready; recovery skipped (dev flags 0x%lx)\n",
++			    ab->dev_flags);
++		ath12k_coredump_collect(ab);
+ 		return;
+ 	}
+ 
+--- a/drivers/net/wireless/ath/ath12k/mhi.c
++++ b/drivers/net/wireless/ath/ath12k/mhi.c
+@@ -149,6 +149,8 @@ static void ath12k_mhi_op_status_cb(stru
+ 		ath12k_warn(ab, "firmware crashed: MHI_CB_SYS_ERROR\n");
+ 		break;
+ 	case MHI_CB_EE_RDDM:
++		ath12k_warn(ab, "firmware crashed: MHI_CB_EE_RDDM\n");
++
+ 		if (ab_pci->mhi_pre_cb == MHI_CB_EE_RDDM) {
+ 			ath12k_dbg(ab, ATH12K_DBG_BOOT,
+ 				   "do not queue again for consecutive RDDM event\n");

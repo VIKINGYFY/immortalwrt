@@ -1,0 +1,36 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Wed, 29 Jul 2026 12:00:00 +0530
+Subject: [PATCH] wifi: ath12k: select valid link when link zero is missing
+
+The TX control link field can contain zero for MLD frames even when link
+zero is not part of the VIF. ath12k treats that value as an explicit link,
+fails to find an arvif and drops the frame.
+
+Select the first driver-backed active link when the VIF does not have link
+zero. The existing TX link selection can still apply STA-specific policy.
+
+Intersect active_links with links_map so that this does not redirect frames
+to links which are being removed. If no active driver link remains, retain
+the existing teardown behavior and drop the frame.
+
+Fixes: 648a121bafa3 ("wifi: ath12k: ath12k_mac_op_tx(): MLO support")
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+ drivers/net/wireless/ath/ath12k/wifi7/hw.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -921,7 +921,12 @@ static void ath12k_wifi7_mac_op_tx(struc
+ 	}
+ 
+ 	/* handle only for MLO case, use deflink for non MLO case */
+ 	if (ieee80211_vif_is_mld(vif)) {
++		links_map = vif->active_links & ahvif->links_map;
++		if (link_id == ATH12K_DEFAULT_LINK_ID &&
++		    !(vif->valid_links & BIT(link_id)) && links_map)
++			link_id = __ffs(links_map);
++
+ 		link_id = ath12k_mac_get_tx_link(sta, vif, link_id, skb, info_flags);
+ 		if (link_id >= IEEE80211_MLD_MAX_NUM_LINKS) {
+ 			ieee80211_free_txskb(hw, skb);

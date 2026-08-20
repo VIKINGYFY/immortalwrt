@@ -1,0 +1,684 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+/dts-v1/;
+
+#include <arm64/qcom/ipq5332.dtsi>
+
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/clock/qcom,ipq5332-nsscc.h>
+
+/ {
+	#address-cells = <0x2>;
+	#size-cells = <0x2>;
+	model = "GL.iNet GL-BE6500";
+	compatible = "gl.inet,gl-be6500", "qcom,ipq5332";
+
+	usb_fixed_5p0: regulator-usb-5v {
+		compatible = "regulator-fixed";
+		regulator-name = "usb-fixed-5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+    aliases {
+		serial0 = &blsp1_uart0;
+	};
+
+    chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs-append = " root=/dev/ubiblock0_1";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+        tzapp:tzapp@49600000 {  /* TZAPPS */
+			reg = <0x0 0x49600000 0x0 0x00600000>;
+			no-map;
+		};
+
+		m3_dump: m3-dump@4d400000 {
+			reg = <0x0 0x4d400000 0x0 0x100000>;
+			no-map;
+		};
+
+		q6_caldb: q6-caldb@4d500000 {
+			reg = <0x0 0x4d500000 0x0 0x500000>;
+			no-map;
+		};
+
+		ramoops@4da00000 {
+			compatible = "ramoops";
+			reg = <0x0 0x4da00000 0x0 0x00100000>;
+			record-size = <0x00080000>;
+			console-size = <0x00080000>;
+			no-map;
+		};
+
+		mlo_mem: mlo-global-mem@4db00000 {
+			reg = <0x0 0x4db00000 0x0 0x01200000>;
+			no-map;
+		};
+
+		qcn9274_host_ddr: qcn9274-host-ddr@4ed00000 {
+			reg = <0x0 0x4ed00000 0x0 0x03200000>;
+			no-map;
+		};
+	};
+
+    soc@0 {
+        leds {
+            compatible = "gpio-leds";
+            pinctrl-0 = <&leds_pins>;
+            pinctrl-names = "default";
+            status = "okay";
+
+            led@32 {
+                label = "blue:run";
+                gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
+                default-state = "on";
+            };
+
+            led@33 {
+                label = "white:system";
+                gpios = <&tlmm 33 GPIO_ACTIVE_HIGH>;
+                default-state = "off";
+            };
+        };
+
+        gpio_keys {
+            compatible = "gpio-keys";
+            pinctrl-0 = <&button_pins>;
+            pinctrl-names = "default";
+            status = "okay";
+
+            reset {
+                label = "reset";
+                linux,code = <KEY_RESTART>;
+                gpios = <&tlmm 17 GPIO_ACTIVE_LOW>;
+                linux,input-type = <1>;
+            };
+        };
+
+        fan0: pwm-fan {
+            compatible = "pwm-fan";
+            pinctrl-0 = <&fan_pins>;
+            pinctrl-names = "default";
+            pwms = <&pwm 3 40000 0>;
+            interrupt-parent = <&tlmm>;
+            interrupts = <36 IRQ_TYPE_EDGE_RISING>;
+            pulses-per-revolution = <2>;
+            cooling-levels = <36 128 192 255>;
+            #cooling-cells = <2>;
+        };
+
+		mdio: mdio@90000 {
+			compatible = "qcom,ipq4019-mdio";
+			reg = <0x90000 0x64>;
+			pinctrl-0 = <&mdio1_pins &mdio0_pins>;
+			pinctrl-names = "default";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clocks = <&gcc GCC_MDIO_AHB_CLK>;
+			clock-names = "gcc_mdio_ahb_clk";
+			status = "disabled";
+		};
+    };
+
+    thermal-zones {
+        cpu-top-thermal {
+            polling-delay = <1000>;
+
+            trips {
+                fan_trip_high: active-high {
+                    temperature = <100000>;
+                    hysteresis = <2000>;
+                    type = "active";
+                };
+
+                fan_trip_med: active-med {
+                    temperature = <75000>;
+                    hysteresis = <2000>;
+                    type = "active";
+                };
+
+                fan_trip_low: active-low {
+                    temperature = <50000>;
+                    hysteresis = <2000>;
+                    type = "active";
+                };
+            };
+
+            cooling-maps {
+                fan-active-high {
+                    cooling-device = <&fan0 3 3>;
+                    trip = <&fan_trip_high>;
+                };
+
+                fan-active-med {
+                    cooling-device = <&fan0 2 2>;
+                    trip = <&fan_trip_med>;
+                };
+
+                fan-active-low {
+                    cooling-device = <&fan0 1 1>;
+                    trip = <&fan_trip_low>;
+                };
+            };
+        };
+    };
+};
+
+&blsp1_uart0 {
+    pinctrl-0 = <&serial_0_pins>;
+    pinctrl-names = "default";
+    status = "okay";
+};
+
+&pwm {
+    #pwm-cells = <2>;
+    pinctrl-0 = <&pwm_pins>;
+    pinctrl-names = "default";
+    used-pwm-indices = <0>, <0>, <0>, <1>;
+    status = "okay";
+};
+
+&tlmm {
+    qspi_nand_pins: qspi_nand_pins {
+        qspi_clock {
+            pins = "gpio13";
+            function = "qspi_clk";
+            drive-strength = <8>;
+            bias-disable;
+        };
+
+        qspi_cs {
+            pins = "gpio12";
+            function = "qspi_cs";
+            drive-strength = <8>;
+            bias-disable;
+        };
+
+        qspi_data {
+            pins = "gpio8", "gpio9", "gpio10", "gpio11";
+            function = "qspi_data";
+            drive-strength = <8>;
+            bias-disable;
+        };
+    };
+    
+    leds_pins: leds_pinmux {
+        led_blue {
+            pins = "gpio32";
+            function = "gpio";
+            drive-strength = <8>;
+            bias-pull-down;
+        };
+
+        led_white {
+            pins = "gpio33";
+            function = "gpio";
+            drive-strength = <8>;
+            bias-pull-down;
+        };
+    };
+
+    button_pins: button_pins {
+        reset_button {
+            pins = "gpio17";
+            function = "gpio";
+            drive-strength = <8>;
+            bias-pull-up;
+        };
+    };
+
+    pwm_pins: pwm_pinmux {
+        pwm1 {
+            pins = "gpio29";
+            function = "pwm1";
+            drive-strength = <8>;
+        };
+    };
+
+    fan_pins: fan_pins {
+        pwr {
+            pins = "gpio34";
+            function = "gpio";
+            bias-pull-up;
+            output-high;
+        };
+        speed {
+            pins = "gpio36";
+            function = "gpio";
+            drive-strength = <8>;
+            bias-pull-down;
+        };
+    };
+
+    usb_pins: usb_pins {
+        usb_pwr {
+            pins = "gpio16";
+            function = "gpio";
+            bias-pull-up;
+            output-high;
+        };
+    };
+
+	pcie1_default: pcie1-default-state {
+		clkreq-n-pins {
+			pins = "gpio46";
+			function = "pcie1_clk";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		perst-n-pins {
+			pins = "gpio47";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-low;
+		};
+
+		wake-n-pins {
+			pins = "gpio48";
+			function = "pcie1_wake";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+
+    mdio0_pins: mdio0-state {
+        mux_0 {
+            pins = "gpio25";
+            function = "mdc0";
+            drive-strength = <8>;
+            bias-disable;
+        };
+
+        mux_1 {
+            pins = "gpio26";
+            function = "mdio0";
+            drive-strength = <8>;
+            bias-pull-up;
+        };
+    };
+
+    mdio1_pins: mdio1-state {
+        mux_0 {
+            pins = "gpio27";
+            function = "mdc1";
+            drive-strength = <8>;
+            bias-disable;
+        };
+
+        mux_1 {
+            pins = "gpio28";
+            function = "mdio1";
+            drive-strength = <8>;
+            bias-pull-up;
+        };
+    };
+};
+
+&mdio {
+    status = "okay";
+    pinctrl-0 = <&mdio1_pins>;
+    pinctrl-names = "default";
+    mdio_clk_fixup; /* MDIO clock sequence fix up flag */
+
+    phy: ethernet-phy@1 {
+        compatible = "ethernet-phy-id001c.c849";
+        reg = <1>;
+        reset-gpios = <&tlmm 24 GPIO_ACTIVE_LOW>;
+        reset-assert-us = <10000>;
+        reset-deassert-us = <50000>;
+    };
+
+    rtl837x: rtl837x-dsa@29 {
+        compatible = "realtek,rtl837x";
+        #address-cells = <1>;
+        #size-cells = <0>;
+        reg = <29>;
+        //realtek,reset-done-by-mdio;
+        rtl837x,sds0mode = "10g-kr";
+        gpio-controller;
+        #gpio-cells = <2>;
+
+        sds0-rx-swap; // optional
+        sds0-tx-swap; // optional
+        sds1-rx-swap; // optional
+        sds1-tx-swap; // optional
+
+        ports {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            port@3 {
+                reg = <3>;
+                label = "cpu";
+                ethernet = <&xgmac1>;
+                phy-mode = "10gbase-r";
+
+                fixed-link {
+                    speed = <10000>;
+                    full-duplex;
+                };
+            };
+
+            port@4 {
+                reg = <4>;
+                label = "lan1";
+                phy-mode = "internal";
+            };
+
+            port@5 {
+                reg = <5>;
+                label = "lan2";
+                phy-mode = "internal";
+            };
+
+            port@6 {
+                reg = <6>;
+                label = "lan3";
+                phy-mode = "internal";
+            };
+
+            port@7 {
+                reg = <7>;
+                label = "lan4";
+                phy-mode = "internal";
+            };
+        };
+    };
+
+};
+
+&qcom_ppe {
+	status = "okay";
+
+	ethernet-ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		xgmac1: port@1 {
+			reg = <1>;
+			phy-mode = "10gbase-r";
+			label = "lan";
+			nvmem-cells = <&base_macaddr 1>;
+			nvmem-cell-names = "mac-address";
+			pcs-handle = <&pcs0_ch0>;
+			phy-handle = <&rtl837x>;
+			clocks = <&nsscc NSS_CC_PORT1_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT1_RX_CLK>,
+				 <&nsscc NSS_CC_PORT1_TX_CLK>;
+			clock-names = "mac",
+				      "rx",
+				      "tx";
+			resets = <&nsscc NSS_CC_PORT1_MAC_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT1_RX_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT1_TX_CLK_ARES>;
+			reset-names = "mac",
+				      "rx",
+				      "tx";
+
+			fixed-link {
+				speed = <10000>;
+				full-duplex;
+				pause;
+			};
+		};
+
+		xgmac2: port@2 {
+			reg = <2>;
+			phy-mode = "usxgmii";
+            managed = "in-band-status";
+			label = "wan";
+			nvmem-cells = <&base_macaddr 0>;
+			nvmem-cell-names = "mac-address";
+			pcs-handle = <&pcs1_ch0>;
+			phy-handle = <&phy>;
+			clocks = <&nsscc NSS_CC_PORT2_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT2_RX_CLK>,
+				 <&nsscc NSS_CC_PORT2_TX_CLK>;
+			clock-names = "mac",
+				      "rx",
+				      "tx";
+			resets = <&nsscc NSS_CC_PORT2_MAC_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT2_RX_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT2_TX_CLK_ARES>;
+			reset-names = "mac",
+				      "rx",
+				      "tx";
+		};
+	};
+};
+
+&pcs0 {
+	status = "okay";
+};
+
+&pcs1 {
+	status = "okay";
+};
+
+&pcie0_phy {
+	compatible = "qcom,ipq5332-usb-uniphy";
+
+	clocks = <&gcc GCC_USB0_PIPE_CLK>,
+		 <&gcc GCC_USB0_PHY_CFG_AHB_CLK>,
+		 <&gcc GCC_PCIE3X1_PHY_AHB_CLK>;
+	clock-names = "pipe", "phy_cfg_ahb", "phy_ahb";
+
+	resets = <&gcc GCC_USB0_PHY_BCR>;
+	reset-names = "por_rst";
+
+	#clock-cells = <0>;
+	#phy-cells = <0>;
+	clock-output-names = "usb0_pipe_clk_src";
+
+	qcom,phy-usb-mux-sel = <&tcsr 0x10540>;
+	vdd-supply = <&usb_fixed_5p0>;
+
+	/delete-property/ num-lanes;
+	status = "okay";
+};
+
+&pcie1_phy {
+	status = "okay";
+};
+
+&usb {
+	pinctrl-0 = <&usb_pins>;
+	pinctrl-names = "default";
+
+	clocks = <&gcc GCC_USB0_MASTER_CLK>,
+		 <&gcc GCC_USB0_SLEEP_CLK>,
+		 <&gcc GCC_USB0_MOCK_UTMI_CLK>,
+		 <&gcc GCC_USB0_AUX_CLK>,
+		 <&gcc GCC_USB0_LFPS_CLK>;
+	clock-names = "core",
+		      "sleep",
+		      "mock_utmi",
+		      "aux",
+		      "lfps";
+
+	/delete-property/ qcom,select-utmi-as-pipe-clk;
+	status = "okay";
+};
+
+&usb_dwc {
+	phys = <&usbphy0>, <&pcie0_phy>;
+	phy-names = "usb2-phy", "usb3-phy";
+	dr_mode = "host";
+	maximum-speed = "super-speed";
+	status = "okay";
+};
+
+&usbphy0 {
+	vdd-supply = <&usb_fixed_5p0>;
+	status = "okay";
+};
+
+&qpic_nand {
+    pinctrl-0 = <&qspi_nand_pins>;
+    pinctrl-names = "default";
+    status = "okay";
+
+    flash@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		nand-ecc-engine = <&qpic_nand>;
+		nand-ecc-strength = <8>;
+		nand-ecc-step-size = <512>;
+
+		partitions {
+			compatible = "qcom,smem-part";
+
+			partition-0-art {
+				label = "0:art";
+				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					base_macaddr: mac-address@a {
+						compatible = "mac-base";
+						reg = <0xa 0x6>;
+						#nvmem-cell-cells = <1>;
+					};
+				};
+			};
+		};
+    };
+};
+
+
+&pcie1 {
+    status = "okay";
+
+	pinctrl-0 = <&pcie1_default>;
+	pinctrl-names = "default";
+
+	perst-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 48 GPIO_ACTIVE_LOW>;
+
+	pcie@0 {
+		wifi1: pcie@0 {
+			compatible = "pci17cb,1109";
+			reg = <0x00010000  0 0 0 0>;
+			nvmem-cells = <&base_macaddr 4>;
+			nvmem-cell-names = "mac-address";
+			memory-region = <&qcn9274_host_ddr>, <&mlo_mem>;
+			memory-region-names = "host-ddr-mem", "mlo-global-mem";
+			qcom,ath12k-fw-memory-mode = <1>;
+			qcom,board-id = <0x15>;
+			qcom,num-radios = <1>;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					wifi1_wsi_tx: endpoint {
+						remote-endpoint = <&wifi0_wsi_rx>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					wifi1_wsi_rx: endpoint {
+						remote-endpoint = <&wifi0_wsi_tx>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&qpic_bam {
+    status = "okay";
+};
+
+/*
+ * The bootstrap pins for the board select the XO clock frequency that
+ * supports 48 MHZ or 96 MHZ. This setting automatically enables the
+ * right dividers, to ensure the reference clock output from WiFi to
+ * the CMN PLL is 48 MHZ.
+ */
+&ref_48mhz_clk {
+	clock-div = <1>;
+	clock-mult = <1>;
+};
+
+&sleep_clk {
+	clock-frequency = <32000>;
+};
+
+/*
+ * The frequency of xo_board is fixed to 24 MHZ, which is routed
+ * from WiFi output clock 48 MHZ divided by 2.
+ */
+&xo_board {
+	clock-div = <2>;
+	clock-mult = <1>;
+};
+
+&xo_clk {
+	clock-frequency = <48000000>;
+};
+
+&wifi0 {
+	firmware-name = "ath12k/IPQ5332/hw1.0/q6_fw1.mdt",
+			"ath12k/IPQ5332/hw1.0/iu_fw.mdt";
+	nvmem-cells = <&base_macaddr 3>;
+	nvmem-cell-names = "mac-address";
+	memory-region = <&q6_region>, <&m3_dump>, <&q6_caldb>, <&mlo_mem>;
+	memory-region-names = "q6-region", "m3-dump", "q6-caldb", "mlo-global-mem";
+	qcom,bdf-address-offset = <0x0c00000>;
+	qcom,board-id = <18>;
+	qcom,legacy-userpd-bootinfo;
+	qcom,rproc = <&q6v5_wcss>;
+	qcom,wsi-controller;
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			wifi0_wsi_tx: endpoint {
+				remote-endpoint = <&wifi1_wsi_rx>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+
+			wifi0_wsi_rx: endpoint {
+				remote-endpoint = <&wifi1_wsi_tx>;
+			};
+		};
+	};
+};
+
+&q6v5_wcss {
+	firmware-name = "ath12k/IPQ5332/hw1.0/q6_fw0.mdt";
+	status = "okay";
+};

@@ -1,0 +1,298 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 1 Aug 2026 23:40:00 +0800
+Subject: [PATCH] wifi: ath12k: keep recovery state through reconfiguration
+
+ath12k currently clears ATH12K_FLAG_RECOVERY as soon as the restarted
+firmware reports ready. mac80211 has not restored the vdev and station
+state at that point, so teardown callbacks for objects which only existed
+before the crash can still send stop and delete commands to the fresh
+firmware. Those commands fail and abort the remaining state transition,
+leaving beacon and peer state only partially restored.
+
+Keep the recovery flag set until every radio belonging to an ath12k device
+has completed mac80211 reconfiguration. Old vdevs are detached from the
+arvif list by ath12k_core_halt(), so use that state to skip firmware stop
+and delete commands only for pre-crash objects. This distinction lets
+rollback of a newly created vdev or peer continue to delete its firmware
+state even while reconfiguration is in progress.
+
+Reset the vdev statistics ID bitmap together with the vdev ID bitmap. The
+restarted firmware has no old vdevs, and retaining those allocations would
+exhaust the statistics IDs after repeated recovery cycles.
+
+Also finish the per-radio recovery accounting when mac80211 completes an
+explicit restart after all interfaces have been closed. Keep stopped
+hardware off and avoid runtime WMI configuration in that case. Publish all
+recovery state changes before waking reset waiters.
+
+For stale peers, still remove the local datapath mapping but do not
+register a delete waiter or send a command for an entry which cannot exist
+in the restarted firmware. Also let failed downward station transitions
+complete while recovery is active because local crash cleanup has already
+removed the old state.
+
+This is adapted from Qualcomm's downstream MLO SSR Mode-0 recovery and vdev
+cleanup fixes, with the old/new object distinction added for the current
+driver's reconfiguration error paths.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/core.c |  6 +++---
+ drivers/net/wireless/ath/ath12k/mac.c  | 72 +++++++++++++++++++++++++++-------
+ drivers/net/wireless/ath/ath12k/peer.c | 19 ++++++++++++++++-
+ drivers/net/wireless/ath/ath12k/peer.h |  3 ++-
+ 4 files changed, 81 insertions(+), 19 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1469,6 +1469,7 @@ static int ath12k_core_reconfigure_on_cr
+ 	ath12k_hal_srng_deinit(ab);
+ 	total_vdev = ab->num_radios * TARGET_NUM_VDEVS(ab);
+ 	ab->free_vdev_map = (1LL << total_vdev) - 1;
++	ab->free_vdev_stats_id_map = 0;
+ 
+ 	ret = ath12k_hal_srng_init(ab);
+ 	if (ret)
+@@ -1480,8 +1481,6 @@ static int ath12k_core_reconfigure_on_cr
+ 	if (ret)
+ 		goto err_hal_srng_deinit;
+ 
+-	clear_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags);
+-
+ 	return 0;
+ 
+ err_hal_srng_deinit:
+@@ -1719,9 +1718,10 @@ static void ath12k_core_restart(struct w
+ 	if (ab->is_reset) {
+ 		if (!test_bit(ATH12K_FLAG_REGISTERED, &ab->dev_flags)) {
+ 			atomic_dec(&ab->reset_count);
+-			complete(&ab->reset_complete);
+ 			ab->is_reset = false;
+ 			atomic_set(&ab->fail_cont_count, 0);
++			clear_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags);
++			complete(&ab->reset_complete);
+ 			ath12k_dbg(ab, ATH12K_DBG_BOOT, "reset success\n");
+ 		}
+ 
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -1540,6 +1540,10 @@ int ath12k_mac_vdev_stop(struct ath12k_l
+ 
+ 	reinit_completion(&ar->vdev_setup_done);
+ 
++	if (test_bit(ATH12K_FLAG_RECOVERY, &ar->ab->dev_flags) &&
++	    list_empty(&arvif->list))
++		return 0;
++
+ 	ret = ath12k_wmi_vdev_stop(ar, arvif->vdev_id);
+ 	if (ret) {
+ 		ath12k_warn(ar->ab, "failed to stop WMI vdev %i: %d\n",
+@@ -4210,7 +4214,10 @@ static void ath12k_mac_remove_link_inter
+ 		ath12k_mac_11d_scan_stop(ar);
+ 
+ 	if (ahvif->vdev_type == WMI_VDEV_TYPE_AP) {
+-		ret = ath12k_peer_delete(ar, arvif->vdev_id, arvif->bssid);
++		ret = ath12k_peer_delete(ar, arvif->vdev_id, arvif->bssid,
++					 test_bit(ATH12K_FLAG_RECOVERY,
++						  &ar->ab->dev_flags) &&
++					 list_empty(&arvif->list));
+ 		if (ret)
+ 			ath12k_warn(ar->ab, "failed to submit AP self-peer removal on vdev %d link id %d: %d",
+ 				    arvif->vdev_id, arvif->link_id, ret);
+@@ -7068,7 +7075,10 @@ static int ath12k_mac_station_remove(str
+ 
+ 	ath12k_dp_peer_cleanup(ar, arvif->vdev_id, arsta->addr);
+ 
+-	ret = ath12k_peer_delete(ar, arvif->vdev_id, arsta->addr);
++	ret = ath12k_peer_delete(ar, arvif->vdev_id, arsta->addr,
++				 test_bit(ATH12K_FLAG_RECOVERY,
++					  &ar->ab->dev_flags) &&
++				 list_empty(&arvif->list));
+ 	if (ret)
+ 		ath12k_warn(ar->ab, "Failed to delete peer: %pM for VDEV: %d\n",
+ 			    arsta->addr, arvif->vdev_id);
+@@ -7180,7 +7190,7 @@ static int ath12k_mac_station_add(struct
+ 	return 0;
+ 
+ free_peer:
+-	ath12k_peer_delete(ar, arvif->vdev_id, arsta->addr);
++	ath12k_peer_delete(ar, arvif->vdev_id, arsta->addr, false);
+ 	spin_lock_bh(&ab->base_lock);
+ 	ath12k_link_sta_rhash_delete(ab, arsta);
+ 	spin_unlock_bh(&ab->base_lock);
+@@ -7378,6 +7388,18 @@ static int ath12k_mac_handle_link_sta_st
+ 	}
+ 
+ exit:
++	if (ret && old_state > new_state &&
++	    test_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags)) {
++		/* The restarted firmware has an empty peer table. Permit
++		 * mac80211 to finish removing state which preceded the crash
++		 * even when the corresponding WMI operation cannot complete.
++		 */
++		ath12k_dbg(ab, ATH12K_DBG_BOOT,
++			   "ignore link sta %u %pM state %d -> %d error %d during recovery\n",
++			   arsta->link_id, arsta->addr, old_state, new_state, ret);
++		ret = 0;
++	}
++
+ 	return ret;
+ }
+ 
+@@ -10577,7 +10599,7 @@ err_peer_del:
+ err_peer_del:
+ 	if (ahvif->vdev_type == WMI_VDEV_TYPE_AP) {
+ 		/* ignore return value: propagate the original error */
+-		ath12k_peer_delete(ar, arvif->vdev_id, arvif->bssid);
++		ath12k_peer_delete(ar, arvif->vdev_id, arvif->bssid, false);
+ 	}
+ 
+ err_dp_peer_del:
+@@ -10859,12 +10881,16 @@ static int ath12k_mac_vdev_delete(struct
+ 	struct ath12k_dp_link_vif *dp_link_vif;
+ 	struct ath12k_base *ab = ar->ab;
+ 	unsigned long time_left;
+-	int ret;
++	int ret = 0;
+ 
+ 	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
+ 
+ 	reinit_completion(&ar->vdev_delete_done);
+ 
++	if (test_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags) &&
++	    list_empty(&arvif->list))
++		goto err_vdev_del;
++
+ 	ret = ath12k_wmi_vdev_delete(ar, arvif->vdev_id);
+ 	if (ret) {
+ 		ath12k_warn(ab, "failed to delete WMI vdev %d: %d\n",
+@@ -10893,7 +10919,8 @@ static int ath12k_mac_vdev_delete(struct
+ 
+ err_vdev_del:
+ 	spin_lock_bh(&ar->data_lock);
+-	list_del(&arvif->list);
++	if (!list_empty(&arvif->list))
++		list_del_init(&arvif->list);
+ 	spin_unlock_bh(&ar->data_lock);
+ 
+ 	ath12k_peer_cleanup(ar, arvif->vdev_id);
+@@ -13503,6 +13530,7 @@ ath12k_mac_op_reconfig_complete(struct i
+ 	struct ath12k_base *ab;
+ 	struct ath12k_vif *ahvif;
+ 	struct ath12k_link_vif *arvif;
++	bool hw_restarted;
+ 	int recovery_count, i;
+ 
+ 	lockdep_assert_wiphy(hw->wiphy);
+@@ -13512,19 +13540,31 @@ ath12k_mac_op_reconfig_complete(struct i
+ 
+ 	guard(mutex)(&ah->hw_mutex);
+ 
+-	if (ah->state != ATH12K_HW_STATE_RESTARTED)
++	switch (ah->state) {
++	case ATH12K_HW_STATE_RESTARTED:
++		ah->state = ATH12K_HW_STATE_ON;
++		ieee80211_wake_queues(hw);
++		hw_restarted = true;
++		break;
++	case ATH12K_HW_STATE_OFF:
++		hw_restarted = false;
++		break;
++	default:
+ 		return;
+-
+-	ah->state = ATH12K_HW_STATE_ON;
+-	ieee80211_wake_queues(hw);
++	}
+ 
+ 	for_each_ar(ah, ar, i) {
+ 		ab = ar->ab;
+ 
+-		ath12k_warn(ar->ab, "pdev %d successfully recovered\n",
+-			    ar->pdev->pdev_id);
++		if (hw_restarted)
++			ath12k_warn(ar->ab, "pdev %d successfully recovered\n",
++				    ar->pdev->pdev_id);
++		else
++			ath12k_dbg(ab, ATH12K_DBG_BOOT,
++				   "complete recovery while pdev %d is stopped\n",
++				   ar->pdev->pdev_id);
+ 
+-		if (ar->ab->hw_params->current_cc_support &&
++		if (hw_restarted && ar->ab->hw_params->current_cc_support &&
+ 		    ar->alpha2[0] != 0 && ar->alpha2[1] != 0) {
+ 			struct wmi_set_current_country_arg arg = {};
+ 
+@@ -13544,13 +13584,17 @@ ath12k_mac_op_reconfig_complete(struct i
+ 			 */
+ 			if (recovery_count == ab->num_radios) {
+ 				atomic_dec(&ab->reset_count);
+-				complete(&ab->reset_complete);
+ 				ab->is_reset = false;
+ 				atomic_set(&ab->fail_cont_count, 0);
++				clear_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags);
++				complete(&ab->reset_complete);
+ 				ath12k_dbg(ab, ATH12K_DBG_BOOT, "reset success\n");
+ 			}
+ 		}
+ 
++		if (!hw_restarted)
++			continue;
++
+ 		list_for_each_entry(arvif, &ar->arvifs, list) {
+ 			ahvif = arvif->ahvif;
+ 			ath12k_dbg(ab, ATH12K_DBG_BOOT,
+--- a/drivers/net/wireless/ath/ath12k/peer.c
++++ b/drivers/net/wireless/ath/ath12k/peer.c
+@@ -150,7 +150,8 @@ static int ath12k_peer_delete_send(struc
+ 	return 0;
+ }
+ 
+-int ath12k_peer_delete(struct ath12k *ar, u32 vdev_id, u8 *addr)
++int ath12k_peer_delete(struct ath12k *ar, u32 vdev_id, u8 *addr,
++		       bool skip_fw_delete)
+ {
+ 	struct ath12k_peer_delete_wait wait;
+ 	int ret;
+@@ -161,6 +162,13 @@ int ath12k_peer_delete(struct ath12k *ar
+ 				     &(ath12k_ar_to_ah(ar)->dp_hw), vdev_id,
+ 				     addr, ar->hw_link_id);
+ 
++	if (skip_fw_delete) {
++		ath12k_dbg(ar->ab, ATH12K_DBG_BOOT,
++			   "skip peer delete command for vdev %u addr %pM during recovery\n",
++			   vdev_id, addr);
++		return -EHOSTDOWN;
++	}
++
+ 	/*
+ 	 * Register the stack waiter before sending so the resp_event for
+ 	 * this peer cannot arrive while no waiter is queued.
+@@ -389,6 +397,15 @@ int ath12k_peer_mlo_link_peers_delete(st
+ 					     arvif->vdev_id, arsta->addr,
+ 					     ar->hw_link_id);
+ 
++		if (test_bit(ATH12K_FLAG_RECOVERY, &ar->ab->dev_flags) &&
++		    list_empty(&arvif->list)) {
++			ath12k_dbg(ar->ab, ATH12K_DBG_BOOT,
++				   "skip MLO peer delete command for vdev %u addr %pM during recovery\n",
++				   arvif->vdev_id, arsta->addr);
++			err_ret = -EHOSTDOWN;
++			continue;
++		}
++
+ 		ath12k_peer_delete_wait_register(ar, &waits[link_id],
+ 						 arvif->vdev_id, arsta->addr);
+ 
+--- a/drivers/net/wireless/ath/ath12k/peer.h
++++ b/drivers/net/wireless/ath/ath12k/peer.h
+@@ -20,7 +20,8 @@ void ath12k_peer_delete_wait_flush(struc
+ void ath12k_peer_delete_wait_flush(struct ath12k *ar);
+ 
+ void ath12k_peer_cleanup(struct ath12k *ar, u32 vdev_id);
+-int ath12k_peer_delete(struct ath12k *ar, u32 vdev_id, u8 *addr);
++int ath12k_peer_delete(struct ath12k *ar, u32 vdev_id, u8 *addr,
++		       bool skip_fw_delete);
+ int ath12k_peer_create(struct ath12k *ar, struct ath12k_link_vif *arvif,
+ 		       struct ieee80211_sta *sta,
+ 		       struct ath12k_wmi_peer_create_arg *arg);

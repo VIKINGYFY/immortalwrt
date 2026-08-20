@@ -1,0 +1,45 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 25 Jul 2026 16:30:00 +0800
+Subject: [PATCH] wifi: ath12k: allow API-1 AHB devices in MLO groups
+
+The firmware feature bitmap is carried by the firmware-2.bin API and the
+MLO bit was introduced specifically to reject incompatible QCN9274
+firmware. IPQ5332 AHB firmware is loaded as split MDT images and therefore
+uses firmware API-1 without a feature bitmap.
+
+Do not reject an AHB member of a multi-device WSI group merely because it
+has no API-2 feature bitmap. Partner PCI devices continue to require the
+MLO firmware feature bit.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/core.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -2216,12 +2216,24 @@ void ath12k_core_hw_group_set_mlo_capabl
+ 		if (!ab)
+ 			continue;
+ 
++		/* AHB firmware is loaded through split MDT images and has no
++		 * firmware-2.bin feature bitmap. The WSI graph describes whether
++		 * the device participates in an inter-device MLO group.
++		 */
++		if (ab->hif.bus == ATH12K_BUS_AHB && !ab->fw.fw_features_valid)
++			continue;
++
+ 		/* even if 1 device's firmware feature indicates MLO
+ 		 * unsupported, make MLO unsupported for the whole group
+ 		 */
+ 		if (!ath12k_fw_feature_supported(ab, ATH12K_FW_FEATURE_MLO)) {
++			ath12k_info(ab, "WSI group %d: MLO disabled by firmware feature\n",
++				    ag->id);
+ 			ag->mlo_capable = false;
+ 			return;
+ 		}
+ 	}
++
++	ath12k_info(ag->ab[0], "WSI group %d: MLO enabled for %d devices\n",
++		    ag->id, ag->num_devices);
+ }

@@ -1,0 +1,123 @@
+From 243cf94b46e9c7962ba2818d678aea9a5a6e84cc Mon Sep 17 00:00:00 2001
+From: Luo Jie <jie.luo@oss.qualcomm.com>
+Date: Tue, 6 Jan 2026 21:35:13 -0800
+Subject: [PATCH 2017/2034] arm64: dts: ipq5332: Add CMN PLL node for
+ networking hardware
+
+Add the CMN PLL node required for networking hardware operation on IPQ5332.
+The CMN PLL core runs at 6 GHz on this platform, differing from others like
+IPQ9574.
+
+Configure the reference clock path where XO (48 MHz or 96 MHz) routes
+through the WiFi block's multiplier/divider to provide a stable 48 MHz
+reference to the CMN PLL.
+.XO (48 MHZ or 96 MHZ)-->WiFi (multiplier/divider)--> 48 MHZ to CMN PLL.
+
+Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
+Signed-off-by: Luo Jie <jie.luo@oss.qualcomm.com>
+---
+ .../boot/dts/qcom/ipq5332-rdp-common.dtsi     | 17 ++++++++++-
+ arch/arm64/boot/dts/qcom/ipq5332.dtsi         | 28 ++++++++++++++++++-
+ 2 files changed, 43 insertions(+), 2 deletions(-)
+
+--- a/arch/arm64/boot/dts/qcom/ipq5332-rdp-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5332-rdp-common.dtsi
+@@ -2,7 +2,7 @@
+ /*
+  * IPQ5332 RDP board common device tree source
+  *
+- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+  */
+ 
+ /dts-v1/;
+@@ -55,6 +55,17 @@
+ 	status = "okay";
+ };
+ 
++/*
++ * The bootstrap pins for the board select the XO clock frequency that
++ * supports 48 MHZ or 96 MHZ. This setting automatically enables the
++ * right dividers, to ensure the reference clock output from WiFi to
++ * the CMN PLL is 48 MHZ.
++ */
++&ref_48mhz_clk {
++	clock-div = <1>;
++	clock-mult = <1>;
++};
++
+ &sleep_clk {
+ 	clock-frequency = <32000>;
+ };
+@@ -63,6 +74,10 @@
+ 	clock-frequency = <24000000>;
+ };
+ 
++&xo_clk {
++	clock-frequency = <48000000>;
++};
++
+ /* PINCTRL */
+ &tlmm {
+ 	gpio_keys_default: gpio-keys-default-state {
+--- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
+@@ -2,10 +2,11 @@
+ /*
+  * IPQ5332 device tree source
+  *
+- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+  */
+ 
+ #include <dt-bindings/clock/qcom,apss-ipq.h>
++#include <dt-bindings/clock/qcom,ipq5332-cmn-pll.h>
+ #include <dt-bindings/clock/qcom,ipq5332-gcc.h>
+ #include <dt-bindings/clock/qcom,ipq5332-nsscc.h>
+ #include <dt-bindings/interconnect/qcom,ipq5332.h>
+@@ -17,6 +18,12 @@
+ 	#size-cells = <2>;
+ 
+ 	clocks {
++		ref_48mhz_clk: ref-48mhz-clk {
++			compatible = "fixed-factor-clock";
++			clocks = <&xo_clk>;
++			#clock-cells = <0>;
++		};
++
+ 		cmn_pll_nss_200m_clk: cmn-pll-nss-200m-clk {
+ 			compatible = "fixed-clock";
+ 			clock-frequency = <200000000>;
+@@ -38,6 +45,11 @@
+ 			compatible = "fixed-clock";
+ 			#clock-cells = <0>;
+ 		};
++
++		xo_clk: xo-clk {
++			compatible = "fixed-clock";
++			#clock-cells = <0>;
++		};
+ 	};
+ 
+ 	cpus {
+@@ -209,6 +221,20 @@
+ 			status = "disabled";
+ 		};
+ 
++		cmn_pll: clock-controller@9b000 {
++			compatible = "qcom,ipq5332-cmn-pll";
++			reg = <0x0009b000 0x800>;
++			clocks = <&ref_48mhz_clk>,
++				 <&gcc GCC_CMN_12GPLL_AHB_CLK>,
++				 <&gcc GCC_CMN_12GPLL_SYS_CLK>;
++			clock-names = "ref",
++				      "ahb",
++				      "sys";
++			#clock-cells = <1>;
++			assigned-clocks = <&cmn_pll IPQ5332_CMN_PLL_CLK>;
++			assigned-clock-rates-u64 = /bits/ 64 <6000000000>;
++		};
++
+ 		qfprom: efuse@a4000 {
+ 			compatible = "qcom,ipq5332-qfprom", "qcom,qfprom";
+ 			reg = <0x000a4000 0x721>;

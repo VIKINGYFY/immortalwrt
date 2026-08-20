@@ -1,0 +1,72 @@
+From 5a530992faaa219956c1004c9dc00c359d7ace1e Mon Sep 17 00:00:00 2001
+From: Luo Jie <jie.luo@oss.qualcomm.com>
+Date: Tue, 6 Jan 2026 21:35:12 -0800
+Subject: [PATCH 2016/2034] clk: qcom: cmnpll: Add IPQ5332 SoC support
+
+The CMN PLL in IPQ5332 SoC produces different output clocks when compared
+to IPQ9574. While most clock outputs match IPQ9574, the ethernet PHY/switch
+(50 Mhz) and PPE clocks (200 Mhz) in IPQ5332 are different.
+
+Add IPQ5332-specific clock definitions and of_device_id entry.
+
+Signed-off-by: Luo Jie <jie.luo@oss.qualcomm.com>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
+---
+ drivers/clk/qcom/ipq-cmn-pll.c | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+--- a/drivers/clk/qcom/ipq-cmn-pll.c
++++ b/drivers/clk/qcom/ipq-cmn-pll.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /*
+- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+  */
+ 
+ /*
+@@ -20,6 +20,11 @@
+  * and an output clock to NSS (network subsystem) at 300 MHZ. The other output
+  * clocks from CMN PLL on IPQ5424 are the same as IPQ9574.
+  *
++ * On the IPQ5332 SoC, the CMN PLL provides a single 50 MHZ clock output to
++ * the Ethernet PHY (or switch) via the UNIPHY (PCS). It also supplies a 200
++ * MHZ clock to the PPE. The remaining fixed-rate clocks to the GCC and PCS
++ * are the same as those in the IPQ9574 SoC.
++ *
+  *               +---------+
+  *               |   GCC   |
+  *               +--+---+--+
+@@ -51,6 +56,7 @@
+ 
+ #include <dt-bindings/clock/qcom,ipq-cmn-pll.h>
+ #include <dt-bindings/clock/qcom,ipq5018-cmn-pll.h>
++#include <dt-bindings/clock/qcom,ipq5332-cmn-pll.h>
+ #include <dt-bindings/clock/qcom,ipq5424-cmn-pll.h>
+ 
+ #define CMN_PLL_REFCLK_SRC_SELECTION		0x28
+@@ -117,6 +123,16 @@ static const struct cmn_pll_fixed_output
+ 	{ /* Sentinel */ }
+ };
+ 
++static const struct cmn_pll_fixed_output_clk ipq5332_output_clks[] = {
++	CLK_PLL_OUTPUT(IPQ5332_XO_24MHZ_CLK, "xo-24mhz", 24000000UL),
++	CLK_PLL_OUTPUT(IPQ5332_SLEEP_32KHZ_CLK, "sleep-32khz", 32000UL),
++	CLK_PLL_OUTPUT(IPQ5332_PCS_31P25MHZ_CLK, "pcs-31p25mhz", 31250000UL),
++	CLK_PLL_OUTPUT(IPQ5332_NSS_300MHZ_CLK, "nss-300mhz", 300000000UL),
++	CLK_PLL_OUTPUT(IPQ5332_PPE_200MHZ_CLK, "ppe-200mhz", 200000000UL),
++	CLK_PLL_OUTPUT(IPQ5332_ETH_50MHZ_CLK, "eth-50mhz", 50000000UL),
++	{ /* Sentinel */ }
++};
++
+ static const struct cmn_pll_fixed_output_clk ipq5424_output_clks[] = {
+ 	CLK_PLL_OUTPUT(IPQ5424_XO_24MHZ_CLK, "xo-24mhz", 24000000UL),
+ 	CLK_PLL_OUTPUT(IPQ5424_SLEEP_32KHZ_CLK, "sleep-32khz", 32000UL),
+@@ -454,6 +470,7 @@ static const struct dev_pm_ops ipq_cmn_p
+ 
+ static const struct of_device_id ipq_cmn_pll_clk_ids[] = {
+ 	{ .compatible = "qcom,ipq5018-cmn-pll", .data = &ipq5018_output_clks },
++	{ .compatible = "qcom,ipq5332-cmn-pll", .data = &ipq5332_output_clks },
+ 	{ .compatible = "qcom,ipq5424-cmn-pll", .data = &ipq5424_output_clks },
+ 	{ .compatible = "qcom,ipq9574-cmn-pll", .data = &ipq9574_output_clks },
+ 	{ }

@@ -128,10 +128,7 @@
  static inline void
  ieee80211_chanreq_downgrade(struct ieee80211_chan_req *chanreq,
  			    struct ieee80211_conn_settings *conn)
-@@ -2773,7 +2783,7 @@ void ieee80211_recalc_chanctx_min_def(st
- 				      struct ieee80211_chanctx *ctx,
- 				      struct ieee80211_link_data *rsvd_for,
- 				      bool check_reserved);
+@@ -2852,2 +2862,2 @@ void ieee80211_recalc_chanctx_min_def(st
 -bool ieee80211_is_radar_required(struct ieee80211_local *local,
 +bool ieee80211_is_radar_required(struct ieee80211_local *local, u32 radio_mask,
  				 struct cfg80211_scan_request *req);
@@ -186,21 +183,22 @@
  	int ret;
  
  	lockdep_assert_wiphy(local->hw.wiphy);
-@@ -579,6 +610,12 @@ static int ieee80211_start_roc_work(stru
+@@ -579,6 +610,13 @@ static int ieee80211_start_roc_work(stru
  	if (!local->emulate_chanctx && !local->ops->remain_on_channel)
  		return -EOPNOTSUPP;
  
 +	cfg80211_chandef_create(&chandef, channel, NL80211_CHAN_NO_HT);
 +	radio_mask = ieee80211_chandef_radio_mask(local, &chandef);
++	req = wiphy_dereference(local->hw.wiphy, local->scan_req);
 +	if (!ieee80211_can_leave_ch(sdata, req, radio_mask) &&
 +	    !ieee80211_scanning_busy(local, &chandef))
 +		return -EBUSY;
 +
- 	roc = kzalloc(sizeof(*roc), GFP_KERNEL);
+ 	roc = kzalloc_obj(*roc);
  	if (!roc)
  		return -ENOMEM;
-@@ -616,8 +653,7 @@ static int ieee80211_start_roc_work(stru
- 	req = wiphy_dereference(local->hw.wiphy, local->scan_req);
+@@ -616,8 +654,6 @@ static int ieee80211_start_roc_work(stru
+-	req = wiphy_dereference(local->hw.wiphy, local->scan_req);
  
  	/* if there's no need to queue, handle it immediately */
 -	if (list_empty(&local->roc_list) &&

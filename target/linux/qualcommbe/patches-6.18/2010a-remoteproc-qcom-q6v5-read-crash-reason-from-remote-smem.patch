@@ -1,0 +1,176 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 1 Aug 2026 23:40:00 +0800
+Subject: [PATCH] remoteproc: qcom: q6v5: read WCSS crash reason from remote SMEM
+
+WCSS stores its fatal and watchdog crash reason in the remote SMEM region
+for host 1. Reading the global region therefore loses the useful assertion
+text and only reports a crash without a message.
+
+Pass the crash-reason SMEM host through qcom_q6v5_init() and use it for
+both interrupt handlers. Keep all existing remote processors on the global
+SMEM lookup and select host 1 only for the secure WCSS driver.
+
+This follows Qualcomm's downstream WCSS crash-reason handling while making
+the host selection explicit at initialization.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/remoteproc/qcom_q6v5.c          | 11 ++++++++---
+ drivers/remoteproc/qcom_q6v5.h          |  4 +++-
+ drivers/remoteproc/qcom_q6v5_adsp.c     |  3 ++-
+ drivers/remoteproc/qcom_q6v5_mss.c      |  4 +++-
+ drivers/remoteproc/qcom_q6v5_pas.c      |  3 ++-
+ drivers/remoteproc/qcom_q6v5_wcss.c     |  4 +++-
+ drivers/remoteproc/qcom_q6v5_wcss_sec.c |  3 +++
+ 7 files changed, 24 insertions(+), 8 deletions(-)
+
+--- a/drivers/remoteproc/qcom_q6v5.c
++++ b/drivers/remoteproc/qcom_q6v5.c
+@@ -100,7 +100,8 @@ static irqreturn_t q6v5_wdog_interrupt(i
+ 		return IRQ_HANDLED;
+ 	}
+ 
+-	msg = qcom_smem_get(QCOM_SMEM_HOST_ANY, q6v5->crash_reason, &len);
++	msg = qcom_smem_get(q6v5->crash_reason_smem_host,
++			    q6v5->crash_reason, &len);
+ 	if (!IS_ERR(msg) && len > 0 && msg[0])
+ 		dev_err(q6v5->dev, "watchdog received: %s\n", msg);
+ 	else
+@@ -121,7 +122,8 @@ static irqreturn_t q6v5_fatal_interrupt(
+ 	if (!q6v5->running)
+ 		return IRQ_HANDLED;
+ 
+-	msg = qcom_smem_get(QCOM_SMEM_HOST_ANY, q6v5->crash_reason, &len);
++	msg = qcom_smem_get(q6v5->crash_reason_smem_host,
++			    q6v5->crash_reason, &len);
+ 	if (!IS_ERR(msg) && len > 0 && msg[0])
+ 		dev_err(q6v5->dev, "fatal error received: %s\n", msg);
+ 	else
+@@ -239,6 +241,7 @@ EXPORT_SYMBOL_GPL(qcom_q6v5_panic);
+  * @q6v5:	handle to be initialized
+  * @pdev:	platform_device reference for acquiring resources
+  * @rproc:	associated remoteproc instance
++ * @crash_reason_smem_host: SMEM host containing the crash reason
+  * @crash_reason: SMEM id for crash reason string, or 0 if none
+  * @load_state: load state resource string
+  * @handover:	function to be called when proxy resources should be released
+@@ -246,13 +249,15 @@ EXPORT_SYMBOL_GPL(qcom_q6v5_panic);
+  * Return: 0 on success, negative errno on failure
+  */
+ int qcom_q6v5_init(struct qcom_q6v5 *q6v5, struct platform_device *pdev,
+-		   struct rproc *rproc, int crash_reason, const char *load_state,
++		   struct rproc *rproc, unsigned int crash_reason_smem_host,
++		   int crash_reason, const char *load_state,
+ 		   void (*handover)(struct qcom_q6v5 *q6v5))
+ {
+ 	int ret;
+ 
+ 	q6v5->rproc = rproc;
+ 	q6v5->dev = &pdev->dev;
++	q6v5->crash_reason_smem_host = crash_reason_smem_host;
+ 	q6v5->crash_reason = crash_reason;
+ 	q6v5->handover = handover;
+ 
+--- a/drivers/remoteproc/qcom_q6v5.h
++++ b/drivers/remoteproc/qcom_q6v5.h
+@@ -34,6 +34,7 @@ struct qcom_q6v5 {
+ 	struct completion start_done;
+ 	struct completion stop_done;
+ 
++	unsigned int crash_reason_smem_host;
+ 	int crash_reason;
+ 
+ 	bool running;
+@@ -43,7 +44,8 @@ struct qcom_q6v5 {
+ };
+ 
+ int qcom_q6v5_init(struct qcom_q6v5 *q6v5, struct platform_device *pdev,
+-		   struct rproc *rproc, int crash_reason, const char *load_state,
++		   struct rproc *rproc, unsigned int crash_reason_smem_host,
++		   int crash_reason, const char *load_state,
+ 		   void (*handover)(struct qcom_q6v5 *q6v5));
+ void qcom_q6v5_deinit(struct qcom_q6v5 *q6v5);
+ 
+--- a/drivers/remoteproc/qcom_q6v5_adsp.c
++++ b/drivers/remoteproc/qcom_q6v5_adsp.c
+@@ -716,7 +716,8 @@ static int adsp_probe(struct platform_dev
+ 	if (ret)
+ 		goto disable_pm;
+ 
+-	ret = qcom_q6v5_init(&adsp->q6v5, pdev, rproc, desc->crash_reason_smem,
++	ret = qcom_q6v5_init(&adsp->q6v5, pdev, rproc, QCOM_SMEM_HOST_ANY,
++			     desc->crash_reason_smem,
+ 			     desc->load_state, qcom_adsp_pil_handover);
+ 	if (ret)
+ 		goto disable_pm;
+--- a/drivers/remoteproc/qcom_q6v5_mss.c
++++ b/drivers/remoteproc/qcom_q6v5_mss.c
+@@ -27,5 +27,6 @@
+ #include <linux/reset.h>
+ #include <linux/soc/qcom/mdt_loader.h>
++#include <linux/soc/qcom/smem.h>
+ #include <linux/iopoll.h>
+ #include <linux/slab.h>
+ 
+@@ -2164,7 +2165,8 @@ static int q6v5_probe(struct platform_dev
+ 	qproc->need_mem_protection = desc->need_mem_protection;
+ 	qproc->has_mba_logs = desc->has_mba_logs;
+ 
+-	ret = qcom_q6v5_init(&qproc->q6v5, pdev, rproc, MPSS_CRASH_REASON_SMEM, "modem",
++	ret = qcom_q6v5_init(&qproc->q6v5, pdev, rproc, QCOM_SMEM_HOST_ANY,
++			     MPSS_CRASH_REASON_SMEM, "modem",
+ 			     qcom_msa_handover);
+ 	if (ret)
+ 		goto detach_proxy_pds;
+--- a/drivers/remoteproc/qcom_q6v5_pas.c
++++ b/drivers/remoteproc/qcom_q6v5_pas.c
+@@ -764,7 +764,8 @@ static int adsp_probe(struct platform_dev
+ 		goto unassign_mem;
+ 	pas->proxy_pd_count = ret;
+ 
+-	ret = qcom_q6v5_init(&pas->q6v5, pdev, rproc, desc->crash_reason_smem,
++	ret = qcom_q6v5_init(&pas->q6v5, pdev, rproc, QCOM_SMEM_HOST_ANY,
++			     desc->crash_reason_smem,
+ 			     desc->load_state, qcom_pas_handover);
+ 	if (ret)
+ 		goto detach_proxy_pds;
+--- a/drivers/remoteproc/qcom_q6v5_wcss.c
++++ b/drivers/remoteproc/qcom_q6v5_wcss.c
+@@ -18,6 +18,7 @@
+ #include <linux/regulator/consumer.h>
+ #include <linux/reset.h>
+ #include <linux/soc/qcom/mdt_loader.h>
++#include <linux/soc/qcom/smem.h>
+ #include "qcom_common.h"
+ #include "qcom_pil_info.h"
+ #include "qcom_q6v5.h"
+@@ -1015,7 +1016,8 @@ static int q6v5_wcss_probe(struct platfor
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = qcom_q6v5_init(&wcss->q6v5, pdev, rproc, desc->crash_reason_smem, NULL, NULL);
++	ret = qcom_q6v5_init(&wcss->q6v5, pdev, rproc, QCOM_SMEM_HOST_ANY,
++			     desc->crash_reason_smem, NULL, NULL);
+ 	if (ret)
+ 		return ret;
+ 
+--- a/drivers/remoteproc/qcom_q6v5_wcss_sec.c
++++ b/drivers/remoteproc/qcom_q6v5_wcss_sec.c
+@@ -15,6 +15,7 @@
+ #include "qcom_pil_info.h"
+ 
+ #define WCSS_CRASH_REASON		421
++#define WCSS_SMEM_HOST			1
+ 
+ #define WCSS_PAS_ID			0x6
+ #define MPD_WCSS_PAS_ID			0xd
+@@ -270,7 +271,9 @@ static int wcss_sec_probe(struct platform
+ 		return dev_err_probe(&pdev->dev, PTR_ERR(int_clk),
+ 				     "Failed to get interconnect clock\n");
+ 
++	/* WCSS writes its crash reason to the remote SMEM region. */
+ 	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
++			     WCSS_SMEM_HOST,
+ 			     WCSS_CRASH_REASON, NULL, NULL);
+ 	if (ret)
+ 		return ret;

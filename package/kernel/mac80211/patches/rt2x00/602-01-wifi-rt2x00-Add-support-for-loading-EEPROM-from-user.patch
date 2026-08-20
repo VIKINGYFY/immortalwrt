@@ -69,14 +69,15 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  obj-$(CPTCFG_RT2X00_LIB_MMIO)		+= rt2x00mmio.o
 --- a/drivers/net/wireless/ralink/rt2x00/rt2800soc.c
 +++ b/drivers/net/wireless/ralink/rt2x00/rt2800soc.c
-@@ -90,19 +90,6 @@ static int rt2800soc_set_device_state(st
- 	return retval;
- }
- 
+@@ -93,20 +93,3 @@ static int rt2800soc_set_device_state(st
 -static int rt2800soc_read_eeprom(struct rt2x00_dev *rt2x00dev)
 -{
--	void __iomem *base_addr = ioremap(0x1F040000, EEPROM_SIZE);
+-	void __iomem *base_addr;
 -
+-	if (!rt2800_read_eeprom_nvmem(rt2x00dev))
+-		return 0;
+-
+-	base_addr = ioremap(0x1F040000, EEPROM_SIZE);
 -	if (!base_addr)
 -		return -ENOMEM;
 -

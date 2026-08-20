@@ -1,0 +1,61 @@
+From cdb1a4cbc696fd7084acf4b79f43c4b5d67b4a77 Mon Sep 17 00:00:00 2001
+From: Md Sadre Alam <quic_mdalam@quicinc.com>
+Date: Tue, 14 Oct 2025 16:35:29 +0530
+Subject: [PATCH 2029/2034] arm64: dts: qcom: ipq5424: Add QPIC SPI NAND
+ controller support
+
+Add device tree nodes for QPIC SPI NAND flash controller support
+on IPQ5424 SoC.
+
+The IPQ5424 SoC includes a QPIC controller that supports SPI NAND flash
+devices with hardware ECC capabilities and DMA support through BAM
+(Bus Access Manager).
+
+Signed-off-by: Md Sadre Alam <quic_mdalam@quicinc.com>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
+---
+ arch/arm64/boot/dts/qcom/ipq5424.dtsi | 33 +++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+--- a/arch/arm64/boot/dts/qcom/ipq5424.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5424.dtsi
+@@ -567,6 +567,39 @@
+ 			status = "disabled";
+ 		};
+ 
++		qpic_bam: dma-controller@7984000 {
++			compatible = "qcom,bam-v1.7.4", "qcom,bam-v1.7.0";
++			reg = <0x0 0x07984000 0x0 0x1c000>;
++			interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&gcc GCC_QPIC_AHB_CLK>;
++			clock-names = "bam_clk";
++			#dma-cells = <1>;
++			qcom,ee = <0>;
++			status = "disabled";
++		};
++
++		qpic_nand: spi@79b0000 {
++			compatible = "qcom,ipq5424-snand", "qcom,ipq9574-snand";
++			reg = <0x0 0x079b0000 0x0 0x10000>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			clocks = <&gcc GCC_QPIC_CLK>,
++				 <&gcc GCC_QPIC_AHB_CLK>,
++				 <&gcc GCC_QPIC_IO_MACRO_CLK>;
++			clock-names = "core",
++				      "aon",
++				      "iom";
++
++			dmas = <&qpic_bam 0>,
++			       <&qpic_bam 1>,
++			       <&qpic_bam 2>;
++			dma-names = "tx",
++				    "rx",
++				    "cmd";
++
++			status = "disabled";
++		};
++
+ 		intc: interrupt-controller@f200000 {
+ 			compatible = "arm,gic-v3";
+ 			reg = <0 0xf200000 0 0x10000>, /* GICD */

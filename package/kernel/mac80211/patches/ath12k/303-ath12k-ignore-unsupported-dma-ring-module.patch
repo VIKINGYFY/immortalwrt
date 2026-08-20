@@ -1,0 +1,73 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 25 Jun 2026 23:55:00 +0800
+Subject: [PATCH] wifi: ath12k: ignore unsupported DMA ring modules
+
+Newer QCN9274 firmware can advertise direct buffer DMA ring capabilities
+for modules which are not known by this ath12k version. These capabilities
+are optional, but the parser currently treats an unknown module id as a hard
+failure and aborts WMI service ready processing.
+
+Skip unsupported module ids and keep the known direct buffer capabilities.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/wmi.c | 21 +++++++++++++--------
+ 1 file changed, 13 insertions(+), 8 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -4696,8 +4696,8 @@ static int ath12k_wmi_dma_ring_caps(stru
+ 	struct ath12k_wmi_dma_ring_caps_parse *dma_caps_parse = data;
+ 	struct ath12k_wmi_dma_ring_caps_params *dma_caps;
+ 	struct ath12k_dbring_cap *dir_buff_caps;
+ 	int ret;
+-	u32 i;
++	u32 i, j, module_id;
+ 
+ 	dma_caps_parse->n_dma_ring_caps = 0;
+ 	dma_caps = (struct ath12k_wmi_dma_ring_caps_params *)ptr;
+@@ -4716,27 +4716,30 @@ static int ath12k_wmi_dma_ring_caps(stru
+ 		return ret;
+ 
+ 	dir_buff_caps = ab->db_caps;
++	j = 0;
+ 	for (i = 0; i < dma_caps_parse->n_dma_ring_caps; i++) {
+-		if (le32_to_cpu(dma_caps[i].module_id) >= WMI_DIRECT_BUF_MAX) {
+-			ath12k_warn(ab, "Invalid module id %d\n",
+-				    le32_to_cpu(dma_caps[i].module_id));
+-			ret = -EINVAL;
+-			goto free_dir_buff;
++		module_id = le32_to_cpu(dma_caps[i].module_id);
++		if (module_id >= WMI_DIRECT_BUF_MAX) {
++			ath12k_warn(ab, "ignoring unsupported dma ring module id %u\n",
++				    module_id);
++			continue;
+ 		}
+ 
+-		dir_buff_caps[i].id = le32_to_cpu(dma_caps[i].module_id);
+-		dir_buff_caps[i].pdev_id =
++		dir_buff_caps[j].id = module_id;
++		dir_buff_caps[j].pdev_id =
+ 			DP_HW2SW_MACID(le32_to_cpu(dma_caps[i].pdev_id));
+-		dir_buff_caps[i].min_elem = le32_to_cpu(dma_caps[i].min_elem);
+-		dir_buff_caps[i].min_buf_sz = le32_to_cpu(dma_caps[i].min_buf_sz);
+-		dir_buff_caps[i].min_buf_align = le32_to_cpu(dma_caps[i].min_buf_align);
++		dir_buff_caps[j].min_elem = le32_to_cpu(dma_caps[i].min_elem);
++		dir_buff_caps[j].min_buf_sz = le32_to_cpu(dma_caps[i].min_buf_sz);
++		dir_buff_caps[j].min_buf_align = le32_to_cpu(dma_caps[i].min_buf_align);
++		j++;
+ 	}
+ 
++	if (j)
++		ab->num_db_cap = j;
++	else
++		ath12k_wmi_free_dbring_caps(ab);
++
+ 	return 0;
+-
+-free_dir_buff:
+-	ath12k_wmi_free_dbring_caps(ab);
+-	return ret;
+ }
+ 
+ static void

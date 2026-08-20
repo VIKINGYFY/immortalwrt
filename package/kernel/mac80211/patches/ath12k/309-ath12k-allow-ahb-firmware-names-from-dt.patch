@@ -1,0 +1,102 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 23 Jul 2026 20:30:00 +0800
+Subject: [PATCH] wifi: ath12k: allow AHB firmware names from DT
+
+Upstream ath12k defaults to monolithic q6_fw1.mbn and iu_fw.mbn images,
+but some IPQ5332 boards ship split MDT firmware with different header
+names. Allow AHB boards to provide the userPD and IU firmware paths via
+the firmware-name property while keeping the upstream defaults when the
+property is absent.
+
+The PCI ath12k binding uses firmware-name as a firmware subdirectory.
+Limit that interpretation to PCI devices so an AHB firmware path is not
+mistaken for a directory by later board and regulatory firmware requests.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/ahb.c  | 35 ++++++++++++++++++++++----
+ drivers/net/wireless/ath/ath12k/ahb.h  |  2 +-
+ drivers/net/wireless/ath/ath12k/core.h |  3 ++-
+ 3 files changed, 34 insertions(+), 6 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/ahb.c
+@@ -335,6 +335,27 @@ static void ath12k_ahb_stop(struct ath1
+ 	ath12k_ce_cleanup_pipes(ab);
+ }
+ 
++static int ath12k_ahb_get_firmware_name(struct ath12k_base *ab, u32 index,
++					char *name, size_t name_len)
++{
++	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
++	const char *dt_name;
++
++	if (!of_property_read_string_index(ab->dev->of_node, "firmware-name",
++					   index, &dt_name))
++		return strscpy(name, dt_name, name_len) < 0 ? -ENAMETOOLONG : 0;
++
++	if (index == 0)
++		snprintf(name, name_len, "%s/%s/%s%d%s", ATH12K_FW_DIR,
++			 ab->hw_params->fw.dir, ATH12K_AHB_FW_PREFIX,
++			 ab_ahb->userpd_id, ATH12K_AHB_FW_SUFFIX);
++	else
++		snprintf(name, name_len, "%s/%s/%s", ATH12K_FW_DIR,
++			 ab->hw_params->fw.dir, ATH12K_AHB_FW2);
++
++	return 0;
++}
++
+ static int ath12k_ahb_power_up(struct ath12k_base *ab)
+ {
+ 	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
+@@ -359,9 +380,11 @@ static int ath12k_ahb_power_up(struct a
+ 		return PTR_ERR(mem_region);
+ 	}
+ 
+-	snprintf(fw_name, sizeof(fw_name), "%s/%s/%s%d%s", ATH12K_FW_DIR,
+-		 ab->hw_params->fw.dir, ATH12K_AHB_FW_PREFIX, ab_ahb->userpd_id,
+-		 ATH12K_AHB_FW_SUFFIX);
++	ret = ath12k_ahb_get_firmware_name(ab, 0, fw_name, sizeof(fw_name));
++	if (ret) {
++		ath12k_err(ab, "invalid userPD firmware name: %d\n", ret);
++		return ret;
++	}
+ 
+ 	ret = request_firmware(&fw, fw_name, dev);
+ 	if (ret < 0) {
+@@ -393,8 +416,11 @@ static int ath12k_ahb_power_up(struct a
+ 		goto err_fw;
+ 	}
+ 
+-	snprintf(fw2_name, sizeof(fw2_name), "%s/%s/%s", ATH12K_FW_DIR,
+-		 ab->hw_params->fw.dir, ATH12K_AHB_FW2);
++	ret = ath12k_ahb_get_firmware_name(ab, 1, fw2_name, sizeof(fw2_name));
++	if (ret) {
++		ath12k_err(ab, "invalid IU firmware name: %d\n", ret);
++		goto err_fw;
++	}
+ 
+ 	ret = request_firmware(&fw2, fw2_name, dev);
+ 	if (ret < 0) {
+--- a/drivers/net/wireless/ath/ath12k/ahb.h
++++ b/drivers/net/wireless/ath/ath12k/ahb.h
+@@ -30,6 +30,6 @@
+ #define ATH12K_USERPD_STOP_TIMEOUT		(5 * HZ)
+ #define ATH12K_USERPD_ID_MASK			GENMASK(9, 8)
+-#define ATH12K_USERPD_FW_NAME_LEN		35
++#define ATH12K_USERPD_FW_NAME_LEN		128
+ 
+ enum ath12k_ahb_smp2p_msg_id {
+ 	ATH12K_AHB_POWER_SAVE_ENTER = 1,
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -1359,7 +1359,8 @@ static inline void ath12k_core_create_f
+ {
+ 	const char *fw_name = NULL;
+ 
+-	of_property_read_string(ab->dev->of_node, "firmware-name", &fw_name);
++	if (ab->hif.bus == ATH12K_BUS_PCI)
++		of_property_read_string(ab->dev->of_node, "firmware-name", &fw_name);
+ 
+ 	if (fw_name && strncmp(filename, "board", 5))
+ 		snprintf(buf, buf_len, "%s/%s/%s/%s", ATH12K_FW_DIR,

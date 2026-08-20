@@ -1,0 +1,42 @@
+From: Aaradhana Sahu <aaradhana.sahu@oss.qualcomm.com>
+Date: Fri, 10 Jul 2026 11:05:34 +0530
+Subject: [PATCH ath-next] wifi: ath12k: update IPQ5332 BDF address offset
+
+In the ath12k driver, the BDF_MEM_REGION_TYPE address is derived by
+adding a fixed bdf_addr_offset to the WCSS Q6 region base address.
+
+The current offset (0xC00000) works only when the Q6 region contains
+the IPQ5332 ucode alone. On some IPQ5332 platform variants, additional
+devices share the same WCSS Q6 processor and place their firmware
+ucode in the same Q6 region. This results in multiple ucode sections
+within the region, and the existing offset can cause the BDF memory
+region to overlap with firmware read-only sections, which can lead to
+firmware crash and driver boot failure.
+
+Increase the bdf_addr_offset to 0x1A00000, determined by analyzing
+firmware memory maps across all known IPQ5332 platform variants. This
+value represents the upper bound of the largest combined firmware and
+ensures all IPQ5332 variants can allocate the BDF region safely without
+overlapping firmware regions.
+
+Tested-on: IPQ5332 hw1.0 AHB WLAN.WBE.1.6-01275-QCAHKSWPL_SILICONZ-1
+
+Signed-off-by: Aaradhana Sahu <aaradhana.sahu@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://lore.kernel.org/linux-wireless/20260710053534.879233-1-aaradhana.sahu@oss.qualcomm.com/
+---
+ drivers/net/wireless/ath/ath12k/wifi7/hw.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -689,7 +689,7 @@ static const struct ath12k_hw_params ath1
+ 
+		.ce_ie_addr = &ath12k_wifi7_ce_ie_addr_ipq5332,
+		.ce_remap = &ath12k_wifi7_ce_remap_ipq5332,
+-		.bdf_addr_offset = 0xC00000,
++		.bdf_addr_offset = 0x1A00000,
+ 
+ 		.dp_primary_link_only = true,
+ 	},

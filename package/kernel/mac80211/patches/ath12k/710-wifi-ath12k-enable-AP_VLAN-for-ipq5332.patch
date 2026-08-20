@@ -1,0 +1,29 @@
+From: Perceival <perceivalpercy@gmail.com>
+Date: Tue, 28 Jul 2026 09:00:00 +0200
+Subject: [PATCH] wifi: ath12k: enable AP_VLAN interface mode for ipq5332
+
+The 4-address/WDS infrastructure (sta_set_4addr op, per-sta TCL
+metadata, 4-address frame notification, NULL/EAPOL frame handling)
+is shared wifi7 code and already built for every chip, but only the
+qcn9274 hw_params advertise NL80211_IFTYPE_AP_VLAN.  On a mixed-bus
+single-wiphy group (IPQ5332 AHB + QCN9274 PCIe) the missing bit on
+ipq5332 masks AP_VLAN for the whole wiphy, so hostapd cannot create
+WDS station interfaces and 4-address clients associate but pass no
+traffic.
+
+Advertise AP_VLAN on ipq5332 like qcn9274 does.
+
+Signed-off-by: Perceival <perceivalpercy@gmail.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -652,7 +652,8 @@
+
+ 		.interface_modes = BIT(NL80211_IFTYPE_STATION) |
+ 				   BIT(NL80211_IFTYPE_AP) |
+-				   BIT(NL80211_IFTYPE_MESH_POINT),
++				   BIT(NL80211_IFTYPE_MESH_POINT) |
++				   BIT(NL80211_IFTYPE_AP_VLAN),
+ 		.supports_monitor = true,
+
+ 		.idle_ps = false,

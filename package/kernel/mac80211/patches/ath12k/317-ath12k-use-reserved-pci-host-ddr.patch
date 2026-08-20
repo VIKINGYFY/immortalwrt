@@ -1,0 +1,214 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 25 Jul 2026 21:00:00 +0800
+Subject: [PATCH] wifi: ath12k: use fixed host DDR for PCI firmware
+
+QCN9274 firmware initially requests large contiguous host, pageable and
+dump buffers.  Without a reserved region the host allocation can fail and
+firmware retries with small chunks, including splitting the MLO global
+memory request.  An IPQ5332 partner requests that shared memory as one
+chunk, so the two devices then describe incompatible layouts.
+
+Follow the Qualcomm platform implementation and use named reserved memory
+directly for PCI QMI target-memory requests.  Keep MLO global memory in its
+own named region so all devices in the WSI group receive identical physical
+addresses.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/core.c |  35 ++++++++
+ drivers/net/wireless/ath/ath12k/core.h |   1 +
+ drivers/net/wireless/ath/ath12k/qmi.c  | 104 +++++++++++++++++++++++-
+ 3 files changed, 140 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -661,6 +661,33 @@ struct reserved_mem *ath12k_core_get_res
+ 	return rmem;
+ }
+ 
++struct reserved_mem *ath12k_core_get_rmem_by_name(struct ath12k_base *ab, const char *name)
++{
++	struct device_node *node;
++	struct reserved_mem *rmem;
++	int index;
++
++	index = of_property_match_string(ab->dev->of_node,
++					 "memory-region-names", name);
++	if (index < 0)
++		return NULL;
++
++	node = of_parse_phandle(ab->dev->of_node, "memory-region", index);
++	if (!node) {
++		ath12k_dbg(ab, ATH12K_DBG_BOOT,
++			   "failed to parse memory region %s\n", name);
++		return NULL;
++	}
++
++	rmem = of_reserved_mem_lookup(node);
++	of_node_put(node);
++	if (!rmem)
++		ath12k_dbg(ab, ATH12K_DBG_BOOT,
++			   "unable to get memory region %s\n", name);
++
++	return rmem;
++}
++
+ static inline
+ void ath12k_core_to_group_ref_get(struct ath12k_base *ab)
+ {
+@@ -2435,6 +2462,14 @@ struct ath12k_base *ath12k_core_alloc(st
+ 	ab->qmi.num_radios = U8_MAX;
+ 	ab->single_chip_mlo_support = false;
+ 
++	/* Qualcomm platform firmware expects PCI target memory to come from
++	 * the reserved host DDR region instead of fragmented coherent DMA.
++	 */
++	if (bus == ATH12K_BUS_PCI &&
++	    of_property_match_string(dev->of_node, "memory-region-names",
++				     "host-ddr-mem") >= 0)
++		set_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags);
++
+ 	/* Device index used to identify the devices in a group.
+ 	 *
+ 	 * In Intra-device MLO, only one device present in a group,
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -1298,6 +1298,7 @@ void ath12k_fw_stats_free(struct ath12k_
+ void ath12k_fw_stats_reset(struct ath12k *ar);
+ struct reserved_mem *ath12k_core_get_reserved_mem(struct ath12k_base *ab,
+ 						  int index);
++struct reserved_mem *ath12k_core_get_rmem_by_name(struct ath12k_base *ab, const char *name);
+ enum ath12k_qmi_mem_mode ath12k_core_get_memory_mode(struct ath12k_base *ab);
+ 
+ static inline const char *ath12k_scan_state_str(enum ath12k_scan_state state)
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -2659,8 +2659,7 @@ static int ath12k_qmi_get_mlo_reserved_m
+ 
+ 		fixed_mem = true;
+ 
+-		/* The IPQ5332 binding defines MLO global memory as region 3. */
+-		*rmem = ath12k_core_get_reserved_mem(partner_ab, 3);
++		*rmem = ath12k_core_get_rmem_by_name(partner_ab, "mlo-global-mem");
+ 		if (*rmem)
+ 			return 0;
+ 	}
+@@ -2839,6 +2838,105 @@ static int ath12k_qmi_alloc_target_mem_c
+ 	return ret;
+ }
+ 
++static int ath12k_qmi_assign_pci_target_mem_chunk(struct ath12k_base *ab)
++{
++	struct ath12k_hw_group *ag = ab->ag;
++	struct reserved_mem *host_rmem;
++	struct target_mem_chunk *chunk;
++	size_t host_offset = 0;
++	size_t mlo_offset;
++	int i, mlo_idx = 0;
++	int mlo_size = 0;
++	int ret = 0;
++
++	host_rmem = ath12k_core_get_rmem_by_name(ab, "host-ddr-mem");
++	if (!host_rmem)
++		return -ENODEV;
++
++	mutex_lock(&ag->mutex);
++
++	if (!ag->mlo_mem.init_done) {
++		memset(ag->mlo_mem.chunk, 0, sizeof(ag->mlo_mem.chunk));
++		ag->mlo_mem.init_done = true;
++		ag->mlo_mem.fixed_mem = false;
++		ag->mlo_mem.alloc_dev = NULL;
++	}
++
++	for (i = 0; i < ab->qmi.mem_seg_count; i++) {
++		chunk = &ab->qmi.target_mem[i];
++
++		switch (chunk->type) {
++		case HOST_DDR_REGION_TYPE:
++		case CALDB_MEM_REGION_TYPE:
++		case PAGEABLE_MEM_REGION_TYPE:
++		case M3_DUMP_REGION_TYPE:
++			if (host_offset > host_rmem->size ||
++			    chunk->size > host_rmem->size - host_offset) {
++				ath12k_err(ab,
++					   "PCI memory type %u offset %zu size %u exceeds host DDR size %pa\n",
++					   chunk->type, host_offset, chunk->size,
++					   &host_rmem->size);
++				ret = -EINVAL;
++				goto out;
++			}
++
++			chunk->paddr = host_rmem->base + host_offset;
++			chunk->v.ioaddr = ioremap(chunk->paddr, chunk->size);
++			if (!chunk->v.ioaddr) {
++				ret = -EIO;
++				goto out;
++			}
++			host_offset += chunk->size;
++			break;
++		case MLO_GLOBAL_MEM_REGION_TYPE:
++			mlo_size += chunk->size;
++			if (ag->mlo_mem.mlo_mem_size &&
++			    mlo_size > ag->mlo_mem.mlo_mem_size) {
++				ath12k_err(ab,
++					   "QMI MLO memory request %d exceeds allocated size %d\n",
++					   mlo_size, ag->mlo_mem.mlo_mem_size);
++				ret = -EINVAL;
++				goto out;
++			}
++
++			mlo_offset = mlo_size - chunk->size;
++			ret = ath12k_qmi_assign_mlo_mem_chunk(ab, chunk, mlo_idx,
++							      mlo_offset, chunk->size);
++			if (ret)
++				goto out;
++			mlo_idx++;
++			break;
++		default:
++			ath12k_warn(ab, "qmi ignore invalid PCI mem req type %u\n",
++				    chunk->type);
++			chunk->paddr = 0;
++			chunk->v.ioaddr = NULL;
++			break;
++		}
++	}
++
++	if (!ag->mlo_mem.mlo_mem_size) {
++		ag->mlo_mem.mlo_mem_size = mlo_size;
++	} else if (ag->mlo_mem.mlo_mem_size != mlo_size) {
++		ath12k_err(ab,
++			   "QMI MLO memory size error, expected %d requested %d\n",
++			   ag->mlo_mem.mlo_mem_size, mlo_size);
++		ret = -EINVAL;
++		goto out;
++	}
++
++	ath12k_info(ab, "using fixed PCI host DDR addr %pa size %pa used %zu\n",
++		    &host_rmem->base, &host_rmem->size, host_offset);
++	mutex_unlock(&ag->mutex);
++
++	return 0;
++
++out:
++	ath12k_qmi_free_target_mem_chunk(ab);
++	mutex_unlock(&ag->mutex);
++	return ret;
++}
++
+ static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
+ {
+ 	struct target_mem_chunk *chunk;
+@@ -2849,6 +2947,10 @@ static int ath12k_qmi_assign_target_mem_
+ 	int i, idx, mlo_idx, ret;
+ 	int mlo_size = 0;
+ 
++	if (ab->hif.bus == ATH12K_BUS_PCI &&
++	    test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags))
++		return ath12k_qmi_assign_pci_target_mem_chunk(ab);
++
+ 	mutex_lock(&ag->mutex);
+ 
+ 	if (!ag->mlo_mem.init_done) {
+-- 
+2.47.3

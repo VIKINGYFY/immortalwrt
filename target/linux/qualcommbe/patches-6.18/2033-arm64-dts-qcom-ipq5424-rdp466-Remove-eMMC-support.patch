@@ -1,0 +1,65 @@
+From dcadd342229a26cacff72e7c441243844c2b7010 Mon Sep 17 00:00:00 2001
+From: Md Sadre Alam <quic_mdalam@quicinc.com>
+Date: Tue, 14 Oct 2025 16:35:33 +0530
+Subject: [PATCH 2033/2034] arm64: dts: qcom: ipq5424-rdp466: Remove eMMC
+ support
+
+Remove eMMC support from the IPQ5424 RDP466 board configuration to
+resolve GPIO pin conflicts with SPI NAND interface.
+
+The IPQ5424 RDP466 board is designed with NOR + NAND as the default boot
+mode configuration. The eMMC controller and SPI NAND controller share
+the same GPIO pins, creating a hardware conflict:
+
+Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
+Signed-off-by: Md Sadre Alam <quic_mdalam@quicinc.com>
+---
+ arch/arm64/boot/dts/qcom/ipq5424-rdp466.dts | 30 ---------------------
+ 1 file changed, 30 deletions(-)
+
+--- a/arch/arm64/boot/dts/qcom/ipq5424-rdp466.dts
++++ b/arch/arm64/boot/dts/qcom/ipq5424-rdp466.dts
+@@ -124,13 +124,6 @@
+ 	status = "okay";
+ };
+ 
+-&sdhc {
+-	pinctrl-0 = <&sdc_default_state>;
+-	pinctrl-names = "default";
+-
+-	status = "okay";
+-};
+-
+ &sleep_clk {
+ 	clock-frequency = <32000>;
+ };
+@@ -201,29 +194,6 @@
+ 		};
+ 	};
+ 
+-	sdc_default_state: sdc-default-state {
+-		clk-pins {
+-			pins = "gpio5";
+-			function = "sdc_clk";
+-			drive-strength = <8>;
+-			bias-disable;
+-		};
+-
+-		cmd-pins {
+-			pins = "gpio4";
+-			function = "sdc_cmd";
+-			drive-strength = <8>;
+-			bias-pull-up;
+-		};
+-
+-		data-pins {
+-			pins = "gpio0", "gpio1", "gpio2", "gpio3";
+-			function = "sdc_data";
+-			drive-strength = <8>;
+-			bias-pull-up;
+-		};
+-	};
+-
+ 	qpic_snand_default_state: qpic-snand-default-state {
+ 		clock-pins {
+ 			pins = "gpio5";

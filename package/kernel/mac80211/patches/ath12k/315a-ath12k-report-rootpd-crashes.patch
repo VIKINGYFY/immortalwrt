@@ -1,0 +1,70 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Wed, 29 Jul 2026 12:00:00 +0530
+Subject: [PATCH] wifi: ath12k: report rootPD crashes
+
+The AHB driver currently uses the Qualcomm SSR notifier only to wait for
+rootPD startup. Handle crash shutdown notifications as well so the actual
+failure is visible instead of only its later effects.
+
+Release an SCM-authenticated userPD before the remoteproc core collects the
+rootPD dump. This mirrors the ordering used by Qualcomm's rootPD crash
+handling without importing its downstream group reset and panic machinery.
+
+Adapted from Qualcomm's downstream rootPD crash handling by Sowmiya Sree
+Elavalagan and Avula Sri Charan.
+
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+ drivers/net/wireless/ath/ath12k/ahb.c | 31 +++++++++++++++++++++++++++++--
+ 1 file changed, 29 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/ahb.c
+@@ -913,18 +913,45 @@ static int ath12k_ahb_config_rproc_irq(s
+ 	return 0;
+ }
+ 
++static void ath12k_ahb_release_crashed_userpd(struct ath12k_base *ab)
++{
++	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
++	u32 pasid;
++	int ret;
++
++	if (!ab_ahb->scm_auth_enabled)
++		return;
++
++	pasid = u32_encode_bits(ab_ahb->userpd_id, ATH12K_USERPD_ID_MASK) |
++		ATH12K_AHB_UPD_SWID;
++	ret = qcom_scm_pas_shutdown(pasid);
++	if (ret)
++		ath12k_warn(ab, "failed to release userPD%u after rootPD crash: %d\n",
++			    ab_ahb->userpd_id, ret);
++}
++
+ static int ath12k_ahb_root_pd_state_notifier(struct notifier_block *nb,
+ 					     const unsigned long event, void *data)
+ {
+ 	struct ath12k_ahb *ab_ahb = container_of(nb, struct ath12k_ahb, root_pd_nb);
+ 	struct ath12k_base *ab = ab_ahb->ab;
++	struct qcom_ssr_notify_data *notify_data = data;
+ 
+-	if (event == ATH12K_RPROC_AFTER_POWERUP) {
++	switch (event) {
++	case QCOM_SSR_AFTER_POWERUP:
+ 		ath12k_dbg(ab, ATH12K_DBG_AHB, "Root PD is UP\n");
+ 		complete(&ab_ahb->rootpd_ready);
++		return NOTIFY_OK;
++	case QCOM_SSR_BEFORE_SHUTDOWN:
++		if (!notify_data || !notify_data->crashed)
++			return NOTIFY_DONE;
++
++		ath12k_warn(ab, "rootPD crashed; releasing userPD for coredump\n");
++		ath12k_ahb_release_crashed_userpd(ab);
++		return NOTIFY_OK;
+ 	}
+ 
+-	return 0;
++	return NOTIFY_DONE;
+ }
+ 
+ static int ath12k_ahb_register_rproc_notifier(struct ath12k_base *ab)

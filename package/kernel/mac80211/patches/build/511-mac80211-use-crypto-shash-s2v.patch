@@ -1,0 +1,138 @@
+From: OpenWrt
+Subject: [PATCH] wifi: mac80211: use crypto_shash for S2V on older kernels
+
+Reverse upstream commit 5e07ce466356 ("wifi: mac80211: Use AES-CMAC
+library in aes_s2v()") because Linux 6.18 has no AES-CMAC library API.
+
+--- a/net/mac80211/Kconfig
++++ b/net/mac80211/Kconfig
+@@ -8,6 +8,7 @@ config MAC80211
+ 	depends on CRYPTO_AES
+ 	depends on CRYPTO_CCM
+ 	depends on CRYPTO_GCM
++	depends on CRYPTO_CMAC
+ 	depends on CRC32
+ 	help
+ 	  This option enables the hardware independent IEEE 802.11
+--- a/net/mac80211/fils_aead.c
++++ b/net/mac80211/fils_aead.c
+@@ -4,11 +4,13 @@
+  * Copyright 2016, Qualcomm Atheros, Inc.
+  */
+ 
+-#include <crypto/aes-cbc-macs.h>
++#include <crypto/aes.h>
++#include <crypto/hash.h>
+ #include <crypto/skcipher.h>
+ #include <crypto/utils.h>
+ 
+ #include "ieee80211_i.h"
++#include "aes_cmac.h"
+ #include "fils_aead.h"
+ 
+ static void gf_mulx(u8 *pad)
+@@ -20,35 +22,31 @@ static void gf_mulx(u8 *pad)
+ 	put_unaligned_be64((b << 1) ^ ((a >> 63) ? 0x87 : 0), pad + 8);
+ }
+ 
+-static int aes_s2v(const u8 *in_key, size_t key_len,
++static int aes_s2v(struct crypto_shash *tfm,
+ 		   size_t num_elem, const u8 *addr[], size_t len[], u8 *v)
+ {
+ 	u8 d[AES_BLOCK_SIZE], tmp[AES_BLOCK_SIZE] = {};
+-	struct aes_cmac_key key;
+-	struct aes_cmac_ctx ctx;
++	SHASH_DESC_ON_STACK(desc, tfm);
+ 	size_t i;
+-	int res;
+ 
+-	res = aes_cmac_preparekey(&key, in_key, key_len);
+-	if (res)
+-		return res;
++	desc->tfm = tfm;
+ 
+ 	/* D = AES-CMAC(K, <zero>) */
+-	aes_cmac(&key, tmp, AES_BLOCK_SIZE, d);
++	crypto_shash_digest(desc, tmp, AES_BLOCK_SIZE, d);
+ 
+ 	for (i = 0; i < num_elem - 1; i++) {
+ 		/* D = dbl(D) xor AES_CMAC(K, Si) */
+ 		gf_mulx(d); /* dbl */
+-		aes_cmac(&key, addr[i], len[i], tmp);
++		crypto_shash_digest(desc, addr[i], len[i], tmp);
+ 		crypto_xor(d, tmp, AES_BLOCK_SIZE);
+ 	}
+ 
+-	aes_cmac_init(&ctx, &key);
++	crypto_shash_init(desc);
+ 
+ 	if (len[i] >= AES_BLOCK_SIZE) {
+ 		/* len(Sn) >= 128 */
+ 		/* T = Sn xorend D */
+-		aes_cmac_update(&ctx, addr[i], len[i] - AES_BLOCK_SIZE);
++		crypto_shash_update(desc, addr[i], len[i] - AES_BLOCK_SIZE);
+ 		crypto_xor(d, addr[i] + len[i] - AES_BLOCK_SIZE,
+ 			   AES_BLOCK_SIZE);
+ 	} else {
+@@ -59,10 +57,8 @@ static int aes_s2v(const u8 *in_key, siz
+ 		d[len[i]] ^= 0x80;
+ 	}
+ 	/* V = AES-CMAC(K, T) */
+-	aes_cmac_update(&ctx, d, AES_BLOCK_SIZE);
+-	aes_cmac_final(&ctx, v);
++	crypto_shash_finup(desc, d, AES_BLOCK_SIZE, v);
+ 
+-	memzero_explicit(&key, sizeof(key));
+ 	return 0;
+ }
+ 
+@@ -73,6 +69,7 @@ static int aes_siv_encrypt(const u8 *key
+ 			   size_t len[], u8 *out)
+ {
+ 	u8 v[AES_BLOCK_SIZE];
++	struct crypto_shash *tfm;
+ 	struct crypto_skcipher *tfm2;
+ 	struct skcipher_request *req;
+ 	int res;
+@@ -86,7 +83,15 @@ static int aes_siv_encrypt(const u8 *key
+ 	num_elem++;
+ 
+ 	/* S2V */
+-	res = aes_s2v(key /* K1 */, key_len, num_elem, addr, len, v);
++
++	tfm = crypto_alloc_shash("cmac(aes)", 0, 0);
++	if (IS_ERR(tfm))
++		return PTR_ERR(tfm);
++	/* K1 for S2V */
++	res = crypto_shash_setkey(tfm, key, key_len);
++	if (!res)
++		res = aes_s2v(tfm, num_elem, addr, len, v);
++	crypto_free_shash(tfm);
+ 	if (res)
+ 		return res;
+ 
+@@ -141,6 +146,7 @@ static int aes_siv_decrypt(const u8 *key
+ 			   size_t num_elem, const u8 *addr[], size_t len[],
+ 			   u8 *out)
+ {
++	struct crypto_shash *tfm;
+ 	struct crypto_skcipher *tfm2;
+ 	struct skcipher_request *req;
+ 	struct scatterlist src[1], dst[1];
+@@ -192,7 +198,15 @@ static int aes_siv_decrypt(const u8 *key
+ 		return res;
+ 
+ 	/* S2V */
+-	res = aes_s2v(key /* K1 */, key_len, num_elem, addr, len, check);
++
++	tfm = crypto_alloc_shash("cmac(aes)", 0, 0);
++	if (IS_ERR(tfm))
++		return PTR_ERR(tfm);
++	/* K1 for S2V */
++	res = crypto_shash_setkey(tfm, key, key_len);
++	if (!res)
++		res = aes_s2v(tfm, num_elem, addr, len, check);
++	crypto_free_shash(tfm);
+ 	if (res)
+ 		return res;
+ 	if (memcmp(check, frame_iv, AES_BLOCK_SIZE) != 0)

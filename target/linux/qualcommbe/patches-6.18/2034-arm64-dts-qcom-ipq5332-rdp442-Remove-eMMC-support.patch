@@ -1,0 +1,69 @@
+From 8b8cbee6aec361bfa363a7ab45cb3259330289fe Mon Sep 17 00:00:00 2001
+From: Md Sadre Alam <quic_mdalam@quicinc.com>
+Date: Tue, 14 Oct 2025 16:35:34 +0530
+Subject: [PATCH 2034/2034] arm64: dts: qcom: ipq5332-rdp442: Remove eMMC
+ support
+
+Remove eMMC support from the IPQ5332 RDP442 board configuration to
+align with the board's default NOR+NAND boot mode design.
+
+The IPQ5332 RDP442 board is designed with NOR+NAND as the default boot
+mode configuration. The eMMC and SPI NAND interface share
+same GPIO
+
+Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
+Signed-off-by: Md Sadre Alam <quic_mdalam@quicinc.com>
+---
+ arch/arm64/boot/dts/qcom/ipq5332-rdp442.dts | 34 ---------------------
+ 1 file changed, 34 deletions(-)
+
+--- a/arch/arm64/boot/dts/qcom/ipq5332-rdp442.dts
++++ b/arch/arm64/boot/dts/qcom/ipq5332-rdp442.dts
+@@ -35,17 +35,6 @@
+ 	};
+ };
+ 
+-&sdhc {
+-	bus-width = <4>;
+-	max-frequency = <192000000>;
+-	mmc-ddr-1_8v;
+-	mmc-hs200-1_8v;
+-	non-removable;
+-	pinctrl-0 = <&sdc_default_state>;
+-	pinctrl-names = "default";
+-	status = "okay";
+-};
+-
+ &tlmm {
+ 	i2c_1_pins: i2c-1-state {
+ 		pins = "gpio29", "gpio30";
+@@ -54,29 +43,6 @@
+ 		bias-pull-up;
+ 	};
+ 
+-	sdc_default_state: sdc-default-state {
+-		clk-pins {
+-			pins = "gpio13";
+-			function = "sdc_clk";
+-			drive-strength = <8>;
+-			bias-disable;
+-		};
+-
+-		cmd-pins {
+-			pins = "gpio12";
+-			function = "sdc_cmd";
+-			drive-strength = <8>;
+-			bias-pull-up;
+-		};
+-
+-		data-pins {
+-			pins = "gpio8", "gpio9", "gpio10", "gpio11";
+-			function = "sdc_data";
+-			drive-strength = <8>;
+-			bias-pull-up;
+-		};
+-	};
+-
+ 	spi_0_data_clk_pins: spi-0-data-clk-state {
+ 		pins = "gpio14", "gpio15", "gpio16";
+ 		function = "blsp0_spi";

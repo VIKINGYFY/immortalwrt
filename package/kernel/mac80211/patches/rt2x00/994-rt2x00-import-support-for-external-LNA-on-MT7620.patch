@@ -83,7 +83,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  #include <net/mac80211.h>
  
-@@ -1015,6 +1016,11 @@ struct rt2x00_dev {
+@@ -1014,5 +1015,10 @@ struct rt2x00_dev {
  
  	/* Clock for System On Chip devices. */
  	struct clk *clk;
@@ -92,6 +92,8 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	struct pinctrl *pinctrl;
 +	struct pinctrl_state *pins_default;
 +	struct pinctrl_state *pins_pa_gpio;
+
+	struct usb_anchor anchor[];
  };
  
  struct rt2x00_bar_list_entry {

@@ -1,0 +1,32 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 1 Aug 2026 22:24:00 +0800
+Subject: [PATCH] wifi: ath12k: guard station count during recovery
+
+Firmware recovery removes the driver's peers and resets num_stations before
+mac80211 has finished reconciling its saved station state. A subsequent
+station removal can therefore decrement the unsigned counter from zero.
+
+Once the counter underflows, ath12k rejects every station re-added by
+mac80211 because the wrapped value is greater than max_num_stations. This
+leaves the AP unusable even though firmware restart itself completed.
+
+Do not decrement an already empty station count. This follows the guard
+used by Qualcomm's downstream Mode-1 recovery implementation and is also
+safe for normal station teardown paths.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -6912,6 +6912,9 @@ static void ath12k_mac_dec_num_stations(
+ 
+ 	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
+ 
++	if (!ar->num_stations)
++		return;
++
+ 	if (arvif->ahvif->vdev_type == WMI_VDEV_TYPE_STA && !sta->tdls)
+ 		return;

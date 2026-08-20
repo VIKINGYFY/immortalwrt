@@ -1,0 +1,57 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Fri, 31 Jul 2026 00:00:00 +0000
+Subject: [PATCH] cfg80211: allow secondary AP after DFS CAC
+
+When multiple AP interfaces share a DFS channel, only the first interface
+performs CAC. Allow subsequent interfaces to use the completed CAC while an
+AP is already beaconing across every requested DFS subchannel.
+
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+
+--- a/net/wireless/chan.c
++++ b/net/wireless/chan.c
+@@ -990,11 +990,12 @@ static bool cfg80211_dfs_permissive_chan
+ 	return false;
+ }
+ 
+-static bool cfg80211_dfs_sta_present(struct wiphy *wiphy,
+-				     struct ieee80211_channel *chan)
++static bool cfg80211_dfs_concurrent_present(struct wiphy *wiphy,
++					    struct ieee80211_channel *chan)
+ {
+ 	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
+ 	struct wireless_dev *wdev;
++	unsigned int link_id;
+ 
+ 	lockdep_assert_held(&rdev->wiphy.mtx);
+ 
+@@ -1005,6 +1006,19 @@ static bool cfg80211_dfs_sta_present(str
+ 		if (cfg80211_dfs_permissive_check_wdev(rdev, NL80211_IFTYPE_AP,
+ 						       wdev, chan))
+ 			return true;
++
++		if (wdev->iftype != NL80211_IFTYPE_AP &&
++		    wdev->iftype != NL80211_IFTYPE_P2P_GO)
++			continue;
++
++		for_each_valid_link(wdev, link_id) {
++			if (!wdev->links[link_id].ap.beacon_interval)
++				continue;
++
++			if (cfg80211_is_sub_chan(
++				    &wdev->links[link_id].ap.chandef, chan, false))
++				return true;
++		}
+ 	}
+ 
+ 	return false;
+@@ -1021,7 +1035,7 @@ void cfg80211_set_dfs_concurrent(struct
+ 			return;
+ 
+ 		if ((c->flags & IEEE80211_CHAN_RADAR) &&
+-		    !cfg80211_dfs_sta_present(wiphy, c))
++		    !cfg80211_dfs_concurrent_present(wiphy, c))
+ 			return;
+ 	}
+ 
