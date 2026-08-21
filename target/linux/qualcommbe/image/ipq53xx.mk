@@ -38,7 +38,7 @@ define Device/ubnt_u7-pro-xgs
 	DEVICE_DTS_CONFIG := config-a6a4
 	SOC := ipq5332
 	SUPPORTED_DEVICES += ubnt,u7-pro-xgs
-	DEVICE_PACKAGES := ipq-wifi-ubnt_u7-pro-xgs ath12k-firmware-qcn9274 \
+	DEVICE_PACKAGES := ipq-wifi-ubnt_u7-pro-xgs ath12k-firmware-qcn9274-ddwrt \
 		kmod-phy-realtek rtl826x-firmware
 	KERNEL := kernel-bin | lzma
 	KERNEL_INITRAMFS := kernel-bin | lzma | \
@@ -68,7 +68,7 @@ define Device/glinet_gl-be6500
 	BOOT_SCRIPT := glinet_gl-be6500.bootscript
 	IMAGES += factory.bin
 	IMAGE/factory.bin := append-ubi | gl-ipq-factory-nand
-	DEVICE_PACKAGES := ipq-wifi-glinet_gl-be6500 ath12k-firmware-qcn9274 \
+	DEVICE_PACKAGES := ipq-wifi-glinet_gl-be6500 ath12k-firmware-qcn9274-ddwrt \
 		kmod-hwmon-pwmfan kmod-rtl837x-dsa
 endef
 TARGET_DEVICES += glinet_gl-be6500

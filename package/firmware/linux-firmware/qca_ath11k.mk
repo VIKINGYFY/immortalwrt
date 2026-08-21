@@ -6,6 +6,14 @@ define Package/ath11k-firmware-ipq5018/install
 endef
 $(eval $(call BuildPackage,ath11k-firmware-ipq5018))
 
+Package/ath11k-firmware-ipq6018 = $(call Package/firmware-default,IPQ6018 ath11k firmware,,LICENCE.atheros_firmware)
+define Package/ath11k-firmware-ipq6018/install
+	$(INSTALL_DIR) $(1)/lib/firmware/IPQ6018
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/ath11k/IPQ6018/hw1.0/* $(1)/lib/firmware/IPQ6018/
+endef
+$(eval $(call BuildPackage,ath11k-firmware-ipq6018))
+
 Package/ath11k-firmware-ipq8074 = $(call Package/firmware-default,IPQ8074 ath11k firmware,,LICENCE.atheros_firmware)
 define Package/ath11k-firmware-ipq8074/install
 	$(INSTALL_DIR) $(1)/lib/firmware/IPQ8074
