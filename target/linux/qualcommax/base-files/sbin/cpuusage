@@ -1,11 +1,7 @@
 #!/bin/sh
-# Copyright (C) 2024 YumesomeZakura <1552037053@qq.com>
+# Copyright (C) 2024 ViKing <viking.yfy@qq.com>
 
-read -r usr sys < <(top -bn1 | awk 'NR==2 {print $2, $4}')
-cpu_load="USR: ${usr} SYS: ${sys}"
+read -r usr sys < <(top -bn1 | awk '/^CPU:/ {print $2, $4; exit}')
+ppe="$(awk '$1 == "live_entries" {print $2; exit}' /sys/kernel/debug/3a000000.ppe/offload 2>/dev/null)"
 
-nss_load="$(awk 'NR == 6 { print $2; exit }' /sys/kernel/debug/qca-nss-drv/stats/cpu_load_ubi 2>/dev/null)"
-nss_freq="$(awk 'NF { printf "%.1fMHz", $1 / 1000000; exit }' /proc/sys/dev/nss/clock/current_freq 2>/dev/null)"
-nss_ecm="$(cat /sys/kernel/debug/ecm/ecm_db/connection_count_simple 2>/dev/null)"
-
-echo -n "${cpu_load} NSS: load ${nss_load:-N/A} freq ${nss_freq:-N/A} ${nss_ecm:-N/A}"
+echo -n "USR: ${usr:-N/A} SYS: ${sys:-N/A} PPE: ${ppe:-N/A}"

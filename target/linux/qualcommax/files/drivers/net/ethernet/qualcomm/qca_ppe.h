@@ -60,6 +60,13 @@
 
 
 /* --- Global --- */
+#define PPE_SWITCH_ID			0x0
+#define   PPE_SWITCH_ID_REV		GENMASK(7, 0)
+#define   PPE_SWITCH_ID_DEV		GENMASK(15, 8)
+
+#define PPE_CLK_GATING_CTRL		0x8
+#define   PPE_QM_CLK_GATE_EN		BIT(4)
+
 #define PPE_PORT_MUX_CTRL		0x10
 
 /* CPPE (IPQ60xx) PORT_MUX_CTRL bit layout */
@@ -165,10 +172,11 @@
 /* --- XGMAC (base 0x003000) --- */
 #define PPE_MAC_XGMAC_CSR_BASE		0x003000
 
-#define PPE_XGMAC_MIB_TX_BYTES(xgmac)	(PPE_MAC_XGMAC_CSR_BASE + \
-					 (xgmac) * 0x4000 + 0x814)
-#define PPE_XGMAC_MIB_TX_PKTS(xgmac)	(PPE_MAC_XGMAC_CSR_BASE + \
-					 (xgmac) * 0x4000 + 0x81c)
+/* MMC block: transmit counters from 0x800, receive from 0x900. Which offset
+ * answers for which GMAC counter is in the MIB table in qca_ppe_main.c.
+ */
+#define PPE_XGMAC_MIB(xgmac, off)	(PPE_MAC_XGMAC_CSR_BASE + \
+					 (xgmac) * 0x4000 + (off))
 
 #define PPE_XGMAC_TX_CONF(xgmac)	(PPE_MAC_XGMAC_CSR_BASE + (xgmac) * 0x4000)
 #define   PPE_XGMAC_TX_ENABLE		BIT(0)
@@ -211,11 +219,31 @@
 #define   PPE_TDM_DEPTH		GENMASK(7, 0)
 #define   PPE_TDM_EN			BIT(31)
 
+#define PPE_PRX_DROP_CNT(port)		(PPE_PRX_BASE + 0x24 + (port) * 0x4)
+
 #define PPE_PRX_TDM_CFG(i)		(PPE_PRX_BASE + 0x1000 + (i) * 0x10)
 #define   PPE_TDM_PORT_NUM		GENMASK(3, 0)
 #define   PPE_TDM_DIR			BIT(4)
 #define   PPE_TDM_VALID		BIT(5)
 
+
+/* --- IPR: the ingress parser (base 0x002000; 0x1e0000 only on APPE) --- */
+#define PPE_IPR_BASE			0x002000
+
+/* One register for both trunk groups, and in the parser rather than beside the
+ * trunk member tables in L2.
+ */
+#define PPE_TRUNK_HASH_FIELD		(PPE_IPR_BASE + 0x68)
+#define   PPE_TRUNK_HASH_MAC_DA		BIT(1)
+#define   PPE_TRUNK_HASH_MAC_SA		BIT(2)
+#define   PPE_TRUNK_HASH_SIP		BIT(3)
+#define   PPE_TRUNK_HASH_DIP		BIT(4)
+#define   PPE_TRUNK_HASH_L4_SPORT	BIT(5)
+#define   PPE_TRUNK_HASH_L4_DPORT	BIT(6)
+
+#define PPE_IPR_PKT_CNT(port)		(PPE_IPR_BASE + 0x80 + (port) * 0x4)
+#define PPE_IPR_BYTE_LO(port)		(PPE_IPR_BASE + 0xa0 + (port) * 0x4)
+#define PPE_IPR_BYTE_HI(port)		(PPE_IPR_BASE + 0xc0 + (port) * 0x4)
 
 /* --- Ingress VLAN (base 0x00f000) --- */
 #define PPE_IVLAN_BASE			0x00f000
@@ -270,6 +298,17 @@
 
 #define PPE_EG_XLT_ACTION_W1(idx)	(PPE_PTX_BASE + 0xd000 + (idx) * 0x8 + 0x4)
 
+/* What left the egress editor, per VSI, per physical port and per virtual
+ * port, and what the whole stage took in and put out.
+ */
+#define PPE_EG_VSI_CNT_TBL(v)		(PPE_PTX_BASE + 0x600 + (v) * 0x10)
+#define PPE_PORT_TX_CNT_TBL(p)		(PPE_PTX_BASE + 0x900 + (p) * 0x10)
+#define PPE_VP_TX_CNT_TBL(v)		(PPE_PTX_BASE + 0x1000 + (v) * 0x10)
+#define PPE_EPE_DBG_IN_CNT		(PPE_PTX_BASE + 0x6054)
+#define PPE_EPE_DBG_OUT_CNT		(PPE_PTX_BASE + 0x6070)
+
+#define PPE_QUEUE_TX_CNT_TBL(q)		(PPE_PTX_BASE + 0x4000 + (q) * 0x10)
+
 #define PPE_EG_BRIDGE_CONFIG		(PPE_PTX_BASE + 0x6000)
 #define   PPE_EG_L2_EDIT_EN		BIT(1)
 #define   PPE_EG_QUEUE_CNT_EN		BIT(2)
@@ -281,6 +320,119 @@
 #define   PPE_PORT_EG_VLAN_TX_CNT_EN	BIT(8)
 
 #define PPE_EG_UNTOUCHED		3
+
+/* Flows of one class spread across this many queues of their egress port by
+ * the packet's RSS hash: fixed-bucket fair queueing in silicon. Two bands
+ * per port - bulk at the bottom, the classified priorities above - each
+ * hash-spread, DRR-fair inside, strict priority between them.
+ */
+#define PPE_FLOW_SPREAD_QUEUES		4
+
+/* --- RSS hash (in the IPO block): unprogrammed, the 5-tuple hash is
+ * degenerate and every flow lands in one bucket.
+ */
+#define PPE_RSS_HASH_MASK		(0x0b0000 + 0x4318)
+#define PPE_RSS_HASH_SEED		(0x0b0000 + 0x431c)
+#define PPE_RSS_HASH_MIX(i)		(0x0b0000 + 0x4320 + (i) * 0x4)
+#define PPE_RSS_HASH_FIN(i)		(0x0b0000 + 0x4350 + (i) * 0x4)
+#define PPE_RSS_HASH_MASK_IPV4		(0x0b0000 + 0x4380)
+#define PPE_RSS_HASH_SEED_IPV4		(0x0b0000 + 0x4384)
+#define PPE_RSS_HASH_MIX_IPV4(i)	(0x0b0000 + 0x4390 + (i) * 0x4)
+#define PPE_RSS_HASH_FIN_IPV4(i)	(0x0b0000 + 0x43b0 + (i) * 0x4)
+
+/* --- ACL: rules and masks in the IPO block, actions beside the L2 tables,
+ * hit counters in the ingress policer ---
+ * A rule, its mask and its action share one flat index. The 512 indices are
+ * 64 hardware lists of eight: a rule whose key is wider than one entry takes
+ * several entries of one list and the list's RULE_EXT bits merge them into a
+ * single match. A rule whose RANGE_EN is set compares one of its fields
+ * against a range - that field's mask slot carries the maximum, the rest of
+ * the mask stays a mask - and must sit at an even index. There is no valid
+ * bit and no global enable: a rule with an empty source bitmap matches
+ * nothing, one with ports in it is live.
+ */
+#define PPE_ACL_LISTS			64
+#define PPE_ACL_LIST_ENTRIES		8
+
+#define PPE_ACL_RULE(i)			(0x0b0000 + (i) * 0x10)
+/* 3 implemented words in a 4-word slot; whole slots are written so the
+ * latch on the slot's last word always fires (same for the mask below).
+ * Words 0 and 1 carry a 53-bit key whose fields belong to the rule type.
+ */
+#define   PPE_ACL_RULE_WORDS		4
+#define   PPE_ACL_MAC_HI		GENMASK(15, 0)	/* w1: bytes 1-0 */
+#define   PPE_ACL_IP_PORT		GENMASK(15, 0)	/* w0: L4 or ICMP */
+#define   PPE_ACL_IP_LO			GENMASK(31, 16)	/* w0 */
+#define   PPE_ACL_IP_HI			GENMASK(15, 0)	/* w1 */
+#define   PPE_ACL_L3_LEN		GENMASK(15, 0)	/* w0; range min */
+#define   PPE_ACL_L3_PROT		GENMASK(23, 16)	/* w0 */
+#define   PPE_ACL_L3_DSCP		GENMASK(31, 24)	/* w0 */
+#define   PPE_ACL_TCP_FLAGS		GENMASK(6, 1)	/* w1 */
+#define   PPE_ACL_L3_FRAG		BIT(16)		/* w1 */
+#define   PPE_ACL_IS_IPV6		BIT(17)		/* w1 */
+#define   PPE_ACL_RANGE_EN		BIT(21)		/* w1 */
+#define   PPE_ACL_RULE_TYPE		GENMASK(26, 23)	/* w1 */
+#define     PPE_ACL_TYPE_MAC_DA		0
+#define     PPE_ACL_TYPE_MAC_SA		1
+#define     PPE_ACL_TYPE_IPV4_DIP	4
+#define     PPE_ACL_TYPE_IPV4_SIP	5
+#define     PPE_ACL_TYPE_IPV6_DIP0	6	/* +1, +2 for the rest */
+#define     PPE_ACL_TYPE_IPV6_SIP0	9
+#define     PPE_ACL_TYPE_IPMISC		12
+#define   PPE_ACL_SRC_TYPE		GENMASK(28, 27)	/* w1 */
+#define     PPE_ACL_SRC_PORT_BMP	0
+#define   PPE_ACL_SRC_LO		GENMASK(31, 29)	/* w1: ports 0-2 */
+#define   PPE_ACL_SRC_HI		GENMASK(4, 0)	/* w2: ports 3-7 */
+#define   PPE_ACL_RULE_PRI		GENMASK(13, 5)	/* w2 */
+#define PPE_ACL_MASK(i)			(0x0b2000 + (i) * 0x10)
+#define   PPE_ACL_MASK_WORDS		4	/* 2 implemented; same field layout
+						 * as the rule, and under RANGE_EN
+						 * the ranged field's slot carries
+						 * its maximum
+						 */
+/* One register per hardware list, one bit per mergeable pair of its entries:
+ * EXT1 merges (0,1) (2,3) (4,5) (6,7), EXT2 merges (0,2) (4,6), EXT4 (0,4).
+ * No other pairing exists, which is what limits a wide rule's placement.
+ */
+#define PPE_ACL_RULE_EXT1(l)		(0x0b4000 + (l) * 0x4)
+#define PPE_ACL_RULE_EXT2(l)		(0x0b4100 + (l) * 0x4)
+#define PPE_ACL_RULE_EXT4(l)		(0x0b4200 + (l) * 0x4)
+#define PPE_ACL_ACTION(i)		(0x068000 + (i) * 0x20)
+/* 5 implemented words in an 8-word slot; the entry latches on the write to
+ * the slot's last word, so all 8 are written.
+ */
+#define   PPE_ACL_ACTION_WORDS		8
+#define   PPE_ACL_DEST_CHANGE_EN	BIT(0)		/* word 0 */
+#define   PPE_ACL_FWD_CMD		GENMASK(2, 1)	/* word 0 */
+#define     PPE_ACL_FWD_FORWARD		0
+#define     PPE_ACL_FWD_DROP		1
+#define     PPE_ACL_FWD_RDT_CPU		3
+/* The destination that replaces the one the lookup found: a twelve-bit
+ * value under a two-bit type.
+ */
+#define   PPE_ACL_DEST_VALUE		GENMASK(14, 3)	/* word 0 */
+#define   PPE_ACL_DEST_TYPE		GENMASK(16, 15)	/* word 0 */
+#define     PPE_ACL_DEST_PORT_BMP	3
+#define   PPE_ACL_MIRROR_EN		BIT(17)		/* word 0 */
+#define   PPE_ACL_DSCP_TC_CHANGE_EN	BIT(14)		/* word 2 */
+#define   PPE_ACL_DSCP_TC		GENMASK(22, 15)	/* word 2 */
+#define   PPE_ACL_PRI_CHANGE_EN		BIT(3)		/* word 3 */
+#define   PPE_ACL_PRI			GENMASK(7, 4)	/* word 3 */
+#define   PPE_ACL_POLICER_EN		BIT(11)		/* word 3 */
+#define   PPE_ACL_POLICER_INDEX		GENMASK(20, 12)	/* word 3 */
+#define   PPE_ACL_QID_EN		BIT(21)		/* word 3 */
+#define   PPE_ACL_QID			GENMASK(29, 22)	/* word 3 */
+/* The counters live in the ingress policer block, not the IPO: the vendor
+ * reaches them at its 0x100000 base plus the table's own 0x74000. Packets in
+ * word 0, the low 32 bits of the byte count in word 1, its top 8 in word 2.
+ */
+#define PPE_ACL_CNT(i)			(0x174000 + (i) * 0x10)
+#define   PPE_ACL_CNT_ENTRIES		512
+#define   PPE_ACL_CNT_WORDS		3
+/* Read-only, and counting whether or not any rule is installed. */
+#define PPE_ACL_GLB_HIT_CNT		(0x0b0000 + 0x430c)
+#define PPE_ACL_GLB_MISS_CNT		(0x0b0000 + 0x4310)
+#define PPE_ACL_GLB_BYPASS_CNT		(0x0b0000 + 0x4314)
 
 /* --- L2 (base 0x060000) --- */
 #define PPE_L2_BASE			0x060000
@@ -330,13 +482,37 @@
 #define   PPE_BRIDGE_PORT_ISOL		GENMASK(15, 8)
 #define   PPE_PORT_BRIDGE_CTRL_TXMAC_EN	BIT(16)
 
+/* The bitmap a frame arriving on a member of this group may not leave by. */
+#define PPE_TRUNK_FILTER(g)		(PPE_L2_BASE + 0x50 + (g) * 0x4)
+#define   PPE_TRUNK_FILTER_MEMBERS	GENMASK(7, 0)
+
+/* Eight hash buckets, each holding the id of the port that bucket sends to. */
+#define PPE_TRUNK_MEMBER(g)		(PPE_L2_BASE + 0x60 + (g) * 0x4)
+#define PPE_TRUNK_MEMBER_SLOTS		8
+#define PPE_TRUNK_MEMBER_SLOT_SHIFT	4
+
+#define PPE_PORT_TRUNK_ID(port)		(PPE_L2_BASE + 0x600 + (port) * 0x4)
+#define   PPE_PORT_TRUNK_EN		BIT(0)
+#define   PPE_PORT_TRUNK_GROUP		BIT(1)
+
 #define PPE_MC_MTU_CTRL(port)		(PPE_L2_BASE + 0xa00 + (port) * 0x4)
 #define   PPE_MC_MTU_CTRL_MTU		GENMASK(13, 0)
+#define   PPE_MC_MTU_CTRL_MTU_CMD	GENMASK(15, 14)
 #define   PPE_MC_MTU_CTRL_TX_CNT_EN	BIT(16)
 
 #define PPE_RFDB_TBL(idx)		(PPE_L2_BASE + 0x1000 + (idx) * 0x8)
 
 #define PPE_APP_CTRL(idx)		(PPE_L2_BASE + 0x1400 + (idx) * 0x10)
+#define   PPE_APP_CTRL_VALID		BIT(0)
+#define   PPE_APP_CTRL_RFDB_INCLUDE	BIT(1)
+/* RFDB_INDEX_BITMAP is 32 bits from entry bit 2, so it straddles words 0 and 1. */
+#define   PPE_APP_CTRL_RFDB_BITMAP_SHIFT	2
+#define   PPE_APP_CTRL_W2_PORTBITMAP_INCLUDE	BIT(2)
+#define   PPE_APP_CTRL_W2_PORTBITMAP	GENMASK(10, 3)
+#define   PPE_APP_CTRL_W2_IN_STG_BYP	BIT(12)
+#define   PPE_APP_CTRL_W2_CMD		GENMASK(16, 15)
+#define   PPE_APP_CTRL_CMD_RDT_TO_CPU	3
+#define PPE_RFDB_STP			31
 
 #define PPE_PORT_QOS_CTRL(p)		(PPE_L2_BASE + 0x900 + (p) * 0x10)
 #define   PPE_QOS_DSCP_PREC		GENMASK(5, 3)
@@ -374,7 +550,10 @@
 
 #define PPE_MRU_MTU_CTRL(port, stride)	(PPE_L2_BASE + 0x3000 + (port) * (stride))
 #define   PPE_MRU_MTU_CTRL_MRU		GENMASK(13, 0)
+#define   PPE_MRU_MTU_CTRL_MRU_CMD	GENMASK(15, 14)
 #define   PPE_MRU_MTU_CTRL_MTU		GENMASK(29, 16)
+#define   PPE_MRU_MTU_CTRL_MTU_CMD	GENMASK(31, 30)
+#define     PPE_MTU_CMD_RDT_TO_CPU	3
 #define   PPE_MRU_MTU_CTRL_RX_CNT_EN	BIT(0)
 #define   PPE_MRU_MTU_CTRL_TX_CNT_EN	BIT(1)
 
@@ -572,10 +751,61 @@
 #define   PPE_FLOW_CNT_WORDS		3
 #define   PPE_FLOW_CNT_BYTES_HI		GENMASK(7, 0)
 #define   PPE_FLOW_CNT_BYTES		GENMASK_ULL(39, 0)
+/* The counter tables that carry a drop pair are five words: packets and bytes,
+ * then the same pair again for what was dropped.
+ */
+#define PPE_CNT_DROP_WORDS		5
+#define PPE_CNT_DROP_OFF		72
+
 #define PPE_RT_IF_CNT_TBL(i)		(PPE_POLICER_BASE + 0x40000 + (i) * 0x20)
+#define   PPE_RT_IF_CNT_ENTRIES		512
+
+#define PPE_POLICER_CMPST_LEN(p)	(PPE_POLICER_BASE + (p) * 0x4)
+#define   PPE_CMPST_LENGTH		GENMASK(4, 0)
+
+#define PPE_POLICER_DROP_BYPASS		(PPE_POLICER_BASE + 0x20)
+#define   PPE_DROP_BYPASS_EN		BIT(0)
+
+/* One table counts both why a frame was sent to the CPU and why one was
+ * dropped: the first 256 entries are CPU codes, the rest are a drop code per
+ * port, eight ports to a code.
+ */
+#define PPE_DROP_CPU_CNT_TBL(i)		(PPE_POLICER_BASE + 0x60000 + (i) * 0x10)
+#define   PPE_CPU_CODE_ENTRIES		256
+#define   PPE_DROP_CODE_PORTS		8
+#define   PPE_DROP_CPU_ENTRIES		1280
+
+/* One entry per VSI: what the L2 stage saw and what it discarded, and the
+ * VLAN-tagged frames classified into it.
+ */
+#define PPE_VLAN_CNT_TBL(v)		(PPE_POLICER_BASE + 0x78000 + (v) * 0x10)
+#define PPE_PRE_L2_CNT_TBL(v)		(PPE_POLICER_BASE + 0x7c000 + (v) * 0x20)
 
 #define PPE_POLICER_TIME_SLOT		(PPE_POLICER_BASE + 0x40)
 #define   PPE_POLICER_SLOT_TIME		GENMASK(9, 0)
+/* The refresh period every meter in the block shares, in units of 8 PPE
+ * clocks, as ppe_rate_limit_init programs it.
+ */
+#define PPE_POLICER_SLOT		600
+
+/* One meter per classifier rule, bound by the rule's action. The fields are
+ * the port meter's in a different order and without its frame-type filter,
+ * and the two words past the rate carry the exceed and violate actions: left
+ * at zero, a violation drops.
+ */
+#define PPE_ACL_METER(i)		(PPE_POLICER_BASE + 0x4000 + (i) * 0x10)
+#define   PPE_ACL_METER_ENTRIES		512
+#define   PPE_ACL_METER_EN		BIT(0)		/* word 0 */
+#define   PPE_ACL_METER_MODE		BIT(3)		/* word 0 */
+#define   PPE_ACL_METER_TOKEN_UNIT	GENMASK(6, 4)	/* word 0 */
+#define   PPE_ACL_METER_CBS		GENMASK(23, 8)	/* word 0 */
+#define   PPE_ACL_METER_CIR_LO		GENMASK(31, 24)	/* word 0 */
+#define   PPE_ACL_METER_CIR_HI		GENMASK(9, 0)	/* word 1 */
+
+/* The meter's token buckets, committed and excess, two words that commit on
+ * the second - the port meter's table one block over, per meter index.
+ */
+#define PPE_ACL_METER_CRDT(i)		(PPE_POLICER_BASE + 0x8000 + (i) * 0x10)
 
 #define PPE_PORT_METER_W0(p)		(PPE_POLICER_BASE + 0xc000 + (p) * 0x10)
 #define   PPE_METER_EN			BIT(0)
@@ -590,7 +820,13 @@
 #define PPE_PORT_METER_W2(p)		(PPE_POLICER_BASE + 0xc000 + (p) * 0x10 + 0x8)
 #define PPE_PORT_METER_W3(p)		(PPE_POLICER_BASE + 0xc000 + (p) * 0x10 + 0xc)
 
+/* The meter's token buckets, committed and excess, one entry per port and two
+ * words wide, the second of which commits it.
+ */
+#define PPE_PORT_METER_CRDT(p)		(PPE_POLICER_BASE + 0xd000 + (p) * 0x10)
+
 #define PPE_PORT_TX_DROP_CNT(p)	(PPE_POLICER_BASE + 0x7d000 + (p) * 0x10)
+#define PPE_VP_TX_DROP_CNT(v)		(PPE_POLICER_BASE + 0x7e000 + (v) * 0x10)
 
 #define PPE_PORT_METER_CNT(p, c)	(PPE_POLICER_BASE + 0xe000 + \
 					 ((p) * 3 + (c)) * 0x10)
@@ -616,6 +852,9 @@
 #define   PPE_L0_PORT_NUM		GENMASK(3, 0)
 
 #define PPE_TM_RING_Q_MAP(r)		(PPE_TM_BASE + 0x2a000 + (r) * 0x40)
+
+#define PPE_TM_DEQ_DIS(q)		(PPE_TM_BASE + 0x30000 + (q) * 0x10)
+#define   PPE_DEQ_DIS			BIT(0)
 
 #define PPE_TM_L1_FLOW_MAP(i)		(PPE_TM_BASE + 0x40000 + (i) * 0x10)
 #define   PPE_L1_SP_ID			GENMASK(3, 0)
@@ -685,6 +924,24 @@
 #define PPE_BM_SHARED_GRP(g)		(PPE_BM_BASE + 0x290 + (g) * 0x4)
 #define   PPE_BM_SHARED_LIMIT		GENMASK(10, 0)
 
+/* Live occupancy, in buffers: what a BM port is holding, and what it was
+ * holding after it asked the link to pause.
+ */
+#define PPE_BM_PORT_CNT(i)		(PPE_BM_BASE + 0x1c0 + (i) * 0x4)
+#define   PPE_BM_PORT_CNT_VAL		GENMASK(10, 0)
+#define PPE_BM_PORT_REACT_CNT(i)	(PPE_BM_BASE + 0x240 + (i) * 0x4)
+#define   PPE_BM_PORT_REACT_CNT_VAL	GENMASK(8, 0)
+#define PPE_BM_SHARED_GRP_CNT(g)	(PPE_BM_BASE + 0x280 + (g) * 0x4)
+#define   PPE_BM_SHARED_GRP_CNT_VAL	GENMASK(10, 0)
+/* The buffer manager has four shared groups. */
+#define   PPE_BM_SHARED_GROUPS		4
+
+/* Ingress drops live in the PRX block, not the BM's own: one entry per BM port
+ * for a buffer overload and a second, PPE_BM_PORTS higher, for a drop the flow
+ * control caused.
+ */
+#define PPE_BM_DROP_STAT(i)		(PPE_PRX_BASE + 0x3000 + (i) * 0x10)
+
 #define PPE_BM_PORT_FC_W0(i)		(PPE_BM_BASE + 0x1000 + (i) * 0x10)
 #define PPE_BM_PORT_FC_W1(i)		(PPE_BM_BASE + 0x1000 + (i) * 0x10 + 0x4)
 #define   PPE_BM_REACT_LIMIT		GENMASK(8, 0)
@@ -699,6 +956,20 @@
 /* --- Queue Manager (base 0x800000) --- */
 #define PPE_QM_BASE			0x800000
 
+/* Draining a queue: the gate that stops it filling, and the flush that hands
+ * its buffers back to the group. FLUSH_BUSY is written to start the flush and
+ * the hardware clears it; FLUSH_STATUS says whether it worked.
+ */
+#define PPE_QM_FLUSH_CFG		(PPE_QM_BASE + 0x0)
+#define   PPE_FLUSH_QID			GENMASK(8, 0)
+#define   PPE_FLUSH_STATUS		BIT(10)
+#define   PPE_FLUSH_DST_PORT		GENMASK(23, 21)
+#define   PPE_FLUSH_ALL_QUEUES		BIT(24)
+#define   PPE_FLUSH_BUSY		BIT(31)
+
+#define PPE_QM_ENQ_OPR(q)		(PPE_QM_BASE + 0x5c000 + (q) * 0x10)
+#define   PPE_ENQ_DISABLE		BIT(0)
+
 #define PPE_QM_UCAST_MAP(i)		(PPE_QM_BASE + 0x10000 + (i) * 0x10)
 #define   PPE_QM_PROFILE_ID		GENMASK(3, 0)
 #define   PPE_QM_QUEUE_ID		GENMASK(11, 4)
@@ -708,6 +979,9 @@
 
 #define PPE_QM_UCAST_PRI_MAP(i)	(PPE_QM_BASE + 0x42000 + (i) * 0x10)
 #define   PPE_QM_PRI_CLASS		GENMASK(3, 0)
+
+#define PPE_QM_MCAST_PRI_MAP(p, i)	(PPE_QM_BASE + 0x100 + (p) * 0x40 + \
+					 (i) * 0x4)
 
 #define PPE_QM_AC_UNI_W0(i)		(PPE_QM_BASE + 0x48000 + (i) * 0x10)
 #define PPE_QM_AC_UNI_W1(i)		(PPE_QM_BASE + 0x48000 + (i) * 0x10 + 0x4)
@@ -732,13 +1006,38 @@
 #define PPE_QM_AC_MUL_W2(i)		(PPE_QM_BASE + 0x4a000 + (i) * 0x10 + 0x8)
 #define   PPE_AC_MUL_EN		BIT(0)
 #define   PPE_AC_MUL_CEILING		GENMASK(26, 16)
-#define   PPE_AC_MUL_GRN_MAX_LO	GENMASK(31, 27)
-#define   PPE_AC_MUL_GRN_MAX_HI	GENMASK(5, 0)
-#define   PPE_AC_MUL_GRN_RESUME_HI	GENMASK(17, 7)
+#define   PPE_AC_MUL_GRN_RESUME_OFF	GENMASK(17, 7)
+
+/* Live occupancy, in buffers: what a queue is holding right now rather than
+ * what has passed through it.
+ */
+#define PPE_QM_AC_UNI_CNT(q)		(PPE_QM_BASE + 0x4e000 + (q) * 0x10)
+#define   PPE_AC_UNI_PEND_CNT		GENMASK(11, 0)
+#define PPE_QM_AC_MUL_CNT(q)		(PPE_QM_BASE + 0x52000 + (q) * 0x10)
+#define   PPE_AC_MUL_PEND_CNT		GENMASK(12, 0)
+#define PPE_QM_AC_GRP_CNT(g)		(PPE_QM_BASE + 0x54000 + (g) * 0x10)
+#define   PPE_AC_GRP_PEND_CNT		GENMASK(15, 0)
+#define   PPE_AC_GRP_ALLOC_USED		GENMASK(31, 16)
+
+/* Per-queue drops, one entry per drop reason and colour. A unicast queue has
+ * WRED and forced drops for each of the three colours; a multicast queue only
+ * the forced ones, and its table is one block per port.
+ */
+#define PPE_QM_UNI_DROP_CNT(q, t)	(PPE_QM_BASE + 0x1e0000 + \
+					 ((q) * PPE_UNI_DROP_TYPES + (t)) * 0x10)
+#define   PPE_UNI_DROP_TYPES		6
+#define PPE_QM_MUL_DROP_CNT(p, q, t)	(PPE_QM_BASE + 0x1f0000 + \
+					 (p) * 0x1000 + \
+					 ((q) * PPE_MUL_DROP_TYPES + (t)) * 0x10)
+#define   PPE_MUL_DROP_TYPES		3
+/* The CPU port has sixteen multicast queues, every other port four. */
+#define   PPE_MUL_QUEUES_CPU		16
+#define   PPE_MUL_QUEUES_PORT		4
 
 #define PPE_QM_AC_GRP_W0(g)		(PPE_QM_BASE + 0x4c000 + (g) * 0x10)
 #define PPE_QM_AC_GRP_W1(g)		(PPE_QM_BASE + 0x4c000 + (g) * 0x10 + 0x4)
 #define PPE_QM_AC_GRP_W2(g)		(PPE_QM_BASE + 0x4c000 + (g) * 0x10 + 0x8)
+#define   PPE_AC_GRP_WORDS		3
 #define   PPE_AC_GRP_LIMIT		GENMASK(14, 4)
 #define   PPE_AC_GRP_PALLOC		GENMASK(26, 16)
 
@@ -782,8 +1081,15 @@
 #define PPE_FDB_OP_GET			2
 #define PPE_FDB_DST_PORT		2
 #define PPE_FDB_DST_PORTMAP		3
+/* A trunk is named in the destination field of an ordinary port entry: the two
+ * trunk ids continue the destination numbering above the physical ports, so the
+ * type stays PPE_FDB_DST_PORT. The base is the encoding's, not a port count.
+ */
+#define PPE_FDB_DST_TRUNK(g)		(32 + (g))
 #define PPE_FDB_AGE_STATIC		3
 #define PPE_FDB_OP_FLUSH		4
+
+#define PPE_TRUNK_GROUPS		2
 
 #define PPE_XLT_TBL_NUM			64
 #define PPE_XLT_MISS_FWD_DROP		3
@@ -927,14 +1233,22 @@ struct qca_ppe_priv {
 	 * bridge, so its download direction reaches the flow lookup. Allocated
 	 * with the first offloaded flow on the port and shared by the rest.
 	 */
-	bool port_is_xgmac[QCA_PPE_MAX_PORTS];
-	s8 mirror_port;
-	u16 mirror_ref;
-	u8 mirror_dir_ref[QCA_PPE_MAX_PORTS][2];
+	/* Free entries of every ACL hardware list. Guarded by its own lock
+	 * because the small-packet module parameters reach the table from a
+	 * writer that holds no rtnl.
+	 */
+	u8 acl_free[PPE_ACL_LISTS];
+	DECLARE_BITMAP(acl_meter_used, PPE_ACL_METER_ENTRIES);
+	struct list_head acl_rules;
+	struct mutex acl_lock;
 	s8 wan_vsi[QCA_PPE_MAX_PORTS];
 	s8 wan_mymac[QCA_PPE_MAX_PORTS];
 	u16 wan_ref[QCA_PPE_MAX_PORTS];
 	int wan_xlt[QCA_PPE_MAX_PORTS];
+	bool port_is_xgmac[QCA_PPE_MAX_PORTS];
+	s8 mirror_port;
+	u16 mirror_ref;
+	u8 mirror_dir_ref[QCA_PPE_MAX_PORTS][2];
 	u32 flow_reject[PPE_REJECT_MAX];
 	u32 flow_offloaded;
 	u32 flow_reinstalled;
@@ -945,6 +1259,19 @@ struct qca_ppe_priv {
 	DECLARE_BITMAP(vsi_bitmap, PPE_VSI_MAX);
 	DECLARE_BITMAP(xlt_bitmap, PPE_XLT_TBL_NUM);
 	u32 port_vsi[QCA_PPE_MAX_PORTS];
+	/* The member mask each VSI was last programmed with, so a bridge flag
+	 * that narrows a flood class can reprogram every VSI it reaches.
+	 */
+	u32 vsi_member[PPE_VSI_MAX];
+	unsigned long port_brflags[QCA_PPE_MAX_PORTS];
+	u32 port_isolated;
+	/* Member and transmitting-member masks of each trunk group, and the
+	 * hash fields the one global register is programmed with. Written from
+	 * the LAG ops under rtnl and read wherever a VSI is programmed.
+	 */
+	u8 trunk_members[PPE_TRUNK_GROUPS];
+	u8 trunk_tx[PPE_TRUNK_GROUPS];
+	u32 trunk_hash;
 	struct qca_ppe_bridge_vsi bridges[QCA_PPE_MAX_BRIDGES];
 	struct qca_ppe_vlan_entry vlans[PPE_VSI_MAX];
 	struct net_device *port_br_dev[QCA_PPE_MAX_PORTS];
@@ -996,10 +1323,24 @@ static inline struct qca_ppe_priv *ds_to_priv(struct dsa_switch *ds)
 
 struct tc_tbf_qopt_offload;
 struct tc_ets_qopt_offload;
+struct tc_prio_qopt_offload;
 struct tc_query_caps_base;
 struct tc_mqprio_qopt_offload;
+struct flow_cls_offload;
+
+/* The PPE has one buffer memory, so one devlink shared buffer describes it. */
+#define PPE_DEVLINK_SB		0
 
 void ppe_scheduler_init(struct qca_ppe_priv *priv);
+void ppe_port_queues_enable(struct qca_ppe_priv *priv, int port, bool en);
+int qca_ppe_devlink_sb_setup(struct dsa_switch *ds);
+int qca_ppe_devlink_sb_pool_get(struct dsa_switch *ds, unsigned int sb_index,
+				u16 pool_index,
+				struct devlink_sb_pool_info *pool_info);
+int qca_ppe_devlink_sb_pool_set(struct dsa_switch *ds, unsigned int sb_index,
+				u16 pool_index, u32 size,
+				enum devlink_sb_threshold_type threshold_type,
+				struct netlink_ext_ack *extack);
 int qca_ppe_port_get_dscp_prio(struct dsa_switch *ds, int port, u8 dscp);
 int qca_ppe_port_add_dscp_prio(struct dsa_switch *ds, int port, u8 dscp,
 			       u8 prio);
@@ -1013,6 +1354,8 @@ int qca_ppe_setup_tc_tbf(struct qca_ppe_priv *priv, int port,
 			 struct tc_tbf_qopt_offload *qopt);
 int qca_ppe_setup_tc_ets(struct qca_ppe_priv *priv, int port,
 			 struct tc_ets_qopt_offload *qopt);
+int qca_ppe_setup_tc_prio(struct qca_ppe_priv *priv, int port,
+			  struct tc_prio_qopt_offload *qopt);
 int qca_ppe_tc_query_caps(struct tc_query_caps_base *base);
 int qca_ppe_setup_tc_mqprio(struct qca_ppe_priv *priv, int port,
 			    struct tc_mqprio_qopt_offload *qopt);
@@ -1024,6 +1367,8 @@ void qca_ppe_port_mirror_del(struct dsa_switch *ds, int port,
 int qca_ppe_port_policer_add(struct dsa_switch *ds, int port,
 			     struct dsa_mall_policer_tc_entry *policer);
 void qca_ppe_port_policer_del(struct dsa_switch *ds, int port);
+int ppe_token_bucket(unsigned long clk, u32 slot, u64 rate_bps, u32 burst,
+		     u32 cir_max, u32 cbs_max, u32 *cir, u32 *cbs);
 
 int ppe_vsi_alloc(struct qca_ppe_priv *priv);
 void ppe_vsi_free(struct qca_ppe_priv *priv, u32 vsi);
@@ -1045,6 +1390,7 @@ int qca_ppe_port_vlan_del(struct dsa_switch *ds, int port,
 			  const struct switchdev_obj_port_vlan *vlan);
 
 unsigned long ppe_clk_rate(struct qca_ppe_priv *priv);
+u64 ppe_mib_read(struct qca_ppe_priv *priv, int port, unsigned int off);
 void ppe_flow_init(struct qca_ppe_priv *priv);
 int ppe_flow_op(struct qca_ppe_priv *priv, u32 op_type,
 		const u32 *entry, int nentry, const u32 *host, int nhost,
@@ -1057,10 +1403,19 @@ void ppe_flow_counter_read(struct qca_ppe_priv *priv, u32 index, u64 *packets,
 void ppe_flow_counter_clear(struct qca_ppe_priv *priv, u32 index);
 int ppe_flow_entry_delete(struct qca_ppe_priv *priv, u32 index);
 void ppe_flow_debugfs_init(struct qca_ppe_priv *priv);
+void ppe_counters_debugfs_init(struct qca_ppe_priv *priv);
 void ppe_flow_debugfs_exit(struct qca_ppe_priv *priv);
 
 int qca_ppe_setup_tc(struct dsa_switch *ds, int port, enum tc_setup_type type,
 		     void *type_data);
+void ppe_acl_init(struct qca_ppe_priv *priv);
+void ppe_acl_exit(struct qca_ppe_priv *priv);
+int qca_ppe_cls_flower_add(struct dsa_switch *ds, int port,
+			   struct flow_cls_offload *cls, bool ingress);
+int qca_ppe_cls_flower_del(struct dsa_switch *ds, int port,
+			   struct flow_cls_offload *cls, bool ingress);
+int ppe_mirror_analyzer_get(struct qca_ppe_priv *priv, int to_port);
+void ppe_mirror_analyzer_put(struct qca_ppe_priv *priv);
 int ppe_flow_offload_init(struct qca_ppe_priv *priv);
 void ppe_flow_mtu_update(struct qca_ppe_priv *priv, int port, int mtu);
 void ppe_flow_purge_vsi(struct qca_ppe_priv *priv, u32 vsi);

@@ -1,0 +1,156 @@
+#!/bin/sh /etc/rc.common
+# shellcheck shell=ash
+# shellcheck disable=SC2034,SC2154
+
+START=93
+
+PROG=smp_affinity
+PROC_ROOT=${PROC_ROOT:-/proc}
+IRQ_ROOT=${IRQ_ROOT:-${PROC_ROOT}/irq}
+IRQ_FILE=${IRQ_FILE:-${PROC_ROOT}/interrupts}
+TASKSET=${TASKSET:-taskset}
+
+log_msg() {
+	[ "$enable_log" = 1 ] || return 0
+	logger -t "$PROG" "Pinning $1($2) $3 to CPU $4"
+}
+
+cpu_mask() {
+	printf '%x' $((1 << $1))
+}
+
+get_irq() {
+	awk -v name="$1" '$NF == name || $NF == name ":" {
+		sub(/:$/, "", $1)
+		print $1
+	}' "$IRQ_FILE" 2>/dev/null
+}
+
+set_irq_affinity() {
+	local name="$1" cpu="$2" irq mask current found=0 failed=0
+
+	mask="$(cpu_mask "$cpu")"
+	for irq in $(get_irq "$name"); do
+		[ -e "$IRQ_ROOT/$irq/smp_affinity" ] || continue
+		found=1
+
+		# Avoid repeated writes while waiting for late-loading Wi-Fi IRQs.
+		current="$(cat "$IRQ_ROOT/$irq/smp_affinity" 2>/dev/null)"
+		current="$(printf '%s' "$current" | sed 's/^0*//')"
+		[ -n "$current" ] || current=0
+		[ "$current" = "$mask" ] && continue
+
+		if printf '%s\n' "$mask" > "$IRQ_ROOT/$irq/smp_affinity"; then
+			log_msg IRQ "$irq" "$name" "$cpu"
+		else
+			failed=1
+		fi
+	done
+
+	[ "$found" -eq 1 ] && [ "$failed" -eq 0 ]
+}
+
+set_thread_affinity() {
+	local pid="$1" cpu="$2" name="$3" mask
+
+	[ -n "$pid" ] || return
+	mask="$(cpu_mask "$cpu")"
+	"$TASKSET" -p "$mask" "$pid" >/dev/null 2>&1 || return
+	log_msg thread "$pid" "$name" "$cpu"
+}
+
+get_napi_threads() {
+	local comm_path comm id pid
+
+	TX_NAPI_ID=
+	TX_PID=
+	RX_NAPI_ID=
+	RX_PID=
+
+	for comm_path in "$PROC_ROOT"/[0-9]*/comm; do
+		[ -r "$comm_path" ] || continue
+		read -r comm < "$comm_path" || continue
+		case "$comm" in
+			napi/eth0-[0-9]*)
+				id="${comm##*-}"
+				pid="${comm_path#"${PROC_ROOT}"/}"
+				pid="${pid%/comm}"
+
+				if [ -z "$TX_NAPI_ID" ] || [ "$id" -lt "$TX_NAPI_ID" ]; then
+					TX_NAPI_ID="$id"
+					TX_PID="$pid"
+				fi
+				if [ -z "$RX_NAPI_ID" ] || [ "$id" -gt "$RX_NAPI_ID" ]; then
+					RX_NAPI_ID="$id"
+					RX_PID="$pid"
+				fi
+				;;
+		esac
+	done
+}
+
+enable_affinity_edma() {
+	local seconds=0 rx_irq tx_irq
+
+	while [ "$seconds" -lt 60 ]; do
+		rx_irq="$(get_irq edma_rxdesc)"
+		tx_irq="$(get_irq edma_txcmpl)"
+		get_napi_threads
+
+		if [ -n "$rx_irq" ] && [ -n "$tx_irq" ] &&
+			[ -n "$RX_PID" ] && [ -n "$TX_PID" ] &&
+			[ "$RX_PID" != "$TX_PID" ]; then
+			set_irq_affinity edma_rxfill 1
+			set_irq_affinity edma_rxdesc 1
+			set_thread_affinity "$RX_PID" 1 "EDMA RX NAPI"
+			set_irq_affinity edma_txcmpl 2
+			set_thread_affinity "$TX_PID" 2 "EDMA TX NAPI"
+			return
+		fi
+
+		seconds=$((seconds + 1))
+		sleep 1
+	done
+}
+
+enable_affinity_wifi() {
+	local seconds=0 ready
+
+	# Both IPQ60xx and IPQ807x expose the same four REO rings and three
+	# WBM/PPDU groups.  Apply each mapping as soon as its IRQ appears.
+	while [ "$seconds" -lt 60 ]; do
+		ready=1
+		set_irq_affinity reo2host-destination-ring1 0 || ready=0
+		set_irq_affinity reo2host-destination-ring2 1 || ready=0
+		set_irq_affinity reo2host-destination-ring3 2 || ready=0
+		set_irq_affinity reo2host-destination-ring4 3 || ready=0
+
+		set_irq_affinity wbm2host-tx-completions-ring1 1 || ready=0
+		set_irq_affinity wbm2host-tx-completions-ring2 2 || ready=0
+		set_irq_affinity wbm2host-tx-completions-ring3 3 || ready=0
+
+		set_irq_affinity ppdu-end-interrupts-mac1 1 || ready=0
+		set_irq_affinity ppdu-end-interrupts-mac2 2 || ready=0
+		set_irq_affinity ppdu-end-interrupts-mac3 3 || ready=0
+
+		[ "$ready" -eq 1 ] && return
+
+		seconds=$((seconds + 1))
+		sleep 1
+	done
+}
+
+boot() {
+	local enable
+
+	config_load smp_affinity
+	config_get_bool enable general enable 1
+	config_get_bool enable_log general enable_log 1
+
+	[ "$enable" -eq 1 ] || return
+
+	# Wi-Fi IRQs may be registered after the network device; keep both
+	# groups asynchronous so late firmware loading does not block boot.
+	enable_affinity_wifi &
+	enable_affinity_edma &
+}

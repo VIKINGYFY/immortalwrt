@@ -3,7 +3,7 @@
 #指定文件路径
 FILE="/usr/share/rpcd/ucode/luci"
 
-#添加NSS状态显示
+#添加PPE状态显示
 [ -f "$FILE" ] && sed -i "s#const fd = popen('top.*')#const fd = popen('/sbin/cpuusage')#g" "$FILE"
 
 exit 0

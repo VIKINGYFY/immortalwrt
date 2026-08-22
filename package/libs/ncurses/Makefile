@@ -199,6 +199,12 @@ define Host/Compile
 	$(MAKE) -C $(HOST_BUILD_DIR)/progs tic
 endef
 
+define Host/Install
+	$(call Host/Install/Default)
+	rm -rf $(STAGING_DIR_HOSTPKG)/include/ncurses
+	ln -s ncursesw $(STAGING_DIR_HOSTPKG)/include/ncurses
+endef
+
 $(eval $(call HostBuild))
 $(eval $(call BuildPackage,terminfo))
 $(eval $(call BuildPackage,libncurses))
