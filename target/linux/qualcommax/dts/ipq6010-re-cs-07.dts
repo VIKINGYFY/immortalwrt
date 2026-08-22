@@ -20,24 +20,11 @@
 
 	keys {
 		compatible = "gpio-keys";
-		pinctrl-0 = <&button_pins>;
-		pinctrl-names = "default";
 
 		reset {
 			label = "reset";
 			linux,code = <KEY_RESTART>;
 			gpios = <&tlmm 56 GPIO_ACTIVE_LOW>;
-		};
-	};
-};
-
-&tlmm {
-	button_pins: button-pins {
-		mux {
-			pins = "gpio56";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-up;
 		};
 	};
 };
@@ -63,7 +50,7 @@
 		swport1: port@1 {
 			reg = <1>;
 			label = "wan";
-			phy-handle = <&qca8075_0>;
+			phy-handle = <&qca8075_24>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 0>;
 		};
@@ -71,7 +58,7 @@
 		swport2: port@2 {
 			reg = <2>;
 			label = "lan1";
-			phy-handle = <&qca8075_1>;
+			phy-handle = <&qca8075_25>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 1>;
 		};
@@ -79,7 +66,7 @@
 		swport3: port@3 {
 			reg = <3>;
 			label = "lan2";
-			phy-handle = <&qca8075_2>;
+			phy-handle = <&qca8075_26>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 2>;
 		};
@@ -87,7 +74,7 @@
 		swport4: port@4 {
 			reg = <4>;
 			label = "lan3";
-			phy-handle = <&qca8075_3>;
+			phy-handle = <&qca8075_27>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 3>;
 		};

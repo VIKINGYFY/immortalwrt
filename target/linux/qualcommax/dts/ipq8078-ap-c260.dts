@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/dts-v1/;
+
+#include "ipq8076-arista.dtsi"
+
+/ {
+	model = "Arista AP-C260";
+	compatible = "arista,c260", "qcom,ipq8074";
+
+	keys {
+		compatible = "gpio-keys";
+
+		reset {
+			label = "reset";
+			gpios = <&tlmm 52 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+			debounce-interval = <60>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_eth2_green: eth2-green {
+			label = "green:eth2";
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_LAN;
+			gpios = <&led_gpio 0 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_eth2_red: eth2-red {
+			label = "red:eth2";
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_LAN;
+			gpios = <&led_gpio 1 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_eth1_green: eth1-green {
+			label = "green:eth1";
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_LAN;
+			gpios = <&led_gpio 2 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_eth1_red: eth1-red {
+			label = "red:eth1";
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_LAN;
+			gpios = <&led_gpio 3 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_wlan3_green: wlan3-green {
+			label = "green:wlan3";
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WLAN;
+			gpios = <&led_gpio 4 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_wlan3_red: wlan3-red {
+			label = "red:wlan3";
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_WLAN;
+			gpios = <&led_gpio 5 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_wlan5g_green: wlan5g-green {
+			label = "green:wlan5g";
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WLAN_5GHZ;
+			gpios = <&led_gpio 8 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_wlan5g_red: wlan5g-red {
+			label = "red:wlan5g";
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_WLAN_5GHZ;
+			gpios = <&led_gpio 9 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_wlan2g_green: wlan2g-green {
+			label = "green:wlan2g";
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WLAN_2GHZ;
+			gpios = <&led_gpio 10 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_wlan2g_red: wlan2g-red {
+			label = "red:wlan2g";
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_WLAN_2GHZ;
+			gpios = <&led_gpio 11 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_power_green: power-green {
+			label = "green:power";
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&led_gpio 12 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		led_power_red: power-red {
+			label = "red:power";
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&led_gpio 13 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
+};
+
+&pcie0 {
+	status = "disabled";
+};
+
+&pcie_qmp0 {
+	status = "disabled";
+};
+
+&wifi {
+	status = "okay";
+	qcom,ath11k-fw-memory-mode = <1>;
+	qcom,ath11k-calibration-variant = "Arista-C260";
+};

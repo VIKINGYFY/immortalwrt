@@ -28,7 +28,7 @@
 &blsp1_uart3 {
 	status = "okay";
 
-	pinctrl-0 = <&hsuart_pins &iot_pins>;
+	pinctrl-0 = <&hsuart_pins>, <&iot_pins>;
 	pinctrl-names = "default";
 
 	/* Silicon Labs EFR32MG21 IoT */
@@ -53,6 +53,7 @@
 
 	nand@0 {
 		reg = <0>;
+
 		nand-ecc-strength = <4>;
 		nand-ecc-step-size = <512>;
 		nand-bus-width = <8>;

@@ -26,6 +26,8 @@ static void ppe_port_gmac_set(struct qca_ppe_priv *priv, int port,
 	if (port < 1 || port >= priv->data->num_ports)
 		return;
 
+	priv->port_is_xgmac[port] = false;
+
 	if (tx_en)
 		val |= PPE_MAC_ENABLE_TXMAC_EN;
 	if (rx_en)
@@ -42,6 +44,8 @@ static void ppe_port_xgmac_set(struct qca_ppe_priv *priv, int port,
 
 	if (port < 5 || port >= priv->data->num_ports)
 		return;
+
+	priv->port_is_xgmac[port] = true;
 
 	regmap_update_bits(priv->regmap, PPE_XGMAC_TX_CONF(xgmac),
 			   PPE_XGMAC_TX_ENABLE,
@@ -169,6 +173,8 @@ int ppe_vsi_alloc(struct qca_ppe_priv *priv)
 {
 	int vsi;
 
+	lockdep_assert_held(&priv->vlan_lock);
+
 	vsi = find_first_zero_bit(priv->vsi_bitmap, PPE_VSI_MAX);
 	if (vsi >= PPE_VSI_MAX)
 		return -ENOSPC;
@@ -184,6 +190,8 @@ int ppe_vsi_alloc(struct qca_ppe_priv *priv)
 
 void ppe_vsi_free(struct qca_ppe_priv *priv, u32 vsi)
 {
+	lockdep_assert_held(&priv->vlan_lock);
+
 	regmap_write(priv->regmap, PPE_VSI_TBL(vsi), 0);
 	regmap_write(priv->regmap, PPE_VSI_TBL(vsi) + 4, 0);
 	clear_bit(vsi, priv->vsi_bitmap);
@@ -537,9 +545,15 @@ static int qca_ppe_port_change_mtu(struct dsa_switch *ds, int port,
 	if (ret)
 		return ret;
 
-	return regmap_update_bits(priv->regmap, PPE_MC_MTU_CTRL(port),
-				  PPE_MC_MTU_CTRL_MTU,
-				  FIELD_PREP(PPE_MC_MTU_CTRL_MTU, frame_size));
+	ret = regmap_update_bits(priv->regmap, PPE_MC_MTU_CTRL(port),
+				 PPE_MC_MTU_CTRL_MTU,
+				 FIELD_PREP(PPE_MC_MTU_CTRL_MTU, frame_size));
+	if (ret)
+		return ret;
+
+	ppe_flow_mtu_update(priv, port, new_mtu);
+
+	return 0;
 }
 
 static int qca_ppe_port_max_mtu(struct dsa_switch *ds, int port)
@@ -613,6 +627,7 @@ static void bridge_vsi_put(struct qca_ppe_priv *priv,
 	if (bvsi->refcount > 0)
 		return;
 
+	ppe_flow_purge_vsi(priv, bvsi->vsi);
 	ppe_vsi_free(priv, bvsi->vsi);
 	bvsi->br_dev = NULL;
 	bvsi->vsi = 0;
@@ -642,6 +657,9 @@ static int qca_ppe_port_bridge_join(struct dsa_switch *ds, int port,
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 	struct qca_ppe_bridge_vsi *bvsi;
 
+	guard(mutex)(&priv->flow_lock);
+	guard(mutex)(&priv->vlan_lock);
+
 	bvsi = bridge_vsi_find(priv, bridge.dev);
 	if (!bvsi) {
 		bvsi = bridge_vsi_alloc(priv, bridge.dev);
@@ -664,6 +682,9 @@ static void qca_ppe_port_bridge_leave(struct dsa_switch *ds, int port,
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 	struct qca_ppe_bridge_vsi *bvsi;
+
+	guard(mutex)(&priv->flow_lock);
+	guard(mutex)(&priv->vlan_lock);
 
 	bvsi = bridge_vsi_find(priv, bridge.dev);
 	if (!bvsi)
@@ -1380,7 +1401,70 @@ static void qca_ppe_port_stp_state_set(struct dsa_switch *ds, int port,
 			   PPE_STP_STATE_MASK, stp_state);
 }
 
+/* One analyzer serves the whole switch, for both directions, so every mirror on
+ * the box has to name the same destination; a second one naming another port is
+ * refused rather than silently redirecting the first. The analyzer is a switch
+ * port, so mirroring costs a LAN port for as long as it is on.
+ */
+int qca_ppe_port_mirror_add(struct dsa_switch *ds, int port,
+			    struct dsa_mall_mirror_tc_entry *mirror,
+			    bool ingress, struct netlink_ext_ack *extack)
+{
+	struct qca_ppe_priv *priv = ds_to_priv(ds);
+
+	if (priv->mirror_ref && priv->mirror_port != mirror->to_local_port) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "another port is already mirrored elsewhere");
+		return -EBUSY;
+	}
+
+	regmap_write(priv->regmap, PPE_MIRROR_ANALYZER,
+		     FIELD_PREP(PPE_MIRROR_IN_ANALYZER, mirror->to_local_port) |
+		     FIELD_PREP(PPE_MIRROR_EG_ANALYZER, mirror->to_local_port));
+	regmap_update_bits(priv->regmap, PPE_PORT_MIRROR(port),
+			   ingress ? PPE_PORT_MIRROR_IN_EN :
+				     PPE_PORT_MIRROR_EG_EN,
+			   ingress ? PPE_PORT_MIRROR_IN_EN :
+				     PPE_PORT_MIRROR_EG_EN);
+
+	priv->mirror_port = mirror->to_local_port;
+	priv->mirror_ref++;
+	priv->mirror_dir_ref[port][ingress]++;
+
+	return 0;
+}
+
+void qca_ppe_port_mirror_del(struct dsa_switch *ds, int port,
+			     struct dsa_mall_mirror_tc_entry *mirror)
+{
+	struct qca_ppe_priv *priv = ds_to_priv(ds);
+
+	/* Two filters can name the same port and direction, and they share one
+	 * enable bit: it goes off with the last of them, not the first.
+	 */
+	if (!--priv->mirror_dir_ref[port][mirror->ingress])
+		regmap_update_bits(priv->regmap, PPE_PORT_MIRROR(port),
+				   mirror->ingress ? PPE_PORT_MIRROR_IN_EN :
+						     PPE_PORT_MIRROR_EG_EN, 0);
+
+	if (--priv->mirror_ref)
+		return;
+
+	regmap_write(priv->regmap, PPE_MIRROR_ANALYZER, 0);
+	priv->mirror_port = -1;
+}
+
 static const struct dsa_switch_ops qca_ppe_ops = {
+	.port_setup_tc		= qca_ppe_setup_tc,
+	.port_mirror_add	= qca_ppe_port_mirror_add,
+	.port_mirror_del	= qca_ppe_port_mirror_del,
+	.port_policer_add	= qca_ppe_port_policer_add,
+	.port_policer_del	= qca_ppe_port_policer_del,
+	.port_get_dscp_prio	= qca_ppe_port_get_dscp_prio,
+	.port_add_dscp_prio	= qca_ppe_port_add_dscp_prio,
+	.port_del_dscp_prio	= qca_ppe_port_del_dscp_prio,
+	.port_get_apptrust	= qca_ppe_port_get_apptrust,
+	.port_set_apptrust	= qca_ppe_port_set_apptrust,
 	.get_tag_protocol	= qca_ppe_get_tag_protocol,
 	.setup			= qca_ppe_setup,
 	.set_ageing_time	= qca_ppe_set_ageing_time,
@@ -1573,6 +1657,13 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	ds->num_ports = data->num_ports;
 	ds->ops = &qca_ppe_ops;
 	ds->priv = priv;
+	/* The two DSCP tables are chosen between per port, not filled per port,
+	 * so every port shares one and DSA replicates an entry to all of them.
+	 */
+	ds->dscp_prio_mapping_is_global = true;
+	/* mqprio carves these into traffic classes, one per hardware queue. */
+	ds->num_tx_queues = PPE_QOS_MAX_PRI + 1;
+	priv->mirror_port = -1;
 	ds->phylink_mac_ops = &qca_ppe_phylink_mac_ops;
 
 	for (i = 1; i < data->num_ports; i++) {
@@ -1607,22 +1698,30 @@ static int qca_ppe_probe(struct platform_device *pdev)
 
 	ppe_mac_hw_init(priv);
 	ppe_ctrlpkt_init(priv);
+	ppe_flow_init(priv);
 
+	ret = ppe_flow_offload_init(priv);
+	if (ret)
+		goto err_clk;
 
 	if (data->type == PPE_TYPE_IPQ6018) {
 		ret = ppe_ipq6018_mux_setup(priv);
 		if (ret)
-			goto err_clk;
+			goto err_flow;
 	}
 
 	ret = dsa_register_switch(ds);
 	if (ret)
-		goto err_clk;
+		goto err_flow;
+
+	ppe_flow_debugfs_init(priv);
 
 	platform_set_drvdata(pdev, priv);
 
 	return 0;
 
+err_flow:
+	ppe_flow_offload_exit(priv);
 err_clk:
 	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 	return ret;
@@ -1632,7 +1731,12 @@ static void qca_ppe_remove(struct platform_device *pdev)
 {
 	struct qca_ppe_priv *priv = platform_get_drvdata(pdev);
 
+	ppe_flow_debugfs_exit(priv);
 	dsa_unregister_switch(&priv->ds);
+	/* After the switch is gone: unregistration flushes the flowtables, and
+	 * their FLOW_CLS_DESTROY commands have to find the table still alive.
+	 */
+	ppe_flow_offload_exit(priv);
 	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 }
 
@@ -1649,6 +1753,9 @@ static const struct ppe_data ipq6018_ppe_data = {
 	.qm_total_buf		= 1506,
 	.qm_ceiling		= 216,
 	.qm_green_max		= 144,
+	.num_flow_entries	= 2048,
+	.num_host_entries	= 768,
+	.num_nexthop_entries	= 768,
 	.psch_tdm		= &cppe_psch_tdm_data,
 	.bm_tdm			= &cppe_bm_tdm_data,
 };
@@ -1666,6 +1773,9 @@ static const struct ppe_data ipq8074_ppe_data = {
 	.qm_total_buf		= 2000,
 	.qm_ceiling		= 400,
 	.qm_green_max		= 250,
+	.num_flow_entries	= 4096,
+	.num_host_entries	= 6144,
+	.num_nexthop_entries	= 2560,
 	.psch_tdm		= &hppe_psch_tdm_data,
 	.bm_tdm			= &hppe_bm_tdm_data,
 };

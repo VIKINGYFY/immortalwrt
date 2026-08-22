@@ -1,0 +1,60 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=99
+USE_PROCD=1
+PROG=/usr/sbin/athena-led
+
+check_binary() {
+    if [ ! -x "$PROG" ]; then
+        logger -t athena-led -p daemon.error "Binary $PROG not found or not executable"
+        return 1
+    fi
+    return 0
+}
+
+start_service() {
+    config_load 'athena_led'
+    local cfg='config'
+
+    config_get_bool enabled "$cfg" 'enable' '0'
+    if [ "$enabled" -eq 0 ]; then
+        logger -t athena-led -p daemon.info "Service is disabled"
+        return 0
+    fi
+
+    check_binary || return 1
+
+    local status seconds lightLevel option value url tempFlag
+    config_get status "$cfg" 'status' ''
+    config_get seconds "$cfg" 'seconds' '5'
+    config_get lightLevel "$cfg" 'lightLevel' '5'
+    config_get option "$cfg" 'option' 'date timeBlink'
+    config_get value "$cfg" 'value' 'abcdefghijklmnopqrstuvwxyz0123456789+-*/=.:：℃'
+    config_get url "$cfg" 'url' 'https://ifconfig.me'
+    config_get tempFlag "$cfg" 'tempFlag' '4'
+
+    procd_open_instance
+    procd_set_param command "$PROG" \
+        -status "${status}" \
+        -seconds "${seconds}" \
+        -lightLevel "${lightLevel}" \
+        -option "${option}" \
+        -value "${value}" \
+        -url "${url}" \
+        -tempFlag "${tempFlag}"
+    procd_set_param respawn
+    procd_set_param stderr 1
+    procd_close_instance
+
+    logger -t athena-led -p daemon.info "Service started"
+}
+
+service_triggers() {
+    procd_add_reload_trigger "athena_led"
+}
+
+reload_service() {
+    stop
+    start
+}

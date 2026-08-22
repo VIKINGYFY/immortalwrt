@@ -1,0 +1,226 @@
+#!/bin/sh
+
+[ -r /lib/functions.sh ] && . /lib/functions.sh
+
+CONFIG="ap_c360"
+SECTION="mode"
+DATA_DIR="/usr/share/ap-c360-radio-mode"
+IPQ_DIR="/lib/firmware/ath11k/IPQ8074/hw2.0"
+QCN_DIR="/lib/firmware/ath11k/QCN9074/hw1.0"
+IPQ_CAL="${IPQ_DIR}/cal-ahb-c000000.wifi.bin"
+
+usage() {
+	cat <<EOF
+Usage: ap-c360-radio-mode <5gh|6g|status|apply>
+
+Commands:
+  5gh      Select 5G-H boarddata and stage it for next ath11k probe
+  6g       Select 6G boarddata and stage it for next ath11k probe
+  apply    Re-apply the configured mode without changing UCI
+  status   Show configured mode and active boarddata hashes
+
+Examples:
+  ap-c360-radio-mode 6g && reboot
+  ap-c360-radio-mode 5gh && reboot
+  ap-c360-radio-mode status
+EOF
+}
+
+log() {
+	command -v logger >/dev/null 2>&1 && logger -t ap-c360-radio-mode "$*"
+}
+
+die() {
+	echo "ap-c360-radio-mode: $*" >&2
+	log "error: $*"
+	exit 1
+}
+
+is_c360() {
+	[ "$(board_name 2>/dev/null)" = "arista,c360" ]
+}
+
+normalize_mode() {
+	case "$1" in
+	6g|6G)
+		echo "6g"
+		;;
+	5gh|5g-h|5g_high|5g-high|dual5g|dual-5g|dual_5g|"")
+		echo "5gh"
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+configured_mode() {
+	local mode
+
+	mode="$(uci -q get "${CONFIG}.${SECTION}.mode" 2>/dev/null)"
+	normalize_mode "$mode" || echo "5gh"
+}
+
+md5_file() {
+	[ -f "$1" ] && md5sum "$1" | cut -d ' ' -f1
+}
+
+status_summary() {
+	local mode="$1"
+	local ipq_hash qcn_hash
+
+	ipq_hash="$(md5_file "${IPQ_DIR}/board-2.bin")"
+	qcn_hash="$(md5_file "${QCN_DIR}/board-2.bin")"
+
+	echo "configured_mode=${mode}"
+	echo "data_source=${DATA_DIR}/${mode}"
+	echo "active_ipq8074=${ipq_hash:-missing}"
+	echo "active_qcn9074=${qcn_hash:-missing}"
+}
+
+log_status() {
+	local mode="$1"
+	local ipq_hash qcn_hash
+
+	ipq_hash="$(md5_file "${IPQ_DIR}/board-2.bin")"
+	qcn_hash="$(md5_file "${QCN_DIR}/board-2.bin")"
+
+	log "loaded successfully: configured_mode=${mode}, data_source=${DATA_DIR}/${mode}, active_ipq8074=${ipq_hash:-missing}, active_qcn9074=${qcn_hash:-missing}"
+}
+
+log_usage() {
+	log "usage: ap-c360-radio-mode <5gh|6g|apply|status>; run 'ap-c360-radio-mode 6g && reboot' or 'ap-c360-radio-mode 5gh && reboot'"
+}
+
+set_mode() {
+	local mode="$1"
+
+	uci -q batch <<EOF
+set ${CONFIG}.${SECTION}=radio_mode
+set ${CONFIG}.${SECTION}.mode=${mode}
+commit ${CONFIG}
+EOF
+}
+
+copy_if_changed() {
+	local src="$1"
+	local dst="$2"
+
+	[ -f "$src" ] || die "missing ${src}"
+	mkdir -p "${dst%/*}"
+
+	if ! cmp -s "$src" "$dst"; then
+		cp "$src" "$dst" || die "failed to copy ${src} to ${dst}"
+	fi
+}
+
+devmem_write() {
+	if command -v devmem >/dev/null 2>&1; then
+		devmem "$@"
+		return $?
+	fi
+
+	if [ -x /bin/busybox ] && /bin/busybox --list 2>/dev/null | grep -qx devmem; then
+		/bin/busybox devmem "$@"
+		return $?
+	fi
+
+	return 127
+}
+
+apply_optional_mode_registers() {
+	local mode="$1"
+	local value0 value1
+
+	case "$mode" in
+	6g)
+		value0="0x2c1"
+		value1="0x0"
+		;;
+	*)
+		value0="0x2c3"
+		value1="0x2"
+		;;
+	esac
+
+	devmem_write 0x1009000 32 "$value0" >/dev/null 2>&1 &&
+		devmem_write 0x1009004 32 "$value1" >/dev/null 2>&1 &&
+		return 0
+
+	log "devmem unavailable or failed; staged ${mode} boarddata without register write"
+	return 0
+}
+
+apply_mode() {
+	local mode="$1"
+	local ipq_src="${DATA_DIR}/${mode}/IPQ8074/board-2.bin"
+	local qcn_src="${DATA_DIR}/${mode}/QCN9074/board-2.bin"
+
+	copy_if_changed "$ipq_src" "${IPQ_DIR}/board-2.bin"
+	copy_if_changed "$qcn_src" "${QCN_DIR}/board-2.bin"
+	rm -f "$IPQ_CAL"
+	apply_optional_mode_registers "$mode"
+}
+
+status() {
+	local mode
+
+	is_c360 || die "this command is only valid on arista,c360"
+	mode="$(configured_mode)"
+
+	status_summary "$mode"
+	echo "usage: ap-c360-radio-mode <5gh|6g|apply|status>; reboot after changing mode"
+}
+
+cmd="$1"
+case "$cmd" in
+apply-boot)
+	is_c360 || exit 0
+	mode="$(configured_mode)"
+	apply_mode "$mode"
+	log_status "$mode"
+	log_usage
+	;;
+apply)
+	is_c360 || die "this command is only valid on arista,c360"
+	mode="$(configured_mode)"
+	echo "Applying configured AP-C360 radio mode: ${mode}"
+	echo
+	echo "Before:"
+	status_summary "$mode"
+	echo
+	apply_mode "$mode"
+	echo "After:"
+	status_summary "$mode"
+	echo "result=staged"
+	echo "next_step=reboot to reprobe ath11k"
+	log_status "$mode"
+	;;
+status|"")
+	status
+	;;
+5gh|5g-h|5g_high|5g-high|dual5g|dual-5g|dual_5g|6g|6G)
+	is_c360 || die "this command is only valid on arista,c360"
+	mode="$(normalize_mode "$cmd")" || die "unsupported mode: ${cmd}"
+	before="$(configured_mode)"
+	echo "Switching AP-C360 radio mode: ${before} -> ${mode}"
+	echo
+	echo "Before:"
+	status_summary "$before"
+	echo
+	set_mode "$mode"
+	apply_mode "$mode"
+	echo "After:"
+	status_summary "$mode"
+	echo "result=configured_and_staged"
+	echo "next_step=reboot to apply ath11k boarddata"
+	log_status "$mode"
+	;;
+-h|--help|help)
+	usage
+	;;
+*)
+	usage >&2
+	exit 1
+	;;
+esac

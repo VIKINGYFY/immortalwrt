@@ -1,5 +1,3 @@
-. /lib/functions/bootconfig.sh
-
 PART_NAME=firmware
 REQUIRE_IMAGE_METADATA=1
 
@@ -29,156 +27,8 @@ remove_oem_ubi_volume() {
 	fi
 }
 
-qihoo_bootconfig_toggle_rootfs() {
-	local partname=$1
-	local tempfile
-	local mtdidx
-
-	mtdidx=$(find_mtd_index "$partname")
-	[ ! "$mtdidx" ] && {
-		echo "cannot find mtd index for $partname"
-		return 1
-	}
-
-	tempfile=/tmp/mtd"$mtdidx".bin
-	dd if=/dev/mtd"$mtdidx" of="$tempfile" bs=1 count=336 2>/dev/null
-	[ $? -ne 0 ] || [ ! -f "$tempfile" ] && {
-		echo "failed to create a temp copy of /dev/mtd$mtdidx"
-		return 1
-	}
-
-	toggle_bootconfig_primaryboot "$tempfile" "rootfs"
-	[ $? -ne 0 ] && {
-		echo "failed to toggle primaryboot for rootfs partition"
-		return 1
-	}
-
-	mtd write "$tempfile" /dev/mtd"$mtdidx" 2>/dev/null
-	[ $? -ne 0 ] && {
-		echo "failed to write temp copy back to /dev/mtd$mtdidx"
-		return 1
-	}
-
-	# Update bootconfig1 if exists
-	local mtdidx1=$(find_mtd_index "${partname}1")
-	[ -n "$mtdidx1" ] && mtd write "$tempfile" /dev/mtd"$mtdidx1" 2>/dev/null
-
-	return 0
-}
-
-tplink_get_boot_part() {
-	local cur_boot_part
-	local args
-
-	# Try to find rootfs from kernel arguments
-	read -r args < /proc/cmdline
-	for arg in $args; do
-		local ubi_mtd_arg=${arg#ubi.mtd=}
-		case "$ubi_mtd_arg" in
-		rootfs|rootfs_1)
-			echo "$ubi_mtd_arg"
-			return
-		;;
-		esac
-	done
-
-	# Fallback to u-boot env (e.g. when running initramfs)
-	cur_boot_part="$(/usr/sbin/fw_printenv -n tp_boot_idx)"
-	case $cur_boot_part in
-	1)
-		echo rootfs_1
-		;;
-	0|*)
-		echo rootfs
-		;;
-	esac
-}
-
-tplink_do_upgrade() {
-	local new_boot_part
-
-	case $(tplink_get_boot_part) in
-	rootfs)
-		CI_UBIPART="rootfs_1"
-		new_boot_part=1
-	;;
-	rootfs_1)
-		CI_UBIPART="rootfs"
-		new_boot_part=0
-	;;
-	esac
-
-	fw_setenv -s - <<-EOF
-		tp_boot_idx $new_boot_part
-	EOF
-
-	remove_oem_ubi_volume ubi_rootfs
-	nand_do_upgrade "$1"
-}
-
-linksys_mr_pre_upgrade() {
-	local setenv_script="/tmp/fw_env_upgrade"
-
-	CI_UBIPART="rootfs"
-	boot_part="$(fw_printenv -n boot_part)"
-	if [ -n "$UPGRADE_OPT_USE_CURR_PART" ]; then
-		if [ "$boot_part" -eq "2" ]; then
-			CI_KERNPART="alt_kernel"
-			CI_UBIPART="alt_rootfs"
-		fi
-	else
-		if [ "$boot_part" -eq "1" ]; then
-			echo "boot_part 2" >> $setenv_script
-			CI_KERNPART="alt_kernel"
-			CI_UBIPART="alt_rootfs"
-		else
-			echo "boot_part 1" >> $setenv_script
-		fi
-	fi
-
-	boot_part_ready="$(fw_printenv -n boot_part_ready)"
-	if [ "$boot_part_ready" -ne "3" ]; then
-		echo "boot_part_ready 3" >> $setenv_script
-	fi
-
-	auto_recovery="$(fw_printenv -n auto_recovery)"
-	if [ "$auto_recovery" != "yes" ]; then
-		echo "auto_recovery yes" >> $setenv_script
-	fi
-
-	if [ -f "$setenv_script" ]; then
-		fw_setenv -s $setenv_script || {
-			echo "failed to update U-Boot environment"
-			return 1
-		}
-	fi
-}
-
 platform_check_image() {
 	return 0;
-}
-
-
-yuncore_fap650_env_setup() {
-	local ubifile=$(board_name)
-	local active=$(fw_printenv -n owrt_slotactive)
-	[ -z "$active" ] && active=$(hexdump -s 0x94 -n 4 -e '4 "%d"' /dev/mtd$(find_mtd_index 0:bootconfig))
-	cat > /tmp/env_tmp << EOF
-owrt_slotactive=${active}
-owrt_bootcount=0
-bootfile=${ubifile}.ubi
-owrt_bootcountcheck=if test \$owrt_bootcount > 4; then run owrt_tftprecover; fi; if test \$owrt_bootcount = 3; then run owrt_slotswap; else echo bootcountcheck successfull; fi
-owrt_bootinc=if test \$owrt_bootcount < 5; then echo save env part; setexpr owrt_bootcount \${owrt_bootcount} + 1 && saveenv; else echo save env skipped; fi; echo current bootcount: \$owrt_bootcount
-bootcmd=run owrt_bootinc && run owrt_bootcountcheck && run owrt_slotselect && run owrt_bootlinux
-owrt_bootlinux=echo booting linux... && ubi part fs && ubi read 0x44000000 kernel && bootm; reset
-owrt_setslot0=setenv bootargs console=ttyMSM0,115200n8 ubi.mtd=rootfs root=mtd:rootfs rootfstype=squashfs rootwait swiotlb=1 && setenv mtdparts mtdparts=nand0:0x3c00000@0(fs)
-owrt_setslot1=setenv bootargs console=ttyMSM0,115200n8 ubi.mtd=rootfs_1 root=mtd:rootfs rootfstype=squashfs rootwait swiotlb=1 && setenv mtdparts mtdparts=nand0:0x3c00000@0x3c00000(fs)
-owrt_slotswap=setexpr owrt_slotactive 1 - \${owrt_slotactive} && saveenv && echo slot swapped. new active slot: \$owrt_slotactive
-owrt_slotselect=setenv mtdids nand0=nand0,nand1=spi0.0; if test \$owrt_slotactive = 0; then run owrt_setslot0; else run owrt_setslot1; fi
-owrt_tftprecover=echo trying to recover firmware with tftp... && sleep 10 && dhcp && flash rootfs && flash rootfs_1 && setenv owrt_bootcount 0 && setenv owrt_slotactive 0 && saveenv && reset
-owrt_env_ver=7
-EOF
-	fw_setenv --script /tmp/env_tmp
 }
 
 platform_do_upgrade() {
@@ -192,25 +42,31 @@ platform_do_upgrade() {
 		fw_setenv bootcount 0
 		nand_do_upgrade "$1"
 		;;
+	anysafe,e1|\
+	dptech,ap3000-2c)
+		CI_UBIPART="rootfs"
+		nand_do_upgrade "$1"
+		;;
+	cmiot,ax18|\
+	redmi,ax5|\
+	xiaomi,ax1800|\
+	zn,m2|\
 	glinet,gl-ax1800|\
 	glinet,gl-axt1800|\
 	netgear,rbr350|\
 	netgear,rbs350|\
-	netgear,wax214)
-		nand_do_upgrade "$1"
-		;;
+	netgear,wax214|\
 	qihoo,360v6)
-		CI_UBIPART="rootfs_1"
-		qihoo_bootconfig_toggle_rootfs "0:bootconfig"
-		remove_oem_ubi_volume wifi_fw
-		remove_oem_ubi_volume ubi_rootfs
 		nand_do_upgrade "$1"
 		;;
 	jdcloud,re-cs-02|\
 	jdcloud,re-cs-07|\
 	jdcloud,re-ss-01|\
 	link,nn6000-v1|\
-	link,nn6000-v2)
+	link,nn6000-v2|\
+	philips,ly1800|\
+	redmi,ax5-jdcloud|\
+	sy,y6010)
 		local cfgpart=$(find_mmc_part "0:BOOTCONFIG")
 		part_num="$(hexdump -e '1/1 "%01x|"' -n 1 -s 148 -C $cfgpart | cut -f 1 -d "|" | head -n1)"
 		if [ "$part_num" -eq "1" ]; then
@@ -230,7 +86,7 @@ platform_do_upgrade() {
 		;;
 	linksys,mr7350|\
 	linksys,mr7500)
-		linksys_mr_pre_upgrade "$1"
+		linksys_pre_upgrade "$1"
 		remove_oem_ubi_volume squashfs
 		nand_do_upgrade "$1"
 		;;
@@ -239,6 +95,7 @@ platform_do_upgrade() {
 	tplink,eap620-hd-v3|\
 	tplink,eap623-outdoor-hd-v1|\
 	tplink,eap625-outdoor-hd-v1)
+		remove_oem_ubi_volume ubi_rootfs
 		tplink_do_upgrade "$1"
 		;;
 	yuncore,fap650)
@@ -255,6 +112,21 @@ platform_do_upgrade() {
 		;;
 	*)
 		default_do_upgrade "$1"
+		;;
+	esac
+}
+
+platform_copy_config() {
+	case "$(board_name)" in
+	jdcloud,re-cs-02|\
+	jdcloud,re-cs-07|\
+	jdcloud,re-ss-01|\
+	link,nn6000-v1|\
+	link,nn6000-v2|\
+	philips,ly1800|\
+	redmi,ax5-jdcloud|\
+	sy,y6010)
+		emmc_copy_config
 		;;
 	esac
 }

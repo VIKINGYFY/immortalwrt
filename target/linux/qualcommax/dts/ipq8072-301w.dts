@@ -4,8 +4,11 @@
 /dts-v1/;
 
 #include "ipq8074.dtsi"
-#include "ipq8074-hk-cpu.dtsi"
 #include "ipq8074-ess.dtsi"
+#include "ipq8074-nss.dtsi"
+#include "ipq8074-common.dtsi"
+#include "ipq8074-hk-cpu.dtsi"
+
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
@@ -39,8 +42,6 @@
 
 	keys {
 		compatible = "gpio-keys";
-		pinctrl-0 = <&button_pins>;
-		pinctrl-names = "default";
 
 		wps-button {
 			label = "wps";
@@ -57,8 +58,6 @@
 
 	leds {
 		compatible = "gpio-leds";
-		pinctrl-0 = <&leds_pins>;
-		pinctrl-names = "default";
 
 		led_system_green: led-system-green {
 			gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
@@ -170,85 +169,6 @@
 	};
 };
 
-&tlmm {
-
-	mdio_pins: mdio-state {
-		mdc-pins {
-			pins = "gpio68";
-			function = "mdc";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-
-		mdio-pins {
-			pins = "gpio69";
-			function = "mdio";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-	};
-
-	button_pins: button-state {
-		wps-pins {
-			pins = "gpio57";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-
-		rst-pins {
-			pins = "gpio67";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-	};
-
-	leds_pins: leds-state {
-		pins = "gpio1", "gpio3", "gpio4", "gpio6", "gpio7", "gpio8",
-		       "gpio11", "gpio12", "gpio13", "gpio14", "gpio15", "gpio42",
-		       "gpio51", "gpio52", "gpio54", "gpio56";
-		function = "gpio";
-		drive-strength = <8>;
-		bias-pull-down;
-	};
-};
-
-&blsp1_uart5 {
-	status = "okay";
-};
-
-&prng {
-	status = "okay";
-};
-
-&ssphy_0 {
-	status = "okay";
-};
-
-&qusb_phy_0 {
-	status = "okay";
-};
-
-&ssphy_1 {
-	status = "okay";
-};
-
-&qusb_phy_1 {
-	status = "okay";
-};
-
-&usb_0 {
-	status = "okay";
-};
-
-&usb_1 {
-	status = "okay";
-};
-
-&qpic_bam {
-	status = "okay";
-};
 
 &blsp1_spi1 { /* BLSP1 QUP1 */
 	pinctrl-0 = <&spi_0_pins>;
@@ -256,77 +176,16 @@
 	status = "okay";
 
 	flash@0 {
-		reg = <0>;
 		compatible = "jedec,spi-nor";
 		spi-max-frequency = <50000000>;
+		reg = <0>;
 
 		partitions {
-			compatible = "fixed-partitions";
-			#address-cells = <1>;
-			#size-cells = <1>;
+			compatible = "qcom,smem-part";
+			qcom,smem-flash-id = <0>;
 
-			partition@0 {
-				label = "0:sbl1";
-				reg = <0x0 0x50000>;
-				read-only;
-			};
-
-			partition@50000 {
-				label = "0:mibib";
-				reg = <0x50000 0x10000>;
-				read-only;
-			};
-
-			partition@60000 {
-				label = "0:qsee";
-				reg = <0x60000 0x180000>;
-				read-only;
-			};
-
-			partition@1e0000 {
-				label = "0:devcfg";
-				reg = <0x1e0000 0x10000>;
-				read-only;
-			};
-
-			partition@1f0000 {
-				label = "0:apdp";
-				reg = <0x1f0000 0x10000>;
-				read-only;
-			};
-
-			partition@200000 {
-				label = "0:rpm";
-				reg = <0x200000 0x40000>;
-				read-only;
-			};
-
-			partition@240000 {
-				label = "0:cdt";
-				reg = <0x240000 0x10000>;
-				read-only;
-			};
-
-			partition@250000 {
-				label = "0:appsblenv";
-				reg = <0x250000 0x20000>;
-			};
-
-			partition@270000 {
-				label = "0:appsbl";
-				reg = <0x250000 0x100000>;
-				read-only;
-			};
-
-			partition@370000 {
-				label = "0:art";
-				reg = <0x370000 0x40000>;
-				read-only;
-			};
-
-			partition@3b0000 {
+			partition-0-ethphyfw1 {
 				label = "0:ethphyfw1";
-				reg = <0x3b0000 0x80000>;
 
 				nvmem-layout {
 					compatible = "fixed-layout";
@@ -339,9 +198,8 @@
 				};
 			};
 
-			partition@430000 {
+			partition-0-ethphyfw2 {
 				label = "0:ethphyfw2";
-				reg = <0x430000 0x80000>;
 
 				nvmem-layout {
 					compatible = "fixed-layout";
@@ -353,18 +211,12 @@
 					};
 				};
 			};
-
-			partition@4b0000 {
-				label = "reserved";
-				reg = <0x4b0000 0x350000>;
-			};
 		};
 	};
 };
 
 &mdio {
 	status = "okay";
-
 	pinctrl-0 = <&mdio_pins>;
 	pinctrl-names = "default";
 	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
@@ -388,12 +240,11 @@
 	};
 
 	ethernet-phy-package@16 {
+		compatible = "qcom,qca8075-package";
+		qcom,package-mode = "qsgmii";
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "qcom,qca8075-package";
 		reg = <16>;
-
-		qcom,package-mode = "qsgmii";
 
 		qca8075_16: ethernet-phy@16 {
 			compatible = "ethernet-phy-ieee802.3-c22";
@@ -498,7 +349,6 @@
 			label = "10g-1";
 			phy-handle = <&aqr113c_8>;
 			phy-mode = "usxgmii";
-			managed = "in-band-status";
 			pcs-handle = <&uniphy1 0>;
 		};
 
@@ -507,7 +357,6 @@
 			label = "10g-2";
 			phy-handle = <&aqr113c_0>;
 			phy-mode = "usxgmii";
-			managed = "in-band-status";
 			pcs-handle = <&uniphy2 0>;
 		};
 	};
@@ -519,6 +368,6 @@
 
 &wifi {
 	status = "okay";
-
+	qcom,ath11k-fw-memory-mode = <1>;
 	qcom,ath11k-calibration-variant = "QNAP-301w";
 };

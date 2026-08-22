@@ -1,0 +1,154 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+#include "ipq6018.dtsi"
+#include "ipq6018-ess.dtsi"
+#include "ipq6018-nss.dtsi"
+#include "ipq6018-common.dtsi"
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+
+/ {
+	aliases {
+		ethernet0 = &swport1;
+		ethernet1 = &swport2;
+		ethernet3 = &swport4;
+		ethernet4 = &swport5;
+
+		serial0 = &blsp1_uart3;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs-append = " root=/dev/ubiblock0_1";
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		reset {
+			label = "reset";
+			gpios = <&tlmm 60 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+
+		wps {
+			label = "wps";
+			gpios = <&tlmm 9 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+		};
+	};
+};
+
+&mdio {
+	status = "okay";
+
+	pinctrl-0 = <&mdio_pins>;
+	pinctrl-names = "default";
+	reset-gpios = <&tlmm 75 GPIO_ACTIVE_LOW>;
+
+	ethernet-phy-package@0 {
+		compatible = "qcom,qca8075-package";
+		qcom,package-mode = "psgmii";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0>;
+
+		qca8075_0: ethernet-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+		};
+
+		qca8075_1: ethernet-phy@1 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <1>;
+		};
+
+		qca8075_3: ethernet-phy@3 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <3>;
+		};
+
+		qca8075_4: ethernet-phy@4 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <4>;
+		};
+	};
+};
+
+&uniphy0 {
+	status = "okay";
+};
+
+&switch {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			ethernet = <&edma>;
+			phy-mode = "internal";
+
+			fixed-link {
+				speed = <1000>;
+				full-duplex;
+			};
+		};
+
+		swport1: port@1 {
+			reg = <1>;
+			label = "lan3";
+			phy-handle = <&qca8075_0>;
+			phy-mode = "psgmii";
+			pcs-handle = <&uniphy0 0>;
+		};
+
+		swport2: port@2 {
+			reg = <2>;
+			label = "lan2";
+			phy-handle = <&qca8075_1>;
+			phy-mode = "psgmii";
+			pcs-handle = <&uniphy0 1>;
+		};
+
+		swport4: port@4 {
+			reg = <4>;
+			label = "lan1";
+			phy-handle = <&qca8075_3>;
+			phy-mode = "psgmii";
+			pcs-handle = <&uniphy0 3>;
+		};
+
+		swport5: port@5 {
+			reg = <5>;
+			label = "wan";
+			phy-handle = <&qca8075_4>;
+			phy-mode = "psgmii";
+			pcs-handle = <&uniphy0 4>;
+		};
+	};
+};
+
+&qpic_nand {
+	status = "okay";
+
+	nand@0 {
+		reg = <0>;
+
+		nand-ecc-strength = <4>;
+		nand-ecc-step-size = <512>;
+		nand-bus-width = <8>;
+
+		partitions {
+			compatible = "qcom,smem-part";
+		};
+	};
+};
+
+&edma {
+	status = "okay";
+};

@@ -11,6 +11,19 @@ arcadyan,aw1000)
 	ucidef_set_led_netdev "wan" "WAN" "green:internet" "wan"
 	ucidef_set_led_netdev "wan-port-link" "WAN-PORT-LINK" "90000.mdio-1:1c:green:wan" "wan" "tx rx link_10 link_100 link_1000 link_2500"
 	;;
+arista,c260)
+	ucidef_set_led_netdev "wlan2g" "WiFi 2.4GHz" "green:wlan2g" "phy1-ap0" "link"
+	ucidef_set_led_netdev "wlan5g" "WiFi 5GHz" "green:wlan5g" "phy0-ap0" "link"
+	ucidef_set_led_netdev "wan" "WAN" "green:eth1" "wan" "link"
+	ucidef_set_led_netdev "lan" "LAN" "green:eth2" "lan" "link"
+	;;
+arista,c360)
+	ucidef_set_led_netdev "wlan2g" "WiFi 2.4GHz" "green:wlan2g" "phy1-ap0" "link"
+	ucidef_set_led_netdev "wlan5g" "WiFi 5GHz" "green:wlan5g" "phy0-ap0" "link"
+	ucidef_set_led_netdev "wlan6g" "WiFi 6GHz/5G-high" "green:wlan6g" "phy2-ap0" "link"
+	ucidef_set_led_netdev "lan" "LAN" "green:lan" "lan" "link"
+	ucidef_set_led_netdev "wan" "WAN" "green:wan" "wan" "link"
+	;;
 asus,rt-ax89x)
 	ucidef_set_led_netdev "aqr" "AQR" "white:aqr10g" "10g-copper"
 	ucidef_set_led_netdev "sfp" "SFP" "white:sfp" "10g-sfp"
@@ -20,6 +33,13 @@ dynalink,dl-wrx36|\
 spectrum,sax1v1k)
 	ucidef_set_led_netdev "wan-port-link-green" "WAN-PORT-LINK-GREEN" "90000.mdio-1:1c:green:wan" "wan" "link_2500"
 	ucidef_set_led_netdev "wan-port-link-yellow" "WAN-PORT-LINK-YELLOW" "90000.mdio-1:1c:yellow:wan" "wan" "tx rx link_10 link_100 link_1000"
+	;;
+tplink,tl-er2260t)
+	ucidef_set_led_usbdev "usb" "USB" "green:usb" "1-1"
+	ucidef_set_led_netdev "sfp1-link" "SFP1 (Link)" "green:sfp1-10g" "10ge1" "link"
+	ucidef_set_led_netdev "sfp2-link" "SFP2 (Link)" "green:sfp2-10g" "10ge2" "link"
+	ucidef_set_led_netdev "sfp1-activity" "SFP1 (Activity)" "green:sfp1-act" "10ge1" "tx rx"
+	ucidef_set_led_netdev "sfp2-activity" "SFP2 (Activity)" "green:sfp2-act" "10ge2" "tx rx"
 	;;
 edgecore,eap102)
 	ucidef_set_led_netdev "wan" "WAN" "green:wanpoe" "wan"

@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/dts-v1/;
+
+#include "ipq6000-cmiot.dtsi"
+
+/ {
+	model = "ZN M2";
+	compatible = "zn,m2", "qcom,ipq6018";
+
+	aliases {
+		led-boot = &led_power;
+		led-failsafe = &led_power;
+		led-running = &led_power;
+		led-upgrade = &led_power;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_power: power {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&tlmm 58 GPIO_ACTIVE_HIGH>;
+		};
+
+		wps {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WPS;
+			gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
+		};
+
+		lan {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_LAN;
+			gpios = <&tlmm 74 GPIO_ACTIVE_HIGH>;
+		};
+
+		wan {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WAN;
+			gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
+		};
+
+		wlan5g {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WLAN_5GHZ;
+			gpios = <&tlmm 35 GPIO_ACTIVE_HIGH>;
+		};
+
+		wlan2g {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WLAN_2GHZ;
+			gpios = <&tlmm 70 GPIO_ACTIVE_HIGH>;
+		};
+	};
+};
+
+&wifi {
+	status = "okay";
+	qcom,ath11k-fw-memory-mode = <1>;
+	qcom,ath11k-calibration-variant = "ZN-M2";
+};

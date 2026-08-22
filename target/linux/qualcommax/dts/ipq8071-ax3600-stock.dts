@@ -6,6 +6,14 @@
 	model = "Xiaomi AX3600 (stock layout)";
 	compatible = "xiaomi,ax3600-stock", "qcom,ipq8074";
 
+	aliases {
+		/* Aliases as required by u-boot to patch MAC addresses */
+		ethernet1 = &swport2;
+		ethernet2 = &swport3;
+		ethernet3 = &swport4;
+		ethernet4 = &swport5;
+	};
+
 	chosen {
 		bootargs-append = " root=/dev/ubiblock0_1";
 	};

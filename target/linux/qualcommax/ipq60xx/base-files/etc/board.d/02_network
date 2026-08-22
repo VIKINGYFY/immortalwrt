@@ -11,6 +11,7 @@ ipq60xx_setup_interfaces()
 	local board="$1"
 
 	case "$board" in
+	dptech,ap3000-2c|\
 	8devices,mango-dvk|\
 	glinet,gl-axt1800|\
 	link,nn6000-v1)
@@ -31,15 +32,21 @@ ipq60xx_setup_interfaces()
 	yuncore,fap650)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan"
 		;;
+	anysafe,e1|\
+	cmiot,ax18|\
 	jdcloud,re-cs-07|\
 	jdcloud,re-ss-01|\
 	netgear,rbr350|\
+	philips,ly1800|\
+	redmi,ax5|\
+	redmi,ax5-jdcloud|\
+	sy,y6010|\
+	xiaomi,ax1800|\
+	zn,m2|\
 	qihoo,360v6)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3" "wan"
 		;;
-	netgear,wax214)
-		ucidef_set_interfaces_lan_wan "lan"
-		;;
+	netgear,wax214|\
 	netgear,wax610|\
 	netgear,wax610y|\
 	tplink,eap610-outdoor|\
@@ -62,9 +69,14 @@ ipq60xx_setup_macs()
 	local wan_mac=""
 	local label_mac=""
 
-	case $board in
+	case "$board" in
 	alfa-network,ap120c-ax)
-		label_mac=$(mtd_get_mac_binary 0:ART 12)
+		label_mac=$(mtd_get_mac_binary 0:ART 0x12)
+		;;
+	dptech,ap3000-2c)
+		wan_mac=$(mtd_get_mac_binary 0:ART 0x0)
+		lan_mac=$(mtd_get_mac_binary 0:ART 0x6)
+		label_mac=$lan_mac
 		;;
 	qihoo,360v6)
 		lan_mac=$(mtd_get_mac_ascii factory lanMac)
@@ -76,8 +88,8 @@ ipq60xx_setup_macs()
 	tplink,eap620-hd-v3|\
 	tplink,eap623-outdoor-hd-v1|\
 	tplink,eap625-outdoor-hd-v1)
-		label_mac=$(get_mac_binary /tmp/factory_data/default-mac 0)
-		lan_mac=$label_mac
+		lan_mac=$(get_mac_binary /tmp/factory_data/default-mac 0)
+		label_mac=$lan_mac
 		;;
 	esac
 

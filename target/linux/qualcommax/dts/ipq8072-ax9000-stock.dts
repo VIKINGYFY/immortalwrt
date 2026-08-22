@@ -6,6 +6,15 @@
 	model = "Xiaomi AX9000 (stock layout)";
 	compatible = "xiaomi,ax9000-stock", "qcom,ipq8074";
 
+	aliases {
+		/* Aliases as required by u-boot to patch MAC addresses */
+		ethernet1 = &lan4;
+		ethernet2 = &lan3;
+		ethernet3 = &lan2;
+		ethernet4 = &lan1;
+		ethernet5 = &wan;
+	};
+
 	chosen {
 		bootargs-append = " root=/dev/ubiblock0_1";
 	};

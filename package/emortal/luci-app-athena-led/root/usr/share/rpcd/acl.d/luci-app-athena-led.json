@@ -1,0 +1,14 @@
+{
+	"luci-app-athena-led": {
+		"description": "Grant access to Athena LED configuration and service control",
+		"read": {
+			"ubus": {
+				"service": [ "list" ]
+			},
+			"uci": [ "athena_led" ]
+		},
+		"write": {
+			"uci": [ "athena_led" ]
+		}
+	}
+}

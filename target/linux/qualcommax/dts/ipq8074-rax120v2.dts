@@ -4,9 +4,11 @@
 
 #include "ipq8074.dtsi"
 #include "ipq8074-ess.dtsi"
+#include "ipq8074-nss.dtsi"
 #include "ipq8074-hk-cpu.dtsi"
-#include <dt-bindings/input/input.h>
+
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
 
 / {
@@ -271,7 +273,6 @@
 			label = "lan5";
 			phy-handle = <&aqr111b0>;
 			phy-mode = "usxgmii";
-			managed = "in-band-status";
 			pcs-handle = <&uniphy2 0>;
 			nvmem-cells = <&macaddr_lan>;
 			nvmem-cell-names = "mac-address";

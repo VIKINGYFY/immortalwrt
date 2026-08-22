@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 
-#include "ipq6018-512m.dtsi"
+#include "ipq6018.dtsi"
 #include "ipq6018-ess.dtsi"
+#include "ipq6018-nss.dtsi"
+#include "ipq6018-common.dtsi"
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
@@ -10,6 +12,7 @@
 / {
 	aliases {
 		serial0 = &blsp1_uart3;
+
 		led-boot = &led_status_red;
 		led-failsafe = &led_status_red;
 		led-running = &led_status_green;
@@ -62,62 +65,6 @@
 	};
 };
 
-&tlmm {
-	gpio-reserved-ranges = <20 1>;
-
-	mdio_pins: mdio-pins {
-		mdc {
-			pins = "gpio64";
-			function = "mdc";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-
-		mdio {
-			pins = "gpio65";
-			function = "mdio";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-	};
-};
-
-&blsp1_uart3 {
-	status = "okay";
-	pinctrl-0 = <&serial_3_pins>;
-	pinctrl-names = "default";
-};
-
-&qusb_phy_0 {
-	status = "okay";
-};
-
-&ssphy_0 {
-	status = "okay";
-};
-
-&usb3 {
-	status = "okay";
-};
-
-&rpm {
-	status = "disabled";
-};
-
-&sdhc {
-	bus-width = <8>;
-	mmc-ddr-1_8v;
-	mmc-hs200-1_8v;
-	non-removable;
-	status = "okay";
-};
-
-&wifi {
-	status = "okay";
-	qcom,ath11k-fw-memory-mode = <1>;
-	qcom,ath11k-calibration-variant = "Link-NN6000";
-};
-
 &mdio {
 	status = "okay";
 
@@ -127,6 +74,7 @@
 
 	ethernet-phy-package@0 {
 		compatible = "qcom,qca8075-package";
+		qcom,package-mode = "psgmii";
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reg = <0>;
@@ -156,6 +104,21 @@
 			reg = <4>;
 		};
 	};
+};
+
+&sdhc {
+	status = "okay";
+
+	bus-width = <8>;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	non-removable;
+};
+
+&wifi {
+	status = "okay";
+	qcom,ath11k-fw-memory-mode = <1>;
+	qcom,ath11k-calibration-variant = "Link-NN6000";
 };
 
 &uniphy0 {

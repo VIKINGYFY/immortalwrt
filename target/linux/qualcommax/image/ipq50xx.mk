@@ -223,8 +223,8 @@ define Device/xiaomi_ax6000
 	DEVICE_PACKAGES := ath11k-firmware-ipq5018 \
 		kmod-ath11k-pci \
 		ath11k-firmware-qcn9074 \
-		kmod-ath10k-ct-smallbuffers \
-		ath10k-firmware-qca9887-ct \
+		kmod-ath10k-smallbuffers \
+		ath10k-firmware-qca9887 \
 		ipq-wifi-xiaomi_ax6000
 endef
 TARGET_DEVICES += xiaomi_ax6000

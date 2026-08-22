@@ -1,0 +1,122 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+#include "ipq8074.dtsi"
+#include "ipq8074-ess.dtsi"
+#include "ipq8074-nss.dtsi"
+#include "ipq8074-common.dtsi"
+#include "ipq8074-hk-cpu.dtsi"
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+
+/ {
+	aliases {
+		serial0 = &blsp1_uart5;
+		ethernet0 = &swport5;
+		ethernet1 = &swport6;
+		label-mac-device = &swport6;
+
+		led-boot = &led_power_green;
+		led-failsafe = &led_power_red;
+		led-running = &led_power_green;
+		led-upgrade = &led_power_red;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs-append = " root=/dev/ubiblock0_0";
+	};
+
+	led-spi {
+		compatible = "spi-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		sck-gpios = <&tlmm 18 GPIO_ACTIVE_HIGH>;
+		mosi-gpios = <&tlmm 19 GPIO_ACTIVE_HIGH>;
+
+		led_gpio: led-gpio@0 {
+			compatible = "fairchild,74hc595";
+			reg = <0>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			registers-number = <2>;
+			enable-gpios = <&tlmm 20 GPIO_ACTIVE_HIGH>;
+			spi-max-frequency = <1000000>;
+		};
+	};
+};
+
+&switch {
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		swport5: port@5 {
+			reg = <5>;
+			phy-mode = "usxgmii";
+			pcs-handle = <&uniphy1 0>;
+			status = "disabled";
+		};
+
+		swport6: port@6 {
+			reg = <6>;
+			phy-mode = "usxgmii";
+			pcs-handle = <&uniphy2 0>;
+			status = "disabled";
+		};
+	};
+};
+
+&blsp1_spi1 {
+	status = "okay";
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		spi-max-frequency = <50000000>;
+		reg = <0>;
+
+		partitions {
+			compatible = "qcom,smem-part";
+			qcom,smem-flash-id = <0>;
+
+			partition-0-art {
+				label = "0:art";
+				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					macaddr_lan: macaddr@0 {
+						compatible = "mac-base";
+						reg = <0x0 0x6>;
+					};
+
+					macaddr_wan: macaddr@6 {
+						compatible = "mac-base";
+						reg = <0x6 0x6>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&qpic_nand {
+	status = "okay";
+
+	nand@0 {
+		reg = <0>;
+		nand-ecc-strength = <8>;
+		nand-ecc-step-size = <512>;
+		nand-bus-width = <8>;
+
+		partitions {
+			compatible = "qcom,smem-part";
+			qcom,smem-flash-id = <1>;
+		};
+	};
+};

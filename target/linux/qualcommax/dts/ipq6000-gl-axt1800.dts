@@ -107,41 +107,33 @@
 	};
 };
 
-&partitions {
-	partition@a00000 {
-		label = "rootfs";
-		reg = <0x0a00000 0x7280000>;
-		linux,rootfs;
-	};
-
-	partition@7c80000 {
-		label = "log";
-		reg = <0x7c80000 0x0080000>;
-	};
-};
-
 &pwm {
+	status = "okay";
 	pinctrl-0 = <&pwm_pins>;
 	pinctrl-names = "default";
-	status = "okay";
 };
 
 &sdhc {
-	mmc-ddr-1_8v;
-	bus-width = <4>;
-	cd-gpios = <&tlmm 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
 	pinctrl-0 = <&sd_pins>;
 	pinctrl-names = "default";
+
+	cd-gpios = <&tlmm 62 GPIO_ACTIVE_LOW>;
 	vqmmc-supply = <&vcc_sd>;
-	status = "okay";
+	bus-width = <4>;
 };
 
-&swport2 {
-	label = "lan2";
-};
+&mdio {
+	ethernet-phy-package@0 {
+		qca8075_3: ethernet-phy@3 {
+			status = "disabled";
+		};
 
-&swport3 {
-	label = "lan1";
+		qca8075_4: ethernet-phy@4 {
+			status = "disabled";
+		};
+	};
 };
 
 &swport2 {
@@ -153,5 +145,7 @@
 };
 
 &wifi {
+	status = "okay";
+	qcom,ath11k-fw-memory-mode = <1>;
 	qcom,ath11k-calibration-variant = "GL-iNet-GL-AXT1800";
 };

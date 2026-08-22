@@ -97,12 +97,12 @@ ALLWIFIBOARDS:= \
 	tplink_deco-x80-5g \
 	tplink_eap225-wall-v2 \
 	tplink_eap610-outdoor \
+	tplink_eap620-hd-v1 \
 	tplink_eap620-hd-v2 \
 	tplink_eap620-hd-v3 \
-	tplink_eap620hd-v1 \
 	tplink_eap623-outdoor-hd-v1 \
 	tplink_eap625-outdoor-hd-v1 \
-	tplink_eap660hd-v1 \
+	tplink_eap660-hd-v1 \
 	tplink_tl-wa1201-v2 \
 	ubnt_u7-pro-xgs \
 	ubnt_utr \
@@ -126,7 +126,20 @@ ALLWIFIBOARDS:= \
 	zyxel_nbg7815 \
 	zyxel_nwa110ax \
 	zyxel_nwa210ax \
-	zyxel_scr50axe
+	zyxel_scr50axe \
+	anysafe_e1 \
+	arista_c260 \
+	arista_c360 \
+	cmiot_ax18 \
+	dptech_ap3000-2c \
+	jdcloud_re-cs-03 \
+	philips_ly1800 \
+	redmi_ax5 \
+	redmi_ax5-jdcloud \
+	sy_y6010 \
+	verizon_cr1000a \
+	xiaomi_ax1800 \
+	zn_m2
 
 ALLWIFIPACKAGES:=$(foreach BOARD,$(ALLWIFIBOARDS),ipq-wifi-$(BOARD))
 
@@ -300,13 +313,13 @@ $(eval $(call generate-ipq-wifi-package,tplink_archer-c60-v1,TP-Link Archer C60 
 $(eval $(call generate-ipq-wifi-package,tplink_archer-c60-v2,TP-Link Archer C60 V2))
 $(eval $(call generate-ipq-wifi-package,tplink_deco-x80-5g,TP-Link Deco X80-5G))
 $(eval $(call generate-ipq-wifi-package,tplink_eap225-wall-v2,TP-Link EAP225-Wall v2))
-$(eval $(call generate-ipq-wifi-package,tplink_eap610-outdoor,TPLink EAP610-Outdoor))
+$(eval $(call generate-ipq-wifi-package,tplink_eap610-outdoor,TP-Link EAP610-Outdoor))
+$(eval $(call generate-ipq-wifi-package,tplink_eap620-hd-v1,TP-Link EAP620 HD v1))
 $(eval $(call generate-ipq-wifi-package,tplink_eap620-hd-v2,TP-Link EAP620 HD v2))
 $(eval $(call generate-ipq-wifi-package,tplink_eap620-hd-v3,TP-Link EAP620 HD v3))
-$(eval $(call generate-ipq-wifi-package,tplink_eap620hd-v1,TP-Link EAP620 HD v1))
 $(eval $(call generate-ipq-wifi-package,tplink_eap623-outdoor-hd-v1,TP-Link EAP623-Outdoor HD v1))
 $(eval $(call generate-ipq-wifi-package,tplink_eap625-outdoor-hd-v1,TP-Link EAP625-Outdoor HD v1))
-$(eval $(call generate-ipq-wifi-package,tplink_eap660hd-v1,TP-Link EAP660 HD v1))
+$(eval $(call generate-ipq-wifi-package,tplink_eap660-hd-v1,TP-Link EAP660 HD v1))
 $(eval $(call generate-ipq-wifi-package,tplink_tl-wa1201-v2,TP-Link TL-WA1201 V2))
 $(eval $(call generate-ipq-wifi-package,ubnt_u7-pro-xgs,Ubiquiti UniFi 7 Pro XGS))
 $(eval $(call generate-ipq-wifi-package,ubnt_utr,Ubiquiti UniFi Travel Router))
@@ -331,5 +344,18 @@ $(eval $(call generate-ipq-wifi-package,zyxel_nbg7815,Zyxel NBG7815))
 $(eval $(call generate-ipq-wifi-package,zyxel_nwa110ax,Zyxel NWA110AX))
 $(eval $(call generate-ipq-wifi-package,zyxel_nwa210ax,Zyxel NWA210AX))
 $(eval $(call generate-ipq-wifi-package,zyxel_scr50axe,Zyxel SCR50AXE))
+$(eval $(call generate-ipq-wifi-package,anysafe_e1,AnySafe E1))
+$(eval $(call generate-ipq-wifi-package,arista_c260,Arista AP-C260))
+$(eval $(call generate-ipq-wifi-package,arista_c360,Arista AP-C360))
+$(eval $(call generate-ipq-wifi-package,cmiot_ax18,CMIOT AX18))
+$(eval $(call generate-ipq-wifi-package,dptech_ap3000-2c,DPtech AP3000-2C))
+$(eval $(call generate-ipq-wifi-package,jdcloud_re-cs-03,JDCloud RE-CS-03))
+$(eval $(call generate-ipq-wifi-package,philips_ly1800,Philips LY1800))
+$(eval $(call generate-ipq-wifi-package,redmi_ax5,Redmi AX5))
+$(eval $(call generate-ipq-wifi-package,redmi_ax5-jdcloud,Redmi AX5 JDCloud))
+$(eval $(call generate-ipq-wifi-package,sy_y6010,SY Y6010))
+$(eval $(call generate-ipq-wifi-package,verizon_cr1000a,Verizon CR1000A))
+$(eval $(call generate-ipq-wifi-package,xiaomi_ax1800,Xiaomi AX1800))
+$(eval $(call generate-ipq-wifi-package,zn_m2,ZN M2))
 
 $(foreach PACKAGE,$(ALLWIFIPACKAGES),$(eval $(call BuildPackage,$(PACKAGE))))
