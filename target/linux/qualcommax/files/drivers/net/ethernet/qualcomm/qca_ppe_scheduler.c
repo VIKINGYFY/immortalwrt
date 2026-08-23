@@ -1986,19 +1986,9 @@ static void ppe_rss_hash_init(struct qca_ppe_priv *priv)
 static struct qca_ppe_priv *ppe_sched_priv;
 static uint ppe_cpu_port_rate;
 
-static int ppe_cpu_port_rate_set(const char *val,
-				 const struct kernel_param *kp)
+static int ppe_cpu_port_rate_apply(struct qca_ppe_priv *priv)
 {
-	struct qca_ppe_priv *priv = ppe_sched_priv;
-	int ret = param_set_uint(val, kp);
-	u64 rate_bps;
-
-	if (ret)
-		return ret;
-	if (!priv)
-		return 0;
-
-	rate_bps = (u64)ppe_cpu_port_rate * 1000;
+	u64 rate_bps = (u64)ppe_cpu_port_rate * 1000;
 
 	/* A user port's queue depth comes from its tbf limit. Nothing can put a
 	 * tbf on this port, so the depth is the driver's to choose, and it is
@@ -2015,6 +2005,17 @@ static int ppe_cpu_port_rate_set(const char *val,
 	 */
 	return ppe_port_shaper_set(priv, QCA_PPE_CPU_PORT, rate_bps,
 				   div_u64(rate_bps, BITS_PER_BYTE * 1000));
+}
+
+static int ppe_cpu_port_rate_set(const char *val,
+				 const struct kernel_param *kp)
+{
+	int ret = param_set_uint(val, kp);
+
+	if (ret || !ppe_sched_priv)
+		return ret;
+
+	return ppe_cpu_port_rate_apply(ppe_sched_priv);
 }
 
 static const struct kernel_param_ops ppe_cpu_port_rate_ops = {
@@ -2045,8 +2046,6 @@ void ppe_scheduler_exit(struct qca_ppe_priv *priv)
 
 void ppe_scheduler_init(struct qca_ppe_priv *priv)
 {
-	ppe_sched_priv = priv;
-
 	ppe_tdm_init(priv);
 	ppe_bm_init(priv);
 	ppe_qm_init(priv);
@@ -2056,4 +2055,18 @@ void ppe_scheduler_init(struct qca_ppe_priv *priv)
 	ppe_edma_ring_map_init(priv);
 	ppe_qos_init(priv);
 	ppe_rate_limit_init(priv);
+}
+
+/* The parameter setter reaches the hardware through the global above, and its
+ * path ends in dsa_to_port(), so the global cannot be published before the
+ * switch is registered. A rate handed in at load time is applied here instead,
+ * the way ppe_acl_init() applies its own.
+ */
+void ppe_scheduler_ready(struct qca_ppe_priv *priv)
+{
+	kernel_param_lock(THIS_MODULE);
+	ppe_sched_priv = priv;
+	if (ppe_cpu_port_rate)
+		ppe_cpu_port_rate_apply(priv);
+	kernel_param_unlock(THIS_MODULE);
 }

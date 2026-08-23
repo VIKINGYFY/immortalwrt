@@ -64,6 +64,7 @@ struct ppe_flow_entry {
 	int wan_port;
 	int wan_iport;
 	u8 iport;
+	u8 oport;
 	u64 packets;
 	u64 bytes;
 	unsigned long last_used;
@@ -639,25 +640,30 @@ static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
 	return 0;
 }
 
+static void ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
+				   struct ppe_flow_entry *entry);
+
+static void ppe_flow_drop(struct qca_ppe_priv *priv,
+			  struct ppe_flow_entry *entry)
+{
+	priv->flow_stale++;
+	rhashtable_remove_fast(&priv->flow_table, &entry->node,
+			       ppe_flow_ht_params);
+	list_del(&entry->list);
+	ppe_flow_entry_destroy(priv, entry);
+	kfree(entry);
+}
+
 /* The ingress L3 interface holds its own MTU and is programmed with the first
- * flow that needs it, so a device whose MTU changes while flows are live keeps
- * being forwarded to the old limit unless the change reaches it here.
+ * flow that needs it, so a routing domain whose MTU changes while flows are
+ * live keeps being forwarded to the old limit unless the change reaches it.
  */
-void ppe_flow_mtu_update(struct qca_ppe_priv *priv, int port, int mtu)
+static void ppe_flow_l3_mtu_set(struct qca_ppe_priv *priv, int port, int mtu)
 {
 	u32 vsi;
 	int i;
 
-	guard(mutex)(&priv->flow_lock);
-	guard(mutex)(&priv->vlan_lock);
-
-	/* An L3 interface belongs to a routing domain, not to a port: the ports
-	 * of one bridge share it, so it takes the bridge's MTU. Only a port
-	 * that routes on its own has nothing but the value being set - its own
-	 * netdev still carries the old one at this point.
-	 */
-	if (priv->port_br_dev[port])
-		mtu = priv->port_br_dev[port]->mtu;
+	lockdep_assert_held(&priv->vlan_lock);
 
 	if (priv->wan_ref[port])
 		ppe_l3_if_mtu_set(priv, priv->wan_vsi[port],
@@ -674,6 +680,58 @@ void ppe_flow_mtu_update(struct qca_ppe_priv *priv, int port, int mtu)
 		    priv->l3_if_ref[vlan->vsi])
 			ppe_l3_if_mtu_set(priv, vlan->vsi, mtu + ETH_HLEN);
 	}
+}
+
+/* Each half of the size check follows the device that owns it: the routing
+ * domain's MRU follows the device that routes for the port, and the egress size
+ * a flow was built with follows the port itself.
+ *
+ * Neither can be taken from DSA's port_change_mtu. That runs before the bridge
+ * recomputes its own MTU, so a bridged port reads the previous one there, and
+ * `ip link set br-lan mtu N` never reaches it at all. By the NETDEV_CHANGEMTU
+ * of the device the value belongs to, both have settled - whichever of the two
+ * the user set, and however the bridge chose to answer it.
+ *
+ * The egress size is part of the key that picks the interface entry, and that
+ * slot is shared by every flow leaving the same way at the old size, so a live
+ * flow cannot be moved to the new one. Drop those and let the flowtable rebuild
+ * them against the size it has now.
+ */
+static int ppe_flow_netdev_event(struct notifier_block *nb, unsigned long event,
+				 void *ptr)
+{
+	struct qca_ppe_priv *priv = container_of(nb, struct qca_ppe_priv,
+						 netdev_nb);
+	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
+	struct ppe_flow_entry *entry, *tmp;
+	struct dsa_port *dp;
+	int i;
+
+	if (event != NETDEV_CHANGEMTU)
+		return NOTIFY_DONE;
+
+	guard(mutex)(&priv->flow_lock);
+	guard(mutex)(&priv->vlan_lock);
+
+	/* Reached through the netdev itself rather than by walking the switch:
+	 * this notifier is live before the switch is registered, and every
+	 * netdev in the system passes through it.
+	 */
+	dp = dsa_port_from_netdev(dev);
+	if (!IS_ERR(dp) && dp->ds == &priv->ds) {
+		list_for_each_entry_safe(entry, tmp, &priv->flow_list, list)
+			if (entry->oport == dp->index)
+				ppe_flow_drop(priv, entry);
+
+		if (!priv->port_br_dev[dp->index])
+			ppe_flow_l3_mtu_set(priv, dp->index, dev->mtu);
+	}
+
+	for (i = 0; i < QCA_PPE_MAX_PORTS; i++)
+		if (priv->port_br_dev[i] == dev)
+			ppe_flow_l3_mtu_set(priv, i, dev->mtu);
+
+	return NOTIFY_DONE;
 }
 
 static void ppe_flow_free_ingress(struct qca_ppe_priv *priv,
@@ -697,9 +755,6 @@ static void ppe_flow_free_ingress(struct qca_ppe_priv *priv,
 			      PPE_MY_MAC_WORDS);
 }
 
-static void ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
-				   struct ppe_flow_entry *entry);
-
 /* The routing domain a set of flows was built for is going away. Their entries
  * name its VSI as the ingress they match on, and that number is about to be
  * handed to another domain, so they cannot be left behind: they would match the
@@ -717,12 +772,7 @@ void ppe_flow_purge_vsi(struct qca_ppe_priv *priv, u32 vsi)
 		if (entry->src_if != vsi)
 			continue;
 
-		priv->flow_stale_ingress++;
-		rhashtable_remove_fast(&priv->flow_table, &entry->node,
-				       ppe_flow_ht_params);
-		list_del(&entry->list);
-		ppe_flow_entry_destroy(priv, entry);
-		kfree(entry);
+		ppe_flow_drop(priv, entry);
 	}
 }
 
@@ -739,12 +789,7 @@ static void ppe_flow_purge_ingress(struct qca_ppe_priv *priv, int iport,
 		if (entry->iport != iport || entry->src_if == wan_vsi)
 			continue;
 
-		priv->flow_stale_ingress++;
-		rhashtable_remove_fast(&priv->flow_table, &entry->node,
-				       ppe_flow_ht_params);
-		list_del(&entry->list);
-		ppe_flow_entry_destroy(priv, entry);
-		kfree(entry);
+		ppe_flow_drop(priv, entry);
 	}
 }
 
@@ -772,6 +817,8 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	 */
 	if (port == iport)
 		return -EBUSY;
+
+	entry->oport = port;
 
 	mac = ether_addr_to_u64(data->eth.h_source);
 	ppe_entry_set(words, PPE_EG_L3_IF_MAC_OFF, PPE_EG_L3_IF_MAC_LEN, mac);
@@ -1515,7 +1562,7 @@ int qca_ppe_setup_tc(struct dsa_switch *ds, int port, enum tc_setup_type type,
 int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 {
 	struct device *dev = priv->ds.dev;
-	int i;
+	int i, ret;
 
 	priv->eg_l3_if = devm_kcalloc(dev, PPE_EG_L3_IF_ENTRIES,
 				      sizeof(*priv->eg_l3_if), GFP_KERNEL);
@@ -1539,12 +1586,23 @@ int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 
 	INIT_LIST_HEAD(&priv->flow_list);
 
-	return rhashtable_init(&priv->flow_table, &ppe_flow_ht_params);
+	ret = rhashtable_init(&priv->flow_table, &ppe_flow_ht_params);
+	if (ret)
+		return ret;
+
+	priv->netdev_nb.notifier_call = ppe_flow_netdev_event;
+	ret = register_netdevice_notifier(&priv->netdev_nb);
+	if (ret)
+		rhashtable_destroy(&priv->flow_table);
+
+	return ret;
 }
 
 void ppe_flow_offload_exit(struct qca_ppe_priv *priv)
 {
 	struct ppe_flow_entry *entry, *tmp;
+
+	unregister_netdevice_notifier(&priv->netdev_nb);
 
 	mutex_lock(&priv->flow_lock);
 	mutex_lock(&priv->vlan_lock);

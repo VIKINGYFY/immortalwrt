@@ -1253,7 +1253,7 @@ struct qca_ppe_priv {
 	u32 flow_offloaded;
 	u32 flow_reinstalled;
 	u32 flow_destroy_miss;
-	u32 flow_stale_ingress;
+	u32 flow_stale;
 	struct ppe_port_shaper shaper[QCA_PPE_MAX_PORTS];
 	struct dentry *debugfs;
 	DECLARE_BITMAP(vsi_bitmap, PPE_VSI_MAX);
@@ -1275,6 +1275,7 @@ struct qca_ppe_priv {
 	struct qca_ppe_bridge_vsi bridges[QCA_PPE_MAX_BRIDGES];
 	struct qca_ppe_vlan_entry vlans[PPE_VSI_MAX];
 	struct net_device *port_br_dev[QCA_PPE_MAX_PORTS];
+	struct notifier_block netdev_nb;
 	u16 port_pvid[QCA_PPE_MAX_PORTS];
 	struct clk *port_rx_clk[QCA_PPE_MAX_PORTS];
 	struct clk *port_tx_clk[QCA_PPE_MAX_PORTS];
@@ -1332,6 +1333,7 @@ struct flow_cls_offload;
 #define PPE_DEVLINK_SB		0
 
 void ppe_scheduler_init(struct qca_ppe_priv *priv);
+void ppe_scheduler_ready(struct qca_ppe_priv *priv);
 void ppe_scheduler_exit(struct qca_ppe_priv *priv);
 void ppe_port_queues_enable(struct qca_ppe_priv *priv, int port, bool en);
 int qca_ppe_devlink_sb_setup(struct dsa_switch *ds);
@@ -1418,7 +1420,6 @@ int qca_ppe_cls_flower_del(struct dsa_switch *ds, int port,
 int ppe_mirror_analyzer_get(struct qca_ppe_priv *priv, int to_port);
 void ppe_mirror_analyzer_put(struct qca_ppe_priv *priv);
 int ppe_flow_offload_init(struct qca_ppe_priv *priv);
-void ppe_flow_mtu_update(struct qca_ppe_priv *priv, int port, int mtu);
 void ppe_flow_purge_vsi(struct qca_ppe_priv *priv, u32 vsi);
 void ppe_flow_offload_exit(struct qca_ppe_priv *priv);
 

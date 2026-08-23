@@ -300,7 +300,7 @@ static int ppe_offload_show(struct seq_file *s, void *data)
 	seq_printf(s, "%-24s %u\n", "offloaded", priv->flow_offloaded);
 	seq_printf(s, "%-24s %u\n", "reinstalled", priv->flow_reinstalled);
 	seq_printf(s, "%-24s %u\n", "destroy_miss", priv->flow_destroy_miss);
-	seq_printf(s, "%-24s %u\n", "stale_ingress", priv->flow_stale_ingress);
+	seq_printf(s, "%-24s %u\n", "stale", priv->flow_stale);
 	seq_printf(s, "%-24s %u\n", "live_entries",
 		   atomic_read(&priv->flow_table.nelems));
 	for (i = 0; i < PPE_REJECT_MAX; i++)

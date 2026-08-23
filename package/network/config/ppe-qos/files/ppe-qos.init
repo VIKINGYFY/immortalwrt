@@ -34,6 +34,15 @@ class_to_dscp() {
 	esac
 }
 
+# The priority the dscp map gives a mark; empty where it maps none, which
+# leaves the flow in the bulk queue the way an unlisted DSCP does.
+prio_of() {
+	local e
+	for e in $PRIO_MAP; do
+		[ "${e%%:*}" = "$1" ] && { echo "${e#*:}"; return 0; }
+	done
+}
+
 # Trust boundary: /etc/config/ppe-qos is writable by any LuCI role holding the
 # ppe-qos ACL, and its values are pasted into the tc command lines below, which
 # run as root. The LuCI form's datatype checks run in the browser only, so
@@ -78,19 +87,26 @@ wan_port() {
 }
 
 # One flower filter. $1=port $2=protocol $3=ip_proto $4=match $5=tos byte
+#                    $6=internal priority, empty where the map has none
 add_filter() {
-	local mangle
+	local mangle prio=""
 
 	case "$2" in
 	ip) mangle="munge ip tos set $5" ;;
 	*)  mangle="munge ip6 traffic_class set $5" ;;
 	esac
 
+	# The mark alone does not pick the queue: the engine ranks the ACL above
+	# the DSCP map, and the map reads the header as it arrived - bleached, on
+	# the download half this rule exists for. The rule that matched carries
+	# the priority itself.
+	[ -n "$6" ] && prio="action skbedit priority $6"
+
 	# skip_sw: if the switch cannot take the rule, fail here rather than
 	# quietly classifying on the CPU, which an offloaded flow never reaches.
 	if tc filter add dev "$1" parent ffff: pref $PREF protocol "$2" flower \
 		skip_sw ip_proto "$3" $4 \
-		action pedit ex $mangle >/dev/null 2>&1 ; then
+		action pedit ex $mangle $prio >/dev/null 2>&1 ; then
 		INSTALLED=$((INSTALLED + 1))
 	else
 		SKIPPED=$((SKIPPED + 1))
@@ -116,6 +132,7 @@ addrs_of() {
 #  mirrored, the uplink port sees it coming back: match the source
 emit() {
 	local fam="$1" l4="$2" tos="$3" sip="$4" dip="$5" sport="$6" dport="$7"
+	local prio="$8"
 	local fsip fdip p sa da sp dp m
 
 	fsip=$(addrs_of "$sip" "$fam")
@@ -137,7 +154,7 @@ emit() {
 		[ "$sp" = any ] || m="$m src_port $sp"
 		[ "$dp" = any ] || m="$m dst_port $dp"
 		for p in $MARK_PORTS; do
-			add_filter "$p" "$fam" "$l4" "$m" "$tos"
+			add_filter "$p" "$fam" "$l4" "$m" "$tos" "$prio"
 		done
 
 		# Mirrored, on the uplink port: the same connection coming back,
@@ -148,7 +165,7 @@ emit() {
 		[ "$sa" = any ] || m="$m dst_ip $sa"
 		[ "$dp" = any ] || m="$m src_port $dp"
 		[ "$sp" = any ] || m="$m dst_port $sp"
-		add_filter "$WAN_PORT" "$fam" "$l4" "$m" "$tos"
+		add_filter "$WAN_PORT" "$fam" "$l4" "$m" "$tos" "$prio"
 	done
 	done
 	done
@@ -157,6 +174,7 @@ emit() {
 
 apply_rule() {
 	local cfg="$1" enabled name proto class sip dip sport dport dscp tos fam l4
+	local prio
 
 	config_get_bool enabled "$cfg" enabled 0
 	[ "$enabled" = 1 ] || return 0
@@ -183,13 +201,18 @@ apply_rule() {
 	# two ECN bits go to zero with the mark. Nothing here negotiates ECN.
 	tos=$((dscp * 4))
 
+	# What the dscp map would resolve this mark to, taken here because the
+	# map cannot do it itself for traffic that arrives unmarked.
+	prio=$(prio_of "$dscp")
+
 	for l4 in $(echo "$proto" | sed 's/tcpudp/tcp udp/'); do
 		case "$l4" in tcp|udp) ;; *) continue ;; esac
 		for fam in ip ipv6; do
 			PREF=$((PREF_BASE + PREF_N))
 			[ $PREF -gt $PREF_MAX ] && return 0
 			PREF_N=$((PREF_N + 1))
-			emit "$fam" "$l4" "$tos" "$sip" "$dip" "$sport" "$dport"
+			emit "$fam" "$l4" "$tos" "$sip" "$dip" "$sport" \
+			     "$dport" "$prio"
 		done
 	done
 }
@@ -226,8 +249,11 @@ apply() {
 		local d p
 		config_get d "$1" dscp
 		config_get p "$1" prio
-		[ -n "$d" ] && [ -n "$p" ] && pairs="$pairs dscp-prio $d:$p"
+		[ -n "$d" ] && [ -n "$p" ] || return 0
+		pairs="$pairs dscp-prio $d:$p"
+		PRIO_MAP="$PRIO_MAP $d:$p"
 	}
+	PRIO_MAP=""
 	config_foreach add_pair dscp
 
 	# Every DSA user port classifies on ingress; the set is derived from
@@ -275,7 +301,7 @@ apply() {
 	# costs one entry per port it is installed on - more where it matches an
 	# IPv6 address, which does not fit in a single entry. Say what fitted, so
 	# that a rule quietly missing from half the ports is visible.
-	logger -t ppe-qos "marking rules: $INSTALLED filters installed${SKIPPED:+, $SKIPPED refused}"
+	logger -t ppe-qos "marking rules: $INSTALLED filters installed, $SKIPPED refused"
 	[ "$SKIPPED" = 0 ] ||
 		logger -t ppe-qos "the switch classifier is full; disable rules or narrow their port lists"
 }

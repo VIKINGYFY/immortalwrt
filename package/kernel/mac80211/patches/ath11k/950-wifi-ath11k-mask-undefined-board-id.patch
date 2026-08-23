@@ -1,0 +1,35 @@
+From a8c4f9b2e1d7c5a3f0b8e6d4c2a9f7b5e3d1c6a4 Mon Sep 17 00:00:00 2001
+From: Zheng Zhang <everything411@qq.com>
+Date: Sun, 23 Aug 2026 00:00:00 +0800
+Subject: [PATCH] wifi: ath11k: mask undefined board id to 0xff
+
+Some firmwares (e.g. QCN9074 2.15.x) report the undefined board id as
+0xffffffff instead of 0xff. This makes the driver generate a board name
+with qmi-board-id=-1 and the board file lookup fails with:
+
+  failed to fetch board data for bus=pci,qmi-chip-id=0,qmi-board-id=-1
+
+Normalize the board id by masking it to 8 bits so that 0xffffffff
+becomes 0xff (the default/undefined id) and the existing BDF lookup
+and download paths keep working.
+
+Signed-off-by: Zheng Zhang <everything411@qq.com>
+---
+ drivers/net/wireless/ath/ath11k/qmi.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath11k/qmi.c
++++ b/drivers/net/wireless/ath/ath11k/qmi.c
+@@ -2266,6 +2266,12 @@ static int ath11k_qmi_request_target_cap
+ 	else
+ 		ab->qmi.target.board_id = 0xFF;
+ 
++	/* Some firmwares report the undefined board id as 0xffffffff
++	 * instead of 0xff, normalize it to the default so that the board
++	 * file lookup and BDF download keep working.
++	 */
++	ab->qmi.target.board_id &= 0xFF;
++
+ 	if (resp.soc_info_valid)
+ 		ab->qmi.target.soc_id = resp.soc_info.soc_id;
+ 

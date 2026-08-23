@@ -813,7 +813,6 @@ static int qca_ppe_port_change_mtu(struct dsa_switch *ds, int port,
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 
 	ppe_port_mtu_set(priv, port, new_mtu + ETH_HLEN + 2 * VLAN_HLEN);
-	ppe_flow_mtu_update(priv, port, new_mtu);
 
 	return 0;
 }
@@ -2616,6 +2615,7 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_flow;
 
+	ppe_scheduler_ready(priv);
 	ppe_flow_debugfs_init(priv);
 
 	platform_set_drvdata(pdev, priv);
