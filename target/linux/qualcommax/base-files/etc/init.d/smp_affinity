@@ -8,6 +8,7 @@ PROG=smp_affinity
 PROC_ROOT=${PROC_ROOT:-/proc}
 IRQ_ROOT=${IRQ_ROOT:-${PROC_ROOT}/irq}
 IRQ_FILE=${IRQ_FILE:-${PROC_ROOT}/interrupts}
+SYS_ROOT=${SYS_ROOT:-/sys}
 TASKSET=${TASKSET:-taskset}
 
 log_msg() {
@@ -15,8 +16,16 @@ log_msg() {
 	logger -t "$PROG" "Pinning $1($2) $3 to CPU $4"
 }
 
+log_status() {
+	[ "$enable_log" = 1 ] || return 0
+	logger -t "$PROG" "$*"
+}
+
 cpu_mask() {
-	printf '%x' $((1 << $1))
+	case "$1" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	printf '%x\n' "$((1 << $1))"
 }
 
 get_irq() {
@@ -29,7 +38,7 @@ get_irq() {
 set_irq_affinity() {
 	local name="$1" cpu="$2" irq mask current found=0 failed=0
 
-	mask="$(cpu_mask "$cpu")"
+	mask="$(cpu_mask "$cpu")" || return 1
 	for irq in $(get_irq "$name"); do
 		[ -e "$IRQ_ROOT/$irq/smp_affinity" ] || continue
 		found=1
@@ -54,9 +63,35 @@ set_thread_affinity() {
 	local pid="$1" cpu="$2" name="$3" mask
 
 	[ -n "$pid" ] || return
-	mask="$(cpu_mask "$cpu")"
+	mask="$(cpu_mask "$cpu")" || return 1
 	"$TASKSET" -p "$mask" "$pid" >/dev/null 2>&1 || return
 	log_msg thread "$pid" "$name" "$cpu"
+	return 0
+}
+
+driver_has_device() {
+	local entry driver="$1"
+
+	[ -d "$driver" ] || return 1
+	for entry in "$driver"/*; do
+		[ -L "$entry" ] || continue
+		[ "${entry##*/}" = module ] && continue
+		return 0
+	done
+
+	return 1
+}
+
+ath11k_active() {
+	# Both modules are autoloaded even when a board has no enabled Wi-Fi.
+	# Require an actual AHB or PCI device binding before waiting for IRQs.
+	if [ -d "$SYS_ROOT/module/ath11k_ahb" ] &&
+		driver_has_device "$SYS_ROOT/bus/platform/drivers/ath11k"; then
+		return 0
+	fi
+
+	[ -d "$SYS_ROOT/module/ath11k_pci" ] &&
+		driver_has_device "$SYS_ROOT/bus/pci/drivers/ath11k_pci"
 }
 
 get_napi_threads() {
@@ -73,6 +108,9 @@ get_napi_threads() {
 		case "$comm" in
 			napi/eth0-[0-9]*)
 				id="${comm##*-}"
+				case "$id" in
+					''|*[!0-9]*) continue ;;
+				esac
 				pid="${comm_path#"${PROC_ROOT}"/}"
 				pid="${pid%/comm}"
 
@@ -90,27 +128,32 @@ get_napi_threads() {
 }
 
 enable_affinity_edma() {
-	local seconds=0 rx_irq tx_irq
+	local seconds=0 rx_irq rxfill_irq tx_irq failed
 
 	while [ "$seconds" -lt 60 ]; do
 		rx_irq="$(get_irq edma_rxdesc)"
+		rxfill_irq="$(get_irq edma_rxfill)"
 		tx_irq="$(get_irq edma_txcmpl)"
 		get_napi_threads
 
-		if [ -n "$rx_irq" ] && [ -n "$tx_irq" ] &&
+		if [ -n "$rx_irq" ] && [ -n "$rxfill_irq" ] && [ -n "$tx_irq" ] &&
 			[ -n "$RX_PID" ] && [ -n "$TX_PID" ] &&
 			[ "$RX_PID" != "$TX_PID" ]; then
-			set_irq_affinity edma_rxfill 1
-			set_irq_affinity edma_rxdesc 1
-			set_thread_affinity "$RX_PID" 1 "EDMA RX NAPI"
-			set_irq_affinity edma_txcmpl 2
-			set_thread_affinity "$TX_PID" 2 "EDMA TX NAPI"
-			return
+			failed=0
+			set_irq_affinity edma_rxfill 1 || failed=1
+			set_irq_affinity edma_rxdesc 1 || failed=1
+			set_thread_affinity "$RX_PID" 1 "EDMA RX NAPI" || failed=1
+			set_irq_affinity edma_txcmpl 2 || failed=1
+			set_thread_affinity "$TX_PID" 2 "EDMA TX NAPI" || failed=1
+			[ "$failed" -eq 0 ] && return 0
 		fi
 
 		seconds=$((seconds + 1))
 		sleep 1
 	done
+
+	log_status "Timed out waiting for EDMA IRQs/NAPI threads"
+	return 1
 }
 
 enable_affinity_wifi() {
@@ -138,6 +181,9 @@ enable_affinity_wifi() {
 		seconds=$((seconds + 1))
 		sleep 1
 	done
+
+	log_status "Timed out waiting for Wi-Fi IRQs"
+	return 1
 }
 
 boot() {
@@ -149,8 +195,10 @@ boot() {
 
 	[ "$enable" -eq 1 ] || return
 
-	# Wi-Fi IRQs may be registered after the network device; keep both
-	# groups asynchronous so late firmware loading does not block boot.
-	enable_affinity_wifi &
+	# IRQs may be registered after the network device; keep both groups
+	# asynchronous so late firmware loading does not block boot.
+	if ath11k_active; then
+		enable_affinity_wifi &
+	fi
 	enable_affinity_edma &
 }

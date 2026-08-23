@@ -2626,6 +2626,7 @@ err_flow:
 	ppe_flow_offload_exit(priv);
 err_acl:
 	ppe_acl_exit(priv);
+	ppe_scheduler_exit(priv);
 err_clk:
 	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 	return ret;
@@ -2642,6 +2643,7 @@ static void qca_ppe_remove(struct platform_device *pdev)
 	 */
 	ppe_flow_offload_exit(priv);
 	ppe_acl_exit(priv);
+	ppe_scheduler_exit(priv);
 	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 }
 

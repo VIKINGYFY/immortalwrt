@@ -213,6 +213,19 @@ static void ppe_l3_if_mtu_set(struct qca_ppe_priv *priv, u32 vsi, u32 mtu)
 	ppe_tbl_write(priv, PPE_IN_L3_IF_TBL(vsi), words, PPE_L3_IF_WORDS);
 }
 
+/* The egress half of an L3 interface answers the mtu check and nothing else:
+ * no route enables and no my-mac bitmap, because no VSI resolves to it.
+ */
+static void ppe_eg_l3_if_mtu_set(struct qca_ppe_priv *priv, u32 idx, u32 mtu)
+{
+	u32 words[PPE_L3_IF_WORDS] = {};
+
+	words[0] = FIELD_PREP(PPE_L3_IF_MRU, mtu) |
+		   FIELD_PREP(PPE_L3_IF_MTU, mtu);
+
+	ppe_tbl_write(priv, PPE_IN_L3_IF_TBL(idx), words, PPE_L3_IF_WORDS);
+}
+
 /* Ports outside a bridge sit on VSI 0 since setup. */
 static u32 ppe_port_l3_vsi(struct qca_ppe_priv *priv, int port)
 {
@@ -744,6 +757,8 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 				 struct ppe_flow_entry *entry)
 {
 	u32 words[PPE_NEXTHOP_WORDS] = {};
+	struct dsa_port *odp;
+	u32 eg_mtu;
 	u64 mac;
 	int port, ret;
 
@@ -766,14 +781,34 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 		ppe_entry_set(words, PPE_EG_L3_IF_PPPOE_EN_OFF,
 			      PPE_EG_L3_IF_PPPOE_EN_LEN, 1);
 	}
-	ret = ppe_res_get(priv->eg_l3_if, PPE_EG_L3_IF_ENTRIES, words,
-			  PPE_EG_L3_IF_WORDS);
+	/* The size a routed frame leaves at, which the hardware compares before
+	 * it egresses and sends the frame to the CPU when it does not fit. The
+	 * port's mtu carries one mac header and the vlan tag the nexthop pushes;
+	 * a pppoe session header rides inside that mtu rather than on top of it.
+	 * It joins the key because two interfaces sharing a source address need
+	 * separate entries when they do not share a size.
+	 */
+	odp = dsa_to_port(&priv->ds, port);
+	eg_mtu = odp->user->mtu + ETH_HLEN + (data->vlan_valid ? VLAN_HLEN : 0);
+	words[PPE_EG_L3_IF_WORDS] = eg_mtu;
+
+	/* An L3 interface is one index with an ingress half and an egress half.
+	 * ppe_flow_alloc_ingress() keys the ingress half by VSI, so an egress
+	 * interface allocated below PPE_VSI_MAX would answer the size check out
+	 * of some VSI's ingress mtu, or overwrite it. Allocating above that
+	 * range is what keeps the two halves from sharing an entry.
+	 */
+	ret = ppe_res_get(priv->eg_l3_if + PPE_VSI_MAX,
+			  PPE_EG_L3_IF_ENTRIES - PPE_VSI_MAX, words,
+			  PPE_EG_L3_IF_WORDS + 1);
 	if (ret < 0)
 		return ret;
-	entry->eg_l3_if = ret;
-	if (priv->eg_l3_if[ret].refcount == 1)
-		ppe_tbl_write(priv, PPE_EG_L3_IF_TBL(ret), words,
+	entry->eg_l3_if = ret + PPE_VSI_MAX;
+	if (priv->eg_l3_if[entry->eg_l3_if].refcount == 1) {
+		ppe_tbl_write(priv, PPE_EG_L3_IF_TBL(entry->eg_l3_if), words,
 			      PPE_EG_L3_IF_WORDS);
+		ppe_eg_l3_if_mtu_set(priv, entry->eg_l3_if, eg_mtu);
+	}
 
 	if (snat) {
 		u32 pub = ntohl(data->v4_src_new);
@@ -853,9 +888,12 @@ err_pub_ip:
 	if (ppe_res_put(priv->pub_ip, entry->pub_ip))
 		regmap_write(priv->regmap, PPE_PUB_IP_TBL(entry->pub_ip), 0);
 err_eg_l3_if:
-	if (ppe_res_put(priv->eg_l3_if, entry->eg_l3_if))
+	if (ppe_res_put(priv->eg_l3_if, entry->eg_l3_if)) {
 		ppe_tbl_clear(priv, PPE_EG_L3_IF_TBL(entry->eg_l3_if),
 			      PPE_EG_L3_IF_WORDS);
+		ppe_tbl_clear(priv, PPE_IN_L3_IF_TBL(entry->eg_l3_if),
+			      PPE_L3_IF_WORDS);
+	}
 
 	return ret;
 }
@@ -868,9 +906,12 @@ static void ppe_flow_free_egress(struct qca_ppe_priv *priv,
 			      PPE_NEXTHOP_WORDS);
 	if (ppe_res_put(priv->pub_ip, entry->pub_ip))
 		regmap_write(priv->regmap, PPE_PUB_IP_TBL(entry->pub_ip), 0);
-	if (ppe_res_put(priv->eg_l3_if, entry->eg_l3_if))
+	if (ppe_res_put(priv->eg_l3_if, entry->eg_l3_if)) {
 		ppe_tbl_clear(priv, PPE_EG_L3_IF_TBL(entry->eg_l3_if),
 			      PPE_EG_L3_IF_WORDS);
+		ppe_tbl_clear(priv, PPE_IN_L3_IF_TBL(entry->eg_l3_if),
+			      PPE_L3_IF_WORDS);
+	}
 
 	if (entry->wan_port >= 0)
 		ppe_wan_ingress_put(priv, entry->wan_port);

@@ -1,0 +1,39 @@
+From: =?UTF-8?q?Andr=C3=A9=20Valentin?= <avalentin@marcant.net>
+Date: Mon, 20 Jul 2026 05:40:00 +0200
+Subject: clk: qcom: gcc-ipq6018: keep nss_crypto_pll enabled
+
+nss_crypto_clk_src can only reach its 300 MHz operating point through
+P_NSS_CRYPTO_PLL:
+
+	static const struct freq_tbl ftbl_nss_crypto_clk_src[] = {
+		F(24000000,  P_XO,             1, 0, 0),
+		F(300000000, P_NSS_CRYPTO_PLL, 2, 0, 0),
+		{ }
+	};
+
+The probe function configures nss_crypto_pll_main via
+clk_alpha_pll_configure(), but configuring a PLL does not enable it.
+Nothing else does either: of_clk_set_defaults() applies the assigned
+clock rates of the PPE node with clk_set_rate(), without calling
+clk_prepare_enable(). The PLL therefore stays off, and the RCG cannot
+switch to a source that is not running.
+
+Mark the PLL critical so the clock framework enables it during
+registration using the driver's own clk_alpha_pll_ops.enable() and the
+proper lock sequence.
+
+Signed-off-by: =?UTF-8?q?Andr=C3=A9=20Valentin?= <avalentin@marcant.net>
+---
+ drivers/clk/qcom/gcc-ipq6018.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/drivers/clk/qcom/gcc-ipq6018.c
++++ b/drivers/clk/qcom/gcc-ipq6018.c
+@@ -254,6 +254,7 @@ static struct clk_alpha_pll nss_crypto_p
+ 				.fw_name = "xo",
+ 			},
+ 			.num_parents = 1,
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_alpha_pll_ops,
+ 		},
+ 	},

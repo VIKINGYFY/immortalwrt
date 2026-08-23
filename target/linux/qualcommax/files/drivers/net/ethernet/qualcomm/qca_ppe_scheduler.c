@@ -1272,15 +1272,27 @@ static void ppe_port_queue_limit_set(struct qca_ppe_priv *priv, int port)
 	u32 w0;
 	int i;
 
+	w0 = sh->rate_bps ? ppe_ac_uni_static(priv, port, sh->rate_bps,
+					      sh->limit) :
+			    ppe_ac_uni_default(priv);
+
+	/* The CPU port owns every queue below the first user port's base, and it
+	 * is not in the table below because the driver does not build its
+	 * scheduler. Its admission entries are still ours to size, and without
+	 * that a shaped CPU port keeps the dynamic limit every queue is probed
+	 * with - which the comment above this function explains does not bind.
+	 */
+	if (port == QCA_PPE_CPU_PORT) {
+		for (i = 0; i < port_l0[0].ucast_base; i++)
+			ppe_ac_uni_write(priv, i, w0);
+		return;
+	}
+
 	for (i = 0; i < ARRAY_SIZE(port_l0); i++)
 		if (port_l0[i].port == port)
 			p = &port_l0[i];
 	if (!p)
 		return;
-
-	w0 = sh->rate_bps ? ppe_ac_uni_static(priv, port, sh->rate_bps,
-					      sh->limit) :
-			    ppe_ac_uni_default(priv);
 
 	for (i = 0; i < p->ucast_count; i++) {
 		u64 rate = i < ARRAY_SIZE(sh->queue_rate) ? sh->queue_rate[i] : 0;
@@ -1961,8 +1973,80 @@ static void ppe_rss_hash_init(struct qca_ppe_priv *priv)
 		regmap_write(priv->regmap, PPE_RSS_HASH_FIN_IPV4(i), fin[i]);
 }
 
+/* The port every packet on its way to the host leaves by, and the only one with
+ * no netdev of its own: DSA gives a qdisc to the user ports and nothing to this
+ * one, so a tbf cannot name it. A frame bound for a Wi-Fi client leaves here,
+ * which makes this the only queue in the switch that can hold that traffic - a
+ * meter on the arriving port is the alternative, and a meter drops where this
+ * delays.
+ *
+ * Its queues are sized with it: ppe_port_queue_limit_set() gives the nodes below
+ * the first user port's base the same static ceiling a shaped user port's get.
+ */
+static struct qca_ppe_priv *ppe_sched_priv;
+static uint ppe_cpu_port_rate;
+
+static int ppe_cpu_port_rate_set(const char *val,
+				 const struct kernel_param *kp)
+{
+	struct qca_ppe_priv *priv = ppe_sched_priv;
+	int ret = param_set_uint(val, kp);
+	u64 rate_bps;
+
+	if (ret)
+		return ret;
+	if (!priv)
+		return 0;
+
+	rate_bps = (u64)ppe_cpu_port_rate * 1000;
+
+	/* A user port's queue depth comes from its tbf limit. Nothing can put a
+	 * tbf on this port, so the depth is the driver's to choose, and it is
+	 * chosen the same way: ten milliseconds of the rate, which the hardware
+	 * then clamps to its own per-queue ceiling. One millisecond - what a
+	 * shaped port falls back to with no limit - is too shallow to hold a
+	 * flow at the rate it was shaped to.
+	 */
+	priv->shaper[QCA_PPE_CPU_PORT].limit =
+		div_u64(rate_bps * 10, BITS_PER_BYTE * 1000);
+
+	/* One millisecond of the rate, the same burst a tbf of this rate is
+	 * given by the script that drives the user ports.
+	 */
+	return ppe_port_shaper_set(priv, QCA_PPE_CPU_PORT, rate_bps,
+				   div_u64(rate_bps, BITS_PER_BYTE * 1000));
+}
+
+static const struct kernel_param_ops ppe_cpu_port_rate_ops = {
+	.set = ppe_cpu_port_rate_set,
+	.get = param_get_uint,
+};
+
+module_param_cb(cpu_port_rate, &ppe_cpu_port_rate_ops, &ppe_cpu_port_rate,
+		0644);
+MODULE_PARM_DESC(cpu_port_rate,
+		 "Shape the port the host is behind, in kbit/s (0 disables)");
+
+/* The parameter writer reaches this driver through the global above, so the
+ * global has to be gone before the teardown frees what it points at. The
+ * parameter lock is held across a whole set, so clearing it under that lock
+ * lets a writer already inside finish first - the same ordering ppe_acl_exit()
+ * needs for its own global. The shaper goes with it, so the switch is left the
+ * way it was found.
+ */
+void ppe_scheduler_exit(struct qca_ppe_priv *priv)
+{
+	kernel_param_lock(THIS_MODULE);
+	ppe_sched_priv = NULL;
+	kernel_param_unlock(THIS_MODULE);
+
+	ppe_port_shaper_set(priv, QCA_PPE_CPU_PORT, 0, 0);
+}
+
 void ppe_scheduler_init(struct qca_ppe_priv *priv)
 {
+	ppe_sched_priv = priv;
+
 	ppe_tdm_init(priv);
 	ppe_bm_init(priv);
 	ppe_qm_init(priv);
