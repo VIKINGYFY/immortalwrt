@@ -1678,6 +1678,13 @@ static u64 ppe_mib_row_read(struct qca_ppe_priv *priv, int port,
 	unsigned int reg, size;
 	u32 lo, hi = 0;
 
+	/* Both MIB windows are indexed from the first user port, so a port
+	 * that drives no MAC of its own has no counters rather than another
+	 * port's.
+	 */
+	if (port < 1 || port >= priv->ds.num_ports)
+		return 0;
+
 	if (priv->port_is_xgmac[port]) {
 		reg = PPE_XGMAC_MIB(port - 5, mib->xgmac);
 		size = mib->xgmac_size;
@@ -2245,6 +2252,8 @@ static void qca_ppe_port_fast_age(struct dsa_switch *ds, int port)
 	bool is_static;
 	u32 i, vsi;
 
+	guard(mutex)(&priv->vlan_lock);
+
 	/* Addresses behind a trunk are learned against the trunk, not the
 	 * member they arrived on, so ageing one member ages the aggregate -
 	 * which is what the bridge asked for, the aggregate being its port.
@@ -2340,6 +2349,8 @@ static const struct dsa_switch_ops qca_ppe_ops = {
 	.port_setup_tc		= qca_ppe_setup_tc,
 	.cls_flower_add		= qca_ppe_cls_flower_add,
 	.cls_flower_del		= qca_ppe_cls_flower_del,
+	.get_rxnfc		= qca_ppe_get_rxnfc,
+	.set_rxnfc		= qca_ppe_set_rxnfc,
 	.port_mirror_add	= qca_ppe_port_mirror_add,
 	.port_mirror_del	= qca_ppe_port_mirror_del,
 	.port_policer_add	= qca_ppe_port_policer_add,
@@ -2499,7 +2510,9 @@ static const struct regmap_config ppe_regmap_cfg = {
 
 static int qca_ppe_probe(struct platform_device *pdev)
 {
+	struct regmap_config regmap_cfg;
 	const struct ppe_data *data;
+	struct resource *res;
 	struct device_node *ports;
 	struct qca_ppe_priv *priv;
 	struct reset_control *rst;
@@ -2530,11 +2543,17 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	base = devm_platform_ioremap_resource(pdev, 0);
+	base = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(base))
 		return dev_err_probe(&pdev->dev, PTR_ERR(base), "failed to ioremap resource");
 
-	priv->regmap = devm_regmap_init_mmio(&pdev->dev, base, &ppe_regmap_cfg);
+	/* Bound the regmap by what is actually mapped: a register the window
+	 * does not cover is an -EIO rather than a fault on unmapped memory.
+	 */
+	regmap_cfg = ppe_regmap_cfg;
+	regmap_cfg.max_register = resource_size(res) - sizeof(u32);
+
+	priv->regmap = devm_regmap_init_mmio(&pdev->dev, base, &regmap_cfg);
 	if (IS_ERR(priv->regmap))
 		return dev_err_probe(&pdev->dev, PTR_ERR(priv->regmap), "failed to init regmap");
 
@@ -2637,6 +2656,7 @@ static void qca_ppe_remove(struct platform_device *pdev)
 	struct qca_ppe_priv *priv = platform_get_drvdata(pdev);
 
 	ppe_flow_debugfs_exit(priv);
+	ppe_scheduler_unready();
 	dsa_unregister_switch(&priv->ds);
 	/* After the switch is gone: unregistration flushes the flowtables, and
 	 * their FLOW_CLS_DESTROY commands have to find the table still alive.

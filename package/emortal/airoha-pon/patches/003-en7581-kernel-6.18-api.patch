@@ -1,0 +1,48 @@
+From: ImmortalWrt <devnull@example.invalid>
+Subject: [PATCH] airoha-pon: fix AN7581 legacy kernel APIs
+
+The EN7572AN path builds the vendor AN7581 PHY on Linux 6.18. Replace the
+removed platform delay helper and use the kthread callback ABI.
+
+---
+--- a/xpon-en757x/xpon_phy_10g/src/en7581.c
++++ b/xpon-en757x/xpon_phy_10g/src/en7581.c
+@@ -14,6 +14,7 @@
+ #include <linux/proc_fs.h>
+ #include <linux/module.h>
+ #include <linux/delay.h>
++#include <linux/vmalloc.h>
+ 
+ #include <linux/timer.h>
+ #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,36) 
+@@ -193,7 +194,7 @@ void phy_delay1ms(int ms)
+ {
+ #ifdef TCSUPPORT_CPU_ARMV8
+ 
+-	delay1ms(ms);
++	msleep(ms);
+ 
+ #else
+ 	volatile uint32 timer_now, timer_last;
+--- a/xpon-en757x/xpon_phy_10g/inc/i2c.h
++++ b/xpon-en757x/xpon_phy_10g/inc/i2c.h
+@@ -573,7 +573,7 @@ int xfp_trans_model_setting(void);
+ void xfp_trans_pw_entry(void);
+ int xfp_trans_set_ngpon2_rx_chan(PPHY_Ngpon2_Chan_Sel_T ngpon2_chan);
+ int xfp_trans_set_ngpon2_tx_chan(PPHY_Ngpon2_Chan_Sel_T ngpon2_chan);
+-int xfp_trans_set_ngpon2_chan(PPHY_Ngpon2_Chan_Sel_T ngpon2_chan); //julia_20221021 ngpon2
++int xfp_trans_set_ngpon2_chan(void *data); //julia_20221021 ngpon2
+ int xfp_trans_get_ngpon2_chan(PPHY_Ngpon2_Chan_Sel_T ngpon2_chan);
+ 
+ 
+--- a/xpon-en757x/xpon_phy_10g/src/i2c.c
++++ b/xpon-en757x/xpon_phy_10g/src/i2c.c
+@@ -1770,7 +1770,7 @@ void xfp_trans_pw_entry(void)
+ 
+ 
+ 
+-int xfp_trans_set_ngpon2_chan(PPHY_Ngpon2_Chan_Sel_T ngpon2_chan) //julia_20221021 ngpon2
++int xfp_trans_set_ngpon2_chan(void *data) //julia_20221021 ngpon2
+ {
+ 	unchar buffer;
+ 	while(!kthread_should_stop())

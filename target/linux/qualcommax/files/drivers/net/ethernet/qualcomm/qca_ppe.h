@@ -1198,7 +1198,8 @@ struct ppe_class_shaper {
  * its queues can be resized without the rate being asked for again.
  */
 struct ppe_port_shaper {
-	u32 handle;
+	u32 tbf_handle;
+	u32 bands_handle;
 	u32 limit;
 	u64 rate_bps;
 	u64 queue_rate[PPE_QOS_MAX_PRI + 1];
@@ -1334,6 +1335,7 @@ struct flow_cls_offload;
 
 void ppe_scheduler_init(struct qca_ppe_priv *priv);
 void ppe_scheduler_ready(struct qca_ppe_priv *priv);
+void ppe_scheduler_unready(void);
 void ppe_scheduler_exit(struct qca_ppe_priv *priv);
 void ppe_port_queues_enable(struct qca_ppe_priv *priv, int port, bool en);
 int qca_ppe_devlink_sb_setup(struct dsa_switch *ds);
@@ -1417,6 +1419,10 @@ int qca_ppe_cls_flower_add(struct dsa_switch *ds, int port,
 			   struct flow_cls_offload *cls, bool ingress);
 int qca_ppe_cls_flower_del(struct dsa_switch *ds, int port,
 			   struct flow_cls_offload *cls, bool ingress);
+int qca_ppe_set_rxnfc(struct dsa_switch *ds, int port,
+		      struct ethtool_rxnfc *nfc);
+int qca_ppe_get_rxnfc(struct dsa_switch *ds, int port,
+		      struct ethtool_rxnfc *nfc, u32 *rule_locs);
 int ppe_mirror_analyzer_get(struct qca_ppe_priv *priv, int to_port);
 void ppe_mirror_analyzer_put(struct qca_ppe_priv *priv);
 int ppe_flow_offload_init(struct qca_ppe_priv *priv);

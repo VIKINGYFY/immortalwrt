@@ -13,7 +13,8 @@ define Package/ppe-qos
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Qualcomm PPE hardware QoS classifiers
-  DEPENDS:=@TARGET_qualcommax +dcb
+  DEPENDS:=@TARGET_qualcommax +dcb +tc +kmod-sched-flower +kmod-sched-act-pedit \
+	+kmod-sched-prio +kmod-sched-ets +kmod-sched-mqprio +kmod-sched-act-police
   PKGARCH:=all
 endef
 
@@ -36,6 +37,8 @@ define Package/ppe-qos/install
 	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/init.d
 	$(INSTALL_CONF) ./files/ppe-qos.config $(1)/etc/config/ppe-qos
 	$(INSTALL_BIN) ./files/ppe-qos.init $(1)/etc/init.d/ppe-qos
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/net
+	$(INSTALL_DATA) ./files/ppe-qos.hotplug $(1)/etc/hotplug.d/net/20-ppe-qos
 endef
 
 $(eval $(call BuildPackage,ppe-qos))

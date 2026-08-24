@@ -15,9 +15,12 @@ START=25
 PARAM_DIR=/sys/module/qca_ppe/parameters
 
 # Our own filter priorities, so that a reload removes what this script put on a
-# shared ingress block and leaves anything else (sqm's meter) alone.
-PREF_BASE=40000
-PREF_MAX=40999
+# shared ingress block and leaves anything else (sqm's meter) alone. The switch
+# ranks a rule by the preference it was given and holds nine bits of it, so the
+# range sits inside that and high, where a rule this script installs by default
+# yields to anything the user placed deliberately.
+PREF_BASE=256
+PREF_MAX=511
 
 # Class name -> DSCP value, RFC 4594 service classes.
 class_to_dscp() {
@@ -99,8 +102,9 @@ add_filter() {
 	# The mark alone does not pick the queue: the engine ranks the ACL above
 	# the DSCP map, and the map reads the header as it arrived - bleached, on
 	# the download half this rule exists for. The rule that matched carries
-	# the priority itself.
-	[ -n "$6" ] && prio="action skbedit priority $6"
+	# the priority itself, as a tc handle - base 16, so a decimal 10 would
+	# reach the driver as 16 and lose the whole filter, mark included.
+	[ -n "$6" ] && prio="action skbedit priority $(printf '%x' "$6")"
 
 	# skip_sw: if the switch cannot take the rule, fail here rather than
 	# quietly classifying on the CPU, which an offloaded flow never reaches.
@@ -232,6 +236,40 @@ flush_filters() {
 	done
 }
 
+wifi_devs() {
+	local d
+	for d in /sys/class/ieee80211/*/device/net/* ; do
+		[ -e "$d" ] || continue
+		echo "${d##*/}"
+	done
+}
+
+# u32 takes its offsets from the network header, which puts the length field
+# at 2 for IPv4 and at 4 for IPv6. The egress block is shared, so these carry
+# the same prefs the ingress half owns.
+wifi_small_pkt() {
+	local dev="$1" prio="$2"
+
+	tc qdisc add dev "$dev" clsact 2>/dev/null
+
+	# u32 has no handle here, so a replace appends a second node rather
+	# than standing in for the first; the pref is cleared to keep a reload
+	# from growing the block.
+	wifi_clear "$dev"
+
+	tc filter add dev "$dev" egress pref $PREF_BASE protocol ip u32 \
+		match u16 0x0000 0xff00 at 2 \
+		action skbedit priority $((256 + prio)) 2>/dev/null
+	tc filter add dev "$dev" egress pref $((PREF_BASE + 1)) \
+		protocol ipv6 u32 match u16 0x0000 0xff00 at 4 \
+		action skbedit priority $((256 + prio)) 2>/dev/null
+}
+
+wifi_clear() {
+	tc filter del dev "$1" egress pref $PREF_BASE >/dev/null 2>&1
+	tc filter del dev "$1" egress pref $((PREF_BASE + 1)) >/dev/null 2>&1
+}
+
 apply() {
 	local len prio pairs="" port dev
 
@@ -240,16 +278,43 @@ apply() {
 	config_get len global small_pkt_len 128
 	config_get prio global small_pkt_prio 5
 
+	# Everything below arms a classifier, so an off config takes the same
+	# path as stop rather than programming half of it.
+	[ "$ENABLED" = 1 ] || { teardown; return 0; }
+
 	if [ -w "$PARAM_DIR/small_pkt_len" ]; then
 		echo "$prio" > "$PARAM_DIR/small_pkt_prio"
 		echo "$len" > "$PARAM_DIR/small_pkt_len"
 	fi
+
+	# The same policy, on the one egress the switch classifier cannot reach.
+	# A frame to a Wi-Fi client leaves by the CPU port and is then queued by
+	# mac80211, which picks its access category from skb->priority - a value
+	# nothing on the way from the switch has set. So the small-packet rule
+	# stops at the CPU port and the frame contends as best effort.
+	#
+	# cfg80211_classify8021d() takes skb->priority in 256..263 as a direct
+	# 802.1d tag, and sch_handle_egress() runs before the queue is picked, so
+	# a clsact filter on the AP netdev is enough. Matching the high byte of
+	# the length field for zero is the cheapest "small" test u32 can do; the
+	# exact threshold matters far less than the frame not being best effort.
+	for dev in $(wifi_devs); do
+		if [ "$len" -gt 0 ]; then
+			wifi_small_pkt "$dev" "$prio"
+		else
+			wifi_clear "$dev"
+		fi
+	done
 
 	add_pair() {
 		local d p
 		config_get d "$1" dscp
 		config_get p "$1" prio
 		[ -n "$d" ] && [ -n "$p" ] || return 0
+		case "$d$p" in *[!0-9]*)
+			logger -t ppe-qos "dscp map '$d:$p' is not numeric, skipped"
+			return 0 ;;
+		esac
 		pairs="$pairs dscp-prio $d:$p"
 		PRIO_MAP="$PRIO_MAP $d:$p"
 	}
@@ -264,9 +329,10 @@ apply() {
 	done
 
 	flush_filters
-	[ "$ENABLED" = 1 ] || return 0
 
 	WAN_PORT=$(wan_port)
+	[ -n "$WAN_PORT" ] ||
+		logger -t ppe-qos "the uplink is not a switch port; every rule's download half is skipped - set ppe-qos.global.wan_port"
 
 	# The uplink port carries the download half of every rule, which is what
 	# a mark is actually worth here: it picks the egress queue toward the
@@ -306,15 +372,35 @@ apply() {
 		logger -t ppe-qos "the switch classifier is full; disable rules or narrow their port lists"
 }
 
+EXTRA_COMMANDS="wifi_dev"
+EXTRA_HELP="\twifi_dev <netdev>  apply the small-packet egress stamp to one Wi-Fi netdev"
+
 start() {
 	apply
+}
+
+# A Wi-Fi netdev does not exist when this service starts - hostapd creates it a
+# moment later - so the egress stamp has to be applied when the interface
+# appears as well as at start. The hotplug hook calls this for one device.
+wifi_dev() {
+	local dev="$1" len prio
+
+	[ -n "$dev" ] || return 1
+	config_load ppe-qos
+	config_get_bool ENABLED global enabled 1
+	config_get len global small_pkt_len 128
+	config_get prio global small_pkt_prio 5
+	[ "$ENABLED" = 1 ] && [ "$len" -gt 0 ] || return 0
+	wifi_small_pkt "$dev" "$prio"
 }
 
 reload() {
 	apply
 }
 
-stop() {
+# The egress block on an AP netdev is shared with whatever else is on the
+# interface, so only the prefs this script owns are removed.
+teardown() {
 	local dev
 
 	flush_filters
@@ -322,4 +408,11 @@ stop() {
 	for dev in $(switch_ports); do
 		dcb app flush dev "$dev" dscp-prio 2>/dev/null
 	done
+	for dev in $(wifi_devs); do
+		wifi_clear "$dev"
+	done
+}
+
+stop() {
+	teardown
 }

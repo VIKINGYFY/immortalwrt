@@ -14,8 +14,6 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  3 files changed, 229 insertions(+)
  create mode 100644 drivers/net/mdio-airoha.c
 
-diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
-index 666618681df..40b1e74a30f 100644
 --- a/drivers/net/Kconfig
 +++ b/drivers/net/Kconfig
 @@ -118,6 +118,13 @@ config AG7XXX
@@ -32,8 +30,6 @@ index 666618681df..40b1e74a30f 100644
  source "drivers/net/airoha/Kconfig"
  
  config AIROHA_ETH
-diff --git a/drivers/net/Makefile b/drivers/net/Makefile
-index 5e90183d090..b9dfadaf2e9 100644
 --- a/drivers/net/Makefile
 +++ b/drivers/net/Makefile
 @@ -62,6 +62,7 @@ obj-$(CONFIG_KSZ9477) += ksz9477.o
@@ -44,9 +40,6 @@ index 5e90183d090..b9dfadaf2e9 100644
  obj-$(CONFIG_MDIO_IPQ4019) += mdio-ipq4019.o
  obj-$(CONFIG_MDIO_MSCC_MIIM) += mdio-mscc-miim.o
  obj-$(CONFIG_MDIO_GPIO_BITBANG) += mdio_gpio.o
-diff --git a/drivers/net/mdio-airoha.c b/drivers/net/mdio-airoha.c
-new file mode 100644
-index 00000000000..ac1fb13622e
 --- /dev/null
 +++ b/drivers/net/mdio-airoha.c
 @@ -0,0 +1,221 @@
@@ -271,6 +264,3 @@ index 00000000000..ac1fb13622e
 +	.ops            = &airoha_mdio_ops,
 +	.priv_auto	= sizeof(struct airoha_mdio_data),
 +};
--- 
-2.53.0
-

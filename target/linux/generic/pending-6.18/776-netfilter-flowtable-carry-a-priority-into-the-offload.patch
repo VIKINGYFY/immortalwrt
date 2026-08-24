@@ -66,3 +66,23 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	__set_bit(NF_FLOW_HW_BIDIRECTIONAL, &flow->flags);
  	ret = flow_offload_add(flowtable, flow);
  	if (ret < 0)
+--- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+@@ -369,6 +369,7 @@ mtk_flow_offload_replace(struct mtk_eth
+ 		case FLOW_ACTION_REDIRECT:
+ 			odev = act->dev;
+ 			break;
++		case FLOW_ACTION_PRIORITY:
+ 		case FLOW_ACTION_CSUM:
+ 			break;
+ 		case FLOW_ACTION_VLAN_PUSH:
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -1073,6 +1073,7 @@ static int airoha_ppe_flow_offload_repla
+ 		case FLOW_ACTION_REDIRECT:
+ 			odev = act->dev;
+ 			break;
++		case FLOW_ACTION_PRIORITY:
+ 		case FLOW_ACTION_CSUM:
+ 			break;
+ 		case FLOW_ACTION_VLAN_PUSH:

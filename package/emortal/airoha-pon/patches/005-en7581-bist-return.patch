@@ -1,0 +1,17 @@
+From: ImmortalWrt <devnull@example.invalid>
+Subject: [PATCH] airoha-pon: fix AN7581 BIST void return
+
+The BIST result helper is declared void and must return without a value.
+
+---
+--- a/xpon-en757x/xpon_phy_10g/src/en7581.c
++++ b/xpon-en757x/xpon_phy_10g/src/en7581.c
+@@ -8194,7 +8194,7 @@ void xpon_rx_bist_recheck_result(uint ch
+ 	{    				
+ 	    phy_print_time();		
+ 		printk("PRBS Error Counter = %u \n",0xfffffff);		
+-		return 0;    
++		return;    
+ 	}
+ 	
+ 	if(duration<100)

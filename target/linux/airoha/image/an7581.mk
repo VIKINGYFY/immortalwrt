@@ -152,7 +152,8 @@ define Device/nokia_xg-040g-md-common
   UBINIZE_OPTS := -E 5
   DEVICE_PACKAGES := kmod-gpio-button-hotplug kmod-leds-gpio \
 	kmod-phy-airoha-en8811h kmod-regulator-userspace-consumer \
-	kmod-usb-ledtrig-usbport kmod-usb3
+	kmod-usb-ledtrig-usbport kmod-usb3 \
+	kmod-airoha-xpon-en757x kmod-airoha-pon-plugins airoha-pon-firmware
 endef
 
 define Device/nokia_xg-040g-md

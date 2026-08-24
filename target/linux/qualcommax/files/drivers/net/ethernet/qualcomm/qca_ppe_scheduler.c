@@ -454,10 +454,6 @@ static const u8 port_queue_base[PPE_NUM_PORTS] = {
 	0, 144, 160, 176, 192, 208, 224, 240,
 };
 
-static const u8 port_l0_cdrr_num[PPE_NUM_PORTS] = {
-	48, 16, 16, 16, 16, 16, 16, 16,
-};
-
 /* A unicast queue's admission control is four words that take effect on the
  * last one, so the whole entry goes back every time.
  */
@@ -494,36 +490,37 @@ static void ppe_qm_init(struct qca_ppe_priv *priv)
 				port_queue_base[i], i);
 
 	for (i = 0; i < PPE_NUM_PORTS; i++) {
-		u8 max_pri = port_l0_cdrr_num[i];
-		u8 profile;
-
-		if (max_pri > 16)
-			max_pri = 1;
-
 		for (pri = 0; pri < 16; pri++) {
-			u8 cls = (pri >= max_pri) ? max_pri - 1 : pri;
+			/* Two classes per port, one per band. On a user port
+			 * the hash offset is added to the class for every
+			 * packet, so a class must be as wide as the spread or
+			 * the smear crosses into the next; the CPU port is
+			 * given no spread, so its two are adjacent. Either way
+			 * l0_port0[] and ppe_l0_scheduler_init() have already
+			 * put the second band a strict priority above the
+			 * first, which is what the small-frame classifier in
+			 * the ACL needs to be worth anything: without it every
+			 * priority shares one queue, and a frame on its way to
+			 * a Wi-Fi client waits behind whatever bulk that queue
+			 * is holding.
+			 */
+			u8 cls = pri < PPE_FLOW_SPREAD_QUEUES ? 0 :
+				 i ? PPE_FLOW_SPREAD_QUEUES : 1;
 
-			if (i == 0) {
-				profile = 0;
-				regmap_write(priv->regmap,
-					     PPE_QM_UCAST_PRI_MAP(profile * 16 + pri),
-					     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
-				profile = 15;
-				regmap_write(priv->regmap,
-					     PPE_QM_UCAST_PRI_MAP(profile * 16 + pri),
-					     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
-			} else {
-				/* Two classes per user port, one per band: the
-				 * hash offset is added to the class for every
-				 * packet, so a class must be as wide as the
-				 * spread or the smear crosses into the next.
-				 */
-				cls = (pri < PPE_FLOW_SPREAD_QUEUES) ?
-				      0 : PPE_FLOW_SPREAD_QUEUES;
+			if (i) {
 				regmap_write(priv->regmap,
 					     PPE_QM_UCAST_PRI_MAP(i * 16 + pri),
 					     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
+				continue;
 			}
+
+			/* Profiles 0 and 15 both resolve to the CPU port. */
+			regmap_write(priv->regmap,
+				     PPE_QM_UCAST_PRI_MAP(pri),
+				     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
+			regmap_write(priv->regmap,
+				     PPE_QM_UCAST_PRI_MAP(15 * 16 + pri),
+				     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
 		}
 	}
 
@@ -1001,7 +998,7 @@ static int ppe_apptrust_prec(struct qca_ppe_priv *priv, int port, u8 sel)
 	mask = sel == IEEE_8021QAZ_APP_SEL_DSCP ? PPE_QOS_DSCP_PREC :
 						  PPE_QOS_PCP_PREC;
 
-	return FIELD_GET(mask, val);
+	return field_get(mask, val);
 }
 
 int qca_ppe_port_get_apptrust(struct dsa_switch *ds, int port, u8 *sel,
@@ -1196,6 +1193,14 @@ int ppe_token_bucket(unsigned long clk, u32 slot, u64 rate_bps, u32 burst,
 		     u32 cir_max, u32 cbs_max, u32 *cir, u32 *cbs)
 {
 	int sel;
+
+	/* The refresh count is a u64 product, and a rate large enough to wrap
+	 * it comes back out as a small one the loop would accept. Such a rate
+	 * is out of range at every unit, so refuse it here rather than let it
+	 * arrive as a plausible answer.
+	 */
+	if (rate_bps > div64_ul(U64_MAX, PPE_TOKEN_UNIT_MAX * (u64)slot))
+		return -ERANGE;
 
 	for (sel = 0; sel < 8; sel++) {
 		u32 unit = PPE_TOKEN_UNIT_MAX >> (2 * sel);
@@ -1437,8 +1442,21 @@ int qca_ppe_port_policer_add(struct dsa_switch *ds, int port,
 	if (!policer->rate_bytes_per_sec ||
 	    policer->peakrate_bytes_per_sec || policer->rate_pkt_per_sec ||
 	    policer->burst_pkt || policer->avrate ||
-	    policer->exceed_act_id != FLOW_ACTION_DROP)
+	    policer->exceed_act_id != FLOW_ACTION_DROP ||
+	    (policer->notexceed_act_id != FLOW_ACTION_PIPE &&
+	     policer->notexceed_act_id != FLOW_ACTION_ACCEPT))
 		return -EOPNOTSUPP;
+
+	/* The meter counts the frame the port puts on the wire, so a link
+	 * layer the filter wants accounted on top of it goes in the port's
+	 * compensation length, which already carries the checksum.
+	 */
+	if (ETH_FCS_LEN + policer->overhead > FIELD_MAX(PPE_CMPST_LENGTH))
+		return -EOPNOTSUPP;
+
+	regmap_write(priv->regmap, PPE_POLICER_CMPST_LEN(port),
+		     FIELD_PREP(PPE_CMPST_LENGTH,
+				ETH_FCS_LEN + policer->overhead));
 
 	return ppe_port_policer_set(priv, port,
 				    policer->rate_bytes_per_sec * BITS_PER_BYTE,
@@ -1449,6 +1467,8 @@ void qca_ppe_port_policer_del(struct dsa_switch *ds, int port)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 
+	regmap_write(priv->regmap, PPE_POLICER_CMPST_LEN(port),
+		     FIELD_PREP(PPE_CMPST_LENGTH, ETH_FCS_LEN));
 	ppe_port_policer_set(priv, port, 0, 0);
 }
 
@@ -1790,7 +1810,7 @@ static int ppe_qos_bands_set(struct qca_ppe_priv *priv, int port, u32 handle,
 		}
 	}
 
-	sh->handle = handle;
+	sh->bands_handle = handle;
 	ppe_port_tx_counters(priv, port, &sh->base_bytes, &sh->base_pkts,
 			     &sh->base_drops);
 
@@ -1829,10 +1849,11 @@ int qca_ppe_setup_tc_ets(struct qca_ppe_priv *priv, int port,
 					 qopt->replace_params.bands,
 					 qopt->replace_params.priomap);
 	case TC_ETS_DESTROY:
-		sh->handle = 0;
+		if (qopt->handle == sh->bands_handle)
+			sh->bands_handle = 0;
 		return 0;
 	case TC_ETS_STATS:
-		if (!sh->handle || qopt->handle != sh->handle)
+		if (!sh->bands_handle || qopt->handle != sh->bands_handle)
 			return -EOPNOTSUPP;
 		ppe_port_shaper_stats(priv, port, &qopt->stats);
 		return 0;
@@ -1855,10 +1876,11 @@ int qca_ppe_setup_tc_prio(struct qca_ppe_priv *priv, int port,
 					 qopt->replace_params.bands,
 					 qopt->replace_params.priomap);
 	case TC_PRIO_DESTROY:
-		sh->handle = 0;
+		if (qopt->handle == sh->bands_handle)
+			sh->bands_handle = 0;
 		return 0;
 	case TC_PRIO_STATS:
-		if (!sh->handle || qopt->handle != sh->handle)
+		if (!sh->bands_handle || qopt->handle != sh->bands_handle)
 			return -EOPNOTSUPP;
 		ppe_port_shaper_stats(priv, port, &qopt->stats);
 		return 0;
@@ -1881,29 +1903,44 @@ int qca_ppe_setup_tc_tbf(struct qca_ppe_priv *priv, int port,
 		return -EOPNOTSUPP;
 
 	switch (qopt->command) {
-	case TC_TBF_REPLACE:
+	case TC_TBF_REPLACE: {
 		/* The qdisc's own limit is the depth it wants behind the
-		 * shaper.
+		 * shaper, and the queue limit is taken from it, so it is in
+		 * place before the rate is programmed and put back if the
+		 * rate is refused.
 		 */
+		u32 limit = priv->shaper[port].limit;
+
 		priv->shaper[port].limit = qopt->replace_params.limit;
 		ret = ppe_port_shaper_set(priv, port,
 					  qopt->replace_params.rate.rate_bytes_ps *
 					  BITS_PER_BYTE,
 					  qopt->replace_params.max_size);
-		if (!ret) {
-			priv->shaper[port].handle = qopt->handle;
-			ppe_port_tx_counters(priv, port,
-					     &priv->shaper[port].base_bytes,
-					     &priv->shaper[port].base_pkts,
-					     &priv->shaper[port].base_drops);
+		if (ret) {
+			priv->shaper[port].limit = limit;
+			return ret;
 		}
-		return ret;
+
+		priv->shaper[port].tbf_handle = qopt->handle;
+		ppe_port_tx_counters(priv, port,
+				     &priv->shaper[port].base_bytes,
+				     &priv->shaper[port].base_pkts,
+				     &priv->shaper[port].base_drops);
+		return 0;
+	}
 	case TC_TBF_DESTROY:
-		priv->shaper[port].handle = 0;
+		/* A replacement's destroy arrives after the new qdisc has
+		 * already programmed the shaper, so only the qdisc that owns
+		 * the rate may take it down.
+		 */
+		if (qopt->handle != priv->shaper[port].tbf_handle)
+			return 0;
+
+		priv->shaper[port].tbf_handle = 0;
 		return ppe_port_shaper_set(priv, port, 0, 0);
 	case TC_TBF_STATS:
-		if (!priv->shaper[port].handle ||
-		    qopt->handle != priv->shaper[port].handle)
+		if (!priv->shaper[port].tbf_handle ||
+		    qopt->handle != priv->shaper[port].tbf_handle)
 			return -EOPNOTSUPP;
 		ppe_port_shaper_stats(priv, port, &qopt->stats);
 		return 0;
@@ -2028,19 +2065,23 @@ module_param_cb(cpu_port_rate, &ppe_cpu_port_rate_ops, &ppe_cpu_port_rate,
 MODULE_PARM_DESC(cpu_port_rate,
 		 "Shape the port the host is behind, in kbit/s (0 disables)");
 
-/* The parameter writer reaches this driver through the global above, so the
- * global has to be gone before the teardown frees what it points at. The
- * parameter lock is held across a whole set, so clearing it under that lock
- * lets a writer already inside finish first - the same ordering ppe_acl_exit()
- * needs for its own global. The shaper goes with it, so the switch is left the
- * way it was found.
+/* The parameter writer reaches this driver through the global above and ends in
+ * dsa_to_port(), so the global has to be gone before the switch is
+ * unregistered, not merely before the teardown below. The parameter lock is
+ * held across a whole set, so clearing it under that lock lets a writer already
+ * inside finish first - the same ordering ppe_acl_exit() needs for its own
+ * global.
  */
-void ppe_scheduler_exit(struct qca_ppe_priv *priv)
+void ppe_scheduler_unready(void)
 {
 	kernel_param_lock(THIS_MODULE);
 	ppe_sched_priv = NULL;
 	kernel_param_unlock(THIS_MODULE);
+}
 
+/* The shaper goes with the driver, so the switch is left the way it was found. */
+void ppe_scheduler_exit(struct qca_ppe_priv *priv)
+{
 	ppe_port_shaper_set(priv, QCA_PPE_CPU_PORT, 0, 0);
 }
 

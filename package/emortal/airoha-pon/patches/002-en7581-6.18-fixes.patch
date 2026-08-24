@@ -1,0 +1,57 @@
+From: ImmortalWrt <devnull@example.invalid>
+Subject: [PATCH] airoha-pon: fix AN7581 PHY declarations and debug parser
+
+The vendor AN7581 PHY implementation provides the ASIC_SERDES helpers in
+en7581.c, but the public header omits their declarations. Linux 6.18 treats
+the resulting implicit declarations as errors. The delimiter debug command
+also assigns pointers to integer fields.
+
+---
+--- a/bsp/include/scu/ecnt_scu.h
++++ b/bsp/include/scu/ecnt_scu.h
+@@ -215,6 +215,7 @@ typedef union {
+ 
+ extern uint32_t GET_SMB0ALS(void);
+ extern void SET_SMB0ALS(uint32_t data);
++extern void SET_FORCE_GPIO32_EN(u32 mask, u32 bits);
+ 
+ extern uint32_t GET_SCU_RSTCTRL1(void);
+ extern void SET_SCU_RSTCTRL1(uint32_t val);
+--- a/bsp/include/global_inc/modules/scu/ecnt_scu.h
++++ b/bsp/include/global_inc/modules/scu/ecnt_scu.h
+@@ -215,6 +215,7 @@ typedef union {
+ 
+ extern uint32_t GET_SMB0ALS(void);
+ extern void SET_SMB0ALS(uint32_t data);
++extern void SET_FORCE_GPIO32_EN(u32 mask, u32 bits);
+ 
+ extern uint32_t GET_SCU_RSTCTRL1(void);
+ extern void SET_SCU_RSTCTRL1(uint32_t val);
+--- a/xpon-en757x/xpon_phy_10g/inc/en7581.h
++++ b/xpon-en757x/xpon_phy_10g/inc/en7581.h
+@@ -29,6 +29,12 @@ void en7581_pon_phy_clear_rogueonu(void)
+ void en7581_pon_phy_rogueonu_int_en(unchar rogue_int_en);
+ 
+ #if ASIC_SERDES
++void normal_rx_bist_check(uint enable, XPON_PMA_RX_Bist_Check_t pattern);
++void xpon_rx_bist_recheck_result(uint enable, uint duration);
++void t2r_rx_bist_check(uint enable, XPON_PMA_RX_Bist_Check_t pattern);
++int pma_dbg_reg_dump(void);
++void pon_phy_clear_rogueonu(void);
++void pon_phy_rogueonu_int_en(unchar enable);
+ void freq_check (void);	//add by david 20180904
+ void set_pma_fir(void);	
+ void get_pma_fir(void);	
+--- a/xpon-en757x/xpon_phy_10g/src/phy.c
++++ b/xpon-en757x/xpon_phy_10g/src/phy.c
+@@ -1263,8 +1263,8 @@ static ssize_t phy_write_proc(struct fil
+ 	{
+ 		PHY_GPON_Delimiter_Guard_t gpon_delimiter_guard = {0};
+ 
+-		gpon_delimiter_guard.delimiter=&hex1;
+-		gpon_delimiter_guard.guard_time=&hex2;
++		gpon_delimiter_guard.delimiter=hex1;
++		gpon_delimiter_guard.guard_time=hex2;
+ 		PHY_INTERNAL_SET_API(PON_SET_PHY_GPON_DELIMITER_GUARD,&gpon_delimiter_guard);
+ 	}
+     else if((!strcmp(cmd, "Phy_Rogue_PRBS"))||(!strcmp(cmd, "rogue")))

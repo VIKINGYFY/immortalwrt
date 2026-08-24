@@ -17,8 +17,6 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  5 files changed, 2255 insertions(+)
  create mode 100644 drivers/net/airoha/pcs-an7583.c
 
-diff --git a/drivers/net/airoha/Kconfig b/drivers/net/airoha/Kconfig
-index d0c007ced80..5f660bb280f 100644
 --- a/drivers/net/airoha/Kconfig
 +++ b/drivers/net/airoha/Kconfig
 @@ -11,3 +11,11 @@ config PCS_AIROHA_AN7581
@@ -33,8 +31,6 @@ index d0c007ced80..5f660bb280f 100644
 +	help
 +	  This module provides helper to phylink for managing the Airoha
 +	  AN7583 PCS for SoC Ethernet and PON SERDES.
-diff --git a/drivers/net/airoha/Makefile b/drivers/net/airoha/Makefile
-index 81fd26cf813..a3b84518129 100644
 --- a/drivers/net/airoha/Makefile
 +++ b/drivers/net/airoha/Makefile
 @@ -2,3 +2,4 @@
@@ -42,8 +38,6 @@ index 81fd26cf813..a3b84518129 100644
  obj-$(CONFIG_PCS_AIROHA)	+= pcs-airoha-common.o
  obj-$(CONFIG_PCS_AIROHA_AN7581)	+= pcs-an7581.o
 +obj-$(CONFIG_PCS_AIROHA_AN7583)	+= pcs-an7583.o
-diff --git a/drivers/net/airoha/pcs-airoha-common.c b/drivers/net/airoha/pcs-airoha-common.c
-index 1263092fcdd..bc64263fad9 100644
 --- a/drivers/net/airoha/pcs-airoha-common.c
 +++ b/drivers/net/airoha/pcs-airoha-common.c
 @@ -17,6 +17,7 @@
@@ -54,7 +48,7 @@ index 1263092fcdd..bc64263fad9 100644
  	u32 xsi_sel;
  
  	switch (interface) {
-@@ -34,6 +35,12 @@ static void airoha_pcs_setup_scu_eth(struct airoha_pcs_priv *priv,
+@@ -34,6 +35,12 @@ static void airoha_pcs_setup_scu_eth(str
  	regmap_update_bits(priv->scu, AIROHA_SCU_SSR3,
  			   AIROHA_SCU_ETH_XSI_SEL,
  			   xsi_sel);
@@ -67,7 +61,7 @@ index 1263092fcdd..bc64263fad9 100644
  }
  
  static void airoha_pcs_setup_scu_pon(struct airoha_pcs_priv *priv,
-@@ -810,11 +817,31 @@ static const struct airoha_pcs_match_data an7581_pcs_pon = {
+@@ -810,11 +817,31 @@ static const struct airoha_pcs_match_dat
  	.link_up = an7581_pcs_phya_link_up,
  };
  
@@ -99,11 +93,9 @@ index 1263092fcdd..bc64263fad9 100644
  	{ },
  };
  
-diff --git a/drivers/net/airoha/pcs-airoha.h b/drivers/net/airoha/pcs-airoha.h
-index 714d2ebe520..fddeda5ca36 100644
 --- a/drivers/net/airoha/pcs-airoha.h
 +++ b/drivers/net/airoha/pcs-airoha.h
-@@ -1218,3 +1218,20 @@ static inline void an7581_pcs_phya_link_up(struct airoha_pcs_priv *priv)
+@@ -1218,3 +1218,20 @@ static inline void an7581_pcs_phya_link_
  {
  }
  #endif
@@ -124,9 +116,6 @@ index 714d2ebe520..fddeda5ca36 100644
 +{
 +}
 +#endif
-diff --git a/drivers/net/airoha/pcs-an7583.c b/drivers/net/airoha/pcs-an7583.c
-new file mode 100644
-index 00000000000..4bdda3066ed
 --- /dev/null
 +++ b/drivers/net/airoha/pcs-an7583.c
 @@ -0,0 +1,2202 @@
@@ -2332,6 +2321,3 @@ index 00000000000..4bdda3066ed
 +	regmap_clear_bits(priv->xfi_pma, AIROHA_PCS_PMA_RX_CTRL_SEQUENCE_FORCE_CTRL_1,
 +			  AIROHA_PCS_PMA_DISB_RX_RDY);
 +}
--- 
-2.53.0
-

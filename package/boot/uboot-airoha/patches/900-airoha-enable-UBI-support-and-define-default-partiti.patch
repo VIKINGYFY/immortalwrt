@@ -13,8 +13,6 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  configs/en7523_evb_defconfig        |  8 ++++++++
  6 files changed, 90 insertions(+)
 
-diff --git a/arch/arm/dts/an7583-evb.dts b/arch/arm/dts/an7583-evb.dts
-index d02cd194e8a..b3045e6e7d0 100644
 --- a/arch/arm/dts/an7583-evb.dts
 +++ b/arch/arm/dts/an7583-evb.dts
 @@ -46,6 +46,28 @@
@@ -46,8 +44,6 @@ index d02cd194e8a..b3045e6e7d0 100644
  &pcie0 {
  	pinctrl-names = "default";
  	pinctrl-0 = <&pcie0_rst_pins>;
-diff --git a/arch/arm/dts/en7523-evb-u-boot.dtsi b/arch/arm/dts/en7523-evb-u-boot.dtsi
-index d6ab621d590..7c688b1fd97 100644
 --- a/arch/arm/dts/en7523-evb-u-boot.dtsi
 +++ b/arch/arm/dts/en7523-evb-u-boot.dtsi
 @@ -13,3 +13,25 @@
@@ -76,8 +72,6 @@ index d6ab621d590..7c688b1fd97 100644
 +		};
 +	};
 +};
-diff --git a/arch/arm/dts/en7581-evb-u-boot.dtsi b/arch/arm/dts/en7581-evb-u-boot.dtsi
-index 9a02122fbfa..23331b7703d 100644
 --- a/arch/arm/dts/en7581-evb-u-boot.dtsi
 +++ b/arch/arm/dts/en7581-evb-u-boot.dtsi
 @@ -27,3 +27,25 @@
@@ -106,8 +100,6 @@ index 9a02122fbfa..23331b7703d 100644
 +		};
 +	};
 +};
-diff --git a/configs/an7581_evb_defconfig b/configs/an7581_evb_defconfig
-index a615994cc76..bd7440ddc76 100644
 --- a/configs/an7581_evb_defconfig
 +++ b/configs/an7581_evb_defconfig
 @@ -40,10 +40,16 @@ CONFIG_CMD_FAT=y
@@ -141,8 +133,6 @@ index a615994cc76..bd7440ddc76 100644
  CONFIG_AIROHA_SNFI_SPI=y
 +# CONFIG_UBIFS_SILENCE_MSG is not set
  CONFIG_SHA512=y
-diff --git a/configs/an7583_evb_defconfig b/configs/an7583_evb_defconfig
-index 7178f45e3f8..7517b1a6fb3 100644
 --- a/configs/an7583_evb_defconfig
 +++ b/configs/an7583_evb_defconfig
 @@ -39,8 +39,14 @@ CONFIG_CMD_FAT=y
@@ -166,16 +156,14 @@ index 7178f45e3f8..7517b1a6fb3 100644
  CONFIG_SPI_FLASH_MTD=y
 +CONFIG_UBI_BLOCK=y
  CONFIG_DM_MDIO=y
- CONFIG_AIROHA_ETH=y
- CONFIG_PHY=y
-@@ -78,4 +85,5 @@ CONFIG_SYS_NS16550=y
+ CONFIG_MDIO_AIROHA=y
+ CONFIG_PCS_AIROHA_AN7583=y
+@@ -80,4 +87,5 @@ CONFIG_SYS_NS16550=y
  CONFIG_SPI=y
  CONFIG_DM_SPI=y
  CONFIG_AIROHA_SNFI_SPI=y
 +# CONFIG_UBIFS_SILENCE_MSG is not set
  CONFIG_SHA512=y
-diff --git a/configs/en7523_evb_defconfig b/configs/en7523_evb_defconfig
-index 8b1f3c71e9b..7f05cb63a28 100644
 --- a/configs/en7523_evb_defconfig
 +++ b/configs/en7523_evb_defconfig
 @@ -35,8 +35,14 @@ CONFIG_CMD_FAT=y
@@ -207,6 +195,3 @@ index 8b1f3c71e9b..7f05cb63a28 100644
  CONFIG_AIROHA_SNFI_SPI=y
 +# CONFIG_UBIFS_SILENCE_MSG is not set
  CONFIG_SHA512=y
--- 
-2.53.0
-

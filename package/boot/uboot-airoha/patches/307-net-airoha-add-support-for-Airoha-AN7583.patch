@@ -19,8 +19,6 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  drivers/net/airoha_eth.c | 94 ++++++++++++++++++++++++++++++++++++++++
  1 file changed, 94 insertions(+)
 
-diff --git a/drivers/net/airoha_eth.c b/drivers/net/airoha_eth.c
-index e5d39b95cc5..d552b9e9de9 100644
 --- a/drivers/net/airoha_eth.c
 +++ b/drivers/net/airoha_eth.c
 @@ -24,6 +24,7 @@
@@ -63,7 +61,7 @@ index e5d39b95cc5..d552b9e9de9 100644
  
  /* FE */
  #define PSE_BASE			0x0100
-@@ -365,6 +384,12 @@ static const char * const en7581_xsi_rsts_names[] = {
+@@ -365,6 +384,12 @@ static const char * const en7581_xsi_rst
  	"xfp-mac",
  };
  
@@ -76,7 +74,7 @@ index e5d39b95cc5..d552b9e9de9 100644
  static u32 airoha_rr(void __iomem *base, u32 offset)
  {
  	return readl(base + offset);
-@@ -405,8 +430,12 @@ static u32 airoha_rmw(void __iomem *base, u32 offset, u32 mask, u32 val)
+@@ -405,8 +430,12 @@ static u32 airoha_rmw(void __iomem *base
  #define airoha_qdma_clear(qdma, offset, val)			\
  	airoha_rmw((qdma)->regs, (offset), (val), 0)
  
@@ -89,7 +87,7 @@ index e5d39b95cc5..d552b9e9de9 100644
  
  static inline dma_addr_t dma_map_unaligned(void *vaddr, size_t len,
  					   enum dma_data_direction dir)
-@@ -438,6 +467,8 @@ static int airoha_get_fe_port(struct airoha_gdm_port *port)
+@@ -438,6 +467,8 @@ static int airoha_get_fe_port(struct air
  	case 0x7523:
  		/* FIXME: GDM1 is the only supported port */
  		return FE_PSE_PORT_GDM1;
@@ -98,7 +96,7 @@ index e5d39b95cc5..d552b9e9de9 100644
  	case 0x7581:
  	default:
  		return port->id == 4 ? FE_PSE_PORT_GDM4 : port->id;
-@@ -809,6 +840,59 @@ static int airoha_switch_init(struct udevice *dev, struct airoha_eth *eth)
+@@ -809,6 +840,59 @@ static int airoha_switch_init(struct ude
  			 FIELD_PREP(SWITCH_PHY_END_ADDR, 0xc) |
  			 FIELD_PREP(SWITCH_PHY_ST_ADDR, 0x8));
  
@@ -158,7 +156,7 @@ index e5d39b95cc5..d552b9e9de9 100644
  	return 0;
  }
  
-@@ -1269,6 +1353,13 @@ static const struct airoha_eth_soc_data en7581_data = {
+@@ -1269,6 +1353,13 @@ static const struct airoha_eth_soc_data
  	.switch_compatible = "airoha,en7581-switch",
  };
  
@@ -172,7 +170,7 @@ index e5d39b95cc5..d552b9e9de9 100644
  static const struct udevice_id airoha_eth_ids[] = {
  	{ .compatible = "airoha,en7523-eth",
  	  .data = (ulong)&en7523_data,
-@@ -1276,6 +1367,9 @@ static const struct udevice_id airoha_eth_ids[] = {
+@@ -1276,6 +1367,9 @@ static const struct udevice_id airoha_et
  	{ .compatible = "airoha,en7581-eth",
  	  .data = (ulong)&en7581_data,
  	},
@@ -182,6 +180,3 @@ index e5d39b95cc5..d552b9e9de9 100644
  	{ }
  };
  
--- 
-2.53.0
-

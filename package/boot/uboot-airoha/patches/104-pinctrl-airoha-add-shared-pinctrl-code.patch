@@ -21,8 +21,6 @@ Reviewed-by: David Lechner <dlechner@baylibre.com>
  create mode 100644 drivers/pinctrl/airoha/airoha-common.h
  create mode 100644 drivers/pinctrl/airoha/pinctrl-airoha.c
 
-diff --git a/drivers/pinctrl/Kconfig b/drivers/pinctrl/Kconfig
-index 578edbf8168..46a95a1ab6b 100644
 --- a/drivers/pinctrl/Kconfig
 +++ b/drivers/pinctrl/Kconfig
 @@ -405,6 +405,7 @@ config SPL_PINCTRL_ZYNQMP
@@ -33,8 +31,6 @@ index 578edbf8168..46a95a1ab6b 100644
  source "drivers/pinctrl/broadcom/Kconfig"
  source "drivers/pinctrl/exynos/Kconfig"
  source "drivers/pinctrl/intel/Kconfig"
-diff --git a/drivers/pinctrl/Makefile b/drivers/pinctrl/Makefile
-index 29fb9b484d0..22f7e841285 100644
 --- a/drivers/pinctrl/Makefile
 +++ b/drivers/pinctrl/Makefile
 @@ -4,6 +4,7 @@ obj-y					+= pinctrl-uclass.o
@@ -45,9 +41,6 @@ index 29fb9b484d0..22f7e841285 100644
  obj-$(CONFIG_PINCTRL_APPLE)		+= pinctrl-apple.o
  obj-$(CONFIG_PINCTRL_AT91)		+= pinctrl-at91.o
  obj-$(CONFIG_PINCTRL_AT91PIO4)		+= pinctrl-at91-pio4.o
-diff --git a/drivers/pinctrl/airoha/Kconfig b/drivers/pinctrl/airoha/Kconfig
-new file mode 100644
-index 00000000000..eb87afbb374
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/Kconfig
 @@ -0,0 +1,11 @@
@@ -62,18 +55,12 @@ index 00000000000..eb87afbb374
 +	select REGMAP
 +	select SYSCON
 +	bool
-diff --git a/drivers/pinctrl/airoha/Makefile b/drivers/pinctrl/airoha/Makefile
-new file mode 100644
-index 00000000000..a25b744dd7a
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/Makefile
 @@ -0,0 +1,3 @@
 +# SPDX-License-Identifier: GPL-2.0
 +
 +obj-$(CONFIG_PINCTRL_AIROHA)		+= pinctrl-airoha.o
-diff --git a/drivers/pinctrl/airoha/airoha-common.h b/drivers/pinctrl/airoha/airoha-common.h
-new file mode 100644
-index 00000000000..4354b0eb6b4
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/airoha-common.h
 @@ -0,0 +1,144 @@
@@ -221,9 +208,6 @@ index 00000000000..4354b0eb6b4
 +int airoha_pinctrl_bind(struct udevice *dev);
 +
 +#endif
-diff --git a/drivers/pinctrl/airoha/pinctrl-airoha.c b/drivers/pinctrl/airoha/pinctrl-airoha.c
-new file mode 100644
-index 00000000000..60c48c0960c
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
 @@ -0,0 +1,958 @@
@@ -1185,6 +1169,3 @@ index 00000000000..60c48c0960c
 +
 +	return 0;
 +}
--- 
-2.53.0
-

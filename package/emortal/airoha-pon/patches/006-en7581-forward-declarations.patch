@@ -1,0 +1,20 @@
+From: ImmortalWrt <devnull@example.invalid>
+Subject: [PATCH] airoha-pon: declare shared PHY helpers
+
+The PMA translation unit calls helpers implemented in the AN7581 source set.
+Expose their declarations from the common LF-terminated PHY header so the
+Linux 6.18 compiler does not infer incompatible implicit prototypes.
+
+---
+--- a/xpon-en757x/xpon_phy_10g/inc/phy.h
++++ b/xpon-en757x/xpon_phy_10g/inc/phy.h
+@@ -8,6 +8,9 @@
+ #include "phy_debug.h"
+ #include "phy_tx.h"
+ 
++void phy_delay1ms(int ms);
++void XPON_DIG_ref_release(void);
++
+ #if defined(TCSUPPORT_MT7570)||defined(LDDLA_SUPPORT_SET_TX_MODE)
+ #include <ecnt_hook/ecnt_hook_lddla.h>
+ #endif

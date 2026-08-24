@@ -10,6 +10,8 @@ KERNEL_PATCHVER:=6.18
 
 include $(INCLUDE_DIR)/target.mk
 DEFAULT_PACKAGES += \
-	kmod-leds-gpio kmod-gpio-button-hotplug
+	autocore automount cpufreq e2fsprogs f2fs-tools losetup luci uboot-envtools wpad-openssl \
+	kmod-gpio-button-hotplug kmod-leds-gpio kmod-leds-pwm \
+	kmod-fs-ext4 kmod-fs-f2fs kmod-usb3 kmod-usb-dwc3
 
 $(eval $(call BuildTarget))

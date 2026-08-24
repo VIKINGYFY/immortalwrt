@@ -682,6 +682,19 @@ static void ppe_flow_l3_mtu_set(struct qca_ppe_priv *priv, int port, int mtu)
 	}
 }
 
+/* A MAC the entries were built against is changing: it is the address the
+ * ingress accepts and the source the egress writes, so neither half can match
+ * any more. Drop them and let the flowtable rebuild against the new one.
+ */
+static void ppe_flow_drop_port(struct qca_ppe_priv *priv, int port)
+{
+	struct ppe_flow_entry *entry, *tmp;
+
+	list_for_each_entry_safe(entry, tmp, &priv->flow_list, list)
+		if (entry->iport == port || entry->oport == port)
+			ppe_flow_drop(priv, entry);
+}
+
 /* Each half of the size check follows the device that owns it: the routing
  * domain's MRU follows the device that routes for the port, and the egress size
  * a flow was built with follows the port itself.
@@ -707,7 +720,7 @@ static int ppe_flow_netdev_event(struct notifier_block *nb, unsigned long event,
 	struct dsa_port *dp;
 	int i;
 
-	if (event != NETDEV_CHANGEMTU)
+	if (event != NETDEV_CHANGEMTU && event != NETDEV_CHANGEADDR)
 		return NOTIFY_DONE;
 
 	guard(mutex)(&priv->flow_lock);
@@ -719,17 +732,28 @@ static int ppe_flow_netdev_event(struct notifier_block *nb, unsigned long event,
 	 */
 	dp = dsa_port_from_netdev(dev);
 	if (!IS_ERR(dp) && dp->ds == &priv->ds) {
-		list_for_each_entry_safe(entry, tmp, &priv->flow_list, list)
-			if (entry->oport == dp->index)
-				ppe_flow_drop(priv, entry);
+		if (event == NETDEV_CHANGEADDR) {
+			ppe_flow_drop_port(priv, dp->index);
+		} else {
+			list_for_each_entry_safe(entry, tmp, &priv->flow_list,
+						 list)
+				if (entry->oport == dp->index)
+					ppe_flow_drop(priv, entry);
 
-		if (!priv->port_br_dev[dp->index])
-			ppe_flow_l3_mtu_set(priv, dp->index, dev->mtu);
+			if (!priv->port_br_dev[dp->index])
+				ppe_flow_l3_mtu_set(priv, dp->index, dev->mtu);
+		}
 	}
 
-	for (i = 0; i < QCA_PPE_MAX_PORTS; i++)
-		if (priv->port_br_dev[i] == dev)
+	for (i = 0; i < QCA_PPE_MAX_PORTS; i++) {
+		if (priv->port_br_dev[i] != dev)
+			continue;
+
+		if (event == NETDEV_CHANGEADDR)
+			ppe_flow_drop_port(priv, i);
+		else
 			ppe_flow_l3_mtu_set(priv, i, dev->mtu);
+	}
 
 	return NOTIFY_DONE;
 }
@@ -1017,7 +1041,7 @@ static void ppe_flow_encode(struct ppe_flow_data *data, bool v6, bool snat,
 		      PPE_FLOW_E_PRI_PROFILE_LEN, data->priority);
 
 	fwd = snat ? PPE_FLOW_FWD_SNAT : dnat ? PPE_FLOW_FWD_DNAT :
-					        PPE_FLOW_FWD_ROUTE;
+						PPE_FLOW_FWD_ROUTE;
 	ppe_entry_set(fw, PPE_FLOW_E_FWD_TYPE_OFF, PPE_FLOW_E_FWD_TYPE_LEN, fwd);
 	ppe_entry_set(fw, PPE_FLOW_E_NEXTHOP_OFF, PPE_FLOW_E_NEXTHOP_LEN,
 		      nexthop);

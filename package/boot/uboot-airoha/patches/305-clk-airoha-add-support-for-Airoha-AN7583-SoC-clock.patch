@@ -11,8 +11,6 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  drivers/clk/airoha/clk-airoha.c | 158 ++++++++++++++++++++++++++++++++
  1 file changed, 158 insertions(+)
 
-diff --git a/drivers/clk/airoha/clk-airoha.c b/drivers/clk/airoha/clk-airoha.c
-index 49dbca82135..f5c2d9f1461 100644
 --- a/drivers/clk/airoha/clk-airoha.c
 +++ b/drivers/clk/airoha/clk-airoha.c
 @@ -36,6 +36,7 @@
@@ -23,7 +21,7 @@ index 49dbca82135..f5c2d9f1461 100644
  
  struct airoha_clk_desc {
  	int id;
-@@ -78,6 +79,14 @@ static const u32 bus7581_base[] = { 600000000, 540000000 };
+@@ -78,6 +79,14 @@ static const u32 bus7581_base[] = { 6000
  static const u32 npu7581_base[] = { 800000000, 750000000, 720000000, 600000000 };
  static const u32 crypto_base[] = { 540000000, 480000000 };
  static const u32 emmc7581_base[] = { 200000000, 150000000 };
@@ -38,7 +36,7 @@ index 49dbca82135..f5c2d9f1461 100644
  
  static const struct airoha_clk_desc en7523_base_clks[EN7523_MAX_CLKS] = {
  	[EN7523_CLK_GSW] = {
-@@ -293,6 +302,147 @@ static const struct airoha_clk_desc en7581_base_clks[EN7581_MAX_CLKS] = {
+@@ -293,6 +302,147 @@ static const struct airoha_clk_desc en75
  	}
  };
  
@@ -186,7 +184,7 @@ index 49dbca82135..f5c2d9f1461 100644
  static u32 airoha_clk_get_base_rate(const struct airoha_clk_desc *desc, u32 val)
  {
  	if (!desc->base_bits)
-@@ -542,6 +692,11 @@ static const struct airoha_clk_soc_data en7581_data = {
+@@ -542,6 +692,11 @@ static const struct airoha_clk_soc_data
  	.descs = en7581_base_clks,
  };
  
@@ -198,7 +196,7 @@ index 49dbca82135..f5c2d9f1461 100644
  static const struct udevice_id airoha_clk_ids[] = {
  	{ .compatible = "airoha,en7523-scu",
  	  .data = (ulong)&en7523_data,
-@@ -549,6 +704,9 @@ static const struct udevice_id airoha_clk_ids[] = {
+@@ -549,6 +704,9 @@ static const struct udevice_id airoha_cl
  	{ .compatible = "airoha,en7581-scu",
  	  .data = (ulong)&en7581_data,
  	},
@@ -208,6 +206,3 @@ index 49dbca82135..f5c2d9f1461 100644
  	{ }
  };
  
--- 
-2.53.0
-

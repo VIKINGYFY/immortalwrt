@@ -1,0 +1,34 @@
+From: ImmortalWrt <devnull@example.invalid>
+Subject: [PATCH] airoha-pon: fix AN7581 debug return values
+
+The vendor PMA debug helper is declared as void, but retains legacy integer
+return statements. Linux 6.18 rejects those return values.
+
+---
+--- a/xpon-en757x/xpon_phy_10g/src/en7581.c
++++ b/xpon-en757x/xpon_phy_10g/src/en7581.c
+@@ -8696,14 +8696,14 @@ void pma_fifo_check (uint ncpo_check_cnt
+ 	else
+ 	{
+ 		printk("Alloc data memory size %d error, recommand(1~50000)\n",ncpo_check_cnt) ;
+-		return 0;
++		return;
+ 	}
+ 		
+ 	
+ 	if(!ncpo_arr) 
+ 	{
+ 		printk("Alloc data memory failed\n") ;
+-		return 0;
++		return;
+ 	}
+ 
+ 	memset(ncpo_arr, 0, (sizeof(*ncpo_arr)*ncpo_check_cnt)) ;
+@@ -8743,7 +8743,6 @@ void pma_fifo_check (uint ncpo_check_cnt
+ 	printk("	ncpo_diff=0x%08x (ncpo_max-ncpo_min)\r\n",(ncpo_max-ncpo_min));
+ 
+ 	vfree(ncpo_arr);
+-	return 0;
+ 
+ }
+ 

@@ -15,8 +15,6 @@ Reviewed-by: David Lechner <dlechner@baylibre.com>
  3 files changed, 1491 insertions(+)
  create mode 100644 drivers/pinctrl/airoha/pinctrl-an7581.c
 
-diff --git a/drivers/pinctrl/airoha/Kconfig b/drivers/pinctrl/airoha/Kconfig
-index eb87afbb374..ae387f70b22 100644
 --- a/drivers/pinctrl/airoha/Kconfig
 +++ b/drivers/pinctrl/airoha/Kconfig
 @@ -9,3 +9,8 @@ config PINCTRL_AIROHA
@@ -28,8 +26,6 @@ index eb87afbb374..ae387f70b22 100644
 +	bool "Airoha AN7581 pin controller and gpio driver"
 +	depends on TARGET_AN7581
 +	select PINCTRL_AIROHA
-diff --git a/drivers/pinctrl/airoha/Makefile b/drivers/pinctrl/airoha/Makefile
-index a25b744dd7a..909bd9a04d9 100644
 --- a/drivers/pinctrl/airoha/Makefile
 +++ b/drivers/pinctrl/airoha/Makefile
 @@ -1,3 +1,5 @@
@@ -38,9 +34,6 @@ index a25b744dd7a..909bd9a04d9 100644
  obj-$(CONFIG_PINCTRL_AIROHA)		+= pinctrl-airoha.o
 +
 +obj-$(CONFIG_PINCTRL_AIROHA_AN7581)	+= pinctrl-an7581.o
-diff --git a/drivers/pinctrl/airoha/pinctrl-an7581.c b/drivers/pinctrl/airoha/pinctrl-an7581.c
-new file mode 100644
-index 00000000000..4f7da74a1cf
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/pinctrl-an7581.c
 @@ -0,0 +1,1484 @@
@@ -1528,6 +1521,3 @@ index 00000000000..4f7da74a1cf
 +	.priv_auto = sizeof(struct airoha_pinctrl),
 +	.ops = &airoha_pinctrl_ops,
 +};
--- 
-2.53.0
-

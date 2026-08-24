@@ -15,8 +15,6 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  2 files changed, 122 insertions(+)
  create mode 100644 include/dt-bindings/reset/airoha,an7583-reset.h
 
-diff --git a/drivers/reset/reset-airoha.c b/drivers/reset/reset-airoha.c
-index ef8c47a067b..071f29b6f22 100644
 --- a/drivers/reset/reset-airoha.c
 +++ b/drivers/reset/reset-airoha.c
 @@ -15,6 +15,7 @@
@@ -88,7 +86,7 @@ index ef8c47a067b..071f29b6f22 100644
  static int airoha_reset_update(struct airoha_reset_priv *priv,
  			       unsigned long id, bool assert)
  {
-@@ -227,6 +282,11 @@ static int airoha_reset_probe(struct udevice *dev)
+@@ -227,6 +282,11 @@ static int airoha_reset_probe(struct ude
  		return reset_init(dev, en7581_rst_map,
  				  ARRAY_SIZE(en7581_rst_map));
  
@@ -100,9 +98,6 @@ index ef8c47a067b..071f29b6f22 100644
  	return -ENODEV;
  }
  
-diff --git a/include/dt-bindings/reset/airoha,an7583-reset.h b/include/dt-bindings/reset/airoha,an7583-reset.h
-new file mode 100644
-index 00000000000..be80d0e0bf5
 --- /dev/null
 +++ b/include/dt-bindings/reset/airoha,an7583-reset.h
 @@ -0,0 +1,62 @@
@@ -168,6 +163,3 @@ index 00000000000..be80d0e0bf5
 +#define AN7583_XPON_MAC_RST		48
 +
 +#endif /* __DT_BINDINGS_RESET_CONTROLLER_AIROHA_AN7583_H_ */
--- 
-2.53.0
-

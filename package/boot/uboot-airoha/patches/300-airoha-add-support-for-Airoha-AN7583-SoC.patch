@@ -32,9 +32,6 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  create mode 100644 configs/an7583_evb_defconfig
  create mode 100644 include/configs/an7583.h
 
-diff --git a/arch/arm/dts/an7583-evb.dts b/arch/arm/dts/an7583-evb.dts
-new file mode 100644
-index 00000000000..d02cd194e8a
 --- /dev/null
 +++ b/arch/arm/dts/an7583-evb.dts
 @@ -0,0 +1,67 @@
@@ -105,9 +102,6 @@ index 00000000000..d02cd194e8a
 +&snfi {
 +	status = "okay";
 +};
-diff --git a/arch/arm/dts/an7583.dtsi b/arch/arm/dts/an7583.dtsi
-new file mode 100644
-index 00000000000..9362d2fbedf
 --- /dev/null
 +++ b/arch/arm/dts/an7583.dtsi
 @@ -0,0 +1,387 @@
@@ -498,8 +492,6 @@ index 00000000000..9362d2fbedf
 +		};
 +	};
 +};
-diff --git a/arch/arm/mach-airoha/Kconfig b/arch/arm/mach-airoha/Kconfig
-index 4b0374001d0..72cd1454208 100644
 --- a/arch/arm/mach-airoha/Kconfig
 +++ b/arch/arm/mach-airoha/Kconfig
 @@ -29,19 +29,33 @@ config TARGET_AN7581
@@ -536,8 +528,6 @@ index 4b0374001d0..72cd1454208 100644
  
  endif
  
-diff --git a/arch/arm/mach-airoha/Makefile b/arch/arm/mach-airoha/Makefile
-index 91395b8a850..51d82ea3e21 100644
 --- a/arch/arm/mach-airoha/Makefile
 +++ b/arch/arm/mach-airoha/Makefile
 @@ -4,3 +4,4 @@ obj-y	+= cpu.o
@@ -545,18 +535,12 @@ index 91395b8a850..51d82ea3e21 100644
  obj-$(CONFIG_TARGET_EN7523) += en7523/
  obj-$(CONFIG_TARGET_AN7581) += an7581/
 +obj-$(CONFIG_TARGET_AN7583) += an7583/
-diff --git a/arch/arm/mach-airoha/an7583/Makefile b/arch/arm/mach-airoha/an7583/Makefile
-new file mode 100644
-index 00000000000..886ab7e4eb9
 --- /dev/null
 +++ b/arch/arm/mach-airoha/an7583/Makefile
 @@ -0,0 +1,3 @@
 +# SPDX-License-Identifier:	GPL-2.0
 +
 +obj-y += init.o
-diff --git a/arch/arm/mach-airoha/an7583/init.c b/arch/arm/mach-airoha/an7583/init.c
-new file mode 100644
-index 00000000000..4cf7f8caf85
 --- /dev/null
 +++ b/arch/arm/mach-airoha/an7583/init.c
 @@ -0,0 +1,66 @@
@@ -626,9 +610,6 @@ index 00000000000..4cf7f8caf85
 +	}
 +};
 +struct mm_region *mem_map = an7583_mem_map;
-diff --git a/board/airoha/an7583/MAINTAINERS b/board/airoha/an7583/MAINTAINERS
-new file mode 100644
-index 00000000000..71ee542a8bc
 --- /dev/null
 +++ b/board/airoha/an7583/MAINTAINERS
 @@ -0,0 +1,5 @@
@@ -637,18 +618,12 @@ index 00000000000..71ee542a8bc
 +S:	Maintained
 +N:      airoha
 +N:      an7583
-diff --git a/board/airoha/an7583/Makefile b/board/airoha/an7583/Makefile
-new file mode 100644
-index 00000000000..d582684d1f7
 --- /dev/null
 +++ b/board/airoha/an7583/Makefile
 @@ -0,0 +1,3 @@
 +# SPDX-License-Identifier:	GPL-2.0
 +
 +obj-y	+= an7583_rfb.o
-diff --git a/board/airoha/an7583/an7583_rfb.c b/board/airoha/an7583/an7583_rfb.c
-new file mode 100644
-index 00000000000..aa73679d929
 --- /dev/null
 +++ b/board/airoha/an7583/an7583_rfb.c
 @@ -0,0 +1,16 @@
@@ -668,9 +643,6 @@ index 00000000000..aa73679d929
 +
 +	return 0;
 +}
-diff --git a/configs/an7583_evb_defconfig b/configs/an7583_evb_defconfig
-new file mode 100644
-index 00000000000..16466be51b2
 --- /dev/null
 +++ b/configs/an7583_evb_defconfig
 @@ -0,0 +1,79 @@
@@ -753,9 +725,6 @@ index 00000000000..16466be51b2
 +CONFIG_DM_SPI=y
 +CONFIG_AIROHA_SNFI_SPI=y
 +CONFIG_SHA512=y
-diff --git a/include/configs/an7583.h b/include/configs/an7583.h
-new file mode 100644
-index 00000000000..c865afea1a2
 --- /dev/null
 +++ b/include/configs/an7583.h
 @@ -0,0 +1,19 @@
@@ -778,6 +747,3 @@ index 00000000000..c865afea1a2
 +#define CFG_SYS_SDRAM_BASE		0x80000000
 +
 +#endif
--- 
-2.53.0
-

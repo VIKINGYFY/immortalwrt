@@ -15,7 +15,11 @@ endef
 
 include $(INCLUDE_DIR)/target.mk
 
-DEFAULT_PACKAGES += uboot-envtools partx-utils mkf2fs kmod-gpio-button-hotplug fdisk automount cpufreq kmod-phy-realtek kmod-usb3 kmod-usb-dwc3
+DEFAULT_PACKAGES += \
+	autocore automount cpufreq e2fsprogs f2fs-tools losetup luci uboot-envtools wpad-openssl \
+	kmod-gpio-button-hotplug kmod-leds-gpio kmod-leds-pwm \
+	kmod-fs-ext4 kmod-fs-f2fs kmod-usb3 kmod-usb-dwc3 \
+	partx-utils kmod-phy-realtek
 
 KERNELNAME:=Image dtbs
 
