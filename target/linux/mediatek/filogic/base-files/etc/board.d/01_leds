@@ -59,6 +59,9 @@ bananapi,bpi-r4-poe)
 bananapi,bpi-r4-lite)
 	ucidef_set_led_netdev "sfp0" "sfp0" "green:sfp" "sfp0" "link tx rx"
 	;;
+bananapi,bpi-r4-pro-8x)
+	ucidef_set_led_netdev "lan5" "lan5" "mt7530-0:00:yellow" "lan5" "link tx rx"
+	;;
 bazis,ax3000wm)
 	ucidef_set_led_netdev "wanact" "WANACT" "mdio-bus:05:amber:wan" "eth0" "rx tx"
 	ucidef_set_led_netdev "wanlink" "WANLINK" "mdio-bus:05:green:wan" "eth0" "link"
@@ -181,17 +184,13 @@ livinet,li320)
 	ucidef_set_led_netdev "wan-off" "wan-off" "red:wan" "wan" "link"
 	ucidef_set_led_netdev "wan" "wan" "green:wan" "wan" "link"
 	;;
-mercusys,mr80x-v3)
+mercusys,mr80x-v3|\
+mercusys,mr85x|\
+mercusys,mr85x-ubi)
 	ucidef_set_led_netdev "lan1" "lan-1" "green:lan-1" "lan1" "link tx rx"
 	ucidef_set_led_netdev "lan2" "lan-2" "green:lan-2" "lan2" "link tx rx"
 	ucidef_set_led_netdev "lan3" "lan-3" "green:lan-3" "lan3" "link tx rx"
 	ucidef_set_led_netdev "wan" "wan" "green:wan" "wan" "link tx rx"
-	;;
-mercusys,mr85x)
-	ucidef_set_led_switch "lan0" "lan-0" "green:lan-0" "switch0" "0x01"
-	ucidef_set_led_switch "lan1" "lan-1" "green:lan-1" "switch0" "0x02"
-	ucidef_set_led_switch "lan2" "lan-2" "green:lan-2" "switch0" "0x04"
-	ucidef_set_led_netdev "wan" "wan" "green:wan" "eth1" "link tx rx"
 	;;
 mercusys,mr90x-v1|\
 mercusys,mr90x-v1-ubi)
