@@ -242,6 +242,9 @@ static void ppe_acl_slice_write(struct qca_ppe_priv *priv, u32 index,
 #define PPE_ACL_MATCH_KEYS					\
 	(BIT_ULL(FLOW_DISSECTOR_KEY_CONTROL) |			\
 	 BIT_ULL(FLOW_DISSECTOR_KEY_BASIC) |			\
+	 BIT_ULL(FLOW_DISSECTOR_KEY_VLAN) |			\
+	 BIT_ULL(FLOW_DISSECTOR_KEY_CVLAN) |			\
+	 BIT_ULL(FLOW_DISSECTOR_KEY_PPPOE) |			\
 	 BIT_ULL(FLOW_DISSECTOR_KEY_ETH_ADDRS) |		\
 	 BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |		\
 	 BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |		\
@@ -359,6 +362,7 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 {
 	struct ppe_acl_slice *s;
 	u8 sip_type, dip_type;
+	u16 addr_type = 0;
 	__be16 proto = 0;
 	int n = 0;
 
@@ -371,6 +375,7 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 		struct flow_match_control match;
 
 		flow_rule_match_control(rule, &match);
+		addr_type = match.key->addr_type;
 		if (!flow_rule_is_supp_control_flags(FLOW_DIS_IS_FRAGMENT,
 						     match.mask->flags, extack))
 			return -EOPNOTSUPP;
@@ -396,16 +401,25 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 				NL_SET_ERR_MSG_MOD(extack, "the protocol is matched whole or not at all");
 				return -EOPNOTSUPP;
 			}
-			proto = match.key->n_proto;
-			if (proto != htons(ETH_P_IP) &&
-			    proto != htons(ETH_P_IPV6)) {
-				NL_SET_ERR_MSG_MOD(extack, "only IPv4 and IPv6 are matched by protocol");
-				return -EOPNOTSUPP;
+			/* One bit tells the two IP versions apart, and the
+			 * rule type that carries an ethertype names anything
+			 * else.
+			 */
+			if (match.key->n_proto == htons(ETH_P_IP) ||
+			    match.key->n_proto == htons(ETH_P_IPV6)) {
+				proto = match.key->n_proto;
+				s = ppe_acl_slice_get(slice, &n,
+						      PPE_ACL_TYPE_IPMISC);
+				if (proto == htons(ETH_P_IPV6))
+					s->key[1] |= PPE_ACL_IS_IPV6;
+				s->mask[1] |= PPE_ACL_IS_IPV6;
+			} else {
+				s = ppe_acl_slice_get(slice, &n,
+						      PPE_ACL_TYPE_L2MISC);
+				s->key[0] |= FIELD_PREP(PPE_ACL_L2_PROT,
+						ntohs(match.key->n_proto));
+				s->mask[0] |= PPE_ACL_L2_PROT;
 			}
-			s = ppe_acl_slice_get(slice, &n, PPE_ACL_TYPE_IPMISC);
-			if (proto == htons(ETH_P_IPV6))
-				s->key[1] |= PPE_ACL_IS_IPV6;
-			s->mask[1] |= PPE_ACL_IS_IPV6;
 		}
 		if (match.mask->ip_proto) {
 			s = ppe_acl_slice_get(slice, &n, PPE_ACL_TYPE_IPMISC);
@@ -413,6 +427,64 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 						match.key->ip_proto);
 			s->mask[0] |= FIELD_PREP(PPE_ACL_L3_PROT,
 						 match.mask->ip_proto);
+		}
+	}
+
+	/* A lone 802.1Q tag classifies into the C slot, which is where the
+	 * bridge's own translation rules key it, and these ports carry no
+	 * service tag: a second tag or an 802.1ad one is never classified, so
+	 * a filter naming either has nothing to match. The format field holds
+	 * one frame format rather than a bitmap of accepted ones.
+	 */
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
+		struct flow_match_vlan match;
+
+		if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN)) {
+			NL_SET_ERR_MSG_MOD(extack, "the ports classify one tag, not two");
+			return -EOPNOTSUPP;
+		}
+
+		flow_rule_match_vlan(rule, &match);
+		if (match.key->vlan_tpid != htons(ETH_P_8021Q)) {
+			NL_SET_ERR_MSG_MOD(extack, "only an 802.1Q tag is classified");
+			return -EOPNOTSUPP;
+		}
+
+		s = ppe_acl_slice_get(slice, &n, PPE_ACL_TYPE_VLAN);
+		if (match.mask->vlan_id) {
+			s->key[0] |= FIELD_PREP(PPE_ACL_CVID,
+						match.key->vlan_id);
+			s->mask[0] |= FIELD_PREP(PPE_ACL_CVID,
+						 match.mask->vlan_id);
+		}
+		if (match.mask->vlan_priority) {
+			s->key[0] |= FIELD_PREP(PPE_ACL_CPCP,
+						match.key->vlan_priority);
+			s->mask[0] |= FIELD_PREP(PPE_ACL_CPCP,
+						 match.mask->vlan_priority);
+		}
+		s->key[1] |= FIELD_PREP(PPE_ACL_CTAG_FMT, PPE_ACL_TAG_TAGGED) |
+			     FIELD_PREP(PPE_ACL_STAG_FMT, PPE_ACL_TAG_UNTAGGED);
+		s->mask[1] |= PPE_ACL_CTAG_FMT | PPE_ACL_STAG_FMT;
+	}
+
+	/* tc rewrites the frame's protocol to the one the session carries, so
+	 * the session ethertype comes from the PPPoE key itself.
+	 */
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PPPOE)) {
+		struct flow_match_pppoe match;
+
+		flow_rule_match_pppoe(rule, &match);
+		s = ppe_acl_slice_get(slice, &n, PPE_ACL_TYPE_L2MISC);
+		s->key[0] |= FIELD_PREP(PPE_ACL_L2_PROT,
+					ntohs(match.key->type));
+		s->mask[0] |= FIELD_PREP(PPE_ACL_L2_PROT,
+					 ntohs(match.mask->type));
+		if (match.mask->session_id) {
+			s->key[1] |= FIELD_PREP(PPE_ACL_PPPOE_SID,
+						ntohs(match.key->session_id));
+			s->mask[1] |= FIELD_PREP(PPE_ACL_PPPOE_SID,
+						 ntohs(match.mask->session_id));
 		}
 	}
 
@@ -484,7 +556,13 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 		dip_type = PPE_ACL_TYPE_IPV4_DIP;
 	}
 
-	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV4_ADDRS)) {
+	/* Which of the two address keys carries the filter's addresses is the
+	 * control key's to say. A dissector that offers both answers for the
+	 * one it does not hold out of the memory the other occupies, and the
+	 * entries that come back match no frame of either family.
+	 */
+	if (addr_type == FLOW_DISSECTOR_KEY_IPV4_ADDRS &&
+	    flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV4_ADDRS)) {
 		struct flow_match_ipv4_addrs match;
 
 		flow_rule_match_ipv4_addrs(rule, &match);
@@ -512,7 +590,8 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 		}
 	}
 
-	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS)) {
+	if (addr_type == FLOW_DISSECTOR_KEY_IPV6_ADDRS &&
+	    flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS)) {
 		struct flow_match_ipv6_addrs match;
 
 		flow_rule_match_ipv6_addrs(rule, &match);
@@ -757,6 +836,36 @@ static int ppe_acl_parse_action(struct qca_ppe_priv *priv,
 			}
 			act[3] |= PPE_ACL_QID_EN |
 				  FIELD_PREP(PPE_ACL_QID, a->queue.index);
+			break;
+		case FLOW_ACTION_VLAN_POP:
+			/* The format bit beside the change enable is the whole
+			 * choice: the frame leaves without the tag.
+			 */
+			ppe_entry_set(act, PPE_ACL_ACT_CVID_EN_OFF,
+				      PPE_ACL_ACT_EN_LEN, 1);
+			break;
+		case FLOW_ACTION_VLAN_PUSH:
+		case FLOW_ACTION_VLAN_MANGLE:
+			/* A push and a replace are the same write: whether a
+			 * tag was already there is the frame's business, not
+			 * the rule's. tc carries a priority with either,
+			 * named by the filter or defaulted, so both fields of
+			 * the tag are rewritten together.
+			 */
+			if (a->vlan.proto != htons(ETH_P_8021Q)) {
+				NL_SET_ERR_MSG_MOD(extack, "only an 802.1Q tag is edited");
+				return -EOPNOTSUPP;
+			}
+			ppe_entry_set(act, PPE_ACL_ACT_CVID_EN_OFF,
+				      PPE_ACL_ACT_EN_LEN, 1);
+			ppe_entry_set(act, PPE_ACL_ACT_CTAG_FMT_OFF,
+				      PPE_ACL_ACT_EN_LEN, PPE_ACL_ACT_TAG_KEEP);
+			ppe_entry_set(act, PPE_ACL_ACT_CVID_OFF,
+				      PPE_ACL_ACT_VID_LEN, a->vlan.vid);
+			ppe_entry_set(act, PPE_ACL_ACT_CPCP_EN_OFF,
+				      PPE_ACL_ACT_EN_LEN, 1);
+			ppe_entry_set(act, PPE_ACL_ACT_CPCP_OFF,
+				      PPE_ACL_ACT_PCP_LEN, a->vlan.prio);
 			break;
 		case FLOW_ACTION_MANGLE: {
 			enum flow_action_mangle_base htype = a->mangle.htype;

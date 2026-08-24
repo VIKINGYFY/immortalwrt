@@ -285,22 +285,17 @@ int qca_ppe_port_vlan_add(struct dsa_switch *ds, int port,
 			return -ENOSPC;
 	}
 
-	/* Every index this call needs is taken before anything is programmed.
-	 * The bridge issues no del for an add it refused, so a table that runs
-	 * out halfway would leave the port classified into a VSI whose member
-	 * set does not name it, and its frames dropped by member filtering.
-	 */
 	if (entry->xlt_idx < 0) {
 		idx = ppe_xlt_idx_alloc(priv);
 		if (idx < 0)
-			goto err;
+			goto err_free_entry;
 		entry->xlt_idx = idx;
 	}
 
 	if (pvid && entry->xlt_pvid_idx < 0) {
 		idx = ppe_xlt_idx_alloc(priv);
 		if (idx < 0)
-			goto err;
+			goto err_free_entry;
 		entry->xlt_pvid_idx = idx;
 	}
 
@@ -348,10 +343,9 @@ int qca_ppe_port_vlan_add(struct dsa_switch *ds, int port,
 
 	return 0;
 
-err:
+err_free_entry:
 	if (!entry->ports)
 		ppe_vlan_free(priv, entry);
-
 	return -ENOSPC;
 }
 

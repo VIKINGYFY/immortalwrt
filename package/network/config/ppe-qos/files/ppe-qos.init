@@ -259,10 +259,10 @@ wifi_small_pkt() {
 
 	tc filter add dev "$dev" egress pref $PREF_BASE protocol ip u32 \
 		match u16 0x0000 0xff00 at 2 \
-		action skbedit priority $((256 + prio)) 2>/dev/null
+		action skbedit priority $(printf '%x' $((256 + prio))) 2>/dev/null
 	tc filter add dev "$dev" egress pref $((PREF_BASE + 1)) \
 		protocol ipv6 u32 match u16 0x0000 0xff00 at 4 \
-		action skbedit priority $((256 + prio)) 2>/dev/null
+		action skbedit priority $(printf '%x' $((256 + prio))) 2>/dev/null
 }
 
 wifi_clear() {
