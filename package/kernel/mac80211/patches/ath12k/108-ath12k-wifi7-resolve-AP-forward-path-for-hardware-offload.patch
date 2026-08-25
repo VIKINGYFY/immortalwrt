@@ -22,7 +22,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -1097,6 +1097,23 @@ static void ath12k_wifi7_mac_op_tx(struc
+@@ -1112,6 +1112,23 @@ skip_peer_find:
  	}
  }
  
@@ -46,7 +46,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static const struct ieee80211_ops ath12k_ops_wifi7 = {
  	.tx				= ath12k_wifi7_mac_op_tx,
  	.wake_tx_queue			= ieee80211_handle_wake_tx_queue,
-@@ -1141,6 +1158,7 @@ static const struct ieee80211_ops ath12k
+@@ -1157,6 +1174,7 @@ static const struct ieee80211_ops ath12k
  	.cancel_remain_on_channel       = ath12k_mac_op_cancel_remain_on_channel,
  	.change_sta_links               = ath12k_mac_op_change_sta_links,
  	.can_activate_links             = ath12k_mac_op_can_activate_links,

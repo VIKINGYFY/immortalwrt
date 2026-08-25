@@ -17,10 +17,8 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  drivers/net/ethernet/qualcomm/ppe/ppe.c  | 59 +++++++++++++++++++++-----
  2 files changed, 86 insertions(+), 17 deletions(-)
 
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
 @@ -86,6 +86,34 @@ static const char * const clock_name[EDM
  	[EDMA_APB_CLK] = "apb",
  };
@@ -74,7 +72,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
  /* HW info for IPQ9574. */
  static struct edma_hw_info ipq9574_hw_info = {
  	.rxfill = &ipq9574_rxfill_ring_info,
-@@ -850,7 +889,11 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -848,7 +887,11 @@ int edma_setup(struct ppe_device *ppe_de
  	if (!edma_ctx)
  		return -ENOMEM;
  
@@ -87,10 +85,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
  	edma_ctx->ppe_dev = ppe_dev;
  	edma_ctx->rx_buf_size = rx_buff_size;
  
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
 @@ -26,7 +26,30 @@
  /* ICC clocks for enabling PPE device. The avg_bw and peak_bw with value 0
   * will be updated by the clock rate of PPE.

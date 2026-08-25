@@ -22,10 +22,8 @@ the base index of its double-width entry.
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 @@ -3,8 +3,9 @@
  
  /* Low level accessors of the PPE L3 flow engine.
@@ -102,10 +100,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
  }
  
  int ppe_host_entry_add(struct ppe_device *ppe_dev,
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 @@ -12,6 +12,7 @@
  #define __PPE_FLOW_H__
  
@@ -146,10 +142,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
  	__be16 sport;
  	__be16 dport;
  	u8 proto;
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -112,7 +112,11 @@ struct ppe_ft_flow {
   */
  struct ppe_ft_host {
@@ -635,10 +629,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  		seq_printf(seq,
  			   " proto:%u index:%d valid:%u host:%u host_dst:%u nexthop:%u packets:%u bytes:%llu\n",
  			   flow->entry.proto, flow->index,
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -644,6 +644,14 @@
  #define PPE_HOST_W0_LAN_WAN			BIT(20)
  #define PPE_HOST_W1_IP_ADDR			GENMASK(31, 0)

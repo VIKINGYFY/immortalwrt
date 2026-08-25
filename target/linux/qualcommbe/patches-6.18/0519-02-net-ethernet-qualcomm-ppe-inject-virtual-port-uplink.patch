@@ -45,10 +45,8 @@ drives it follows - so this is dormant on its own.
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
 @@ -18,6 +18,7 @@
  #include <linux/reset.h>
  
@@ -94,7 +92,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
  }
  
  /**
-@@ -896,6 +920,7 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -894,6 +918,7 @@ int edma_setup(struct ppe_device *ppe_de
  
  	edma_ctx->ppe_dev = ppe_dev;
  	edma_ctx->has_vports = ppe_dev->variant->has_vports;
@@ -102,10 +100,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
  	edma_ctx->rx_buf_size = rx_buff_size;
  
  	edma_ctx->tx_requeue_stop = false;
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.h
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
 @@ -122,11 +122,14 @@ struct edma_intr_info {
   * @tx_rings: Tx Descriptor Ring, SW is producer
   * @txcmpl_rings: Tx complete Ring, SW is consumer
@@ -140,10 +136,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.h
  /* Global EDMA context. */
  extern struct edma_context *edma_ctx;
  
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 @@ -234,7 +234,7 @@ static netdev_tx_t edma_port_xmit(struct
  	result = edma_tx_gso_segment(skb, dev, &segs);
  	if (likely(result == EDMA_TX_GSO_NOT_NEEDED)) {
@@ -174,10 +168,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.c
  
  	return NETDEV_TX_OK;
  }
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 @@ -86,6 +86,30 @@ enum edma_tx_gso_status edma_tx_gso_segm
  	return EDMA_TX_GSO_SUCCEED;
  }
@@ -402,10 +394,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 +	rcu_read_unlock();
 +	return ret == EDMA_TX_OK ? 0 : -EBUSY;
 +}
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
 @@ -53,6 +53,35 @@
  	(EDMA_DST_PORT_TYPE_SET(EDMA_DST_PORT_BITMAP_TYPE) | \
  	 EDMA_DST_PORT_ID_SET(x)))

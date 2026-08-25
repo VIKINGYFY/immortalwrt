@@ -11,12 +11,17 @@ Signed-off-by: VKing <noreply@openwrt.local>
 ---
 --- a/net/dsa/tag_vsc73xx_8021q.c
 +++ b/net/dsa/tag_vsc73xx_8021q.c
-@@ -23,2 +23,2 @@ vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
+@@ -20,10 +20,11 @@ vsc73xx_xmit(struct sk_buff *skb, struct
+ 		unsigned int bridge_num = dsa_port_bridge_num_get(dp);
+ 		struct net_device *br = dsa_port_bridge_dev_get(dp);
+ 
 -		if (br_vlan_enabled(br))
 +		if (br && br_vlan_enabled(br))
  			return skb;
-@@ -26,2 +26,3 @@ vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
+ 
 -		tx_vid = dsa_tag_8021q_bridge_vid(bridge_num);
 +		if (br)
 +			tx_vid = dsa_tag_8021q_bridge_vid(bridge_num);
  	}
+ 
+ 	pcp = netdev_txq_to_tc(netdev, queue_mapping);

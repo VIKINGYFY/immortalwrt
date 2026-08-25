@@ -39,10 +39,8 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  create mode 100644 drivers/net/ethernet/qualcomm/ppe/ppe_api.c
  create mode 100644 drivers/net/ethernet/qualcomm/ppe/ppe_api.h
 
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/Makefile
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/Makefile
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/Makefile
+--- a/drivers/net/ethernet/qualcomm/ppe/Makefile
++++ b/drivers/net/ethernet/qualcomm/ppe/Makefile
 @@ -4,7 +4,7 @@
  #
  
@@ -52,10 +50,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/Makefile
  
  #EDMA
  qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o edma_ethtool.o
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 - /* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -256,7 +252,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
  	ret = edma_cfg_rx_rps_hash_map();
  	if (ret) {
  		pr_err("Failed to configure rps hash table: %d\n",
-@@ -803,14 +780,13 @@ void edma_destroy(struct ppe_device *ppe
+@@ -803,14 +778,13 @@ void edma_destroy(struct ppe_device *ppe
  		edma_ctx->rx_rps_ctl_table_hdr = NULL;
  	}
  
@@ -272,7 +268,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
  	for (i = 0; i < txcmpl->num_rings; i++) {
  		synchronize_irq(edma_ctx->intr_info.intr_txcmpl[i]);
  
-@@ -820,7 +796,7 @@ void edma_destroy(struct ppe_device *ppe
+@@ -820,7 +794,7 @@ void edma_destroy(struct ppe_device *ppe
  	}
  	kfree(edma_txcmpl_irq_name);
  
@@ -281,7 +277,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
  	for (i = 0; i < rx->num_rings; i++) {
  		synchronize_irq(edma_ctx->intr_info.intr_rx[i]);
  		free_irq(edma_ctx->intr_info.intr_rx[i],
-@@ -861,7 +837,7 @@ static struct ctl_table edma_rx_rps_core
+@@ -861,7 +835,7 @@ static struct ctl_table edma_rx_rps_core
   * edma_setup - EDMA Setup.
   * @ppe_dev: PPE device
   *
@@ -290,7 +286,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
   *
   * Return 0 on success, negative error code on failure.
   */
-@@ -889,22 +865,19 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -889,22 +863,19 @@ int edma_setup(struct ppe_device *ppe_de
  		return -EINVAL;
  	}
  
@@ -315,7 +311,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
  	if (ret) {
  		dev_err(dev, "Error in irq initialization\n");
  		return ret;
-@@ -925,70 +898,3 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -925,70 +896,3 @@ int edma_setup(struct ppe_device *ppe_de
  
  	return 0;
  }
@@ -386,10 +382,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
 -
 -	return ppe_ring_queue_map_set(ppe_dev, ring_id, queue_bmap);
 -}
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.h
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
 @@ -1,13 +1,13 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -455,10 +449,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.h
 -
 -
  #endif
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -686,10 +678,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
  		if (ret)
  			return ret;
  
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -714,10 +704,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
  		    void *buffer, size_t *lenp, loff_t *ppos);
  int edma_cfg_rx_rps_bitmap(const struct ctl_table *table, int write,
  			   void *buffer, size_t *lenp, loff_t *ppos);
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -816,10 +804,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
  	}
  
  	netdev_dbg(netdev, "Tx NAPI budget: %d\n", edma_tx_napi_budget);
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -827,10 +813,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
   */
  
  #ifndef __EDMA_CFG_TX__
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -838,10 +822,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
   */
  
  /* EDMA debugfs routines for display of Tx/Rx counters. */
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -892,10 +874,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
  };
  
  /**
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 - /* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -985,10 +965,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.c
  	return ret;
  
  register_netdev_fail:
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_port.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.h
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1005,10 +983,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.h
   * @rx_pkts: Number of Rx packets
   * @rx_bytes: Number of Rx bytes
   * @rx_drops: Number of Rx drops
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1242,10 +1218,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
  
  		/* Update consumer index. */
  		cons_idx = (cons_idx + 1) & EDMA_RX_RING_SIZE_MASK;
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1253,10 +1227,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
   */
  
  #ifndef __EDMA_RX__
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1466,10 +1438,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_PROD_IDX(txdesc_ring->id);
  	regmap_write(regmap, reg, txdesc_ring->prod_idx);
  
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1540,10 +1510,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
   * @napi: NAPI
   * @cons_idx: Consumer index
   * @avail_pkt: Number of available packets to process
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
 @@ -229,11 +229,9 @@ static void qcom_ppe_remove(struct platf
  	struct ppe_device *ppe_dev;
  
@@ -1557,10 +1525,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
  }
  
  static const struct of_device_id qcom_ppe_of_match[] = {
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
 @@ -13,6 +13,8 @@ struct device;
  struct regmap;
  struct dentry;
@@ -1570,10 +1536,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.h
  /**
   * struct ppe_device - PPE device private data.
   * @dev: PPE device structure.
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.c
-===================================================================
 --- /dev/null
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_api.c
 @@ -0,0 +1,113 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
@@ -1688,10 +1652,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.c
 +
 +	return ppe_ring_queue_map_set(ppe_dev, ring_id, queue_bmap);
 +}
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.h
-===================================================================
 --- /dev/null
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_api.h
 @@ -0,0 +1,43 @@
 +/* SPDX-License-Identifier: GPL-2.0-only
 + *
@@ -1736,10 +1698,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.h
 +int ppe_edma_ring_to_queues_config(struct ppe_device *ppe_dev, int ring_id,
 +				   int num, int queues[]);
 +#endif
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 @@ -889,7 +889,7 @@ static int ppe_scheduler_l0_queue_map_se
  				  val);
  }
@@ -1849,10 +1809,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
  static int ppe_config_bm_threshold(struct ppe_device *ppe_dev, int bm_port_id,
  				   const struct ppe_bm_port_config port_cfg)
  {
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 @@ -294,8 +294,6 @@ int ppe_queue_scheduler_set(struct ppe_d
  int ppe_queue_scheduler_get(struct ppe_device *ppe_dev,
  			    int node_id, bool flow_level, int *port,
@@ -1862,10 +1820,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
  int ppe_queue_ucast_base_set(struct ppe_device *ppe_dev,
  			     struct ppe_queue_ucast_dest queue_dst,
  			     int queue_base,
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 @@ -1,16 +1,17 @@
  // SPDX-License-Identifier: GPL-2.0-only
  /*
@@ -2962,10 +2918,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
  		ppe_port_clock_deinit(ppe_port);
  	}
  }
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
 @@ -1,16 +1,23 @@
  /* SPDX-License-Identifier: GPL-2.0-only
   *
@@ -3035,10 +2989,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
 -int ppe_port_set_mac_eee(struct ppe_port *ppe_port, struct ethtool_keee *eee);
  int ppe_port_set_maxframe(struct ppe_port *ppe_port, int maxframe_size);
  #endif
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -20,16 +20,6 @@
  #define PPE_PORT5_SEL_PCS1			BIT(4)
  #define PPE_PORT_SEL_XGMAC(x)			(BIT(8) << ((x) - 1))

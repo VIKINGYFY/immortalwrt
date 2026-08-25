@@ -14,14 +14,12 @@ Signed-off-by: VKing <noreply@openwrt.local>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1773,9 +1773,9 @@
+@@ -1773,7 +1773,7 @@ int ppe_ing_xlt_rule_set(struct ppe_devi
  	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_FMT, PPE_XLT_FMT_UNTAGGED);
-
+ 
  	if (vid >= 0) {
 -		fmt = PPE_XLT_FMT_TAGGED;
 +		fmt = vid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
  		rule[1] |= PPE_XLT_RULE_W1_CKEY_VID_INCL;
  		rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_VID, vid);
  	} else {
- 		fmt = PPE_XLT_FMT_UNTAGGED | PPE_XLT_FMT_PRIO_TAGGED;
- 	}

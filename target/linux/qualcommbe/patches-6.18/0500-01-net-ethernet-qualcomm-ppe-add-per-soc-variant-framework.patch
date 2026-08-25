@@ -24,7 +24,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  #include <linux/platform_device.h>
  #include <linux/regmap.h>
  #include <linux/reset.h>
-@@ -229,6 +230,9 @@ static int qcom_ppe_probe(struct platfor
+@@ -228,6 +229,9 @@ static int qcom_ppe_probe(struct platfor
  		return dev_err_probe(dev, PTR_ERR(ppe_dev->regmap),
  				     "PPE initialize regmap failed\n");
  	ppe_dev->dev = dev;
@@ -34,7 +34,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	ppe_dev->clk_rate = PPE_CLK_RATE;
  	ppe_dev->num_ports = num_ports;
  	ppe_dev->num_icc_paths = num_icc;
-@@ -268,9 +272,25 @@ static void qcom_ppe_remove(struct platf
+@@ -267,9 +271,25 @@ static void qcom_ppe_remove(struct platf
  	edma_destroy(ppe_dev);
  }
  

@@ -96,7 +96,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include "ppe_port.h"
  
  #define PPE_PORT_MAX		8
-@@ -270,6 +271,15 @@ static int qcom_ppe_probe(struct platfor
+@@ -269,6 +270,15 @@ static int qcom_ppe_probe(struct platfor
  				     "PPE bridge offload setup failed\n");
  	}
  
@@ -112,7 +112,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
  
-@@ -282,6 +292,12 @@ static void qcom_ppe_remove(struct platf
+@@ -281,6 +291,12 @@ static void qcom_ppe_remove(struct platf
  
  	ppe_dev = platform_get_drvdata(pdev);
  	ppe_port_mac_deinit(ppe_dev);

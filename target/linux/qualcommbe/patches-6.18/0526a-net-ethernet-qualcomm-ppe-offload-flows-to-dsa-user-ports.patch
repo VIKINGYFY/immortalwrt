@@ -59,7 +59,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	u32 packets;
  	u64 bytes;
  };
-@@ -1778,6 +1783,42 @@ static void ppe_ft_flow_quarantine(struc
+@@ -1779,6 +1784,42 @@ static void ppe_ft_flow_quarantine(struc
  	list_add_tail(&flow->zombie_node, &ft->zombies);
  }
  
@@ -102,7 +102,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
  			       struct flow_cls_offload *f)
  {
-@@ -2147,6 +2188,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2148,6 +2189,7 @@ static int ppe_ft_flow_replace(struct pp
  	}
  	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
  	if (!tunnel_encap && !edma_port_dev_check(odev) &&
@@ -110,7 +110,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	    (!ft->ppe_dev->variant->has_vports ||
  	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
  		ret = -EOPNOTSUPP;
-@@ -2169,6 +2211,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2170,6 +2212,7 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	if (data.ingress_ifindex) {
  		struct net_device *idev;
@@ -118,7 +118,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		struct net_device *master;
  		int vp_ret = 0;
  
-@@ -2193,6 +2236,29 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2194,6 +2237,29 @@ static int ppe_ft_flow_replace(struct pp
  			struct edma_port_priv *ipriv = netdev_priv(idev);
  
  			iport = ipriv->ppe_port->port_id;
@@ -148,7 +148,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
  			reject_reason = PPE_FT_REJECT_INGRESS_VP;
-@@ -2201,6 +2267,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2202,6 +2268,7 @@ static int ppe_ft_flow_replace(struct pp
  			if (vp_ret >= 0)
  				flow->ivp = vp_ret;
  		}
@@ -156,7 +156,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		dev_put(idev);
  
  		if (vp_ret < 0) {
-@@ -2220,6 +2287,30 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2221,6 +2288,30 @@ static int ppe_ft_flow_replace(struct pp
  			port_priv = netdev_priv(odev);
  			nh.port = port_priv->ppe_port->port_id;
  			nh.l3_if = nh.port;
@@ -187,7 +187,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		} else {
  			ret = ppe_vp_get(ft->ppe_dev, odev,
  					 f->common.prio);
-@@ -2556,6 +2647,8 @@ err_prelock_ivp:
+@@ -2557,6 +2648,8 @@ err_prelock_ivp:
  err_free:
  	if (ret)
  		atomic_long_inc(&ft->rejects[reject_reason]);
@@ -196,7 +196,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	kfree_rcu(flow, rcu);
  
  	return ret;
-@@ -2588,6 +2681,8 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2589,6 +2682,8 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_tunnel_put(ft, flow->tunnel);
  		ppe_vp_put(ft->ppe_dev, flow->vp);
  		ppe_vp_put(ft->ppe_dev, flow->ivp);
@@ -205,7 +205,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2654,6 +2749,13 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -2655,6 +2750,13 @@ static int ppe_ft_flow_stats(struct ppe_
  		return -ENOENT;
  	}
  
@@ -219,7 +219,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	/* Hardware-forwarded packets never revalidate the route in
  	 * software, and the hit counter of a flow counts at ingress
  	 * lookup whether or not egress delivery still works: a flow
-@@ -3485,7 +3587,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3504,7 +3606,7 @@ int ppe_flowtable_setup(struct ppe_devic
  
  static void ppe_ft_flow_free(void *ptr, void *arg)
  {
@@ -228,7 +228,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  }
  
  /**
-@@ -3528,7 +3630,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3548,7 +3650,7 @@ void ppe_flowtable_destroy(struct ppe_de
  	rhashtable_free_and_destroy(&ft->flows, ppe_ft_flow_free, NULL);
  	list_for_each_entry_safe(flow, flow_tmp, &ft->zombies, zombie_node) {
  		list_del(&flow->zombie_node);

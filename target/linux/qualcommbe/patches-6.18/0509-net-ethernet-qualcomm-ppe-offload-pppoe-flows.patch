@@ -822,7 +822,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	rhashtable_walk_enter(&ft->flows, &iter);
  	rhashtable_walk_start(&iter);
  	while ((flow = rhashtable_walk_next(&iter))) {
-@@ -1677,6 +2104,7 @@ int ppe_flowtable_setup_tc(struct net_de
+@@ -1679,6 +2106,7 @@ int ppe_flowtable_setup_tc(struct net_de
   */
  int ppe_flowtable_setup(struct ppe_device *ppe_dev)
  {
@@ -830,7 +830,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct ppe_flowtable *ft;
  	int ret;
  
-@@ -1685,6 +2113,11 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -1687,6 +2115,11 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -842,7 +842,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	mutex_init(&ft->lock);
  	INIT_LIST_HEAD(&ft->block_cb_list);
  	INIT_LIST_HEAD(&ft->zombies);
-@@ -1696,8 +2129,30 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -1698,8 +2131,30 @@ int ppe_flowtable_setup(struct ppe_devic
  	}
  
  	hash_init(ft->hosts);
@@ -873,7 +873,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	return 0;
  }
  
-@@ -1725,7 +2180,17 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -1727,7 +2182,17 @@ void ppe_flowtable_destroy(struct ppe_de
  		return;
  
  	WARN_ON(!list_empty(&ft->block_cb_list));

@@ -48,7 +48,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include "ppe_port.h"
  
  #define PPE_PORT_MAX		8
-@@ -284,6 +285,16 @@ static int qcom_ppe_probe(struct platfor
+@@ -283,6 +284,16 @@ static int qcom_ppe_probe(struct platfor
  				     "PPE flowtable offload setup failed\n");
  	}
  
@@ -65,7 +65,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
  
-@@ -302,6 +313,7 @@ static void qcom_ppe_remove(struct platf
+@@ -301,6 +312,7 @@ static void qcom_ppe_remove(struct platf
  	 * ports still exist.
  	 */
  	ppe_flowtable_destroy(ppe_dev);

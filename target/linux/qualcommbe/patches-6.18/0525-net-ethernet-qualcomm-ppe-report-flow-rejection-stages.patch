@@ -54,7 +54,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  /* Refcounted hardware host entry. Its hardware-selected index is
   * carried explicitly by every flow which references it.
   */
-@@ -267,6 +294,7 @@ struct ppe_flowtable {
+@@ -268,6 +295,7 @@ struct ppe_flowtable {
  	atomic_long_t replace_unsupported;
  	atomic_long_t replace_failed;
  	atomic_long_t destroy_calls;
@@ -62,7 +62,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	DECLARE_HASHTABLE(hosts, PPE_FT_HOST_HASH_BITS);
  	DECLARE_BITMAP(nexthop_used, PPE_NEXTHOP_TBL_ENTRIES);
  	struct ppe_ft_my_mac my_macs[PPE_MY_MAC_TBL_ENTRIES];
-@@ -1762,6 +1790,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1763,6 +1791,7 @@ static int ppe_ft_flow_replace(struct pp
  	struct ppe_flow_nexthop nh = {};
  	struct ppe_ft_data data = {};
  	struct ppe_ft_flow *flow;
@@ -70,7 +70,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	int vlan_pops = 0;
  	struct in6_addr lwt_local = {}, lwt_remote = {};
  	u8 lwt_hop_limit = 0;
-@@ -1977,6 +2006,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1978,6 +2007,7 @@ static int ppe_ft_flow_replace(struct pp
  	data.sport = flow->entry.sport;
  	data.dport = flow->entry.dport;
  
@@ -78,7 +78,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	flow_action_for_each(i, act, &rule->action) {
  		switch (act->id) {
  		case FLOW_ACTION_REDIRECT:
-@@ -2076,6 +2106,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2077,6 +2107,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -86,7 +86,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (tunnel_flow) {
  		if (!odev) {
  			ret = -EOPNOTSUPP;
-@@ -2114,6 +2145,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2115,6 +2146,7 @@ static int ppe_ft_flow_replace(struct pp
  		ret = -EOPNOTSUPP;
  		goto err_tdev;
  	}
@@ -94,7 +94,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (!tunnel_encap && !edma_port_dev_check(odev) &&
  	    (!ft->ppe_dev->variant->has_vports ||
  	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
-@@ -2129,6 +2161,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2130,6 +2162,7 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_tdev;
  	}
  
@@ -102,7 +102,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* Resolve the ingress identity. Tagged physical ingress needs a VLAN
  	 * uplink. Wireless ingress takes its own VP reference so the mapping
  	 * and interception hook live for this direction independently of the
-@@ -2162,6 +2195,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2163,6 +2196,7 @@ static int ppe_ft_flow_replace(struct pp
  			iport = ipriv->ppe_port->port_id;
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
@@ -110,7 +110,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  			vp_ret = ppe_vp_get(ft->ppe_dev, idev,
  					    f->common.prio);
  			if (vp_ret >= 0)
-@@ -2180,6 +2214,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2181,6 +2215,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -118,7 +118,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (!tunnel_encap) {
  		if (edma_port_dev_check(odev)) {
  			port_priv = netdev_priv(odev);
-@@ -2232,6 +2267,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2233,6 +2268,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -126,7 +126,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* The hardware rewrites one direction per flow: the translated
  	 * source of SNAT comes from the public IP table, the translated
  	 * destination of DNAT from the next hop, and the translated L4
-@@ -2315,6 +2351,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2316,6 +2352,7 @@ static int ppe_ft_flow_replace(struct pp
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
  	}
  
@@ -134,7 +134,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* An ingress virtual port is an independent L3 endpoint.  A flow
  	 * may be accepted without its reverse direction, so it cannot rely
  	 * on the reverse rule to publish the bridge MAC or configure the VP
-@@ -2361,6 +2398,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2362,6 +2399,7 @@ static int ppe_ft_flow_replace(struct pp
  	 * entry of the slot terminates the reverse direction, whose
  	 * rule arrives as a plain flow of the inner tuple.
  	 */
@@ -142,7 +142,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (data.pppoe_sid >= 0) {
  		/* A PPPoE session is matched by an ingress physical-port
  		 * bitmap that cannot represent a virtual port, so a PPPoE
-@@ -2380,6 +2418,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2381,6 +2419,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  		nh.l3_if = ppe_ft_pppoe_l3_if(ft, flow->pppoe);
  	}
@@ -150,7 +150,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	/* The source MAC of this direction is the router MAC the
  	 * reverse direction ingresses on; the egress L3 interface
-@@ -2515,6 +2554,8 @@ err_prelock_ivp:
+@@ -2516,6 +2555,8 @@ err_prelock_ivp:
  	if (tdev)
  		dev_put(tdev);
  err_free:
@@ -159,7 +159,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	kfree_rcu(flow, rcu);
  
  	return ret;
-@@ -3180,7 +3221,7 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3181,7 +3222,7 @@ static int ppe_ft_flows_show(struct seq_
  	struct rhashtable_iter iter;
  	struct ppe_ft_flow *flow;
  	struct list_head *pos;
@@ -168,7 +168,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	mutex_lock(&ft->lock);
  	list_for_each(pos, &ft->zombies)
-@@ -3194,6 +3235,11 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3195,6 +3236,11 @@ static int ppe_ft_flows_show(struct seq_
  		   atomic_long_read(&ft->replace_unsupported),
  		   atomic_long_read(&ft->replace_failed),
  		   atomic_long_read(&ft->destroy_calls), zombies);
@@ -180,7 +180,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	rhashtable_walk_enter(&ft->flows, &iter);
  	rhashtable_walk_start(&iter);
-@@ -3225,10 +3271,11 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3226,10 +3272,11 @@ static int ppe_ft_flows_show(struct seq_
  				   &flow->entry.dip.ip4,
  				   be16_to_cpu(flow->entry.dport));
  		seq_printf(seq,

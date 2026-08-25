@@ -11,78 +11,118 @@ Signed-off-by: VKing <noreply@openwrt.local>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -45,1 +45,1 @@
+@@ -42,11 +42,11 @@ MODULE_PARM_DESC(rx_buff_size, "Rx Buffe
+ 
+ int edma_rx_napi_budget = EDMA_RX_NAPI_WORK_DEF;
+ module_param(edma_rx_napi_budget, int, 0444);
 -MODULE_PARM_DESC(edma_rx_napi_budget, "Rx NAPI budget (default:128, min:16, max:512)");
 +MODULE_PARM_DESC(edma_rx_napi_budget, "Rx NAPI budget (default:auto, min:16, max:kernel limit)");
-@@ -49,1 +49,1 @@
+ 
+ int edma_tx_napi_budget = EDMA_TX_NAPI_WORK_DEF;
+ module_param(edma_tx_napi_budget, int, 0444);
 -MODULE_PARM_DESC(edma_tx_napi_budget, "Tx NAPI budget (default:512 for ipq95xx, min:16, max:512)");
 +MODULE_PARM_DESC(edma_tx_napi_budget, "Tx NAPI budget (default:auto, min:16, max:kernel limit)");
+ 
+ int edma_rx_mitigation_pkt_cnt = EDMA_RX_MITIGATION_PKT_CNT_DEF;
+ module_param(edma_rx_mitigation_pkt_cnt, int, 0444);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-@@ -943,1 +943,2 @@
+@@ -941,19 +941,24 @@ void edma_cfg_rx_napi_add(void)
+ 	struct edma_hw_info *hw_info = edma_ctx->hw_info;
+ 	struct edma_ring_info *rx = hw_info->rx;
  	u32 i;
 +	int napi_budget;
-@@ -945,6 +946,10 @@
+ 
 -	if (edma_rx_napi_budget < EDMA_RX_NAPI_WORK_MIN ||
 -	    edma_rx_napi_budget > EDMA_RX_NAPI_WORK_MAX) {
--		pr_err("Incorrect Rx NAPI budget: %d, setting to default: %d",
--		       edma_rx_napi_budget, hw_info->napi_budget_rx);
--		edma_rx_napi_budget = hw_info->napi_budget_rx;
--	}
 +	napi_budget = edma_rx_napi_budget ?:
 +		min_t(int, hw_info->napi_budget_rx, NAPI_POLL_WEIGHT);
 +	if (napi_budget < EDMA_RX_NAPI_WORK_MIN ||
 +	    napi_budget > EDMA_RX_NAPI_WORK_MAX) {
-+		pr_err("Incorrect Rx NAPI budget: %d, setting to default: %d",
+ 		pr_err("Incorrect Rx NAPI budget: %d, setting to default: %d",
+-		       edma_rx_napi_budget, hw_info->napi_budget_rx);
+-		edma_rx_napi_budget = hw_info->napi_budget_rx;
 +		       napi_budget, min_t(int, hw_info->napi_budget_rx,
 +						  NAPI_POLL_WEIGHT));
 +		napi_budget = min_t(int, hw_info->napi_budget_rx,
 +				    NAPI_POLL_WEIGHT);
-+	}
-@@ -955,1 +960,1 @@
+ 	}
+ 
+ 	for (i = 0; i < rx->num_rings; i++) {
+ 		struct edma_rxdesc_ring *rxdesc_ring = &edma_ctx->rx_rings[i];
+ 
+ 		netif_napi_add_weight(edma_ctx->dummy_dev, &rxdesc_ring->napi,
 -				      edma_rx_napi_poll, hw_info->napi_budget_rx);
 +				      edma_rx_napi_poll, napi_budget);
+ 		rxdesc_ring->napi_added = true;
+ 	}
+ 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
-@@ -9,1 +9,1 @@
+@@ -6,13 +6,13 @@
+ #define __EDMA_CFG_RX__
+ 
+ /* Rx default NAPI budget */
 -#define EDMA_RX_NAPI_WORK_DEF		128
 +#define EDMA_RX_NAPI_WORK_DEF		0
-@@ -15,1 +15,1 @@
+ 
+ /* RX minimum NAPI budget */
+ #define EDMA_RX_NAPI_WORK_MIN		16
+ 
+ /* Rx maximum NAPI budget */
 -#define EDMA_RX_NAPI_WORK_MAX		512
 +#define EDMA_RX_NAPI_WORK_MAX		NAPI_POLL_WEIGHT
+ 
+ /* SKB payload size used in page mode */
+ #define EDMA_RX_PAGE_MODE_SKB_SIZE	256
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-@@ -653,1 +653,2 @@
+@@ -651,12 +651,17 @@ void edma_cfg_tx_napi_add(struct net_dev
+ 	struct edma_hw_info *hw_info = edma_ctx->hw_info;
+ 	struct edma_txcmpl_ring *txcmpl_ring;
  	u32 i, ring_idx;
 +	int napi_budget;
-@@ -655,6 +656,10 @@
+ 
 -	if (edma_tx_napi_budget < EDMA_TX_NAPI_WORK_MIN ||
 -	    edma_tx_napi_budget > EDMA_TX_NAPI_WORK_MAX) {
--		pr_err("Incorrect Tx NAPI budget: %d, setting to default: %d",
--		       edma_tx_napi_budget, hw_info->napi_budget_tx);
--		edma_tx_napi_budget = hw_info->napi_budget_tx;
--	}
 +	napi_budget = edma_tx_napi_budget ?:
 +		min_t(int, hw_info->napi_budget_tx, NAPI_POLL_WEIGHT);
 +	if (napi_budget < EDMA_TX_NAPI_WORK_MIN ||
 +	    napi_budget > EDMA_TX_NAPI_WORK_MAX) {
-+		pr_err("Incorrect Tx NAPI budget: %d, setting to default: %d",
+ 		pr_err("Incorrect Tx NAPI budget: %d, setting to default: %d",
+-		       edma_tx_napi_budget, hw_info->napi_budget_tx);
+-		edma_tx_napi_budget = hw_info->napi_budget_tx;
 +		       napi_budget, min_t(int, hw_info->napi_budget_tx,
 +						  NAPI_POLL_WEIGHT));
 +		napi_budget = min_t(int, hw_info->napi_budget_tx,
 +				    NAPI_POLL_WEIGHT);
-+	}
-@@ -667,1 +672,1 @@
+ 	}
+ 
+ 	/* Adding tx napi for a interface with each queue. */
+@@ -664,10 +669,10 @@ void edma_cfg_tx_napi_add(struct net_dev
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
+ 		netif_napi_add_weight(netdev, &txcmpl_ring->napi,
 -				      edma_tx_napi_poll, hw_info->napi_budget_tx);
 +				      edma_tx_napi_poll, napi_budget);
-@@ -672,1 +677,1 @@
+ 		txcmpl_ring->napi_added = true;
+ 		netdev_dbg(netdev, "Napi added for Tx cmpl ring: %u\n", txcmpl_ring->id);
+ 	}
+ 
 -	netdev_dbg(netdev, "Tx NAPI budget: %d\n", edma_tx_napi_budget);
 +	netdev_dbg(netdev, "Tx NAPI budget: %d\n", napi_budget);
+ }
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
-@@ -8,1 +8,1 @@
+@@ -5,9 +5,9 @@
+ #ifndef __EDMA_CFG_TX__
+ #define __EDMA_CFG_TX__
+ 
 -#define EDMA_TX_NAPI_WORK_DEF	512
 +#define EDMA_TX_NAPI_WORK_DEF	0
-@@ -10,1 +10,1 @@
+ #define EDMA_TX_NAPI_WORK_MIN	16
 -#define EDMA_TX_NAPI_WORK_MAX	512
 +#define EDMA_TX_NAPI_WORK_MAX	NAPI_POLL_WEIGHT
+ 
+ /* Tx mitigation timer's default value. */
+ #define EDMA_TX_MITIGATION_TIMER_DEF	250

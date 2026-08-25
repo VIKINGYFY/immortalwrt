@@ -102,7 +102,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ret = ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  	if (!ret && (packets != flow->packets || bytes != flow->bytes)) {
  		/* The hardware byte counter is 40 bits wide and wraps. */
-@@ -1435,6 +1451,26 @@ static int ppe_ft_block_cb(enum tc_setup
+@@ -1437,6 +1453,26 @@ static int ppe_ft_block_cb(enum tc_setup
  }
  
  /**

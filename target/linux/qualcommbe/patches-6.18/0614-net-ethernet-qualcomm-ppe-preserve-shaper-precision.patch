@@ -9,15 +9,13 @@ rate error.
 
 Scale the requested rate directly against the full CIR range and maximum
 rate, using the overflow-safe 64-bit multiply/divide helper. Reject an
-overflowing byte rate and clamp nonzero rates to one CIR credit. Add a
-configuration-path diagnostic with the selected token unit and CIR value.
-
-This follows QSDK qca-ssdk's 2026 precision correction while retaining the
-upstream-style PPE driver and its existing units.
+overflowing byte rate and clamp nonzero rates to one CIR credit.
 
 Signed-off-by: VKing <noreply@openwrt.local>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -11,6 +11,8 @@
  #include <linux/bitmap.h>
  #include <linux/bits.h>
  #include <linux/device.h>
@@ -26,7 +24,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  #include <linux/of.h>
  #include <linux/regmap.h>
  
-@@ -1877,13 +1879,17 @@
+@@ -1877,13 +1879,17 @@ int ppe_port_shaper_set(struct ppe_devic
  			u32 burst)
  {
  	u32 reg = PPE_PSCH_SHP_CFG_TBL_ADDR + PPE_PSCH_SHP_CFG_TBL_INC * port;
@@ -45,7 +43,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  
  	ret = regmap_read(ppe_dev->regmap, PPE_PSCH_SHP_SLOT_CFG_PORT_ADDR,
  			  &slot);
-@@ -1904,17 +1910,11 @@
+@@ -1904,17 +1910,11 @@ int ppe_port_shaper_set(struct ppe_devic
  				    FIELD_MAX(PPE_PSCH_SHP_W0_CBS), token) *
  			    1000;
  
@@ -65,14 +63,14 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		    (u64)burst * 1000 <= burst_max)
  			break;
  	}
-@@ -1922,8 +1922,13 @@
+@@ -1922,8 +1922,13 @@ int ppe_port_shaper_set(struct ppe_devic
  	if (i == ARRAY_SIZE(ppe_shaper_token_units))
  		return -ERANGE;
  
 -	val[0] = FIELD_PREP(PPE_PSCH_SHP_W0_CIR,
 -			    div_u64(rate_bits, rate_bit));
 +	/* Scaling against the full range avoids truncating the rate of one
-+	 * refresh credit drivers/net/ethernet/qualcomm/ppe/ppe_config.calculating the CIR field.
++	 * refresh credit when calculating the CIR field.
 +	 */
 +	cir = mul_u64_u64_div_u64(rate_bits,
 +				  FIELD_MAX(PPE_PSCH_SHP_W0_CIR), rate_max);

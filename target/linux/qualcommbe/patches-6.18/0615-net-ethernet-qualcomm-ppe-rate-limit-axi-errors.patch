@@ -14,7 +14,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -368,14 +368,16 @@
+@@ -368,14 +368,16 @@ static irqreturn_t edma_misc_handle_irq(
  	pr_debug("Received misc irq %d, status: %d\n", irq, misc_intr_status);
  
  	if (FIELD_GET(EDMA_MISC_AXI_RD_ERR_MASK, misc_intr_status)) {

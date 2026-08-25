@@ -746,7 +746,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
-@@ -2113,7 +2368,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -2115,7 +2370,7 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -755,7 +755,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		    PPE_IN_L3_IF_TBL_ENTRIES)) {
  		kfree(ft);
  		return -ERANGE;
-@@ -2188,6 +2443,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -2190,6 +2445,7 @@ void ppe_flowtable_destroy(struct ppe_de
  			continue;
  		if (ft->pppoe[i].connected)
  			ppe_pppoe_session_set(ft->ppe_dev, i, false, 0, NULL, 0);
