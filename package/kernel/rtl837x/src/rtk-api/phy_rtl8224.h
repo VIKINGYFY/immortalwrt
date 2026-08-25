@@ -18,13 +18,11 @@
 #ifndef __RTK_PHY_PHY_RTL8224__H__
 #define __RTK_PHY_PHY_RTL8224__H__
 
-#define PORT_NUM_IN_8224  (4)
+#define PORT_NUM_IN_8224 (4)
 
-#define RTL8224TOPDEVAD  (30)
-#define RTL8224BASEID  (0x1)
-#define RTL8224PHYID  (0x0)
-
-
+#define RTL8224TOPDEVAD (30)
+#define RTL8224BASEID (0x1)
+#define RTL8224PHYID (0x0)
 
 /* Function Name:
  *      phy_8224drv_mapper_get
@@ -71,7 +69,7 @@ extern ret_t phy_8224_ptp_portmask(rtk_portmask_t portmask);
  * Note:
  *      This API is used to initialize PTP status.
  */
-extern ret_t phy_8224_ptp_init(  rtk_portmask_t ptppmask);
+extern ret_t phy_8224_ptp_init(rtk_portmask_t ptppmask);
 
 /* Function Name:
  *      dal_rtl8371c_bypassptpEn_get
@@ -89,8 +87,7 @@ extern ret_t phy_8224_ptp_init(  rtk_portmask_t ptppmask);
  * Note:
  *      None
  */
-extern ret_t phy_8224_bypassptpEn_get( rtk_port_t port, rtk_enable_t *pEnable);
-
+extern ret_t phy_8224_bypassptpEn_get(rtk_port_t port, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      phy_8224_bypassptpEn_set
@@ -100,7 +97,7 @@ extern ret_t phy_8224_bypassptpEn_get( rtk_port_t port, rtk_enable_t *pEnable);
  *      port    - port id
  *      pEnable - status
  * Output:
-  *     None 
+  *     None
  * Return:
  *      RT_ERR_OK
  *      RT_ERR_FAILED
@@ -109,7 +106,7 @@ extern ret_t phy_8224_bypassptpEn_get( rtk_port_t port, rtk_enable_t *pEnable);
  * Note:
  *      None
  */
-extern ret_t phy_8224_bypassptpEn_set( rtk_port_t port, rtk_enable_t pEnable);
+extern ret_t phy_8224_bypassptpEn_set(rtk_port_t port, rtk_enable_t pEnable);
 
 /* Function Name:
  *      phy_8224_ptpEn_get
@@ -127,8 +124,7 @@ extern ret_t phy_8224_bypassptpEn_set( rtk_port_t port, rtk_enable_t pEnable);
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptpEn_get( rtk_port_t port, rtk_ptp_header_t type,rtk_enable_t *pEnable);
-
+extern ret_t phy_8224_ptpEn_get(rtk_port_t port, rtk_ptp_header_t type, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      phy_8224_ptpEn_get
@@ -146,7 +142,7 @@ extern ret_t phy_8224_ptpEn_get( rtk_port_t port, rtk_ptp_header_t type,rtk_enab
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptpEn_set( rtk_port_t port, rtk_ptp_header_t type,rtk_enable_t pEnable);
+extern ret_t phy_8224_ptpEn_set(rtk_port_t port, rtk_ptp_header_t type, rtk_enable_t pEnable);
 
 /* Function Name:
  *      phy_8224_ptp_tpid_set
@@ -226,7 +222,7 @@ extern ret_t phy_8224_ptp_Oper_get(rtk_time_operCfg_t *pOperCfg);
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_Oper_set( rtk_time_operCfg_t pOperCfg);
+extern ret_t phy_8224_ptp_Oper_set(rtk_time_operCfg_t pOperCfg);
 
 /* Function Name:
  *      dal_rtl8371c_ptp_LatchTime_get
@@ -246,7 +242,7 @@ extern ret_t phy_8224_ptp_Oper_set( rtk_time_operCfg_t pOperCfg);
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_LatchTime_get( rtk_time_timeStamp_t *pLatchTime);
+extern ret_t phy_8224_ptp_LatchTime_get(rtk_time_timeStamp_t *pLatchTime);
 
 /* Function Name:
  *      phy_8224_ptp_refTimeOp_set
@@ -284,7 +280,6 @@ extern ret_t phy_8224_ptp_refTimeOp_set(rtk_uint32 extoption);
  *      need gpio triger
  */
 extern ret_t phy_8224_ptp_refTime_set(rtk_time_timeStamp_t timeStamp);
-
 
 /* Function Name:
  *      phy_8224_ptp_refTime_get
@@ -324,7 +319,7 @@ extern ret_t phy_8224_ptp_refTime_get(rtk_time_timeStamp_t *pTimeStamp);
  * Note:
  *      sign=0 for positive adjustment, sign=1 for negative adjustment.
  */
-extern  ret_t phy_8224_ptp_refTimeAdjust_set( rtk_ptp_sys_adjust_t sign, rtk_time_timeStamp_t timeStamp);
+extern ret_t phy_8224_ptp_refTimeAdjust_set(rtk_ptp_sys_adjust_t sign, rtk_time_timeStamp_t timeStamp);
 
 /* Function Name:
  *      phy_8224_ptp_TxTimestampFifo_get
@@ -367,7 +362,7 @@ extern ret_t phy_8224_ptp_TxTimestampFifo_get(rtk_time_txTimeEntry_t *pTimeEntry
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_1PPSOutput_get( rtk_uint32 *pPulseWidth, rtk_enable_t *pEnable);
+extern ret_t phy_8224_ptp_1PPSOutput_get(rtk_uint32 *pPulseWidth, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      phy_8224_ptp_1PPSOutput_set
@@ -389,7 +384,7 @@ extern ret_t phy_8224_ptp_1PPSOutput_get( rtk_uint32 *pPulseWidth, rtk_enable_t 
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_1PPSOutput_set( rtk_uint32 pulseWidth, rtk_enable_t enable);
+extern ret_t phy_8224_ptp_1PPSOutput_set(rtk_uint32 pulseWidth, rtk_enable_t enable);
 
 /* Function Name:
  *      phy_8224_ptp_1PPSOutput_set
@@ -411,7 +406,7 @@ extern ret_t phy_8224_ptp_1PPSOutput_set( rtk_uint32 pulseWidth, rtk_enable_t en
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_1PPSOutput_set( rtk_uint32 pulseWidth, rtk_enable_t enable);
+extern ret_t phy_8224_ptp_1PPSOutput_set(rtk_uint32 pulseWidth, rtk_enable_t enable);
 
 /* Function Name:
  *      phy_8224_ptp_ClockOutput_get
@@ -432,7 +427,7 @@ extern ret_t phy_8224_ptp_1PPSOutput_set( rtk_uint32 pulseWidth, rtk_enable_t en
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_ClockOutput_get(  rtk_time_clkOutput_t *pClkOutput);
+extern ret_t phy_8224_ptp_ClockOutput_get(rtk_time_clkOutput_t *pClkOutput);
 
 /* Function Name:
  *      phy_8224_ptp_ClockOutput_set
@@ -453,7 +448,7 @@ extern ret_t phy_8224_ptp_ClockOutput_get(  rtk_time_clkOutput_t *pClkOutput);
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_ClockOutput_set( rtk_time_clkOutput_t pClkOutput);
+extern ret_t phy_8224_ptp_ClockOutput_set(rtk_time_clkOutput_t pClkOutput);
 
 /* Function Name:
  *      phy_8224_ptp_portctrl_set
@@ -463,7 +458,7 @@ extern ret_t phy_8224_ptp_ClockOutput_set( rtk_time_clkOutput_t pClkOutput);
  *      port    - port id
  *      portcfg   -port role/udp_en/eth_en/always_ts
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK
  *      RT_ERR_FAILED
@@ -475,7 +470,7 @@ extern ret_t phy_8224_ptp_ClockOutput_set( rtk_time_clkOutput_t pClkOutput);
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_portctrl_set( rtk_port_t port, rtk_ptp_port_ctrl_t portcfg);
+extern ret_t phy_8224_ptp_portctrl_set(rtk_port_t port, rtk_ptp_port_ctrl_t portcfg);
 
 /* Function Name:
  *      phy_8224_ptp_portctrl_get
@@ -496,7 +491,7 @@ extern ret_t phy_8224_ptp_portctrl_set( rtk_port_t port, rtk_ptp_port_ctrl_t por
  * Note:
  *      None
  */
-extern ret_t phy_8224_ptp_portctrl_get( rtk_port_t port, rtk_ptp_port_ctrl_t *pportcfg);
+extern ret_t phy_8224_ptp_portctrl_get(rtk_port_t port, rtk_ptp_port_ctrl_t *pportcfg);
 
 /* Function Name:
  *      phy_8224_ptp_TxImbal_set
@@ -518,7 +513,7 @@ extern ret_t phy_8224_ptp_portctrl_get( rtk_port_t port, rtk_ptp_port_ctrl_t *pp
  * Note:
  *      unit: 1 ns
  */
-extern ret_t  phy_8224_ptp_TxImbal_set(rtk_port_t port, rtk_uint32 TxImbal,rtk_uint32 RxImbal);
+extern ret_t phy_8224_ptp_TxImbal_set(rtk_port_t port, rtk_uint32 TxImbal, rtk_uint32 RxImbal);
 
 /* Function Name:
  *      phy_8224_ptp_TxImbal_get
@@ -540,7 +535,7 @@ extern ret_t  phy_8224_ptp_TxImbal_set(rtk_port_t port, rtk_uint32 TxImbal,rtk_u
  * Note:
  *      unit: 1 ns
  */
-extern ret_t phy_8224_ptp_TxImbal_get(rtk_port_t port, rtk_uint32 *pTxImbal,rtk_uint32 *pRxImbal);
+extern ret_t phy_8224_ptp_TxImbal_get(rtk_port_t port, rtk_uint32 *pTxImbal, rtk_uint32 *pRxImbal);
 
 /* Function Name:
  *      phy_8224_ptp_phyidtoportid_set
@@ -603,7 +598,7 @@ extern ret_t phy_8224_ptp_phyidtoptpid_get(rtk_port_t port, rtk_port_t *pptp_por
  * Note:
  *      mac mode only
  */
-extern ret_t phy_8224_ptp_PPSLatchTime_get( rtk_time_timeStamp_t *pLatchTime);
+extern ret_t phy_8224_ptp_PPSLatchTime_get(rtk_time_timeStamp_t *pLatchTime);
 
 /* Function Name:
  *      phy_8224_ptp_RefTimeFreqCfg_set
@@ -634,7 +629,7 @@ extern ret_t phy_8224_ptp_RefTimeFreqCfg_set(rtk_uint32 freq, rtk_enable_t apply
  * Description:
  *      Set  ptp_RefTimeFreqCfg_get.
  * Input:
- *      None    
+ *      None
  * Output:
  *      cfgFreq
  *      curFreq
@@ -647,7 +642,7 @@ extern ret_t phy_8224_ptp_RefTimeFreqCfg_set(rtk_uint32 freq, rtk_enable_t apply
  *      RT_ERR_INPUT    - invalid input parameter
  * Note:
  */
-extern ret_t phy_8224_ptp_RefTimeFreqCfg_get(rtk_uint32 *cfgFreq,rtk_uint32 *curFreq);
+extern ret_t phy_8224_ptp_RefTimeFreqCfg_get(rtk_uint32 *cfgFreq, rtk_uint32 *curFreq);
 
 /* Function Name:
  *      phy_8224_ptp_ClkSrcCtrl_set
@@ -665,8 +660,6 @@ extern ret_t phy_8224_ptp_RefTimeFreqCfg_get(rtk_uint32 *cfgFreq,rtk_uint32 *cur
  * 1: external clock, refer to cfg_ext_clk_src)
  */
 extern ret_t phy_8224_ptp_ClkSrcCtrl_set(rtk_uint32 clksrc);
-
-
 
 /* Function Name:
  *      phy_8224_ptp_ClkSrcCtrl_set

@@ -24,8 +24,6 @@
 
 #include <dal/dal_mgmt.h>
 
-
-
 /* Function Name:
  *      rtk_rma_set
  * Description:
@@ -48,21 +46,19 @@
  * Note:
  *      Reset MIB counter of ports. API will use global reset while port mask is all-ports.
  */
-rtk_api_ret_t rtk_rma_set(rtk_uint32 rmaAddr, rtk_rmaParam_t* rmaParam)
+rtk_api_ret_t rtk_rma_set(rtk_uint32 rmaAddr, rtk_rmaParam_t *rmaParam)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rma_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rma_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rma_set(rmaAddr, rmaParam);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rma_set(rmaAddr, rmaParam);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-
 
 /* Function Name:
  *      rtk_rma_get
@@ -86,18 +82,16 @@ rtk_api_ret_t rtk_rma_set(rtk_uint32 rmaAddr, rtk_rmaParam_t* rmaParam)
  * Note:
  *      Reset MIB counter of ports. API will use global reset while port mask is all-ports.
  */
-rtk_api_ret_t rtk_rma_get(rtk_uint32 rmaAddr, rtk_rmaParam_t* rmaParam)
+rtk_api_ret_t rtk_rma_get(rtk_uint32 rmaAddr, rtk_rmaParam_t *rmaParam)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rma_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rma_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rma_get(rmaAddr, rmaParam);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rma_get(rmaAddr, rmaParam);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-

@@ -23,8 +23,6 @@
 #include <rtl8373_asicdrv.h>
 #include <linux/string.h>
 
-
-
 /* Function Name:
  *      dal_rtl8373_wolState_set
  * Description:
@@ -38,18 +36,17 @@
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 rtk_api_ret_t dal_rtl8373_wolState_set(rtk_uint32 enable)
 {
-    rtk_api_ret_t retVal;
-   
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_WOL_CTRL_ADDR, RTL8373_WOL_CTRL_WOL_EN_OFFSET, enable)) != RT_ERR_OK)
-        return retVal;
+	rtk_api_ret_t retVal;
 
-    return RT_ERR_OK;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_WOL_CTRL_ADDR, RTL8373_WOL_CTRL_WOL_EN_OFFSET, enable)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_wolState_get
@@ -64,18 +61,17 @@ rtk_api_ret_t dal_rtl8373_wolState_set(rtk_uint32 enable)
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
-rtk_api_ret_t dal_rtl8373_wolState_get(rtk_uint32* pEnable)
+rtk_api_ret_t dal_rtl8373_wolState_get(rtk_uint32 *pEnable)
 {
-    rtk_api_ret_t retVal;
-   
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_WOL_CTRL_ADDR, RTL8373_WOL_CTRL_WOL_EN_OFFSET, pEnable)) != RT_ERR_OK)
-        return retVal;
+	rtk_api_ret_t retVal;
 
-    return RT_ERR_OK;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_WOL_CTRL_ADDR, RTL8373_WOL_CTRL_WOL_EN_OFFSET, pEnable)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
-
 
 #if 0
 
@@ -92,20 +88,19 @@ rtk_api_ret_t dal_rtl8373_wolState_get(rtk_uint32* pEnable)
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 rtk_api_ret_t dal_rtl8373_wolPortmsk_set(rtk_uint32 portmask)
 {
-    rtk_api_ret_t retVal;
-   
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_WOL_CTRL_ADDR, RTL8373_WOL_CTRL_WOL_PMSK_MASK, portmask)) != RT_ERR_OK)
-        return retVal;
+	rtk_api_ret_t retVal;
 
-    return RT_ERR_OK;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_WOL_CTRL_ADDR, RTL8373_WOL_CTRL_WOL_PMSK_MASK, portmask)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 #endif
-
 
 /* Function Name:
  *      dal_rtl8373_wolPortmsk_get
@@ -120,20 +115,17 @@ rtk_api_ret_t dal_rtl8373_wolPortmsk_set(rtk_uint32 portmask)
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
-rtk_api_ret_t dal_rtl8373_wolPortmsk_get(rtk_uint32* pMask)
+rtk_api_ret_t dal_rtl8373_wolPortmsk_get(rtk_uint32 *pMask)
 {
-    rtk_api_ret_t retVal;
-   
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_WOL_CTRL_ADDR, RTL8373_WOL_CTRL_WOL_PMSK_MASK, pMask)) != RT_ERR_OK)
-        return retVal;
+	rtk_api_ret_t retVal;
 
-    return RT_ERR_OK;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_WOL_CTRL_ADDR, RTL8373_WOL_CTRL_WOL_PMSK_MASK, pMask)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_wolMac_set
@@ -148,29 +140,26 @@ rtk_api_ret_t dal_rtl8373_wolPortmsk_get(rtk_uint32* pMask)
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 rtk_api_ret_t dal_rtl8373_wolMac_set(rtk_mac_t *pMac)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 regData;
+	rtk_api_ret_t retVal;
+	rtk_uint32 regData;
 
-    if(pMac == NULL)
-        return RT_ERR_NULL_POINTER;
+	if (pMac == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    regData = (pMac->octet[2] << 24) | (pMac->octet[3] << 16) | (pMac->octet[4] << 8) | pMac->octet[5];
-    if ((retVal = rtl8373_setAsicReg(RTL8373_WOL_MAC0_ADDR, regData)) != RT_ERR_OK)
-        return retVal;
+	regData = (pMac->octet[2] << 24) | (pMac->octet[3] << 16) | (pMac->octet[4] << 8) | pMac->octet[5];
+	if ((retVal = rtl8373_setAsicReg(RTL8373_WOL_MAC0_ADDR, regData)) != RT_ERR_OK)
+		return retVal;
 
-    
-    regData = (pMac->octet[0] << 8) | pMac->octet[1];
-    if ((retVal = rtl8373_setAsicReg(RTL8373_WOL_MAC1_ADDR, regData)) != RT_ERR_OK)
-        return retVal;
-    
+	regData = (pMac->octet[0] << 8) | pMac->octet[1];
+	if ((retVal = rtl8373_setAsicReg(RTL8373_WOL_MAC1_ADDR, regData)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_wolMac_get
@@ -185,36 +174,28 @@ rtk_api_ret_t dal_rtl8373_wolMac_set(rtk_mac_t *pMac)
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 rtk_api_ret_t dal_rtl8373_wolMac_get(rtk_mac_t *pMac)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 regData;
+	rtk_api_ret_t retVal;
+	rtk_uint32 regData;
 
-    if(pMac == NULL)
-        return RT_ERR_NULL_POINTER;
+	if (pMac == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicReg(RTL8373_WOL_MAC0_ADDR, &regData)) != RT_ERR_OK)
-        return retVal;
-    pMac->octet[2] = (regData >> 24) & 0xff;
-    pMac->octet[3] = (regData >> 16) & 0xff;
-    pMac->octet[4] = (regData >> 8) & 0xff;
-    pMac->octet[5] = regData & 0xff;
+	if ((retVal = rtl8373_getAsicReg(RTL8373_WOL_MAC0_ADDR, &regData)) != RT_ERR_OK)
+		return retVal;
+	pMac->octet[2] = (regData >> 24) & 0xff;
+	pMac->octet[3] = (regData >> 16) & 0xff;
+	pMac->octet[4] = (regData >> 8) & 0xff;
+	pMac->octet[5] = regData & 0xff;
 
-    
-    if ((retVal = rtl8373_getAsicReg(RTL8373_WOL_MAC1_ADDR, &regData)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicReg(RTL8373_WOL_MAC1_ADDR, &regData)) != RT_ERR_OK)
+		return retVal;
 
-    pMac->octet[0] = (regData >> 8) & 0xff;
-    pMac->octet[1] = regData & 0xff;
-    
+	pMac->octet[0] = (regData >> 8) & 0xff;
+	pMac->octet[1] = regData & 0xff;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
-
-
-

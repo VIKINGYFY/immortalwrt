@@ -1,4 +1,4 @@
-   /*
+/*
  * Copyright (C) 2013 Realtek Semiconductor Corp.
  * All Rights Reserved.
  *
@@ -336,7 +336,7 @@ extern rtk_api_ret_t dal_rtl8373_rate_stormControlExtMeterIdx_set(rtk_rate_storm
  * Description:
  *      Get externsion storm control meter index
  * Input:
- *      stormType   - storm group type      
+ *      stormType   - storm group type
  * Output:
  *      pIndex      - externsion storm control state
  * Return:
@@ -349,7 +349,4 @@ extern rtk_api_ret_t dal_rtl8373_rate_stormControlExtMeterIdx_set(rtk_rate_storm
  */
 extern rtk_api_ret_t dal_rtl8373_rate_stormControlExtMeterIdx_get(rtk_rate_storm_group_t stormType, rtk_uint32 *pIndex);
 
-
-
 #endif /* __DAL_RTL8367D_STORM_H__ */
-

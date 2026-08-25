@@ -1,10 +1,7 @@
 #ifndef __DAL_RTL8373_RTKPP_H__
 #define __DAL_RTL8373_RTKPP_H__
 
-
 #include "rldp.h"
-
-
 
 /* Function Name:
  *      dal_rtl8373_rldp_config_set
@@ -41,8 +38,6 @@ extern rtk_api_ret_t dal_rtl8373_rldp_config_set(rtk_rldp_config_t *pConfig);
  *      None
  */
 extern rtk_api_ret_t dal_rtl8373_rldp_config_get(rtk_rldp_config_t *pConfig);
-
-
 
 /* Function Name:
  *      dal_rtl8373_rldp_portConfig_set
@@ -99,7 +94,6 @@ extern rtk_api_ret_t dal_rtl8373_rldp_portConfig_get(rtk_port_t port, rtk_rldp_p
  */
 extern rtk_api_ret_t dal_rtl8373_rldp_portStatus_get(rtk_port_t port, rtk_rldp_portStatus_t *pPortStatus);
 
-
 /* Function Name:
  *      dal_rtl8373_rldp_portLoopPair_get
  * Description:
@@ -129,7 +123,6 @@ extern rtk_api_ret_t dal_rtl8373_rldp_portLoopPair_get(rtk_port_t port, rtk_port
  *      None
  */
 extern rtk_api_ret_t dal_rtl8373_rldp_genRandom(void);
-
 
 /* Function Name:
  *      dal_rtl8373_rlpp_config_set
@@ -165,7 +158,7 @@ extern rtk_api_ret_t dal_rtl8373_rlpp_trap_set(rtk_uint32 enable);
  * Note:
  *      None
  */
-extern rtk_api_ret_t dal_rtl8373_rlpp_trap_get(rtk_uint32* pEnable);
+extern rtk_api_ret_t dal_rtl8373_rlpp_trap_get(rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_rrcp_config_set
@@ -185,7 +178,6 @@ extern rtk_api_ret_t dal_rtl8373_rlpp_trap_get(rtk_uint32* pEnable);
  */
 extern rtk_api_ret_t dal_rtl8373_rrcp_trap_set(rtk_uint32 status);
 
-
 /* Function Name:
  *      dal_rtl8373_rrcp_config_get
  * Description:
@@ -202,8 +194,7 @@ extern rtk_api_ret_t dal_rtl8373_rrcp_trap_set(rtk_uint32 status);
  * Note:
  *      None
  */
-extern rtk_api_ret_t dal_rtl8373_rrcp_trap_get(rtk_uint32* pStatus);
-
+extern rtk_api_ret_t dal_rtl8373_rrcp_trap_get(rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_rldp_randomNum_get
@@ -219,7 +210,6 @@ extern rtk_api_ret_t dal_rtl8373_rrcp_trap_get(rtk_uint32* pStatus);
  * Note:
  *      None
  */
-extern rtk_api_ret_t dal_rtl8373_rldp_randomNum_get(rtk_mac_t * pRandom);
-
+extern rtk_api_ret_t dal_rtl8373_rldp_randomNum_get(rtk_mac_t *pRandom);
 
 #endif

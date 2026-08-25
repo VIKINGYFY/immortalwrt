@@ -1,0 +1,95 @@
+#!/bin/sh
+
+[ "$ACTION" = add ] || exit 0
+[ -n "$DEVICENAME" ] || exit 0
+
+sys_class_net="${PPE_FLOWTABLE_SYS_CLASS_NET:-/sys/class/net}"
+firewall_init="${PPE_FLOWTABLE_FIREWALL_INIT:-/etc/init.d/firewall}"
+run_dir="${PPE_FLOWTABLE_RUN_DIR:-/var/run/ppe-flowtable-reload}"
+reload_lock="${PPE_FLOWTABLE_LOCK:-/var/lock/ppe-flowtable}"
+debounce="${PPE_FLOWTABLE_DEBOUNCE:-2}"
+max_attempts="${PPE_FLOWTABLE_MAX_ATTEMPTS:-10}"
+
+[ -L "$sys_class_net/$DEVICENAME/phy80211" ] || exit 0
+[ "$(uci -q get firewall.@defaults[0].flow_offloading_hw)" = 1 ] || exit 0
+"$firewall_init" enabled || exit 0
+
+reload_ppe_flowtable() {
+	local attempt
+	local batch="$run_dir/batch"
+	local pending="$run_dir/pending"
+	local ready
+	local rules="$run_dir/rules"
+	local worker="$run_dir/worker"
+	local dev
+
+	while :; do
+		sleep "$debounce"
+		lock "$reload_lock"
+		if [ ! -s "$pending" ]; then
+			rm -f "$worker/pid"
+			rmdir "$worker" 2>/dev/null
+			lock -u "$reload_lock"
+			return
+		fi
+		sort -u "$pending" > "$batch"
+		: > "$pending"
+		lock -u "$reload_lock"
+
+		ready=
+		attempt=1
+		while [ "$attempt" -le "$max_attempts" ]; do
+			if fw4 -q print > "$rules"; then
+				ready=1
+				while IFS= read -r dev; do
+					[ -n "$dev" ] || continue
+					if [ ! -L "$sys_class_net/$dev/master" ] ||
+					   ! grep -Fq "\"$dev\"" "$rules"; then
+						ready=
+						break
+					fi
+				done < "$batch"
+			fi
+
+			[ -n "$ready" ] && break
+			sleep 1
+			attempt=$((attempt + 1))
+		done
+
+		if [ -n "$ready" ]; then
+			lock "$reload_lock"
+			logger -t firewall \
+				"Reloading firewall after adding wireless devices: $(tr '\n' ' ' < "$batch")"
+			fw4 -q reload
+			lock -u "$reload_lock"
+		else
+			logger -t firewall \
+				"Skipping PPE flowtable reload; wireless devices were not ready: $(tr '\n' ' ' < "$batch")"
+		fi
+
+		rm -f "$batch" "$rules"
+	done
+}
+
+mkdir -p "$run_dir"
+lock "$reload_lock"
+printf '%s\n' "$DEVICENAME" >> "$run_dir/pending"
+
+start_worker=
+if [ -d "$run_dir/worker" ]; then
+	worker_pid="$(cat "$run_dir/worker/pid" 2>/dev/null)"
+	if [ -n "$worker_pid" ] && ! kill -0 "$worker_pid" 2>/dev/null; then
+		rm -f "$run_dir/worker/pid"
+		rmdir "$run_dir/worker" 2>/dev/null
+	fi
+fi
+
+if mkdir "$run_dir/worker" 2>/dev/null; then
+	start_worker=1
+fi
+lock -u "$reload_lock"
+
+if [ -n "$start_worker" ]; then
+	reload_ppe_flowtable >/dev/null 2>&1 &
+	printf '%s\n' "$!" > "$run_dir/worker/pid"
+fi

@@ -1,0 +1,129 @@
+#!/bin/sh
+
+[ "$ACTION" = add ] || exit 0
+
+sys_class_net="${IPQ53XX_SYS_CLASS_NET:-/sys/class/net}"
+proc_interrupts="${IPQ53XX_PROC_INTERRUPTS:-/proc/interrupts}"
+proc_irq="${IPQ53XX_PROC_IRQ:-/proc/irq}"
+pci_devices="${IPQ53XX_PCI_DEVICES:-/sys/bus/pci/devices}"
+edma_state="${IPQ53XX_EDMA_STATE:-/var/run/ipq53xx-edma-affinity.done}"
+
+set_irq_cpu() {
+	local irq="$1"
+	local cpu="$2"
+
+	[ -n "$irq" ] || return 1
+	[ -w "$proc_irq/$irq/smp_affinity_list" ] || return 1
+	echo "$cpu" > "$proc_irq/$irq/smp_affinity_list"
+}
+
+set_named_irq_cpu() {
+	local name="$1"
+	local cpu="$2"
+	local irq
+
+	irq="$(awk -v name="$name" '$0 ~ name {
+		gsub(":", "", $1)
+		print $1
+		exit
+	}' "$proc_interrupts")"
+	set_irq_cpu "$irq" "$cpu"
+}
+
+configure_edma_irqs() {
+	local assigned=0
+	local ring
+
+	[ -e "$edma_state" ] && return
+
+	# Spread the receive and completion queues across all four IPQ5332 CPUs.
+	ring=4
+	while [ "$ring" -le 15 ]; do
+		if set_named_irq_cpu "txcmpl_${ring}$" "$(((ring - 4) % 4))"; then
+			assigned=$((assigned + 1))
+		fi
+		ring=$((ring + 1))
+	done
+
+	ring=12
+	while [ "$ring" -le 15 ]; do
+		if set_named_irq_cpu "rxdesc_${ring}$" "$((ring - 12))"; then
+			assigned=$((assigned + 1))
+		fi
+		ring=$((ring + 1))
+	done
+
+	# A later netdev event retries if EDMA was not fully registered yet.
+	[ "$assigned" -eq 16 ] && : > "$edma_state"
+}
+
+configure_integrated_wifi_irqs() {
+	local ring
+
+	ring=1
+	while [ "$ring" -le 4 ]; do
+		set_named_irq_cpu "reo2host-destination-ring${ring}$" "$((ring - 1))"
+		ring=$((ring + 1))
+	done
+
+	ring=1
+	while [ "$ring" -le 3 ]; do
+		set_named_irq_cpu "wbm2host-tx-completions-ring${ring}$" "$((ring - 1))"
+		ring=$((ring + 1))
+	done
+
+	set_named_irq_cpu 'reo2ost-exception$' 3
+	set_named_irq_cpu 'wbm2host-rx-release$' 3
+	set_named_irq_cpu 'reo2host-status$' 3
+}
+
+assign_pci_irqs() {
+	local name="$1"
+	local even_cpu="$2"
+	local odd_cpu="$3"
+	local index=0
+	local irq
+	local cpu
+
+	awk -v tag="PCI-MSI-$qcn_bdf" -v name="$name" \
+		'index($0, tag) && index($0, name) {
+			gsub(":", "", $1)
+			print $1
+		}' "$proc_interrupts" | while IFS= read -r irq; do
+		if [ "$((index % 2))" -eq 0 ]; then
+			cpu="$even_cpu"
+		else
+			cpu="$odd_cpu"
+		fi
+
+		set_irq_cpu "$irq" "$cpu"
+		index=$((index + 1))
+	done
+}
+
+configure_pci_wifi_irqs() {
+	local pci_dev
+
+	qcn_bdf=
+	for pci_dev in "$pci_devices"/*; do
+		[ "$(cat "$pci_dev/vendor" 2>/dev/null)" = 0x17cb ] || continue
+		[ "$(cat "$pci_dev/device" 2>/dev/null)" = 0x1109 ] || continue
+		qcn_bdf="${pci_dev##*/}"
+		break
+	done
+
+	[ -n "$qcn_bdf" ] || return
+
+	# Leave CPU0/1 available for PPE/EDMA and system work.
+	assign_pci_irqs ' ce' 2 3
+	assign_pci_irqs 'DP_EXT_IRQ' 2 3
+}
+
+# EDMA affinity is independent of ath12k and runs for ordinary netdev events.
+configure_edma_irqs
+
+[ -n "$DEVICENAME" ] || exit 0
+[ -L "$sys_class_net/$DEVICENAME/phy80211" ] || exit 0
+
+configure_integrated_wifi_irqs
+configure_pci_wifi_irqs

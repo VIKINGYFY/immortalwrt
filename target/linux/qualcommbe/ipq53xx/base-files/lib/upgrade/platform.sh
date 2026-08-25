@@ -38,6 +38,9 @@ platform_do_upgrade() {
 		CI_KERNPART="kernel0"
 		fit_do_upgrade "$1"
 		;;
+	xiaomi,be3600-pro-wired-*)
+		nand_do_upgrade "$1"
+		;;
 	*)
 		echo "Sysupgrade is not supported on your board yet."
 		return 1
@@ -54,6 +57,9 @@ platform_check_image() {
 		;;
 	ubnt,u7-pro-xgs)
 		fit_check_image "$1"
+		;;
+	xiaomi,be3600-pro-wired-*)
+		return 0
 		;;
 	*)
 		echo "Sysupgrade is not supported on your board yet."

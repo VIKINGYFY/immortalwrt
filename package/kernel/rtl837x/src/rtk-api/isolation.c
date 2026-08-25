@@ -17,13 +17,12 @@
  *
  */
 
- #include <rtk_switch.h>
+#include <rtk_switch.h>
 #include <rtk_error.h>
 #include <isolation.h>
 #include <linux/string.h>
 
 #include <dal/dal_mgmt.h>
-
 
 /* Function Name:
  *      rtk_port_isolation_set
@@ -44,16 +43,16 @@
  */
 ret_t rtk_port_isolation_set(rtk_port_t port, rtk_uint32 permitPortmask)
 {
-	    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-	    if (NULL == RT_MAPPER->port_isolation_set)
-	        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_isolation_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-	    RTK_API_LOCK();
-	    retVal = RT_MAPPER->port_isolation_set(port, permitPortmask);
-	    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_isolation_set(port, permitPortmask);
+	RTK_API_UNLOCK();
 
-	    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -74,16 +73,14 @@ ret_t rtk_port_isolation_set(rtk_port_t port, rtk_uint32 permitPortmask)
  */
 ret_t rtk_port_isolation_get(rtk_port_t port, rtk_uint32 *pPermitPortmask)
 {
-		rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-		if (NULL == RT_MAPPER->port_isolation_get)
+	if (NULL == RT_MAPPER->port_isolation_get)
 		return RT_ERR_DRIVER_NOT_FOUND;
 
-		RTK_API_LOCK();
-		retVal = RT_MAPPER->port_isolation_get(port, pPermitPortmask);
-		RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_isolation_get(port, pPermitPortmask);
+	RTK_API_UNLOCK();
 
-		return retVal;
+	return retVal;
 }
-
-

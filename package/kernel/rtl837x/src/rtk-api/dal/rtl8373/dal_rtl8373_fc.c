@@ -23,7 +23,6 @@
 #include <rtl8373_asicdrv.h>
 #include <linux/string.h>
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCPubPage_set
  * Description:
@@ -40,17 +39,14 @@
  */
 ret_t dal_rtl8373_asicFCPubPage_set(rtk_uint32 number)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_DROP_THR_ADDR, RTL8373_FC_GLB_DROP_THR_PUB_PAGE_MASK, number);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_DROP_THR_ADDR, RTL8373_FC_GLB_DROP_THR_PUB_PAGE_MASK, number);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPubPage_get
@@ -66,18 +62,16 @@ ret_t dal_rtl8373_asicFCPubPage_set(rtk_uint32 number)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPubPage_get(rtk_uint32* pNumber)
+ret_t dal_rtl8373_asicFCPubPage_get(rtk_uint32 *pNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_DROP_THR_ADDR, RTL8373_FC_GLB_DROP_THR_PUB_PAGE_MASK, pNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_DROP_THR_ADDR, RTL8373_FC_GLB_DROP_THR_PUB_PAGE_MASK, pNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCDropAll_set
@@ -95,17 +89,14 @@ ret_t dal_rtl8373_asicFCPubPage_get(rtk_uint32* pNumber)
  */
 ret_t dal_rtl8373_asicFCDropAll_set(rtk_uint32 number)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_DROP_THR_ADDR, RTL8373_FC_GLB_DROP_THR_DROP_ALL_MASK, number);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_DROP_THR_ADDR, RTL8373_FC_GLB_DROP_THR_DROP_ALL_MASK, number);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCDropAll_get
@@ -121,20 +112,16 @@ ret_t dal_rtl8373_asicFCDropAll_set(rtk_uint32 number)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCDropAll_get(rtk_uint32* pNumber)
+ret_t dal_rtl8373_asicFCDropAll_get(rtk_uint32 *pNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_DROP_THR_ADDR, RTL8373_FC_GLB_DROP_THR_DROP_ALL_MASK, pNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_DROP_THR_ADDR, RTL8373_FC_GLB_DROP_THR_DROP_ALL_MASK, pNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnHiThr_set
@@ -153,20 +140,18 @@ ret_t dal_rtl8373_asicFCDropAll_get(rtk_uint32* pNumber)
  */
 ret_t dal_rtl8373_asicFCOnHiThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_HI_THR_ADDR, RTL8373_FC_GLB_HI_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_HI_THR_ADDR, RTL8373_FC_GLB_HI_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_HI_THR_ADDR, RTL8373_FC_GLB_HI_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_HI_THR_ADDR, RTL8373_FC_GLB_HI_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnHiThr_get
@@ -183,22 +168,20 @@ ret_t dal_rtl8373_asicFCOnHiThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCOnHiThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCOnHiThr_get(rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_HI_THR_ADDR, RTL8373_FC_GLB_HI_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_HI_THR_ADDR, RTL8373_FC_GLB_HI_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_HI_THR_ADDR, RTL8373_FC_GLB_HI_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_HI_THR_ADDR, RTL8373_FC_GLB_HI_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnLoThr_set
@@ -217,20 +200,18 @@ ret_t dal_rtl8373_asicFCOnHiThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber)
  */
 ret_t dal_rtl8373_asicFCOnLoThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_LO_THR_ADDR, RTL8373_FC_GLB_LO_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_LO_THR_ADDR, RTL8373_FC_GLB_LO_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_LO_THR_ADDR, RTL8373_FC_GLB_LO_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_LO_THR_ADDR, RTL8373_FC_GLB_LO_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnLoThr_get
@@ -247,23 +228,20 @@ ret_t dal_rtl8373_asicFCOnLoThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCOnLoThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCOnLoThr_get(rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_LO_THR_ADDR, RTL8373_FC_GLB_LO_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_LO_THR_ADDR, RTL8373_FC_GLB_LO_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_LO_THR_ADDR, RTL8373_FC_GLB_LO_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_LO_THR_ADDR, RTL8373_FC_GLB_LO_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffHiThr_set
@@ -282,20 +260,18 @@ ret_t dal_rtl8373_asicFCOnLoThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber)
  */
 ret_t dal_rtl8373_asicFCOffHiThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_FCOFF_HI_THR_ADDR, RTL8373_FC_GLB_FCOFF_HI_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_FCOFF_HI_THR_ADDR, RTL8373_FC_GLB_FCOFF_HI_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_FCOFF_HI_THR_ADDR, RTL8373_FC_GLB_FCOFF_HI_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_FCOFF_HI_THR_ADDR, RTL8373_FC_GLB_FCOFF_HI_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffHiThr_get
@@ -312,23 +288,20 @@ ret_t dal_rtl8373_asicFCOffHiThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCOffHiThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCOffHiThr_get(rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_FCOFF_HI_THR_ADDR, RTL8373_FC_GLB_FCOFF_HI_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_FCOFF_HI_THR_ADDR, RTL8373_FC_GLB_FCOFF_HI_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_FCOFF_HI_THR_ADDR, RTL8373_FC_GLB_FCOFF_HI_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_FCOFF_HI_THR_ADDR, RTL8373_FC_GLB_FCOFF_HI_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffLoThr_set
@@ -347,20 +320,18 @@ ret_t dal_rtl8373_asicFCOffHiThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber
  */
 ret_t dal_rtl8373_asicFCOffLoThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_FCOFF_LO_THR_ADDR, RTL8373_FC_GLB_FCOFF_LO_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_FCOFF_LO_THR_ADDR, RTL8373_FC_GLB_FCOFF_LO_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_FCOFF_LO_THR_ADDR, RTL8373_FC_GLB_FCOFF_LO_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_GLB_FCOFF_LO_THR_ADDR, RTL8373_FC_GLB_FCOFF_LO_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffLoThr_get
@@ -377,24 +348,20 @@ ret_t dal_rtl8373_asicFCOffLoThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCOffLoThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCOffLoThr_get(rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_FCOFF_LO_THR_ADDR, RTL8373_FC_GLB_FCOFF_LO_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_FCOFF_LO_THR_ADDR, RTL8373_FC_GLB_FCOFF_LO_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_FCOFF_LO_THR_ADDR, RTL8373_FC_GLB_FCOFF_LO_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_GLB_FCOFF_LO_THR_ADDR, RTL8373_FC_GLB_FCOFF_LO_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnPortHiThr_set
@@ -414,20 +381,18 @@ ret_t dal_rtl8373_asicFCOffLoThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber
  */
 ret_t dal_rtl8373_asicFCOnPortHiThr_set(rtk_uint32 index, rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_HI_THR_ADDR(index), RTL8373_FC_PORT_HI_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_HI_THR_ADDR(index), RTL8373_FC_PORT_HI_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_HI_THR_ADDR(index), RTL8373_FC_PORT_HI_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_HI_THR_ADDR(index), RTL8373_FC_PORT_HI_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnPortHiThr_get
@@ -445,22 +410,20 @@ ret_t dal_rtl8373_asicFCOnPortHiThr_set(rtk_uint32 index, rtk_uint32 onNumber, r
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCOnPortHiThr_get(rtk_uint32 index, rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCOnPortHiThr_get(rtk_uint32 index, rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_HI_THR_ADDR(index), RTL8373_FC_PORT_HI_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_HI_THR_ADDR(index), RTL8373_FC_PORT_HI_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_HI_THR_ADDR(index), RTL8373_FC_PORT_HI_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_HI_THR_ADDR(index), RTL8373_FC_PORT_HI_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnPortLoThr_set
@@ -480,20 +443,18 @@ ret_t dal_rtl8373_asicFCOnPortHiThr_get(rtk_uint32 index, rtk_uint32* onNumber, 
  */
 ret_t dal_rtl8373_asicFCOnPortLoThr_set(rtk_uint32 index, rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_LO_THR_ADDR(index), RTL8373_FC_PORT_LO_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_LO_THR_ADDR(index), RTL8373_FC_PORT_LO_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_LO_THR_ADDR(index), RTL8373_FC_PORT_LO_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_LO_THR_ADDR(index), RTL8373_FC_PORT_LO_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnPortLoThr_get
@@ -511,23 +472,20 @@ ret_t dal_rtl8373_asicFCOnPortLoThr_set(rtk_uint32 index, rtk_uint32 onNumber, r
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCOnPortLoThr_get(rtk_uint32 index, rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCOnPortLoThr_get(rtk_uint32 index, rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_LO_THR_ADDR(index), RTL8373_FC_PORT_LO_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_LO_THR_ADDR(index), RTL8373_FC_PORT_LO_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_LO_THR_ADDR(index), RTL8373_FC_PORT_LO_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_LO_THR_ADDR(index), RTL8373_FC_PORT_LO_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffPortHiThr_set
@@ -547,20 +505,18 @@ ret_t dal_rtl8373_asicFCOnPortLoThr_get(rtk_uint32 index, rtk_uint32* onNumber, 
  */
 ret_t dal_rtl8373_asicFCOffPortHiThr_set(rtk_uint32 index, rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_FCOFF_HI_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_HI_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_FCOFF_HI_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_HI_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_FCOFF_HI_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_HI_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_FCOFF_HI_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_HI_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffPortHiThr_get
@@ -578,23 +534,20 @@ ret_t dal_rtl8373_asicFCOffPortHiThr_set(rtk_uint32 index, rtk_uint32 onNumber, 
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCOffPortHiThr_get(rtk_uint32 index, rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCOffPortHiThr_get(rtk_uint32 index, rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_FCOFF_HI_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_HI_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_FCOFF_HI_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_HI_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_FCOFF_HI_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_HI_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_FCOFF_HI_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_HI_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffPortLoThr_set
@@ -614,20 +567,18 @@ ret_t dal_rtl8373_asicFCOffPortHiThr_get(rtk_uint32 index, rtk_uint32* onNumber,
  */
 ret_t dal_rtl8373_asicFCOffPortLoThr_set(rtk_uint32 index, rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_FCOFF_LO_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_LO_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_FCOFF_LO_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_LO_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_FCOFF_LO_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_LO_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_FCOFF_LO_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_LO_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffPortLoThr_get
@@ -645,23 +596,20 @@ ret_t dal_rtl8373_asicFCOffPortLoThr_set(rtk_uint32 index, rtk_uint32 onNumber, 
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCOffPortLoThr_get(rtk_uint32 index, rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCOffPortLoThr_get(rtk_uint32 index, rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_FCOFF_LO_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_LO_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_FCOFF_LO_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_LO_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_FCOFF_LO_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_LO_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_FCOFF_LO_THR_ADDR(index), RTL8373_FC_PORT_FCOFF_LO_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortGua_set
@@ -680,22 +628,18 @@ ret_t dal_rtl8373_asicFCOffPortLoThr_get(rtk_uint32 index, rtk_uint32* onNumber,
  */
 ret_t dal_rtl8373_asicFCPortGua_set(rtk_uint32 index, rtk_uint32 number)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_GUAR_THR_ADDR(index), RTL8373_FC_PORT_GUAR_THR_THR_MASK, number);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_GUAR_THR_ADDR(index), RTL8373_FC_PORT_GUAR_THR_THR_MASK, number);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_GUAR_THR_ADDR(index), RTL8373_FC_PORT_GUAR_THR_THR_MASK, number);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_GUAR_THR_ADDR(index), RTL8373_FC_PORT_GUAR_THR_THR_MASK, number);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortGua_get
@@ -712,19 +656,16 @@ ret_t dal_rtl8373_asicFCPortGua_set(rtk_uint32 index, rtk_uint32 number)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPortGua_get(rtk_uint32 index, rtk_uint32* pNumber)
+ret_t dal_rtl8373_asicFCPortGua_get(rtk_uint32 index, rtk_uint32 *pNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_GUAR_THR_ADDR(index), RTL8373_FC_PORT_GUAR_THR_THR_MASK, pNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_GUAR_THR_ADDR(index), RTL8373_FC_PORT_GUAR_THR_THR_MASK, pNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortThrSel_set
@@ -743,16 +684,14 @@ ret_t dal_rtl8373_asicFCPortGua_get(rtk_uint32 index, rtk_uint32* pNumber)
  */
 ret_t dal_rtl8373_asicFCPortThrSel_set(rtk_uint32 port, rtk_uint32 index)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_THR_SET_SEL_ADDR(port), RTL8373_FC_PORT_THR_SET_SEL_IDX_MASK(port), index);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_THR_SET_SEL_ADDR(port), RTL8373_FC_PORT_THR_SET_SEL_IDX_MASK(port) , index);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortThrSel_get
@@ -769,19 +708,16 @@ ret_t dal_rtl8373_asicFCPortThrSel_set(rtk_uint32 port, rtk_uint32 index)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPortThrSel_get(rtk_uint32 port, rtk_uint32* pIndex)
+ret_t dal_rtl8373_asicFCPortThrSel_get(rtk_uint32 port, rtk_uint32 *pIndex)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_THR_SET_SEL_ADDR(port), RTL8373_FC_PORT_THR_SET_SEL_IDX_MASK(port), pIndex);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_THR_SET_SEL_ADDR(port), RTL8373_FC_PORT_THR_SET_SEL_IDX_MASK(port) , pIndex);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortThrSel_set
@@ -800,17 +736,14 @@ ret_t dal_rtl8373_asicFCPortThrSel_get(rtk_uint32 port, rtk_uint32* pIndex)
  */
 ret_t dal_rtl8373_asicFCHOLPrvnt_set(rtk_uint32 type, rtk_uint32 enable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBit(RTL8373_FC_HOL_PRVNT_CTRL_ADDR, 1 << type, enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBit(RTL8373_FC_HOL_PRVNT_CTRL_ADDR, 1 << type , enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortThrSel_get
@@ -827,18 +760,16 @@ ret_t dal_rtl8373_asicFCHOLPrvnt_set(rtk_uint32 type, rtk_uint32 enable)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCHOLPrvnt_get(rtk_uint32 type, rtk_uint32* pEnable)
+ret_t dal_rtl8373_asicFCHOLPrvnt_get(rtk_uint32 type, rtk_uint32 *pEnable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBit(RTL8373_FC_HOL_PRVNT_CTRL_ADDR, 1 << type, pEnable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBit(RTL8373_FC_HOL_PRVNT_CTRL_ADDR, 1 << type , pEnable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortHOLPrvntEn_set
@@ -857,16 +788,14 @@ ret_t dal_rtl8373_asicFCHOLPrvnt_get(rtk_uint32 type, rtk_uint32* pEnable)
  */
 ret_t dal_rtl8373_asicFCPortHOLPrvntEn_set(rtk_uint32 port, rtk_uint32 enable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBit(RTL8373_FC_PORT_EGR_DROP_CTRL_ADDR(port), RTL8373_FC_PORT_EGR_DROP_CTRL_HOL_PRVNT_EN_OFFSET, enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBit(RTL8373_FC_PORT_EGR_DROP_CTRL_ADDR(port), RTL8373_FC_PORT_EGR_DROP_CTRL_HOL_PRVNT_EN_OFFSET , enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortHOLPrvntEn_get
@@ -883,19 +812,16 @@ ret_t dal_rtl8373_asicFCPortHOLPrvntEn_set(rtk_uint32 port, rtk_uint32 enable)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPortHOLPrvntEn_get(rtk_uint32 port, rtk_uint32* enable)
+ret_t dal_rtl8373_asicFCPortHOLPrvntEn_get(rtk_uint32 port, rtk_uint32 *enable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBit(RTL8373_FC_PORT_EGR_DROP_CTRL_ADDR(port), RTL8373_FC_PORT_EGR_DROP_CTRL_HOL_PRVNT_EN_OFFSET, enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBit(RTL8373_FC_PORT_EGR_DROP_CTRL_ADDR(port), RTL8373_FC_PORT_EGR_DROP_CTRL_HOL_PRVNT_EN_OFFSET , enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortAct_set
@@ -914,14 +840,13 @@ ret_t dal_rtl8373_asicFCPortHOLPrvntEn_get(rtk_uint32 port, rtk_uint32* enable)
  */
 ret_t dal_rtl8373_asicFCPortAct_set(rtk_uint32 portnum, rtk_uint32 act)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_ACT_CTRL_ADDR(portnum), RTL8373_FC_PORT_ACT_CTRL_ACT_MASK, act);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_ACT_CTRL_ADDR(portnum), RTL8373_FC_PORT_ACT_CTRL_ACT_MASK, act);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -939,19 +864,16 @@ ret_t dal_rtl8373_asicFCPortAct_set(rtk_uint32 portnum, rtk_uint32 act)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPortAct_get(rtk_uint32 portnum, rtk_uint32* pAct)
+ret_t dal_rtl8373_asicFCPortAct_get(rtk_uint32 portnum, rtk_uint32 *pAct)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_ACT_CTRL_ADDR(portnum), RTL8373_FC_PORT_ACT_CTRL_ACT_MASK, pAct);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_ACT_CTRL_ADDR(portnum), RTL8373_FC_PORT_ACT_CTRL_ACT_MASK, pAct);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortAllowPage_set
@@ -970,17 +892,14 @@ ret_t dal_rtl8373_asicFCPortAct_get(rtk_uint32 portnum, rtk_uint32* pAct)
  */
 ret_t dal_rtl8373_asicFCPortAllowPage_set(rtk_uint32 portnum, rtk_uint32 pagenum)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_ACT_CTRL_ADDR(portnum), RTL8373_FC_PORT_ACT_CTRL_ALLOW_PAGE_CNT_MASK, pagenum);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_ACT_CTRL_ADDR(portnum), RTL8373_FC_PORT_ACT_CTRL_ALLOW_PAGE_CNT_MASK, pagenum);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortAllowPage_get
@@ -997,18 +916,16 @@ ret_t dal_rtl8373_asicFCPortAllowPage_set(rtk_uint32 portnum, rtk_uint32 pagenum
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPortAllowPage_get(rtk_uint32 portnum, rtk_uint32* pPagenum)
+ret_t dal_rtl8373_asicFCPortAllowPage_get(rtk_uint32 portnum, rtk_uint32 *pPagenum)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_ACT_CTRL_ADDR(portnum), RTL8373_FC_PORT_ACT_CTRL_ALLOW_PAGE_CNT_MASK, pPagenum);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_ACT_CTRL_ADDR(portnum), RTL8373_FC_PORT_ACT_CTRL_ALLOW_PAGE_CNT_MASK, pPagenum);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCQEgrDropThr_set
@@ -1029,21 +946,18 @@ ret_t dal_rtl8373_asicFCPortAllowPage_get(rtk_uint32 portnum, rtk_uint32* pPagen
  */
 ret_t dal_rtl8373_asicFCQEgrDropThr_set(rtk_uint32 index, rtk_uint32 queueid, rtk_uint32 onNumber, rtk_uint32 offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_Q_EGR_DROP_THR_ADDR(queueid, index), RTL8373_FC_Q_EGR_DROP_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_Q_EGR_DROP_THR_ADDR(queueid, index), RTL8373_FC_Q_EGR_DROP_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_Q_EGR_DROP_THR_ADDR(queueid, index), RTL8373_FC_Q_EGR_DROP_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_Q_EGR_DROP_THR_ADDR(queueid, index), RTL8373_FC_Q_EGR_DROP_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCQEgrDropThr_get
@@ -1062,22 +976,20 @@ ret_t dal_rtl8373_asicFCQEgrDropThr_set(rtk_uint32 index, rtk_uint32 queueid, rt
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCQEgrDropThr_get(rtk_uint32 index, rtk_uint32 queueid, rtk_uint32* onNumber, rtk_uint32* offNumber)
+ret_t dal_rtl8373_asicFCQEgrDropThr_get(rtk_uint32 index, rtk_uint32 queueid, rtk_uint32 *onNumber, rtk_uint32 *offNumber)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_Q_EGR_DROP_THR_ADDR(queueid, index), RTL8373_FC_Q_EGR_DROP_THR_ON_MASK, onNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_Q_EGR_DROP_THR_ADDR(queueid, index), RTL8373_FC_Q_EGR_DROP_THR_ON_MASK, onNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_Q_EGR_DROP_THR_ADDR(queueid, index), RTL8373_FC_Q_EGR_DROP_THR_OFF_MASK, offNumber);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_Q_EGR_DROP_THR_ADDR(queueid, index), RTL8373_FC_Q_EGR_DROP_THR_OFF_MASK, offNumber);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortQEgrDropThrSel_set
@@ -1096,16 +1008,14 @@ ret_t dal_rtl8373_asicFCQEgrDropThr_get(rtk_uint32 index, rtk_uint32 queueid, rt
  */
 ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_set(rtk_uint32 port, rtk_uint32 index)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_EGR_DROP_THR_SET_SEL_ADDR(port), RTL8373_FC_PORT_EGR_DROP_THR_SET_SEL_IDX_MASK(port), index);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_FC_PORT_EGR_DROP_THR_SET_SEL_ADDR(port), RTL8373_FC_PORT_EGR_DROP_THR_SET_SEL_IDX_MASK(port) , index);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortQEgrDropThrSel_get
@@ -1122,18 +1032,16 @@ ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_set(rtk_uint32 port, rtk_uint32 index
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_get(rtk_uint32 port, rtk_uint32* pIndex)
+ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_get(rtk_uint32 port, rtk_uint32 *pIndex)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_EGR_DROP_THR_SET_SEL_ADDR(port), RTL8373_FC_PORT_EGR_DROP_THR_SET_SEL_IDX_MASK(port), pIndex);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_FC_PORT_EGR_DROP_THR_SET_SEL_ADDR(port), RTL8373_FC_PORT_EGR_DROP_THR_SET_SEL_IDX_MASK(port) , pIndex);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortQEgrDropEn_set
@@ -1153,17 +1061,14 @@ ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_get(rtk_uint32 port, rtk_uint32* pInd
  */
 ret_t dal_rtl8373_asicFCPortQEgrDropEn_set(rtk_uint32 port, rtk_uint32 qid, rtk_uint32 enable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBit(RTL8373_FC_PORT_Q_EGR_DROP_CTRL_SET_ADDR(port, qid), RTL8373_FC_PORT_Q_EGR_DROP_CTRL_SET_EN_OFFSET(qid), enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBit(RTL8373_FC_PORT_Q_EGR_DROP_CTRL_SET_ADDR(port, qid) , RTL8373_FC_PORT_Q_EGR_DROP_CTRL_SET_EN_OFFSET(qid) , enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortQEgrDropEn_get
@@ -1181,19 +1086,16 @@ ret_t dal_rtl8373_asicFCPortQEgrDropEn_set(rtk_uint32 port, rtk_uint32 qid, rtk_
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPortQEgrDropEn_get(rtk_uint32 port, rtk_uint32 qid, rtk_uint32* enable)
+ret_t dal_rtl8373_asicFCPortQEgrDropEn_get(rtk_uint32 port, rtk_uint32 qid, rtk_uint32 *enable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBit(RTL8373_FC_PORT_Q_EGR_DROP_CTRL_SET_ADDR(port, qid), RTL8373_FC_PORT_Q_EGR_DROP_CTRL_SET_EN_OFFSET(qid), enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBit(RTL8373_FC_PORT_Q_EGR_DROP_CTRL_SET_ADDR(port, qid) , RTL8373_FC_PORT_Q_EGR_DROP_CTRL_SET_EN_OFFSET(qid) , enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortQForceEgrDrop_set
@@ -1213,14 +1115,13 @@ ret_t dal_rtl8373_asicFCPortQEgrDropEn_get(rtk_uint32 port, rtk_uint32 qid, rtk_
  */
 ret_t dal_rtl8373_asicFCPortQForceEgrDrop_set(rtk_uint32 port, rtk_uint32 qid, rtk_uint32 enable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBit(RTL8373_FC_PORT_Q_EGR_FORCE_DROP_CTRL_SET_ADDR(port, qid), RTL8373_FC_PORT_Q_EGR_FORCE_DROP_CTRL_SET_EN_OFFSET(qid), enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBit(RTL8373_FC_PORT_Q_EGR_FORCE_DROP_CTRL_SET_ADDR(port, qid) , RTL8373_FC_PORT_Q_EGR_FORCE_DROP_CTRL_SET_EN_OFFSET(qid) , enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -1239,18 +1140,13 @@ ret_t dal_rtl8373_asicFCPortQForceEgrDrop_set(rtk_uint32 port, rtk_uint32 qid, r
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicFCPortQForceEgrDrop_get(rtk_uint32 port, rtk_uint32 qid, rtk_uint32* enable)
+ret_t dal_rtl8373_asicFCPortQForceEgrDrop_get(rtk_uint32 port, rtk_uint32 qid, rtk_uint32 *enable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_getAsicRegBit(RTL8373_FC_PORT_Q_EGR_FORCE_DROP_CTRL_SET_ADDR(port, qid), RTL8373_FC_PORT_Q_EGR_FORCE_DROP_CTRL_SET_EN_OFFSET(qid), enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBit(RTL8373_FC_PORT_Q_EGR_FORCE_DROP_CTRL_SET_ADDR(port, qid) , RTL8373_FC_PORT_Q_EGR_FORCE_DROP_CTRL_SET_EN_OFFSET(qid) , enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
-

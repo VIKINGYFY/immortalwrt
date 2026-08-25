@@ -18,34 +18,23 @@
 #ifndef __RTK_API_MIRROR_H__
 #define __RTK_API_MIRROR_H__
 
-typedef enum rtk_mirror_keep_e
-{
-    MIRROR_FOLLOW_VLAN = 0,
-    MIRROR_KEEP_ORIGINAL,
-    MIRROR_KEEP_END
-}rtk_mirror_keep_t;
+typedef enum rtk_mirror_keep_e { MIRROR_FOLLOW_VLAN = 0, MIRROR_KEEP_ORIGINAL, MIRROR_KEEP_END } rtk_mirror_keep_t;
 
-typedef enum rtk_mirror_direction_e
-{
-    TX_DIR = 0,
-    RX_DIR,
-    MIRROR_DIR_END
-}rtk_mirror_direction_t;
+typedef enum rtk_mirror_direction_e { TX_DIR = 0, RX_DIR, MIRROR_DIR_END } rtk_mirror_direction_t;
 
-typedef struct rtk_port_mir_set_s{
-rtk_uint32 mtp_port;
-rtk_portmask_t tx_pmsk;
-rtk_portmask_t rx_pmsk;
-rtk_mirror_direction_t rx_tx_sel;
-}rtk_port_mir_set_t;
+typedef struct rtk_port_mir_set_s {
+	rtk_uint32 mtp_port;
+	rtk_portmask_t tx_pmsk;
+	rtk_portmask_t rx_pmsk;
+	rtk_mirror_direction_t rx_tx_sel;
+} rtk_port_mir_set_t;
 
-
-typedef struct rtk_rspan_tag_s{
-rtk_uint32 tpid;
-rtk_uint32 pri;
-rtk_uint32 cfi;
-rtk_uint32 vid;
-}rtk_rspan_tag_t;
+typedef struct rtk_rspan_tag_s {
+	rtk_uint32 tpid;
+	rtk_uint32 pri;
+	rtk_uint32 cfi;
+	rtk_uint32 vid;
+} rtk_rspan_tag_t;
 
 /* Function Name:
  *      rtk_mirror_set_en
@@ -175,7 +164,6 @@ extern rtk_api_ret_t rtk_mirror_portIso_get(rtk_enable_t *pEnable);
  */
 extern rtk_api_ret_t rtk_mirror_vlanLeaky_set(rtk_enable_t txenable, rtk_enable_t rxenable);
 
-
 /* Function Name:
  *      rtk_mirror_vlanLeaky_get
  * Description:
@@ -254,7 +242,6 @@ extern rtk_api_ret_t rtk_mirror_isolationLeaky_get(rtk_enable_t *pTxenable, rtk_
  *      - MIRROR_KEEP_END
  */
 extern rtk_api_ret_t rtk_mirror_keep_set(rtk_mirror_keep_t mode);
-
 
 /* Function Name:
  *      rtk_mirror_keep_get
@@ -408,7 +395,7 @@ extern rtk_api_ret_t rtk_mirror_samplePktCnt_get(rtk_uint32 *pSamplePktCntr);
  *      RT_ERR_INPUT        - Invalid input parameters.
  * Note:
  */
-extern rtk_api_ret_t rtk_rspan_rxTag_en(rtk_enable_t enable );
+extern rtk_api_ret_t rtk_rspan_rxTag_en(rtk_enable_t enable);
 
 /* Function Name:
  *      rtk_rspan_rxTagEnStatus_get
@@ -425,7 +412,7 @@ extern rtk_api_ret_t rtk_rspan_rxTag_en(rtk_enable_t enable );
  *      RT_ERR_INPUT        - Invalid input parameters.
  * Note:
  */
-extern rtk_api_ret_t rtk_rspan_rxTagEnStatus_get(rtk_enable_t *pEnable );
+extern rtk_api_ret_t rtk_rspan_rxTagEnStatus_get(rtk_enable_t *pEnable);
 
 /* Function Name:
  *      rtk_rspan_tagCtxt_set
@@ -442,7 +429,7 @@ extern rtk_api_ret_t rtk_rspan_rxTagEnStatus_get(rtk_enable_t *pEnable );
  *      RT_ERR_INPUT        - Invalid input parameters.
  * Note:
  */
-extern rtk_api_ret_t rtk_rspan_tagCtxt_set(rtk_rspan_tag_t *pRspanTag );
+extern rtk_api_ret_t rtk_rspan_tagCtxt_set(rtk_rspan_tag_t *pRspanTag);
 
 /* Function Name:
  *      rtk_rspan_tagCtxt_get
@@ -460,7 +447,7 @@ extern rtk_api_ret_t rtk_rspan_tagCtxt_set(rtk_rspan_tag_t *pRspanTag );
  * Note:
  */
 
-extern rtk_api_ret_t rtk_rspan_tagCtxt_get(rtk_rspan_tag_t *pRspanTag );
+extern rtk_api_ret_t rtk_rspan_tagCtxt_get(rtk_rspan_tag_t *pRspanTag);
 
 /* Function Name:
  *      rtk_rspan_tagAdd_set
@@ -469,7 +456,7 @@ extern rtk_api_ret_t rtk_rspan_tagCtxt_get(rtk_rspan_tag_t *pRspanTag );
  * Input:
  *      egrPmsk   - a portmask that want add rspantag while tx pkt
  * Output:
- *      None   
+ *      None
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -503,7 +490,7 @@ extern rtk_api_ret_t rtk_rspan_tagAdd_get(rtk_portmask_t *pPmskStatus);
  * Input:
  *      enable  -
  * Output:
- *      None   
+ *      None
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -520,7 +507,7 @@ extern rtk_api_ret_t rtk_rspan_tagRemove_set(rtk_enable_t enable);
  * Input:
  *      None
  * Output:
- *      pEnable   
+ *      pEnable
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -528,7 +515,6 @@ extern rtk_api_ret_t rtk_rspan_tagRemove_set(rtk_enable_t enable);
  *      RT_ERR_INPUT        - Invalid input parameters.
  * Note:
  */
-extern rtk_api_ret_t rtk_rspan_tagRemove_get(rtk_enable_t *pEnable );
+extern rtk_api_ret_t rtk_rspan_tagRemove_get(rtk_enable_t *pEnable);
 
 #endif /* __RTK_API_MIRROR_H__ */
-

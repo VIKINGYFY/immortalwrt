@@ -1,0 +1,128 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Sat, 1 Aug 2026 16:20:00 +0530
+Subject: [PATCH] net: ethernet: qualcomm: ppe: keep the DSA tag on punted frames
+
+A flow entering through a DSA user port classifies the tagged ingress of
+its (port, VID) into an uplink VSI, which selects the L3 interface that
+routes it. The translation rule matches the VLAN, not the flow, so every
+tagged frame of that VLAN enters the VSI, including the frames which
+belong to no flow and have to reach the CPU.
+
+The rule deletes the C-tag it matched, and the egress tag mode of the
+VSI stays at the reset value of the table, which is untagged on every
+port. A frame the VSI sends to the CPU port therefore arrives without
+the VLAN tag it came in with. A DSA user port carries its port identity
+in that tag alone, so the tagger cannot tell which user port a punted
+frame came from and drops it. ARP resolution of a wired host stops
+completing as soon as one flow through its port is accelerated, which
+strands the host until the last flow of the VLAN goes away.
+
+A VLAN uplink of a plain interface terminates its VLAN in hardware and
+has no such identity to lose. Distinguish the two: keep the tag of a DSA
+uplink, matching the VLAN without deleting it and leaving the egress
+modes of its VSI unmodified on every port, so a punted frame reaches the
+tagger exactly as it arrived.
+
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -336,6 +336,7 @@ struct ppe_ft_data {
+ 	__be16 dport;
+ 	int pppoe_sid;
+ 	int ingress_vid;
++	bool ingress_dsa;
+ 	int ingress_ifindex;
+ };
+ 
+@@ -590,7 +591,7 @@ struct ppe_ft_pppoe_topo {
+ };
+ 
+ static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
+-			   int mtu);
++			   int mtu, bool keep_tag);
+ static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index);
+ 
+ static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
+@@ -756,7 +757,8 @@ static int ppe_ft_pppoe_connect(struct p
+ 
+ 	mutex_lock(&ft->lock);
+ 	if (topo.vid >= 0) {
+-		vlan = ppe_ft_vlan_get(ft, topo.port, topo.vid, topo.vlan_mtu);
++		vlan = ppe_ft_vlan_get(ft, topo.port, topo.vid, topo.vlan_mtu,
++				       false);
+ 		if (vlan < 0) {
+ 			ret = vlan;
+ 			goto out_unlock;
+@@ -955,12 +957,13 @@ static bool ppe_ft_vlan_match(const void
+ }
+ 
+ static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
+-			   int mtu)
++			   int mtu, bool keep_tag)
+ {
+ 	struct ppe_ft_vlan want = { .vid = vid, .port = port };
+ 	const u8 no_mac[ETH_ALEN] = {};
++	u32 eg_modes;
+ 	bool is_new;
+-	int i, ret, err;
++	int i, p, ret, err;
+ 
+ 	i = ppe_ft_ref_get(ft->vlans, sizeof(*ft->vlans),
+ 			   PPE_L3_VLAN_UPLINKS, ppe_ft_vlan_match,
+@@ -981,8 +984,20 @@ static int ppe_ft_vlan_get(struct ppe_fl
+ 	if (ret)
+ 		return ret;
+ 
++	if (keep_tag) {
++		eg_modes = 0;
++		for (p = 0; p < ft->ppe_dev->num_ports; p++)
++			eg_modes |= PPE_EG_VLAN_MODE_UNMODIFIED << (p * 2);
++
++		ret = ppe_vsi_eg_mode_set(ft->ppe_dev, ppe_ft_vlan_vsi(i),
++					  eg_modes);
++		if (ret)
++			return ret;
++	}
++
+ 	ret = ppe_ing_xlt_rule_set(ft->ppe_dev, ppe_ft_vlan_xlt(i),
+-				   BIT(port), vid, ppe_ft_vlan_vsi(i), true);
++				   BIT(port), vid, ppe_ft_vlan_vsi(i),
++				   !keep_tag);
+ 	if (ret) {
+ 		err = ppe_ing_xlt_rule_clear(ft->ppe_dev,
+ 					     ppe_ft_vlan_xlt(i));
+@@ -1432,7 +1447,7 @@ out_unlock:
+ 		if (vid >= 0) {
+ 			tunnel->vlan = ppe_ft_vlan_get(ft,
+ 						       tunnel->underlay_port, vid,
+-						 dst->dev->mtu);
++						 dst->dev->mtu, false);
+ 			if (tunnel->vlan < 0) {
+ 				ret = tunnel->vlan;
+ 				tunnel->vlan = -1;
+@@ -1896,6 +1911,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	nh.vid = -1;
+ 	data.pppoe_sid = -1;
+ 	data.ingress_vid = -1;
++	data.ingress_dsa = false;
+ 
+ 	{
+ 		struct flow_match_basic match;
+@@ -2261,6 +2277,7 @@ static int ppe_ft_flow_replace(struct pp
+ 			ipriv = netdev_priv(conduit);
+ 			iport = ipriv->ppe_port->port_id;
+ 			data.ingress_vid = dsa_ivid;
++			data.ingress_dsa = true;
+ 		} else if (ft->ppe_dev->variant->has_vports &&
+ 			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
+ 			reject_reason = PPE_FT_REJECT_INGRESS_VP;
+@@ -2479,7 +2496,7 @@ put_idev:
+ 
+ 	if (data.ingress_vid >= 0) {
+ 		flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_vid,
+-					     imtu);
++					     imtu, data.ingress_dsa);
+ 		if (flow->vlan < 0) {
+ 			ret = flow->vlan;
+ 			goto err_ingress_my_mac;

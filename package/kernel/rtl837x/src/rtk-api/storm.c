@@ -44,16 +44,16 @@
  */
 rtk_api_ret_t rtk_rate_stormControlMeterIdx_set(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_uint32 index)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlMeterIdx_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlMeterIdx_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlMeterIdx_set(port, stormType, index);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlMeterIdx_set(port, stormType, index);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -75,16 +75,16 @@ rtk_api_ret_t rtk_rate_stormControlMeterIdx_set(rtk_port_t port, rtk_rate_storm_
  */
 rtk_api_ret_t rtk_rate_stormControlMeterIdx_get(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_uint32 *pIndex)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlMeterIdx_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlMeterIdx_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlMeterIdx_get(port, stormType, pIndex);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlMeterIdx_get(port, stormType, pIndex);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -108,16 +108,16 @@ rtk_api_ret_t rtk_rate_stormControlMeterIdx_get(rtk_port_t port, rtk_rate_storm_
  */
 rtk_api_ret_t rtk_rate_stormControlPortEnable_set(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlPortEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlPortEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlPortEnable_set(port, stormType, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlPortEnable_set(port, stormType, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -140,16 +140,16 @@ rtk_api_ret_t rtk_rate_stormControlPortEnable_set(rtk_port_t port, rtk_rate_stor
  */
 rtk_api_ret_t rtk_rate_stormControlPortEnable_get(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlPortEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlPortEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlPortEnable_get(port, stormType, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlPortEnable_get(port, stormType, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -226,16 +226,16 @@ rtk_api_ret_t rtk_rate_stormControlPortEnable_get(rtk_port_t port, rtk_rate_stor
  */
 rtk_api_ret_t rtk_storm_bypass_set(rtk_storm_bypass_t type, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->storm_bypass_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->storm_bypass_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->storm_bypass_set(type, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->storm_bypass_set(type, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -309,16 +309,16 @@ rtk_api_ret_t rtk_storm_bypass_set(rtk_storm_bypass_t type, rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_storm_bypass_get(rtk_storm_bypass_t type, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->storm_bypass_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->storm_bypass_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->storm_bypass_get(type, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->storm_bypass_get(type, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -339,16 +339,16 @@ rtk_api_ret_t rtk_storm_bypass_get(rtk_storm_bypass_t type, rtk_enable_t *pEnabl
  */
 rtk_api_ret_t rtk_rate_stormControlExtPortmask_set(rtk_uint32 portmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlExtPortmask_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlExtPortmask_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlExtPortmask_set(portmask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlExtPortmask_set(portmask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -369,16 +369,16 @@ rtk_api_ret_t rtk_rate_stormControlExtPortmask_set(rtk_uint32 portmask)
  */
 rtk_api_ret_t rtk_rate_stormControlExtPortmask_get(rtk_uint32 *pPortmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlExtPortmask_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlExtPortmask_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlExtPortmask_get(pPortmask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlExtPortmask_get(pPortmask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -400,16 +400,16 @@ rtk_api_ret_t rtk_rate_stormControlExtPortmask_get(rtk_uint32 *pPortmask)
  */
 rtk_api_ret_t rtk_rate_stormControlExtEnable_set(rtk_rate_storm_group_t stormType, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlExtEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlExtEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlExtEnable_set(stormType, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlExtEnable_set(stormType, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -430,16 +430,16 @@ rtk_api_ret_t rtk_rate_stormControlExtEnable_set(rtk_rate_storm_group_t stormTyp
  */
 rtk_api_ret_t rtk_rate_stormControlExtEnable_get(rtk_rate_storm_group_t stormType, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlExtEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlExtEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlExtEnable_get(stormType, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlExtEnable_get(stormType, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -461,16 +461,16 @@ rtk_api_ret_t rtk_rate_stormControlExtEnable_get(rtk_rate_storm_group_t stormTyp
  */
 rtk_api_ret_t rtk_rate_stormControlExtMeterIdx_set(rtk_rate_storm_group_t stormType, rtk_uint32 index)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlExtMeterIdx_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlExtMeterIdx_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlExtMeterIdx_set(stormType, index);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlExtMeterIdx_set(stormType, index);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -492,16 +492,14 @@ rtk_api_ret_t rtk_rate_stormControlExtMeterIdx_set(rtk_rate_storm_group_t stormT
  */
 rtk_api_ret_t rtk_rate_stormControlExtMeterIdx_get(rtk_rate_storm_group_t stormType, rtk_uint32 *pIndex)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_stormControlExtMeterIdx_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_stormControlExtMeterIdx_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_stormControlExtMeterIdx_get(stormType, pIndex);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_stormControlExtMeterIdx_get(stormType, pIndex);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-

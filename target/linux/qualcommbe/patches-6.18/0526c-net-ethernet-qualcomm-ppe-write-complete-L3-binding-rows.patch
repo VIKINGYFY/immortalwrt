@@ -1,0 +1,59 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Fri, 31 Jul 2026 23:30:00 +0530
+Subject: [PATCH] net: ethernet: qualcomm: ppe: write complete L3 binding rows
+
+The PPE table interface does not reliably commit partial register updates.
+The port-to-L3 binding consequently remains invalid, and a VLAN can reach
+its translated VSI without the VSI selecting the L3 interface configured
+for it. Such packets take the L3 no-route action before flow lookup.
+
+Write the complete one-word L3_VSI row. Preserve and write the complete
+four-word L3_VP_PORT row when changing a port binding, following the same
+hardware access model as the other PPE table writers.
+
+Link: https://github.com/openwrt/openwrt/commit/142104bb90b3d7685b2a96f04f29b76cbd1e5ee9
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -546,14 +546,13 @@ rollback:
+ int ppe_vsi_l3_if_set(struct ppe_device *ppe_dev, int vsi, int l3_if)
+ {
+ 	u32 reg = PPE_L3_VSI_ADDR + PPE_L3_VSI_INC * vsi;
+-	u32 mask = PPE_L3_VSI_L3_IF_VALID | PPE_L3_VSI_L3_IF_INDEX;
+ 	u32 val = 0;
+ 
+ 	if (l3_if >= 0)
+ 		val = PPE_L3_VSI_L3_IF_VALID |
+ 		      FIELD_PREP(PPE_L3_VSI_L3_IF_INDEX, l3_if);
+ 
+-	return regmap_update_bits(ppe_dev->regmap, reg, mask, val);
++	return regmap_write(ppe_dev->regmap, reg, val);
+ }
+ 
+ /**
+@@ -569,13 +568,20 @@ int ppe_port_l3_if_set(struct ppe_device
+ 	u32 reg = PPE_L3_VP_PORT_TBL_ADDR + PPE_L3_VP_PORT_TBL_INC * port;
+ 	u32 mask = PPE_L3_VP_PORT_W0_L3_IF_VALID |
+ 		   PPE_L3_VP_PORT_W0_L3_IF_INDEX;
+-	u32 val = 0;
++	u32 val[4];
++	int ret;
++
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
++	if (ret)
++		return ret;
++
++	val[0] &= ~mask;
+ 
+ 	if (l3_if >= 0)
+-		val = PPE_L3_VP_PORT_W0_L3_IF_VALID |
+-		      FIELD_PREP(PPE_L3_VP_PORT_W0_L3_IF_INDEX, l3_if);
++		val[0] |= PPE_L3_VP_PORT_W0_L3_IF_VALID |
++			  FIELD_PREP(PPE_L3_VP_PORT_W0_L3_IF_INDEX, l3_if);
+ 
+-	return regmap_update_bits(ppe_dev->regmap, reg, mask, val);
++	return regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+ }
+ 
+ /**

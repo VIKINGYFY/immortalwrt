@@ -22,65 +22,38 @@
 #include <dal_rtl8373_igmp.h>
 #include <rtl8373_asicdrv.h>
 
-#define RTL8373_MAX_LEAVE_TIMER        (7)
-#define RTL8373_MAX_QUERY_INT          (0xFFFF)
-#define RTL8373_MAX_ROB_VAR            (7)
+#define RTL8373_MAX_LEAVE_TIMER (7)
+#define RTL8373_MAX_QUERY_INT (0xFFFF)
+#define RTL8373_MAX_ROB_VAR (7)
 
-#define RTL8373_IGMP_GOUP_NO           (256)
-#define RTL8373_IGMP_MAX_GOUP          (0xFF)
-#define RTL8373_IGMP_GRP_BLEN          (3)
-#define RTL8373_ROUTER_PORT_INVALID    (0xF)
+#define RTL8373_IGMP_GOUP_NO (256)
+#define RTL8373_IGMP_MAX_GOUP (0xFF)
+#define RTL8373_IGMP_GRP_BLEN (3)
+#define RTL8373_ROUTER_PORT_INVALID (0xF)
 
-enum RTL8373_IGMPTABLE_FULL_OP
-{
-    TABLE_FULL_FORWARD = 0,
-    TABLE_FULL_DROP,
-    TABLE_FULL_TRAP,
-    TABLE_FULL_OP_END
-};
+enum RTL8373_IGMPTABLE_FULL_OP { TABLE_FULL_FORWARD = 0, TABLE_FULL_DROP, TABLE_FULL_TRAP, TABLE_FULL_OP_END };
 
-enum RTL8373_CRC_ERR_OP
-{
-    CRC_ERR_DROP = 0,
-    CRC_ERR_TRAP,
-    CRC_ERR_FORWARD,
-    CRC_ERR_OP_END
-};
+enum RTL8373_CRC_ERR_OP { CRC_ERR_DROP = 0, CRC_ERR_TRAP, CRC_ERR_FORWARD, CRC_ERR_OP_END };
 
-enum RTL8373_IGMP_MLD_PROTOCOL_OP
-{
-    PROTOCOL_OP_ASIC = 0,
-    PROTOCOL_OP_FLOOD,
-    PROTOCOL_OP_TRAP,
-    PROTOCOL_OP_DROP,
-    PROTOCOL_OP_END
-};
+enum RTL8373_IGMP_MLD_PROTOCOL_OP { PROTOCOL_OP_ASIC = 0, PROTOCOL_OP_FLOOD, PROTOCOL_OP_TRAP, PROTOCOL_OP_DROP, PROTOCOL_OP_END };
 
-enum RTL8373_IGMP_MLD_BYPASS_GROUP
-{
-    BYPASS_224_0_0_X = 0,
-    BYPASS_224_0_1_X,
-    BYPASS_239_255_255_X,
-    BYPASS_IPV6_00XX,
-    BYPASS_GROUP_END
-};
+enum RTL8373_IGMP_MLD_BYPASS_GROUP { BYPASS_224_0_0_X = 0, BYPASS_224_0_1_X, BYPASS_239_255_255_X, BYPASS_IPV6_00XX, BYPASS_GROUP_END };
 
-typedef struct
-{
-    rtk_uint32 p0_timer;
-    rtk_uint32 p1_timer;
-    rtk_uint32 p2_timer;
-    rtk_uint32 p3_timer;
-    rtk_uint32 p4_timer;
-    rtk_uint32 p5_timer;
-    rtk_uint32 p6_timer;
-    rtk_uint32 p7_timer;
-    rtk_uint32 p8_timer;
-    rtk_uint32 p9_timer;
-    rtk_uint32 p10_timer;
-    rtk_uint32 report_supp_flag;
+typedef struct {
+	rtk_uint32 p0_timer;
+	rtk_uint32 p1_timer;
+	rtk_uint32 p2_timer;
+	rtk_uint32 p3_timer;
+	rtk_uint32 p4_timer;
+	rtk_uint32 p5_timer;
+	rtk_uint32 p6_timer;
+	rtk_uint32 p7_timer;
+	rtk_uint32 p8_timer;
+	rtk_uint32 p9_timer;
+	rtk_uint32 p10_timer;
+	rtk_uint32 report_supp_flag;
 
-}rtl8373_igmpgroup;
+} rtl8373_igmpgroup;
 
 /* Function Name:
  *      dal_rtl8373_setAsicIGMPIsoLeaky
@@ -199,9 +172,7 @@ rtk_api_ret_t dal_rtl8373_getAsicIpMulticastVlanLeaky(rtk_uint32 port, rtk_uint3
  * Note:
  *      None
  */
-rtk_api_ret_t  dal_rtl8373_getAsicIGMPGroup(rtk_uint32 idx, rtk_uint32 *valid, rtl8373_igmpgroup *grp);
-
-
+rtk_api_ret_t dal_rtl8373_getAsicIGMPGroup(rtk_uint32 idx, rtk_uint32 *valid, rtl8373_igmpgroup *grp);
 
 /* Function Name:
  *      dal_rtl8373_igmp_init

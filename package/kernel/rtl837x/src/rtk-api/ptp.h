@@ -21,188 +21,126 @@
 /*
  * Symbol Definition
  */
-#define RTK_MAX_NUM_OF_NANO_SECOND                     0x3B9ACA00
-#define RTK_PTP_INTR_MASK                                          0xFF
-#define RTK_MAX_NUM_OF_TPID                                    0xFFFF
+#define RTK_MAX_NUM_OF_NANO_SECOND 0x3B9ACA00
+#define RTK_PTP_INTR_MASK 0xFF
+#define RTK_MAX_NUM_OF_TPID 0xFFFF
 
 /* Message Type */
-typedef enum rtk_ptp_msgType_e
-{
-    PTP_MSG_TYPE_TX_SYNC = 0,
-    PTP_MSG_TYPE_TX_DELAY_REQ,
-    PTP_MSG_TYPE_TX_PDELAY_REQ,
-    PTP_MSG_TYPE_TX_PDELAY_RESP,
-    PTP_MSG_TYPE_RX_SYNC,
-    PTP_MSG_TYPE_RX_DELAY_REQ,
-    PTP_MSG_TYPE_RX_PDELAY_REQ,
-    PTP_MSG_TYPE_RX_PDELAY_RESP,
-    PTP_MSG_TYPE_END
+typedef enum rtk_ptp_msgType_e {
+	PTP_MSG_TYPE_TX_SYNC = 0,
+	PTP_MSG_TYPE_TX_DELAY_REQ,
+	PTP_MSG_TYPE_TX_PDELAY_REQ,
+	PTP_MSG_TYPE_TX_PDELAY_RESP,
+	PTP_MSG_TYPE_RX_SYNC,
+	PTP_MSG_TYPE_RX_DELAY_REQ,
+	PTP_MSG_TYPE_RX_PDELAY_REQ,
+	PTP_MSG_TYPE_RX_PDELAY_RESP,
+	PTP_MSG_TYPE_END
 } rtk_ptp_msgType_t;
 
-typedef enum rtk_ptp_intType_e
-{
-    PTP_INT_TYPE_1PPS = 0,
-    PTP_INT_TYPE_TOD_DONE,
-    PTP_INT_TYPE_TXTIME_EMPTY,
-    PTP_INT_TYPE_END
-}rtk_ptp_intType_t;
+typedef enum rtk_ptp_intType_e { PTP_INT_TYPE_1PPS = 0, PTP_INT_TYPE_TOD_DONE, PTP_INT_TYPE_TXTIME_EMPTY, PTP_INT_TYPE_END } rtk_ptp_intType_t;
 
-typedef enum rtk_ptp_sys_adjust_e
-{
-    SYS_ADJUST_PLUS = 0,
-    SYS_ADJUST_MINUS,
-    SYS_ADJUST_END
-} rtk_ptp_sys_adjust_t;
+typedef enum rtk_ptp_sys_adjust_e { SYS_ADJUST_PLUS = 0, SYS_ADJUST_MINUS, SYS_ADJUST_END } rtk_ptp_sys_adjust_t;
 
-typedef enum rtk_ptp_header_e
-{
-    PTP_ETH = 0,
-    PTP_UDP ,
-    PTP_END
-} rtk_ptp_header_t;
+typedef enum rtk_ptp_header_e { PTP_ETH = 0, PTP_UDP, PTP_END } rtk_ptp_header_t;
 
 /* Reference Time */
-typedef struct rtk_time_timeStamp_s
-{
-    rtk_uint64 sec;
-    rtk_uint32 nsec;
+typedef struct rtk_time_timeStamp_s {
+	rtk_uint64 sec;
+	rtk_uint32 nsec;
 } rtk_time_timeStamp_t;
 
-typedef struct rtk_ptp_info_s
-{
-    rtk_uint32 sequenceId;
-    rtk_time_timeStamp_t   timeStamp;
+typedef struct rtk_ptp_info_s {
+	rtk_uint32 sequenceId;
+	rtk_time_timeStamp_t timeStamp;
 } rtk_ptp_info_t;
 
-typedef enum rtk_ptp_port_role_e
-{
-    PTP_PORT_NONE= 0,
-    PTP_PORT_BCOC,
-    PTP_PORT_E2ETC,
-    PTP_PORT_P2PTC,
-    PTP_PORT_END,
-}  rtk_ptp_port_role_t;
+typedef enum rtk_ptp_port_role_e {
+	PTP_PORT_NONE = 0,
+	PTP_PORT_BCOC,
+	PTP_PORT_E2ETC,
+	PTP_PORT_P2PTC,
+	PTP_PORT_END,
+} rtk_ptp_port_role_t;
 
-typedef struct 
-{
-    rtk_ptp_port_role_t portrole;
-    rtk_enable_t udp_en;
-    rtk_enable_t eth_en;
-    rtk_enable_t always_ts_en;
-    rtk_uint32 link_delay;    
+typedef struct {
+	rtk_ptp_port_role_t portrole;
+	rtk_enable_t udp_en;
+	rtk_enable_t eth_en;
+	rtk_enable_t always_ts_en;
+	rtk_uint32 link_delay;
 } rtk_ptp_port_ctrl_t;
 
-typedef struct  rtk_ptp_porttrap_ctrl_s{
-    rtk_uint32 udp_en;
-    rtk_uint32 eth_en;
-    rtk_uint32 ptp_delay_en;//MSG TYPE 0,1,8,9
-    rtk_uint32 ptp_pdelay_en;//MSG TYPE 2,3,A
-    rtk_uint32 ptp_pasm_en;//MSG TYPE B,C,D
-}rtk_ptp_porttrap_ctrl_t;
+typedef struct rtk_ptp_porttrap_ctrl_s {
+	rtk_uint32 udp_en;
+	rtk_uint32 eth_en;
+	rtk_uint32 ptp_delay_en; //MSG TYPE 0,1,8,9
+	rtk_uint32 ptp_pdelay_en; //MSG TYPE 2,3,A
+	rtk_uint32 ptp_pasm_en; //MSG TYPE B,C,D
+} rtk_ptp_porttrap_ctrl_t;
 
 typedef rtk_uint32 rtk_ptp_tpid_t;
 
-typedef rtk_uint32  rtk_ptp_intStatus_t;     /* interrupt status mask  */
+typedef rtk_uint32 rtk_ptp_intStatus_t; /* interrupt status mask  */
 
-typedef enum rtk_vlanType_e
-{
-    INNER_VLAN = 0,
-    OUTER_VLAN,
-    VLAN_TYPE_END
-} rtk_vlanType_t;
-
+typedef enum rtk_vlanType_e { INNER_VLAN = 0, OUTER_VLAN, VLAN_TYPE_END } rtk_vlanType_t;
 
 /* Message Type */
-typedef enum rtk_time_ptpMsgType_e
-{
-    PTP_MSG_TYPE_SYNC = 0,
-    PTP_MSG_TYPE_DELAY_REQ = 1,
-    PTP_MSG_TYPE_PDELAY_REQ = 2,
-    PTP_MSG_TYPE_PDELAY_RESP = 3,
+typedef enum rtk_time_ptpMsgType_e {
+	PTP_MSG_TYPE_SYNC = 0,
+	PTP_MSG_TYPE_DELAY_REQ = 1,
+	PTP_MSG_TYPE_PDELAY_REQ = 2,
+	PTP_MSG_TYPE_PDELAY_RESP = 3,
 } rtk_time_ptpMsgType_t;
 
 /* trap packet target */
-typedef enum rtk_trapTarget_e
-{
-    RTK_FORWARD,
-    RTK_TRAP,
-    RTK_DROP,
-    RTK_TRAP_END,
+typedef enum rtk_trapTarget_e {
+	RTK_FORWARD,
+	RTK_TRAP,
+	RTK_DROP,
+	RTK_TRAP_END,
 } rtk_trapTarget_t;
 
 /* TIME packet identifier */
-typedef struct rtk_time_ptpIdentifier_s
-{
-    rtk_time_ptpMsgType_t   msgType;
-    rtk_uint32                  sequenceId;
+typedef struct rtk_time_ptpIdentifier_s {
+	rtk_time_ptpMsgType_t msgType;
+	rtk_uint32 sequenceId;
 } rtk_time_ptpIdentifier_t;
 
-typedef enum rtk_time_oper_e
-{
-    TIME_OPER_START = 0,
-    TIME_OPER_STOP,
-    TIME_OPER_LATCH,
-    TIME_OPER_CMD_EXEC,
-    TIME_OPER_FREQ_APPLY,
-    TIME_OPER_END
-} rtk_time_oper_t;
+typedef enum rtk_time_oper_e { TIME_OPER_START = 0, TIME_OPER_STOP, TIME_OPER_LATCH, TIME_OPER_CMD_EXEC, TIME_OPER_FREQ_APPLY, TIME_OPER_END } rtk_time_oper_t;
 
+typedef enum rtk_time_opertriger_e { TIME_FALL_TRI = 1, TIME_RISE_TRI, TIME_BOTH_TRI, TIME_TRI_END } rtk_time_opertriger_t;
 
-typedef enum rtk_time_opertriger_e
-{
-    TIME_FALL_TRI= 1,
-    TIME_RISE_TRI,
-    TIME_BOTH_TRI,
-    TIME_TRI_END
-} rtk_time_opertriger_t;
-
-typedef struct rtk_time_operCfg_s
-{
-    rtk_time_oper_t oper;
-    rtk_enable_t rise_tri;
-    rtk_enable_t fall_tri;
-    rtk_enable_t tri_apply;
+typedef struct rtk_time_operCfg_s {
+	rtk_time_oper_t oper;
+	rtk_enable_t rise_tri;
+	rtk_enable_t fall_tri;
+	rtk_enable_t tri_apply;
 } rtk_time_operCfg_t;
-typedef enum rtk_time_clkOutMode_e
-{
-    PTP_CLK_OUT_REPEAT = 0,
-    PTP_CLK_OUT_PULSE = 1,
-    PTP_CLK_OUT_END
-} rtk_time_clkOutMode_t;
+typedef enum rtk_time_clkOutMode_e { PTP_CLK_OUT_REPEAT = 0, PTP_CLK_OUT_PULSE = 1, PTP_CLK_OUT_END } rtk_time_clkOutMode_t;
 
-typedef enum rtk_time_outSigSel_e
-{
-    PTP_OUT_SIG_SEL_CLOCK = 0,
-    PTP_OUT_SIG_SEL_1PPS = 1,
-    PTP_OUT_SIG_SEL_END
-} rtk_time_outSigSel_t;
+typedef enum rtk_time_outSigSel_e { PTP_OUT_SIG_SEL_CLOCK = 0, PTP_OUT_SIG_SEL_1PPS = 1, PTP_OUT_SIG_SEL_END } rtk_time_outSigSel_t;
 
 /* TIME transmission callback function prototype */
-typedef rtk_int32 (rtk_time_ptpTime_cb_f)(
-    rtk_port_t                  port,
-    rtk_time_ptpIdentifier_t    identifier,
-    rtk_time_timeStamp_t        time);
+typedef rtk_int32(rtk_time_ptpTime_cb_f)(rtk_port_t port, rtk_time_ptpIdentifier_t identifier, rtk_time_timeStamp_t time);
 /*
  * Data Declaration
  */
-typedef struct rtk_time_txTimeEntry_s
-{
-    rtk_uint8 valid;
-    rtk_port_t port;
-    rtk_time_ptpMsgType_t msg_type;
-    rtk_uint32 seqId;
-    rtk_time_timeStamp_t txTime;
+typedef struct rtk_time_txTimeEntry_s {
+	rtk_uint8 valid;
+	rtk_port_t port;
+	rtk_time_ptpMsgType_t msg_type;
+	rtk_uint32 seqId;
+	rtk_time_timeStamp_t txTime;
 } rtk_time_txTimeEntry_t;
 
-typedef struct rtk_time_clkOutput_s
-{
-    rtk_time_clkOutMode_t mode;
-    rtk_time_timeStamp_t startTime;
-    rtk_uint32 halfPeriodNsec;
-    rtk_enable_t enable;
-    rtk_uint8 runing; //Only valid for get API
+typedef struct rtk_time_clkOutput_s {
+	rtk_time_clkOutMode_t mode;
+	rtk_time_timeStamp_t startTime;
+	rtk_uint32 halfPeriodNsec;
+	rtk_enable_t enable;
+	rtk_uint8 runing; //Only valid for get API
 } rtk_time_clkOutput_t;
-
 
 /* Function Name:
  *      rtk_time_portPtpEnable_get
@@ -222,14 +160,13 @@ typedef struct rtk_time_clkOutput_s
  *      RT_ERR_PORT         - invalid port id
  *      RT_ERR_NULL_POINTER - input parameter may be null pointer
  * Applicable:
- *      
+ *
  * Note:
  *      None
  * Changes:
  *      None
  */
-ret_t rtk_time_portPtpEnable_get( rtk_port_t port, rtk_ptp_header_t type,rtk_enable_t *pEnable);
-
+ret_t rtk_time_portPtpEnable_get(rtk_port_t port, rtk_ptp_header_t type, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      rtk_time_portPtpEnable_set
@@ -247,15 +184,13 @@ ret_t rtk_time_portPtpEnable_get( rtk_port_t port, rtk_ptp_header_t type,rtk_ena
  *      RT_ERR_PORT         - invalid port id
  *      RT_ERR_NULL_POINTER - input parameter may be null pointer
  * Applicable:
- *      
+ *
  * Note:
  *      None
  * Changes:
  *      None
  */
-ret_t rtk_time_portPtpEnable_set( rtk_port_t port, rtk_ptp_header_t type,rtk_enable_t Enable);
-
-
+ret_t rtk_time_portPtpEnable_set(rtk_port_t port, rtk_ptp_header_t type, rtk_enable_t Enable);
 
 /* Function Name:
  *      rtk_ptp_init
@@ -294,7 +229,7 @@ rtk_api_ret_t rtk_time_init(rtk_portmask_t ptpinternalpmask);
  * Changes:
  *      None
  */
-extern rtk_api_ret_t rtk_time_portPtpbypassEnable_get(rtk_port_t port,rtk_enable_t *pEnable);
+extern rtk_api_ret_t rtk_time_portPtpbypassEnable_get(rtk_port_t port, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      rtk_time_portPtpbypassEnable_set
@@ -318,7 +253,7 @@ extern rtk_api_ret_t rtk_time_portPtpbypassEnable_get(rtk_port_t port,rtk_enable
  * Changes:
  *      None
  */
-extern rtk_api_ret_t rtk_time_portPtpbypassEnable_set(rtk_port_t port,rtk_enable_t enable);
+extern rtk_api_ret_t rtk_time_portPtpbypassEnable_set(rtk_port_t port, rtk_enable_t enable);
 
 /* Function Name:
  *      rtk_time_portRefTime_get
@@ -340,7 +275,7 @@ extern rtk_api_ret_t rtk_time_portPtpbypassEnable_set(rtk_port_t port,rtk_enable
  * Changes:
  *          Add port parameter.
  */
-extern rtk_api_ret_t rtk_time_portRefTime_get( rtk_time_timeStamp_t *pTimeStamp);
+extern rtk_api_ret_t rtk_time_portRefTime_get(rtk_time_timeStamp_t *pTimeStamp);
 
 /* Function Name:
  *      rtk_time_portRefTime_set
@@ -363,7 +298,7 @@ extern rtk_api_ret_t rtk_time_portRefTime_get( rtk_time_timeStamp_t *pTimeStamp)
  *          Change name from rtk_time_refTime_set.
  *          Add portmask parameter.
  */
-extern rtk_api_ret_t rtk_time_portRefTime_set( rtk_time_timeStamp_t timeStamp,rtk_enable_t apply);
+extern rtk_api_ret_t rtk_time_portRefTime_set(rtk_time_timeStamp_t timeStamp, rtk_enable_t apply);
 /* Function Name:
  *      rtk_time_portRefTimeAdjust_set
  * Description:
@@ -388,7 +323,7 @@ extern rtk_api_ret_t rtk_time_portRefTime_set( rtk_time_timeStamp_t timeStamp,rt
  *          Change name from rtk_time_refTimeAdjust_set.
  *          Add portmask parameter.
  */
-extern rtk_api_ret_t rtk_time_portRefTimeAdjust_set(rtk_uint32 sign, rtk_time_timeStamp_t timeStamp,rtk_enable_t apply);
+extern rtk_api_ret_t rtk_time_portRefTimeAdjust_set(rtk_uint32 sign, rtk_time_timeStamp_t timeStamp, rtk_enable_t apply);
 
 /* Function Name:
  *      rtk_time_portRefTimeEnable_get
@@ -411,7 +346,7 @@ extern rtk_api_ret_t rtk_time_portRefTimeAdjust_set(rtk_uint32 sign, rtk_time_ti
  *          Change name from rtk_time_refTimeEnable_get.
  *          Add port parameter.
  */
-extern rtk_api_ret_t rtk_time_portRefTimeEnable_get(  rtk_enable_t *pEnable);
+extern rtk_api_ret_t rtk_time_portRefTimeEnable_get(rtk_enable_t *pEnable);
 
 /* Function Name:
  *      rtk_time_portRefTimeEnable_set
@@ -442,7 +377,7 @@ extern rtk_api_ret_t rtk_time_portRefTimeEnable_set(rtk_enable_t enable);
  * Description:
  *      Set the PTP time operation triger.
  * Input:
- *      triType     
+ *      triType
  * Output:
  *      None
  * Return:
@@ -483,7 +418,7 @@ extern rtk_api_ret_t rtk_time_portPtpOper_triger(void);
  *          Change name from rtk_time_refTimeFreq_get.
  *          Add port parameter.
  */
-extern rtk_api_ret_t rtk_time_portRefTimeFreq_get( rtk_uint32 *pFreq);
+extern rtk_api_ret_t rtk_time_portRefTimeFreq_get(rtk_uint32 *pFreq);
 #endif
 /* Function Name:
  *      rtk_time_portRefTimeFreq_set
@@ -509,7 +444,7 @@ extern rtk_api_ret_t rtk_time_portRefTimeFreq_get( rtk_uint32 *pFreq);
  * Changes:
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portRefTimeFreq_set( rtk_uint32 freq);
+extern rtk_api_ret_t rtk_time_portRefTimeFreq_set(rtk_uint32 freq);
 
 /* Function Name:
  *      rtk_time_portPtpVlanTpid_get
@@ -531,7 +466,7 @@ extern rtk_api_ret_t rtk_time_portRefTimeFreq_set( rtk_uint32 freq);
  * Changes:
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtpVlanTpid_get( rtk_vlanType_t type, rtk_uint32 idx, rtk_uint32 *pTpid);
+extern rtk_api_ret_t rtk_time_portPtpVlanTpid_get(rtk_vlanType_t type, rtk_uint32 idx, rtk_uint32 *pTpid);
 
 /* Function Name:
  *      rtk_time_portPtpVlanTpid_set
@@ -557,7 +492,7 @@ extern rtk_api_ret_t rtk_time_portPtpVlanTpid_get( rtk_vlanType_t type, rtk_uint
  * Changes:
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtpVlanTpid_set( rtk_vlanType_t type, rtk_uint32 idx, rtk_uint32 tpid);
+extern rtk_api_ret_t rtk_time_portPtpVlanTpid_set(rtk_vlanType_t type, rtk_uint32 idx, rtk_uint32 tpid);
 
 /* Function Name:
  *      rtk_time_portPtpOper_get
@@ -580,7 +515,6 @@ extern rtk_api_ret_t rtk_time_portPtpVlanTpid_set( rtk_vlanType_t type, rtk_uint
  */
 extern rtk_api_ret_t rtk_time_portPtpOper_get(rtk_time_operCfg_t *pOperCfg);
 
-
 /* Function Name:
  *      rtk_time_portPtpOper_set
  * Description:
@@ -602,7 +536,7 @@ extern rtk_api_ret_t rtk_time_portPtpOper_get(rtk_time_operCfg_t *pOperCfg);
  * Changes:
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtpOper_set( rtk_time_operCfg_t pOperCfg);
+extern rtk_api_ret_t rtk_time_portPtpOper_set(rtk_time_operCfg_t pOperCfg);
 
 /* Function Name:
  *      rtk_time_portPtpLatchTime_get
@@ -625,8 +559,7 @@ extern rtk_api_ret_t rtk_time_portPtpOper_set( rtk_time_operCfg_t pOperCfg);
  *      [SDK_3.6.0]
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtpLatchTime_get( rtk_time_timeStamp_t *pLatchTime);
-
+extern rtk_api_ret_t rtk_time_portPtpLatchTime_get(rtk_time_timeStamp_t *pLatchTime);
 
 /* Function Name:
  *      rtk_time_portPtpRefTimeFreqCfg_get
@@ -651,7 +584,7 @@ extern rtk_api_ret_t rtk_time_portPtpLatchTime_get( rtk_time_timeStamp_t *pLatch
  *      [SDK_NEXT_RELEASE_VERSION]
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtpRefTimeFreqCfg_get( rtk_uint32 *pFreqCfg, rtk_uint32 *pFreqCur);
+extern rtk_api_ret_t rtk_time_portPtpRefTimeFreqCfg_get(rtk_uint32 *pFreqCfg, rtk_uint32 *pFreqCur);
 
 /* Function Name:
  *      rtk_time_portPtpRefTimeFreqCfg_set
@@ -701,7 +634,7 @@ extern rtk_api_ret_t rtk_time_portPtpRefTimeFreqCfg_set(rtk_uint32 freq, rtk_ena
  *      [SDK_NEXT_RELEASE_VERSION]
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtpTxInterruptStatus_get( rtk_uint32 *pIntrSts);
+extern rtk_api_ret_t rtk_time_portPtpTxInterruptStatus_get(rtk_uint32 *pIntrSts);
 
 /* Function Name:
  *      rtk_time_portPtpTxTimestampFifo_get
@@ -742,9 +675,7 @@ extern rtk_api_ret_t rtk_time_portPtpTxTimestampFifo_get(rtk_time_txTimeEntry_t 
  * 0: internal clock (Internal PLL, 1GMHz)
  * 1: external clock, refer to cfg_ext_clk_src)
  */
-extern rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_get(rtk_enable_t* clksrc);
-
-
+extern rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_get(rtk_enable_t *clksrc);
 
 /* Function Name:
  *      rtk_time_portPtpClkSrcCtrl_set
@@ -761,11 +692,11 @@ extern rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_get(rtk_enable_t* clksrc);
  * 0: internal clock (Internal PLL, 1GMHz)
  * 1: external clock, refer to cfg_ext_clk_src)
  */
-extern rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_set( rtk_enable_t clksrc);
+extern rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_set(rtk_enable_t clksrc);
 /* Function Name:
  *      rtk_time_portPtptoddelay_get
  * Description:
- *     
+ *
  * Input:
  *      port        - port id
  * Output:
@@ -781,14 +712,12 @@ extern rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_set( rtk_enable_t clksrc);
  * Changes:
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtptoddelay_get(rtk_uint32* toddelay);
-
-
+extern rtk_api_ret_t rtk_time_portPtptoddelay_get(rtk_uint32 *toddelay);
 
 /* Function Name:
  *      rtk_time_portPtptoddelay_set
  * Description:
- *      
+ *
  * Input:
  *     toddelay
  * Output:
@@ -806,7 +735,7 @@ extern rtk_api_ret_t rtk_time_portPtptoddelay_get(rtk_uint32* toddelay);
  * Changes:
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtptoddelay_set( rtk_uint32 toddelay);
+extern rtk_api_ret_t rtk_time_portPtptoddelay_set(rtk_uint32 toddelay);
 /* Function Name:
  *      rtk_time_portPtp1PPSOutput_get
  * Description:
@@ -830,7 +759,6 @@ extern rtk_api_ret_t rtk_time_portPtptoddelay_set( rtk_uint32 toddelay);
  *          New added function.
  */
 extern rtk_api_ret_t rtk_time_portPtp1PPSOutput_get(rtk_uint32 *pPulseWidth, rtk_enable_t *pEnable);
-
 
 /* Function Name:
  *      rtk_time_portPtp1PPSOutput_set
@@ -1018,7 +946,7 @@ extern rtk_api_ret_t rtk_time_portPtpTransEnable_set(rtk_enable_t enable);
  * Changes:
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtpPortctrl_get(rtk_port_t port,rtk_ptp_port_ctrl_t *portcfg);
+extern rtk_api_ret_t rtk_time_portPtpPortctrl_get(rtk_port_t port, rtk_ptp_port_ctrl_t *portcfg);
 
 /* Function Name:
  *      rtk_time_portPtpPortctrl_set
@@ -1040,7 +968,7 @@ extern rtk_api_ret_t rtk_time_portPtpPortctrl_get(rtk_port_t port,rtk_ptp_port_c
  * Changes:
  *          New added function.
  */
-extern rtk_api_ret_t rtk_time_portPtpPortctrl_set(rtk_port_t port,rtk_ptp_port_ctrl_t portcfg);
+extern rtk_api_ret_t rtk_time_portPtpPortctrl_set(rtk_port_t port, rtk_ptp_port_ctrl_t portcfg);
 
 /* Function Name:
  *      rtk_ptp_intControl_set
@@ -1060,7 +988,7 @@ extern rtk_api_ret_t rtk_time_portPtpPortctrl_set(rtk_port_t port,rtk_ptp_port_c
  *      The API can set PTP interrupt status configuration.
  *      The interrupt trigger status is shown in the following:
  */
-extern rtk_api_ret_t rtk_time_PtpIntControl_set(rtk_ptp_intType_t type,rtk_enable_t enable);
+extern rtk_api_ret_t rtk_time_PtpIntControl_set(rtk_ptp_intType_t type, rtk_enable_t enable);
 
 /* Function Name:
  *      rtk_ptp_intControl_get
@@ -1076,7 +1004,7 @@ extern rtk_api_ret_t rtk_time_PtpIntControl_set(rtk_ptp_intType_t type,rtk_enabl
  * Note:
  *      The API can get interrupt status configuration.
  */
-extern rtk_api_ret_t rtk_time_PtpIntControl_get(rtk_ptp_intType_t type,rtk_enable_t *pEnable);
+extern rtk_api_ret_t rtk_time_PtpIntControl_get(rtk_ptp_intType_t type, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      rtk_ptp_intStatus_get
@@ -1120,7 +1048,7 @@ extern rtk_api_ret_t rtk_time_PtpIntStatus_get(rtk_ptp_intStatus_t *pStatusMask)
  * Note:
  *      None
  */
-extern rtk_api_ret_t rtk_time_portPtpTrap_set(rtk_port_t port,  rtk_ptp_porttrap_ctrl_t *trapctrl );
+extern rtk_api_ret_t rtk_time_portPtpTrap_set(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl);
 
 /* Function Name:
  *      rtk_time_portPtpTrap_get
@@ -1139,7 +1067,6 @@ extern rtk_api_ret_t rtk_time_portPtpTrap_set(rtk_port_t port,  rtk_ptp_porttrap
  * Note:
  *      None
  */
-extern rtk_api_ret_t rtk_time_portPtpTrap_get(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl );
+extern rtk_api_ret_t rtk_time_portPtpTrap_get(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl);
 
 #endif /* __RTK_API_PTP_H__ */
-

@@ -18,24 +18,22 @@
 #ifndef __RTK_API_EEE_H__
 #define __RTK_API_EEE_H__
 
-#define EEE_GROUP_NUM            (5)
-#define EEE_MEM_ADDR_WIDTH_MAX   (3)
-#define EEEE_DATA_WIDTH_MAX		 (16)
+#define EEE_GROUP_NUM (5)
+#define EEE_MEM_ADDR_WIDTH_MAX (3)
+#define EEEE_DATA_WIDTH_MAX (16)
 
-
-typedef enum rtk_eee_speedInMacForceMode_e 
-{
-    EEE_MAC_FORCE_SPEED_100M = 0,
-    EEE_MAC_FORCE_SPEED_500M,
-    EEE_MAC_FORCE_SPEED_1000M,
-    EEE_MAC_FORCE_SPEED_2P5G_LITE,
-    EEE_MAC_FORCE_SPEED_2P5G,
-    EEE_MAC_FORCE_SPEED_5G_LITE,
-    EEE_MAC_FORCE_SPEED_5G,
-    EEE_MAC_FORCE_SPEED_10G_LITE,
-    EEE_MAC_FORCE_SPEED_10G,
-    EEE_MAC_FORCE_SPEED_END
-}rtk_eee_speedInMacForceMode_t;
+typedef enum rtk_eee_speedInMacForceMode_e {
+	EEE_MAC_FORCE_SPEED_100M = 0,
+	EEE_MAC_FORCE_SPEED_500M,
+	EEE_MAC_FORCE_SPEED_1000M,
+	EEE_MAC_FORCE_SPEED_2P5G_LITE,
+	EEE_MAC_FORCE_SPEED_2P5G,
+	EEE_MAC_FORCE_SPEED_5G_LITE,
+	EEE_MAC_FORCE_SPEED_5G,
+	EEE_MAC_FORCE_SPEED_10G_LITE,
+	EEE_MAC_FORCE_SPEED_10G,
+	EEE_MAC_FORCE_SPEED_END
+} rtk_eee_speedInMacForceMode_t;
 
 /* Function Name:
  *      rtk_eee_init
@@ -178,4 +176,3 @@ extern rtk_api_ret_t rtk_eee_portTxRxEn_set(rtk_port_t port, rtk_enable_t rxEn, 
 extern rtk_api_ret_t rtk_eee_portTxRxEn_get(rtk_port_t port, rtk_enable_t *pRxEn, rtk_enable_t *pTxEn);
 
 #endif /* __RTK_API_EEE_H__ */
-

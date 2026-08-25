@@ -15,15 +15,14 @@
  *
  */
 
-#ifndef  __DAL_RTL8373_GPIO_H__
-#define  __DAL_RTL8373_GPIO_H__
+#ifndef __DAL_RTL8373_GPIO_H__
+#define __DAL_RTL8373_GPIO_H__
 #include <gpio.h>
-
 
 /* Function Name:
  *      dal_rtl8373_gpio_muxSel_set
  * Description:
- *      enable gpio pin 
+ *      enable gpio pin
  * Input:
  *      gpioNum - GPIO pin number
  * Output:
@@ -33,14 +32,14 @@
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_gpio_muxSel_set(rtk_uint32 gpioNum);
 
 /* Function Name:
  *      dal_rtl8373_gpio_muxSel_get
  * Description:
- *      Get gpio pin status 
+ *      Get gpio pin status
  * Input:
  *      gpioNum - GPIO pin number
  * Output:
@@ -50,9 +49,9 @@ extern rtk_api_ret_t dal_rtl8373_gpio_muxSel_set(rtk_uint32 gpioNum);
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
-extern rtk_api_ret_t dal_rtl8373_gpio_muxSel_get(rtk_uint32 gpioNum, rtk_enable_t *pStatus );
+extern rtk_api_ret_t dal_rtl8373_gpio_muxSel_get(rtk_uint32 gpioNum, rtk_enable_t *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_gpio_groupVal_write
@@ -68,14 +67,14 @@ extern rtk_api_ret_t dal_rtl8373_gpio_muxSel_get(rtk_uint32 gpioNum, rtk_enable_
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
-extern rtk_api_ret_t dal_rtl8373_gpio_groupVal_write(rtk_gpio_groupReg_t idx, rtk_uint32 val );
+extern rtk_api_ret_t dal_rtl8373_gpio_groupVal_write(rtk_gpio_groupReg_t idx, rtk_uint32 val);
 
 /* Function Name:
  *      dal_rtl8373_gpio_groupVal_read
  * Description:
- *      Read 32bits gpio pin val 
+ *      Read 32bits gpio pin val
  * Input:
  *      idx - GPIO pin LSB 32bits or MSB 31bits
  * Output:
@@ -85,7 +84,7 @@ extern rtk_api_ret_t dal_rtl8373_gpio_groupVal_write(rtk_gpio_groupReg_t idx, rt
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_gpio_groupVal_read(rtk_gpio_groupReg_t idx, rtk_uint32 *pVal);
 
@@ -103,14 +102,14 @@ extern rtk_api_ret_t dal_rtl8373_gpio_groupVal_read(rtk_gpio_groupReg_t idx, rtk
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_gpio_pinVal_write(rtk_uint32 gpioNum, rtk_gpio_level_t val);
 
 /* Function Name:
  *      dal_rtl8373_gpio_pinVal_read
  * Description:
- *      Read gpio pin val 
+ *      Read gpio pin val
  * Input:
  *      idx - GPIO pin LSB 32bits or MSB 31bits
  * Output:
@@ -120,7 +119,7 @@ extern rtk_api_ret_t dal_rtl8373_gpio_pinVal_write(rtk_uint32 gpioNum, rtk_gpio_
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_gpio_pinVal_read(rtk_uint32 gpioNum, rtk_gpio_level_t *pVal);
 
@@ -138,9 +137,9 @@ extern rtk_api_ret_t dal_rtl8373_gpio_pinVal_read(rtk_uint32 gpioNum, rtk_gpio_l
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
-extern rtk_api_ret_t dal_rtl8373_gpio_pinDir_set(rtk_uint32 gpioNum, rtk_gpio_direction_t dir );
+extern rtk_api_ret_t dal_rtl8373_gpio_pinDir_set(rtk_uint32 gpioNum, rtk_gpio_direction_t dir);
 
 /* Function Name:
  *      dal_rtl8373_gpio_pinDir_get
@@ -155,7 +154,7 @@ extern rtk_api_ret_t dal_rtl8373_gpio_pinDir_set(rtk_uint32 gpioNum, rtk_gpio_di
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_gpio_pinDir_get(rtk_uint32 gpioNum, rtk_gpio_direction_t *pDir);
 
@@ -172,10 +171,8 @@ extern rtk_api_ret_t dal_rtl8373_gpio_pinDir_get(rtk_uint32 gpioNum, rtk_gpio_di
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_gpio_groupDir_get(rtk_gpio_groupReg_t idx, rtk_uint32 *pDirVal);
 
-
 #endif /*  __DAL_RTL8373_GPIO_H__ */
-

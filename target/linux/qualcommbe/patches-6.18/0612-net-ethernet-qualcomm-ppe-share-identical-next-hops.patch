@@ -1,0 +1,307 @@
+From: VKing <noreply@openwrt.local>
+Date: Mon, 24 Aug 2026 16:03:46 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: share identical next hops
+
+IPQ5332 has 2048 flow entries but only 768 next-hop entries. Allocating a
+private next hop for each directional flow limits ordinary bidirectional
+offload to roughly 384 connections even when many flows use the same router
+or client next hop.
+
+Use the existing refcounted-table framework to share rows with an
+identical complete hardware key. Program the row on first use. Release the
+slot after its last hardware flow is removed. An undeletable quarantined
+flow retains its reference, preserving the no-reuse guarantee.
+
+Report the flow-table depth as the nominal active-flow ceiling after
+sharing. Add resource_stats diagnostics for live next-hop occupancy and
+cumulative allocation, reuse and release counts.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -91,6 +91,18 @@ struct ppe_ft_pub_ip {
+ static_assert(offsetof(struct ppe_ft_pub_ip, ref) == 0);
+ 
+ /**
++ * struct ppe_ft_nexthop - A shared hardware next-hop entry.
++ * @ref: Reference count of flows using the entry.
++ * @key: Complete configuration programmed into the hardware row.
++ */
++struct ppe_ft_nexthop {
++	struct ppe_ft_ref ref;
++	struct ppe_flow_nexthop key;
++};
++
++static_assert(offsetof(struct ppe_ft_nexthop, ref) == 0);
++
++/**
+  * struct ppe_ft_pppoe - A refcounted PPPoE session.
+  * @ref: Reference count of the session.
+  * @sid: PPPoE session ID.
+@@ -276,7 +288,7 @@ struct ppe_ft_host {
+  * @ppe_dev: Back pointer to the PPE device.
+  * @lock: Serializes rule installation, removal and the allocators.
+  * @flows: Offloaded flows, keyed by flow cookie.
+- * @nexthop_used: Allocation bitmap of the next hop entries.
++ * @nexthops: Refcounted next-hop entries shared by identical flows.
+  * @my_macs: Refcounted router MAC slots.
+  * @pub_ips: Refcounted public IP slots.
+  * @pppoe: Refcounted PPPoE session slots.
+@@ -296,13 +308,18 @@ struct ppe_flowtable {
+ 	struct dentry *debugfs_rows;
+ 	struct dentry *debugfs_pipeline;
+ 	struct dentry *debugfs_reasons;
++	struct dentry *debugfs_resources;
+ 	atomic_long_t replace_calls;
+ 	atomic_long_t replace_unsupported;
+ 	atomic_long_t replace_failed;
+ 	atomic_long_t destroy_calls;
+ 	atomic_long_t rejects[PPE_FT_REJECT_MAX];
+ 	DECLARE_HASHTABLE(hosts, PPE_FT_HOST_HASH_BITS);
+-	DECLARE_BITMAP(nexthop_used, PPE_NEXTHOP_TBL_ENTRIES);
++	struct ppe_ft_nexthop *nexthops;
++	unsigned int nexthop_active;
++	unsigned long nexthop_allocs;
++	unsigned long nexthop_reuses;
++	unsigned long nexthop_frees;
+ 	struct ppe_ft_my_mac my_macs[PPE_MY_MAC_TBL_ENTRIES];
+ 	struct ppe_ft_pub_ip pub_ips[PPE_PUB_IP_TBL_ENTRIES];
+ 	struct ppe_ft_pppoe pppoe[PPE_FT_PPPOE_SESSIONS];
+@@ -537,6 +554,67 @@ static bool ppe_ft_pub_ip_match(const vo
+ 	return slot->ip == *(const __be32 *)key;
+ }
+ 
++static bool ppe_ft_nexthop_match(const void *entry, const void *key)
++{
++	const struct ppe_ft_nexthop *slot = entry;
++	const struct ppe_flow_nexthop *nh = key;
++
++	return slot->key.port == nh->port && slot->key.l3_if == nh->l3_if &&
++	       ether_addr_equal(slot->key.mac, nh->mac) &&
++	       slot->key.vid == nh->vid &&
++	       slot->key.pub_ip_index == nh->pub_ip_index &&
++	       slot->key.dnat_ip == nh->dnat_ip;
++}
++
++/* Get a shared next-hop slot, programming the complete row on first use.
++ * Must be called with the flowtable lock held.
++ */
++static int ppe_ft_nexthop_get(struct ppe_flowtable *ft,
++			      const struct ppe_flow_nexthop *nh)
++{
++	struct ppe_ft_nexthop *slot;
++	bool is_new;
++	int i, ret;
++
++	i = ppe_ft_ref_get(ft->nexthops, sizeof(*ft->nexthops),
++			   ft->ppe_dev->variant->num_nexthop_entries,
++			   ppe_ft_nexthop_match, nh, &is_new);
++	if (i < 0)
++		return i;
++	if (!is_new) {
++		ft->nexthop_reuses++;
++		return i;
++	}
++
++	ret = ppe_nexthop_set(ft->ppe_dev, i, nh);
++	if (ret)
++		return ret;
++
++	slot = &ft->nexthops[i];
++	slot->key = *nh;
++	slot->ref.refcnt = 1;
++	ft->nexthop_active++;
++	ft->nexthop_allocs++;
++
++	return i;
++}
++
++/* Release a shared next-hop slot after its last hardware flow is gone. The
++ * table has no VALID bit; a later first user overwrites all four words.
++ */
++static void ppe_ft_nexthop_put(struct ppe_flowtable *ft, int index)
++{
++	struct ppe_ft_nexthop *slot;
++
++	if (!ppe_ft_ref_put(ft->nexthops, sizeof(*ft->nexthops), index))
++		return;
++
++	slot = &ft->nexthops[index];
++	memset(slot, 0, sizeof(*slot));
++	ft->nexthop_active--;
++	ft->nexthop_frees++;
++}
++
+ /* Get a refcounted public IP slot for the address, programming the
+  * hardware entry on first use. Must be called with the flowtable lock
+  * held.
+@@ -2573,23 +2651,18 @@ put_idev:
+ 			goto err_my_mac;
+ 	}
+ 
+-	nexthop = find_first_zero_bit(ft->nexthop_used,
+-				      ft->ppe_dev->variant->num_nexthop_entries);
+-	if (nexthop >= ft->ppe_dev->variant->num_nexthop_entries) {
+-		ret = -ENOSPC;
++	nexthop = ppe_ft_nexthop_get(ft, &nh);
++	if (nexthop < 0) {
++		ret = nexthop;
+ 		goto err_my_mac;
+ 	}
+ 
+-	ret = ppe_nexthop_set(ft->ppe_dev, nexthop, &nh);
+-	if (ret)
+-		goto err_my_mac;
+-
+ 	flow->nexthop = nexthop;
+ 	flow->entry.nexthop = nexthop;
+ 
+ 	ret = ppe_ft_host_get(ft, &flow->entry);
+ 	if (ret)
+-		goto err_my_mac;
++		goto err_nexthop;
+ 
+ 	ret = ppe_flow_entry_add(ft->ppe_dev, &flow->entry);
+ 	if (ret < 0)
+@@ -2615,7 +2688,6 @@ put_idev:
+ 		}
+ 	}
+ 
+-	set_bit(nexthop, ft->nexthop_used);
+ 	mutex_unlock(&ft->lock);
+ 	if (tdev)
+ 		dev_put(tdev);
+@@ -2624,19 +2696,19 @@ put_idev:
+ 
+ err_hw_flow:
+ 	if (!ppe_ft_flow_hw_del(ft, flow)) {
+-		/* The hardware flow could not be removed and keeps forwarding
+-		 * through its next hop; reserve that next-hop index so it is not
+-		 * reused underneath the leaked flow.
++		/* The quarantined flow retains its next-hop reference so the
++		 * shared row cannot be released or reused underneath it.
+ 		 */
+-		set_bit(flow->nexthop, ft->nexthop_used);
+ 		ppe_ft_flow_quarantine(ft, flow);
+ 		flow = NULL;
+ 		goto err_unlock;
+ 	}
+ 	ppe_ft_host_put(ft, &flow->entry);
+-	goto err_my_mac;
++	goto err_nexthop;
+ err_host:
+ 	ppe_ft_host_put(ft, &flow->entry);
++err_nexthop:
++	ppe_ft_nexthop_put(ft, flow->nexthop);
+ err_my_mac:
+ 	ppe_ft_my_mac_put(ft, flow->my_mac);
+ err_pppoe:
+@@ -2692,7 +2764,7 @@ static int ppe_ft_flow_destroy(struct pp
+ 
+ 	if (ppe_ft_flow_hw_del(ft, flow)) {
+ 		ppe_ft_host_put(ft, &flow->entry);
+-		clear_bit(flow->nexthop, ft->nexthop_used);
++		ppe_ft_nexthop_put(ft, flow->nexthop);
+ 		ppe_ft_my_mac_put(ft, flow->my_mac);
+ 		ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
+ 		ppe_ft_pppoe_put(ft, flow->pppoe);
+@@ -3412,15 +3484,30 @@ static int ppe_ft_active_flows_show(stru
+ 	struct ppe_flowtable *ft = seq->private;
+ 	unsigned int capacity;
+ 
+-	/* Every installed flow currently owns one next-hop table entry. */
+-	capacity = min(ft->ppe_dev->variant->num_flow_entries,
+-		       ft->ppe_dev->variant->num_nexthop_entries);
++	/* Shared next hops remove the previous one-row-per-flow constraint. */
++	capacity = ft->ppe_dev->variant->num_flow_entries;
+ 	seq_printf(seq, "%d %u\n", atomic_read(&ft->flows.nelems), capacity);
+ 
+ 	return 0;
+ }
+ DEFINE_SHOW_ATTRIBUTE(ppe_ft_active_flows);
+ 
++static int ppe_ft_resource_stats_show(struct seq_file *seq, void *data)
++{
++	struct ppe_flowtable *ft = seq->private;
++
++	mutex_lock(&ft->lock);
++	seq_printf(seq,
++		   "nexthop active:%u capacity:%u alloc:%lu reuse:%lu free:%lu\n",
++		   ft->nexthop_active,
++		   ft->ppe_dev->variant->num_nexthop_entries,
++		   ft->nexthop_allocs, ft->nexthop_reuses, ft->nexthop_frees);
++	mutex_unlock(&ft->lock);
++
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(ppe_ft_resource_stats);
++
+ /**
+  * ppe_flowtable_debugfs_init - Expose the flowtable state in debugfs
+  * @ppe_dev: PPE device
+@@ -3452,6 +3539,9 @@ void ppe_flowtable_debugfs_init(struct p
+ 	ft->debugfs_reasons = debugfs_create_file("reason_counters", 0400,
+ 						  ppe_dev->debugfs_root, ft,
+ 						  &ppe_ft_reason_counters_fops);
++	ft->debugfs_resources = debugfs_create_file("resource_stats", 0400,
++						    ppe_dev->debugfs_root, ft,
++						    &ppe_ft_resource_stats_fops);
+ }
+ 
+ static int ppe_ft_block_cb(enum tc_setup_type type, void *type_data,
+@@ -3581,13 +3671,20 @@ int ppe_flowtable_setup(struct ppe_devic
+ 		return -ENOMEM;
+ 
+ 	ft->ppe_dev = ppe_dev;
++	ft->nexthops = kcalloc(ppe_dev->variant->num_nexthop_entries,
++			       sizeof(*ft->nexthops), GFP_KERNEL);
++	if (!ft->nexthops) {
++		kfree(ft);
++		return -ENOMEM;
++	}
+ 
+ 	/* The reserved L3 interface regions have compile-time sizes on
+ 	 * a runtime base (the port count); refuse a layout that would
+ 	 * overrun the interface tables.
+ 	 */
+ 	if (WARN_ON(ppe_ft_vp_l3_if(ft, PPE_VP_PORT_BASE + PPE_VP_SLOTS) >
+-		    PPE_IN_L3_IF_TBL_ENTRIES)) {
++			    PPE_IN_L3_IF_TBL_ENTRIES)) {
++		kfree(ft->nexthops);
+ 		kfree(ft);
+ 		return -ERANGE;
+ 	}
+@@ -3598,6 +3695,7 @@ int ppe_flowtable_setup(struct ppe_devic
+ 
+ 	ret = rhashtable_init(&ft->flows, &ppe_ft_params);
+ 	if (ret) {
++		kfree(ft->nexthops);
+ 		kfree(ft);
+ 		return ret;
+ 	}
+@@ -3610,6 +3708,7 @@ int ppe_flowtable_setup(struct ppe_devic
+ 	if (ret) {
+ 		ppe_dev->flowtable = NULL;
+ 		rhashtable_destroy(&ft->flows);
++		kfree(ft->nexthops);
+ 		kfree(ft);
+ 		return ret;
+ 	}
+@@ -3667,6 +3766,7 @@ void ppe_flowtable_destroy(struct ppe_de
+ 	}
+ 	mutex_unlock(&ft->lock);
+ 
++	debugfs_remove(ft->debugfs_resources);
+ 	debugfs_remove(ft->debugfs_reasons);
+ 	debugfs_remove(ft->debugfs_pipeline);
+ 	debugfs_remove(ft->debugfs_rows);
+@@ -3688,5 +3788,6 @@ void ppe_flowtable_destroy(struct ppe_de
+ 		if (ft->tunnels[i].dev)
+ 			dev_put(ft->tunnels[i].dev);
+ 
++	kfree(ft->nexthops);
+ 	kfree(ft);
+ }

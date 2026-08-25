@@ -1,0 +1,145 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+/dts-v1/;
+
+#include "ipq5332-be3600-pro-wired-common.dtsi"
+
+/ {
+	model = "Xiaomi BE3600 Pro Wired (8-Ports)";
+	compatible = "xiaomi,be3600-pro-wired-p8", "qcom,ipq5332";
+
+	aliases {
+		ethernet0 = &ppe_switch0;
+		ethernet1 = &ppe_switch1;
+	};
+};
+
+&mdio {
+	rtl837x0: rtl837x-dsa@0 {
+		compatible = "realtek,rtl837x";
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		realtek,preserve-boot-config;
+		realtek,rtl8372n-led-init;
+		realtek,quarantine-before-conduit;
+		rtl837x,sds1mode = "10g-usxg";
+		dsa,member = <0 0>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@8 {
+				reg = <8>;
+				label = "cpu";
+				ethernet = <&ppe_switch0>;
+				phy-mode = "usxgmii";
+
+				fixed-link {
+					speed = <10000>;
+					full-duplex;
+				};
+			};
+
+			port@7 {
+				reg = <7>;
+				label = "lan1";
+				phy-mode = "internal";
+			};
+
+			port@6 {
+				reg = <6>;
+				label = "lan2";
+				phy-mode = "internal";
+			};
+
+			port@5 {
+				reg = <5>;
+				label = "lan3";
+				phy-mode = "internal";
+			};
+
+			port@4 {
+				reg = <4>;
+				label = "lan4";
+				phy-mode = "internal";
+			};
+		};
+	};
+
+	rtl837x1: rtl837x-dsa@29 {
+		compatible = "realtek,rtl837x";
+		reg = <29>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		realtek,preserve-boot-config;
+		realtek,rtl8372n-led-init;
+		realtek,quarantine-before-conduit;
+		realtek,reinit-cpu-serdes;
+		realtek,init-after = <&rtl837x0>;
+		rtl837x,sds1mode = "10g-usxg";
+		dsa,member = <1 0>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@8 {
+				reg = <8>;
+				label = "cpu";
+				ethernet = <&ppe_switch1>;
+				phy-mode = "usxgmii";
+
+				fixed-link {
+					speed = <10000>;
+					full-duplex;
+					pause;
+				};
+			};
+
+			port@7 {
+				reg = <7>;
+				label = "lan5";
+				phy-mode = "internal";
+			};
+
+			port@6 {
+				reg = <6>;
+				label = "lan6";
+				phy-mode = "internal";
+			};
+
+			port@5 {
+				reg = <5>;
+				label = "lan7";
+				phy-mode = "internal";
+			};
+
+			port@4 {
+				reg = <4>;
+				label = "wan";
+				phy-mode = "internal";
+			};
+		};
+	};
+};
+
+&qcom_ppe {
+	ethernet-ports {
+		ppe_switch0: port@1 {
+			fixed-link {
+				speed = <10000>;
+				full-duplex;
+			};
+		};
+
+		ppe_switch1: port@2 {
+			fixed-link {
+				speed = <10000>;
+				full-duplex;
+				pause;
+			};
+		};
+	};
+};

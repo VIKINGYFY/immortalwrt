@@ -23,7 +23,6 @@
 #include <linux/string.h>
 #include <dal/dal_mgmt.h>
 
-
 /* Function Name:
  *      rtk_mirror_set_en
  * Description:
@@ -39,19 +38,19 @@
  */
 rtk_api_ret_t rtk_mirror_set_en(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->mirror_set_en)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_set_en)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_set_en(enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_set_en(enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -69,19 +68,19 @@ rtk_api_ret_t rtk_mirror_set_en(rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_mirror_setStatus_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->mirror_setStatus_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_setStatus_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_setStatus_get(pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_setStatus_get(pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -107,16 +106,16 @@ rtk_api_ret_t rtk_mirror_setStatus_get(rtk_enable_t *pEnable)
  */
 rtk_api_ret_t rtk_mirror_portBased_set(rtk_port_mir_set_t *pMirSet)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_entry_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_entry_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_entry_set(pMirSet);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_entry_set(pMirSet);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -139,15 +138,15 @@ rtk_api_ret_t rtk_mirror_portBased_set(rtk_port_mir_set_t *pMirSet)
  */
 rtk_api_ret_t rtk_mirror_portBased_get(rtk_port_mir_set_t *pMirSet)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_entry_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_entry_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_entry_get(pMirSet);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_entry_get(pMirSet);
+	RTK_API_UNLOCK();
+	return retVal;
 }
 
 /* Function Name:
@@ -168,16 +167,16 @@ rtk_api_ret_t rtk_mirror_portBased_get(rtk_port_mir_set_t *pMirSet)
  */
 rtk_api_ret_t rtk_mirror_portIso_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_portIso_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_portIso_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_portIso_set(enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_portIso_set(enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -198,16 +197,16 @@ rtk_api_ret_t rtk_mirror_portIso_set(rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_mirror_portIso_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_portIso_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_portIso_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_portIso_get(pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_portIso_get(pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -229,16 +228,16 @@ rtk_api_ret_t rtk_mirror_portIso_get(rtk_enable_t *pEnable)
  */
 rtk_api_ret_t rtk_mirror_vlanLeaky_set(rtk_enable_t txenable, rtk_enable_t rxenable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_vlanLeaky_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_vlanLeaky_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_vlanLeaky_set(txenable, rxenable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_vlanLeaky_set(txenable, rxenable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -260,16 +259,16 @@ rtk_api_ret_t rtk_mirror_vlanLeaky_set(rtk_enable_t txenable, rtk_enable_t rxena
  */
 rtk_api_ret_t rtk_mirror_vlanLeaky_get(rtk_enable_t *pTxenable, rtk_enable_t *pRxenable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_vlanLeaky_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_vlanLeaky_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_vlanLeaky_get(pTxenable, pRxenable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_vlanLeaky_get(pTxenable, pRxenable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -291,16 +290,16 @@ rtk_api_ret_t rtk_mirror_vlanLeaky_get(rtk_enable_t *pTxenable, rtk_enable_t *pR
  */
 rtk_api_ret_t rtk_mirror_isolationLeaky_set(rtk_enable_t txenable, rtk_enable_t rxenable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_isolationLeaky_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_isolationLeaky_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_isolationLeaky_set(txenable, rxenable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_isolationLeaky_set(txenable, rxenable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -322,16 +321,16 @@ rtk_api_ret_t rtk_mirror_isolationLeaky_set(rtk_enable_t txenable, rtk_enable_t 
  */
 rtk_api_ret_t rtk_mirror_isolationLeaky_get(rtk_enable_t *pTxenable, rtk_enable_t *pRxenable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_isolationLeaky_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_isolationLeaky_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_isolationLeaky_get(pTxenable, pRxenable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_isolationLeaky_get(pTxenable, pRxenable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -356,16 +355,16 @@ rtk_api_ret_t rtk_mirror_isolationLeaky_get(rtk_enable_t *pTxenable, rtk_enable_
  */
 rtk_api_ret_t rtk_mirror_keep_set(rtk_mirror_keep_t mode)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_keep_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_keep_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_keep_set(mode);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_keep_set(mode);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -390,16 +389,16 @@ rtk_api_ret_t rtk_mirror_keep_set(rtk_mirror_keep_t mode)
  */
 rtk_api_ret_t rtk_mirror_keep_get(rtk_mirror_keep_t *pMode)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_keep_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_keep_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_keep_get(pMode);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_keep_get(pMode);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -423,16 +422,16 @@ rtk_api_ret_t rtk_mirror_keep_get(rtk_mirror_keep_t *pMode)
  */
 rtk_api_ret_t rtk_mirror_override_set(rtk_enable_t rxMirror, rtk_enable_t txMirror, rtk_enable_t aclMirror)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_override_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_override_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_override_set(rxMirror, txMirror, aclMirror);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_override_set(rxMirror, txMirror, aclMirror);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -457,16 +456,16 @@ rtk_api_ret_t rtk_mirror_override_set(rtk_enable_t rxMirror, rtk_enable_t txMirr
  */
 rtk_api_ret_t rtk_mirror_override_get(rtk_enable_t *pRxMirror, rtk_enable_t *pTxMirror, rtk_enable_t *pAclMirror)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_override_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_override_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_override_get(pRxMirror, pTxMirror, pAclMirror);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_override_get(pRxMirror, pTxMirror, pAclMirror);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -487,16 +486,16 @@ rtk_api_ret_t rtk_mirror_override_get(rtk_enable_t *pRxMirror, rtk_enable_t *pTx
  */
 rtk_api_ret_t rtk_mirror_sampleRate_set(rtk_uint32 rateVal)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_sampleRate_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_sampleRate_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_sampleRate_set(rateVal);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_sampleRate_set(rateVal);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -517,16 +516,16 @@ rtk_api_ret_t rtk_mirror_sampleRate_set(rtk_uint32 rateVal)
  */
 rtk_api_ret_t rtk_mirror_sampleRate_get(rtk_uint32 *pRateVal)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_sampleRate_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_sampleRate_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_sampleRate_get(pRateVal);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_sampleRate_get(pRateVal);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -547,16 +546,16 @@ rtk_api_ret_t rtk_mirror_sampleRate_get(rtk_uint32 *pRateVal)
  */
 rtk_api_ret_t rtk_mirror_pktCnt_get(rtk_uint32 *pTotalPktCntr)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_pktCnt_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_pktCnt_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_pktCnt_get(pTotalPktCntr);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_pktCnt_get(pTotalPktCntr);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -577,16 +576,16 @@ rtk_api_ret_t rtk_mirror_pktCnt_get(rtk_uint32 *pTotalPktCntr)
  */
 rtk_api_ret_t rtk_mirror_samplePktCnt_get(rtk_uint32 *pSamplePktCntr)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->mirror_samplePktCnt_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->mirror_samplePktCnt_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->mirror_samplePktCnt_get(pSamplePktCntr);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->mirror_samplePktCnt_get(pSamplePktCntr);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -596,7 +595,7 @@ rtk_api_ret_t rtk_mirror_samplePktCnt_get(rtk_uint32 *pSamplePktCntr)
  * Input:
  *      enable
  * Output:
- *      None   - 
+ *      None   -
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -604,21 +603,21 @@ rtk_api_ret_t rtk_mirror_samplePktCnt_get(rtk_uint32 *pSamplePktCntr)
  *      RT_ERR_INPUT        - Invalid input parameters.
  * Note:
  */
-rtk_api_ret_t rtk_rspan_rxTag_en(rtk_enable_t enable )
+rtk_api_ret_t rtk_rspan_rxTag_en(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->rspan_rxTag_en)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rspan_rxTag_en)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rspan_rxTag_en(enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rspan_rxTag_en(enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -636,21 +635,21 @@ rtk_api_ret_t rtk_rspan_rxTag_en(rtk_enable_t enable )
  *      RT_ERR_INPUT        - Invalid input parameters.
  * Note:
  */
-rtk_api_ret_t rtk_rspan_rxTagEnStatus_get(rtk_enable_t *pEnable )
+rtk_api_ret_t rtk_rspan_rxTagEnStatus_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->rspan_rxTagEnSts_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rspan_rxTagEnSts_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rspan_rxTagEnSts_get(pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rspan_rxTagEnSts_get(pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -660,7 +659,7 @@ rtk_api_ret_t rtk_rspan_rxTagEnStatus_get(rtk_enable_t *pEnable )
  * Input:
  *      pRspanTag  - rspan tag context:TPID PRI CFI  VID .
  * Output:
- *      None  
+ *      None
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -670,19 +669,19 @@ rtk_api_ret_t rtk_rspan_rxTagEnStatus_get(rtk_enable_t *pEnable )
  */
 rtk_api_ret_t rtk_rspan_tagCtxt_set(rtk_rspan_tag_t *pRspanTag)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->rspan_tagCtxt_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rspan_tagCtxt_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rspan_tagCtxt_set(pRspanTag);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rspan_tagCtxt_set(pRspanTag);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -703,19 +702,19 @@ rtk_api_ret_t rtk_rspan_tagCtxt_set(rtk_rspan_tag_t *pRspanTag)
 
 rtk_api_ret_t rtk_rspan_tagCtxt_get(rtk_rspan_tag_t *pRspanTag)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->rspan_tagCtxt_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rspan_tagCtxt_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rspan_tagCtxt_get(pRspanTag);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rspan_tagCtxt_get(pRspanTag);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -725,7 +724,7 @@ rtk_api_ret_t rtk_rspan_tagCtxt_get(rtk_rspan_tag_t *pRspanTag)
  * Input:
  *      egrPmsk   - a portmask that want add rspantag while tx pkt
  * Output:
- *      None   
+ *      None
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -735,19 +734,19 @@ rtk_api_ret_t rtk_rspan_tagCtxt_get(rtk_rspan_tag_t *pRspanTag)
  */
 rtk_api_ret_t rtk_rspan_tagAdd_set(rtk_portmask_t egrPmsk)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->rspan_tagAdd_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rspan_tagAdd_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rspan_tagAdd_set(egrPmsk);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rspan_tagAdd_set(egrPmsk);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -765,21 +764,21 @@ rtk_api_ret_t rtk_rspan_tagAdd_set(rtk_portmask_t egrPmsk)
  *      RT_ERR_INPUT        - Invalid input parameters.
  * Note:
  */
-rtk_api_ret_t rtk_rspan_tagAdd_get(rtk_portmask_t *pPmskStatus )
+rtk_api_ret_t rtk_rspan_tagAdd_get(rtk_portmask_t *pPmskStatus)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->rspan_tagAdd_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rspan_tagAdd_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rspan_tagAdd_get(pPmskStatus);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rspan_tagAdd_get(pPmskStatus);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -789,7 +788,7 @@ rtk_api_ret_t rtk_rspan_tagAdd_get(rtk_portmask_t *pPmskStatus )
  * Input:
  *      enable  -
  * Output:
- *      None   
+ *      None
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -799,19 +798,19 @@ rtk_api_ret_t rtk_rspan_tagAdd_get(rtk_portmask_t *pPmskStatus )
  */
 rtk_api_ret_t rtk_rspan_tagRemove_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->rspan_tagRemove_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rspan_tagRemove_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rspan_tagRemove_set(enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rspan_tagRemove_set(enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -821,7 +820,7 @@ rtk_api_ret_t rtk_rspan_tagRemove_set(rtk_enable_t enable)
  * Input:
  *      None
  * Output:
- *      pEnable   
+ *      pEnable
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -829,20 +828,19 @@ rtk_api_ret_t rtk_rspan_tagRemove_set(rtk_enable_t enable)
  *      RT_ERR_INPUT        - Invalid input parameters.
  * Note:
  */
-rtk_api_ret_t rtk_rspan_tagRemove_get(rtk_enable_t *pEnable )
+rtk_api_ret_t rtk_rspan_tagRemove_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->rspan_tagRemove_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rspan_tagRemove_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rspan_tagRemove_get(pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rspan_tagRemove_get(pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-

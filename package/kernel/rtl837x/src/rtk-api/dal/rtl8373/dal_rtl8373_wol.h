@@ -22,8 +22,6 @@
 #include <rtl8373_asicdrv.h>
 #include <linux/string.h>
 
-
-
 /* Function Name:
  *      dal_rtl8373_wolState_set
  * Description:
@@ -37,10 +35,9 @@
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_wolState_set(rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_wolState_sget
@@ -55,10 +52,9 @@ extern rtk_api_ret_t dal_rtl8373_wolState_set(rtk_uint32 enable);
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
-extern rtk_api_ret_t dal_rtl8373_wolState_get(rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_wolState_get(rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_wolPortmsk_get
@@ -73,12 +69,9 @@ extern rtk_api_ret_t dal_rtl8373_wolState_get(rtk_uint32* pEnable);
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
-extern rtk_api_ret_t dal_rtl8373_wolPortmsk_get(rtk_uint32* pMask);
-
-
-
+extern rtk_api_ret_t dal_rtl8373_wolPortmsk_get(rtk_uint32 *pMask);
 
 /* Function Name:
  *      dal_rtl8373_wolMac_set
@@ -93,10 +86,9 @@ extern rtk_api_ret_t dal_rtl8373_wolPortmsk_get(rtk_uint32* pMask);
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_wolMac_set(rtk_mac_t *pMac);
-
 
 /* Function Name:
  *      dal_rtl8373_wolMac_get
@@ -111,10 +103,6 @@ extern rtk_api_ret_t dal_rtl8373_wolMac_set(rtk_mac_t *pMac);
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_wolMac_get(rtk_mac_t *pMac);
-
-
-
-

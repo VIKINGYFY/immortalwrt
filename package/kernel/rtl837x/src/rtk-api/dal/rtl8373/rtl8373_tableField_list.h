@@ -34,5 +34,4 @@ extern rtk_tableField_t RTL8373_IGMP_GROUP_TBL_FIELDS[];
 extern rtk_tableField_t RTL8373_ACL_ACT_ENTRY_FIELDS[];
 extern rtk_tableField_t RTL8373_ACL_RULE_DATA_FIELDS[];
 
-#endif    /* __RTL8373_TABLEFIELD_LIST_H__ */
-
+#endif /* __RTL8373_TABLEFIELD_LIST_H__ */

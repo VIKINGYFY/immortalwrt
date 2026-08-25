@@ -26,7 +26,6 @@
 #include <dal/rtl8373/dal_rtl8373_rma.h>
 #include <dal/rtl8373/dal_rtl8373_igmp.h>
 
-
 /* Function Name:
  *      dal_rtl8373_rate_stormControlMeterIdx_set
  * Description:
@@ -47,43 +46,42 @@
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlMeterIdx_set(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_uint32 index)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check Port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (stormType >= STORM_GROUP_END)
-        return RT_ERR_SFC_UNKNOWN_GROUP;
+	if (stormType >= STORM_GROUP_END)
+		return RT_ERR_SFC_UNKNOWN_GROUP;
 
-    if (index > RTL8373_METERMAX)
-        return RT_ERR_FILTER_METER_ID;
+	if (index > RTL8373_METERMAX)
+		return RT_ERR_FILTER_METER_ID;
 
-    switch (stormType)
-    {
-        case STORM_GROUP_UNKNOWN_UNICAST:
-            if((retVal = rtl8373_setAsicRegBits(RTL8373_RX_STORM_UNUCAST_METER_ADDR(port), RTL8373_RX_STORM_UNUCAST_METER_RX_STROM_UNUCAST_MIDX_MASK(port), index)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_UNKNOWN_MULTICAST:
-            if((retVal = rtl8373_setAsicRegBits(RTL8373_RX_STORM_UNMCAST_METER_ADDR(port), RTL8373_RX_STORM_UNMCAST_METER_RX_STROM_UNMCAST_MIDX_MASK(port), index)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_MULTICAST:
-            if((retVal = rtl8373_setAsicRegBits(RTL8373_RX_STORM_MCAST_METER_ADDR(port), RTL8373_RX_STORM_MCAST_METER_RX_STROM_MCAST_MIDX_MASK(port), index)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_BROADCAST:
-            if((retVal = rtl8373_setAsicRegBits(RTL8373_RX_STORM_BCAST_METER_ADDR(port), RTL8373_RX_STORM_BCAST_METER_RX_STROM_BCAST_MIDX_MASK(port), index)) != RT_ERR_OK)
-                return retVal;
-            break;
-        default:
-            break;
-    }
+	switch (stormType) {
+	case STORM_GROUP_UNKNOWN_UNICAST:
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_RX_STORM_UNUCAST_METER_ADDR(port), RTL8373_RX_STORM_UNUCAST_METER_RX_STROM_UNUCAST_MIDX_MASK(port), index)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_UNKNOWN_MULTICAST:
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_RX_STORM_UNMCAST_METER_ADDR(port), RTL8373_RX_STORM_UNMCAST_METER_RX_STROM_UNMCAST_MIDX_MASK(port), index)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_MULTICAST:
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_RX_STORM_MCAST_METER_ADDR(port), RTL8373_RX_STORM_MCAST_METER_RX_STROM_MCAST_MIDX_MASK(port), index)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_BROADCAST:
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_RX_STORM_BCAST_METER_ADDR(port), RTL8373_RX_STORM_BCAST_METER_RX_STROM_BCAST_MIDX_MASK(port), index)) != RT_ERR_OK)
+			return retVal;
+		break;
+	default:
+		break;
+	}
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -105,44 +103,42 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlMeterIdx_set(rtk_port_t port, rtk_rat
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlMeterIdx_get(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_uint32 *pIndex)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check Port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (stormType >= STORM_GROUP_END)
-        return RT_ERR_SFC_UNKNOWN_GROUP;
+	if (stormType >= STORM_GROUP_END)
+		return RT_ERR_SFC_UNKNOWN_GROUP;
 
-    if (NULL == pIndex )
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pIndex)
+		return RT_ERR_NULL_POINTER;
 
+	switch (stormType) {
+	case STORM_GROUP_UNKNOWN_UNICAST:
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_RX_STORM_UNUCAST_METER_ADDR(port), RTL8373_RX_STORM_UNUCAST_METER_RX_STROM_UNUCAST_MIDX_MASK(port), pIndex)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_UNKNOWN_MULTICAST:
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_RX_STORM_UNMCAST_METER_ADDR(port), RTL8373_RX_STORM_UNMCAST_METER_RX_STROM_UNMCAST_MIDX_MASK(port), pIndex)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_MULTICAST:
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_RX_STORM_MCAST_METER_ADDR(port), RTL8373_RX_STORM_MCAST_METER_RX_STROM_MCAST_MIDX_MASK(port), pIndex)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_BROADCAST:
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_RX_STORM_BCAST_METER_ADDR(port), RTL8373_RX_STORM_BCAST_METER_RX_STROM_BCAST_MIDX_MASK(port), pIndex)) != RT_ERR_OK)
+			return retVal;
+		break;
+	default:
+		break;
+	}
 
-    switch (stormType)
-    {
-        case STORM_GROUP_UNKNOWN_UNICAST:
-            if((retVal = rtl8373_getAsicRegBits(RTL8373_RX_STORM_UNUCAST_METER_ADDR(port), RTL8373_RX_STORM_UNUCAST_METER_RX_STROM_UNUCAST_MIDX_MASK(port), pIndex)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_UNKNOWN_MULTICAST:
-            if((retVal = rtl8373_getAsicRegBits(RTL8373_RX_STORM_UNMCAST_METER_ADDR(port), RTL8373_RX_STORM_UNMCAST_METER_RX_STROM_UNMCAST_MIDX_MASK(port), pIndex)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_MULTICAST:
-            if((retVal = rtl8373_getAsicRegBits(RTL8373_RX_STORM_MCAST_METER_ADDR(port), RTL8373_RX_STORM_MCAST_METER_RX_STROM_MCAST_MIDX_MASK(port), pIndex)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_BROADCAST:
-            if((retVal = rtl8373_getAsicRegBits(RTL8373_RX_STORM_BCAST_METER_ADDR(port), RTL8373_RX_STORM_BCAST_METER_RX_STROM_BCAST_MIDX_MASK(port), pIndex)) != RT_ERR_OK)
-                return retVal;
-            break;
-        default:
-            break;
-    }
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -166,43 +162,42 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlMeterIdx_get(rtk_port_t port, rtk_rat
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlPortEnable_set(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check Port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (stormType >= STORM_GROUP_END)
-        return RT_ERR_SFC_UNKNOWN_GROUP;
+	if (stormType >= STORM_GROUP_END)
+		return RT_ERR_SFC_UNKNOWN_GROUP;
 
-    if (enable >= RTK_ENABLE_END)
-        return RT_ERR_ENABLE;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_ENABLE;
 
-    switch (stormType)
-    {
-        case STORM_GROUP_UNKNOWN_UNICAST:
-            if ((retVal = rtl8373_setAsicRegBit(RTL8373_RX_STORM_UNUCAST_CTRL_ADDR(port), RTL8373_RX_STORM_UNUCAST_CTRL_RX_STROM_UNUCAST_EN_OFFSET(port), enable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_UNKNOWN_MULTICAST:
-            if ((retVal = rtl8373_setAsicRegBit(RTL8373_RX_STORM_UNMCAST_CTRL_ADDR(port), RTL8373_RX_STORM_UNMCAST_CTRL_RX_STROM_UNMCAST_EN_OFFSET(port), enable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_MULTICAST:
-            if ((retVal = rtl8373_setAsicRegBit(RTL8373_RX_STORM_MCAST_CTRL_ADDR(port), RTL8373_RX_STORM_MCAST_CTRL_RX_STROM_MCAST_EN_OFFSET(port), enable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_BROADCAST:
-            if ((retVal = rtl8373_setAsicRegBit(RTL8373_RX_STORM_BCAST_CTRL_ADDR(port), RTL8373_RX_STORM_BCAST_CTRL_RX_STROM_BCAST_EN_OFFSET(port), enable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        default:
-            break;
-    }
+	switch (stormType) {
+	case STORM_GROUP_UNKNOWN_UNICAST:
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_RX_STORM_UNUCAST_CTRL_ADDR(port), RTL8373_RX_STORM_UNUCAST_CTRL_RX_STROM_UNUCAST_EN_OFFSET(port), enable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_UNKNOWN_MULTICAST:
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_RX_STORM_UNMCAST_CTRL_ADDR(port), RTL8373_RX_STORM_UNMCAST_CTRL_RX_STROM_UNMCAST_EN_OFFSET(port), enable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_MULTICAST:
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_RX_STORM_MCAST_CTRL_ADDR(port), RTL8373_RX_STORM_MCAST_CTRL_RX_STROM_MCAST_EN_OFFSET(port), enable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_BROADCAST:
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_RX_STORM_BCAST_CTRL_ADDR(port), RTL8373_RX_STORM_BCAST_CTRL_RX_STROM_BCAST_EN_OFFSET(port), enable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	default:
+		break;
+	}
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -225,45 +220,44 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlPortEnable_set(rtk_port_t port, rtk_r
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlPortEnable_get(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 regData;
+	rtk_api_ret_t retVal;
+	rtk_uint32 regData;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check Port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (stormType >= STORM_GROUP_END)
-        return RT_ERR_SFC_UNKNOWN_GROUP;
+	if (stormType >= STORM_GROUP_END)
+		return RT_ERR_SFC_UNKNOWN_GROUP;
 
-    if (NULL == pEnable)
-        return RT_ERR_ENABLE;
+	if (NULL == pEnable)
+		return RT_ERR_ENABLE;
 
-    switch (stormType)
-    {
-        case STORM_GROUP_UNKNOWN_UNICAST:
-            if ((retVal = rtl8373_getAsicRegBit(RTL8373_RX_STORM_UNUCAST_CTRL_ADDR(port), RTL8373_RX_STORM_UNUCAST_CTRL_RX_STROM_UNUCAST_EN_OFFSET(port), &regData)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_UNKNOWN_MULTICAST:
-            if ((retVal = rtl8373_getAsicRegBit(RTL8373_RX_STORM_UNMCAST_CTRL_ADDR(port), RTL8373_RX_STORM_UNMCAST_CTRL_RX_STROM_UNMCAST_EN_OFFSET(port), &regData)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_MULTICAST:
-            if ((retVal = rtl8373_getAsicRegBit(RTL8373_RX_STORM_MCAST_CTRL_ADDR(port), RTL8373_RX_STORM_MCAST_CTRL_RX_STROM_MCAST_EN_OFFSET(port), &regData)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_BROADCAST:
-            if ((retVal = rtl8373_getAsicRegBit(RTL8373_RX_STORM_BCAST_CTRL_ADDR(port), RTL8373_RX_STORM_BCAST_CTRL_RX_STROM_BCAST_EN_OFFSET(port), &regData)) != RT_ERR_OK)
-                return retVal;
-            break;
-        default:
-            break;
-    }
+	switch (stormType) {
+	case STORM_GROUP_UNKNOWN_UNICAST:
+		if ((retVal = rtl8373_getAsicRegBit(RTL8373_RX_STORM_UNUCAST_CTRL_ADDR(port), RTL8373_RX_STORM_UNUCAST_CTRL_RX_STROM_UNUCAST_EN_OFFSET(port), &regData)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_UNKNOWN_MULTICAST:
+		if ((retVal = rtl8373_getAsicRegBit(RTL8373_RX_STORM_UNMCAST_CTRL_ADDR(port), RTL8373_RX_STORM_UNMCAST_CTRL_RX_STROM_UNMCAST_EN_OFFSET(port), &regData)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_MULTICAST:
+		if ((retVal = rtl8373_getAsicRegBit(RTL8373_RX_STORM_MCAST_CTRL_ADDR(port), RTL8373_RX_STORM_MCAST_CTRL_RX_STROM_MCAST_EN_OFFSET(port), &regData)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_BROADCAST:
+		if ((retVal = rtl8373_getAsicRegBit(RTL8373_RX_STORM_BCAST_CTRL_ADDR(port), RTL8373_RX_STORM_BCAST_CTRL_RX_STROM_BCAST_EN_OFFSET(port), &regData)) != RT_ERR_OK)
+			return retVal;
+		break;
+	default:
+		break;
+	}
 
-    *pEnable = (regData == 1) ? ENABLED : DISABLED;
-    return RT_ERR_OK;
+	*pEnable = (regData == 1) ? ENABLED : DISABLED;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -284,18 +278,18 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlPortEnable_get(rtk_port_t port, rtk_r
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlExtPortmask_set(rtk_uint32 portmask)
 {
-    rtk_api_ret_t retVal;
- 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	rtk_api_ret_t retVal;
 
-    if( portmask > RTL8373_PORTMASK)
-        return RT_ERR_PORT_MASK;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_EXT_EN_PORTMASK_MASK, portmask)) != RT_ERR_OK)
-        return retVal;
+	if (portmask > RTL8373_PORTMASK)
+		return RT_ERR_PORT_MASK;
 
-    return RT_ERR_OK;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_EXT_EN_PORTMASK_MASK, portmask)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -316,18 +310,18 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlExtPortmask_set(rtk_uint32 portmask)
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlExtPortmask_get(rtk_uint32 *pPortmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pPortmask)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pPortmask)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_EXT_EN_PORTMASK_MASK, pPortmask)) != RT_ERR_OK)
-         return retVal;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_EXT_EN_PORTMASK_MASK, pPortmask)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -349,40 +343,39 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlExtPortmask_get(rtk_uint32 *pPortmask
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlExtEnable_set(rtk_rate_storm_group_t stormType, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (stormType >= STORM_GROUP_END)
-        return RT_ERR_SFC_UNKNOWN_GROUP;
+	if (stormType >= STORM_GROUP_END)
+		return RT_ERR_SFC_UNKNOWN_GROUP;
 
-    if (enable >= RTK_ENABLE_END)
-        return RT_ERR_ENABLE;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_ENABLE;
 
-    switch (stormType)
-    {
-        case STORM_GROUP_UNKNOWN_UNICAST:
-            if ((retVal = rtl8373_setAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_UNKNOWN_UCAST_EXT_EN_OFFSET, enable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_UNKNOWN_MULTICAST:
-            if ((retVal = rtl8373_setAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_UNKNOWN_MCAST_EXT_EN_OFFSET, enable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_MULTICAST:
-            if ((retVal = rtl8373_setAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_MCAST_EXT_EN_OFFSET, enable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_BROADCAST:
-            if ((retVal = rtl8373_setAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_BCAST_EXT_EN_OFFSET, enable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        default:
-            break;
-    }
+	switch (stormType) {
+	case STORM_GROUP_UNKNOWN_UNICAST:
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_UNKNOWN_UCAST_EXT_EN_OFFSET, enable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_UNKNOWN_MULTICAST:
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_UNKNOWN_MCAST_EXT_EN_OFFSET, enable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_MULTICAST:
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_MCAST_EXT_EN_OFFSET, enable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_BROADCAST:
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_BCAST_EXT_EN_OFFSET, enable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	default:
+		break;
+	}
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -403,42 +396,41 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlExtEnable_set(rtk_rate_storm_group_t 
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlExtEnable_get(rtk_rate_storm_group_t stormType, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    //rtk_uint32 regData;
+	rtk_api_ret_t retVal;
+	//rtk_uint32 regData;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (stormType >= STORM_GROUP_END)
-        return RT_ERR_SFC_UNKNOWN_GROUP;
+	if (stormType >= STORM_GROUP_END)
+		return RT_ERR_SFC_UNKNOWN_GROUP;
 
-    if (NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    switch (stormType)
-    {
-        case STORM_GROUP_UNKNOWN_UNICAST:
-            if ((retVal = rtl8373_getAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_UNKNOWN_UCAST_EXT_EN_OFFSET, pEnable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_UNKNOWN_MULTICAST:
-            if ((retVal = rtl8373_getAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_UNKNOWN_MCAST_EXT_EN_OFFSET, pEnable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_MULTICAST:
-            if ((retVal = rtl8373_getAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_MCAST_EXT_EN_OFFSET, pEnable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_BROADCAST:
-            if ((retVal = rtl8373_getAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_BCAST_EXT_EN_OFFSET, pEnable)) != RT_ERR_OK)
-                return retVal;
-            break;
-        default:
-            break;
-    }
+	switch (stormType) {
+	case STORM_GROUP_UNKNOWN_UNICAST:
+		if ((retVal = rtl8373_getAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_UNKNOWN_UCAST_EXT_EN_OFFSET, pEnable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_UNKNOWN_MULTICAST:
+		if ((retVal = rtl8373_getAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_UNKNOWN_MCAST_EXT_EN_OFFSET, pEnable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_MULTICAST:
+		if ((retVal = rtl8373_getAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_MCAST_EXT_EN_OFFSET, pEnable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_BROADCAST:
+		if ((retVal = rtl8373_getAsicRegBit(RTL8373_CFG_STORM_EXT_ADDR, RTL8373_CFG_STORM_EXT_STORM_BCAST_EXT_EN_OFFSET, pEnable)) != RT_ERR_OK)
+			return retVal;
+		break;
+	default:
+		break;
+	}
 
-    //*pEnable = (regData == 1) ? ENABLED : DISABLED;
-    return RT_ERR_OK;
+	//*pEnable = (regData == 1) ? ENABLED : DISABLED;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -460,40 +452,39 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlExtEnable_get(rtk_rate_storm_group_t 
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlExtMeterIdx_set(rtk_rate_storm_group_t stormType, rtk_uint32 index)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (stormType >= STORM_GROUP_END)
-        return RT_ERR_SFC_UNKNOWN_GROUP;
+	if (stormType >= STORM_GROUP_END)
+		return RT_ERR_SFC_UNKNOWN_GROUP;
 
-    if (index > RTL8373_METERMAX)
-        return RT_ERR_FILTER_METER_ID;
+	if (index > RTL8373_METERMAX)
+		return RT_ERR_FILTER_METER_ID;
 
-    switch (stormType)
-    {
-        case STORM_GROUP_UNKNOWN_UNICAST:
-            if ((retVal = rtl8373_setAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_UNKNOWN_UCAST_EXT_METERID_MASK, index))!=RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_UNKNOWN_MULTICAST:
-            if ((retVal = rtl8373_setAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_UNKNOWN_MCAST_EXT_METERID_MASK, index))!=RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_MULTICAST:
-            if ((retVal = rtl8373_setAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_MCAST_EXT_METERID_MASK, index))!=RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_BROADCAST:
-            if ((retVal = rtl8373_setAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_BCAST_EXT_METERID_MASK, index))!=RT_ERR_OK)
-                return retVal;
-            break;
-        default:
-            break;
-    }
+	switch (stormType) {
+	case STORM_GROUP_UNKNOWN_UNICAST:
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_UNKNOWN_UCAST_EXT_METERID_MASK, index)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_UNKNOWN_MULTICAST:
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_UNKNOWN_MCAST_EXT_METERID_MASK, index)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_MULTICAST:
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_MCAST_EXT_METERID_MASK, index)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_BROADCAST:
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_BCAST_EXT_METERID_MASK, index)) != RT_ERR_OK)
+			return retVal;
+		break;
+	default:
+		break;
+	}
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -501,7 +492,7 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlExtMeterIdx_set(rtk_rate_storm_group_
  * Description:
  *      Get externsion storm control meter index
  * Input:
- *      stormType   - storm group type      
+ *      stormType   - storm group type
  * Output:
  *      pIndex      - externsion storm control state
  * Return:
@@ -514,40 +505,39 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlExtMeterIdx_set(rtk_rate_storm_group_
  */
 rtk_api_ret_t dal_rtl8373_rate_stormControlExtMeterIdx_get(rtk_rate_storm_group_t stormType, rtk_uint32 *pIndex)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (stormType >= STORM_GROUP_END)
-        return RT_ERR_SFC_UNKNOWN_GROUP;
+	if (stormType >= STORM_GROUP_END)
+		return RT_ERR_SFC_UNKNOWN_GROUP;
 
-    if(NULL == pIndex)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pIndex)
+		return RT_ERR_NULL_POINTER;
 
-    switch (stormType)
-    {
-        case STORM_GROUP_UNKNOWN_UNICAST:
-            if ((retVal = rtl8373_getAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_UNKNOWN_UCAST_EXT_METERID_MASK, pIndex))!=RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_UNKNOWN_MULTICAST:
-            if ((retVal = rtl8373_getAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_UNKNOWN_MCAST_EXT_METERID_MASK, pIndex))!=RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_MULTICAST:
-            if ((retVal = rtl8373_getAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_MCAST_EXT_METERID_MASK, pIndex))!=RT_ERR_OK)
-                return retVal;
-            break;
-        case STORM_GROUP_BROADCAST:
-            if ((retVal = rtl8373_getAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_BCAST_EXT_METERID_MASK, pIndex))!=RT_ERR_OK)
-                return retVal;
-            break;
-        default:
-            break;
-    }
+	switch (stormType) {
+	case STORM_GROUP_UNKNOWN_UNICAST:
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_UNKNOWN_UCAST_EXT_METERID_MASK, pIndex)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_UNKNOWN_MULTICAST:
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_UNKNOWN_MCAST_EXT_METERID_MASK, pIndex)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_MULTICAST:
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_MCAST_EXT_METERID_MASK, pIndex)) != RT_ERR_OK)
+			return retVal;
+		break;
+	case STORM_GROUP_BROADCAST:
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_STORM_EXT_MTRIDX_CFG_ADDR, RTL8373_STORM_EXT_MTRIDX_CFG_STORM_BCAST_EXT_METERID_MASK, pIndex)) != RT_ERR_OK)
+			return retVal;
+		break;
+	default:
+		break;
+	}
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -624,68 +614,58 @@ rtk_api_ret_t dal_rtl8373_rate_stormControlExtMeterIdx_get(rtk_rate_storm_group_
  */
 rtk_api_ret_t dal_rtl8373_storm_bypass_set(rtk_storm_bypass_t type, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
-    rtk_rmaParam_t rmacfg;
-    rtk_uint32 tmp;
+	rtk_api_ret_t retVal;
+	rtk_rmaParam_t rmacfg;
+	rtk_uint32 tmp;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (type >= BYPASS_END)
-        return RT_ERR_INPUT;
+	if (type >= BYPASS_END)
+		return RT_ERR_INPUT;
 
-    if (enable >= RTK_ENABLE_END)
-        return RT_ERR_INPUT;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_INPUT;
 
-    if (type >= 0 && type <= BYPASS_UNDEF_GARP_2F)
-    {
-        if ((retVal = dal_rtl8373_asicRma_get(type, &rmacfg)) != RT_ERR_OK)
-            return retVal;
+	if (type >= 0 && type <= BYPASS_UNDEF_GARP_2F) {
+		if ((retVal = dal_rtl8373_asicRma_get(type, &rmacfg)) != RT_ERR_OK)
+			return retVal;
 
-        rmacfg.discard_storm_filter = enable;
+		rmacfg.discard_storm_filter = enable;
 
-        if ((retVal = dal_rtl8373_asicRma_set(type, &rmacfg)) != RT_ERR_OK)
-            return retVal;
-    }
-    else if(type == BYPASS_IGMP)
-    {
-        if ((retVal = dal_rtl8373_setAsicIGMPBypassStormCTRL(enable)) != RT_ERR_OK)
-            return retVal;
-    }
-    else if (type == BYPASS_CDP)
-    {
-        if ((retVal = dal_rtl8373_asicRmaCdp_get(&rmacfg)) != RT_ERR_OK)
-            return retVal;
+		if ((retVal = dal_rtl8373_asicRma_set(type, &rmacfg)) != RT_ERR_OK)
+			return retVal;
+	} else if (type == BYPASS_IGMP) {
+		if ((retVal = dal_rtl8373_setAsicIGMPBypassStormCTRL(enable)) != RT_ERR_OK)
+			return retVal;
+	} else if (type == BYPASS_CDP) {
+		if ((retVal = dal_rtl8373_asicRmaCdp_get(&rmacfg)) != RT_ERR_OK)
+			return retVal;
 
-        rmacfg.discard_storm_filter = enable;
+		rmacfg.discard_storm_filter = enable;
 
-        if ((retVal = dal_rtl8373_asicRmaCdp_set(&rmacfg)) != RT_ERR_OK)
-            return retVal;
-    }
-    else if (type  == BYPASS_CSSTP)
-    {
-        if ((retVal = dal_rtl8373_asicRmaCsstp_get(&rmacfg)) != RT_ERR_OK)
-            return retVal;
+		if ((retVal = dal_rtl8373_asicRmaCdp_set(&rmacfg)) != RT_ERR_OK)
+			return retVal;
+	} else if (type == BYPASS_CSSTP) {
+		if ((retVal = dal_rtl8373_asicRmaCsstp_get(&rmacfg)) != RT_ERR_OK)
+			return retVal;
 
-        rmacfg.discard_storm_filter = enable;
+		rmacfg.discard_storm_filter = enable;
 
-        if ((retVal = dal_rtl8373_asicRmaCsstp_set(&rmacfg)) != RT_ERR_OK)
-            return retVal;
-    }
-    else if (type  == BYPASS_LLDP)
-    {
-        if ((retVal = dal_rtl8373_asicRmaLldp_get(&tmp, &rmacfg)) != RT_ERR_OK)
-            return retVal;
+		if ((retVal = dal_rtl8373_asicRmaCsstp_set(&rmacfg)) != RT_ERR_OK)
+			return retVal;
+	} else if (type == BYPASS_LLDP) {
+		if ((retVal = dal_rtl8373_asicRmaLldp_get(&tmp, &rmacfg)) != RT_ERR_OK)
+			return retVal;
 
-        rmacfg.discard_storm_filter = enable;
+		rmacfg.discard_storm_filter = enable;
 
-        if ((retVal = dal_rtl8373_asicRmaLldp_set(tmp, &rmacfg)) != RT_ERR_OK)
-            return retVal;
-    }
-    else
-        return RT_ERR_INPUT;
+		if ((retVal = dal_rtl8373_asicRmaLldp_set(tmp, &rmacfg)) != RT_ERR_OK)
+			return retVal;
+	} else
+		return RT_ERR_INPUT;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -759,58 +739,44 @@ rtk_api_ret_t dal_rtl8373_storm_bypass_set(rtk_storm_bypass_t type, rtk_enable_t
  */
 rtk_api_ret_t dal_rtl8373_storm_bypass_get(rtk_storm_bypass_t type, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    rtk_rmaParam_t rmacfg;
-    rtk_uint32 tmp;
+	rtk_api_ret_t retVal;
+	rtk_rmaParam_t rmacfg;
+	rtk_uint32 tmp;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (type >= BYPASS_END)
-        return RT_ERR_INPUT;
+	if (type >= BYPASS_END)
+		return RT_ERR_INPUT;
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    if (type >= 0 && type <= BYPASS_UNDEF_GARP_2F)
-    {
-        if ((retVal = dal_rtl8373_asicRma_get(type, &rmacfg)) != RT_ERR_OK)
-            return retVal;
+	if (type >= 0 && type <= BYPASS_UNDEF_GARP_2F) {
+		if ((retVal = dal_rtl8373_asicRma_get(type, &rmacfg)) != RT_ERR_OK)
+			return retVal;
 
-        *pEnable = rmacfg.discard_storm_filter;
-    }
-    else if(type == BYPASS_IGMP)
-    {
-        if ((retVal = dal_rtl8373_getAsicIGMPBypassStormCTRL(pEnable)) != RT_ERR_OK)
-            return retVal;
-    }
-    else if (type == BYPASS_CDP)
-    {
-        if ((retVal = dal_rtl8373_asicRmaCdp_get(&rmacfg)) != RT_ERR_OK)
-            return retVal;
+		*pEnable = rmacfg.discard_storm_filter;
+	} else if (type == BYPASS_IGMP) {
+		if ((retVal = dal_rtl8373_getAsicIGMPBypassStormCTRL(pEnable)) != RT_ERR_OK)
+			return retVal;
+	} else if (type == BYPASS_CDP) {
+		if ((retVal = dal_rtl8373_asicRmaCdp_get(&rmacfg)) != RT_ERR_OK)
+			return retVal;
 
-        *pEnable = rmacfg.discard_storm_filter;
-    }
-    else if (type == BYPASS_CSSTP)
-    {
-        if ((retVal = dal_rtl8373_asicRmaCsstp_get(&rmacfg)) != RT_ERR_OK)
-            return retVal;
+		*pEnable = rmacfg.discard_storm_filter;
+	} else if (type == BYPASS_CSSTP) {
+		if ((retVal = dal_rtl8373_asicRmaCsstp_get(&rmacfg)) != RT_ERR_OK)
+			return retVal;
 
-        *pEnable = rmacfg.discard_storm_filter;
-    }
-    else if (type == BYPASS_LLDP)
-    {
-        if ((retVal = dal_rtl8373_asicRmaLldp_get(&tmp,&rmacfg)) != RT_ERR_OK)
-            return retVal;
+		*pEnable = rmacfg.discard_storm_filter;
+	} else if (type == BYPASS_LLDP) {
+		if ((retVal = dal_rtl8373_asicRmaLldp_get(&tmp, &rmacfg)) != RT_ERR_OK)
+			return retVal;
 
-        *pEnable = rmacfg.discard_storm_filter;
-    }
-    else
-        return RT_ERR_INPUT;
+		*pEnable = rmacfg.discard_storm_filter;
+	} else
+		return RT_ERR_INPUT;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
-

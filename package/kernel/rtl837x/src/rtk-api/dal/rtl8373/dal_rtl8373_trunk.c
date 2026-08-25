@@ -23,8 +23,6 @@
 #include <rtl8373_asicdrv.h>
 #include <linux/string.h>
 
-
-
 /* Function Name:
  *      dal_rtl8373_trunk_port_set
  * Description:
@@ -46,31 +44,28 @@
  */
 rtk_api_ret_t dal_rtl8373_trunk_port_set(rtk_trunk_group_t trk_gid, rtk_portmask_t *pTrunk_member_portmask)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 pmsk;
+	rtk_api_ret_t retVal;
+	rtk_uint32 pmsk;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Trunk Group Valid */
-    RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
+	/* Check Trunk Group Valid */
+	RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
 
-    if(NULL == pTrunk_member_portmask)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pTrunk_member_portmask)
+		return RT_ERR_NULL_POINTER;
 
-    RTK_CHK_PORTMASK_VALID(pTrunk_member_portmask);
+	RTK_CHK_PORTMASK_VALID(pTrunk_member_portmask);
 
-    if((retVal = rtk_switch_portmask_L2P_get(pTrunk_member_portmask, &pmsk)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtk_switch_portmask_L2P_get(pTrunk_member_portmask, &pmsk)) != RT_ERR_OK)
+		return retVal;
 
-   
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_TRK_MBR_CTRL_ADDR(trk_gid), RTL8373_TRK_MBR_CTRL_TRK_PMSK_MASK, pmsk)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_TRK_MBR_CTRL_ADDR(trk_gid), RTL8373_TRK_MBR_CTRL_TRK_PMSK_MASK, pmsk)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_port_get
@@ -90,25 +85,23 @@ rtk_api_ret_t dal_rtl8373_trunk_port_set(rtk_trunk_group_t trk_gid, rtk_portmask
  */
 rtk_api_ret_t dal_rtl8373_trunk_port_get(rtk_trunk_group_t trk_gid, rtk_portmask_t *pTrunk_member_portmask)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 pmsk;
+	rtk_api_ret_t retVal;
+	rtk_uint32 pmsk;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Trunk Group Valid */
-    RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
+	/* Check Trunk Group Valid */
+	RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_TRK_MBR_CTRL_ADDR(trk_gid), RTL8373_TRK_MBR_CTRL_TRK_PMSK_MASK, &pmsk)) != RT_ERR_OK)
-        return retVal;
-    
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_TRK_MBR_CTRL_ADDR(trk_gid), RTL8373_TRK_MBR_CTRL_TRK_PMSK_MASK, &pmsk)) != RT_ERR_OK)
+		return retVal;
 
-    if((retVal = rtk_switch_portmask_P2L_get(pmsk, pTrunk_member_portmask)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtk_switch_portmask_P2L_get(pmsk, pTrunk_member_portmask)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_distributionAlgorithm_set
@@ -142,23 +135,22 @@ rtk_api_ret_t dal_rtl8373_trunk_port_get(rtk_trunk_group_t trk_gid, rtk_portmask
  */
 rtk_api_ret_t dal_rtl8373_trunk_distributionAlgorithm_set(rtk_trunk_group_t trk_gid, rtk_uint32 algo_bitmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Trunk Group Valid */
-    RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
+	/* Check Trunk Group Valid */
+	RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
 
-    if (algo_bitmask >= 128)
-        return RT_ERR_LA_HASHMASK;
+	if (algo_bitmask >= 128)
+		return RT_ERR_LA_HASHMASK;
 
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_TRK_HASH_CTRL_ADDR(trk_gid), RTL8373_TRK_HASH_CTRL_HASH_MSK_MASK, algo_bitmask)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_TRK_HASH_CTRL_ADDR(trk_gid), RTL8373_TRK_HASH_CTRL_HASH_MSK_MASK, algo_bitmask)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_distributionAlgorithm_get
@@ -178,24 +170,22 @@ rtk_api_ret_t dal_rtl8373_trunk_distributionAlgorithm_set(rtk_trunk_group_t trk_
  */
 rtk_api_ret_t dal_rtl8373_trunk_distributionAlgorithm_get(rtk_trunk_group_t trk_gid, rtk_uint32 *pAlgo_bitmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Trunk Group Valid */
-    RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
+	/* Check Trunk Group Valid */
+	RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
 
-    if(NULL == pAlgo_bitmask)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pAlgo_bitmask)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_TRK_HASH_CTRL_ADDR(trk_gid), RTL8373_TRK_HASH_CTRL_HASH_MSK_MASK, pAlgo_bitmask)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_TRK_HASH_CTRL_ADDR(trk_gid), RTL8373_TRK_HASH_CTRL_HASH_MSK_MASK, pAlgo_bitmask)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_trafficSeparate_set
@@ -218,26 +208,25 @@ rtk_api_ret_t dal_rtl8373_trunk_distributionAlgorithm_get(rtk_trunk_group_t trk_
  */
 rtk_api_ret_t dal_rtl8373_trunk_trafficSeparate_set(rtk_trunk_group_t trk_gid, rtk_trunk_separateType_t separateType)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 enabled;
+	rtk_api_ret_t retVal;
+	rtk_uint32 enabled;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-	if(trk_gid >= TRUNK_GROUP_END)
+	if (trk_gid >= TRUNK_GROUP_END)
 		return RT_ERR_INPUT;
 
-    if(separateType >= SEPARATE_END)
-        return RT_ERR_INPUT;
+	if (separateType >= SEPARATE_END)
+		return RT_ERR_INPUT;
 
-    enabled = (separateType == SEPARATE_FLOOD) ? ENABLED : DISABLED;
+	enabled = (separateType == SEPARATE_FLOOD) ? ENABLED : DISABLED;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_TRK_CTRL_ADDR, RTL8373_TRK_CTRL_TRUNK_FLD_OFFSET, enabled)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_TRK_CTRL_ADDR, RTL8373_TRK_CTRL_TRUNK_FLD_OFFSET, enabled)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_trafficSeparate_get
@@ -259,25 +248,24 @@ rtk_api_ret_t dal_rtl8373_trunk_trafficSeparate_set(rtk_trunk_group_t trk_gid, r
  */
 rtk_api_ret_t dal_rtl8373_trunk_trafficSeparate_get(rtk_trunk_group_t trk_gid, rtk_trunk_separateType_t *pSeparateType)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 enabled;
+	rtk_api_ret_t retVal;
+	rtk_uint32 enabled;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-	if(trk_gid >= TRUNK_GROUP_END)
+	if (trk_gid >= TRUNK_GROUP_END)
 		return RT_ERR_INPUT;
 
-    if(NULL == pSeparateType)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pSeparateType)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_TRK_CTRL_ADDR, RTL8373_TRK_CTRL_TRUNK_FLD_OFFSET, &enabled)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_TRK_CTRL_ADDR, RTL8373_TRK_CTRL_TRUNK_FLD_OFFSET, &enabled)) != RT_ERR_OK)
+		return retVal;
 
-    *pSeparateType = (enabled == ENABLED) ? SEPARATE_FLOOD : SEPARATE_NONE;
-    return RT_ERR_OK;
+	*pSeparateType = (enabled == ENABLED) ? SEPARATE_FLOOD : SEPARATE_NONE;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_trafficPause_set
@@ -297,22 +285,21 @@ rtk_api_ret_t dal_rtl8373_trunk_trafficSeparate_get(rtk_trunk_group_t trk_gid, r
  */
 rtk_api_ret_t dal_rtl8373_trunk_trafficPause_set(rtk_trunk_group_t trk_gid, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Trunk Group Valid */
-    RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
+	/* Check Trunk Group Valid */
+	RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
 
-    if(enable >= RTK_ENABLE_END)
-        return RT_ERR_INPUT;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_INPUT;
 
-    if((retVal = rtl8373_setAsicRegBit(RTL8373_TRK_FLOW_CTRL_ADDR(trk_gid), RTL8373_TRK_FLOW_CTRL_TRK_FLCTRL_EN_OFFSET, enable)) != RT_ERR_OK)
-         return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_TRK_FLOW_CTRL_ADDR(trk_gid), RTL8373_TRK_FLOW_CTRL_TRK_FLCTRL_EN_OFFSET, enable)) != RT_ERR_OK)
+		return retVal;
 
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -333,23 +320,22 @@ rtk_api_ret_t dal_rtl8373_trunk_trafficPause_set(rtk_trunk_group_t trk_gid, rtk_
  */
 rtk_api_ret_t dal_rtl8373_trunk_trafficPause_get(rtk_trunk_group_t trk_gid, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Trunk Group Valid */
-    RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
+	/* Check Trunk Group Valid */
+	RTK_CHK_TRUNK_GROUP_VALID(trk_gid);
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_TRK_FLOW_CTRL_ADDR(trk_gid), RTL8373_TRK_FLOW_CTRL_TRK_FLCTRL_EN_OFFSET, pEnable)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_TRK_FLOW_CTRL_ADDR(trk_gid), RTL8373_TRK_FLOW_CTRL_TRK_FLCTRL_EN_OFFSET, pEnable)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_portQueueEmpty_get
@@ -368,29 +354,20 @@ rtk_api_ret_t dal_rtl8373_trunk_trafficPause_get(rtk_trunk_group_t trk_gid, rtk_
  */
 rtk_api_ret_t dal_rtl8373_trunk_portQueueEmpty_get(rtk_portmask_t *pEmpty_portmask)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 pmask;
+	rtk_api_ret_t retVal;
+	rtk_uint32 pmask;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pEmpty_portmask)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pEmpty_portmask)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicReg(RTL8373_TRK_QUEUE_EMPTY_ADDR, &pmask)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicReg(RTL8373_TRK_QUEUE_EMPTY_ADDR, &pmask)) != RT_ERR_OK)
+		return retVal;
 
-    if ((retVal = rtk_switch_portmask_P2L_get(pmask, pEmpty_portmask)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtk_switch_portmask_P2L_get(pmask, pEmpty_portmask)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
-
-
-
-
-
-

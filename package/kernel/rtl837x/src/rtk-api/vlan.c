@@ -18,7 +18,6 @@
 
  */
 
-
 #include <rtk_switch.h>
 #include <rtk_error.h>
 #include <vlan.h>
@@ -46,16 +45,16 @@
  */
 rtk_api_ret_t rtk_vlan_init(void)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_init)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_init();
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_init)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_init();
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -80,16 +79,16 @@ rtk_api_ret_t rtk_vlan_init(void)
  */
 rtk_api_ret_t rtk_vlan_set(rtk_vlan_t vid, rtk_vlan_entry_t *pVlanCfg)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->vlan_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->vlan_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_set(vid, pVlanCfg);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_set(vid, pVlanCfg);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -111,16 +110,16 @@ rtk_api_ret_t rtk_vlan_set(rtk_vlan_t vid, rtk_vlan_entry_t *pVlanCfg)
  */
 rtk_api_ret_t rtk_vlan_get(rtk_vlan_t vid, rtk_vlan_entry_t *pVlanCfg)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_get(vid, pVlanCfg);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_get(vid, pVlanCfg);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -141,16 +140,16 @@ rtk_api_ret_t rtk_vlan_get(rtk_vlan_t vid, rtk_vlan_entry_t *pVlanCfg)
  */
 rtk_api_ret_t rtk_vlan_egrFilterEnable_set(rtk_enable_t egrFilter)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_egrFilterEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_egrFilterEnable_set(egrFilter);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_egrFilterEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_egrFilterEnable_set(egrFilter);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -171,16 +170,16 @@ rtk_api_ret_t rtk_vlan_egrFilterEnable_set(rtk_enable_t egrFilter)
  */
 rtk_api_ret_t rtk_vlan_egrFilterEnable_get(rtk_enable_t *pEgrFilter)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_egrFilterEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_egrFilterEnable_get(pEgrFilter);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_egrFilterEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_egrFilterEnable_get(pEgrFilter);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -206,16 +205,16 @@ rtk_api_ret_t rtk_vlan_egrFilterEnable_get(rtk_enable_t *pEgrFilter)
  */
 rtk_api_ret_t rtk_vlan_portPvid_set(rtk_port_t port, rtk_vlan_t pvid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->vlan_portPvid_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->vlan_portPvid_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_portPvid_set(port, pvid);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_portPvid_set(port, pvid);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -237,16 +236,16 @@ rtk_api_ret_t rtk_vlan_portPvid_set(rtk_port_t port, rtk_vlan_t pvid)
  */
 rtk_api_ret_t rtk_vlan_portPvid_get(rtk_port_t port, rtk_vlan_t *pPvid)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_portPvid_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_portPvid_get(port, pPvid);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_portPvid_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_portPvid_get(port, pPvid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -273,16 +272,16 @@ rtk_api_ret_t rtk_vlan_portPvid_get(rtk_port_t port, rtk_vlan_t *pPvid)
  */
 rtk_api_ret_t rtk_vlan_portIgrFilterEnable_set(rtk_port_t port, rtk_enable_t igrFilter)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_portIgrFilterEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_portIgrFilterEnable_set(port, igrFilter);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_portIgrFilterEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_portIgrFilterEnable_set(port, igrFilter);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -307,16 +306,16 @@ rtk_api_ret_t rtk_vlan_portIgrFilterEnable_set(rtk_port_t port, rtk_enable_t igr
  */
 rtk_api_ret_t rtk_vlan_portIgrFilterEnable_get(rtk_port_t port, rtk_enable_t *pIgFilter)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_portIgrFilterEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_portIgrFilterEnable_get(port, pIgFilter);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_portIgrFilterEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_portIgrFilterEnable_get(port, pIgFilter);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -343,16 +342,16 @@ rtk_api_ret_t rtk_vlan_portIgrFilterEnable_get(rtk_port_t port, rtk_enable_t *pI
  */
 rtk_api_ret_t rtk_vlan_portAcceptFrameType_set(rtk_port_t port, rtk_vlan_acceptFrameType_t acceptFrameType)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_portAcceptFrameType_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_portAcceptFrameType_set(port, acceptFrameType);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_portAcceptFrameType_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_portAcceptFrameType_set(port, acceptFrameType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -378,16 +377,16 @@ rtk_api_ret_t rtk_vlan_portAcceptFrameType_set(rtk_port_t port, rtk_vlan_acceptF
  */
 rtk_api_ret_t rtk_vlan_portAcceptFrameType_get(rtk_port_t port, rtk_vlan_acceptFrameType_t *pAcceptFrameType)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_portAcceptFrameType_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_portAcceptFrameType_get(port, pAcceptFrameType);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_portAcceptFrameType_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_portAcceptFrameType_get(port, pAcceptFrameType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -415,16 +414,16 @@ rtk_api_ret_t rtk_vlan_portAcceptFrameType_get(rtk_port_t port, rtk_vlan_acceptF
  */
 rtk_api_ret_t rtk_vlan_tagMode_set(rtk_port_t port, rtk_vlan_egressTagMode_t tagMode)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_tagMode_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_tagMode_set(port, tagMode);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_tagMode_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_tagMode_set(port, tagMode);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -450,16 +449,16 @@ rtk_api_ret_t rtk_vlan_tagMode_set(rtk_port_t port, rtk_vlan_egressTagMode_t tag
  */
 rtk_api_ret_t rtk_vlan_tagMode_get(rtk_port_t port, rtk_vlan_egressTagMode_t *pTagMode)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->vlan_tagMode_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->vlan_tagMode_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_tagMode_get(port, pTagMode);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_tagMode_get(port, pTagMode);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -482,16 +481,16 @@ rtk_api_ret_t rtk_vlan_tagMode_get(rtk_port_t port, rtk_vlan_egressTagMode_t *pT
  */
 rtk_api_ret_t rtk_vlan_transparent_set(rtk_port_t egrPort, rtk_portmask_t *pIgrPmsk)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_transparent_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_transparent_set(egrPort, pIgrPmsk);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_transparent_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_transparent_set(egrPort, pIgrPmsk);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -513,16 +512,16 @@ rtk_api_ret_t rtk_vlan_transparent_set(rtk_port_t egrPort, rtk_portmask_t *pIgrP
  */
 rtk_api_ret_t rtk_vlan_transparent_get(rtk_port_t egrPort, rtk_portmask_t *pIgrPmsk)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_transparent_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_transparent_get(egrPort, pIgrPmsk);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_transparent_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_transparent_get(egrPort, pIgrPmsk);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -545,16 +544,16 @@ rtk_api_ret_t rtk_vlan_transparent_get(rtk_port_t egrPort, rtk_portmask_t *pIgrP
  */
 rtk_api_ret_t rtk_vlan_keep_set(rtk_port_t egrPort, rtk_portmask_t *pIgrPmsk)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_keep_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_keep_set(egrPort, pIgrPmsk);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_keep_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_keep_set(egrPort, pIgrPmsk);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -576,16 +575,16 @@ rtk_api_ret_t rtk_vlan_keep_set(rtk_port_t egrPort, rtk_portmask_t *pIgrPmsk)
  */
 rtk_api_ret_t rtk_vlan_keep_get(rtk_port_t egrPort, rtk_portmask_t *pIgrPmsk)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->vlan_keep_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->vlan_keep_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_keep_get(egrPort, pIgrPmsk);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_keep_get(egrPort, pIgrPmsk);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -609,16 +608,16 @@ rtk_api_ret_t rtk_vlan_keep_get(rtk_port_t egrPort, rtk_portmask_t *pIgrPmsk)
  */
 rtk_api_ret_t rtk_vlan_stg_set(rtk_vlan_t vid, rtk_stp_msti_id_t stg)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_stg_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_stg_set(vid, stg);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_stg_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_stg_set(vid, stg);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -640,16 +639,16 @@ rtk_api_ret_t rtk_vlan_stg_set(rtk_vlan_t vid, rtk_stp_msti_id_t stg)
  */
 rtk_api_ret_t rtk_vlan_stg_get(rtk_vlan_t vid, rtk_stp_msti_id_t *pStg)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_stg_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_stg_get(vid, pStg);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_stg_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_stg_get(vid, pStg);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -675,16 +674,16 @@ rtk_api_ret_t rtk_vlan_stg_get(rtk_vlan_t vid, rtk_stp_msti_id_t *pStg)
  */
 rtk_api_ret_t rtk_vlan_portFid_set(rtk_port_t port, rtk_enable_t enable, rtk_fid_t fid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->vlan_portFid_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->vlan_portFid_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_portFid_set(port, enable, fid);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_portFid_set(port, enable, fid);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -708,16 +707,16 @@ rtk_api_ret_t rtk_vlan_portFid_set(rtk_port_t port, rtk_enable_t enable, rtk_fid
  */
 rtk_api_ret_t rtk_vlan_portFid_get(rtk_port_t port, rtk_enable_t *pEnable, rtk_fid_t *pFid)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_portFid_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_portFid_get(port, pEnable, pFid);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_portFid_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_portFid_get(port, pEnable, pFid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 #if 0
@@ -749,16 +748,16 @@ rtk_api_ret_t rtk_vlan_portFid_get(rtk_port_t port, rtk_enable_t *pEnable, rtk_f
  */
 rtk_api_ret_t rtk_stp_mstpState_set(rtk_stp_msti_id_t msti, rtk_port_t port, rtk_stp_state_t stpState)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->stp_mstpState_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->stp_mstpState_set(msti, port, stpState);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->stp_mstpState_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->stp_mstpState_set(msti, port, stpState);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -786,16 +785,16 @@ rtk_api_ret_t rtk_stp_mstpState_set(rtk_stp_msti_id_t msti, rtk_port_t port, rtk
  */
 rtk_api_ret_t rtk_stp_mstpState_get(rtk_stp_msti_id_t msti, rtk_port_t port, rtk_stp_state_t *pStpState)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->stp_mstpState_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->stp_mstpState_get(msti, port, pStpState);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->stp_mstpState_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->stp_mstpState_get(msti, port, pStpState);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 #endif
@@ -820,16 +819,16 @@ rtk_api_ret_t rtk_stp_mstpState_get(rtk_stp_msti_id_t msti, rtk_port_t port, rtk
  */
 rtk_api_ret_t rtk_vlan_reservedVidAction_set(rtk_vlan_resVidAction_t actionVid0, rtk_vlan_resVidAction_t actionVid4095)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_reservedVidAction_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_reservedVidAction_set(actionVid0, actionVid4095);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_reservedVidAction_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_reservedVidAction_set(actionVid0, actionVid4095);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -851,16 +850,16 @@ rtk_api_ret_t rtk_vlan_reservedVidAction_set(rtk_vlan_resVidAction_t actionVid0,
  */
 rtk_api_ret_t rtk_vlan_reservedVidAction_get(rtk_vlan_resVidAction_t *pActionVid0, rtk_vlan_resVidAction_t *pActionVid4095)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_reservedVidAction_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_reservedVidAction_get(pActionVid0, pActionVid4095);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_reservedVidAction_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_reservedVidAction_get(pActionVid0, pActionVid4095);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -881,16 +880,16 @@ rtk_api_ret_t rtk_vlan_reservedVidAction_get(rtk_vlan_resVidAction_t *pActionVid
  */
 rtk_api_ret_t rtk_vlan_realKeepRemarkEnable_set(rtk_enable_t enabled)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->vlan_realKeepRemarkEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->vlan_realKeepRemarkEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_realKeepRemarkEnable_set(enabled);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_realKeepRemarkEnable_set(enabled);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -911,16 +910,16 @@ rtk_api_ret_t rtk_vlan_realKeepRemarkEnable_set(rtk_enable_t enabled)
  */
 rtk_api_ret_t rtk_vlan_realKeepRemarkEnable_get(rtk_enable_t *pEnabled)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_realKeepRemarkEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_realKeepRemarkEnable_get(pEnabled);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_realKeepRemarkEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_realKeepRemarkEnable_get(pEnabled);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /*******************************************************************************
@@ -945,16 +944,15 @@ rtk_api_ret_t rtk_vlan_realKeepRemarkEnable_get(rtk_enable_t *pEnabled)
 *******************************************************************************/
 rtk_api_ret_t rtk_vlan_disL2Learn_set(rtk_vlan_disL2_learn_t *pDisL2LearnCfg)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->vlan_disL2Learn_entry_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_disL2Learn_entry_set(pDisL2LearnCfg);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_disL2Learn_entry_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_disL2Learn_entry_set(pDisL2LearnCfg);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 /*******************************************************************************
 * Function Name: rtk_vlan_disL2Learn_get
@@ -978,16 +976,16 @@ rtk_api_ret_t rtk_vlan_disL2Learn_set(rtk_vlan_disL2_learn_t *pDisL2LearnCfg)
 *******************************************************************************/
 rtk_api_ret_t rtk_vlan_disL2Learn_get(rtk_uint32 index, rtk_vlan_disL2_learn_t *pDisL2LearnCfg)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_disL2Learn_entry_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_disL2Learn_entry_get(index, pDisL2LearnCfg);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_disL2Learn_entry_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_disL2Learn_entry_get(index, pDisL2LearnCfg);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -1008,15 +1006,14 @@ rtk_api_ret_t rtk_vlan_disL2Learn_get(rtk_uint32 index, rtk_vlan_disL2_learn_t *
  */
 rtk_api_ret_t rtk_vlan_reset(void)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    if (NULL == RT_MAPPER->vlan_reset)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal = 0;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->vlan_reset();
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->vlan_reset)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->vlan_reset();
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-

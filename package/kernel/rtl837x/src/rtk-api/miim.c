@@ -16,8 +16,8 @@
  * Feature : Here is a list of all functions and variables in this module.
  *
  */
- //#include "phydef.h"
- #include <rtk_switch.h>
+//#include "phydef.h"
+#include <rtk_switch.h>
 #include <rtk_error.h>
 #include "miim.h"
 #include "ptp.h"
@@ -42,17 +42,15 @@
  * Note:
  *      None
  */
-ret_t phy_ptpRefTime_set( rtk_time_timeStamp_t timeStamp)
+ret_t phy_ptpRefTime_set(rtk_time_timeStamp_t timeStamp)
 {
-    rtk_switch_halCtrl_t   *pHalCtrl;
-    ret_t           ret=0;
-    
-    if ((pHalCtrl = hal_ctrlInfo_get()) == NULL)
-        return RT_ERR_FAILED;
-    RTK_API_LOCK();
-    ret = (pHalCtrl->pPhy_ctrl->pPhydrv->fPhydrv_ptpRefTime_set(timeStamp));
-    RTK_API_UNLOCK();
-    return ret;
+	rtk_switch_halCtrl_t *pHalCtrl;
+	ret_t ret = 0;
+
+	if ((pHalCtrl = hal_ctrlInfo_get()) == NULL)
+		return RT_ERR_FAILED;
+	RTK_API_LOCK();
+	ret = (pHalCtrl->pPhy_ctrl->pPhydrv->fPhydrv_ptpRefTime_set(timeStamp));
+	RTK_API_UNLOCK();
+	return ret;
 }
-
-

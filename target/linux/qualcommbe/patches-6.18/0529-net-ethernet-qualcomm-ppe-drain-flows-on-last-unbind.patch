@@ -1,0 +1,31 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Sat, 1 Aug 2026 05:45:00 +0530
+Subject: [PATCH] net: ethernet: qualcomm: ppe: drain flows when the last block unbinds
+
+Disabling hardware offload unbinds the flow blocks, and netfilter sends
+no destroy transaction for the rules it had installed. Their rows stay
+valid in hardware and keep claiming the traffic they were built for,
+which black-holes the wired hosts they point at until the next boot.
+
+Drain the remaining rules once the last block is gone, reusing the
+teardown path that already exists for module removal.
+
+Link: https://github.com/torvalds/linux/blob/v6.18/net/netfilter/nf_flow_table_offload.c
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -3515,6 +3515,13 @@ int ppe_flowtable_setup_tc(struct net_de
+ 			flow_block_cb_remove(block_cb, f);
+ 			list_del(&block_cb->driver_list);
+ 		}
++
++		/* Netfilter sends no destroy transaction for the rules it
++		 * installed here, so their rows would keep owning traffic
++		 * in hardware once the last block is gone.
++		 */
++		if (list_empty(&ft->block_cb_list))
++			ppe_ft_flow_drain(ft);
+ 		return 0;
+ 	default:
+ 		return -EOPNOTSUPP;

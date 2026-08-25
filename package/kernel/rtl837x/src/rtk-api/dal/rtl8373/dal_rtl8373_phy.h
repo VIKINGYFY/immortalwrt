@@ -4,7 +4,6 @@
 #include <rtk_types.h>
 #include <phy.h>
 
-
 /* Function Name:
 *      dal_rlt8373_phy_common_c45_an_restart
 * Description:
@@ -19,8 +18,7 @@
 * Note:
 *      1000 is vendor specific in C45.
 */
-extern rtk_api_ret_t dal_rlt8373_phy_common_c45_an_restart( rtk_port_t port);
-
+extern rtk_api_ret_t dal_rlt8373_phy_common_c45_an_restart(rtk_port_t port);
 
 /* Function Name:
  *      dal_rlt8373_phy_common_c45_autoNegoEnable_get
@@ -36,8 +34,7 @@ extern rtk_api_ret_t dal_rlt8373_phy_common_c45_an_restart( rtk_port_t port);
  * Note:
  *      None
  */
-extern rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_get( rtk_port_t port, rtk_enable_t *pEnable);
-
+extern rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_get(rtk_port_t port, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      dal_rlt8373_phy_common_c45_autoNegoEnable_set
@@ -56,7 +53,6 @@ extern rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_get( rtk_port_t p
  */
 extern rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_set(rtk_port_t port, rtk_enable_t enable);
 
-
 /* Function Name:
  *      dal_rlt8373_phy_autoNegoAbility_set
  * Description:
@@ -74,8 +70,6 @@ extern rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_set(rtk_port_t po
  *      None
  */
 extern rtk_api_ret_t dal_rlt8373_phy_autoNegoAbility_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility);
-
-
 
 /* Function Name:
  *      dal_rlt8373_phy_conmmon_c45_autoSpeed_set
@@ -159,7 +153,7 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_enable_set(rtk_port_t port, rtk_enable_
  * Note:
  *      None
  */
-rtk_api_ret_t dal_rlt8373_phy_common_c45_enable_get( rtk_port_t port, rtk_enable_t *pEnable);
+rtk_api_ret_t dal_rlt8373_phy_common_c45_enable_get(rtk_port_t port, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      dal_rlt8373_phy_common_c45_duplex_get

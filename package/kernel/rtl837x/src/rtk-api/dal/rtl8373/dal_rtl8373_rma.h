@@ -3,11 +3,7 @@
 
 #include <rma.h>
 
-
-#define RTL8373_RMAMAX                     0x2F
-
-
-
+#define RTL8373_RMAMAX 0x2F
 
 /* Function Name:
  *      dal_rtl8373_asicRma_set
@@ -25,9 +21,7 @@
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicRma_set(rtk_uint32 index, rtk_rmaParam_t* pRmacfg);
-
-
+extern ret_t dal_rtl8373_asicRma_set(rtk_uint32 index, rtk_rmaParam_t *pRmacfg);
 
 /* Function Name:
  *      dal_rtl8373_asicRma_get
@@ -45,9 +39,7 @@ extern ret_t dal_rtl8373_asicRma_set(rtk_uint32 index, rtk_rmaParam_t* pRmacfg);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicRma_get(rtk_uint32 index, rtk_rmaParam_t* pRmacfg);
-
-
+extern ret_t dal_rtl8373_asicRma_get(rtk_uint32 index, rtk_rmaParam_t *pRmacfg);
 
 /* Function Name:
  *      dal_rtl8373_asicRmaCdp_set
@@ -64,8 +56,7 @@ extern ret_t dal_rtl8373_asicRma_get(rtk_uint32 index, rtk_rmaParam_t* pRmacfg);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicRmaCdp_set(rtk_rmaParam_t* pRmacfg);
-
+extern ret_t dal_rtl8373_asicRmaCdp_set(rtk_rmaParam_t *pRmacfg);
 
 /* Function Name:
  *      dal_rtl8373_asicRmaCdp_get
@@ -82,9 +73,7 @@ extern ret_t dal_rtl8373_asicRmaCdp_set(rtk_rmaParam_t* pRmacfg);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicRmaCdp_get(rtk_rmaParam_t* pRmacfg);
-
-
+extern ret_t dal_rtl8373_asicRmaCdp_get(rtk_rmaParam_t *pRmacfg);
 
 /* Function Name:
  *      dal_rtl8373_asicRmaCsstp_set
@@ -101,9 +90,7 @@ extern ret_t dal_rtl8373_asicRmaCdp_get(rtk_rmaParam_t* pRmacfg);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicRmaCsstp_set(rtk_rmaParam_t* pRmacfg);
-
-
+extern ret_t dal_rtl8373_asicRmaCsstp_set(rtk_rmaParam_t *pRmacfg);
 
 /* Function Name:
  *      dal_rtl8373_asicRmaCsstp_get
@@ -120,10 +107,7 @@ extern ret_t dal_rtl8373_asicRmaCsstp_set(rtk_rmaParam_t* pRmacfg);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicRmaCsstp_get(rtk_rmaParam_t* pRmacfg);
-
-
-
+extern ret_t dal_rtl8373_asicRmaCsstp_get(rtk_rmaParam_t *pRmacfg);
 
 /* Function Name:
  *      dal_rtl8373_asicRmaLldp_set
@@ -140,9 +124,7 @@ extern ret_t dal_rtl8373_asicRmaCsstp_get(rtk_rmaParam_t* pRmacfg);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicRmaLldp_set(rtk_uint32 enabled, rtk_rmaParam_t* pRmacfg);
-
-
+extern ret_t dal_rtl8373_asicRmaLldp_set(rtk_uint32 enabled, rtk_rmaParam_t *pRmacfg);
 
 /* Function Name:
  *      dal_rtl8373_asicRmaLldp_get
@@ -159,9 +141,7 @@ extern ret_t dal_rtl8373_asicRmaLldp_set(rtk_uint32 enabled, rtk_rmaParam_t* pRm
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicRmaLldp_get(rtk_uint32 *pEnabled, rtk_rmaParam_t* pRmacfg);
-
-
+extern ret_t dal_rtl8373_asicRmaLldp_get(rtk_uint32 *pEnabled, rtk_rmaParam_t *pRmacfg);
 
 /* Function Name:
  *      dal_rtl8373_asicRmaTrapPri_set
@@ -181,7 +161,6 @@ extern ret_t dal_rtl8373_asicRmaLldp_get(rtk_uint32 *pEnabled, rtk_rmaParam_t* p
 
 extern ret_t dal_rtl8373_asicRmaTrapPri_set(rtk_uint32 pri);
 
-
 /* Function Name:
  *      dal_rtl8373_asicRmaTrapPri_get
  * Description:
@@ -198,9 +177,6 @@ extern ret_t dal_rtl8373_asicRmaTrapPri_set(rtk_uint32 pri);
  *      None
  */
 
-extern ret_t dal_rtl8373_asicRmaTrapPri_get(rtk_uint32 * pri);
-
-
+extern ret_t dal_rtl8373_asicRmaTrapPri_get(rtk_uint32 *pri);
 
 #endif
-

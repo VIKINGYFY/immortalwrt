@@ -1,85 +1,66 @@
 #ifndef __DAL_RTL8373_LUT_H__
 #define __DAL_RTL8373_LUT_H__
 
-
 #include <l2.h>
 
+#define RTL8373_LUT_IPMCGRP_TABLE_MAX (0x3F)
 
-#define RTL8373_LUT_IPMCGRP_TABLE_MAX  (0x3F)
+#define RTL8373_LUT_BUSY_CHECK_NO (10)
 
-#define RTL8373_LUT_BUSY_CHECK_NO      (10)
+#define RTL8373_LUT_TABLE_SIZE (3)
 
-#define RTL8373_LUT_TABLE_SIZE         (3)
+#define RTL8373_LUTREADMETHOD_MAC 0
+#define RTL8373_LUTREADMETHOD_ADDRESS 1
+#define RTL8373_LUTREADMETHOD_NEXT_ADDRESS 2
+#define RTL8373_LUTREADMETHOD_NEXT_L2UC 3
+#define RTL8373_LUTREADMETHOD_NEXT_L2MC 4
+#define RTL8373_LUTREADMETHOD_NEXT_L3MC 5
+#define RTL8373_LUTREADMETHOD_NEXT_L2L3MC 6
+#define RTL8373_LUTREADMETHOD_NEXT_L2UCSPA 7
 
+enum L2_NEWSA_BEHAVE { L2_NEWSA_FWD = 0, L2_NEWSA_DROP, L2_NEWSA_TRAP, L2_BEHAVE_SA_END };
 
-
-#define RTL8373_LUTREADMETHOD_MAC            0
-#define RTL8373_LUTREADMETHOD_ADDRESS        1
-#define RTL8373_LUTREADMETHOD_NEXT_ADDRESS   2
-#define RTL8373_LUTREADMETHOD_NEXT_L2UC      3
-#define RTL8373_LUTREADMETHOD_NEXT_L2MC      4
-#define RTL8373_LUTREADMETHOD_NEXT_L3MC      5
-#define RTL8373_LUTREADMETHOD_NEXT_L2L3MC    6
-#define RTL8373_LUTREADMETHOD_NEXT_L2UCSPA   7
-
-
-enum L2_NEWSA_BEHAVE
-{
-    L2_NEWSA_FWD = 0,
-    L2_NEWSA_DROP,
-    L2_NEWSA_TRAP,
-    L2_BEHAVE_SA_END
+enum RTL8373_FLUSHMODE {
+	FLUSHMDOE_PORT = 0,
+	FLUSHMDOE_VID,
+	FLUSHMDOE_FID,
+	FLUSHMDOE_END,
 };
 
-
-enum RTL8373_FLUSHMODE
-{
-    FLUSHMDOE_PORT = 0,
-    FLUSHMDOE_VID,
-    FLUSHMDOE_FID,
-    FLUSHMDOE_END,
+enum RTL8373_L2_TRAPPORT {
+	TRAP_NONE = 0,
+	TRAP_8051,
+	TRAP_EXTERNAL,
+	TRAP_BOTH,
 };
 
-enum RTL8373_L2_TRAPPORT
-{
-    TRAP_NONE = 0,
-    TRAP_8051,
-    TRAP_EXTERNAL,
-    TRAP_BOTH,
-};
+typedef struct LUTTABLE {
+	ipaddr_t sip;
+	ipaddr_t dip;
+	ether_addr_t mac;
+	rtk_uint16 ivl_svl;
+	rtk_uint16 cvid_fid;
+	rtk_uint16 nosalearn;
+	rtk_uint16 mbr;
+	rtk_uint16 spa;
+	rtk_uint16 age;
+	rtk_uint16 l3lookup;
+	rtk_uint16 auth;
+	rtk_uint16 igmp_idx;
+	rtk_uint16 igmp_asic;
 
+	rtk_uint16 lookup_hit;
+	rtk_uint16 lookup_busy;
+	rtk_uint16 address;
+	rtk_uint16 wait_time;
 
+} rtl8373_luttb;
 
-typedef struct LUTTABLE{
-
-    ipaddr_t sip;
-    ipaddr_t dip;
-    ether_addr_t mac;
-    rtk_uint16 ivl_svl;
-    rtk_uint16 cvid_fid;
-    rtk_uint16 nosalearn;
-    rtk_uint16 mbr;
-    rtk_uint16 spa;
-    rtk_uint16 age;
-    rtk_uint16 l3lookup;
-    rtk_uint16 auth;
-    rtk_uint16 igmp_idx;
-    rtk_uint16 igmp_asic;
-
-    rtk_uint16 lookup_hit;
-    rtk_uint16 lookup_busy;
-    rtk_uint16 address;
-    rtk_uint16 wait_time;
-
-}rtl8373_luttb;
-
-
-typedef struct  IPMCTBL{
-    rtk_uint32 ipaddr;
-    rtk_uint32 portmask;
-    rtk_uint32 index;
-}rtl8373_ipmctbl;
-
+typedef struct IPMCTBL {
+	rtk_uint32 ipaddr;
+	rtk_uint32 portmask;
+	rtk_uint32 index;
+} rtl8373_ipmctbl;
 
 /* Function Name:
  *      dal_rtl8373_l2_init
@@ -97,8 +78,6 @@ typedef struct  IPMCTBL{
  *
  */
 extern rtk_api_ret_t dal_rtl8373_l2_init(void);
-
-
 
 /* Function Name:
  *      dal_rtl8373_l2_addr_add
@@ -125,7 +104,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_init(void);
  */
 
 extern rtk_api_ret_t dal_rtl8373_l2_addr_add(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_addr_get
@@ -176,7 +154,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_addr_get(rtk_mac_t *pMac, rtk_l2_ucastAddr_t
  */
 extern rtk_api_ret_t dal_rtl8373_l2_addr_next_get(rtk_l2_read_method_t read_method, rtk_port_t port, rtk_uint32 *pAddress, rtk_l2_ucastAddr_t *pL2_data);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_addr_del
  * Description:
@@ -199,8 +176,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_addr_next_get(rtk_l2_read_method_t read_meth
  *      If the mac has existed in the LUT, it will be deleted. Otherwise, it will return RT_ERR_L2_ENTRY_NOTFOUND.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_addr_del(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data);
-
-
 
 /* Function Name:
  *      dal_rtl8373_l2_mcastAddr_add
@@ -252,7 +227,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_mcastAddr_add(rtk_l2_mcastAddr_t *pMcastAddr
  */
 extern rtk_api_ret_t dal_rtl8373_l2_mcastAddr_get(rtk_l2_mcastAddr_t *pMcastAddr);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_mcastAddr_next_get
  * Description:
@@ -273,7 +247,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_mcastAddr_get(rtk_l2_mcastAddr_t *pMcastAddr
  *      as pAddress to call this API again for dumping all multicast entries is LUT.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_mcastAddr_next_get(rtk_uint32 *pAddress, rtk_l2_mcastAddr_t *pMcastAddr);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_mcastAddr_del
@@ -297,7 +270,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_mcastAddr_next_get(rtk_uint32 *pAddress, rtk
  */
 extern rtk_api_ret_t dal_rtl8373_l2_mcastAddr_del(rtk_l2_mcastAddr_t *pMcastAddr);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_ipMcastAddr_add
  * Description:
@@ -320,7 +292,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_mcastAddr_del(rtk_l2_mcastAddr_t *pMcastAddr
  *      forward IP multicast frame directly without flooding.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_ipMcastAddr_add(rtk_l2_ipMcastAddr_t *pIpMcastAddr);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_ipMcastAddr_get
@@ -361,8 +332,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMcastAddr_get(rtk_l2_ipMcastAddr_t *pIpMca
  *      as pAddress to call this API again for dumping all IP multicast entries is LUT.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_ipMcastAddr_next_get(rtk_uint32 *pAddress, rtk_l2_ipMcastAddr_t *pIpMcastAddr);
-
-
 
 /* Function Name:
  *      dal_rtl8373_l2_ipMcastAddr_del
@@ -412,8 +381,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMcastAddr_del(rtk_l2_ipMcastAddr_t *pIpMca
  */
 extern rtk_api_ret_t dal_rtl8373_l2_ucastAddr_flush(rtk_l2_flushCfg_t *pConfig);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_table_clear
  * Description:
@@ -429,10 +396,8 @@ extern rtk_api_ret_t dal_rtl8373_l2_ucastAddr_flush(rtk_l2_flushCfg_t *pConfig);
  * Note:
  *
  */
- 
+
 extern rtk_api_ret_t dal_rtl8373_l2_table_clear(void);
-
-
 
 /* Function Name:
  *      dal_rtl8373_l2_table_clearStatus_get
@@ -450,7 +415,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_table_clear(void);
  *
  */
 extern rtk_api_ret_t dal_rtl8373_l2_table_clearStatus_get(rtk_l2_clearStatus_t *pStatus);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_flushLinkDownPortAddrEnable_set
@@ -473,7 +437,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_table_clearStatus_get(rtk_l2_clearStatus_t *
  */
 extern rtk_api_ret_t dal_rtl8373_l2_flushLinkDownPortAddrEnable_set(rtk_enable_t enable);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_flushLinkDownPortAddrEnable_get
  * Description:
@@ -492,7 +455,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_flushLinkDownPortAddrEnable_set(rtk_enable_t
  *      - ENABLED
  */
 extern rtk_api_ret_t dal_rtl8373_l2_flushLinkDownPortAddrEnable_get(rtk_enable_t *pEnable);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_agingEnable_set
@@ -514,9 +476,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_flushLinkDownPortAddrEnable_get(rtk_enable_t
  */
 extern rtk_api_ret_t dal_rtl8373_l2_agingEnable_set(rtk_port_t port, rtk_enable_t enable);
 
-
-
-
 /* Function Name:
  *      dal_rtl8373_l2_agingEnable_get
  * Description:
@@ -534,9 +493,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_agingEnable_set(rtk_port_t port, rtk_enable_
  *      This API can be used to get L2 LUT aging function per port.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_agingEnable_get(rtk_port_t port, rtk_enable_t *pEnable);
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_l2_ageout_timer_set
@@ -576,8 +532,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ageout_timer_set(rtk_uint32 timer);
  */
 extern rtk_api_ret_t dal_rtl8373_l2_ageout_timer_get(rtk_uint32 *pTimer);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_ageout_timer_set
  * Description:
@@ -616,8 +570,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_agefield_value_set(rtk_uint32 value);
  */
 extern rtk_api_ret_t dal_rtl8373_l2_agefield_value_get(rtk_uint32 *pValue);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_limitLearningCnt_set
  * Description:
@@ -639,7 +591,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_agefield_value_get(rtk_uint32 *pValue);
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitLearningCnt_set(rtk_port_t port, rtk_mac_cnt_t mac_cnt);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_limitLearningCnt_get
  * Description:
@@ -657,7 +608,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitLearningCnt_set(rtk_port_t port, rtk_ma
  *      The API can get per-port ASIC auto learning limit number.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitLearningCnt_get(rtk_port_t port, rtk_mac_cnt_t *pMac_cnt);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_limitSystemLearningCnt_set
@@ -678,7 +628,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitLearningCnt_get(rtk_port_t port, rtk_ma
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCnt_set(rtk_mac_cnt_t mac_cnt);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_limitSystemLearningCnt_get
  * Description:
@@ -696,7 +645,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCnt_set(rtk_mac_cnt_t mac
  *      The API can get system ASIC auto learning limit number.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCnt_get(rtk_mac_cnt_t *pMac_cnt);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_limitLearningCntAction_set
@@ -722,7 +670,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCnt_get(rtk_mac_cnt_t *pM
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitLearningCntAction_set(rtk_port_t port, rtk_l2_limitLearnCntAction_t action);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_limitLearningCntAction_get
  * Description:
@@ -744,8 +691,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitLearningCntAction_set(rtk_port_t port, 
  *      - LIMIT_LEARN_CNT_ACTION_TO_CPU,
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitLearningCntAction_get(rtk_port_t port, rtk_l2_limitLearnCntAction_t *pAction);
-
-
 
 /* Function Name:
  *      dal_rtl8373_l2_limitSystemLearningCntAction_set
@@ -771,7 +716,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitLearningCntAction_get(rtk_port_t port, 
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCntAction_set(rtk_l2_limitLearnCntAction_t action);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_limitSystemLearningCntAction_get
  * Description:
@@ -794,7 +738,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCntAction_set(rtk_l2_limi
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCntAction_get(rtk_l2_limitLearnCntAction_t *pAction);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_limitSystemLearningCntPortMask_set
  * Description:
@@ -812,7 +755,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCntAction_get(rtk_l2_limi
  *
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCntPortMask_set(rtk_portmask_t *pPortmask);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_limitSystemLearningCntPortMask_get
@@ -832,7 +774,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCntPortMask_set(rtk_portm
  */
 extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCntPortMask_get(rtk_portmask_t *pPortmask);
 
-
 /* Function Name:
  *      dal_rtl8367d_l2_learningCnt_get
  * Description:
@@ -850,7 +791,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_limitSystemLearningCntPortMask_get(rtk_portm
  *      The API can get per-port ASIC auto learning number
  */
 extern rtk_api_ret_t dal_rtl8373_l2_learningCnt_get(rtk_port_t port, rtk_mac_cnt_t *pMac_cnt);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_ipMcastAddrLookup_set
@@ -870,7 +810,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_learningCnt_get(rtk_port_t port, rtk_mac_cnt
  */
 extern rtk_api_ret_t dal_rtl8373_l2_ipMcastAddrLookup_set(rtk_l2_ipmc_lookup_type_t type);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_ipMcastAddrLookup_get
  * Description:
@@ -887,8 +826,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMcastAddrLookup_set(rtk_l2_ipmc_lookup_typ
  *      None.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_ipMcastAddrLookup_get(rtk_l2_ipmc_lookup_type_t *pType);
-
-
 
 /* Function Name:
  *      dal_rtl8373_l2_ipMcastGroupEntry_add
@@ -908,8 +845,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMcastAddrLookup_get(rtk_l2_ipmc_lookup_typ
  * Note:
  *      Add an entry to IP Multicast Group table.
  */
-extern rtk_api_ret_t dal_rtl8373_l2_ipMcastGroupEntry_add(ipaddr_t ip_addr, rtk_portmask_t * portmask);
-
+extern rtk_api_ret_t dal_rtl8373_l2_ipMcastGroupEntry_add(ipaddr_t ip_addr, rtk_portmask_t *portmask);
 
 /* Function Name:
  *      dal_rtl8373_l2_ipMcastGroupEntry_del
@@ -930,7 +866,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMcastGroupEntry_add(ipaddr_t ip_addr, rtk_
  */
 extern rtk_api_ret_t dal_rtl8373_l2_ipMcastGroupEntry_del(ipaddr_t ip_addr);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_ipMcastGroupEntry_get
  * Description:
@@ -950,7 +885,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMcastGroupEntry_del(ipaddr_t ip_addr);
  */
 extern rtk_api_ret_t dal_rtl8373_l2_ipMcastGroupEntry_get(ipaddr_t ip_addr, rtk_portmask_t *pPortmask);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_entry_get
  * Description:
@@ -969,7 +903,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMcastGroupEntry_get(ipaddr_t ip_addr, rtk_
  *      This API is used to get address by index from 0~2111.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_entry_get(rtk_l2_addr_table_t *pL2_entry);
-
 
 extern rtk_api_ret_t dal_rtl8373_l2_entry_getNext(rtk_l2_addr_table_t *pL2_entry, rtk_uint32 method);
 
@@ -992,9 +925,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_entry_getNext(rtk_l2_addr_table_t *pL2_entry
  */
 extern rtk_api_ret_t dal_rtl8373_l2_entry_del(rtk_l2_addr_table_t *pL2_entry);
 
-
-
-
 /* Function Name:
  *      dal_rtl8373_l2_lookupHitIsolationAction_set
  * Description:
@@ -1014,10 +944,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_entry_del(rtk_l2_addr_table_t *pL2_entry);
  *      group.
  */
 extern rtk_api_ret_t dal_rtl8373_l2_lookupHitIsolationAction_set(rtk_l2_lookupHitIsolationAction_t action);
-
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_l2_lookupHitIsolationAction_get
@@ -1040,7 +966,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_lookupHitIsolationAction_set(rtk_l2_lookupHi
  */
 extern rtk_api_ret_t dal_rtl8373_l2_lookupHitIsolationAction_get(rtk_l2_lookupHitIsolationAction_t *pAction);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_portNewSaBehavior_set
  * Description:
@@ -1059,7 +984,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_lookupHitIsolationAction_get(rtk_l2_lookupHi
  */
 extern ret_t dal_rtl8373_l2_portNewSaBehavior_set(rtk_uint32 port, rtk_uint32 behavior);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_portNewSaBehavior_get
  * Description:
@@ -1076,7 +1000,6 @@ extern ret_t dal_rtl8373_l2_portNewSaBehavior_set(rtk_uint32 port, rtk_uint32 be
  *      None
  */
 extern ret_t dal_rtl8373_l2_portNewSaBehavior_get(rtk_uint32 port, rtk_uint32 *pBehavior);
-
 
 /* Function Name:
  *      dal_rtl8373_l2_portUnmatchedSaBehavior_set
@@ -1112,8 +1035,6 @@ extern ret_t dal_rtl8373_l2_portUnmatchedSaBehavior_set(rtk_uint32 port, rtk_uin
  */
 extern ret_t dal_rtl8373_l2_portUnmatchedSaBehavior_get(rtk_uint32 port, rtk_uint32 *pBehavior);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_portSaMovingForbid_set
  * Description:
@@ -1132,7 +1053,6 @@ extern ret_t dal_rtl8373_l2_portUnmatchedSaBehavior_get(rtk_uint32 port, rtk_uin
  */
 extern ret_t dal_rtl8373_l2_portSaMovingForbid_set(rtk_uint32 port, rtk_uint32 forbid);
 
-
 /* Function Name:
  *      dal_rtl8373_getAsicPortUnmatchedSaMoving
  * Description:
@@ -1149,8 +1069,6 @@ extern ret_t dal_rtl8373_l2_portSaMovingForbid_set(rtk_uint32 port, rtk_uint32 f
  *      None
  */
 extern ret_t dal_rtl8373_l2_portSaMovingForbid_get(rtk_uint32 port, rtk_uint32 *pForbid);
-
-
 
 /* Function Name:
  *      dal_rtl8373_srcPortPermit_set
@@ -1170,7 +1088,6 @@ extern ret_t dal_rtl8373_l2_portSaMovingForbid_get(rtk_uint32 port, rtk_uint32 *
  */
 extern ret_t dal_rtl8373_srcPortPermit_set(rtk_uint32 port, rtk_uint32 enable);
 
-
 /* Function Name:
  *      dal_rtl8373_srcPortPermit_get
  * Description:
@@ -1188,7 +1105,6 @@ extern ret_t dal_rtl8373_srcPortPermit_set(rtk_uint32 port, rtk_uint32 enable);
  */
 extern ret_t dal_rtl8373_srcPortPermit_get(rtk_uint32 port, rtk_uint32 *pEnable);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_unknUc_fldMsk_set
  * Description:
@@ -1196,7 +1112,7 @@ extern ret_t dal_rtl8373_srcPortPermit_get(rtk_uint32 port, rtk_uint32 *pEnable)
  * Input:
  *      portmask        - l2 unicast pkt lookup miss flood portmask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1206,8 +1122,6 @@ extern ret_t dal_rtl8373_srcPortPermit_get(rtk_uint32 port, rtk_uint32 *pEnable)
  */
 extern ret_t dal_rtl8373_l2_unknUc_fldMsk_set(rtk_uint32 portMask);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_unknUc_fldMsk_get
  * Description:
@@ -1215,7 +1129,7 @@ extern ret_t dal_rtl8373_l2_unknUc_fldMsk_set(rtk_uint32 portMask);
  * Input:
  *      portmask        - l2 unicast pkt lookup miss flood portmask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1223,9 +1137,7 @@ extern ret_t dal_rtl8373_l2_unknUc_fldMsk_set(rtk_uint32 portMask);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_l2_unknUc_fldMsk_get(rtk_uint32* pMask);
-
-
+extern ret_t dal_rtl8373_l2_unknUc_fldMsk_get(rtk_uint32 *pMask);
 
 /* Function Name:
  *      dal_rtl8373_l2_unknUc_action_set
@@ -1234,17 +1146,15 @@ extern ret_t dal_rtl8373_l2_unknUc_fldMsk_get(rtk_uint32* pMask);
  * Input:
  *      port        - Port ID *        - 0b00:fwd in L2_UNKNOW_UC_FLD_PMSK  0b01 drop  0b10 trap  0b11 flood
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
  *      RT_ERR_PORT_ID      - Error Port ID
  * Note:
  *      None
- */extern ret_t dal_rtl8373_l2_unknUc_action_set(rtk_uint32 port, rtk_uint32 );
-
-
-
+ */
+extern ret_t dal_rtl8373_l2_unknUc_action_set(rtk_uint32 port, rtk_uint32);
 
 /* Function Name:
  *      dal_rtl8373_l2_unknUc_action_get
@@ -1254,7 +1164,7 @@ extern ret_t dal_rtl8373_l2_unknUc_fldMsk_get(rtk_uint32* pMask);
  *      port        - Port ID
  *      pAction  - 0b00:fwd in L2_UNKNOW_UC_FLD_PMSK  0b01 drop  0b10 trap  0b11 flood
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1264,8 +1174,6 @@ extern ret_t dal_rtl8373_l2_unknUc_fldMsk_get(rtk_uint32* pMask);
  */
 extern ret_t dal_rtl8373_l2_unknUc_action_get(rtk_uint32 port, rtk_uint32 *pAction);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_unknMc_fldMsk_set
  * Description:
@@ -1273,7 +1181,7 @@ extern ret_t dal_rtl8373_l2_unknUc_action_get(rtk_uint32 port, rtk_uint32 *pActi
  * Input:
  *      portmask        - l2 multicast pkt lookup miss flood portmask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1283,8 +1191,6 @@ extern ret_t dal_rtl8373_l2_unknUc_action_get(rtk_uint32 port, rtk_uint32 *pActi
  */
 extern ret_t dal_rtl8373_l2_unknMc_fldMsk_set(rtk_uint32 portMask);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_unknMc_fldMsk_get
  * Description:
@@ -1292,7 +1198,7 @@ extern ret_t dal_rtl8373_l2_unknMc_fldMsk_set(rtk_uint32 portMask);
  * Input:
  *      portmask        - l2 multicast pkt lookup miss flood portmask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1300,10 +1206,7 @@ extern ret_t dal_rtl8373_l2_unknMc_fldMsk_set(rtk_uint32 portMask);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_l2_unknMc_fldMsk_get(rtk_uint32* pMask);
-
-
-
+extern ret_t dal_rtl8373_l2_unknMc_fldMsk_get(rtk_uint32 *pMask);
 
 /* Function Name:
  *      dal_rtl8373_l2_unknMc_action_set
@@ -1312,17 +1215,15 @@ extern ret_t dal_rtl8373_l2_unknMc_fldMsk_get(rtk_uint32* pMask);
  * Input:
  *      port        - Port ID *        - 0b00:fwd in L2_UNKNOW_MC_FLD_PMSK  0b01 drop  0b10 trap  0b11 drop exclude RMA
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
  *      RT_ERR_PORT_ID      - Error Port ID
  * Note:
  *      None
- */extern ret_t dal_rtl8373_l2_unknMc_action_set(rtk_uint32 port, rtk_uint32 );
-
-
-
+ */
+extern ret_t dal_rtl8373_l2_unknMc_action_set(rtk_uint32 port, rtk_uint32);
 
 /* Function Name:
  *      dal_rtl8373_l2_unknMc_action_get
@@ -1332,7 +1233,7 @@ extern ret_t dal_rtl8373_l2_unknMc_fldMsk_get(rtk_uint32* pMask);
  *      port        - Port ID
  *      pAction  - 0b00:fwd in L2_UNKNOW_MC_FLD_PMSK  0b01 drop  0b10 trap  0b11 drop exclude RMA
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1342,9 +1243,6 @@ extern ret_t dal_rtl8373_l2_unknMc_fldMsk_get(rtk_uint32* pMask);
  */
 extern ret_t dal_rtl8373_l2_unknMc_action_get(rtk_uint32 port, rtk_uint32 *pAction);
 
-
-
-
 /* Function Name:
  *      dal_rtl8373_l2_unknV4Mc_fldMsk_set
  * Description:
@@ -1352,7 +1250,7 @@ extern ret_t dal_rtl8373_l2_unknMc_action_get(rtk_uint32 port, rtk_uint32 *pActi
  * Input:
  *      portmask        - ipv4 multicast pkt lookup miss flood portmask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1362,8 +1260,6 @@ extern ret_t dal_rtl8373_l2_unknMc_action_get(rtk_uint32 port, rtk_uint32 *pActi
  */
 extern ret_t dal_rtl8373_l2_unknV4Mc_fldMsk_set(rtk_uint32 portMask);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_unknV4Mc_fldMsk_get
  * Description:
@@ -1371,7 +1267,7 @@ extern ret_t dal_rtl8373_l2_unknV4Mc_fldMsk_set(rtk_uint32 portMask);
  * Input:
  *      portmask        - ipv4 multicast pkt lookup miss flood portmask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1379,12 +1275,7 @@ extern ret_t dal_rtl8373_l2_unknV4Mc_fldMsk_set(rtk_uint32 portMask);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_l2_unknV4Mc_fldMsk_get(rtk_uint32* pMask);
-
-
-
-
-
+extern ret_t dal_rtl8373_l2_unknV4Mc_fldMsk_get(rtk_uint32 *pMask);
 
 /* Function Name:
  *      dal_rtl8373_l2_unknV4Mc_action_set
@@ -1393,16 +1284,15 @@ extern ret_t dal_rtl8373_l2_unknV4Mc_fldMsk_get(rtk_uint32* pMask);
  * Input:
  *      port        - Port ID *        - 0b00:fwd in IPV4_UNKNOW_MC_FLD_PMSK  0b01 drop  0b10 trap  0b11 to router port
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
  *      RT_ERR_PORT_ID      - Error Port ID
  * Note:
  *      None
- */extern ret_t dal_rtl8373_l2_unknV4Mc_action_set(rtk_uint32 port, rtk_uint32 );
-
-
+ */
+extern ret_t dal_rtl8373_l2_unknV4Mc_action_set(rtk_uint32 port, rtk_uint32);
 
 /* Function Name:
  *      dal_rtl8373_l2_unknV4Mc_action_get
@@ -1412,7 +1302,7 @@ extern ret_t dal_rtl8373_l2_unknV4Mc_fldMsk_get(rtk_uint32* pMask);
  *      port        - Port ID
  *      pAction  - 0b00:fwd in IPV4_UNKNOW_MC_FLD_PMSK  0b01 drop  0b10 trap  0b11 to router port
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1422,8 +1312,6 @@ extern ret_t dal_rtl8373_l2_unknV4Mc_fldMsk_get(rtk_uint32* pMask);
  */
 extern ret_t dal_rtl8373_l2_unknV4Mc_action_get(rtk_uint32 port, rtk_uint32 *pAction);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_unknV6Mc_fldMsk_set
  * Description:
@@ -1431,7 +1319,7 @@ extern ret_t dal_rtl8373_l2_unknV4Mc_action_get(rtk_uint32 port, rtk_uint32 *pAc
  * Input:
  *      portmask        - ipv6 multicast pkt lookup miss flood portmask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1441,7 +1329,6 @@ extern ret_t dal_rtl8373_l2_unknV4Mc_action_get(rtk_uint32 port, rtk_uint32 *pAc
  */
 extern ret_t dal_rtl8373_l2_unknV6Mc_fldMsk_set(rtk_uint32 portMask);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_unknV6Mc_fldMsk_get
  * Description:
@@ -1449,7 +1336,7 @@ extern ret_t dal_rtl8373_l2_unknV6Mc_fldMsk_set(rtk_uint32 portMask);
  * Input:
  *      portmask        - ipv6 multicast pkt lookup miss flood portmask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1457,8 +1344,7 @@ extern ret_t dal_rtl8373_l2_unknV6Mc_fldMsk_set(rtk_uint32 portMask);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_l2_unknV6Mc_fldMsk_get(rtk_uint32* pMask);
-
+extern ret_t dal_rtl8373_l2_unknV6Mc_fldMsk_get(rtk_uint32 *pMask);
 
 /* Function Name:
  *      dal_rtl8373_l2_unknV6Mc_action_set
@@ -1467,15 +1353,15 @@ extern ret_t dal_rtl8373_l2_unknV6Mc_fldMsk_get(rtk_uint32* pMask);
  * Input:
  *      port        - Port ID *        - 0b00:fwd in IPV6_UNKNOW_MC_FLD_PMSK  0b01 drop  0b10 trap  0b11 to router port
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
  *      RT_ERR_PORT_ID      - Error Port ID
  * Note:
  *      None
- */extern ret_t dal_rtl8373_l2_unknV6Mc_action_set(rtk_uint32 port, rtk_uint32 );
-
+ */
+extern ret_t dal_rtl8373_l2_unknV6Mc_action_set(rtk_uint32 port, rtk_uint32);
 
 /* Function Name:
  *      dal_rtl8373_l2_unknV6Mc_action_get
@@ -1485,7 +1371,7 @@ extern ret_t dal_rtl8373_l2_unknV6Mc_fldMsk_get(rtk_uint32* pMask);
  *      port        - Port ID
  *      pAction  - 0b00:fwd in IPV6_UNKNOW_MC_FLD_PMSK  0b01 drop  0b10 trap  0b11 to router port
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1502,7 +1388,7 @@ extern ret_t dal_rtl8373_l2_unknV6Mc_action_get(rtk_uint32 port, rtk_uint32 *pAc
  * Input:
  *      portMask        - brdcast pkt flood port mask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1519,7 +1405,7 @@ extern ret_t dal_rtl8373_l2_brdcast_fldMsk_set(rtk_uint32 portMask);
  * Input:
  *      pMask        - brdcast pkt flood port mask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1527,8 +1413,7 @@ extern ret_t dal_rtl8373_l2_brdcast_fldMsk_set(rtk_uint32 portMask);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_l2_brdcast_fldMsk_get(rtk_uint32* pMask);
-
+extern ret_t dal_rtl8373_l2_brdcast_fldMsk_get(rtk_uint32 *pMask);
 
 /* Function Name:
  *      dal_rtl8373_l2_trapPort_set
@@ -1537,7 +1422,7 @@ extern ret_t dal_rtl8373_l2_brdcast_fldMsk_get(rtk_uint32* pMask);
  * Input:
  *      trapport        - 0b00 none    0b01:8051  0b10:external cpu    0b11: 8051&external
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1547,7 +1432,6 @@ extern ret_t dal_rtl8373_l2_brdcast_fldMsk_get(rtk_uint32* pMask);
 
 extern rtk_api_ret_t dal_rtl8373_l2_trapPort_set(rtk_uint32 trapport);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_trapPort_Get
  * Description:
@@ -1555,7 +1439,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_trapPort_set(rtk_uint32 trapport);
  * Input:
  *      trapport        - 0b00 none    0b01:8051  0b10:external cpu    0b11: 8051&external
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1563,18 +1447,16 @@ extern rtk_api_ret_t dal_rtl8373_l2_trapPort_set(rtk_uint32 trapport);
  *      None
  */
 
-extern rtk_api_ret_t dal_rtl8373_l2_trapPort_get(rtk_uint32 * pTrapport);
-
-
+extern rtk_api_ret_t dal_rtl8373_l2_trapPort_get(rtk_uint32 *pTrapport);
 
 /* Function Name:
  *      dal_rtl8373_l2_hashFull_set
  * Description:
  *      set l2 hsah full acti
  * Input:
- *      act        - 0b00 fwd    0b01:drop  0b10:trap  
+ *      act        - 0b00 fwd    0b01:drop  0b10:trap
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1584,15 +1466,14 @@ extern rtk_api_ret_t dal_rtl8373_l2_trapPort_get(rtk_uint32 * pTrapport);
 
 extern rtk_api_ret_t dal_rtl8373_l2_hashFull_set(rtk_uint32 act);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_hashFull_get
  * Description:
  *      get l2 hsah full acti
  * Input:
- *      pAct        - 0b00 fwd    0b01:drop  0b10:trap  
+ *      pAct        - 0b00 fwd    0b01:drop  0b10:trap
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1600,8 +1481,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_hashFull_set(rtk_uint32 act);
  *      None
  */
 
-extern rtk_api_ret_t dal_rtl8373_l2_hashFull_get(rtk_uint32* pAct);
-
+extern rtk_api_ret_t dal_rtl8373_l2_hashFull_get(rtk_uint32 *pAct);
 
 /* Function Name:
  *      dal_rtl8373_l2_ipMul_noVlanEgr_set
@@ -1611,7 +1491,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_hashFull_get(rtk_uint32* pAct);
  *      port        - port number
  *      enable    - 0 disable vlan egress filter     1 enable vlan egress filter
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1621,7 +1501,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_hashFull_get(rtk_uint32* pAct);
 
 extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noVlanEgr_set(rtk_uint32 port, rtk_uint32 enable);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_ipMul_noVlanEgr_get
  * Description:
@@ -1630,7 +1509,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noVlanEgr_set(rtk_uint32 port, rtk_uin
  *      port        - port number
  *      pEnable    - 0 disable vlan egress filter     1 enable vlan egress filter
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1638,8 +1517,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noVlanEgr_set(rtk_uint32 port, rtk_uin
  *      None
  */
 
-extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noVlanEgr_get(rtk_uint32 port, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noVlanEgr_get(rtk_uint32 port, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_l2_ipMul_noPortIso_set
@@ -1649,7 +1527,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noVlanEgr_get(rtk_uint32 port, rtk_uin
  *      port        - port number
  *      enable    - 0 disable port isolation filter     1 enable port isolation filter
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1659,7 +1537,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noVlanEgr_get(rtk_uint32 port, rtk_uin
 
 extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noPortIso_set(rtk_uint32 port, rtk_uint32 enable);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_ipMul_noPortIso_get
  * Description:
@@ -1668,7 +1545,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noPortIso_set(rtk_uint32 port, rtk_uin
  *      port        - port number
  *      pEnable    - 0 disable port isolation filter     1 enable port isolation filter
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1676,8 +1553,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noPortIso_set(rtk_uint32 port, rtk_uin
  *      None
  */
 
-extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noPortIso_get(rtk_uint32 port, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noPortIso_get(rtk_uint32 port, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_l2_forceMode_set
@@ -1687,7 +1563,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noPortIso_get(rtk_uint32 port, rtk_uin
  *      port        - port number
  *      enable    - 0 disable port force mode    1 enable port force mode
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1697,7 +1573,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_ipMul_noPortIso_get(rtk_uint32 port, rtk_uin
 
 extern rtk_api_ret_t dal_rtl8373_l2_forceMode_set(rtk_uint32 port, rtk_uint32 enable);
 
-
 /* Function Name:
  *      dal_rtl8373_l2_forceMode_get
  * Description:
@@ -1706,7 +1581,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_forceMode_set(rtk_uint32 port, rtk_uint32 en
  *      port        - port number
  *      enable    - 0 disable port force mode    1 enable port force mode
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1714,8 +1589,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_forceMode_set(rtk_uint32 port, rtk_uint32 en
  *      None
  */
 
-extern rtk_api_ret_t dal_rtl8373_l2_forceMode_get(rtk_uint32 port, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_l2_forceMode_get(rtk_uint32 port, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_l2_forceMode_portMsk_set
@@ -1725,7 +1599,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_forceMode_get(rtk_uint32 port, rtk_uint32* p
  *      port        - port number
  *      portmask    - port mask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1743,7 +1617,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_forceMode_portMsk_set(rtk_uint32 port, rtk_u
  *      port        - port number
  *      portmask    - port mask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1751,9 +1625,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_forceMode_portMsk_set(rtk_uint32 port, rtk_u
  *      None
  */
 
-extern rtk_api_ret_t dal_rtl8373_l2_forceMode_portMsk_get(rtk_uint32 port, rtk_uint32* pMask);
-
-
+extern rtk_api_ret_t dal_rtl8373_l2_forceMode_portMsk_get(rtk_uint32 port, rtk_uint32 *pMask);
 
 /* Function Name:
  *      dal_rtl8373_l2_entry_del
@@ -1774,10 +1646,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_forceMode_portMsk_get(rtk_uint32 port, rtk_u
  */
 extern rtk_api_ret_t dal_rtl8373_l2_entry_del(rtk_l2_addr_table_t *pL2_entry);
 
-
-
-
-
 /* Function Name:
  *      dal_rtl8373_l2_trapPri_set
  * Description:
@@ -1786,7 +1654,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_entry_del(rtk_l2_addr_table_t *pL2_entry);
  *      type           - 0: normal pkt   1: multicast
  *      trappri        - trap priority
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1796,8 +1664,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_entry_del(rtk_l2_addr_table_t *pL2_entry);
 
 extern rtk_api_ret_t dal_rtl8373_l2_trapPri_set(rtk_uint32 type, rtk_uint32 trappri);
 
-
-
 /* Function Name:
  *      dal_rtl8373_l2_trapPri_get
  * Description:
@@ -1806,7 +1672,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_trapPri_set(rtk_uint32 type, rtk_uint32 trap
  *      type           - 0: normal pkt   1: multicast
  *      pTrappri        - trap priority
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1814,9 +1680,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_trapPri_set(rtk_uint32 type, rtk_uint32 trap
  *      None
  */
 
-extern rtk_api_ret_t dal_rtl8373_l2_trapPri_get(rtk_uint32 type, rtk_uint32* pTrappri);
-
-
+extern rtk_api_ret_t dal_rtl8373_l2_trapPri_get(rtk_uint32 type, rtk_uint32 *pTrappri);
 
 /* Function Name:
  *      dal_rtl8373_l2_floodPortMsk_set
@@ -1826,7 +1690,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_trapPri_get(rtk_uint32 type, rtk_uint32* pTr
  *      flood_type       - unknown unicast, unknown l2 multicast, unknown IPV4 multicast, unknown IPV6 multicast, broadcast
  *      pFlood_portmask    - port mask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1836,10 +1700,6 @@ extern rtk_api_ret_t dal_rtl8373_l2_trapPri_get(rtk_uint32 type, rtk_uint32* pTr
 
 extern rtk_api_ret_t dal_rtl8373_l2_floodPortMsk_set(rtk_l2_flood_type_t flood_type, rtk_portmask_t *pFlood_portmask);
 
-
-
-
-
 /* Function Name:
  *      dal_rtl8373_l2_floodPortMsk_get
  * Description:
@@ -1848,7 +1708,7 @@ extern rtk_api_ret_t dal_rtl8373_l2_floodPortMsk_set(rtk_l2_flood_type_t flood_t
  *      flood_type       - unknown unicast, unknown l2 multicast, unknown IPV4 multicast, unknown IPV6 multicast, broadcast
  *      pFlood_portmask    - port mask
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK           - Success
  *      RT_ERR_SMI          - SMI access error
@@ -1858,16 +1718,4 @@ extern rtk_api_ret_t dal_rtl8373_l2_floodPortMsk_set(rtk_l2_flood_type_t flood_t
 
 extern rtk_api_ret_t dal_rtl8373_l2_floodPortMsk_get(rtk_l2_flood_type_t flood_type, rtk_portmask_t *pFlood_portmask);
 
-
-
-
-
- 
-
-
-
-
-
-
 #endif
-

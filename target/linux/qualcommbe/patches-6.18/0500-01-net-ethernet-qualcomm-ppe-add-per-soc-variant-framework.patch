@@ -1,0 +1,113 @@
+From: Kenneth Kasilag <kenneth@kasilag.me>
+Date: Sun, 05 Jul 2026 00:00:00 +0000
+Subject: [PATCH] net: ethernet: qualcomm: ppe: add a per-SoC variant framework
+
+The PPE register block is largely shared across the HPPE, APPE and MPPE
+generations. A few things differ: the PPPoE session table depth, the shaper
+clock, and availability of the tunnel engine and virtual ports.
+
+Collect the differences into per-SoC match data. Add struct ppe_variant,
+attach it through of_device_id.data, and describe both the IPQ9574 APPE and
+IPQ5332 MPPE. QCA SSDK builds IPQ5332 as MPPE with 64 PPPoE sessions, a
+200 MHz shaper clock, the tunnel engine and virtual ports.
+
+Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
+@@ -10,6 +10,7 @@
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
++#include <linux/of_device.h>
+ #include <linux/platform_device.h>
+ #include <linux/regmap.h>
+ #include <linux/reset.h>
+@@ -229,6 +230,9 @@ static int qcom_ppe_probe(struct platfor
+ 		return dev_err_probe(dev, PTR_ERR(ppe_dev->regmap),
+ 				     "PPE initialize regmap failed\n");
+ 	ppe_dev->dev = dev;
++	ppe_dev->variant = of_device_get_match_data(dev);
++	if (!ppe_dev->variant)
++		return -ENODEV;
+ 	ppe_dev->clk_rate = PPE_CLK_RATE;
+ 	ppe_dev->num_ports = num_ports;
+ 	ppe_dev->num_icc_paths = num_icc;
+@@ -268,9 +272,25 @@ static void qcom_ppe_remove(struct platf
+ 	edma_destroy(ppe_dev);
+ }
+ 
++static const struct ppe_variant ppe_variant_ipq5332 = {
++	.name			= "IPQ5332",
++	.num_pppoe_sessions	= 64,
++	.shaper_clock_khz	= 200000,
++	.has_tunnel_engine	= true,
++	.has_vports		= true,
++};
++
++static const struct ppe_variant ppe_variant_ipq9574 = {
++	.name			= "IPQ9574",
++	.num_pppoe_sessions	= 64,
++	.shaper_clock_khz	= 353000,
++	.has_tunnel_engine	= true,
++	.has_vports		= true,
++};
++
+ static const struct of_device_id qcom_ppe_of_match[] = {
+-	{ .compatible = "qcom,ipq5332-ppe" },
+-	{ .compatible = "qcom,ipq9574-ppe" },
++	{ .compatible = "qcom,ipq5332-ppe", .data = &ppe_variant_ipq5332 },
++	{ .compatible = "qcom,ipq9574-ppe", .data = &ppe_variant_ipq9574 },
+ 	{}
+ };
+ MODULE_DEVICE_TABLE(of, qcom_ppe_of_match);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+@@ -15,6 +15,38 @@ struct dentry;
+ 
+ struct ppe_ports;
+ 
++/* Per-SoC PPE parameters. The PPE register layer is shared between the
++ * HPPE (IPQ807x) and APPE (IPQ9574) generations; this collects the few
++ * things that actually differ so the shared code stays chip-agnostic.
++ * The table geometry (flow/host/VSI/XLT/MY_MAC/PUB_IP/nexthop) is
++ * identical across both generations and stays as the compile-time
++ * PPE_*_ENTRIES macros.
++ */
++struct ppe_variant {
++	const char *name;
++
++	/* PPPoE session table depth: 64 on APPE, 16 on HPPE. The bank
++	 * base addresses live in the APPE tunnel block; an HPPE port must
++	 * relocate them (see ppe_pppoe_session_set()).
++	 */
++	u16 num_pppoe_sessions;
++
++	/* Port shaper token clock, in kHz (353000 on APPE, 300000 on
++	 * HPPE).
++	 */
++	u32 shaper_clock_khz;
++
++	/* On-die tunnel engine (VXLAN/GENEVE/MAP-T). APPE only; gates the
++	 * flowtable tunnel seam.
++	 */
++	bool has_tunnel_engine;
++
++	/* Virtual ports 64..255 for binding non-PPE netdevs such as wifi
++	 * VAPs. APPE only; consumed by the virtual-port offload work.
++	 */
++	bool has_vports;
++};
++
+ /**
+  * struct ppe_device - PPE device private data.
+  * @dev: PPE device structure.
+@@ -33,6 +65,7 @@ struct ppe_ports;
+ struct ppe_device {
+ 	struct device *dev;
+ 	struct regmap *regmap;
++	const struct ppe_variant *variant;
+ 	unsigned long clk_rate;
+ 	unsigned int num_ports;
+ 	struct dentry *debugfs_root;

@@ -1,0 +1,118 @@
+From: VKing <noreply@openwrt.local>
+Subject: [PATCH] net: mdio: ipq4019: program divider after clock setup
+
+An explicit clock-frequency is selected against the MDIO source clock. The
+IPQ5332 source clock is not set to its 100 MHz operating rate until the
+bus reset callback, but probe currently tries to validate and program the
+divider before that setup. A valid 1562500 Hz request can therefore fail
+probe with -EINVAL and prevent every device on the MDIO bus from
+registering.
+
+Select the requested rate during probe, then program the divider only
+after the source clock has been set and enabled. Some branch clocks can be
+enabled successfully while clk_get_rate() still returns zero; in that case,
+use the controller's documented fixed 100 MHz source instead of rejecting
+every supported divider. Emit one bounded success or failure snapshot
+containing both the reported and selected source rates, divider, effective
+rate, and mode values.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/mdio/mdio-ipq4019.c
++++ b/drivers/net/mdio/mdio-ipq4019.c
+@@ -53,8 +53,19 @@ struct ipq4019_mdio_data {
+ 	void __iomem *eth_ldo_rdy;
+ 	struct clk *mdio_clk;
+ 	unsigned int mdc_rate;
++	bool mdc_rate_logged;
+ };
+ 
++static unsigned long
++ipq4019_mdio_get_clk_rate(struct ipq4019_mdio_data *priv)
++{
++	unsigned long rate;
++
++	rate = priv->mdio_clk ? clk_get_rate(priv->mdio_clk) : 0;
++
++	return rate ?: IPQ_MDIO_CLK_RATE;
++}
++
+ static int ipq4019_mdio_wait_busy(struct mii_bus *bus)
+ {
+ 	struct ipq4019_mdio_data *priv = bus->priv;
+@@ -221,10 +232,7 @@ static int ipq4019_mdio_set_div(struct i
+ 	int div;
+ 	u32 val;
+ 
+-	/* If we don't have a clock for AHB use the fixed value */
+-	ahb_rate = IPQ_MDIO_CLK_RATE;
+-	if (priv->mdio_clk)
+-		ahb_rate = clk_get_rate(priv->mdio_clk);
++	ahb_rate = ipq4019_mdio_get_clk_rate(priv);
+ 
+ 	/* MDC rate is ahb_rate/(MDIO_MODE_DIV + 1)
+ 	 * While supported, internal documentation doesn't
+@@ -250,6 +258,9 @@ static int ipq4019_mdio_set_div(struct i
+ static int ipq_mdio_reset(struct mii_bus *bus)
+ {
+ 	struct ipq4019_mdio_data *priv = bus->priv;
++	unsigned long ahb_rate;
++	unsigned long reported_rate;
++	unsigned int div;
+ 	u32 val;
+ 	int ret;
+ 
+@@ -274,8 +285,28 @@ static int ipq_mdio_reset(struct mii_bus
+ 
+ 	mdelay(10);
+ 
+-	/* Restore MDC rate */
+-	return ipq4019_mdio_set_div(priv);
++	ret = ipq4019_mdio_set_div(priv);
++	reported_rate = priv->mdio_clk ? clk_get_rate(priv->mdio_clk) : 0;
++	ahb_rate = ipq4019_mdio_get_clk_rate(priv);
++	val = readl(priv->membase + MDIO_MODE_REG);
++	div = FIELD_GET(MDIO_MODE_DIV_MASK, val) + 1;
++	if (ret) {
++		dev_err(bus->parent,
++			"MDC setup failed: requested=%uHz reported-source=%luHz source=%luHz current-divider=%u effective=%luHz mode=0x%08x error=%d\n",
++			priv->mdc_rate, reported_rate, ahb_rate, div,
++			DIV_ROUND_UP(ahb_rate, div), val, ret);
++		return ret;
++	}
++
++	if (!priv->mdc_rate_logged) {
++		dev_info(bus->parent,
++			 "MDC configured: requested=%uHz reported-source=%luHz source=%luHz divider=%u effective=%luHz mode=0x%08x\n",
++			 priv->mdc_rate, reported_rate, ahb_rate, div,
++			 DIV_ROUND_UP(ahb_rate, div), val);
++		priv->mdc_rate_logged = true;
++	}
++
++	return 0;
+ }
+ 
+ static void ipq4019_mdio_select_mdc_rate(struct platform_device *pdev,
+@@ -290,10 +321,7 @@ static void ipq4019_mdio_select_mdc_rate
+ 				  &priv->mdc_rate))
+ 		return;
+ 
+-	/* If we don't have a clock for AHB use the fixed value */
+-	ahb_rate = IPQ_MDIO_CLK_RATE;
+-	if (priv->mdio_clk)
+-		ahb_rate = clk_get_rate(priv->mdio_clk);
++	ahb_rate = ipq4019_mdio_get_clk_rate(priv);
+ 
+ 	/* Check what is the current div set */
+ 	val = readl(priv->membase + MDIO_MODE_REG);
+@@ -345,10 +373,6 @@ static int ipq4019_mdio_probe(struct pla
+ 		return PTR_ERR(priv->mdio_clk);
+ 
+ 	ipq4019_mdio_select_mdc_rate(pdev, priv);
+-	ret = ipq4019_mdio_set_div(priv);
+-	if (ret)
+-		return ret;
+-
+ 	/* The platform resource is provided on the chipset IPQ5018 */
+ 	/* This resource is optional */
+ 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);

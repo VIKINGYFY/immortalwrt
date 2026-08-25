@@ -3,7 +3,6 @@
 
 #include "trunk.h"
 
-
 /* Function Name:
  *      dal_rtl8373_trunk_port_set
  * Description:
@@ -25,8 +24,6 @@
  */
 extern rtk_api_ret_t dal_rtl8373_trunk_port_set(rtk_trunk_group_t trk_gid, rtk_portmask_t *pTrunk_member_portmask);
 
-
-
 /* Function Name:
  *      dal_rtl8373_trunk_port_get
  * Description:
@@ -44,7 +41,6 @@ extern rtk_api_ret_t dal_rtl8373_trunk_port_set(rtk_trunk_group_t trk_gid, rtk_p
  *      The API can get 2 port trunking group.
  */
 extern rtk_api_ret_t dal_rtl8373_trunk_port_get(rtk_trunk_group_t trk_gid, rtk_portmask_t *pTrunk_member_portmask);
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_distributionAlgorithm_set
@@ -78,7 +74,6 @@ extern rtk_api_ret_t dal_rtl8373_trunk_port_get(rtk_trunk_group_t trk_gid, rtk_p
  */
 extern rtk_api_ret_t dal_rtl8373_trunk_distributionAlgorithm_set(rtk_trunk_group_t trk_gid, rtk_uint32 algo_bitmask);
 
-
 /* Function Name:
  *      dal_rtl8373_trunk_distributionAlgorithm_get
  * Description:
@@ -96,7 +91,6 @@ extern rtk_api_ret_t dal_rtl8373_trunk_distributionAlgorithm_set(rtk_trunk_group
  *      The API can get port trunking hash algorithm sources.
  */
 extern rtk_api_ret_t dal_rtl8373_trunk_distributionAlgorithm_get(rtk_trunk_group_t trk_gid, rtk_uint32 *pAlgo_bitmask);
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_trafficSeparate_set
@@ -138,7 +132,6 @@ extern rtk_api_ret_t dal_rtl8373_trunk_trafficSeparate_set(rtk_trunk_group_t trk
  *      SEPARATE_FLOOD: trunk MSB link up port is dedicated to TX flooding (L2 lookup miss) traffic
  */
 extern rtk_api_ret_t dal_rtl8373_trunk_trafficSeparate_get(rtk_trunk_group_t trk_gid, rtk_trunk_separateType_t *pSeparateType);
-
 
 /* Function Name:
  *      dal_rtl8373_trunk_portQueueEmpty_get

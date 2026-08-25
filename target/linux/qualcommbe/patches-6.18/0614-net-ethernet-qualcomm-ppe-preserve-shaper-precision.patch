@@ -1,0 +1,83 @@
+From: VKing <noreply@openwrt.local>
+Date: Mon, 24 Aug 2026 16:03:46 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: preserve shaper precision
+
+The port shaper derives the CIR field by first truncating the rate of one
+credit and then dividing the requested rate by that approximation. Larger
+slot times make the approximation coarse enough to introduce a material
+rate error.
+
+Scale the requested rate directly against the full CIR range and maximum
+rate, using the overflow-safe 64-bit multiply/divide helper. Reject an
+overflowing byte rate and clamp nonzero rates to one CIR credit. Add a
+configuration-path diagnostic with the selected token unit and CIR value.
+
+This follows QSDK qca-ssdk's 2026 precision correction while retaining the
+upstream-style PPE driver and its existing units.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+ #include <linux/bitmap.h>
+ #include <linux/bits.h>
+ #include <linux/device.h>
++#include <linux/limits.h>
++#include <linux/math64.h>
+ #include <linux/of.h>
+ #include <linux/regmap.h>
+ 
+@@ -1877,13 +1879,17 @@
+ 			u32 burst)
+ {
+ 	u32 reg = PPE_PSCH_SHP_CFG_TBL_ADDR + PPE_PSCH_SHP_CFG_TBL_INC * port;
+-	u64 rate_bits = rate * 8, rate_max, rate_bit, burst_max, burst_bit;
++	u64 rate_bits, rate_max, burst_max, burst_bit, cir;
+ 	u32 val[2] = {}, slot, cycle_ns, token;
+ 	int i, ret;
+ 
+ 	if (!rate)
+ 		return regmap_bulk_write(ppe_dev->regmap, reg, val,
+ 					 ARRAY_SIZE(val));
++	if (rate > U64_MAX / 8)
++		return -ERANGE;
++
++	rate_bits = rate * 8;
+ 
+ 	ret = regmap_read(ppe_dev->regmap, PPE_PSCH_SHP_SLOT_CFG_PORT_ADDR,
+ 			  &slot);
+@@ -1904,17 +1910,11 @@
+ 				    FIELD_MAX(PPE_PSCH_SHP_W0_CBS), token) *
+ 			    1000;
+ 
+-		rate_bit = div_u64(rate_max, FIELD_MAX(PPE_PSCH_SHP_W0_CIR));
+ 		burst_bit = div_u64(burst_max, FIELD_MAX(PPE_PSCH_SHP_W0_CBS));
+-		if (!rate_bit || !burst_bit)
++		if (!rate_max || !burst_bit)
+ 			continue;
+ 
+-		/* rate_bit is a floor division, so a rate can pass a
+-		 * rate_max comparison yet quantise above the CIR field
+-		 * maximum; admit only what the field can hold.
+-		 */
+-		if (div_u64(rate_bits, rate_bit) <=
+-		    FIELD_MAX(PPE_PSCH_SHP_W0_CIR) &&
++		if (rate_bits <= rate_max &&
+ 		    (u64)burst * 1000 <= burst_max)
+ 			break;
+ 	}
+@@ -1922,8 +1922,13 @@
+ 	if (i == ARRAY_SIZE(ppe_shaper_token_units))
+ 		return -ERANGE;
+ 
+-	val[0] = FIELD_PREP(PPE_PSCH_SHP_W0_CIR,
+-			    div_u64(rate_bits, rate_bit));
++	/* Scaling against the full range avoids truncating the rate of one
++	 * refresh credit drivers/net/ethernet/qualcomm/ppe/ppe_config.calculating the CIR field.
++	 */
++	cir = mul_u64_u64_div_u64(rate_bits,
++				  FIELD_MAX(PPE_PSCH_SHP_W0_CIR), rate_max);
++	cir = clamp_t(u64, cir, 1, FIELD_MAX(PPE_PSCH_SHP_W0_CIR));
++	val[0] = FIELD_PREP(PPE_PSCH_SHP_W0_CIR, cir);
+ 	val[0] |= FIELD_PREP(PPE_PSCH_SHP_W0_CBS,
+ 			     clamp_t(u64, div_u64((u64)burst * 1000, burst_bit),
+ 				     1, FIELD_MAX(PPE_PSCH_SHP_W0_CBS)));

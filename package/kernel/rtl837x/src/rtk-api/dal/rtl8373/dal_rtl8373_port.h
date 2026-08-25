@@ -1,22 +1,15 @@
 #ifndef __DAL_RTL8373_PORT_H__
 #define __DAL_RTL8373_PORT_H__
 
-
 #include <port.h>
 #include <dal_rtl8373_switch.h>
 
-
-
-typedef enum rtk_iol_mode_e
-{
-    IOL_MODE_MDI = 0,
-    IOL_MODE_MDIX,
-    IOL_MODE_END,
+typedef enum rtk_iol_mode_e {
+	IOL_MODE_MDI = 0,
+	IOL_MODE_MDIX,
+	IOL_MODE_END,
 
 } rtk_iol_mode_t;
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_portFrcAblitiy_set
@@ -34,8 +27,7 @@ typedef enum rtk_iol_mode_e
  *      None
  */
 
-extern ret_t dal_rtl8373_portFrcAbility_set(rtk_uint32 port, rtk_port_ability_t* ability);
-
+extern ret_t dal_rtl8373_portFrcAbility_set(rtk_uint32 port, rtk_port_ability_t *ability);
 
 /* Function Name:
  *      dal_rtl8373_portFrcAblitiy_get
@@ -53,9 +45,7 @@ extern ret_t dal_rtl8373_portFrcAbility_set(rtk_uint32 port, rtk_port_ability_t*
  *      None
  */
 
-extern ret_t dal_rtl8373_portFrcAbility_get(rtk_uint32 port, rtk_port_ability_t* ability);
-
-
+extern ret_t dal_rtl8373_portFrcAbility_get(rtk_uint32 port, rtk_port_ability_t *ability);
 
 /* Function Name:
  *      dal_rtl8373_portStatus_get
@@ -73,7 +63,7 @@ extern ret_t dal_rtl8373_portFrcAbility_get(rtk_uint32 port, rtk_port_ability_t*
  *      None
  */
 
-extern ret_t dal_rtl8373_portStatus_get(rtk_uint32 port, rtk_port_status_t* status);
+extern ret_t dal_rtl8373_portStatus_get(rtk_uint32 port, rtk_port_status_t *status);
 
 /* Function Name:
  *      dal_rtl8373_portMaxLen_set
@@ -94,7 +84,6 @@ extern ret_t dal_rtl8373_portStatus_get(rtk_uint32 port, rtk_port_status_t* stat
 
 extern ret_t dal_rtl8373_portMaxLen_set(rtk_uint32 port, rtk_uint32 type, rtk_uint32 len);
 
-
 /* Function Name:
  *      dal_rtl8373_portMaxLen_get
  * Description:
@@ -112,10 +101,7 @@ extern ret_t dal_rtl8373_portMaxLen_set(rtk_uint32 port, rtk_uint32 type, rtk_ui
  *      None
  */
 
-extern ret_t dal_rtl8373_portMaxLen_get(rtk_uint32 port, rtk_uint32 type, rtk_uint32* pLen);
-
-
-
+extern ret_t dal_rtl8373_portMaxLen_get(rtk_uint32 port, rtk_uint32 type, rtk_uint32 *pLen);
 
 /* Function Name:
  *      dal_rtl8373_portMaxLenIncTag_set
@@ -135,7 +121,6 @@ extern ret_t dal_rtl8373_portMaxLen_get(rtk_uint32 port, rtk_uint32 type, rtk_ui
 
 extern ret_t dal_rtl8373_portMaxLenIncTag_set(rtk_uint32 port, rtk_uint32 enable);
 
-
 /* Function Name:
  *      dal_rtl8373_portMaxLenIncTag_get
  * Description:
@@ -152,8 +137,7 @@ extern ret_t dal_rtl8373_portMaxLenIncTag_set(rtk_uint32 port, rtk_uint32 enable
  *      None
  */
 
-extern ret_t dal_rtl8373_portMaxLenIncTag_get(rtk_uint32 port, rtk_uint32* pEnable);
-
+extern ret_t dal_rtl8373_portMaxLenIncTag_get(rtk_uint32 port, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_portLoopbackEn_set
@@ -173,7 +157,6 @@ extern ret_t dal_rtl8373_portMaxLenIncTag_get(rtk_uint32 port, rtk_uint32* pEnab
 
 extern ret_t dal_rtl8373_portLoopbackEn_set(rtk_uint32 port, rtk_enable_t enable);
 
-
 /* Function Name:
  *      dal_rtl8373_portLoopbackEn_get
  * Description:
@@ -190,8 +173,7 @@ extern ret_t dal_rtl8373_portLoopbackEn_set(rtk_uint32 port, rtk_enable_t enable
  *      None
  */
 
-extern ret_t dal_rtl8373_portLoopbackEn_get(rtk_uint32 port, rtk_enable_t * pEnable);
-
+extern ret_t dal_rtl8373_portLoopbackEn_get(rtk_uint32 port, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_portBackpressureEn_set
@@ -211,7 +193,6 @@ extern ret_t dal_rtl8373_portLoopbackEn_get(rtk_uint32 port, rtk_enable_t * pEna
 
 extern ret_t dal_rtl8373_portBackpressureEn_set(rtk_uint32 port, rtk_enable_t enable);
 
-
 /* Function Name:
  *      dal_rtl8373_portBackpressureEn_get
  * Description:
@@ -228,8 +209,7 @@ extern ret_t dal_rtl8373_portBackpressureEn_set(rtk_uint32 port, rtk_enable_t en
  *      None
  */
 
-extern ret_t dal_rtl8373_portBackpressureEn_get(rtk_uint32 port, rtk_enable_t * pEnable);
-
+extern ret_t dal_rtl8373_portBackpressureEn_get(rtk_uint32 port, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_rtct_init
@@ -249,8 +229,6 @@ extern ret_t dal_rtl8373_portBackpressureEn_get(rtk_uint32 port, rtk_enable_t * 
 
 extern ret_t dal_rtl8373_rtct_init(void);
 
-
-
 /* Function Name:
  *      dal_rtl8373_rtct_start
  * Description:
@@ -268,7 +246,6 @@ extern ret_t dal_rtl8373_rtct_init(void);
  */
 extern ret_t dal_rtl8373_rtct_start(rtk_uint32 phymask);
 
-
 /* Function Name:
  *      dal_rtl8373_rtct_status_get
  * Description:
@@ -284,15 +261,14 @@ extern ret_t dal_rtl8373_rtct_start(rtk_uint32 phymask);
  * Note:
  *      RTCT test takes 4.8 seconds at most.
  */
-extern ret_t dal_rtl8373_rtct_status_get(rtk_uint32 phyid, rtk_rtct_result_t * pResult);
-
+extern ret_t dal_rtl8373_rtct_status_get(rtk_uint32 phyid, rtk_rtct_result_t *pResult);
 
 /* Function Name:
  *      dal_rtl8373_iol_fix_pattern
  * Description:
  *      Set IOL fix pattern.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  * Output:
  *      None
  * Return:
@@ -306,13 +282,12 @@ extern ret_t dal_rtl8373_rtct_status_get(rtk_uint32 phyid, rtk_rtct_result_t * p
 
 extern rtk_api_ret_t dal_rtl8373_iol_fix_pattern(rtk_uint32 port);
 
-
 /* Function Name:
  *      dal_rtl8373_iol_random_pattern
  * Description:
  *      Set IOL ramdom pattern.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  * Output:
  *      None
  * Return:
@@ -326,14 +301,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_fix_pattern(rtk_uint32 port);
 
 extern rtk_api_ret_t dal_rtl8373_iol_random_pattern(rtk_uint32 port);
 
-
-
 /* Function Name:
  *      dal_rtl8373_iol_10M_mode
  * Description:
  *      Set IOL 10M mode.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  *      mode - 0:mdi   1:mdix
  * Output:
  *      None
@@ -348,13 +321,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_random_pattern(rtk_uint32 port);
 
 extern rtk_api_ret_t dal_rtl8373_iol_10M_mode(rtk_uint32 port, rtk_uint32 mode);
 
-
 /* Function Name:
  *      dal_rtl8373_iol_100M_mode
  * Description:
  *      Set IOL 100M mode.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  *      mode - 0:mdi   1:mdix
  * Output:
  *      None
@@ -369,14 +341,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_10M_mode(rtk_uint32 port, rtk_uint32 mode);
 
 extern rtk_api_ret_t dal_rtl8373_iol_100M_mode(rtk_uint32 port, rtk_uint32 mode);
 
-
-
 /* Function Name:
  *      dal_rtl8373_iol_giga_mode
  * Description:
  *      Set IOL Giga mode.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  *      mode - 1 - 4
  * Output:
  *      None
@@ -391,13 +361,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_100M_mode(rtk_uint32 port, rtk_uint32 mode)
 
 extern rtk_api_ret_t dal_rtl8373_iol_giga_mode(rtk_uint32 port, rtk_uint32 mode);
 
-
 /* Function Name:
  *      dal_rtl8373_iol_2p5G_mode2
  * Description:
  *      Set IOL 2.5G mode2.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  * Output:
  *      None
  * Return:
@@ -411,13 +380,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_giga_mode(rtk_uint32 port, rtk_uint32 mode)
 
 extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode2(rtk_uint32 port);
 
-
 /* Function Name:
  *      dal_rtl8373_iol_2p5G_mode3
  * Description:
  *      Set IOL 2.5G mode3.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  *      lp
  * Output:
  *      None
@@ -432,13 +400,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode2(rtk_uint32 port);
 
 extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode3(rtk_uint32 port, rtk_uint32 lp);
 
-
 /* Function Name:
  *      dal_rtl8373_iol_2p5G_mode4
  * Description:
  *      Set IOL 2.5G mode4.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  *      tone - 1-5
  * Output:
  *      None
@@ -453,14 +420,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode3(rtk_uint32 port, rtk_uint32 lp);
 
 extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode4(rtk_uint32 port, rtk_uint32 tone);
 
-
-
 /* Function Name:
  *      dal_rtl8373_iol_2p5G_mode5
  * Description:
  *      Set IOL 2.5G mode5.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  * Output:
  *      None
  * Return:
@@ -474,14 +439,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode4(rtk_uint32 port, rtk_uint32 tone
 
 extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode5(rtk_uint32 port);
 
-
-
 /* Function Name:
  *      dal_rtl8373_iol_2p5G_mode6
  * Description:
  *      Set IOL 2.5G mode6.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  * Output:
  *      None
  * Return:
@@ -495,13 +458,12 @@ extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode5(rtk_uint32 port);
 
 extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode6(rtk_uint32 port);
 
-
 /* Function Name:
  *      dal_rtl8373_iol_2p5G_mode7
  * Description:
  *      Set IOL 2.5G mode7.
  * Input:
- *      port  - port id 0 - 8 
+ *      port  - port id 0 - 8
  * Output:
  *      None
  * Return:
@@ -530,8 +492,7 @@ extern rtk_api_ret_t dal_rtl8373_iol_2p5G_mode7(rtk_uint32 port);
  *      None
  */
 
-
-extern ret_t dal_rtl8373_port_extphyid_set(rtk_uint32 sdsid,  rtk_uint32 phyid);
+extern ret_t dal_rtl8373_port_extphyid_set(rtk_uint32 sdsid, rtk_uint32 phyid);
 
 /* Function Name:
  *      dal_rtl8373_port_extphyid_get
@@ -549,14 +510,14 @@ extern ret_t dal_rtl8373_port_extphyid_set(rtk_uint32 sdsid,  rtk_uint32 phyid);
  *      None
  */
 
-extern ret_t dal_rtl8373_port_extphyid_get(rtk_uint32 sdsid,  rtk_uint32 *phyid);
+extern ret_t dal_rtl8373_port_extphyid_get(rtk_uint32 sdsid, rtk_uint32 *phyid);
 /* Function Name:
  *      dal_rtl8373_sdsMode_set
  * Description:
  *      Set sds mode
  * Input:
  *      sdsid     - 0 ~ 1
- *      mode  - 
+ *      mode  -
  *      SERDES_10GQXG,
  *      SERDES_10GUSXG,
  *      SERDES_10GR,
@@ -564,8 +525,8 @@ extern ret_t dal_rtl8373_port_extphyid_get(rtk_uint32 sdsid,  rtk_uint32 *phyid)
  *      SERDES_2500BASEX,
  *      SERDES_SG,
  *      SERDES_1000BASEX,
- *      SERDES_100FX,    
- *      SERDES_OFF, 
+ *      SERDES_100FX,
+ *      SERDES_OFF,
  * Output:
  *      None
  * Return:
@@ -583,7 +544,7 @@ extern rtk_api_ret_t dal_rtl8373_sdsMode_set(rtk_uint32 sdsid, rtk_sds_mode_t mo
  *      Get sds mode
  * Input:
  *      sdsid     - 0 ~ 1
- *      pMode  - 
+ *      pMode  -
  *      SERDES_10GQXG,
  *      SERDES_10GUSXG,
  *      SERDES_10GR,
@@ -591,8 +552,8 @@ extern rtk_api_ret_t dal_rtl8373_sdsMode_set(rtk_uint32 sdsid, rtk_sds_mode_t mo
  *      SERDES_2500BASEX,
  *      SERDES_SG,
  *      SERDES_1000BASEX,
- *      SERDES_100FX,    
- *      SERDES_OFF, 
+ *      SERDES_100FX,
+ *      SERDES_OFF,
  * Output:
  *      None
  * Return:
@@ -602,7 +563,7 @@ extern rtk_api_ret_t dal_rtl8373_sdsMode_set(rtk_uint32 sdsid, rtk_sds_mode_t mo
  *      None
  */
 
-extern rtk_api_ret_t dal_rtl8373_sdsMode_get(rtk_uint32 sdsid, rtk_sds_mode_t * pMode);
+extern rtk_api_ret_t dal_rtl8373_sdsMode_get(rtk_uint32 sdsid, rtk_sds_mode_t *pMode);
 
 /* Function Name:
  *      dal_rtl8373_port_sdsNway_set
@@ -666,7 +627,7 @@ extern ret_t dal_rtl8373_rtct_init(void);
  * Description:
  *      Set sds test mode.
  * Input:
- *      chip  - 8373/8373N/8372/8372N/8366U/8224 
+ *      chip  - 8373/8373N/8372/8372N/8366U/8224
  *      prbs_tx -prbs31/prbs9/tx_8081
  *      sdsid -0/1
  *      on_off -0/1
@@ -687,7 +648,7 @@ extern rtk_api_ret_t dal_rtl8373_iol_sd(rtk_uint32 chip, rtk_uint32 prbs_tx, rtk
  * Description:
  *      Set sds test mode.
  * Input:
- *      chip  - 8373/8373N/8372/8372N/8366U/8224 
+ *      chip  - 8373/8373N/8372/8372N/8366U/8224
  *      pre   -0~63
  *      sdsid -0/1
  *      endis -0/1
@@ -708,7 +669,7 @@ extern rtk_api_ret_t dal_rtl8373_iol_pre_amp(rtk_uint32 chip, rtk_uint32 pre, rt
  * Description:
  *      Set sds test mode.
  * Input:
- *      chip  - 8373/8373N/8372/8372N/8366U/8224 
+ *      chip  - 8373/8373N/8372/8372N/8366U/8224
  *      main   -0~63
  *      sdsid -0/1
  *      boost -0/1
@@ -723,14 +684,14 @@ extern rtk_api_ret_t dal_rtl8373_iol_pre_amp(rtk_uint32 chip, rtk_uint32 pre, rt
  * Note:
  *      This API will enbale MDC function.
  */
-extern rtk_api_ret_t dal_rtl8373_iol_main_amp(rtk_uint32 chip, rtk_uint32 main, rtk_uint32 sdsid,rtk_uint32 boost, rtk_uint32 endis);
+extern rtk_api_ret_t dal_rtl8373_iol_main_amp(rtk_uint32 chip, rtk_uint32 main, rtk_uint32 sdsid, rtk_uint32 boost, rtk_uint32 endis);
 
 /* Function Name:
  *      dal_rtl8373_iol_post_amp
  * Description:
  *      Set sds test mode.
  * Input:
- *      chip  - 8373/8373N/8372/8372N/8366U/8224 
+ *      chip  - 8373/8373N/8372/8372N/8366U/8224
  *      post   -0~63
  *      sdsid -0/1
  *      endis -0/1
@@ -751,7 +712,7 @@ extern rtk_api_ret_t dal_rtl8373_iol_post_amp(rtk_uint32 chip, rtk_uint32 post, 
  * Description:
  *      Set sds test mode.
  * Input:
- *      chip  - 8373/8373N/8372/8372N/8366U/8224 
+ *      chip  - 8373/8373N/8372/8372N/8366U/8224
  *      sdsid -0/1
  *      txz0 -0~15
  * Output:
@@ -764,7 +725,7 @@ extern rtk_api_ret_t dal_rtl8373_iol_post_amp(rtk_uint32 chip, rtk_uint32 post, 
  * Note:
  *      This API will enbale MDC function.
  */
-extern rtk_api_ret_t dal_rtl8373_iol_txz0(rtk_uint32 chip,  rtk_uint32 sdsid, rtk_uint32 txz0);
+extern rtk_api_ret_t dal_rtl8373_iol_txz0(rtk_uint32 chip, rtk_uint32 sdsid, rtk_uint32 txz0);
 
 extern void SDS_DEBUG_PAD_OUT(rtk_uint32 sdsid, rtk_uint32 chip);
 extern void WTGSDS_DEBUG_SEL(rtk_uint32 sdsid, rtk_uint32 sel, rtk_uint32 chip);
@@ -776,7 +737,7 @@ extern rtk_uint32 dump_EYE_DATA(rtk_uint32 sdsid, rtk_uint32 dbg_out, rtk_uint32
  * Description:
  *      eye monitor , ��� RTL8373/2 s0/1  �� RTL8373_ind_ac_RTL8224 s0.
  * Input:
- *      chip  - 8373/8373N/8372/8372N/8366U/8224 
+ *      chip  - 8373/8373N/8372/8372N/8366U/8224
  *      sdsid -0/1
  *      frame -0~x
  * Output:
@@ -789,6 +750,5 @@ extern rtk_uint32 dump_EYE_DATA(rtk_uint32 sdsid, rtk_uint32 dbg_out, rtk_uint32
  * Note:
  *      This API will enbale MDC function.
  */
-extern rtk_api_ret_t dal_rtl8373_iol_eye(rtk_uint32 chip,  rtk_uint32 sdsid, rtk_uint32 frame);
+extern rtk_api_ret_t dal_rtl8373_iol_eye(rtk_uint32 chip, rtk_uint32 sdsid, rtk_uint32 frame);
 #endif
-

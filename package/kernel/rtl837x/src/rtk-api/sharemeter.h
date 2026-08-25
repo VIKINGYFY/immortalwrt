@@ -26,18 +26,17 @@
 /*
  * Data Type Declaration
  */
-typedef enum rtk_meter_type_e{
-    METER_TYPE_KBPS = 0,    /* Kbps */
-    METER_TYPE_PPS,         /* Packet per second */
-    METER_TYPE_END
-}rtk_meter_type_t;
-
+typedef enum rtk_meter_type_e {
+	METER_TYPE_KBPS = 0, /* Kbps */
+	METER_TYPE_PPS, /* Packet per second */
+	METER_TYPE_END
+} rtk_meter_type_t;
 
 /*
  * Function Declaration
  */
 
- /* Rate */
+/* Rate */
 /* Function Name:
  *      rtk_rate_shareMeter_set
  * Description:
@@ -192,7 +191,7 @@ extern ret_t rtk_rate_shareMeterICPUExceedStatus_set(rtk_uint32 index);
  * Note:
  *      If rate is over rate*16Kbps of a meter, the state bit of this meter is set to 1.
  */
-extern ret_t rtk_rate_shareMeterICPUExceedStatus_get(rtk_uint32 index, rtk_uint32* pStatus);
+extern ret_t rtk_rate_shareMeterICPUExceedStatus_get(rtk_uint32 index, rtk_uint32 *pStatus);
 
 #if 0
 /* Function Name:
@@ -217,7 +216,7 @@ extern ret_t rtk_rate_shareMeterICPUExceedStatus_get(rtk_uint32 index, rtk_uint3
  *      The rate unit is 1 kbps and the range is from 8k to 1048568k. The granularity of rate is 8 kbps.
  *      The ifg_include parameter is used for rate calculation with/without inter-frame-gap and preamble.
  */
-extern rtk_api_ret_t rtk_rate_igrBandwidthCtrlRate_set( rtk_port_t port, rtk_rate_t rate,  rtk_enable_t ifg_include, rtk_enable_t fc_enable);
+extern rtk_api_ret_t rtk_rate_igrBandwidthCtrlRate_set(rtk_port_t port, rtk_rate_t rate, rtk_enable_t ifg_include, rtk_enable_t fc_enable);
 
 /* Function Name:
  *      rtk_rate_igrBandwidthCtrlRate_get
@@ -262,7 +261,7 @@ extern rtk_api_ret_t rtk_rate_igrBandwidthCtrlRate_get(rtk_port_t port, rtk_rate
  *     The rate unit is 1 kbps and the range is from 8k to 1048568k. The granularity of rate is 8 kbps.
  *     The ifg_include parameter is used for rate calculation with/without inter-frame-gap and preamble.
  */
-extern rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, rtk_rate_t rate,  rtk_enable_t ifg_includ);
+extern rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, rtk_rate_t rate, rtk_enable_t ifg_includ);
 
 /* Function Name:
  *      rtk_rate_egrBandwidthCtrlRate_get
@@ -373,5 +372,3 @@ extern rtk_api_ret_t rtk_rate_egrQueueBwCtrlRate_get(rtk_port_t port, rtk_qid_t 
 #endif
 
 #endif /* __RTK_API_SHAREDMETER_H__ */
-
-

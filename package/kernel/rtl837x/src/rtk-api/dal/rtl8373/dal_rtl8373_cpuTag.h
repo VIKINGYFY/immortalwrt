@@ -15,8 +15,8 @@
  *
  */
 
-#ifndef  __DAL_RTL8373_CPU_H__
-#define  __DAL_RTL8373_CPU_H__
+#ifndef __DAL_RTL8373_CPU_H__
+#define __DAL_RTL8373_CPU_H__
 
 #include <cpuTag.h>
 
@@ -103,7 +103,7 @@ extern rtk_api_ret_t dal_rtl8373_cpuTag_tpid_get(rtk_uint32 *pTpid);
  * Note:
  *      The API can set CPU port function enable/disable.
  */
-extern rtk_api_ret_t dal_rtl8373_cpuTag_enable_set(rtk_cpu_type_t type,  rtk_enable_t status);
+extern rtk_api_ret_t dal_rtl8373_cpuTag_enable_set(rtk_cpu_type_t type, rtk_enable_t status);
 
 /* Function Name:
  *      dal_rtl8373_cpuTag_enable_get
@@ -122,7 +122,7 @@ extern rtk_api_ret_t dal_rtl8373_cpuTag_enable_set(rtk_cpu_type_t type,  rtk_ena
  * Note:
  *      The API can get CPU port function enable/disable.
  */
-extern rtk_api_ret_t dal_rtl8373_cpuTag_enable_get(rtk_cpu_type_t type,  rtk_enable_t *pStatus);
+extern rtk_api_ret_t dal_rtl8373_cpuTag_enable_get(rtk_cpu_type_t type, rtk_enable_t *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_cpuTag_insertMode_set
@@ -147,7 +147,7 @@ extern rtk_api_ret_t dal_rtl8373_cpuTag_enable_get(rtk_cpu_type_t type,  rtk_ena
  *      - CPU_INSERT_TO_TRAPPING
  *      - CPU_INSERT_TO_NONE
  */
-extern rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_set(rtk_cpu_type_t type,  rtk_cpuTag_insertMode_t mode);
+extern rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_set(rtk_cpu_type_t type, rtk_cpuTag_insertMode_t mode);
 
 /* Function Name:
  *      dal_rtl8373_cpuTag_insertMode_get
@@ -170,7 +170,7 @@ extern rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_set(rtk_cpu_type_t type,  rtk
  *      - CPU_INSERT_TO_TRAPPING
  *      - CPU_INSERT_TO_NONE
  */
-extern rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_get(rtk_cpu_type_t type,  rtk_cpuTag_insertMode_t *pMode);
+extern rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_get(rtk_cpu_type_t type, rtk_cpuTag_insertMode_t *pMode);
 
 /* Function Name:
  *      dal_rtl8373_cpu_awarePort_set
@@ -228,7 +228,7 @@ extern rtk_api_ret_t dal_rtl8373_cpuTag_awarePort_get(rtk_portmask_t *pPortmask)
  *      Priority of CPU tag assignment for internal asic priority, and it is used for queue usage and packet scheduling.
  */
 extern rtk_api_ret_t dal_rtl8373_cpuTag_priRemap_set(rtk_cpu_type_t type, rtk_pri_t intPri, rtk_pri_t newPri);
-   
+
 /* Function Name:
  *      dal_rtl8373_cpu_priRemap_get
  * Description:
@@ -249,6 +249,5 @@ extern rtk_api_ret_t dal_rtl8373_cpuTag_priRemap_set(rtk_cpu_type_t type, rtk_pr
  *      Priority of CPU tag assignment for internal asic priority, and it is used for queue usage and packet scheduling.
  */
 extern rtk_api_ret_t dal_rtl8373_cpuTag_priRemap_get(rtk_cpu_type_t type, rtk_pri_t intPri, rtk_pri_t *pNewPri);
-
 
 #endif /*  __DAL_RTL8373_CPU_H__ */

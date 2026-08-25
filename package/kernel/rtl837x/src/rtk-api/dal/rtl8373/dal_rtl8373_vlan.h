@@ -20,16 +20,15 @@
 
 #include <vlan.h>
 
-typedef struct  USER_VLANTABLE{
+typedef struct USER_VLANTABLE {
+	rtk_uint16 vid;
+	rtk_uint16 mbr;
+	rtk_uint16 untag;
+	rtk_uint16 fid_msti;
+	rtk_uint16 svlan_chk_ivl_svl;
+	rtk_uint16 ivl_svl;
 
-    rtk_uint16  vid;
-    rtk_uint16  mbr;
-    rtk_uint16  untag;
-    rtk_uint16  fid_msti;
-    rtk_uint16  svlan_chk_ivl_svl;
-    rtk_uint16  ivl_svl;
-
-}dal_rtl8373_user_vlan4kentry;
+} dal_rtl8373_user_vlan4kentry;
 
 extern ret_t _dal_rtl8373_setAsicVlan4kEntry(dal_rtl8373_user_vlan4kentry *pVlan4kEntry);
 extern ret_t _dal_rtl8373_getAsicVlan4kEntry(dal_rtl8373_user_vlan4kentry *pVlan4kEntry);
@@ -580,7 +579,7 @@ extern rtk_api_ret_t dal_rtl8373_vlan_disL2Learn_entry_set(rtk_vlan_disL2_learn_
 *   get vlan based disable L2 entry data
 *Input:
 *       index: entry index
-*       
+*
 *Output:
 *       pDisL2LearnCfg: L2 disable learning database
 *Return:

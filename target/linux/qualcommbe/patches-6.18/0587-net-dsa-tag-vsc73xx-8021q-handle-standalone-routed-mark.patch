@@ -1,0 +1,22 @@
+From: VKing <noreply@openwrt.local>
+Subject: [PATCH] net: dsa: vsc73xx: handle standalone routed marks
+
+A packet routed from an offloaded bridge can retain
+offload_fwd_mark when it reaches a standalone DSA egress port. Do not
+dereference the absent target
+bridge or reuse a bridge VID in that case; keep the target port's
+standalone VID.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/net/dsa/tag_vsc73xx_8021q.c
++++ b/net/dsa/tag_vsc73xx_8021q.c
+@@ -23,2 +23,2 @@ vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
+-		if (br_vlan_enabled(br))
++		if (br && br_vlan_enabled(br))
+ 			return skb;
+@@ -26,2 +26,3 @@ vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
+-		tx_vid = dsa_tag_8021q_bridge_vid(bridge_num);
++		if (br)
++			tx_vid = dsa_tag_8021q_bridge_vid(bridge_num);
+ 	}

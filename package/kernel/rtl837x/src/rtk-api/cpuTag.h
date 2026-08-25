@@ -18,26 +18,14 @@
 #ifndef __RTK_API_CPU_H__
 #define __RTK_API_CPU_H__
 
-
 /*
  * Data Type Declaration
  */
-#define INTERNAL_CPU_PMSK        (0x200)
- 
-typedef enum rtk_cpuTag_insertMode_s
-{
-    CPU_INSERT_TO_ALL = 0,
-    CPU_INSERT_TO_TRAPPING,
-    CPU_INSERT_TO_NONE,
-    CPU_INSERT_END
-}rtk_cpuTag_insertMode_t;
+#define INTERNAL_CPU_PMSK (0x200)
 
-typedef enum rtk_cpu_type_e
-{
-    INTERNAL_CPU = 0,
-    EXTERNAL_CPU,
-    CPU_TYPE_END
-}rtk_cpu_type_t;
+typedef enum rtk_cpuTag_insertMode_s { CPU_INSERT_TO_ALL = 0, CPU_INSERT_TO_TRAPPING, CPU_INSERT_TO_NONE, CPU_INSERT_END } rtk_cpuTag_insertMode_t;
+
+typedef enum rtk_cpu_type_e { INTERNAL_CPU = 0, EXTERNAL_CPU, CPU_TYPE_END } rtk_cpu_type_t;
 
 /* Function Name:
  *      rtk_cpu_externalCpuPort_set
@@ -46,7 +34,7 @@ typedef enum rtk_cpu_type_e
  * Input:
  *      port                -port number
  * Output:
- *      None     - 
+ *      None     -
  * Return:
  *      RT_ERR_OK       - Success
  *      RT_ERR_SMI      - SMI access error
@@ -120,7 +108,7 @@ extern rtk_api_ret_t rtk_cpuTag_tpid_get(rtk_uint32 *pTpid);
  * Note:
  *      The API can set internal CPU port & external CPU port function enable/disable.
  */
-extern rtk_api_ret_t rtk_cpuTag_enable_set(rtk_cpu_type_t type,  rtk_enable_t  status);
+extern rtk_api_ret_t rtk_cpuTag_enable_set(rtk_cpu_type_t type, rtk_enable_t status);
 
 /* Function Name:
  *      rtk_cpuTag_enable_get
@@ -139,7 +127,7 @@ extern rtk_api_ret_t rtk_cpuTag_enable_set(rtk_cpu_type_t type,  rtk_enable_t  s
  * Note:
  *      The API can get internal CPU port & external CPU port  function enable/disable.
  */
-extern rtk_api_ret_t rtk_cpuTag_enable_get(rtk_cpu_type_t type,  rtk_enable_t *pStatus);
+extern rtk_api_ret_t rtk_cpuTag_enable_get(rtk_cpu_type_t type, rtk_enable_t *pStatus);
 
 /* Function Name:
  *      rtk_cpu_tagPort_set
@@ -163,7 +151,7 @@ extern rtk_api_ret_t rtk_cpuTag_enable_get(rtk_cpu_type_t type,  rtk_enable_t *p
  *      - CPU_INSERT_TO_TRAPPING
  *      - CPU_INSERT_TO_NONE
  */
-extern rtk_api_ret_t rtk_cpuTag_insertMode_set(rtk_cpu_type_t type,  rtk_cpuTag_insertMode_t mode);
+extern rtk_api_ret_t rtk_cpuTag_insertMode_set(rtk_cpu_type_t type, rtk_cpuTag_insertMode_t mode);
 
 /* Function Name:
  *      rtk_cpu_tagPort_get
@@ -186,7 +174,7 @@ extern rtk_api_ret_t rtk_cpuTag_insertMode_set(rtk_cpu_type_t type,  rtk_cpuTag_
  *      - CPU_INSERT_TO_TRAPPING
  *      - CPU_INSERT_TO_NONE
  */
-extern rtk_api_ret_t rtk_cpuTag_insertMode_get(rtk_cpu_type_t type,  rtk_cpuTag_insertMode_t *pMode);
+extern rtk_api_ret_t rtk_cpuTag_insertMode_get(rtk_cpu_type_t type, rtk_cpuTag_insertMode_t *pMode);
 
 /* Function Name:
  *      rtk_cpuTag_awarePort_set

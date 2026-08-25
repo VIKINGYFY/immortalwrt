@@ -1,0 +1,63 @@
+From: VKing <noreply@openwrt.local>
+Subject: [PATCH] net: clear bridge offload marks on routed flowtable TX
+
+The ingress flowtable hook can run before the bridge receive path
+clears its bridge-local forwarding mark. Clear that mark before routed
+direct, neighbour and XFRM transmission so a standalone DSA egress does not
+interpret it as a bridge forwarding decision. Keep the independent L3
+forwarding mark intact.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/net/netfilter/nf_flow_table_ip.c
++++ b/net/netfilter/nf_flow_table_ip.c
+@@ -343,6 +343,9 @@ static unsigned int nf_flow_queue_xmit(struct net *net, struct sk_buff *skb,
+ 	if (!outdev)
+ 		return NF_DROP;
+
++	if (skb->offload_fwd_mark)
++		skb->offload_fwd_mark = 0;
++
+ 	skb->dev = outdev;
+ 	dev_hard_header(skb, skb->dev, type, tuplehash->tuple.out.h_dest,
+ 			tuplehash->tuple.out.h_source, skb->len);
+@@ -442,6 +445,9 @@ nf_flow_offload_ip_hook(void *priv, struct sk_buff *skb,
+
+ 	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
+ 		rt = dst_rtable(tuplehash->tuple.dst_cache);
++		if (skb->offload_fwd_mark)
++			skb->offload_fwd_mark = 0;
++
+ 		memset(skb->cb, 0, sizeof(struct inet_skb_parm));
+ 		IPCB(skb)->iif = skb->dev->ifindex;
+ 		IPCB(skb)->flags = IPSKB_FORWARDED;
+@@ -455,6 +461,9 @@ nf_flow_offload_ip_hook(void *priv, struct sk_buff *skb,
+ 	case FLOW_OFFLOAD_XMIT_NEIGH:
+ 		rt = dst_rtable(tuplehash->tuple.dst_cache);
+ 		outdev = rt->dst.dev;
++		if (skb->offload_fwd_mark)
++			skb->offload_fwd_mark = 0;
++
+ 		skb->dev = outdev;
+ 		nexthop = rt_nexthop(rt, flow->tuplehash[!dir].tuple.src_v4.s_addr);
+ 		skb_dst_set_noref(skb, &rt->dst);
+@@ -737,6 +746,9 @@ nf_flow_offload_ipv6_hook(void *priv, struct sk_buff *skb,
+
+ 	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
+ 		rt = dst_rt6_info(tuplehash->tuple.dst_cache);
++		if (skb->offload_fwd_mark)
++			skb->offload_fwd_mark = 0;
++
+ 		memset(skb->cb, 0, sizeof(struct inet6_skb_parm));
+ 		IP6CB(skb)->iif = skb->dev->ifindex;
+ 		IP6CB(skb)->flags = IP6SKB_FORWARDED;
+@@ -750,6 +762,9 @@ nf_flow_offload_ipv6_hook(void *priv, struct sk_buff *skb,
+ 	case FLOW_OFFLOAD_XMIT_NEIGH:
+ 		rt = dst_rt6_info(tuplehash->tuple.dst_cache);
+ 		outdev = rt->dst.dev;
++		if (skb->offload_fwd_mark)
++			skb->offload_fwd_mark = 0;
++
+ 		skb->dev = outdev;
+ 		nexthop = rt6_nexthop(rt, &flow->tuplehash[!dir].tuple.src_v6);
+ 		skb_dst_set_noref(skb, &rt->dst);

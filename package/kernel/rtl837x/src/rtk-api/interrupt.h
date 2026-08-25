@@ -18,86 +18,58 @@
 #ifndef __RTK_API_INTERRUPT_H__
 #define __RTK_API_INTERRUPT_H__
 
-
 /*
  * Data Type Declaration
  */
 
+typedef enum rtk_int_type_e { INT_TYPE_LINK_CHANGE = 0, INT_TYPE_GPHY, INT_TYPE_LEARN_OVER, INT_TYPE_RLFD, INT_TYPE_WOL, INT_TYPE_SDS_LINK_FAULT, INT_TYPE_SDS_UPDATE_PHY, INT_TYPE_END } rtk_int_type_t;
 
-typedef enum rtk_int_type_e
-{
-    INT_TYPE_LINK_CHANGE = 0,
-    INT_TYPE_GPHY,
-    INT_TYPE_LEARN_OVER,
-    INT_TYPE_RLFD,
-    INT_TYPE_WOL,
-    INT_TYPE_SDS_LINK_FAULT,
-    INT_TYPE_SDS_UPDATE_PHY,
-    INT_TYPE_END
-}rtk_int_type_t;
+typedef enum rtk_int_cpu_e { INT_CPU_INTERNAL = 0, INT_CPU_EXTERNAL, INT_CPU_END } rtk_int_cpu_t;
 
-typedef enum rtk_int_cpu_e
-{
-    INT_CPU_INTERNAL = 0,
-    INT_CPU_EXTERNAL,
-    INT_CPU_END
-}rtk_int_cpu_t;
+typedef enum rtk_int_polarity_e { INT_POLAR_HIGH = 0, INT_POLAR_LOW, INT_POSITIVE_PULSE, INT_NEGATIVE_PULSE, INT_POLAR_END } rtk_int_polarity_t;
 
+typedef enum interrupt_misc_e {
+	TM_HIGH = 0,
+	TM_LOW,
+	SMI_CHECK_REG_0,
+	SMI_CHECK_REG_1,
+	SMI_CHECK_REG_2,
+	SMI_CHECK_REG_3,
+	SMI_CHECK_REG_4,
+	SDS_RX_SYM_ERR_0,
+	SDS_RX_SYM_ERR_1,
+	SAMOVE = 10,
+	AUTO_REC,
+	ACL = 13,
+	INCPU,
+	LOOP_DETEC,
+	METER_EXCEED,
+	ROUT_PBUF,
+	PTP1588,
+	INTERRUPT_MISC_END
+} interrupt_misc_t;
 
-
-typedef enum rtk_int_polarity_e
-{
-    INT_POLAR_HIGH = 0,
-    INT_POLAR_LOW,
-    INT_POSITIVE_PULSE,
-    INT_NEGATIVE_PULSE,
-    INT_POLAR_END
-} rtk_int_polarity_t;
-
-typedef enum interrupt_misc_e
-{
-    TM_HIGH=0,
-    TM_LOW,
-    SMI_CHECK_REG_0,
-    SMI_CHECK_REG_1,
-    SMI_CHECK_REG_2,
-    SMI_CHECK_REG_3,
-    SMI_CHECK_REG_4,
-    SDS_RX_SYM_ERR_0,
-    SDS_RX_SYM_ERR_1,
-    SAMOVE = 10,
-    AUTO_REC,
-    ACL = 13,
-    INCPU,
-    LOOP_DETEC,
-    METER_EXCEED,
-    ROUT_PBUF,
-    PTP1588,
-    INTERRUPT_MISC_END
-}interrupt_misc_t;
-
-typedef enum interrupt_glb_e
-{
-    THERMAL_DET=0,
-    SMI_CHK=2,
-    SDS_RX_ERR=4,
-    GPIO,
-    GLB_SAMOVE=7,
-    GLB_AUTO_REC,
-    GLBACL=10,
-    GLB_LOOP_DETEC=12,
-    GLB_METER_EXCEED,
-    PTP,
-    GLB_ROUT_PBUF=24,
-    SDS_UPD_PHY,
-    SDS_LNK_FLT,
-    WOL,
-    RLFD,
-    GPHY,
-    LRN_OVER,
-    LINK_CHG,
-    INTERRUPT_GLB_END
-}interrupt_glb_t;
+typedef enum interrupt_glb_e {
+	THERMAL_DET = 0,
+	SMI_CHK = 2,
+	SDS_RX_ERR = 4,
+	GPIO,
+	GLB_SAMOVE = 7,
+	GLB_AUTO_REC,
+	GLBACL = 10,
+	GLB_LOOP_DETEC = 12,
+	GLB_METER_EXCEED,
+	PTP,
+	GLB_ROUT_PBUF = 24,
+	SDS_UPD_PHY,
+	SDS_LNK_FLT,
+	WOL,
+	RLFD,
+	GPHY,
+	LRN_OVER,
+	LINK_CHG,
+	INTERRUPT_GLB_END
+} interrupt_glb_t;
 /* Function Name:
  *      rtk_int_enable
  * Description:
@@ -115,8 +87,6 @@ typedef enum interrupt_glb_e
  *      The API can set interrupt polarity configuration.
  */
 extern rtk_api_ret_t rtk_int_enable(rtk_enable_t enable);
-
-
 
 /* Function Name:
  *      rtk_int_polarity_set
@@ -228,11 +198,9 @@ extern rtk_api_ret_t rtk_portInt_control_get(rtk_port_t port, rtk_int_cpu_t intc
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t rtk_int_miscIMR_set(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 enable);
-
-
 
 /* Function Name:
  *      dal_rtl8373_miscIMR_get
@@ -249,11 +217,10 @@ extern rtk_api_ret_t rtk_int_miscIMR_set(rtk_uint32 type, interrupt_misc_t inter
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t rtk_int_miscIMR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t rtk_int_miscIMR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_miscISR_clear
@@ -270,14 +237,10 @@ extern rtk_api_ret_t rtk_int_miscIMR_get(rtk_uint32 type, interrupt_misc_t inter
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t rtk_int_miscISR_clear(rtk_uint32 type, interrupt_misc_t interrupt);
-
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_glbISR_get
@@ -294,10 +257,9 @@ extern rtk_api_ret_t rtk_int_miscISR_clear(rtk_uint32 type, interrupt_misc_t int
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t rtk_int_miscISR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32* pStatus);
+extern rtk_api_ret_t rtk_int_miscISR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 *pStatus);
 
 #endif /* __RTK_API_INTERRUPT_H*/
-

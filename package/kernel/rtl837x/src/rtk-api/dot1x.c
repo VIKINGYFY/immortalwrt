@@ -48,16 +48,16 @@
  */
 rtk_api_ret_t rtk_dot1x_unauthPacketOper_set(rtk_port_t port, rtk_dot1x_unauth_action_t unauth_action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_unauthPacketOper_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_unauthPacketOper_set(port, unauth_action);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_unauthPacketOper_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_unauthPacketOper_set(port, unauth_action);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -83,16 +83,16 @@ rtk_api_ret_t rtk_dot1x_unauthPacketOper_set(rtk_port_t port, rtk_dot1x_unauth_a
  */
 rtk_api_ret_t rtk_dot1x_unauthPacketOper_get(rtk_port_t port, rtk_dot1x_unauth_action_t *pUnauth_action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_unauthPacketOper_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_unauthPacketOper_get(port, pUnauth_action);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_unauthPacketOper_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_unauthPacketOper_get(port, pUnauth_action);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 #if 0
 /* Function Name:
@@ -117,16 +117,16 @@ rtk_api_ret_t rtk_dot1x_unauthPacketOper_get(rtk_port_t port, rtk_dot1x_unauth_a
  */
 rtk_api_ret_t rtk_dot1x_eapolFrame2CpuEnable_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_eapolFrame2CpuEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_eapolFrame2CpuEnable_set(enable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_eapolFrame2CpuEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_eapolFrame2CpuEnable_set(enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -151,16 +151,16 @@ rtk_api_ret_t rtk_dot1x_eapolFrame2CpuEnable_set(rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_dot1x_eapolFrame2CpuEnable_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_eapolFrame2CpuEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_eapolFrame2CpuEnable_get(pEnable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_eapolFrame2CpuEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_eapolFrame2CpuEnable_get(pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 #endif
 /* Function Name:
@@ -182,16 +182,16 @@ rtk_api_ret_t rtk_dot1x_eapolFrame2CpuEnable_get(rtk_enable_t *pEnable)
  */
 rtk_api_ret_t rtk_dot1x_trap2CPU_Sel_set(rtk_dot1x_cpu_select_t cpu_sel)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_trap2CPU_Sel_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_trap2CPU_Sel_set(cpu_sel);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_trap2CPU_Sel_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_trap2CPU_Sel_set(cpu_sel);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -201,7 +201,7 @@ rtk_api_ret_t rtk_dot1x_trap2CPU_Sel_set(rtk_dot1x_cpu_select_t cpu_sel)
  * Input:
  *      NULL
  * Output:
- *      pCpu_sel - 802.1X trap cpu select value. 
+ *      pCpu_sel - 802.1X trap cpu select value.
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -213,16 +213,16 @@ rtk_api_ret_t rtk_dot1x_trap2CPU_Sel_set(rtk_dot1x_cpu_select_t cpu_sel)
  */
 rtk_api_ret_t rtk_dot1x_trap2CPU_Sel_get(rtk_dot1x_cpu_select_t *pCpu_sel)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_trap2CPU_Sel_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_trap2CPU_Sel_get(pCpu_sel);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_trap2CPU_Sel_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_trap2CPU_Sel_get(pCpu_sel);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -244,16 +244,16 @@ rtk_api_ret_t rtk_dot1x_trap2CPU_Sel_get(rtk_dot1x_cpu_select_t *pCpu_sel)
  */
 rtk_api_ret_t rtk_dot1x_trap_priority_set(rtk_pri_t pri_value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_trap_priority_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_trap_priority_set(pri_value);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_trap_priority_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_trap_priority_set(pri_value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -275,16 +275,16 @@ rtk_api_ret_t rtk_dot1x_trap_priority_set(rtk_pri_t pri_value)
  */
 rtk_api_ret_t rtk_dot1x_trap_priority_get(rtk_pri_t *pri_value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_trap_priority_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_trap_priority_get(pri_value);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_trap_priority_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_trap_priority_get(pri_value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -313,16 +313,16 @@ rtk_api_ret_t rtk_dot1x_trap_priority_get(rtk_pri_t *pri_value)
  */
 rtk_api_ret_t rtk_dot1x_portBasedEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->dot1x_portBasedEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_portBasedEnable_set(port, enable);    
-    RTK_API_UNLOCK();
+	rtk_api_ret_t retVal;
 
-    return retVal;
+	if (NULL == RT_MAPPER->dot1x_portBasedEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_portBasedEnable_set(port, enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -344,16 +344,16 @@ rtk_api_ret_t rtk_dot1x_portBasedEnable_set(rtk_port_t port, rtk_enable_t enable
  */
 rtk_api_ret_t rtk_dot1x_portBasedEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_portBasedEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_portBasedEnable_get(port, pEnable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_portBasedEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_portBasedEnable_get(port, pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -378,16 +378,16 @@ rtk_api_ret_t rtk_dot1x_portBasedEnable_get(rtk_port_t port, rtk_enable_t *pEnab
  */
 rtk_api_ret_t rtk_dot1x_portBasedAuthStatus_set(rtk_port_t port, rtk_dot1x_auth_status_t port_auth)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_portBasedAuthStatus_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_portBasedAuthStatus_set(port, port_auth);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_portBasedAuthStatus_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_portBasedAuthStatus_set(port, port_auth);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -409,16 +409,16 @@ rtk_api_ret_t rtk_dot1x_portBasedAuthStatus_set(rtk_port_t port, rtk_dot1x_auth_
  */
 rtk_api_ret_t rtk_dot1x_portBasedAuthStatus_get(rtk_port_t port, rtk_dot1x_auth_status_t *pPort_auth)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_portBasedAuthStatus_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_portBasedAuthStatus_get(port, pPort_auth);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_portBasedAuthStatus_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_portBasedAuthStatus_get(port, pPort_auth);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -443,16 +443,16 @@ rtk_api_ret_t rtk_dot1x_portBasedAuthStatus_get(rtk_port_t port, rtk_dot1x_auth_
  */
 rtk_api_ret_t rtk_dot1x_portBasedDirection_set(rtk_port_t port, rtk_dot1x_direction_t port_direction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_portBasedDirection_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_portBasedDirection_set(port, port_direction);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_portBasedDirection_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_portBasedDirection_set(port, port_direction);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -474,16 +474,16 @@ rtk_api_ret_t rtk_dot1x_portBasedDirection_set(rtk_port_t port, rtk_dot1x_direct
  */
 rtk_api_ret_t rtk_dot1x_portBasedDirection_get(rtk_port_t port, rtk_dot1x_direction_t *pPort_direction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_portBasedDirection_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_portBasedDirection_get(port, pPort_direction);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_portBasedDirection_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_portBasedDirection_get(port, pPort_direction);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -511,16 +511,16 @@ rtk_api_ret_t rtk_dot1x_portBasedDirection_get(rtk_port_t port, rtk_dot1x_direct
  */
 rtk_api_ret_t rtk_dot1x_macBasedEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_macBasedEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_macBasedEnable_set(port, enable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_macBasedEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_macBasedEnable_set(port, enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -546,16 +546,16 @@ rtk_api_ret_t rtk_dot1x_macBasedEnable_set(rtk_port_t port, rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_dot1x_macBasedEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_macBasedEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_macBasedEnable_get(port, pEnable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_macBasedEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_macBasedEnable_get(port, pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -581,16 +581,16 @@ rtk_api_ret_t rtk_dot1x_macBasedEnable_get(rtk_port_t port, rtk_enable_t *pEnabl
  */
 rtk_api_ret_t rtk_dot1x_macBasedAuthMac_add(rtk_port_t port, rtk_mac_t *pAuth_mac, rtk_fid_t fid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_macBasedAuthMac_add)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_macBasedAuthMac_add(port, pAuth_mac, fid);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_macBasedAuthMac_add)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_macBasedAuthMac_add(port, pAuth_mac, fid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -615,16 +615,16 @@ rtk_api_ret_t rtk_dot1x_macBasedAuthMac_add(rtk_port_t port, rtk_mac_t *pAuth_ma
  */
 rtk_api_ret_t rtk_dot1x_macBasedAuthMac_del(rtk_port_t port, rtk_mac_t *pAuth_mac, rtk_fid_t fid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_macBasedAuthMac_del)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_macBasedAuthMac_del(port, pAuth_mac, fid);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_macBasedAuthMac_del)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_macBasedAuthMac_del(port, pAuth_mac, fid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -648,16 +648,16 @@ rtk_api_ret_t rtk_dot1x_macBasedAuthMac_del(rtk_port_t port, rtk_mac_t *pAuth_ma
  */
 rtk_api_ret_t rtk_dot1x_macBasedDirection_set(rtk_dot1x_direction_t mac_direction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_macBasedDirection_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_macBasedDirection_set(mac_direction);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_macBasedDirection_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_macBasedDirection_set(mac_direction);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -678,16 +678,16 @@ rtk_api_ret_t rtk_dot1x_macBasedDirection_set(rtk_dot1x_direction_t mac_directio
  */
 rtk_api_ret_t rtk_dot1x_macBasedDirection_get(rtk_dot1x_direction_t *pMac_direction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_macBasedDirection_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_macBasedDirection_get(pMac_direction);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_macBasedDirection_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_macBasedDirection_get(pMac_direction);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -708,16 +708,16 @@ rtk_api_ret_t rtk_dot1x_macBasedDirection_get(rtk_dot1x_direction_t *pMac_direct
  */
 rtk_api_ret_t rtk_dot1x_guestVlan_set(rtk_vlan_t vid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_guestVlan_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_guestVlan_set(vid);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_guestVlan_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_guestVlan_set(vid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -738,16 +738,16 @@ rtk_api_ret_t rtk_dot1x_guestVlan_set(rtk_vlan_t vid)
  */
 rtk_api_ret_t rtk_dot1x_guestVlan_get(rtk_vlan_t *pVid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_guestVlan_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_guestVlan_get(pVid);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_guestVlan_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_guestVlan_get(pVid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -770,16 +770,16 @@ rtk_api_ret_t rtk_dot1x_guestVlan_get(rtk_vlan_t *pVid)
  */
 rtk_api_ret_t rtk_dot1x_guestVlan2Auth_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_guestVlan2Auth_set)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_guestVlan2Auth_set(enable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_guestVlan2Auth_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_guestVlan2Auth_set(enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -800,17 +800,14 @@ rtk_api_ret_t rtk_dot1x_guestVlan2Auth_set(rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_dot1x_guestVlan2Auth_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->dot1x_guestVlan2Auth_get)
-        return RT_ERR_DRIVER_NOT_FOUND; 
-	    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->dot1x_guestVlan2Auth_get(pEnable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->dot1x_guestVlan2Auth_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->dot1x_guestVlan2Auth_get(pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
-
-

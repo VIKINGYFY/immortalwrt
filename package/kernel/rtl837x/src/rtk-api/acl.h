@@ -21,583 +21,511 @@
 /*
  * Data Type Declaration
  */
-#define RTK_FILTER_RAW_FIELD_NUMBER                (8)
+#define RTK_FILTER_RAW_FIELD_NUMBER (8)
 
-#define ACL_DEFAULT_ABILITY                                  (0)
-#define ACL_DEFAULT_UNMATCH_PERMIT                 (1)
+#define ACL_DEFAULT_ABILITY (0)
+#define ACL_DEFAULT_UNMATCH_PERMIT (1)
 
-#define SHARED_METER_NUM                            (64)
-#define ACL_RULE_FREE                                    (0)
-#define ACL_RULE_INAVAILABLE                       (1)
-#define ACL_RULE_CARETAG_MASK                   (0x1F)
-#define FILTER_POLICING_MAX                         (3)
-#define FILTER_LOGGING_MAX                          (SHARED_METER_NUM-1)
-#define FILTER_PATTERN_MAX                          (4)
-#define ACL_RULE_TAG_MASK                   (0x7)
-#define ACL_RULE_L3FMT_MASK                   (0x3)
-#define ACL_RULE_L4FMT_MASK                   (0x7)
-#define ACL_GPIO_ACT_PINNUM_MAX           (0x4)
+#define SHARED_METER_NUM (64)
+#define ACL_RULE_FREE (0)
+#define ACL_RULE_INAVAILABLE (1)
+#define ACL_RULE_CARETAG_MASK (0x1F)
+#define FILTER_POLICING_MAX (3)
+#define FILTER_LOGGING_MAX (SHARED_METER_NUM - 1)
+#define FILTER_PATTERN_MAX (4)
+#define ACL_RULE_TAG_MASK (0x7)
+#define ACL_RULE_L3FMT_MASK (0x3)
+#define ACL_RULE_L4FMT_MASK (0x7)
+#define ACL_GPIO_ACT_PINNUM_MAX (0x4)
 
+#define FILTER_ENACT_CVLAN_MASK (0x01)
+#define FILTER_ENACT_SVLAN_MASK (0x02)
+#define FILTER_ENACT_PRIORITY_MASK (0x04)
+#define FILTER_ENACT_RMK_MASK (0x08)
+#define FILTER_ENACT_POLICING_LOGG_MASK (0x10)
+#define FILTER_ENACT_FWD_MASK (0x20)
+#define FILTER_ENACT_INTGPIO_MASK (0x40)
+#define FILTER_ENACT_BYPASS_MASK (0x80)
+#define FILTER_ENACT_ALL_MASK (0xFF)
 
+typedef enum rtk_filter_act_cactext_e {
+	FILTER_ENACT_CACTEXT_VLANONLY = 0,
+	FILTER_ENACT_CACTEXT_BOTHVLANTAG,
+	FILTER_ENACT_CACTEXT_TAGONLY,
+	FILTER_ENACT_CACTEXT_END,
+} rtk_filter_act_cactext_t;
 
-#define FILTER_ENACT_CVLAN_MASK                                     (0x01)
-#define FILTER_ENACT_SVLAN_MASK                                     (0x02)
-#define FILTER_ENACT_PRIORITY_MASK                                (0x04)
-#define FILTER_ENACT_RMK_MASK                                         (0x08)
-#define FILTER_ENACT_POLICING_LOGG_MASK                      (0x10)
-#define FILTER_ENACT_FWD_MASK                                        (0x20)
-#define FILTER_ENACT_INTGPIO_MASK                                  (0x40)
-#define FILTER_ENACT_BYPASS_MASK                                   (0x80)
-#define FILTER_ENACT_ALL_MASK                                          (0xFF)
+typedef enum rtk_filter_act_ctagfmt_e {
+	FILTER_CTAGFMT_UNTAG = 0,
+	FILTER_CTAGFMT_TAG,
+	FILTER_CTAGFMT_KEEP,
+	FILTER_CTAGFMT_KEEP1PRMK,
+} rtk_filter_act_ctag_t;
 
-typedef enum rtk_filter_act_cactext_e
-{
-    FILTER_ENACT_CACTEXT_VLANONLY=0,
-    FILTER_ENACT_CACTEXT_BOTHVLANTAG,
-    FILTER_ENACT_CACTEXT_TAGONLY,
-    FILTER_ENACT_CACTEXT_END,
-}rtk_filter_act_cactext_t;
+#define RTK_MAX_NUM_OF_FILTER_TYPE (5)
+#define RTK_MAX_NUM_OF_FILTER_FIELD (8)
 
-typedef enum rtk_filter_act_ctagfmt_e{
-    FILTER_CTAGFMT_UNTAG=0,
-    FILTER_CTAGFMT_TAG,
-    FILTER_CTAGFMT_KEEP,
-    FILTER_CTAGFMT_KEEP1PRMK,
-}rtk_filter_act_ctag_t;
+#define RTK_DOT_1AS_TIMESTAMP_UNIT_IN_WORD_LENGTH (3UL)
+#define RTK_IPV6_ADDR_WORD_LENGTH (4UL)
 
+#define FILTER_ENACT_CVLAN_TYPE(type) (type - FILTER_ENACT_CVLAN_INGRESS)
+#define FILTER_ENACT_SVLAN_TYPE(type) (type - FILTER_ENACT_SVLAN_INGRESS)
+#define FILTER_ENACT_FWD_TYPE(type) (type - FILTER_ENACT_ADD_DSTPORT)
+#define FILTER_ENACT_PRI_TYPE(type) (type - FILTER_ENACT_PRIORITY)
 
-#define RTK_MAX_NUM_OF_FILTER_TYPE                  (5)
-#define RTK_MAX_NUM_OF_FILTER_FIELD                 (8)
+#define RTK_FILTER_FIELD_USED_MAX (8)
+#define RTK_FILTER_FIELD_INDEX(template, index) ((template << 4) + index)
 
-#define RTK_DOT_1AS_TIMESTAMP_UNIT_IN_WORD_LENGTH   (3UL)
-#define RTK_IPV6_ADDR_WORD_LENGTH                   (4UL)
+typedef enum rtk_filter_act_enable_e {
+	/* CVLAN */
+	FILTER_ENACT_CVLAN_INGRESS = 0,
+	FILTER_ENACT_CVLAN_EGRESS,
+	FILTER_ENACT_CVLAN_SVID,
+	FILTER_ENACT_POLICING_1,
 
-#define FILTER_ENACT_CVLAN_TYPE(type)   (type - FILTER_ENACT_CVLAN_INGRESS)
-#define FILTER_ENACT_SVLAN_TYPE(type)   (type - FILTER_ENACT_SVLAN_INGRESS)
-#define FILTER_ENACT_FWD_TYPE(type)      (type - FILTER_ENACT_ADD_DSTPORT)
-#define FILTER_ENACT_PRI_TYPE(type)        (type - FILTER_ENACT_PRIORITY)
+	/* SVLAN */
+	FILTER_ENACT_SVLAN_INGRESS,
+	FILTER_ENACT_SVLAN_EGRESS,
+	FILTER_ENACT_SVLAN_CVID,
+	FILTER_ENACT_POLICING_2,
 
-#define RTK_FILTER_FIELD_USED_MAX                   (8)
-#define RTK_FILTER_FIELD_INDEX(template, index)     ((template << 4) + index)
+	/*acl priority*/
+	FILTER_ENACT_PRIORITY,
 
+	/*1P remarking*/
+	FILTER_ENACT_1P_RMK,
 
-typedef enum rtk_filter_act_enable_e
-{
-    /* CVLAN */
-    FILTER_ENACT_CVLAN_INGRESS = 0,
-    FILTER_ENACT_CVLAN_EGRESS,
-    FILTER_ENACT_CVLAN_SVID,
-    FILTER_ENACT_POLICING_1,
+	/*DSCP remarking*/
+	FILTER_ENACT_DSCP_RMK,
 
-    /* SVLAN */
-    FILTER_ENACT_SVLAN_INGRESS,
-    FILTER_ENACT_SVLAN_EGRESS,
-    FILTER_ENACT_SVLAN_CVID,
-    FILTER_ENACT_POLICING_2,
+	/*Policing --shared meterr*/
+	FILTER_ENACT_POLICING_0,
 
-    /*acl priority*/
-    FILTER_ENACT_PRIORITY,
+	/* Logging Counter*/
+	FILTER_ENACT_LOGGING_CNTR,
 
-    /*1P remarking*/
-    FILTER_ENACT_1P_RMK,
+	/* Forward */
+	FILTER_ENACT_ADD_DSTPORT,
+	FILTER_ENACT_REDIRECT,
+	FILTER_ENACT_MIRROR,
+	FILTER_ENACT_TRAP_INT_CPU,
+	FILTER_ENACT_TRAP_EXT_CPU,
+	FILTER_ENACT_TRAP_INT_EXT_CPU,
+	FILTER_ENACT_ISOLATION,
+	FILTER_ENACT_DROP,
 
-    /*DSCP remarking*/
-    FILTER_ENACT_DSCP_RMK,
+	/* Interrutp and GPO */
+	FILTER_ENACT_INTERRUPT,
+	FILTER_ENACT_GPO,
 
-    /*Policing --shared meterr*/
-    FILTER_ENACT_POLICING_0,
+	/*VLAN tag*/
+	FILTER_ENACT_EGRESSCTAG_UNTAG,
+	FILTER_ENACT_EGRESSCTAG_TAG,
+	FILTER_ENACT_EGRESSCTAG_REALKEEP,
+	FILTER_ENACT_EGRESSCTAG_KEEPAND1PRMK,
 
-    /* Logging Counter*/
-    FILTER_ENACT_LOGGING_CNTR,
+	/* Bypass action */
+	FILTER_ENACT_BYPASS_IGRBW_STORMCTRL,
+	FILTER_ENACT_BYPASS_STP_SRC_CHK,
+	FILTER_ENACT_BYPASS_IGRVLAN_FLTR,
 
-    /* Forward */
-    FILTER_ENACT_ADD_DSTPORT,    
-    FILTER_ENACT_REDIRECT,
-    FILTER_ENACT_MIRROR,
-    FILTER_ENACT_TRAP_INT_CPU,
-    FILTER_ENACT_TRAP_EXT_CPU,
-    FILTER_ENACT_TRAP_INT_EXT_CPU,
-    FILTER_ENACT_ISOLATION,
-    FILTER_ENACT_DROP,
-
-    /* Interrutp and GPO */
-    FILTER_ENACT_INTERRUPT,
-    FILTER_ENACT_GPO,
-
-    /*VLAN tag*/
-    FILTER_ENACT_EGRESSCTAG_UNTAG,
-    FILTER_ENACT_EGRESSCTAG_TAG,
-    FILTER_ENACT_EGRESSCTAG_REALKEEP,
-    FILTER_ENACT_EGRESSCTAG_KEEPAND1PRMK,
-    
-    /* Bypass action */
-    FILTER_ENACT_BYPASS_IGRBW_STORMCTRL,
-    FILTER_ENACT_BYPASS_STP_SRC_CHK,
-    FILTER_ENACT_BYPASS_IGRVLAN_FLTR,
-
-    FILTER_ENACT_END,
+	FILTER_ENACT_END,
 } rtk_filter_act_enable_t;
 
-typedef enum rtk_filter_act_bypass_e
-{
-    FILTER_BYPASS_IGR_BANDWIDTH_STORM_CTRL=0,
-    FILTER_BYPASS_STP_SRC_CHECK,
-    FILTER_BYPASS_INGRESS_VLAN_FILTER,
-    FILTER_BYPASS_END,
-}rtk_filter_act_bypass_t;
+typedef enum rtk_filter_act_bypass_e {
+	FILTER_BYPASS_IGR_BANDWIDTH_STORM_CTRL = 0,
+	FILTER_BYPASS_STP_SRC_CHECK,
+	FILTER_BYPASS_INGRESS_VLAN_FILTER,
+	FILTER_BYPASS_END,
+} rtk_filter_act_bypass_t;
 
-typedef enum rtk_filter_care_tag_index_e
-{
-    /*ToDo*/
-    CARE_TAG_CTAG = 0,
-    CARE_TAG_STAG,
-    CARE_TAG_PPPOE,
-    CARE_TAG_IPV4,
-    CARE_TAG_IPV6,
-    CARE_TAG_TCP,
-    CARE_TAG_UDP,
-    CARE_TAG_ARP,
-    CARE_TAG_RSV1,
-    CARE_TAG_RSV2,
-    CARE_TAG_ICMP,
-    CARE_TAG_IGMP,
-    CARE_TAG_LLC,
-    CARE_TAG_RSV3,
-    CARE_TAG_HTTP,
-    CARE_TAG_RSV4,
-    CARE_TAG_RSV5,
-    CARE_TAG_DHCP,
-    CARE_TAG_DHCPV6,
-    CARE_TAG_SNMP,
-    CARE_TAG_OAM,
-    CARE_TAG_END,
+typedef enum rtk_filter_care_tag_index_e {
+	/*ToDo*/
+	CARE_TAG_CTAG = 0,
+	CARE_TAG_STAG,
+	CARE_TAG_PPPOE,
+	CARE_TAG_IPV4,
+	CARE_TAG_IPV6,
+	CARE_TAG_TCP,
+	CARE_TAG_UDP,
+	CARE_TAG_ARP,
+	CARE_TAG_RSV1,
+	CARE_TAG_RSV2,
+	CARE_TAG_ICMP,
+	CARE_TAG_IGMP,
+	CARE_TAG_LLC,
+	CARE_TAG_RSV3,
+	CARE_TAG_HTTP,
+	CARE_TAG_RSV4,
+	CARE_TAG_RSV5,
+	CARE_TAG_DHCP,
+	CARE_TAG_DHCPV6,
+	CARE_TAG_SNMP,
+	CARE_TAG_OAM,
+	CARE_TAG_END,
 } rtk_filter_care_tag_index_t;
 
-typedef enum rtk_filter_field_data_type_e
-{
-    FILTER_FIELD_DATA_MASK = 0,
-    FILTER_FIELD_DATA_RANGE,
-    FILTER_FIELD_DATA_END ,
+typedef enum rtk_filter_field_data_type_e {
+	FILTER_FIELD_DATA_MASK = 0,
+	FILTER_FIELD_DATA_RANGE,
+	FILTER_FIELD_DATA_END,
 } rtk_filter_field_data_type_t;
 
-typedef enum rtk_filter_field_temple_input_e
-{
-    FILTER_FIELD_TEMPLE_INPUT_TYPE = 0,
-    FILTER_FIELD_TEMPLE_INPUT_INDEX,
-    FILTER_FIELD_TEMPLE_INPUT_MAX ,
+typedef enum rtk_filter_field_temple_input_e {
+	FILTER_FIELD_TEMPLE_INPUT_TYPE = 0,
+	FILTER_FIELD_TEMPLE_INPUT_INDEX,
+	FILTER_FIELD_TEMPLE_INPUT_MAX,
 } rtk_filter_field_temple_input_t;
 
-typedef enum rtk_filter_field_type_e
-{
-    FILTER_FIELD_DMAC = 0,
-    FILTER_FIELD_SMAC,
-    FILTER_FIELD_ETHERTYPE,
-    FILTER_FIELD_CTAG,
-    FILTER_FIELD_STAG,
+typedef enum rtk_filter_field_type_e {
+	FILTER_FIELD_DMAC = 0,
+	FILTER_FIELD_SMAC,
+	FILTER_FIELD_ETHERTYPE,
+	FILTER_FIELD_CTAG,
+	FILTER_FIELD_STAG,
 
-    FILTER_FIELD_IPV4_SIP,
-    FILTER_FIELD_IPV4_DIP,
-    FILTER_FIELD_SENDER_PROTOCOL_ADDR,
-    FILTER_FIELD_TARGET_PROTOCOL_ADDR,
-    
-    FILTER_FIELD_IPV4_TOS,
-    FILTER_FIELD_IPV4_PROTOCOL,
-    //FILTER_FIELD_IPV4_FLAG,
-    //FILTER_FIELD_IPV4_OFFSET,
-    
-    FILTER_FIELD_IPV6_SIPV6,
-    FILTER_FIELD_IPV6_DIPV6,
-    FILTER_FIELD_IPV6_TRAFFIC_CLASS,
-    FILTER_FIELD_IPV6_NEXT_HEADER,
+	FILTER_FIELD_IPV4_SIP,
+	FILTER_FIELD_IPV4_DIP,
+	FILTER_FIELD_SENDER_PROTOCOL_ADDR,
+	FILTER_FIELD_TARGET_PROTOCOL_ADDR,
 
-    FILTER_FIELD_AFTER_ETHTYPE_BYTE01,
-    FILTER_FIELD_ARP_RARP_CODE,
+	FILTER_FIELD_IPV4_TOS,
+	FILTER_FIELD_IPV4_PROTOCOL,
+	//FILTER_FIELD_IPV4_FLAG,
+	//FILTER_FIELD_IPV4_OFFSET,
 
-    FILTER_FIELD_TCP_UDP_SPORT,
-    FILTER_FIELD_TCP_UDP_DPORT,
-    //FILTER_FIELD_TCP_FLAG,
+	FILTER_FIELD_IPV6_SIPV6,
+	FILTER_FIELD_IPV6_DIPV6,
+	FILTER_FIELD_IPV6_TRAFFIC_CLASS,
+	FILTER_FIELD_IPV6_NEXT_HEADER,
 
-    FILTER_FIELD_ICMP_IGMP_CODE,
-    FILTER_FIELD_ICMP_IGMP_TYPE,
+	FILTER_FIELD_AFTER_ETHTYPE_BYTE01,
+	FILTER_FIELD_ARP_RARP_CODE,
 
-    FILTER_FIELD_L4HEADER_BYTE01,
-    FILTER_FIELD_L4HEADER_BYTE23,
+	FILTER_FIELD_TCP_UDP_SPORT,
+	FILTER_FIELD_TCP_UDP_DPORT,
+	//FILTER_FIELD_TCP_FLAG,
 
-    FILTER_FIELD_VID_RANGE,
-    FILTER_FIELD_IP_RANGE,
-    FILTER_FIELD_PORT_RANGE,    
-    FILTER_FIELD_PATTERN_MATCH,
+	FILTER_FIELD_ICMP_IGMP_CODE,
+	FILTER_FIELD_ICMP_IGMP_TYPE,
 
-    FILTER_FIELD_USER_DEFINED00,
-    FILTER_FIELD_USER_DEFINED01,
-    FILTER_FIELD_USER_DEFINED02,
-    FILTER_FIELD_USER_DEFINED03,
-    FILTER_FIELD_USER_DEFINED04,
-    FILTER_FIELD_USER_DEFINED05,
-    FILTER_FIELD_USER_DEFINED06,
-    FILTER_FIELD_USER_DEFINED07,
-    FILTER_FIELD_USER_DEFINED08,
-    FILTER_FIELD_USER_DEFINED09,
-    FILTER_FIELD_USER_DEFINED10,
-    FILTER_FIELD_USER_DEFINED11,
-    FILTER_FIELD_USER_DEFINED12,
-    FILTER_FIELD_USER_DEFINED13,
-    FILTER_FIELD_USER_DEFINED14,
-    FILTER_FIELD_USER_DEFINED15,
+	FILTER_FIELD_L4HEADER_BYTE01,
+	FILTER_FIELD_L4HEADER_BYTE23,
 
-    FILTER_FIELD_END,
+	FILTER_FIELD_VID_RANGE,
+	FILTER_FIELD_IP_RANGE,
+	FILTER_FIELD_PORT_RANGE,
+	FILTER_FIELD_PATTERN_MATCH,
+
+	FILTER_FIELD_USER_DEFINED00,
+	FILTER_FIELD_USER_DEFINED01,
+	FILTER_FIELD_USER_DEFINED02,
+	FILTER_FIELD_USER_DEFINED03,
+	FILTER_FIELD_USER_DEFINED04,
+	FILTER_FIELD_USER_DEFINED05,
+	FILTER_FIELD_USER_DEFINED06,
+	FILTER_FIELD_USER_DEFINED07,
+	FILTER_FIELD_USER_DEFINED08,
+	FILTER_FIELD_USER_DEFINED09,
+	FILTER_FIELD_USER_DEFINED10,
+	FILTER_FIELD_USER_DEFINED11,
+	FILTER_FIELD_USER_DEFINED12,
+	FILTER_FIELD_USER_DEFINED13,
+	FILTER_FIELD_USER_DEFINED14,
+	FILTER_FIELD_USER_DEFINED15,
+
+	FILTER_FIELD_END,
 } rtk_filter_field_type_t;
 
-typedef enum rtk_filter_field_type_raw_e
-{
-    FILTER_FIELD_RAW_DMAC_15_0 = 0,
-    FILTER_FIELD_RAW_DMAC_31_16,
-    FILTER_FIELD_RAW_DMAC_47_32,
-    FILTER_FIELD_RAW_SMAC_15_0,
-    FILTER_FIELD_RAW_SMAC_31_16,
-    FILTER_FIELD_RAW_SMAC_47_32,
-    FILTER_FIELD_RAW_ETHERTYPE,
-    FILTER_FIELD_RAW_STAG,
-    FILTER_FIELD_RAW_CTAG,
+typedef enum rtk_filter_field_type_raw_e {
+	FILTER_FIELD_RAW_DMAC_15_0 = 0,
+	FILTER_FIELD_RAW_DMAC_31_16,
+	FILTER_FIELD_RAW_DMAC_47_32,
+	FILTER_FIELD_RAW_SMAC_15_0,
+	FILTER_FIELD_RAW_SMAC_31_16,
+	FILTER_FIELD_RAW_SMAC_47_32,
+	FILTER_FIELD_RAW_ETHERTYPE,
+	FILTER_FIELD_RAW_STAG,
+	FILTER_FIELD_RAW_CTAG,
 
-    FILTER_FIELD_RAW_SIP_15_0 = 0x10,
-    FILTER_FIELD_RAW_SIP_31_16,
-    FILTER_FIELD_RAW_DIP_15_0,
-    FILTER_FIELD_RAW_DIP_31_16,
+	FILTER_FIELD_RAW_SIP_15_0 = 0x10,
+	FILTER_FIELD_RAW_SIP_31_16,
+	FILTER_FIELD_RAW_DIP_15_0,
+	FILTER_FIELD_RAW_DIP_31_16,
 
-    FILTER_FIELD_RAW_VIDRANGE = 0x30,
-    FILTER_FIELD_RAW_IPRANGE,
-    FILTER_FIELD_RAW_PORTRANGE,
-    FILTER_FIELD_RAW_FIELD_VALID,
-    FILTER_FIELD_RAW_IPTOSPROTO,
-    FILTER_FIELD_RAW_L4SPORT,
-    FILTER_FIELD_RAW_L4DPORT,
+	FILTER_FIELD_RAW_VIDRANGE = 0x30,
+	FILTER_FIELD_RAW_IPRANGE,
+	FILTER_FIELD_RAW_PORTRANGE,
+	FILTER_FIELD_RAW_FIELD_VALID,
+	FILTER_FIELD_RAW_IPTOSPROTO,
+	FILTER_FIELD_RAW_L4SPORT,
+	FILTER_FIELD_RAW_L4DPORT,
 
-    FILTER_FIELD_RAW_FIELD_SELECT00 = 0x40,
-    FILTER_FIELD_RAW_FIELD_SELECT01,
-    FILTER_FIELD_RAW_FIELD_SELECT02,
-    FILTER_FIELD_RAW_FIELD_SELECT03,
-    FILTER_FIELD_RAW_FIELD_SELECT04,
-    FILTER_FIELD_RAW_FIELD_SELECT05,
-    FILTER_FIELD_RAW_FIELD_SELECT06,
-    FILTER_FIELD_RAW_FIELD_SELECT07,
-    FILTER_FIELD_RAW_FIELD_SELECT08,
-    FILTER_FIELD_RAW_FIELD_SELECT09,
-    FILTER_FIELD_RAW_FIELD_SELECT10,
-    FILTER_FIELD_RAW_FIELD_SELECT11,
-    FILTER_FIELD_RAW_FIELD_SELECT12,
-    FILTER_FIELD_RAW_FIELD_SELECT13,
-    FILTER_FIELD_RAW_FIELD_SELECT14,
-    FILTER_FIELD_RAW_FIELD_SELECT15,
+	FILTER_FIELD_RAW_FIELD_SELECT00 = 0x40,
+	FILTER_FIELD_RAW_FIELD_SELECT01,
+	FILTER_FIELD_RAW_FIELD_SELECT02,
+	FILTER_FIELD_RAW_FIELD_SELECT03,
+	FILTER_FIELD_RAW_FIELD_SELECT04,
+	FILTER_FIELD_RAW_FIELD_SELECT05,
+	FILTER_FIELD_RAW_FIELD_SELECT06,
+	FILTER_FIELD_RAW_FIELD_SELECT07,
+	FILTER_FIELD_RAW_FIELD_SELECT08,
+	FILTER_FIELD_RAW_FIELD_SELECT09,
+	FILTER_FIELD_RAW_FIELD_SELECT10,
+	FILTER_FIELD_RAW_FIELD_SELECT11,
+	FILTER_FIELD_RAW_FIELD_SELECT12,
+	FILTER_FIELD_RAW_FIELD_SELECT13,
+	FILTER_FIELD_RAW_FIELD_SELECT14,
+	FILTER_FIELD_RAW_FIELD_SELECT15,
 
-    FILTER_FIELD_RAW_END= 0x60,
+	FILTER_FIELD_RAW_END = 0x60,
 } rtk_filter_field_type_raw_t;
 
-typedef enum rtk_filter_flag_care_type_e
-{
-    FILTER_FLAG_CARE_DONT_CARE = 0,
-    FILTER_FLAG_CARE_1,
-    FILTER_FLAG_CARE_0,
-    FILTER_FLAG_END
-} rtk_filter_flag_care_type_t;
+typedef enum rtk_filter_flag_care_type_e { FILTER_FLAG_CARE_DONT_CARE = 0, FILTER_FLAG_CARE_1, FILTER_FLAG_CARE_0, FILTER_FLAG_END } rtk_filter_flag_care_type_t;
 
-typedef enum rtk_field_sel_e
-{
-    FORMAT_DEFAULT = 0,
-    FORMAT_RAW,
-    FORMAT_LLC,
-    FORMAT_IPV4,
-    FORMAT_ARP,
-    FORMAT_IPV6,
-    FORMAT_IPPAYLOAD,
-    FORMAT_L4PAYLOAD,
-    FORMAT_END
-}rtk_field_sel_t;
+typedef enum rtk_field_sel_e { FORMAT_DEFAULT = 0, FORMAT_RAW, FORMAT_LLC, FORMAT_IPV4, FORMAT_ARP, FORMAT_IPV6, FORMAT_IPPAYLOAD, FORMAT_L4PAYLOAD, FORMAT_END } rtk_field_sel_t;
 
-typedef enum rtk_filter_iprange_e
-{
-    IPRANGE_UNUSED = 0,
-    IPRANGE_IPV4_SIP,
-    IPRANGE_IPV4_DIP,
-    IPRANGE_IPV6_SIP_PREFIX,
-    IPRANGE_IPV6_DIP_PREFIX,
-    IPRANGE_END
-}rtk_filter_iprange_t;
+typedef enum rtk_filter_iprange_e { IPRANGE_UNUSED = 0, IPRANGE_IPV4_SIP, IPRANGE_IPV4_DIP, IPRANGE_IPV6_SIP_PREFIX, IPRANGE_IPV6_DIP_PREFIX, IPRANGE_END } rtk_filter_iprange_t;
 
-typedef enum rtk_filter_vidrange_e
-{
-    VIDRANGE_UNUSED = 0,
-    VIDRANGE_CVID,
-    VIDRANGE_SVID,
-    VIDRANGE_END
-}rtk_filter_vidrange_t;
+typedef enum rtk_filter_vidrange_e { VIDRANGE_UNUSED = 0, VIDRANGE_CVID, VIDRANGE_SVID, VIDRANGE_END } rtk_filter_vidrange_t;
 
-typedef enum rtk_filter_portrange_e
-{
-    PORTRANGE_UNUSED = 0,
-    PORTRANGE_SPORT,
-    PORTRANGE_DPORT,
-    PORTRANGE_END
-}rtk_filter_portrange_t;
+typedef enum rtk_filter_portrange_e { PORTRANGE_UNUSED = 0, PORTRANGE_SPORT, PORTRANGE_DPORT, PORTRANGE_END } rtk_filter_portrange_t;
 
-typedef enum rtk_filter_invert_e
-{
-    FILTER_INVERT_DISABLE = 0,
-    FILTER_INVERT_ENABLE,
-    FILTER_INVERT_END,
+typedef enum rtk_filter_invert_e {
+	FILTER_INVERT_DISABLE = 0,
+	FILTER_INVERT_ENABLE,
+	FILTER_INVERT_END,
 } rtk_filter_invert_t;
 
-typedef enum rtk_filter_unmatch_action_e
-{
-    FILTER_UNMATCH_DROP = 0,
-    FILTER_UNMATCH_PERMIT,
-    FILTER_UNMATCH_END,
+typedef enum rtk_filter_unmatch_action_e {
+	FILTER_UNMATCH_DROP = 0,
+	FILTER_UNMATCH_PERMIT,
+	FILTER_UNMATCH_END,
 } rtk_filter_unmatch_action_type_t;
 
-typedef struct
-{
-    rtk_filter_act_enable_t actEnable[FILTER_ENACT_END];
+typedef struct {
+	rtk_filter_act_enable_t actEnable[FILTER_ENACT_END];
 
-    /* CVLAN acton */
-    rtk_uint32      filterCvlanVid;
-    /* SVLAN action */
-    rtk_uint32      filterSvlanVid;
-    
-    /*acl priority*/
-    rtk_uint32      filterAclPri;
+	/* CVLAN acton */
+	rtk_uint32 filterCvlanVid;
+	/* SVLAN action */
+	rtk_uint32 filterSvlanVid;
 
-    /*1P remarking*/
-    rtk_uint32      filter1pRmk;
+	/*acl priority*/
+	rtk_uint32 filterAclPri;
 
-    /*DSCP remarking*/
-    rtk_uint32      filterDscpRmk;
+	/*1P remarking*/
+	rtk_uint32 filter1pRmk;
 
-    /*Shared meter*/
-    rtk_uint32      filterPolicingIdx[FILTER_POLICING_MAX];
+	/*DSCP remarking*/
+	rtk_uint32 filterDscpRmk;
 
-    /* Logging Counter*/
-    rtk_uint32      filterLoggCntr;
+	/*Shared meter*/
+	rtk_uint32 filterPolicingIdx[FILTER_POLICING_MAX];
 
-    /* Forwarding action */
-    rtk_portmask_t  filterPortmask;
+	/* Logging Counter*/
+	rtk_uint32 filterLoggCntr;
 
-    /*GPO*/
-    rtk_uint32       filterPin;
+	/* Forwarding action */
+	rtk_portmask_t filterPortmask;
+
+	/*GPO*/
+	rtk_uint32 filterPin;
 } rtk_filter_action_t;
 
-typedef struct rtk_filter_flag_s
-{
-    rtk_uint32 value;
-    rtk_uint32 mask;
+typedef struct rtk_filter_flag_s {
+	rtk_uint32 value;
+	rtk_uint32 mask;
 } rtk_filter_flag_t;
 
-typedef struct rtk_filter_care_tag_s
-{
-    rtk_filter_flag_t tagType[CARE_TAG_END];
+typedef struct rtk_filter_care_tag_s {
+	rtk_filter_flag_t tagType[CARE_TAG_END];
 } rtk_filter_care_tag_t;
 
 typedef struct rtk_filter_field rtk_filter_field_t;
 
-typedef struct
-{
-    rtk_uint32 value[RTK_DOT_1AS_TIMESTAMP_UNIT_IN_WORD_LENGTH];
+typedef struct {
+	rtk_uint32 value[RTK_DOT_1AS_TIMESTAMP_UNIT_IN_WORD_LENGTH];
 } rtk_filter_dot1as_timestamp_t;
 
-typedef struct rtk_filter_ip_s
-{
-    rtk_uint32 dataType;
-    rtk_uint32 rangeStart;
-    rtk_uint32 rangeEnd;
-    rtk_uint32 value;
-    rtk_uint32 mask;
+typedef struct rtk_filter_ip_s {
+	rtk_uint32 dataType;
+	rtk_uint32 rangeStart;
+	rtk_uint32 rangeEnd;
+	rtk_uint32 value;
+	rtk_uint32 mask;
 } rtk_filter_ip_t;
 
-typedef struct rtk_filter_mac_s
-{
-    rtk_uint32 dataType;
-    rtk_mac_t value;
-    rtk_mac_t mask;
-    rtk_mac_t rangeStart;
-    rtk_mac_t rangeEnd;
+typedef struct rtk_filter_mac_s {
+	rtk_uint32 dataType;
+	rtk_mac_t value;
+	rtk_mac_t mask;
+	rtk_mac_t rangeStart;
+	rtk_mac_t rangeEnd;
 } rtk_filter_mac_t;
 
 typedef rtk_uint32 rtk_filter_op_t;
 
-typedef struct rtk_filter_value_s
-{
-    rtk_uint32 dataType;
-    rtk_uint32 value;
-    rtk_uint32 mask;
-    rtk_uint32 rangeStart;
-    rtk_uint32 rangeEnd;
+typedef struct rtk_filter_value_s {
+	rtk_uint32 dataType;
+	rtk_uint32 value;
+	rtk_uint32 mask;
+	rtk_uint32 rangeStart;
+	rtk_uint32 rangeEnd;
 
 } rtk_filter_value_t;
 
-typedef struct rtk_filter_activeport_s
-{
-    rtk_portmask_t value;
-    rtk_portmask_t mask;
+typedef struct rtk_filter_activeport_s {
+	rtk_portmask_t value;
+	rtk_portmask_t mask;
 
 } rtk_filter_activeport_t;
 
-typedef struct rtk_filter_tag_s
-{
-    rtk_filter_value_t pri;
-    rtk_filter_flag_t cfi;
-    rtk_filter_value_t vid;
+typedef struct rtk_filter_tag_s {
+	rtk_filter_value_t pri;
+	rtk_filter_flag_t cfi;
+	rtk_filter_value_t vid;
 } rtk_filter_tag_t;
 
-typedef struct rtk_filter_ipFlag_s
-{
-    rtk_filter_flag_t xf;
-    rtk_filter_flag_t mf;
-    rtk_filter_flag_t df;
+typedef struct rtk_filter_ipFlag_s {
+	rtk_filter_flag_t xf;
+	rtk_filter_flag_t mf;
+	rtk_filter_flag_t df;
 } rtk_filter_ipFlag_t;
 
-typedef struct
-{
-    rtk_uint32 addr[RTK_IPV6_ADDR_WORD_LENGTH];
+typedef struct {
+	rtk_uint32 addr[RTK_IPV6_ADDR_WORD_LENGTH];
 } rtk_filter_ip6_addr_t;
 
-typedef struct
-{
-    rtk_uint32 dataType;
-    rtk_filter_ip6_addr_t value;
-    rtk_filter_ip6_addr_t mask;
-    rtk_filter_ip6_addr_t rangeStart;
-    rtk_filter_ip6_addr_t rangeEnd;
+typedef struct {
+	rtk_uint32 dataType;
+	rtk_filter_ip6_addr_t value;
+	rtk_filter_ip6_addr_t mask;
+	rtk_filter_ip6_addr_t rangeStart;
+	rtk_filter_ip6_addr_t rangeEnd;
 } rtk_filter_ip6_t;
 
 typedef rtk_uint32 rtk_filter_number_t;
 
-typedef struct rtk_filter_pattern_s
-{
-    rtk_uint32 value[FILTER_PATTERN_MAX];
-    rtk_uint32 mask[FILTER_PATTERN_MAX];
+typedef struct rtk_filter_pattern_s {
+	rtk_uint32 value[FILTER_PATTERN_MAX];
+	rtk_uint32 mask[FILTER_PATTERN_MAX];
 } rtk_filter_pattern_t;
 
-typedef struct rtk_filter_tcpFlag_s
-{
-    rtk_filter_flag_t urg;
-    rtk_filter_flag_t ack;
-    rtk_filter_flag_t psh;
-    rtk_filter_flag_t rst;
-    rtk_filter_flag_t syn;
-    rtk_filter_flag_t fin;
-    rtk_filter_flag_t cwr;
-    rtk_filter_flag_t ece;
-    rtk_filter_flag_t ns;
+typedef struct rtk_filter_tcpFlag_s {
+	rtk_filter_flag_t urg;
+	rtk_filter_flag_t ack;
+	rtk_filter_flag_t psh;
+	rtk_filter_flag_t rst;
+	rtk_filter_flag_t syn;
+	rtk_filter_flag_t fin;
+	rtk_filter_flag_t cwr;
+	rtk_filter_flag_t ece;
+	rtk_filter_flag_t ns;
 } rtk_filter_tcpFlag_t;
 
 typedef rtk_uint16 rtk_filter_field_raw_t;
 
-struct rtk_filter_field
-{
-    rtk_uint32 fieldType;
+struct rtk_filter_field {
+	rtk_uint32 fieldType;
 
-    union
-    {
-        /* L2 struct */
-        rtk_filter_mac_t       dmac;
-        rtk_filter_mac_t       smac;
-        rtk_filter_value_t     etherType;
-        rtk_filter_tag_t       ctag;
-        rtk_filter_tag_t       relayCtag;
-        rtk_filter_tag_t       stag;
-        rtk_filter_tag_t       l2tag;
-        rtk_filter_dot1as_timestamp_t dot1asTimeStamp;
-        rtk_filter_mac_t       mac;
+	union {
+		/* L2 struct */
+		rtk_filter_mac_t dmac;
+		rtk_filter_mac_t smac;
+		rtk_filter_value_t etherType;
+		rtk_filter_tag_t ctag;
+		rtk_filter_tag_t relayCtag;
+		rtk_filter_tag_t stag;
+		rtk_filter_tag_t l2tag;
+		rtk_filter_dot1as_timestamp_t dot1asTimeStamp;
+		rtk_filter_mac_t mac;
 
-        /* L3 struct */
-        rtk_filter_ip_t      sip;
-        rtk_filter_ip_t      dip;
-        rtk_filter_ip_t      ip;
-        rtk_filter_ip6_t     sipv6;
-        rtk_filter_ip6_t     dipv6;
-        rtk_filter_ip6_t     ipv6;
+		/* L3 struct */
+		rtk_filter_ip_t sip;
+		rtk_filter_ip_t dip;
+		rtk_filter_ip_t ip;
+		rtk_filter_ip6_t sipv6;
+		rtk_filter_ip6_t dipv6;
+		rtk_filter_ip6_t ipv6;
 
-        rtk_filter_value_t   afterEthertypeByte0_1;
+		rtk_filter_value_t afterEthertypeByte0_1;
 
-        rtk_filter_value_t   ipTos;
-        rtk_filter_value_t   ipv6TrafficClass;
-        rtk_filter_value_t   protocol;
-        rtk_filter_value_t   ipv6NextHeader;
+		rtk_filter_value_t ipTos;
+		rtk_filter_value_t ipv6TrafficClass;
+		rtk_filter_value_t protocol;
+		rtk_filter_value_t ipv6NextHeader;
 
-        rtk_filter_ipFlag_t  ipv4Flag;
-        rtk_filter_value_t   ipv4FragmentOffset;
-//        rtk_filter_value_t   ipv4TTL;
+		rtk_filter_ipFlag_t ipv4Flag;
+		rtk_filter_value_t ipv4FragmentOffset;
+		//        rtk_filter_value_t   ipv4TTL;
 
-//        rtk_filter_value_t   ipv4TTLipv6HopLimit;
-//        rtk_filter_value_t   flowLabel;
-//        rtk_filter_value_t   ipv6Res_M;
+		//        rtk_filter_value_t   ipv4TTLipv6HopLimit;
+		//        rtk_filter_value_t   flowLabel;
+		//        rtk_filter_value_t   ipv6Res_M;
 
-        rtk_filter_value_t   arpRarpOpcode;
+		rtk_filter_value_t arpRarpOpcode;
 
-        /* L4 struct */
-        rtk_filter_value_t   tcpUdpSrcPort;
-        rtk_filter_value_t   tcpUdpDstPort;
-   //     rtk_filter_tcpFlag_t tcpFlag;
- //       rtk_filter_value_t   tcpSeqNumber;
-  //      rtk_filter_value_t   tcpAckNumber;
+		/* L4 struct */
+		rtk_filter_value_t tcpUdpSrcPort;
+		rtk_filter_value_t tcpUdpDstPort;
+		//     rtk_filter_tcpFlag_t tcpFlag;
+		//       rtk_filter_value_t   tcpSeqNumber;
+		//      rtk_filter_value_t   tcpAckNumber;
 
-        rtk_filter_value_t   icmpIgmpCode;
-        rtk_filter_value_t   icmpIgmpType;
-        
-        rtk_filter_value_t   l4headerByte0_1;
-        rtk_filter_value_t   l4headerByte2_3;
+		rtk_filter_value_t icmpIgmpCode;
+		rtk_filter_value_t icmpIgmpType;
 
-        /* pattern match */
-        rtk_filter_value_t   inData;
+		rtk_filter_value_t l4headerByte0_1;
+		rtk_filter_value_t l4headerByte2_3;
 
-    } filter_pattern_union;
+		/* pattern match */
+		rtk_filter_value_t inData;
 
-    rtk_uint32 occupyFieldNum;
-    rtk_uint32 fieldTemplateIdx[RTK_FILTER_FIELD_USED_MAX];
+	} filter_pattern_union;
 
-    struct rtk_filter_field *next;
+	rtk_uint32 occupyFieldNum;
+	rtk_uint32 fieldTemplateIdx[RTK_FILTER_FIELD_USED_MAX];
+
+	struct rtk_filter_field *next;
 };
 
-typedef rtk_uint32  rtk_filter_id_t;    /* filter id type */
+typedef rtk_uint32 rtk_filter_id_t; /* filter id type */
 
 typedef rtk_uint32 rtk_filter_state_t;
 
 typedef rtk_uint32 rtk_filter_unmatch_action_t;
-typedef struct rtk_filter_frametype_s
-{
-    rtk_uint32 value;
-    rtk_uint32 mask;
+typedef struct rtk_filter_frametype_s {
+	rtk_uint32 value;
+	rtk_uint32 mask;
 } rtk_filter_frametype_t;
 
-typedef struct
-{
-    rtk_filter_field_t      *fieldHead;
-    rtk_filter_care_tag_t   careTag;
-    rtk_filter_activeport_t activeport;
-    rtk_filter_frametype_t  l3fmt;
-    rtk_filter_frametype_t  l4fmt;
-    rtk_filter_invert_t     invert;
+typedef struct {
+	rtk_filter_field_t *fieldHead;
+	rtk_filter_care_tag_t careTag;
+	rtk_filter_activeport_t activeport;
+	rtk_filter_frametype_t l3fmt;
+	rtk_filter_frametype_t l4fmt;
+	rtk_filter_invert_t invert;
 } rtk_filter_cfg_t;
 
-typedef struct
-{
-    rtk_filter_field_raw_t      dataFieldRaw[RTK_FILTER_RAW_FIELD_NUMBER];
-    rtk_filter_field_raw_t      careFieldRaw[RTK_FILTER_RAW_FIELD_NUMBER];
-    rtk_filter_field_type_raw_t fieldRawType[RTK_FILTER_RAW_FIELD_NUMBER];
-    rtk_filter_care_tag_t       careTag;
-    rtk_filter_activeport_t     activeport;
-    rtk_filter_frametype_t      l3fmt;
-    rtk_filter_frametype_t      l4fmt;
+typedef struct {
+	rtk_filter_field_raw_t dataFieldRaw[RTK_FILTER_RAW_FIELD_NUMBER];
+	rtk_filter_field_raw_t careFieldRaw[RTK_FILTER_RAW_FIELD_NUMBER];
+	rtk_filter_field_type_raw_t fieldRawType[RTK_FILTER_RAW_FIELD_NUMBER];
+	rtk_filter_care_tag_t careTag;
+	rtk_filter_activeport_t activeport;
+	rtk_filter_frametype_t l3fmt;
+	rtk_filter_frametype_t l4fmt;
 
-    rtk_filter_invert_t         invert;
-    rtk_enable_t                valid;
+	rtk_filter_invert_t invert;
+	rtk_enable_t valid;
 } rtk_filter_cfg_raw_t;
 
-typedef struct
-{
-    rtk_uint32 index;
-    rtk_filter_field_type_raw_t fieldType[RTK_FILTER_RAW_FIELD_NUMBER];
+typedef struct {
+	rtk_uint32 index;
+	rtk_filter_field_type_raw_t fieldType[RTK_FILTER_RAW_FIELD_NUMBER];
 } rtk_filter_template_t;
-
 
 /* Function Name:
  *      rtk_filter_igrAcl_init
@@ -758,7 +686,7 @@ extern rtk_api_ret_t rtk_filter_igrAcl_unmatchAction_set(rtk_port_t port, rtk_fi
  * Note:
  *      This function gets action of packets when no ACL configruation matches.
  */
-extern rtk_api_ret_t rtk_filter_igrAcl_unmatchAction_get(rtk_port_t port, rtk_filter_unmatch_action_t* action);
+extern rtk_api_ret_t rtk_filter_igrAcl_unmatchAction_get(rtk_port_t port, rtk_filter_unmatch_action_t *action);
 
 /* Function Name:
  *      rtk_filter_igrAcl_state_set
@@ -797,7 +725,7 @@ extern rtk_api_ret_t rtk_filter_igrAcl_state_set(rtk_port_t port, rtk_filter_sta
  * Note:
  *      This function gets action of packets when no ACL configruation matches.
  */
-extern rtk_api_ret_t rtk_filter_igrAcl_state_get(rtk_port_t port, rtk_filter_state_t* state);
+extern rtk_api_ret_t rtk_filter_igrAcl_state_get(rtk_port_t port, rtk_filter_state_t *state);
 
 /* Function Name:
  *      rtk_filter_igrAcl_template_set
@@ -1031,7 +959,7 @@ extern rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_set(rtk_uint32 polarity);
  * Note:
  *      none
  */
-extern rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_get(rtk_uint32* pPolarity);
+extern rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_get(rtk_uint32 *pPolarity);
 
 /* Function Name:
  *      rtk_filter_igrAcl_gpioEn_set
@@ -1041,7 +969,7 @@ extern rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_get(rtk_uint32* pPolarity);
  *      gpioPinNum       - gpio pin number (0~3)
  *      enabled            - acl gpio pin enable or not
  * Output:
- *      none       - 
+ *      none       -
  * Return:
  *      RT_ERR_OK              - OK
  *      RT_ERR_FAILED          - Failed

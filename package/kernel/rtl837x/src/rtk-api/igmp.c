@@ -41,16 +41,16 @@
  */
 rtk_api_ret_t rtk_igmp_init(void)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_init)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_init)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_init();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_init();
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -71,16 +71,16 @@ rtk_api_ret_t rtk_igmp_init(void)
  */
 rtk_api_ret_t rtk_igmp_state_set(rtk_enable_t enabled)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_state_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_state_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_state_set(enabled);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_state_set(enabled);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -101,16 +101,16 @@ rtk_api_ret_t rtk_igmp_state_set(rtk_enable_t enabled)
  */
 rtk_api_ret_t rtk_igmp_state_get(rtk_enable_t *pEnabled)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_state_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_state_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_state_get(pEnabled);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_state_get(pEnabled);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -131,16 +131,16 @@ rtk_api_ret_t rtk_igmp_state_get(rtk_enable_t *pEnabled)
  */
 rtk_api_ret_t rtk_igmp_static_router_port_set(rtk_portmask_t *pPortmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_static_router_port_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_static_router_port_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_static_router_port_set(pPortmask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_static_router_port_set(pPortmask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -161,16 +161,16 @@ rtk_api_ret_t rtk_igmp_static_router_port_set(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t rtk_igmp_static_router_port_get(rtk_portmask_t *pPortmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_static_router_port_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_static_router_port_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_static_router_port_get(pPortmask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_static_router_port_get(pPortmask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -193,16 +193,16 @@ rtk_api_ret_t rtk_igmp_static_router_port_get(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t rtk_igmp_protocol_set(rtk_port_t port, rtk_igmp_protocol_t protocol, rtk_igmp_action_t action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_protocol_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_protocol_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_protocol_set(port, protocol, action);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_protocol_set(port, protocol, action);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -225,16 +225,16 @@ rtk_api_ret_t rtk_igmp_protocol_set(rtk_port_t port, rtk_igmp_protocol_t protoco
  */
 rtk_api_ret_t rtk_igmp_protocol_get(rtk_port_t port, rtk_igmp_protocol_t protocol, rtk_igmp_action_t *pAction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_protocol_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_protocol_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_protocol_get(port, protocol, pAction);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_protocol_get(port, protocol, pAction);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -255,16 +255,16 @@ rtk_api_ret_t rtk_igmp_protocol_get(rtk_port_t port, rtk_igmp_protocol_t protoco
  */
 rtk_api_ret_t rtk_igmp_fastLeave_set(rtk_enable_t state)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_fastLeave_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_fastLeave_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_fastLeave_set(state);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_fastLeave_set(state);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -285,16 +285,16 @@ rtk_api_ret_t rtk_igmp_fastLeave_set(rtk_enable_t state)
  */
 rtk_api_ret_t rtk_igmp_fastLeave_get(rtk_enable_t *pState)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_fastLeave_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_fastLeave_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_fastLeave_get(pState);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_fastLeave_get(pState);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -317,16 +317,16 @@ rtk_api_ret_t rtk_igmp_fastLeave_get(rtk_enable_t *pState)
  */
 rtk_api_ret_t rtk_igmp_maxGroup_set(rtk_port_t port, rtk_uint32 group)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_maxGroup_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_maxGroup_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_maxGroup_set(port, group);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_maxGroup_set(port, group);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -348,16 +348,16 @@ rtk_api_ret_t rtk_igmp_maxGroup_set(rtk_port_t port, rtk_uint32 group)
  */
 rtk_api_ret_t rtk_igmp_maxGroup_get(rtk_port_t port, rtk_uint32 *pGroup)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_maxGroup_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_maxGroup_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_maxGroup_get(port, pGroup);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_maxGroup_get(port, pGroup);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -379,16 +379,16 @@ rtk_api_ret_t rtk_igmp_maxGroup_get(rtk_port_t port, rtk_uint32 *pGroup)
  */
 rtk_api_ret_t rtk_igmp_currentGroup_get(rtk_port_t port, rtk_uint32 *pGroup)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_currentGroup_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_currentGroup_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_currentGroup_get(port, pGroup);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_currentGroup_get(port, pGroup);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -408,16 +408,16 @@ rtk_api_ret_t rtk_igmp_currentGroup_get(rtk_port_t port, rtk_uint32 *pGroup)
  */
 rtk_api_ret_t rtk_igmp_tableFullAction_set(rtk_igmp_tableFullAction_t action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_tableFullAction_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_tableFullAction_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_tableFullAction_set(action);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_tableFullAction_set(action);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -437,16 +437,16 @@ rtk_api_ret_t rtk_igmp_tableFullAction_set(rtk_igmp_tableFullAction_t action)
  */
 rtk_api_ret_t rtk_igmp_tableFullAction_get(rtk_igmp_tableFullAction_t *pAction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_tableFullAction_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_tableFullAction_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_tableFullAction_get(pAction);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_tableFullAction_get(pAction);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -466,18 +466,17 @@ rtk_api_ret_t rtk_igmp_tableFullAction_get(rtk_igmp_tableFullAction_t *pAction)
  */
 rtk_api_ret_t rtk_igmp_checksumErrorAction_set(rtk_igmp_checksumErrorAction_t action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_checksumErrorAction_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_checksumErrorAction_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_checksumErrorAction_set(action);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_checksumErrorAction_set(action);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_igmp_checksumErrorAction_get
@@ -496,16 +495,16 @@ rtk_api_ret_t rtk_igmp_checksumErrorAction_set(rtk_igmp_checksumErrorAction_t ac
  */
 rtk_api_ret_t rtk_igmp_checksumErrorAction_get(rtk_igmp_checksumErrorAction_t *pAction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_checksumErrorAction_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_checksumErrorAction_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_checksumErrorAction_get(pAction);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_checksumErrorAction_get(pAction);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -525,16 +524,16 @@ rtk_api_ret_t rtk_igmp_checksumErrorAction_get(rtk_igmp_checksumErrorAction_t *p
  */
 rtk_api_ret_t rtk_igmp_leaveTimer_set(rtk_uint32 timer)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_leaveTimer_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_leaveTimer_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_leaveTimer_set(timer);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_leaveTimer_set(timer);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -554,16 +553,16 @@ rtk_api_ret_t rtk_igmp_leaveTimer_set(rtk_uint32 timer)
  */
 rtk_api_ret_t rtk_igmp_leaveTimer_get(rtk_uint32 *pTimer)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_leaveTimer_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_leaveTimer_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_leaveTimer_get(pTimer);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_leaveTimer_get(pTimer);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -583,16 +582,16 @@ rtk_api_ret_t rtk_igmp_leaveTimer_get(rtk_uint32 *pTimer)
  */
 rtk_api_ret_t rtk_igmp_queryInterval_set(rtk_uint32 interval)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_queryInterval_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_queryInterval_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_queryInterval_set(interval);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_queryInterval_set(interval);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -612,16 +611,16 @@ rtk_api_ret_t rtk_igmp_queryInterval_set(rtk_uint32 interval)
  */
 rtk_api_ret_t rtk_igmp_queryInterval_get(rtk_uint32 *pInterval)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_queryInterval_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_queryInterval_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_queryInterval_get(pInterval);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_queryInterval_get(pInterval);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -641,16 +640,16 @@ rtk_api_ret_t rtk_igmp_queryInterval_get(rtk_uint32 *pInterval)
  */
 rtk_api_ret_t rtk_igmp_robustness_set(rtk_uint32 robustness)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_robustness_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_robustness_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_robustness_set(robustness);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_robustness_set(robustness);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -670,16 +669,16 @@ rtk_api_ret_t rtk_igmp_robustness_set(rtk_uint32 robustness)
  */
 rtk_api_ret_t rtk_igmp_robustness_get(rtk_uint32 *pRobustness)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_robustness_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_robustness_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_robustness_get(pRobustness);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_robustness_get(pRobustness);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -700,16 +699,16 @@ rtk_api_ret_t rtk_igmp_robustness_get(rtk_uint32 *pRobustness)
  */
 rtk_api_ret_t rtk_igmp_dynamicRouterPortAllow_set(rtk_portmask_t *pPortmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_dynamicRouterPortAllow_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_dynamicRouterPortAllow_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_dynamicRouterPortAllow_set(pPortmask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_dynamicRouterPortAllow_set(pPortmask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -731,16 +730,16 @@ rtk_api_ret_t rtk_igmp_dynamicRouterPortAllow_set(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t rtk_igmp_dynamicRouterPortAllow_get(rtk_portmask_t *pPortmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_dynamicRouterPortAllow_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_dynamicRouterPortAllow_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_dynamicRouterPortAllow_get(pPortmask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_dynamicRouterPortAllow_get(pPortmask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -762,16 +761,16 @@ rtk_api_ret_t rtk_igmp_dynamicRouterPortAllow_get(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t rtk_igmp_dynamicRouterPort_get(rtk_igmp_dynamicRouterPort_t *pDynamicRouterPort)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_dynamicRouterPort_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_dynamicRouterPort_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_dynamicRouterPort_get(pDynamicRouterPort);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_dynamicRouterPort_get(pDynamicRouterPort);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -793,16 +792,16 @@ rtk_api_ret_t rtk_igmp_dynamicRouterPort_get(rtk_igmp_dynamicRouterPort_t *pDyna
  */
 rtk_api_ret_t rtk_igmp_suppressionEnable_set(rtk_enable_t reportSuppression, rtk_enable_t leaveSuppression)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_suppressionEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_suppressionEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_suppressionEnable_set(reportSuppression, leaveSuppression);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_suppressionEnable_set(reportSuppression, leaveSuppression);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -824,16 +823,16 @@ rtk_api_ret_t rtk_igmp_suppressionEnable_set(rtk_enable_t reportSuppression, rtk
  */
 rtk_api_ret_t rtk_igmp_suppressionEnable_get(rtk_enable_t *pReportSuppression, rtk_enable_t *pLeaveSuppression)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_suppressionEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_suppressionEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_suppressionEnable_get(pReportSuppression, pLeaveSuppression);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_suppressionEnable_get(pReportSuppression, pLeaveSuppression);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -856,16 +855,16 @@ rtk_api_ret_t rtk_igmp_suppressionEnable_get(rtk_enable_t *pReportSuppression, r
  */
 rtk_api_ret_t rtk_igmp_portRxPktEnable_set(rtk_port_t port, rtk_igmp_rxPktEnable_t *pRxCfg)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_portRxPktEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_portRxPktEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_portRxPktEnable_set(port, pRxCfg);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_portRxPktEnable_set(port, pRxCfg);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -888,16 +887,16 @@ rtk_api_ret_t rtk_igmp_portRxPktEnable_set(rtk_port_t port, rtk_igmp_rxPktEnable
  */
 rtk_api_ret_t rtk_igmp_portRxPktEnable_get(rtk_port_t port, rtk_igmp_rxPktEnable_t *pRxCfg)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_portRxPktEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_portRxPktEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_portRxPktEnable_get(port, pRxCfg);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_portRxPktEnable_get(port, pRxCfg);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -919,16 +918,16 @@ rtk_api_ret_t rtk_igmp_portRxPktEnable_get(rtk_port_t port, rtk_igmp_rxPktEnable
  */
 rtk_api_ret_t rtk_igmp_groupInfo_get(rtk_uint32 index, rtk_igmp_groupInfo_t *pGroup)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_groupInfo_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_groupInfo_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_groupInfo_get(index, pGroup);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_groupInfo_get(index, pGroup);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -949,16 +948,16 @@ rtk_api_ret_t rtk_igmp_groupInfo_get(rtk_uint32 index, rtk_igmp_groupInfo_t *pGr
  */
 rtk_api_ret_t rtk_igmp_ReportLeaveFwdAction_set(rtk_igmp_ReportLeaveFwdAct_t action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_ReportLeaveFwdAction_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_ReportLeaveFwdAction_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_ReportLeaveFwdAction_set(action);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_ReportLeaveFwdAction_set(action);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -980,16 +979,16 @@ rtk_api_ret_t rtk_igmp_ReportLeaveFwdAction_set(rtk_igmp_ReportLeaveFwdAct_t act
  */
 rtk_api_ret_t rtk_igmp_ReportLeaveFwdAction_get(rtk_igmp_ReportLeaveFwdAct_t *pAction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_ReportLeaveFwdAction_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_ReportLeaveFwdAction_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_ReportLeaveFwdAction_get(pAction);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_ReportLeaveFwdAction_get(pAction);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -1010,16 +1009,16 @@ rtk_api_ret_t rtk_igmp_ReportLeaveFwdAction_get(rtk_igmp_ReportLeaveFwdAct_t *pA
  */
 rtk_api_ret_t rtk_igmp_dropLeaveZeroEnable_set(rtk_enable_t enabled)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_dropLeaveZeroEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_dropLeaveZeroEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_dropLeaveZeroEnable_set(enabled);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_dropLeaveZeroEnable_set(enabled);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -1041,16 +1040,16 @@ rtk_api_ret_t rtk_igmp_dropLeaveZeroEnable_set(rtk_enable_t enabled)
  */
 rtk_api_ret_t rtk_igmp_dropLeaveZeroEnable_get(rtk_enable_t *pEnabled)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_dropLeaveZeroEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_dropLeaveZeroEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_dropLeaveZeroEnable_get(pEnabled);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_dropLeaveZeroEnable_get(pEnabled);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -1072,16 +1071,16 @@ rtk_api_ret_t rtk_igmp_dropLeaveZeroEnable_get(rtk_enable_t *pEnabled)
  */
 rtk_api_ret_t rtk_igmp_bypassGroupRange_set(rtk_igmp_bypassGroup_t group, rtk_enable_t enabled)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_bypassGroupRange_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_bypassGroupRange_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_bypassGroupRange_set(group, enabled);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_bypassGroupRange_set(group, enabled);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -1103,15 +1102,14 @@ rtk_api_ret_t rtk_igmp_bypassGroupRange_set(rtk_igmp_bypassGroup_t group, rtk_en
  */
 rtk_api_ret_t rtk_igmp_bypassGroupRange_get(rtk_igmp_bypassGroup_t group, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->igmp_bypassGroupRange_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->igmp_bypassGroupRange_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->igmp_bypassGroupRange_get(group, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->igmp_bypassGroupRange_get(group, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-

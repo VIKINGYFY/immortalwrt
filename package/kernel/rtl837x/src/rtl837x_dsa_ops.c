@@ -7,6 +7,7 @@
 #include <linux/etherdevice.h>
 #include <linux/if_bridge.h>
 #include <linux/if_ether.h>
+#include <linux/if_vlan.h>
 #include <linux/kernel.h>
 #include <linux/phylink.h>
 #include <linux/phy.h>
@@ -17,6 +18,7 @@
 
 #include "./rtl837x_common.h"
 #include "./rtk-api/l2.h"
+#include "./rtk-api/dal/rtl8373/dal_rtl8373_port.h"
 #include "./rtk-api/dal/rtl8373/dal_rtl8373_stp.h"
 
 static int rtl837x_to_errno(int ret)
@@ -32,8 +34,7 @@ static unsigned int rtl837x_phy_driver_users;
 
 static bool rtl837x_valid_port(struct rtk_gsw *gsw, int port)
 {
-	return port >= 0 && port < RTK_MAX_NUM_OF_PORT &&
-	       (gsw->valid_port_mask & BIT(port));
+	return port >= 0 && port < RTK_MAX_NUM_OF_PORT && (gsw->configured_port_mask & BIT(port));
 }
 
 static bool rtl837x_user_port(struct rtk_gsw *gsw, int port)
@@ -43,13 +44,14 @@ static bool rtl837x_user_port(struct rtk_gsw *gsw, int port)
 
 static u32 rtl837x_user_ports(struct rtk_gsw *gsw)
 {
-	return gsw->valid_port_mask & ~BIT(gsw->cpu_port);
+	return gsw->configured_port_mask & ~BIT(gsw->cpu_port);
 }
 
-/* With tag_8021q, forwarding and isolation are governed entirely by VLAN
- * membership (standalone per-port VIDs isolate; shared bridge VIDs bridge).
- * Keep the hardware port-isolation matrix fully permissive so VLAN egress
- * filtering is the sole gate.
+/* tag_8021q assigns a distinct PVID to every standalone port and a shared PVID
+ * to ports in the same VLAN-unaware bridge. Keep port isolation permissive in
+ * the operational state so VLAN membership and egress filtering are the sole
+ * forwarding gate. Early probe quarantine remains CPU-only until tag VLAN
+ * setup has completed.
  */
 static int rtl837x_open_isolation(struct rtk_gsw *gsw)
 {
@@ -59,7 +61,7 @@ static int rtl837x_open_isolation(struct rtk_gsw *gsw)
 		if (!rtl837x_valid_port(gsw, port))
 			continue;
 
-		ret = rtk_port_isolation_set(port, gsw->valid_port_mask);
+		ret = rtk_port_isolation_set(port, gsw->configured_port_mask);
 		if (ret)
 			return rtl837x_to_errno(ret);
 	}
@@ -127,13 +129,13 @@ static u64 rtl837x_read_stat(int port, u32 counter)
 	return value;
 }
 
-static int rtl837x_write_vlan(struct rtk_gsw *gsw, u16 vid)
+static int rtl837x_write_vlan(u16 vid, u16 mbr, u16 untag)
 {
 	rtk_vlan_entry_t vlan = { 0 };
 	int ret;
 
-	vlan.mbr.bits[0] = gsw->vlan_table[vid].mbr;
-	vlan.untag.bits[0] = gsw->vlan_table[vid].untag;
+	vlan.mbr.bits[0] = mbr;
+	vlan.untag.bits[0] = untag;
 	vlan.fid_msti = 0;
 	vlan.svlan_chk_ivl_svl = 0;
 	vlan.ivl_svl = 1;
@@ -142,35 +144,49 @@ static int rtl837x_write_vlan(struct rtk_gsw *gsw, u16 vid)
 	return rtl837x_to_errno(ret);
 }
 
-static bool rtl837x_vlan_has_user(struct rtk_gsw *gsw, u16 vid)
+static bool rtl837x_vlan_has_user(struct rtk_gsw *gsw, u16 mbr)
 {
-	return gsw->vlan_table[vid].mbr & rtl837x_user_ports(gsw);
+	return mbr & rtl837x_user_ports(gsw);
+}
+
+static void rtl837x_rollback_vlan_pvid(struct rtk_gsw *gsw, int port, u16 vid, const struct rtl837x_vlan_entry *old_vlan, u16 *pvid_state, bool *pvid_valid, u16 old_pvid, bool old_pvid_valid)
+{
+	int ret;
+
+	*pvid_state = old_pvid;
+	*pvid_valid = old_pvid_valid;
+	ret = rtl837x_commit_pvid(gsw, port);
+	if (ret)
+		dev_err(gsw->dev, "failed to roll back port %d PVID state: %d\n", port, ret);
+
+	ret = rtl837x_write_vlan(vid, old_vlan->mbr, old_vlan->untag);
+	if (ret)
+		dev_err(gsw->dev, "failed to roll back VLAN %u state: %d\n", vid, ret);
 }
 
 static int rtl837x_seed_vlan_table(struct rtk_gsw *gsw)
 {
+	struct rtl837x_vlan_entry vlan1 = {
+		.mbr = gsw->configured_port_mask,
+		.untag = gsw->configured_port_mask,
+	};
 	int port, ret;
 
 	memset(gsw->vlan_table, 0, sizeof(gsw->vlan_table));
 
-	gsw->vlan_table[1].valid = 1;
-	gsw->vlan_table[1].vid = 1;
-	gsw->vlan_table[1].mbr = gsw->valid_port_mask;
-	gsw->vlan_table[1].untag = gsw->valid_port_mask;
-
-	ret = rtl837x_write_vlan(gsw, 1);
+	ret = rtl837x_write_vlan(1, vlan1.mbr, vlan1.untag);
 	if (ret)
 		return ret;
+	gsw->vlan_table[1] = vlan1;
 
 	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
 		if (!rtl837x_valid_port(gsw, port))
 			continue;
 
-		gsw->port_pvid[port] = 1;
-
 		ret = rtk_vlan_portPvid_set(port, 1);
 		if (ret)
 			return rtl837x_to_errno(ret);
+		gsw->port_pvid[port] = 1;
 
 		ret = rtk_vlan_portIgrFilterEnable_set(port, DISABLED);
 		if (ret)
@@ -184,46 +200,104 @@ static int rtl837x_seed_vlan_table(struct rtk_gsw *gsw)
 	return 0;
 }
 
-static enum dsa_tag_protocol
-rtl837x_get_tag_protocol(struct dsa_switch *ds, int port,
-			 enum dsa_tag_protocol mprot)
+static enum dsa_tag_protocol rtl837x_get_tag_protocol(struct dsa_switch *ds, int port, enum dsa_tag_protocol mprot)
 {
-	/* VSC73XX_8021Q is a switch-agnostic tag_8021q tagger, reused here so
-	 * CPU traffic uses a standard 802.1Q header the IPQ5332 EDMA checksum
-	 * parser can see past (the proprietary 0x8899 tag defeats it).
-	 */
+	/* A standard VLAN header remains parseable by host checksum engines. */
 	return DSA_TAG_PROTO_VSC73XX_8021Q;
 }
 
-static int rtl837x_tag_8021q_vlan_add(struct dsa_switch *ds, int port, u16 vid,
-				      u16 flags)
+static int __rtl837x_tag_8021q_vlan_add(struct dsa_switch *ds, int port, u16 vid, u16 flags)
 {
 	struct rtk_gsw *gsw = ds->priv;
+	struct rtl837x_vlan_entry old_vlan, new_vlan;
 	bool untagged = flags & BRIDGE_VLAN_INFO_UNTAGGED;
 	bool pvid = flags & BRIDGE_VLAN_INFO_PVID;
+	bool old_pvid_valid;
+	u16 old_pvid;
 	int ret;
 
 	if (!rtl837x_valid_port(gsw, port) || !vid || vid > RTK_VID_MAX)
 		return -EINVAL;
+	old_vlan = gsw->vlan_table[vid];
+	new_vlan = old_vlan;
+	old_pvid = gsw->tag8021q_pvid[port];
+	old_pvid_valid = gsw->tag8021q_pvid_valid[port];
 
-	gsw->vlan_table[vid].valid = 1;
-	gsw->vlan_table[vid].vid = vid;
-	gsw->vlan_table[vid].mbr |= BIT(port);
+	new_vlan.mbr |= BIT(port);
 
 	if (untagged)
-		gsw->vlan_table[vid].untag |= BIT(port);
+		new_vlan.untag |= BIT(port);
 	else
-		gsw->vlan_table[vid].untag &= ~BIT(port);
+		new_vlan.untag &= ~BIT(port);
 
-	ret = rtl837x_write_vlan(gsw, vid);
+	ret = rtl837x_write_vlan(vid, new_vlan.mbr, new_vlan.untag);
 	if (ret)
 		return ret;
 
 	if (pvid) {
 		gsw->tag8021q_pvid[port] = vid;
 		gsw->tag8021q_pvid_valid[port] = true;
-		return rtl837x_commit_pvid(gsw, port);
+		ret = rtl837x_commit_pvid(gsw, port);
+		if (ret) {
+			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan, &gsw->tag8021q_pvid[port], &gsw->tag8021q_pvid_valid[port], old_pvid, old_pvid_valid);
+			return ret;
+		}
+
+		dev_dbg(gsw->dev, "tag_8021q PVID add: port=%d vid=%u mbr=0x%03x untag=0x%03x\n", port, vid, new_vlan.mbr, new_vlan.untag);
 	}
+	gsw->vlan_table[vid] = new_vlan;
+
+	return 0;
+}
+
+static int rtl837x_tag_8021q_vlan_add(struct dsa_switch *ds, int port, u16 vid, u16 flags)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_tag_8021q_vlan_add(ds, port, vid, flags);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static int __rtl837x_tag_8021q_vlan_del(struct dsa_switch *ds, int port, u16 vid)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	struct rtl837x_vlan_entry old_vlan, new_vlan;
+	bool old_pvid_valid;
+	u16 old_pvid;
+	int ret;
+
+	if (!rtl837x_valid_port(gsw, port) || !vid || vid > RTK_VID_MAX)
+		return -EINVAL;
+	old_vlan = gsw->vlan_table[vid];
+	new_vlan = old_vlan;
+	old_pvid = gsw->tag8021q_pvid[port];
+	old_pvid_valid = gsw->tag8021q_pvid_valid[port];
+
+	if (!old_vlan.mbr)
+		return 0;
+
+	new_vlan.mbr &= ~BIT(port);
+	new_vlan.untag &= ~BIT(port);
+
+	ret = rtl837x_write_vlan(vid, new_vlan.mbr, new_vlan.untag);
+	if (ret)
+		return ret;
+
+	if (gsw->tag8021q_pvid_valid[port] && gsw->tag8021q_pvid[port] == vid) {
+		gsw->tag8021q_pvid_valid[port] = false;
+		ret = rtl837x_commit_pvid(gsw, port);
+		if (ret) {
+			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan, &gsw->tag8021q_pvid[port], &gsw->tag8021q_pvid_valid[port], old_pvid, old_pvid_valid);
+			return ret;
+		}
+
+		dev_info(gsw->dev, "tag_8021q PVID del: port=%d vid=%u replacement=%u\n", port, vid, gsw->port_pvid[port]);
+	}
+	gsw->vlan_table[vid] = new_vlan;
 
 	return 0;
 }
@@ -233,42 +307,22 @@ static int rtl837x_tag_8021q_vlan_del(struct dsa_switch *ds, int port, u16 vid)
 	struct rtk_gsw *gsw = ds->priv;
 	int ret;
 
-	if (!rtl837x_valid_port(gsw, port) || !vid || vid > RTK_VID_MAX)
-		return -EINVAL;
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_tag_8021q_vlan_del(ds, port, vid);
+	rtl837x_sdk_unlock(gsw);
 
-	if (!gsw->vlan_table[vid].valid)
-		return 0;
-
-	gsw->vlan_table[vid].mbr &= ~BIT(port);
-	gsw->vlan_table[vid].untag &= ~BIT(port);
-
-	if (!gsw->vlan_table[vid].mbr)
-		gsw->vlan_table[vid].valid = 0;
-
-	ret = rtl837x_write_vlan(gsw, vid);
-	if (ret)
-		return ret;
-
-	if (gsw->tag8021q_pvid_valid[port] && gsw->tag8021q_pvid[port] == vid) {
-		gsw->tag8021q_pvid_valid[port] = false;
-		return rtl837x_commit_pvid(gsw, port);
-	}
-
-	return 0;
+	return ret;
 }
 
-static int rtl837x_setup(struct dsa_switch *ds)
+static int rtl837x_setup_hardware(struct rtk_gsw *gsw)
 {
-	struct rtk_gsw *gsw = ds->priv;
 	int port, ret;
 
 	ret = rtk_cpu_externalCpuPort_set(gsw->cpu_port);
 	if (ret)
 		return rtl837x_to_errno(ret);
 
-	/* tag_8021q carries port identity in a standard 802.1Q tag, so the
-	 * proprietary 0x8899 CPU tag must stay off.
-	 */
+	/* Port identity is encoded in a standard 802.1Q tag, not 0x8899. */
 	ret = rtk_cpuTag_enable_set(EXTERNAL_CPU, DISABLED);
 	if (ret)
 		return rtl837x_to_errno(ret);
@@ -277,9 +331,17 @@ static int rtl837x_setup(struct dsa_switch *ds)
 	if (ret)
 		return rtl837x_to_errno(ret);
 
-	rtk_l2_table_clear();
-	rtk_l2_aging_set(300);
-	rtk_stat_global_reset();
+	ret = rtk_l2_table_clear();
+	if (ret)
+		return rtl837x_to_errno(ret);
+
+	ret = rtk_l2_aging_set(300);
+	if (ret)
+		return rtl837x_to_errno(ret);
+
+	ret = rtk_stat_global_reset();
+	if (ret)
+		return rtl837x_to_errno(ret);
 
 	ret = rtk_vlan_reset();
 	if (ret)
@@ -297,14 +359,10 @@ static int rtl837x_setup(struct dsa_switch *ds)
 	if (ret)
 		return ret;
 
-	memset(gsw->bridge_dev, 0, sizeof(gsw->bridge_dev));
-	memset(gsw->port_enabled, 0, sizeof(gsw->port_enabled));
 	memset(gsw->tag8021q_pvid, 0, sizeof(gsw->tag8021q_pvid));
 	memset(gsw->tag8021q_pvid_valid, 0, sizeof(gsw->tag8021q_pvid_valid));
 	memset(gsw->bridge_pvid, 0, sizeof(gsw->bridge_pvid));
 	memset(gsw->bridge_pvid_valid, 0, sizeof(gsw->bridge_pvid_valid));
-	gsw->port_enabled[gsw->cpu_port] = true;
-
 	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
 		if (!rtl837x_valid_port(gsw, port))
 			continue;
@@ -313,15 +371,71 @@ static int rtl837x_setup(struct dsa_switch *ds)
 		if (ret)
 			return rtl837x_to_errno(ret);
 
-		ret = rtl837x_set_stp_state(gsw, port,
-					    port == gsw->cpu_port ?
-					    BR_STATE_FORWARDING :
-					    BR_STATE_DISABLED);
+		ret = rtl837x_set_stp_state(gsw, port, port == gsw->cpu_port ? BR_STATE_FORWARDING : BR_STATE_DISABLED);
 		if (ret)
 			return ret;
 	}
 
-	ret = rtl837x_open_isolation(gsw);
+	return 0;
+}
+
+static void rtl837x_log_forwarding_state(struct rtk_gsw *gsw)
+{
+	rtk_cpuTag_insertMode_t insert_mode = CPU_INSERT_END;
+	rtk_enable_t cpu_tag = RTK_ENABLE_END;
+	rtk_enable_t egr_filter = RTK_ENABLE_END;
+	rtk_enable_t igr_filter[RTK_MAX_NUM_OF_PORT];
+	rtk_vlan_entry_t vlan1 = { 0 };
+	rtk_portmask_t aware = { 0 };
+	rtk_vlan_t pvid[RTK_MAX_NUM_OF_PORT];
+	u32 isolation[RTK_MAX_NUM_OF_PORT];
+	u32 ext_cpu = U32_MAX;
+	u32 tpid = U32_MAX;
+	int port;
+
+	memset(pvid, 0xff, sizeof(pvid));
+	memset(igr_filter, 0xff, sizeof(igr_filter));
+	memset(isolation, 0xff, sizeof(isolation));
+
+	rtl837x_sdk_lock(gsw);
+	rtk_cpu_externalCpuPort_get(&ext_cpu);
+	rtk_cpuTag_tpid_get(&tpid);
+	rtk_cpuTag_enable_get(EXTERNAL_CPU, &cpu_tag);
+	rtk_cpuTag_insertMode_get(EXTERNAL_CPU, &insert_mode);
+	rtk_cpuTag_awarePort_get(&aware);
+	rtk_vlan_egrFilterEnable_get(&egr_filter);
+	rtk_vlan_get(1, &vlan1);
+
+	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
+		if (!rtl837x_valid_port(gsw, port))
+			continue;
+
+		rtk_vlan_portPvid_get(port, &pvid[port]);
+		rtk_vlan_portIgrFilterEnable_get(port, &igr_filter[port]);
+		rtk_port_isolation_get(port, &isolation[port]);
+	}
+	rtl837x_sdk_unlock(gsw);
+
+	dev_info(gsw->dev, "tag_8021q ready: ext-cpu=%u private-tag=%u insert=%u tpid=0x%04x aware=0x%03x egr-filter=%u vlan1=0x%03x/0x%03x\n", ext_cpu, cpu_tag, insert_mode, tpid, aware.bits[0], egr_filter, vlan1.mbr.bits[0],
+		 vlan1.untag.bits[0]);
+
+	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
+		if (!rtl837x_valid_port(gsw, port))
+			continue;
+
+		dev_dbg(gsw->dev, "tag_8021q port state: port=%d role=%s pvid=%u tag-pvid=%u/%u bridge-pvid=%u/%u ingress-filter=%u isolation=0x%03x\n", port, port == gsw->cpu_port ? "cpu" : "user", pvid[port], gsw->tag8021q_pvid[port],
+			 gsw->tag8021q_pvid_valid[port], gsw->bridge_pvid[port], gsw->bridge_pvid_valid[port], igr_filter[port], isolation[port]);
+	}
+}
+
+static int rtl837x_setup(struct dsa_switch *ds)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = rtl837x_setup_hardware(gsw);
+	rtl837x_sdk_unlock(gsw);
 	if (ret)
 		return ret;
 
@@ -337,21 +451,38 @@ static int rtl837x_setup(struct dsa_switch *ds)
 		return ret;
 	}
 
+	rtl837x_sdk_lock(gsw);
+	ret = rtl837x_open_isolation(gsw);
+	rtl837x_sdk_unlock(gsw);
+	if (ret) {
+		rtnl_lock();
+		dsa_tag_8021q_unregister(ds);
+		rtnl_unlock();
+		rtl837x_mdio_teardown(ds);
+		return ret;
+	}
+	dev_info(gsw->dev, "DSA VLAN isolation initialized after tag setup: operational-permit=0x%03x\n", gsw->configured_port_mask);
+
+	rtl837x_log_forwarding_state(gsw);
+
 	return 0;
 }
 
 static void rtl837x_teardown(struct dsa_switch *ds)
 {
+	struct rtk_gsw *gsw = ds->priv;
+
 	rtnl_lock();
 	dsa_tag_8021q_unregister(ds);
 	rtnl_unlock();
 
 	rtl837x_mdio_teardown(ds);
+	rtl837x_sdk_lock(gsw);
 	rtk_cpuTag_enable_set(EXTERNAL_CPU, DISABLED);
+	rtl837x_sdk_unlock(gsw);
 }
 
-static int rtl837x_mdio_read_c45(struct mii_bus *bus, int port, int devad,
-				 int regnum)
+static int __rtl837x_mdio_read_c45(struct mii_bus *bus, int port, int devad, int regnum)
 {
 	struct rtk_gsw *gsw = bus->priv;
 	u32 value = 0;
@@ -368,8 +499,19 @@ static int rtl837x_mdio_read_c45(struct mii_bus *bus, int port, int devad,
 	return value & 0xffff;
 }
 
-static int rtl837x_mdio_write_c45(struct mii_bus *bus, int port, int devad,
-				  int regnum, u16 val)
+static int rtl837x_mdio_read_c45(struct mii_bus *bus, int port, int devad, int regnum)
+{
+	struct rtk_gsw *gsw = bus->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_mdio_read_c45(bus, port, devad, regnum);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static int __rtl837x_mdio_write_c45(struct mii_bus *bus, int port, int devad, int regnum, u16 val)
 {
 	struct rtk_gsw *gsw = bus->priv;
 	int ret;
@@ -379,6 +521,18 @@ static int rtl837x_mdio_write_c45(struct mii_bus *bus, int port, int devad,
 
 	ret = rtk_port_phyReg_set(BIT(port), devad, regnum, val);
 	return rtl837x_to_errno(ret);
+}
+
+static int rtl837x_mdio_write_c45(struct mii_bus *bus, int port, int devad, int regnum, u16 val)
+{
+	struct rtk_gsw *gsw = bus->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_mdio_write_c45(bus, port, devad, regnum, val);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
 }
 
 static int rtl837x_phy_speed_to_ethtool(u32 speed)
@@ -401,8 +555,7 @@ static int rtl837x_phy_speed_to_ethtool(u32 speed)
 	}
 }
 
-static int rtl837x_phy_match(struct phy_device *phydev,
-			     const struct phy_driver *phydrv)
+static int rtl837x_phy_match(struct phy_device *phydev, const struct phy_driver *phydrv)
 {
 	struct mii_bus *bus = phydev->mdio.bus;
 	struct rtk_gsw *gsw;
@@ -441,10 +594,13 @@ static int rtl837x_phy_get_features(struct phy_device *phydev)
 	return 0;
 }
 
-static int rtl837x_phy_read_status(struct phy_device *phydev)
+static int __rtl837x_phy_read_status(struct phy_device *phydev)
 {
 	rtk_port_status_t status = { 0 };
+	struct rtk_gsw *gsw = phydev->mdio.bus->priv;
 	int ret;
+
+	gsw->phy_status_count++;
 
 	ret = rtk_port_macStatus_get(phydev->mdio.addr, &status);
 	if (ret)
@@ -462,13 +618,22 @@ static int rtl837x_phy_read_status(struct phy_device *phydev)
 	phydev->speed = rtl837x_phy_speed_to_ethtool(status.speed);
 	phydev->duplex = status.duplex ? DUPLEX_FULL : DUPLEX_HALF;
 
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_Pause_BIT, phydev->lp_advertising,
-			 status.rxpause && status.txpause);
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_Asym_Pause_BIT,
-			 phydev->lp_advertising,
-			 status.rxpause != status.txpause);
+	linkmode_mod_bit(ETHTOOL_LINK_MODE_Pause_BIT, phydev->lp_advertising, status.rxpause && status.txpause);
+	linkmode_mod_bit(ETHTOOL_LINK_MODE_Asym_Pause_BIT, phydev->lp_advertising, status.rxpause != status.txpause);
 
 	return 0;
+}
+
+static int rtl837x_phy_read_status(struct phy_device *phydev)
+{
+	struct rtk_gsw *gsw = phydev->mdio.bus->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_phy_read_status(phydev);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
 }
 
 static struct phy_driver rtl837x_phy_driver = {
@@ -556,17 +721,14 @@ static void rtl837x_mdio_teardown(struct dsa_switch *ds)
 	rtl837x_phy_driver_put();
 }
 
-static void rtl837x_phylink_get_caps(struct dsa_switch *ds, int port,
-				     struct phylink_config *config)
+static void rtl837x_phylink_get_caps(struct dsa_switch *ds, int port, struct phylink_config *config)
 {
 	struct rtk_gsw *gsw = ds->priv;
 
 	if (!rtl837x_valid_port(gsw, port))
 		return;
 
-	config->mac_capabilities = MAC_ASYM_PAUSE | MAC_SYM_PAUSE |
-				   MAC_10 | MAC_100 | MAC_1000FD |
-				   MAC_2500FD | MAC_5000FD | MAC_10000FD;
+	config->mac_capabilities = MAC_ASYM_PAUSE | MAC_SYM_PAUSE | MAC_10 | MAC_100 | MAC_1000FD | MAC_2500FD | MAC_5000FD | MAC_10000FD;
 
 	__set_bit(PHY_INTERFACE_MODE_INTERNAL, config->supported_interfaces);
 	__set_bit(PHY_INTERFACE_MODE_GMII, config->supported_interfaces);
@@ -580,9 +742,7 @@ static void rtl837x_phylink_get_caps(struct dsa_switch *ds, int port,
 	__set_bit(PHY_INTERFACE_MODE_USXGMII, config->supported_interfaces);
 }
 
-
-static void rtl837x_get_strings(struct dsa_switch *ds, int port,
-				u32 stringset, uint8_t *data)
+static void rtl837x_get_strings(struct dsa_switch *ds, int port, u32 stringset, uint8_t *data)
 {
 	struct rtk_gsw *gsw = ds->priv;
 	int i;
@@ -591,12 +751,10 @@ static void rtl837x_get_strings(struct dsa_switch *ds, int port,
 		return;
 
 	for (i = 0; i < gsw->num_mib_counters; i++)
-		strscpy(data + i * ETH_GSTRING_LEN,
-			gsw->mib_counters[i].name, ETH_GSTRING_LEN);
+		strscpy(data + i * ETH_GSTRING_LEN, gsw->mib_counters[i].name, ETH_GSTRING_LEN);
 }
 
-static void rtl837x_get_ethtool_stats(struct dsa_switch *ds, int port,
-				      uint64_t *data)
+static void __rtl837x_get_ethtool_stats(struct dsa_switch *ds, int port, uint64_t *data)
 {
 	struct rtk_gsw *gsw = ds->priv;
 	int i;
@@ -606,6 +764,15 @@ static void rtl837x_get_ethtool_stats(struct dsa_switch *ds, int port,
 
 	for (i = 0; i < gsw->num_mib_counters; i++)
 		data[i] = rtl837x_read_stat(port, gsw->mib_counters[i].base);
+}
+
+static void rtl837x_get_ethtool_stats(struct dsa_switch *ds, int port, uint64_t *data)
+{
+	struct rtk_gsw *gsw = ds->priv;
+
+	rtl837x_sdk_lock(gsw);
+	__rtl837x_get_ethtool_stats(ds, port, data);
+	rtl837x_sdk_unlock(gsw);
 }
 
 static int rtl837x_get_sset_count(struct dsa_switch *ds, int port, int sset)
@@ -621,8 +788,7 @@ static int rtl837x_get_sset_count(struct dsa_switch *ds, int port, int sset)
 	return gsw->num_mib_counters;
 }
 
-static void rtl837x_get_pause_stats(struct dsa_switch *ds, int port,
-				    struct ethtool_pause_stats *pause_stats)
+static void __rtl837x_get_pause_stats(struct dsa_switch *ds, int port, struct ethtool_pause_stats *pause_stats)
 {
 	struct rtk_gsw *gsw = ds->priv;
 
@@ -633,47 +799,90 @@ static void rtl837x_get_pause_stats(struct dsa_switch *ds, int port,
 	pause_stats->tx_pause_frames = rtl837x_read_stat(port, dot3OutPauseFrames);
 }
 
-static int rtl837x_set_ageing_time(struct dsa_switch *ds, unsigned int msecs)
+static void rtl837x_get_pause_stats(struct dsa_switch *ds, int port, struct ethtool_pause_stats *pause_stats)
 {
-	unsigned int secs = DIV_ROUND_UP(msecs, 1000);
+	struct rtk_gsw *gsw = ds->priv;
 
-	secs = clamp_t(unsigned int, secs, 14, 800);
-	return rtl837x_to_errno(rtk_l2_aging_set(secs));
+	rtl837x_sdk_lock(gsw);
+	__rtl837x_get_pause_stats(ds, port, pause_stats);
+	rtl837x_sdk_unlock(gsw);
 }
 
-static int rtl837x_port_enable(struct dsa_switch *ds, int port,
-			       struct phy_device *phy)
+static int rtl837x_set_ageing_time(struct dsa_switch *ds, unsigned int msecs)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	unsigned int secs = DIV_ROUND_UP(msecs, 1000);
+	int ret;
+
+	secs = clamp_t(unsigned int, secs, 14, 800);
+	rtl837x_sdk_lock(gsw);
+	ret = rtl837x_to_errno(rtk_l2_aging_set(secs));
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static int __rtl837x_port_enable(struct dsa_switch *ds, int port, struct phy_device *phy)
 {
 	struct rtk_gsw *gsw = ds->priv;
 
 	if (!rtl837x_valid_port(gsw, port))
 		return -EINVAL;
 
-	gsw->port_enabled[port] = true;
+	gsw->port_enable_count++;
 
 	return rtl837x_set_stp_state(gsw, port, BR_STATE_FORWARDING);
 }
 
-static void rtl837x_port_disable(struct dsa_switch *ds, int port)
+static int rtl837x_port_enable(struct dsa_switch *ds, int port, struct phy_device *phy)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_port_enable(ds, port, phy);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static void __rtl837x_port_disable(struct dsa_switch *ds, int port)
 {
 	struct rtk_gsw *gsw = ds->priv;
 
 	if (!rtl837x_valid_port(gsw, port))
 		return;
 
-	gsw->port_enabled[port] = false;
+	gsw->port_disable_count++;
 	rtl837x_set_stp_state(gsw, port, BR_STATE_DISABLED);
 }
 
-static void rtl837x_port_stp_state_set(struct dsa_switch *ds, int port,
-				       u8 state)
+static void rtl837x_port_disable(struct dsa_switch *ds, int port)
+{
+	struct rtk_gsw *gsw = ds->priv;
+
+	rtl837x_sdk_lock(gsw);
+	__rtl837x_port_disable(ds, port);
+	rtl837x_sdk_unlock(gsw);
+}
+
+static void __rtl837x_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
 {
 	struct rtk_gsw *gsw = ds->priv;
 
 	rtl837x_set_stp_state(gsw, port, state);
 }
 
-static void rtl837x_port_fast_age(struct dsa_switch *ds, int port)
+static void rtl837x_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
+{
+	struct rtk_gsw *gsw = ds->priv;
+
+	rtl837x_sdk_lock(gsw);
+	__rtl837x_port_stp_state_set(ds, port, state);
+	rtl837x_sdk_unlock(gsw);
+}
+
+static void __rtl837x_port_fast_age(struct dsa_switch *ds, int port)
 {
 	struct rtk_gsw *gsw = ds->priv;
 	rtk_l2_flushCfg_t cfg = { 0 };
@@ -689,9 +898,92 @@ static void rtl837x_port_fast_age(struct dsa_switch *ds, int port)
 	rtk_l2_ucastAddr_flush(&cfg);
 }
 
-static int rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port,
-				       bool vlan_filtering,
-				       struct netlink_ext_ack *extack)
+static void rtl837x_port_fast_age(struct dsa_switch *ds, int port)
+{
+	struct rtk_gsw *gsw = ds->priv;
+
+	rtl837x_sdk_lock(gsw);
+	__rtl837x_port_fast_age(ds, port);
+	rtl837x_sdk_unlock(gsw);
+}
+
+static int __rtl837x_port_change_mtu(struct dsa_switch *ds, int port, int new_mtu)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int frame_size = new_mtu + VLAN_ETH_HLEN + ETH_FCS_LEN;
+	int ret;
+
+	if (!rtl837x_valid_port(gsw, port))
+		return -EINVAL;
+
+	if (frame_size > RTK_SWITCH_MAX_PKTLEN)
+		return -ERANGE;
+
+	ret = dal_rtl8373_portMaxLen_set(port, 0, frame_size);
+	if (ret)
+		return rtl837x_to_errno(ret);
+
+	ret = dal_rtl8373_portMaxLen_set(port, 1, frame_size);
+	if (ret)
+		return rtl837x_to_errno(ret);
+
+	ret = dal_rtl8373_portMaxLenIncTag_set(port, ENABLED);
+	if (ret)
+		return rtl837x_to_errno(ret);
+
+	if (port == gsw->cpu_port)
+		dev_info(gsw->dev, "DSA MTU configured: cpu-port=%d user-mtu=%d conduit-mtu=%d frame=%d tag-overhead=%d\n", port, new_mtu, gsw->ethernet_master ? gsw->ethernet_master->mtu : -1, frame_size, VLAN_HLEN);
+
+	return 0;
+}
+
+static int rtl837x_port_change_mtu(struct dsa_switch *ds, int port, int new_mtu)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_port_change_mtu(ds, port, new_mtu);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static int rtl837x_port_max_mtu(struct dsa_switch *ds, int port)
+{
+	return RTK_SWITCH_MAX_PKTLEN - VLAN_ETH_HLEN - ETH_FCS_LEN;
+}
+
+static int rtl837x_port_bridge_join(struct dsa_switch *ds, int port, struct dsa_bridge bridge, bool *tx_fwd_offload, struct netlink_ext_ack *extack)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	if (!rtl837x_user_port(gsw, port))
+		return -EINVAL;
+
+	ret = dsa_tag_8021q_bridge_join(ds, port, bridge, tx_fwd_offload, extack);
+	if (ret)
+		return ret;
+
+	dev_info(gsw->dev, "tag_8021q bridge join: port=%d bridge=%s tx-fwd-offload=%u pvid=%u\n", port, bridge.dev->name, *tx_fwd_offload, gsw->tag8021q_pvid[port]);
+
+	return 0;
+}
+
+static void rtl837x_port_bridge_leave(struct dsa_switch *ds, int port, struct dsa_bridge bridge)
+{
+	struct rtk_gsw *gsw = ds->priv;
+
+	if (!rtl837x_user_port(gsw, port))
+		return;
+
+	dsa_tag_8021q_bridge_leave(ds, port, bridge);
+
+	dev_info(gsw->dev, "tag_8021q bridge leave: port=%d bridge=%s pvid=%u\n", port, bridge.dev->name, gsw->tag8021q_pvid[port]);
+}
+
+static int __rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
 {
 	struct rtk_gsw *gsw = ds->priv;
 	int ret;
@@ -699,22 +991,34 @@ static int rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port,
 	if (!rtl837x_user_port(gsw, port))
 		return 0;
 
-	ret = rtk_vlan_portIgrFilterEnable_set(port,
-					       vlan_filtering ? ENABLED : DISABLED);
+	ret = rtk_vlan_portIgrFilterEnable_set(port, vlan_filtering ? ENABLED : DISABLED);
 	if (ret)
 		return rtl837x_to_errno(ret);
 
 	return rtl837x_commit_pvid(gsw, port);
 }
 
-static int rtl837x_port_vlan_add(struct dsa_switch *ds, int port,
-				 const struct switchdev_obj_port_vlan *vlan,
-				 struct netlink_ext_ack *extack)
+static int rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
 {
 	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_port_vlan_filtering(ds, port, vlan_filtering, extack);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static int __rtl837x_port_vlan_add(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan, struct netlink_ext_ack *extack)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	struct rtl837x_vlan_entry old_vlan, new_vlan;
 	bool untagged = vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED;
 	bool pvid = vlan->flags & BRIDGE_VLAN_INFO_PVID;
+	bool old_pvid_valid;
 	u16 vid = vlan->vid;
+	u16 old_pvid;
 	int ret;
 
 	if (!rtl837x_valid_port(gsw, port))
@@ -727,21 +1031,23 @@ static int rtl837x_port_vlan_add(struct dsa_switch *ds, int port,
 		NL_SET_ERR_MSG_MOD(extack, "VLAN ID out of range");
 		return -EINVAL;
 	}
+	old_vlan = gsw->vlan_table[vid];
+	new_vlan = old_vlan;
+	old_pvid = gsw->bridge_pvid[port];
+	old_pvid_valid = gsw->bridge_pvid_valid[port];
 
-	gsw->vlan_table[vid].valid = 1;
-	gsw->vlan_table[vid].vid = vid;
-	gsw->vlan_table[vid].mbr |= BIT(port);
-	gsw->vlan_table[vid].untag &= ~BIT(port);
+	new_vlan.mbr |= BIT(port);
+	new_vlan.untag &= ~BIT(port);
 
 	if (untagged)
-		gsw->vlan_table[vid].untag |= BIT(port);
+		new_vlan.untag |= BIT(port);
 
 	if (port != gsw->cpu_port) {
-		gsw->vlan_table[vid].mbr |= BIT(gsw->cpu_port);
-		gsw->vlan_table[vid].untag &= ~BIT(gsw->cpu_port);
+		new_vlan.mbr |= BIT(gsw->cpu_port);
+		new_vlan.untag &= ~BIT(gsw->cpu_port);
 	}
 
-	ret = rtl837x_write_vlan(gsw, vid);
+	ret = rtl837x_write_vlan(vid, new_vlan.mbr, new_vlan.untag);
 	if (ret) {
 		NL_SET_ERR_MSG_MOD(extack, "failed to program VLAN");
 		return ret;
@@ -750,52 +1056,108 @@ static int rtl837x_port_vlan_add(struct dsa_switch *ds, int port,
 	if (pvid && port != gsw->cpu_port) {
 		gsw->bridge_pvid[port] = vid;
 		gsw->bridge_pvid_valid[port] = true;
-		return rtl837x_commit_pvid(gsw, port);
+		ret = rtl837x_commit_pvid(gsw, port);
+		if (ret) {
+			NL_SET_ERR_MSG_MOD(extack, "failed to program VLAN PVID");
+			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan, &gsw->bridge_pvid[port], &gsw->bridge_pvid_valid[port], old_pvid, old_pvid_valid);
+			return ret;
+		}
 	}
+	gsw->vlan_table[vid] = new_vlan;
 
 	return 0;
 }
 
-static int rtl837x_port_vlan_del(struct dsa_switch *ds, int port,
-				 const struct switchdev_obj_port_vlan *vlan)
+static int rtl837x_port_vlan_add(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan, struct netlink_ext_ack *extack)
 {
 	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_port_vlan_add(ds, port, vlan, extack);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static int __rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	struct rtl837x_vlan_entry old_vlan, new_vlan;
+	bool old_pvid_valid;
 	u16 vid = vlan->vid;
+	u16 old_pvid;
 	int ret;
 
 	if (!rtl837x_valid_port(gsw, port))
 		return -EINVAL;
 
-	if (!vid || vid > RTK_VID_MAX || !gsw->vlan_table[vid].valid)
+	if (!vid || vid > RTK_VID_MAX)
 		return 0;
+	old_vlan = gsw->vlan_table[vid];
+	if (!old_vlan.mbr)
+		return 0;
+	new_vlan = old_vlan;
+	old_pvid = gsw->bridge_pvid[port];
+	old_pvid_valid = gsw->bridge_pvid_valid[port];
 
-	gsw->vlan_table[vid].mbr &= ~BIT(port);
-	gsw->vlan_table[vid].untag &= ~BIT(port);
+	new_vlan.mbr &= ~BIT(port);
+	new_vlan.untag &= ~BIT(port);
 
-	if (!rtl837x_vlan_has_user(gsw, vid)) {
-		gsw->vlan_table[vid].mbr &= ~BIT(gsw->cpu_port);
-		gsw->vlan_table[vid].untag &= ~BIT(gsw->cpu_port);
+	if (!rtl837x_vlan_has_user(gsw, new_vlan.mbr)) {
+		new_vlan.mbr &= ~BIT(gsw->cpu_port);
+		new_vlan.untag &= ~BIT(gsw->cpu_port);
 	}
 
-	if (!gsw->vlan_table[vid].mbr)
-		gsw->vlan_table[vid].valid = 0;
-
-	ret = rtl837x_write_vlan(gsw, vid);
+	ret = rtl837x_write_vlan(vid, new_vlan.mbr, new_vlan.untag);
 	if (ret)
 		return ret;
 
-	if (port != gsw->cpu_port && gsw->bridge_pvid_valid[port] &&
-	    gsw->bridge_pvid[port] == vid) {
+	if (port != gsw->cpu_port && gsw->bridge_pvid_valid[port] && gsw->bridge_pvid[port] == vid) {
 		gsw->bridge_pvid_valid[port] = false;
-		return rtl837x_commit_pvid(gsw, port);
+		ret = rtl837x_commit_pvid(gsw, port);
+		if (ret) {
+			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan, &gsw->bridge_pvid[port], &gsw->bridge_pvid_valid[port], old_pvid, old_pvid_valid);
+			return ret;
+		}
+	}
+	gsw->vlan_table[vid] = new_vlan;
+
+	return 0;
+}
+
+static int rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_port_vlan_del(ds, port, vlan);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static int rtl837x_fdb_isolation_vid(u16 *vid, struct dsa_db db)
+{
+	if (*vid)
+		return 0;
+
+	switch (db.type) {
+	case DSA_DB_PORT:
+		*vid = dsa_tag_8021q_standalone_vid(db.dp);
+		break;
+	case DSA_DB_BRIDGE:
+		*vid = dsa_tag_8021q_bridge_vid(db.bridge.num);
+		break;
+	default:
+		return -EOPNOTSUPP;
 	}
 
 	return 0;
 }
 
-static int rtl837x_port_fdb_add(struct dsa_switch *ds, int port,
-				const unsigned char *addr, u16 vid,
-				struct dsa_db db)
+static int __rtl837x_port_fdb_add(struct dsa_switch *ds, int port, const unsigned char *addr, u16 vid, struct dsa_db db)
 {
 	struct rtk_gsw *gsw = ds->priv;
 	rtk_l2_ucastAddr_t l2 = { 0 };
@@ -808,10 +1170,13 @@ static int rtl837x_port_fdb_add(struct dsa_switch *ds, int port,
 	/* Host-bound unknown unicast is already flooded to the CPU port. */
 	if (gsw->chip_id == CHIP_RTL8372N && port == gsw->cpu_port)
 		return 0;
+	ret = rtl837x_fdb_isolation_vid(&vid, db);
+	if (ret)
+		return ret;
 
 	memcpy(mac.octet, addr, ETH_ALEN);
 	memcpy(l2.mac.octet, addr, ETH_ALEN);
-	l2.ivl = vid ? 1 : 0;
+	l2.ivl = 1;
 	l2.vid_fid = vid;
 	l2.port = port;
 	l2.auth = 1;
@@ -821,9 +1186,19 @@ static int rtl837x_port_fdb_add(struct dsa_switch *ds, int port,
 	return rtl837x_to_errno(ret);
 }
 
-static int rtl837x_port_fdb_del(struct dsa_switch *ds, int port,
-				const unsigned char *addr, u16 vid,
-				struct dsa_db db)
+static int rtl837x_port_fdb_add(struct dsa_switch *ds, int port, const unsigned char *addr, u16 vid, struct dsa_db db)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_port_fdb_add(ds, port, addr, vid, db);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
+}
+
+static int __rtl837x_port_fdb_del(struct dsa_switch *ds, int port, const unsigned char *addr, u16 vid, struct dsa_db db)
 {
 	struct rtk_gsw *gsw = ds->priv;
 	rtk_l2_ucastAddr_t l2 = { 0 };
@@ -835,10 +1210,13 @@ static int rtl837x_port_fdb_del(struct dsa_switch *ds, int port,
 
 	if (gsw->chip_id == CHIP_RTL8372N && port == gsw->cpu_port)
 		return 0;
+	ret = rtl837x_fdb_isolation_vid(&vid, db);
+	if (ret)
+		return ret;
 
 	memcpy(mac.octet, addr, ETH_ALEN);
 	memcpy(l2.mac.octet, addr, ETH_ALEN);
-	l2.ivl = vid ? 1 : 0;
+	l2.ivl = 1;
 	l2.vid_fid = vid;
 	l2.port = port;
 	l2.is_static = 1;
@@ -848,6 +1226,18 @@ static int rtl837x_port_fdb_del(struct dsa_switch *ds, int port,
 		return 0;
 
 	return rtl837x_to_errno(ret);
+}
+
+static int rtl837x_port_fdb_del(struct dsa_switch *ds, int port, const unsigned char *addr, u16 vid, struct dsa_db db)
+{
+	struct rtk_gsw *gsw = ds->priv;
+	int ret;
+
+	rtl837x_sdk_lock(gsw);
+	ret = __rtl837x_port_fdb_del(ds, port, addr, vid, db);
+	rtl837x_sdk_unlock(gsw);
+
+	return ret;
 }
 
 static const struct dsa_switch_ops rtl837x_dsa_ops = {
@@ -862,10 +1252,12 @@ static const struct dsa_switch_ops rtl837x_dsa_ops = {
 	.set_ageing_time = rtl837x_set_ageing_time,
 	.port_enable = rtl837x_port_enable,
 	.port_disable = rtl837x_port_disable,
-	.port_bridge_join = dsa_tag_8021q_bridge_join,
-	.port_bridge_leave = dsa_tag_8021q_bridge_leave,
+	.port_bridge_join = rtl837x_port_bridge_join,
+	.port_bridge_leave = rtl837x_port_bridge_leave,
 	.port_stp_state_set = rtl837x_port_stp_state_set,
 	.port_fast_age = rtl837x_port_fast_age,
+	.port_change_mtu = rtl837x_port_change_mtu,
+	.port_max_mtu = rtl837x_port_max_mtu,
 	.port_vlan_filtering = rtl837x_port_vlan_filtering,
 	.port_vlan_add = rtl837x_port_vlan_add,
 	.port_vlan_del = rtl837x_port_vlan_del,

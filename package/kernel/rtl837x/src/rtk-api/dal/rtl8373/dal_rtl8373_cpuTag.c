@@ -40,16 +40,16 @@
  */
 rtk_api_ret_t dal_rtl8373_cpuTag_externalCpuPort_set(rtk_uint32 extCpuPort)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if((extCpuPort > RTK_MAX_NUM_OF_PORT-2) && (extCpuPort  != 0xF))
-        return RT_ERR_PORT_MASK;
+	if ((extCpuPort > RTK_MAX_NUM_OF_PORT - 2) && (extCpuPort != 0xF))
+		return RT_ERR_PORT_MASK;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_EXT_CPU_CTRL_ADDR , RTL8373_EXT_CPU_CTRL_PORT_MASK, extCpuPort);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_EXT_CPU_CTRL_ADDR, RTL8373_EXT_CPU_CTRL_PORT_MASK, extCpuPort);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -68,16 +68,16 @@ rtk_api_ret_t dal_rtl8373_cpuTag_externalCpuPort_set(rtk_uint32 extCpuPort)
  */
 rtk_api_ret_t dal_rtl8373_cpuTag_externalCpuPort_get(rtk_uint32 *pExtCpuPort)
 {
-    rtk_api_ret_t retVal= 0;
+	rtk_api_ret_t retVal = 0;
 
-    if(pExtCpuPort == NULL)
-        return RT_ERR_NULL_POINTER;
+	if (pExtCpuPort == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_EXT_CPU_CTRL_ADDR , RTL8373_EXT_CPU_CTRL_PORT_MASK, pExtCpuPort);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_EXT_CPU_CTRL_ADDR, RTL8373_EXT_CPU_CTRL_PORT_MASK, pExtCpuPort);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -96,18 +96,18 @@ rtk_api_ret_t dal_rtl8373_cpuTag_externalCpuPort_get(rtk_uint32 *pExtCpuPort)
  */
 rtk_api_ret_t dal_rtl8373_cpuTag_tpid_set(rtk_uint32 tpid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
-    if(tpid >= RTK_MAX_NUM_OF_PROTO_TYPE)
-        return RT_ERR_INPUT;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
+	if (tpid >= RTK_MAX_NUM_OF_PROTO_TYPE)
+		return RT_ERR_INPUT;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_TPID_CTRL_ADDR, RTL8373_CPU_TAG_TPID_CTRL_TPID_MASK, tpid);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_TPID_CTRL_ADDR, RTL8373_CPU_TAG_TPID_CTRL_TPID_MASK, tpid);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -126,26 +126,26 @@ rtk_api_ret_t dal_rtl8373_cpuTag_tpid_set(rtk_uint32 tpid)
  */
 rtk_api_ret_t dal_rtl8373_cpuTag_tpid_get(rtk_uint32 *pTpid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(pTpid == NULL)
-        return RT_ERR_NULL_POINTER;
-    
-    retVal = rtl8373_getAsicRegBits(RTL8373_CPU_TAG_TPID_CTRL_ADDR, RTL8373_CPU_TAG_TPID_CTRL_TPID_MASK, pTpid);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	if (pTpid == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    return RT_ERR_OK;
+	retVal = rtl8373_getAsicRegBits(RTL8373_CPU_TAG_TPID_CTRL_ADDR, RTL8373_CPU_TAG_TPID_CTRL_TPID_MASK, pTpid);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
  *      dal_rtl8373_cpuTag_enable_set
  * Description:
  *      Set CPU port function enable/disable.
- * Input: 
+ * Input:
  *      type - CPU type: internal cpu or external cpu
  *      status - CPU port function enable
  * Output:
@@ -159,54 +159,50 @@ rtk_api_ret_t dal_rtl8373_cpuTag_tpid_get(rtk_uint32 *pTpid)
  * Note:
  *      The API can set CPU port function enable/disable.
  */
-rtk_api_ret_t dal_rtl8373_cpuTag_enable_set(rtk_cpu_type_t type,  rtk_enable_t status)
+rtk_api_ret_t dal_rtl8373_cpuTag_enable_set(rtk_cpu_type_t type, rtk_enable_t status)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 extCpuPort = 0, awarePmsk = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 extCpuPort = 0, awarePmsk = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if ((type >= CPU_TYPE_END) || (status >= RTK_ENABLE_END))
-        return RT_ERR_INPUT;
+	if ((type >= CPU_TYPE_END) || (status >= RTK_ENABLE_END))
+		return RT_ERR_INPUT;
 
-    /*update cpu tag aware portmask*/
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_CPU_TAG_AWARE_CTRL_ADDR, RTL8373_CPU_TAG_AWARE_CTRL_PMSK_MASK, &awarePmsk)) != RT_ERR_OK)
-        return retVal;
+	/*update cpu tag aware portmask*/
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_CPU_TAG_AWARE_CTRL_ADDR, RTL8373_CPU_TAG_AWARE_CTRL_PMSK_MASK, &awarePmsk)) != RT_ERR_OK)
+		return retVal;
 
-    if(type)
-    {
-        if ((retVal = rtl8373_getAsicRegBits(RTL8373_EXT_CPU_CTRL_ADDR, RTL8373_EXT_CPU_CTRL_PORT_MASK, &extCpuPort)) != RT_ERR_OK)
-            return retVal;
-        
-        if(status == ENABLED)
-            awarePmsk |= (1 << extCpuPort);
-        else
-            awarePmsk &= (~(1 << extCpuPort));
+	if (type) {
+		if ((retVal = rtl8373_getAsicRegBits(RTL8373_EXT_CPU_CTRL_ADDR, RTL8373_EXT_CPU_CTRL_PORT_MASK, &extCpuPort)) != RT_ERR_OK)
+			return retVal;
 
-        /*cfg cpu tag enable status*/
-        if ((retVal = rtl8373_setAsicRegBit(RTL8373_CPU_TAG_CTRL_ADDR, RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_EN_OFFSET, (status == ENABLED ? 1:0))) != RT_ERR_OK)
-            return retVal;
-    }
-    else
-    {        
-        if(status == ENABLED)
-            awarePmsk |= INTERNAL_CPU_PMSK;
-        else 
-            awarePmsk &= (INTERNAL_CPU_PMSK-1);
-        
-        /*cfg cpu tag enable status*/
-        if ((retVal = rtl8373_setAsicRegBit(RTL8373_CPU_TAG_CTRL_ADDR, RTL8373_CPU_TAG_CTRL_INT_CPUTAG_EN_OFFSET, (status == ENABLED ? 1:0))) != RT_ERR_OK)
-            return retVal;
-    }
-    
-    /*write_back cpu tag aware portmask*/
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_AWARE_CTRL_ADDR, RTL8373_CPU_TAG_AWARE_CTRL_PMSK_MASK, awarePmsk)) != RT_ERR_OK)
-        return retVal;    
+		if (status == ENABLED)
+			awarePmsk |= (1 << extCpuPort);
+		else
+			awarePmsk &= (~(1 << extCpuPort));
 
-    return RT_ERR_OK;
+		/*cfg cpu tag enable status*/
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_CPU_TAG_CTRL_ADDR, RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_EN_OFFSET, (status == ENABLED ? 1 : 0))) != RT_ERR_OK)
+			return retVal;
+	} else {
+		if (status == ENABLED)
+			awarePmsk |= INTERNAL_CPU_PMSK;
+		else
+			awarePmsk &= (INTERNAL_CPU_PMSK - 1);
+
+		/*cfg cpu tag enable status*/
+		if ((retVal = rtl8373_setAsicRegBit(RTL8373_CPU_TAG_CTRL_ADDR, RTL8373_CPU_TAG_CTRL_INT_CPUTAG_EN_OFFSET, (status == ENABLED ? 1 : 0))) != RT_ERR_OK)
+			return retVal;
+	}
+
+	/*write_back cpu tag aware portmask*/
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_AWARE_CTRL_ADDR, RTL8373_CPU_TAG_AWARE_CTRL_PMSK_MASK, awarePmsk)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_cpuTag_enable_get
@@ -225,29 +221,29 @@ rtk_api_ret_t dal_rtl8373_cpuTag_enable_set(rtk_cpu_type_t type,  rtk_enable_t s
  * Note:
  *      The API can get CPU port function enable/disable.
  */
-rtk_api_ret_t dal_rtl8373_cpuTag_enable_get(rtk_cpu_type_t type,  rtk_enable_t *pStatus)
+rtk_api_ret_t dal_rtl8373_cpuTag_enable_get(rtk_cpu_type_t type, rtk_enable_t *pStatus)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regData = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regData = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pStatus)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pStatus)
+		return RT_ERR_NULL_POINTER;
 
-    if (type >= CPU_TYPE_END) 
-        return RT_ERR_INPUT;
+	if (type >= CPU_TYPE_END)
+		return RT_ERR_INPUT;
 
-    if ((retVal = rtl8373_getAsicReg(RTL8373_CPU_TAG_CTRL_ADDR, &regData)) != RT_ERR_OK)
-        return retVal;
-    
-    if(!type)
-        *pStatus = (rtk_enable_t)((regData & RTL8373_CPU_TAG_CTRL_INT_CPUTAG_EN_MASK) >> RTL8373_CPU_TAG_CTRL_INT_CPUTAG_EN_OFFSET);
-    else
-        *pStatus = (rtk_enable_t)((regData & RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_EN_MASK) >> RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_EN_OFFSET);
+	if ((retVal = rtl8373_getAsicReg(RTL8373_CPU_TAG_CTRL_ADDR, &regData)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	if (!type)
+		*pStatus = (rtk_enable_t)((regData & RTL8373_CPU_TAG_CTRL_INT_CPUTAG_EN_MASK) >> RTL8373_CPU_TAG_CTRL_INT_CPUTAG_EN_OFFSET);
+	else
+		*pStatus = (rtk_enable_t)((regData & RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_EN_MASK) >> RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_EN_OFFSET);
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -273,27 +269,24 @@ rtk_api_ret_t dal_rtl8373_cpuTag_enable_get(rtk_cpu_type_t type,  rtk_enable_t *
  *      - CPU_INSERT_TO_TRAPPING
  *      - CPU_INSERT_TO_NONE
  */
-rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_set(rtk_cpu_type_t type,  rtk_cpuTag_insertMode_t mode)
+rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_set(rtk_cpu_type_t type, rtk_cpuTag_insertMode_t mode)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
-    
-    if( (mode >= CPU_INSERT_END) || (type >= CPU_TYPE_END))
-        return RT_ERR_INPUT;
-    if(type)
-    {
-        if ((retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_CTRL_ADDR, RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_INSERTMOD_MASK, (rtk_uint32)(mode))) != RT_ERR_OK)
-            return retVal;
-    }
-    else
-    {
-        if ((retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_CTRL_ADDR, RTL8373_CPU_TAG_CTRL_INT_CPUTAG_INSERTMOD_MASK, (rtk_uint32)(mode))) != RT_ERR_OK)
-            return retVal;
-    }
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    return RT_ERR_OK;
+	if ((mode >= CPU_INSERT_END) || (type >= CPU_TYPE_END))
+		return RT_ERR_INPUT;
+	if (type) {
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_CTRL_ADDR, RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_INSERTMOD_MASK, (rtk_uint32)(mode))) != RT_ERR_OK)
+			return retVal;
+	} else {
+		if ((retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_CTRL_ADDR, RTL8373_CPU_TAG_CTRL_INT_CPUTAG_INSERTMOD_MASK, (rtk_uint32)(mode))) != RT_ERR_OK)
+			return retVal;
+	}
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -317,30 +310,29 @@ rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_set(rtk_cpu_type_t type,  rtk_cpuTag
  *      - CPU_INSERT_TO_TRAPPING
  *      - CPU_INSERT_TO_NONE
  */
-rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_get(rtk_cpu_type_t type,  rtk_cpuTag_insertMode_t *pMode)
+rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_get(rtk_cpu_type_t type, rtk_cpuTag_insertMode_t *pMode)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regData = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regData = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pMode)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pMode)
+		return RT_ERR_NULL_POINTER;
 
-    if(type >= CPU_TYPE_END)
-        return RT_ERR_INPUT;
+	if (type >= CPU_TYPE_END)
+		return RT_ERR_INPUT;
 
-    if ((retVal = rtl8373_getAsicReg(RTL8373_CPU_TAG_CTRL_ADDR, &regData)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicReg(RTL8373_CPU_TAG_CTRL_ADDR, &regData)) != RT_ERR_OK)
+		return retVal;
 
-    if(type)
-    {
-        *pMode = (rtk_cpuTag_insertMode_t)((regData & RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_INSERTMOD_MASK) >> RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_INSERTMOD_OFFSET);
-    } else {
-        *pMode = (rtk_cpuTag_insertMode_t)((regData & RTL8373_CPU_TAG_CTRL_INT_CPUTAG_INSERTMOD_MASK) >> RTL8373_CPU_TAG_CTRL_INT_CPUTAG_INSERTMOD_OFFSET);
-    }
-    return RT_ERR_OK;
+	if (type) {
+		*pMode = (rtk_cpuTag_insertMode_t)((regData & RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_INSERTMOD_MASK) >> RTL8373_CPU_TAG_CTRL_EXT_CPUTAG_INSERTMOD_OFFSET);
+	} else {
+		*pMode = (rtk_cpuTag_insertMode_t)((regData & RTL8373_CPU_TAG_CTRL_INT_CPUTAG_INSERTMOD_MASK) >> RTL8373_CPU_TAG_CTRL_INT_CPUTAG_INSERTMOD_OFFSET);
+	}
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -361,26 +353,26 @@ rtk_api_ret_t dal_rtl8373_cpuTag_insertMode_get(rtk_cpu_type_t type,  rtk_cpuTag
  */
 rtk_api_ret_t dal_rtl8373_cpuTag_awarePort_set(rtk_portmask_t *pPortmask)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 phyMbrPmask = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 phyMbrPmask = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Valid port mask */
-    if(NULL == pPortmask)
-        return RT_ERR_NULL_POINTER;
+	/* Check Valid port mask */
+	if (NULL == pPortmask)
+		return RT_ERR_NULL_POINTER;
 
-    /* Check port mask valid */
-    RTK_CHK_PORTMASK_VALID(pPortmask);
+	/* Check port mask valid */
+	RTK_CHK_PORTMASK_VALID(pPortmask);
 
-    if(rtk_switch_portmask_L2P_get(pPortmask, &phyMbrPmask) != RT_ERR_OK)
-        return RT_ERR_FAILED;
+	if (rtk_switch_portmask_L2P_get(pPortmask, &phyMbrPmask) != RT_ERR_OK)
+		return RT_ERR_FAILED;
 
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_AWARE_CTRL_ADDR, RTL8373_CPU_TAG_AWARE_CTRL_PMSK_MASK, phyMbrPmask)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_CPU_TAG_AWARE_CTRL_ADDR, RTL8373_CPU_TAG_AWARE_CTRL_PMSK_MASK, phyMbrPmask)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -400,22 +392,22 @@ rtk_api_ret_t dal_rtl8373_cpuTag_awarePort_set(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t dal_rtl8373_cpuTag_awarePort_get(rtk_portmask_t *pPortmask)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 pmsk = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 pmsk = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pPortmask)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pPortmask)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_CPU_TAG_AWARE_CTRL_ADDR, RTL8373_CPU_TAG_AWARE_CTRL_PMSK_MASK, &pmsk)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_CPU_TAG_AWARE_CTRL_ADDR, RTL8373_CPU_TAG_AWARE_CTRL_PMSK_MASK, &pmsk)) != RT_ERR_OK)
+		return retVal;
 
-    if(rtk_switch_portmask_P2L_get(pmsk, pPortmask) != RT_ERR_OK)
-        return RT_ERR_FAILED;
+	if (rtk_switch_portmask_P2L_get(pmsk, pPortmask) != RT_ERR_OK)
+		return RT_ERR_FAILED;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -440,28 +432,28 @@ rtk_api_ret_t dal_rtl8373_cpuTag_awarePort_get(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t dal_rtl8373_cpuTag_priRemap_set(rtk_cpu_type_t type, rtk_pri_t intPri, rtk_pri_t newPri)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regAddr = 0, bitsMask = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regAddr = 0, bitsMask = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if ((newPri > RTL8373_PRIMAX) || (intPri > RTL8373_PRIMAX))
-        return  RT_ERR_VLAN_PRIORITY;
-    if(type >= CPU_TYPE_END) 
-        return RT_ERR_INPUT;
-    
-    if(type == INTERNAL_CPU)
-        regAddr = RTL8373_INCPU_PRI_REMAP_ADDR;
-    else
-        regAddr = RTL8373_EXCPU_PRI_REMAP_ADDR;
+	if ((newPri > RTL8373_PRIMAX) || (intPri > RTL8373_PRIMAX))
+		return RT_ERR_VLAN_PRIORITY;
+	if (type >= CPU_TYPE_END)
+		return RT_ERR_INPUT;
 
-    bitsMask = RTL8373_INCPU_PRI_REMAP_INTPRI0_TO_VAL_MASK << (intPri  << 2);
+	if (type == INTERNAL_CPU)
+		regAddr = RTL8373_INCPU_PRI_REMAP_ADDR;
+	else
+		regAddr = RTL8373_EXCPU_PRI_REMAP_ADDR;
 
-    if ((retVal = rtl8373_setAsicRegBits(regAddr, bitsMask, newPri)) != RT_ERR_OK)
-        return retVal;
+	bitsMask = RTL8373_INCPU_PRI_REMAP_INTPRI0_TO_VAL_MASK << (intPri << 2);
 
-    return RT_ERR_OK;
+	if ((retVal = rtl8373_setAsicRegBits(regAddr, bitsMask, newPri)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -485,32 +477,30 @@ rtk_api_ret_t dal_rtl8373_cpuTag_priRemap_set(rtk_cpu_type_t type, rtk_pri_t int
  */
 rtk_api_ret_t dal_rtl8373_cpuTag_priRemap_get(rtk_cpu_type_t type, rtk_pri_t intPri, rtk_pri_t *pNewPri)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regAddr = 0, bitsMask = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regAddr = 0, bitsMask = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pNewPri)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pNewPri)
+		return RT_ERR_NULL_POINTER;
 
-    if(intPri > RTL8373_PRIMAX) 
-        return  RT_ERR_QOS_INT_PRIORITY;
+	if (intPri > RTL8373_PRIMAX)
+		return RT_ERR_QOS_INT_PRIORITY;
 
-    if(type >= CPU_TYPE_END) 
-        return RT_ERR_INPUT;
+	if (type >= CPU_TYPE_END)
+		return RT_ERR_INPUT;
 
-    if(type == INTERNAL_CPU)
-        regAddr = RTL8373_INCPU_PRI_REMAP_ADDR;
-    else
-        regAddr = RTL8373_EXCPU_PRI_REMAP_ADDR;
+	if (type == INTERNAL_CPU)
+		regAddr = RTL8373_INCPU_PRI_REMAP_ADDR;
+	else
+		regAddr = RTL8373_EXCPU_PRI_REMAP_ADDR;
 
-    bitsMask = RTL8373_INCPU_PRI_REMAP_INTPRI0_TO_VAL_MASK << (intPri << 2);
+	bitsMask = RTL8373_INCPU_PRI_REMAP_INTPRI0_TO_VAL_MASK << (intPri << 2);
 
-    if ((retVal = rtl8373_getAsicRegBits(regAddr, bitsMask, pNewPri)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBits(regAddr, bitsMask, pNewPri)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-

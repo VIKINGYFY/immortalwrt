@@ -1,7 +1,6 @@
 #ifndef __DAL_RTL8373_FC_H__
 #define __DAL_RTL8373_FC_H__
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCPubPage_set
  * Description:
@@ -18,8 +17,6 @@
  */
 extern ret_t dal_rtl8373_asicFCPubPage_set(rtk_uint32 number);
 
-
-
 /* Function Name:
  *      dal_rtl8373_asicFCPubPage_get
  * Description:
@@ -34,8 +31,7 @@ extern ret_t dal_rtl8373_asicFCPubPage_set(rtk_uint32 number);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPubPage_get(rtk_uint32* pNumber);
-
+extern ret_t dal_rtl8373_asicFCPubPage_get(rtk_uint32 *pNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCDropAll_set
@@ -53,8 +49,6 @@ extern ret_t dal_rtl8373_asicFCPubPage_get(rtk_uint32* pNumber);
  */
 extern ret_t dal_rtl8373_asicFCDropAll_set(rtk_uint32 number);
 
-
-
 /* Function Name:
  *      dal_rtl8373_asicFCDropAll_get
  * Description:
@@ -69,10 +63,7 @@ extern ret_t dal_rtl8373_asicFCDropAll_set(rtk_uint32 number);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCDropAll_get(rtk_uint32* pNumber);
-
-
-
+extern ret_t dal_rtl8373_asicFCDropAll_get(rtk_uint32 *pNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnHiThr_set
@@ -91,7 +82,6 @@ extern ret_t dal_rtl8373_asicFCDropAll_get(rtk_uint32* pNumber);
  */
 extern ret_t dal_rtl8373_asicFCOnHiThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCOnHiThr_get
  * Description:
@@ -107,8 +97,7 @@ extern ret_t dal_rtl8373_asicFCOnHiThr_set(rtk_uint32 onNumber, rtk_uint32 offNu
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCOnHiThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber);
-
+extern ret_t dal_rtl8373_asicFCOnHiThr_get(rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnLoThr_set
@@ -127,7 +116,6 @@ extern ret_t dal_rtl8373_asicFCOnHiThr_get(rtk_uint32* onNumber, rtk_uint32* off
  */
 extern ret_t dal_rtl8373_asicFCOnLoThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCOnLoThr_get
  * Description:
@@ -143,9 +131,7 @@ extern ret_t dal_rtl8373_asicFCOnLoThr_set(rtk_uint32 onNumber, rtk_uint32 offNu
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCOnLoThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber);
-
-
+extern ret_t dal_rtl8373_asicFCOnLoThr_get(rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffHiThr_set
@@ -164,7 +150,6 @@ extern ret_t dal_rtl8373_asicFCOnLoThr_get(rtk_uint32* onNumber, rtk_uint32* off
  */
 extern ret_t dal_rtl8373_asicFCOffHiThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCOffHiThr_get
  * Description:
@@ -180,9 +165,7 @@ extern ret_t dal_rtl8373_asicFCOffHiThr_set(rtk_uint32 onNumber, rtk_uint32 offN
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCOffHiThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber);
-
-
+extern ret_t dal_rtl8373_asicFCOffHiThr_get(rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffLoThr_set
@@ -201,7 +184,6 @@ extern ret_t dal_rtl8373_asicFCOffHiThr_get(rtk_uint32* onNumber, rtk_uint32* of
  */
 extern ret_t dal_rtl8373_asicFCOffLoThr_set(rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCOffLoThr_get
  * Description:
@@ -217,10 +199,7 @@ extern ret_t dal_rtl8373_asicFCOffLoThr_set(rtk_uint32 onNumber, rtk_uint32 offN
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCOffLoThr_get(rtk_uint32* onNumber, rtk_uint32* offNumber);
-
-
-
+extern ret_t dal_rtl8373_asicFCOffLoThr_get(rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnPortHiThr_set
@@ -240,7 +219,6 @@ extern ret_t dal_rtl8373_asicFCOffLoThr_get(rtk_uint32* onNumber, rtk_uint32* of
  */
 extern ret_t dal_rtl8373_asicFCOnPortHiThr_set(rtk_uint32 index, rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCOnPortHiThr_get
  * Description:
@@ -257,8 +235,7 @@ extern ret_t dal_rtl8373_asicFCOnPortHiThr_set(rtk_uint32 index, rtk_uint32 onNu
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCOnPortHiThr_get(rtk_uint32 index, rtk_uint32* onNumber, rtk_uint32* offNumber);
-
+extern ret_t dal_rtl8373_asicFCOnPortHiThr_get(rtk_uint32 index, rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCOnPortLoThr_set
@@ -278,7 +255,6 @@ extern ret_t dal_rtl8373_asicFCOnPortHiThr_get(rtk_uint32 index, rtk_uint32* onN
  */
 extern ret_t dal_rtl8373_asicFCOnPortLoThr_set(rtk_uint32 index, rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCOnPortLoThr_get
  * Description:
@@ -295,9 +271,7 @@ extern ret_t dal_rtl8373_asicFCOnPortLoThr_set(rtk_uint32 index, rtk_uint32 onNu
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCOnPortLoThr_get(rtk_uint32 index, rtk_uint32* onNumber, rtk_uint32* offNumber);
-
-
+extern ret_t dal_rtl8373_asicFCOnPortLoThr_get(rtk_uint32 index, rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffPortHiThr_set
@@ -317,7 +291,6 @@ extern ret_t dal_rtl8373_asicFCOnPortLoThr_get(rtk_uint32 index, rtk_uint32* onN
  */
 extern ret_t dal_rtl8373_asicFCOffPortHiThr_set(rtk_uint32 index, rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCOffPortHiThr_get
  * Description:
@@ -334,9 +307,7 @@ extern ret_t dal_rtl8373_asicFCOffPortHiThr_set(rtk_uint32 index, rtk_uint32 onN
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCOffPortHiThr_get(rtk_uint32 index, rtk_uint32* onNumber, rtk_uint32* offNumber);
-
-
+extern ret_t dal_rtl8373_asicFCOffPortHiThr_get(rtk_uint32 index, rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCOffPortLoThr_set
@@ -356,7 +327,6 @@ extern ret_t dal_rtl8373_asicFCOffPortHiThr_get(rtk_uint32 index, rtk_uint32* on
  */
 extern ret_t dal_rtl8373_asicFCOffPortLoThr_set(rtk_uint32 index, rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCOffPortLoThr_get
  * Description:
@@ -373,9 +343,7 @@ extern ret_t dal_rtl8373_asicFCOffPortLoThr_set(rtk_uint32 index, rtk_uint32 onN
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCOffPortLoThr_get(rtk_uint32 index, rtk_uint32* onNumber, rtk_uint32* offNumber);
-
-
+extern ret_t dal_rtl8373_asicFCOffPortLoThr_get(rtk_uint32 index, rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortGua_set
@@ -394,9 +362,6 @@ extern ret_t dal_rtl8373_asicFCOffPortLoThr_get(rtk_uint32 index, rtk_uint32* on
  */
 extern ret_t dal_rtl8373_asicFCPortGua_set(rtk_uint32 index, rtk_uint32 number);
 
-
-
-
 /* Function Name:
  *      dal_rtl8373_asicFCPortGua_get
  * Description:
@@ -412,8 +377,7 @@ extern ret_t dal_rtl8373_asicFCPortGua_set(rtk_uint32 index, rtk_uint32 number);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPortGua_get(rtk_uint32 index, rtk_uint32* pNumber);
-
+extern ret_t dal_rtl8373_asicFCPortGua_get(rtk_uint32 index, rtk_uint32 *pNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortThrSel_set
@@ -432,7 +396,6 @@ extern ret_t dal_rtl8373_asicFCPortGua_get(rtk_uint32 index, rtk_uint32* pNumber
  */
 extern ret_t dal_rtl8373_asicFCPortThrSel_set(rtk_uint32 port, rtk_uint32 index);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCPortThrSel_get
  * Description:
@@ -448,9 +411,7 @@ extern ret_t dal_rtl8373_asicFCPortThrSel_set(rtk_uint32 port, rtk_uint32 index)
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPortThrSel_get(rtk_uint32 port, rtk_uint32* pIndex);
-
-
+extern ret_t dal_rtl8373_asicFCPortThrSel_get(rtk_uint32 port, rtk_uint32 *pIndex);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortThrSel_set
@@ -469,8 +430,6 @@ extern ret_t dal_rtl8373_asicFCPortThrSel_get(rtk_uint32 port, rtk_uint32* pInde
  */
 extern ret_t dal_rtl8373_asicFCHOLPrvnt_set(rtk_uint32 type, rtk_uint32 enable);
 
-
-
 /* Function Name:
  *      dal_rtl8373_asicFCPortThrSel_get
  * Description:
@@ -486,8 +445,7 @@ extern ret_t dal_rtl8373_asicFCHOLPrvnt_set(rtk_uint32 type, rtk_uint32 enable);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCHOLPrvnt_get(rtk_uint32 type, rtk_uint32* pEnable);
-
+extern ret_t dal_rtl8373_asicFCHOLPrvnt_get(rtk_uint32 type, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortHOLPrvntEn_set
@@ -506,7 +464,6 @@ extern ret_t dal_rtl8373_asicFCHOLPrvnt_get(rtk_uint32 type, rtk_uint32* pEnable
  */
 extern ret_t dal_rtl8373_asicFCPortHOLPrvntEn_set(rtk_uint32 port, rtk_uint32 enable);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCPortHOLPrvntEn_get
  * Description:
@@ -522,9 +479,7 @@ extern ret_t dal_rtl8373_asicFCPortHOLPrvntEn_set(rtk_uint32 port, rtk_uint32 en
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPortHOLPrvntEn_get(rtk_uint32 port, rtk_uint32* enable);
-
-
+extern ret_t dal_rtl8373_asicFCPortHOLPrvntEn_get(rtk_uint32 port, rtk_uint32 *enable);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortAct_set
@@ -558,9 +513,7 @@ extern ret_t dal_rtl8373_asicFCPortAct_set(rtk_uint32 portnum, rtk_uint32 act);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPortAct_get(rtk_uint32 portnum, rtk_uint32* pAct);
-
-
+extern ret_t dal_rtl8373_asicFCPortAct_get(rtk_uint32 portnum, rtk_uint32 *pAct);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortAllowPage_set
@@ -579,8 +532,6 @@ extern ret_t dal_rtl8373_asicFCPortAct_get(rtk_uint32 portnum, rtk_uint32* pAct)
  */
 extern ret_t dal_rtl8373_asicFCPortAllowPage_set(rtk_uint32 portnum, rtk_uint32 pagenum);
 
-
-
 /* Function Name:
  *      dal_rtl8373_asicFCPortAllowPage_get
  * Description:
@@ -596,8 +547,7 @@ extern ret_t dal_rtl8373_asicFCPortAllowPage_set(rtk_uint32 portnum, rtk_uint32 
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPortAllowPage_get(rtk_uint32 portnum, rtk_uint32* pPagenum);
-
+extern ret_t dal_rtl8373_asicFCPortAllowPage_get(rtk_uint32 portnum, rtk_uint32 *pPagenum);
 
 /* Function Name:
  *      dal_rtl8373_asicFCQEgrDropThr_set
@@ -618,8 +568,6 @@ extern ret_t dal_rtl8373_asicFCPortAllowPage_get(rtk_uint32 portnum, rtk_uint32*
  */
 extern ret_t dal_rtl8373_asicFCQEgrDropThr_set(rtk_uint32 index, rtk_uint32 queueid, rtk_uint32 onNumber, rtk_uint32 offNumber);
 
-
-
 /* Function Name:
  *      dal_rtl8373_asicFCQEgrDropThr_get
  * Description:
@@ -637,8 +585,7 @@ extern ret_t dal_rtl8373_asicFCQEgrDropThr_set(rtk_uint32 index, rtk_uint32 queu
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCQEgrDropThr_get(rtk_uint32 index, rtk_uint32 queueid, rtk_uint32* onNumber, rtk_uint32* offNumber);
-
+extern ret_t dal_rtl8373_asicFCQEgrDropThr_get(rtk_uint32 index, rtk_uint32 queueid, rtk_uint32 *onNumber, rtk_uint32 *offNumber);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortQEgrDropThrSel_set
@@ -657,7 +604,6 @@ extern ret_t dal_rtl8373_asicFCQEgrDropThr_get(rtk_uint32 index, rtk_uint32 queu
  */
 extern ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_set(rtk_uint32 port, rtk_uint32 index);
 
-
 /* Function Name:
  *      dal_rtl8373_asicFCPortQEgrDropThrSel_get
  * Description:
@@ -673,8 +619,7 @@ extern ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_set(rtk_uint32 port, rtk_uint3
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_get(rtk_uint32 port, rtk_uint32* pIndex);
-
+extern ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_get(rtk_uint32 port, rtk_uint32 *pIndex);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortQEgrDropEn_set
@@ -694,8 +639,6 @@ extern ret_t dal_rtl8373_asicFCPortQEgrDropThrSel_get(rtk_uint32 port, rtk_uint3
  */
 extern ret_t dal_rtl8373_asicFCPortQEgrDropEn_set(rtk_uint32 port, rtk_uint32 qid, rtk_uint32 enable);
 
-
-
 /* Function Name:
  *      dal_rtl8373_asicFCPortQEgrDropEn_get
  * Description:
@@ -712,9 +655,7 @@ extern ret_t dal_rtl8373_asicFCPortQEgrDropEn_set(rtk_uint32 port, rtk_uint32 qi
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPortQEgrDropEn_get(rtk_uint32 port, rtk_uint32 qid, rtk_uint32* enable);
-
-
+extern ret_t dal_rtl8373_asicFCPortQEgrDropEn_get(rtk_uint32 port, rtk_uint32 qid, rtk_uint32 *enable);
 
 /* Function Name:
  *      dal_rtl8373_asicFCPortQForceEgrDrop_set
@@ -750,9 +691,6 @@ extern ret_t dal_rtl8373_asicFCPortQForceEgrDrop_set(rtk_uint32 port, rtk_uint32
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicFCPortQForceEgrDrop_get(rtk_uint32 port, rtk_uint32 qid, rtk_uint32* enable);
-
-
-
+extern ret_t dal_rtl8373_asicFCPortQForceEgrDrop_get(rtk_uint32 port, rtk_uint32 qid, rtk_uint32 *enable);
 
 #endif

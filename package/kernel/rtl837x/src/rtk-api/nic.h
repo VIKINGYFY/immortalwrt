@@ -18,45 +18,25 @@
 * Note:
 *******************************************************************************/
 
-
 #ifndef __RTK_API_NIC_H__
 #define __RTK_API_NIC_H__
 
-#define RTK_NIC_RXSTOP_MAX                          (0x7FF)
-#define RTK_NIC_TXSTOP_MAX                          (0x7FF)
+#define RTK_NIC_RXSTOP_MAX (0x7FF)
+#define RTK_NIC_TXSTOP_MAX (0x7FF)
 
-#define RTK_ETHER_TYPE_MAX                          (0xFFFF)
-#define RTK_RXFST_WIDTH                                (0xFF)
+#define RTK_ETHER_TYPE_MAX (0xFFFF)
+#define RTK_RXFST_WIDTH (0xFF)
 
-typedef enum rtk_nic_RxMTU_e
-{
-    NIC_RX_MTU_1534 = 0,
-    NIC_RX_MTU_2048 ,
-    NIC_RX_MTU_4096 ,
-    NIC_RX_MTU_END
-} rtk_nic_RxMTU_t;
+typedef enum rtk_nic_RxMTU_e { NIC_RX_MTU_1534 = 0, NIC_RX_MTU_2048, NIC_RX_MTU_4096, NIC_RX_MTU_END } rtk_nic_RxMTU_t;
 
-typedef enum rtk_nic_rxpps_e
-{
-    NIC_RX_PPS_DROPALL = 0,
-    NIC_RX_PPS_RXMATCHED ,
-    NIC_RX_PPS_RXUNMATCHED ,
-    NIC_RX_PPS_RXALL,
-    NIC_RX_PPS_END
-} rtk_nic_rxpps_t;
+typedef enum rtk_nic_rxpps_e { NIC_RX_PPS_DROPALL = 0, NIC_RX_PPS_RXMATCHED, NIC_RX_PPS_RXUNMATCHED, NIC_RX_PPS_RXALL, NIC_RX_PPS_END } rtk_nic_rxpps_t;
 
-typedef enum rtk_nic_hashValType_e
-{
-    NIC_HASH_VAL_LOW_WORD = 0,
-    NIC_HASH_VAL_HIGH_WORD,
-    NIC_HASH_TYPE_END
-} rtk_nic_hashValType_t;
-
+typedef enum rtk_nic_hashValType_e { NIC_HASH_VAL_LOW_WORD = 0, NIC_HASH_VAL_HIGH_WORD, NIC_HASH_TYPE_END } rtk_nic_hashValType_t;
 
 extern rtk_api_ret_t rtk_nic_rst_set(void);
 extern rtk_api_ret_t rtk_nic_txstop_set(rtk_uint32 addr);
 extern rtk_api_ret_t rtk_nic_txstop_get(rtk_uint32 *pAddr);
-extern rtk_api_ret_t rtk_nic_rxstop_set( rtk_uint32 addr);
+extern rtk_api_ret_t rtk_nic_rxstop_set(rtk_uint32 addr);
 extern rtk_api_ret_t rtk_nic_rxstop_get(rtk_uint32 *pAddr);
 extern rtk_api_ret_t rtk_nic_swRxCurPktAddr_get(rtk_uint32 *pAddr);
 extern rtk_api_ret_t rtk_nic_rxReceivedPktLen_get(rtk_uint32 *pLength);
@@ -103,8 +83,7 @@ extern rtk_api_ret_t rtk_nic_loopbackEn_set(rtk_enable_t enabled);
 extern rtk_api_ret_t rtk_nic_loopbackEn_get(rtk_enable_t *pEnabled);
 extern rtk_api_ret_t rtk_nic_interruptEn_set(rtk_enable_t rxie, rtk_enable_t txee);
 extern rtk_api_ret_t rtk_nic_interruptEn_get(rtk_enable_t *pRxie, rtk_enable_t *pTxee);
-extern rtk_api_ret_t rtk_nic_interruptStatus_get(rtk_uint32 * pRxis, rtk_uint32 *pTxes);
+extern rtk_api_ret_t rtk_nic_interruptStatus_get(rtk_uint32 *pRxis, rtk_uint32 *pTxes);
 extern rtk_api_ret_t rtk_nic_interruptStatus_clear(rtk_uint32 rxis, rtk_uint32 txes);
-
 
 #endif

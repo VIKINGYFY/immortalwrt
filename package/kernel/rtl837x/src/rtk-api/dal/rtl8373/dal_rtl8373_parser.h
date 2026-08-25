@@ -1,7 +1,6 @@
 #ifndef __DAL_RTL8373_PARSER_H__
 #define __DAL_RTL8373_PARSER_H__
 
-
 /* Function Name:
  *      dal_rtl8373_ignrOUI_set
  * Description:
@@ -18,8 +17,6 @@
  *      None
  */
 extern ret_t dal_rtl8373_ignrOUI_set(rtk_uint32 enabled);
-
-
 
 /* Function Name:
  *      dal_rtl8373_ignrOUI_get
@@ -38,8 +35,6 @@ extern ret_t dal_rtl8373_ignrOUI_set(rtk_uint32 enabled);
  */
 extern ret_t dal_rtl8373_ignrOUI_get(rtk_uint32 *pEnabled);
 
-
-
 /* Function Name:
  *      dal_rtl8373_rxReason_get
  * Description:
@@ -56,8 +51,6 @@ extern ret_t dal_rtl8373_ignrOUI_get(rtk_uint32 *pEnabled);
  *      None
  */
 extern ret_t dal_rtl8373_rxReason_get(rtk_uint32 port, rtk_uint32 *pReason);
-
-
 
 /* Function Name:
  *      dal_rtl8373_fieldSelector_set
@@ -78,7 +71,6 @@ extern ret_t dal_rtl8373_rxReason_get(rtk_uint32 port, rtk_uint32 *pReason);
  */
 extern ret_t dal_rtl8373_fieldSelector_set(rtk_uint32 index, rtk_uint32 format, rtk_uint32 offset);
 
-
 /* Function Name:
  *      dal_rtl8373_fieldSelector_get
  * Description:
@@ -98,7 +90,4 @@ extern ret_t dal_rtl8373_fieldSelector_set(rtk_uint32 index, rtk_uint32 format, 
  */
 extern ret_t dal_rtl8373_fieldSelector_get(rtk_uint32 index, rtk_uint32 *pFormat, rtk_uint32 *pOffset);
 
-
-
 #endif
-

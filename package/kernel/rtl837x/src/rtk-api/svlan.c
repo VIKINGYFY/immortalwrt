@@ -25,7 +25,6 @@
 
 #include <dal/dal_mgmt.h>
 
-
 /* Function Name:
  *      rtk_svlan_init
  * Description:
@@ -44,15 +43,15 @@
  */
 rtk_api_ret_t rtk_svlan_init(void)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_init)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->svlan_init)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_init(); 
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_init();
+	RTK_API_UNLOCK();
+	return retVal;
 }
 
 /* Function Name:
@@ -75,16 +74,16 @@ rtk_api_ret_t rtk_svlan_init(void)
  */
 rtk_api_ret_t rtk_svlan_servicePort_add(rtk_port_t port)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_servicePort_add)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_servicePort_add(port); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_servicePort_add)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_servicePort_add(port);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_servicePort_get
@@ -104,16 +103,16 @@ rtk_api_ret_t rtk_svlan_servicePort_add(rtk_port_t port)
  */
 rtk_api_ret_t rtk_svlan_servicePort_get(rtk_portmask_t *pSvlanPortmask)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_servicePort_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_servicePort_get(pSvlanPortmask); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_servicePort_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_servicePort_get(pSvlanPortmask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_servicePort_del
@@ -133,16 +132,16 @@ rtk_api_ret_t rtk_svlan_servicePort_get(rtk_portmask_t *pSvlanPortmask)
  */
 rtk_api_ret_t rtk_svlan_servicePort_del(rtk_port_t port)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_servicePort_del)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_servicePort_del(port); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_servicePort_del)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_servicePort_del(port);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -164,16 +163,16 @@ rtk_api_ret_t rtk_svlan_servicePort_del(rtk_port_t port)
  */
 rtk_api_ret_t rtk_svlan_tpidEntry_set(rtk_svlan_tpid_t svlanTpid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_tpidEntry_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_tpidEntry_set(svlanTpid); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_tpidEntry_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_tpidEntry_set(svlanTpid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_tpidEntry_get
@@ -193,16 +192,16 @@ rtk_api_ret_t rtk_svlan_tpidEntry_set(rtk_svlan_tpid_t svlanTpid)
  */
 rtk_api_ret_t rtk_svlan_tpidEntry_get(rtk_svlan_tpid_t *pSvlanTpid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_tpidEntry_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_tpidEntry_get(pSvlanTpid); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_tpidEntry_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_tpidEntry_get(pSvlanTpid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_priorityRef_set
@@ -227,16 +226,16 @@ rtk_api_ret_t rtk_svlan_tpidEntry_get(rtk_svlan_tpid_t *pSvlanTpid)
  */
 rtk_api_ret_t rtk_svlan_priorityRef_set(rtk_svlan_pri_ref_t ref)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_priorityRef_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_priorityRef_set(ref); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_priorityRef_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_priorityRef_set(ref);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_priorityRef_get
@@ -260,16 +259,16 @@ rtk_api_ret_t rtk_svlan_priorityRef_set(rtk_svlan_pri_ref_t ref)
  */
 rtk_api_ret_t rtk_svlan_priorityRef_get(rtk_svlan_pri_ref_t *pRef)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_priorityRef_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_priorityRef_get(pRef); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_priorityRef_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_priorityRef_get(pRef);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 #if 0
 /* Function Name:
@@ -299,16 +298,16 @@ rtk_api_ret_t rtk_svlan_priorityRef_get(rtk_svlan_pri_ref_t *pRef)
  */
 rtk_api_ret_t rtk_svlan_memberPortEntry_set(rtk_vlan_t svid, rtk_svlan_memberCfg_t *pSvlan_cfg)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->svlan_memberPortEntry_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_memberPortEntry_set(svid, pSvlan_cfg); 
-    RTK_API_UNLOCK();
+	rtk_api_ret_t retVal;
 
-    return retVal;
+	if (NULL == RT_MAPPER->svlan_memberPortEntry_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_memberPortEntry_set(svid, pSvlan_cfg);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_memberPortEntry_get
@@ -330,16 +329,16 @@ rtk_api_ret_t rtk_svlan_memberPortEntry_set(rtk_vlan_t svid, rtk_svlan_memberCfg
  */
 rtk_api_ret_t rtk_svlan_memberPortEntry_get(rtk_vlan_t svid, rtk_svlan_memberCfg_t *pSvlan_cfg)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->svlan_memberPortEntry_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_memberPortEntry_get(svid, pSvlan_cfg); 
-    RTK_API_UNLOCK();
+	rtk_api_ret_t retVal;
 
-    return retVal;
+	if (NULL == RT_MAPPER->svlan_memberPortEntry_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_memberPortEntry_get(svid, pSvlan_cfg);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_memberPortEntry_adv_set
@@ -367,16 +366,16 @@ rtk_api_ret_t rtk_svlan_memberPortEntry_get(rtk_vlan_t svid, rtk_svlan_memberCfg
  */
 rtk_api_ret_t rtk_svlan_memberPortEntry_adv_set(rtk_uint32 idx, rtk_svlan_memberCfg_t *pSvlan_cfg)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->svlan_memberPortEntry_adv_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_memberPortEntry_adv_set(idx, pSvlan_cfg); 
-    RTK_API_UNLOCK();
+	rtk_api_ret_t retVal;
 
-    return retVal;
+	if (NULL == RT_MAPPER->svlan_memberPortEntry_adv_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_memberPortEntry_adv_set(idx, pSvlan_cfg);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_memberPortEntry_adv_get
@@ -398,16 +397,16 @@ rtk_api_ret_t rtk_svlan_memberPortEntry_adv_set(rtk_uint32 idx, rtk_svlan_member
  */
 rtk_api_ret_t rtk_svlan_memberPortEntry_adv_get(rtk_uint32 idx, rtk_svlan_memberCfg_t *pSvlan_cfg)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->svlan_memberPortEntry_adv_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_memberPortEntry_adv_get(idx, pSvlan_cfg); 
-    RTK_API_UNLOCK();
+	rtk_api_ret_t retVal;
 
-    return retVal;
+	if (NULL == RT_MAPPER->svlan_memberPortEntry_adv_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_memberPortEntry_adv_get(idx, pSvlan_cfg);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 #endif
 /* Function Name:
@@ -432,17 +431,16 @@ rtk_api_ret_t rtk_svlan_memberPortEntry_adv_get(rtk_uint32 idx, rtk_svlan_member
  */
 rtk_api_ret_t rtk_svlan_defaultSvlan_set(rtk_port_t port, rtk_vlan_t svid)
 {
+	rtk_api_ret_t retVal = 0;
 
-    rtk_api_ret_t retVal = 0;
+	if (NULL == RT_MAPPER->svlan_defaultSvlan_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    if (NULL == RT_MAPPER->svlan_defaultSvlan_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_defaultSvlan_set(port, svid); 
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_defaultSvlan_set(port, svid);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_defaultSvlan_get
@@ -463,16 +461,16 @@ rtk_api_ret_t rtk_svlan_defaultSvlan_set(rtk_port_t port, rtk_vlan_t svid)
  */
 rtk_api_ret_t rtk_svlan_defaultSvlan_get(rtk_port_t port, rtk_vlan_t *pSvid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_defaultSvlan_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_defaultSvlan_get(port, pSvid); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_defaultSvlan_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_defaultSvlan_get(port, pSvid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_c2s_add
@@ -499,16 +497,16 @@ rtk_api_ret_t rtk_svlan_defaultSvlan_get(rtk_port_t port, rtk_vlan_t *pSvid)
  */
 rtk_api_ret_t rtk_svlan_c2s_add(rtk_vlan_t vid, rtk_port_t srcPort, rtk_vlan_t svid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_c2s_add)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_c2s_add(vid, srcPort, svid); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_c2s_add)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_c2s_add(vid, srcPort, svid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_c2s_del
@@ -532,16 +530,16 @@ rtk_api_ret_t rtk_svlan_c2s_add(rtk_vlan_t vid, rtk_port_t srcPort, rtk_vlan_t s
  */
 rtk_api_ret_t rtk_svlan_c2s_del(rtk_vlan_t vid, rtk_port_t srcPort)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_c2s_del)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_c2s_del(vid, srcPort); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_c2s_del)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_c2s_del(vid, srcPort);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_c2s_get
@@ -564,16 +562,16 @@ rtk_api_ret_t rtk_svlan_c2s_del(rtk_vlan_t vid, rtk_port_t srcPort)
  */
 rtk_api_ret_t rtk_svlan_c2s_get(rtk_vlan_t vid, rtk_port_t srcPort, rtk_vlan_t *pSvid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_c2s_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_c2s_get(vid, srcPort, pSvid); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_c2s_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_c2s_get(vid, srcPort, pSvid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_untag_action_set
@@ -599,16 +597,16 @@ rtk_api_ret_t rtk_svlan_c2s_get(rtk_vlan_t vid, rtk_port_t srcPort, rtk_vlan_t *
  */
 rtk_api_ret_t rtk_svlan_untag_action_set(rtk_svlan_untag_action_t action, rtk_vlan_t svid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_untag_action_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_untag_action_set(action, svid); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_untag_action_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_untag_action_set(action, svid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_untag_action_get
@@ -634,16 +632,16 @@ rtk_api_ret_t rtk_svlan_untag_action_set(rtk_svlan_untag_action_t action, rtk_vl
  */
 rtk_api_ret_t rtk_svlan_untag_action_get(rtk_svlan_untag_action_t *pAction, rtk_vlan_t *pSvid)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_untag_action_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_untag_action_get(pAction, pSvid); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_untag_action_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_untag_action_get(pAction, pSvid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_unassign_action_set
@@ -664,16 +662,16 @@ rtk_api_ret_t rtk_svlan_untag_action_get(rtk_svlan_untag_action_t *pAction, rtk_
  */
 rtk_api_ret_t rtk_svlan_unassign_action_set(rtk_svlan_unassign_action_t action)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_unassign_action_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_unassign_action_set(action); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_unassign_action_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_unassign_action_set(action);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_svlan_unassign_action_get
@@ -691,16 +689,16 @@ rtk_api_ret_t rtk_svlan_unassign_action_set(rtk_svlan_unassign_action_t action)
  */
 rtk_api_ret_t rtk_svlan_unassign_action_get(rtk_svlan_unassign_action_t *pAction)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_unassign_action_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_unassign_action_get(pAction); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_unassign_action_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_unassign_action_get(pAction);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -720,17 +718,17 @@ rtk_api_ret_t rtk_svlan_unassign_action_get(rtk_svlan_unassign_action_t *pAction
  */
 rtk_api_ret_t rtk_svlan_trapPri_set(rtk_pri_t priority)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_trapPri_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_trapPri_set(priority); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_trapPri_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
-}   /* end of rtk_svlan_trapPri_set */
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_trapPri_set(priority);
+	RTK_API_UNLOCK();
+
+	return retVal;
+} /* end of rtk_svlan_trapPri_set */
 
 /* Function Name:
  *      rtk_svlan_trapPri_get
@@ -749,18 +747,17 @@ rtk_api_ret_t rtk_svlan_trapPri_set(rtk_pri_t priority)
  */
 rtk_api_ret_t rtk_svlan_trapPri_get(rtk_pri_t *pPriority)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_trapPri_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_trapPri_get(pPriority); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_trapPri_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
-}   /* end of rtk_svlan_trapPri_get */
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_trapPri_get(pPriority);
+	RTK_API_UNLOCK();
 
+	return retVal;
+} /* end of rtk_svlan_trapPri_get */
 
 /* Function Name:
  *      rtk_svlan_trapCpumsk_set
@@ -779,17 +776,17 @@ rtk_api_ret_t rtk_svlan_trapPri_get(rtk_pri_t *pPriority)
  */
 rtk_api_ret_t rtk_svlan_trapCpumsk_set(rtk_uint32 cpuMsk)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_trapCpuMsk_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_trapCpuMsk_set(cpuMsk); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_trapCpuMsk_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
-}   
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_trapCpuMsk_set(cpuMsk);
+	RTK_API_UNLOCK();
+
+	return retVal;
+}
 
 /* Function Name:
  *      rtk_svlan_trapCpumsk_get
@@ -808,16 +805,14 @@ rtk_api_ret_t rtk_svlan_trapCpumsk_set(rtk_uint32 cpuMsk)
  */
 rtk_api_ret_t rtk_svlan_trapCpumsk_get(rtk_uint32 *pCpuMsk)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->svlan_trapCpuMsk_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->svlan_trapCpuMsk_get(pCpuMsk); 
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->svlan_trapCpuMsk_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
-}   
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->svlan_trapCpuMsk_get(pCpuMsk);
+	RTK_API_UNLOCK();
 
-
+	return retVal;
+}

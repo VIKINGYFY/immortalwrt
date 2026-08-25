@@ -23,9 +23,6 @@
 #include <linux/string.h>
 #include <dal/dal_mgmt.h>
 
-
-
-
 /* Function Name:
  *      rtk_gpio_muxSel_set
  * Description:
@@ -39,30 +36,29 @@
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_gpio_muxSel_set(rtk_uint32 gpioNum)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_muxSel_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_muxSel_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_muxSel_set(gpioNum);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_muxSel_set(gpioNum);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      dal_rtl8371c_gpio_muxSel_get
  * Description:
- *      Get gpio pin status 
+ *      Get gpio pin status
  * Input:
  *      gpioNum - GPIO pin number
  * Output:
@@ -72,23 +68,23 @@ rtk_api_ret_t rtk_gpio_muxSel_set(rtk_uint32 gpioNum)
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
- rtk_api_ret_t rtk_gpio_muxSel_get(rtk_uint32 gpioNum, rtk_enable_t *pStatus )
+rtk_api_ret_t rtk_gpio_muxSel_get(rtk_uint32 gpioNum, rtk_enable_t *pStatus)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_muxSel_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_muxSel_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_muxSel_get(gpioNum, pStatus);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_muxSel_get(gpioNum, pStatus);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -105,30 +101,29 @@ rtk_api_ret_t rtk_gpio_muxSel_set(rtk_uint32 gpioNum)
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
-rtk_api_ret_t rtk_gpio_groupVal_write(rtk_gpio_groupReg_t idx, rtk_uint32 val )
+rtk_api_ret_t rtk_gpio_groupVal_write(rtk_gpio_groupReg_t idx, rtk_uint32 val)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_pinVal_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_pinVal_write)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_pinVal_write(idx, val);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_pinVal_write(idx, val);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 
 /* Function Name:
  *      rtk_gpio_groupVal_read
  * Description:
- *      Read group 32bits gpio pin val 
+ *      Read group 32bits gpio pin val
  * Input:
  *      idx - GPIO pin LSB 32bits or MSB 31bits
  * Output:
@@ -138,23 +133,23 @@ rtk_api_ret_t rtk_gpio_groupVal_write(rtk_gpio_groupReg_t idx, rtk_uint32 val )
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_gpio_groupVal_read(rtk_gpio_groupReg_t idx, rtk_uint32 *pVal)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_pinVal_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_pinVal_read)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_pinVal_read(idx, pVal);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_pinVal_read(idx, pVal);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -171,29 +166,29 @@ rtk_api_ret_t rtk_gpio_groupVal_read(rtk_gpio_groupReg_t idx, rtk_uint32 *pVal)
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_gpio_pinVal_write(rtk_uint32 gpioNum, rtk_gpio_level_t val)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_pinVal_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_pinVal_write)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_pinVal_write(gpioNum, val);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_pinVal_write(gpioNum, val);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
  *      rtk_gpio_pinVal_read
  * Description:
- *      Read gpio pin val 
+ *      Read gpio pin val
  * Input:
  *      gpioNum - GPIO pin num
  * Output:
@@ -203,23 +198,23 @@ rtk_api_ret_t rtk_gpio_pinVal_write(rtk_uint32 gpioNum, rtk_gpio_level_t val)
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_gpio_pinVal_read(rtk_uint32 gpioNum, rtk_gpio_level_t *pVal)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_pinVal_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_pinVal_read)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_pinVal_read(gpioNum, pVal);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_pinVal_read(gpioNum, pVal);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -236,23 +231,23 @@ rtk_api_ret_t rtk_gpio_pinVal_read(rtk_uint32 gpioNum, rtk_gpio_level_t *pVal)
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_gpio_pinDir_set(rtk_uint32 gpioNum, rtk_gpio_direction_t dir)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_pinDir_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_pinDir_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_pinDir_set(gpioNum, dir);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_pinDir_set(gpioNum, dir);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -268,23 +263,23 @@ rtk_api_ret_t rtk_gpio_pinDir_set(rtk_uint32 gpioNum, rtk_gpio_direction_t dir)
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_gpio_pinDir_get(rtk_uint32 gpioNum, rtk_gpio_direction_t *pDir)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_pinDir_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_pinDir_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_pinDir_get(gpioNum, pDir);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_pinDir_get(gpioNum, pDir);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -300,23 +295,21 @@ rtk_api_ret_t rtk_gpio_pinDir_get(rtk_uint32 gpioNum, rtk_gpio_direction_t *pDir
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_gpio_groupDir_get(rtk_gpio_groupReg_t idx, rtk_uint32 *pDirVal)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (NULL == RT_MAPPER->gpio_groupDir_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->gpio_groupDir_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->gpio_groupDir_get(idx, pDirVal);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->gpio_groupDir_get(idx, pDirVal);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-

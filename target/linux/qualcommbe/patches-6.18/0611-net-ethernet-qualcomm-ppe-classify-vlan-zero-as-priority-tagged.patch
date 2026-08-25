@@ -1,0 +1,27 @@
+From: VKing <noreply@openwrt.local>
+Date: Mon, 24 Aug 2026 16:03:46 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: classify VLAN zero as priority tagged
+
+PPE classifies an 802.1Q header carrying VID 0 as priority tagged rather
+than ordinarily tagged. Programming an explicit VLAN 0 ingress translation
+rule with the tagged-only format therefore misses the packet.
+
+Select the priority-tagged format only for explicit VID 0 rules. Preserve
+the existing tagged match for non-zero VIDs and the combined untagged plus
+priority-tagged match for PVID rules.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -1773,9 +1773,9 @@
+ 	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_FMT, PPE_XLT_FMT_UNTAGGED);
+
+ 	if (vid >= 0) {
+-		fmt = PPE_XLT_FMT_TAGGED;
++		fmt = vid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
+ 		rule[1] |= PPE_XLT_RULE_W1_CKEY_VID_INCL;
+ 		rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_VID, vid);
+ 	} else {
+ 		fmt = PPE_XLT_FMT_UNTAGGED | PPE_XLT_FMT_PRIO_TAGGED;
+ 	}

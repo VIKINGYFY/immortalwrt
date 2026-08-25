@@ -1,3 +1,5 @@
+DTS_DIR := $(DTS_DIR)/qcom
+
 DEVICE_VARS += BOOT_SCRIPT
 
 define Build/gl-ipq-factory-nand
@@ -72,3 +74,29 @@ define Device/glinet_gl-be6500
 		kmod-hwmon-pwmfan kmod-rtl837x-dsa
 endef
 TARGET_DEVICES += glinet_gl-be6500
+
+define Device/xiaomi_be3600-pro-wired-common
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := Xiaomi
+	DEVICE_MODEL := BE3600 Pro
+	DEVICE_DTS_CONFIG := config@mi04.1-c2
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	SOC := ipq5332
+	DEVICE_PACKAGES := -kmod-leds-gpio kmod-rtl837x-dsa
+endef
+
+define Device/xiaomi_be3600-pro-wired-p5
+	$(call Device/xiaomi_be3600-pro-wired-common)
+	DEVICE_VARIANT := p5
+	SUPPORTED_DEVICES += xiaomi,be3600-pro-wired-p5
+endef
+TARGET_DEVICES += xiaomi_be3600-pro-wired-p5
+
+define Device/xiaomi_be3600-pro-wired-p8
+	$(call Device/xiaomi_be3600-pro-wired-common)
+	DEVICE_VARIANT := p8
+	SUPPORTED_DEVICES += xiaomi,be3600-pro-wired-p8
+endef
+TARGET_DEVICES += xiaomi_be3600-pro-wired-p8

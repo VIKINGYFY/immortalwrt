@@ -19,95 +19,69 @@
  *
  */
 
-
 #ifndef __RTK_RLDP_H__
 #define __RTK_RLDP_H__
-
 
 /*
  * Include Files
  */
 
-
 /*
  * Symbol Definition
  */
-typedef enum rtk_rldp_trigger_e
-{
-    RTK_RLDP_TRIGGER_SAMOVING = 0,
-    RTK_RLDP_TRIGGER_PERIOD,
-    RTK_RLDP_TRIGGER_END
-} rtk_rldp_trigger_t;
+typedef enum rtk_rldp_trigger_e { RTK_RLDP_TRIGGER_SAMOVING = 0, RTK_RLDP_TRIGGER_PERIOD, RTK_RLDP_TRIGGER_END } rtk_rldp_trigger_t;
 
-typedef enum rtk_rldp_cmpType_e
-{
-    RTK_RLDP_CMPTYPE_MAGIC = 0,     /* Compare the RLDP with magic only */
-    RTK_RLDP_CMPTYPE_MAGIC_ID,      /* Compare the RLDP with both magic + ID */
-    RTK_RLDP_CMPTYPE_END
+typedef enum rtk_rldp_cmpType_e {
+	RTK_RLDP_CMPTYPE_MAGIC = 0, /* Compare the RLDP with magic only */
+	RTK_RLDP_CMPTYPE_MAGIC_ID, /* Compare the RLDP with both magic + ID */
+	RTK_RLDP_CMPTYPE_END
 } rtk_rldp_cmpType_t;
 
-typedef enum rtk_rldp_loopStatus_e
-{
-    RTK_RLDP_LOOPSTS_NONE = 0,
-    RTK_RLDP_LOOPSTS_LOOPING,
-    RTK_RLDP_LOOPSTS_END
-} rtk_rldp_loopStatus_t;
+typedef enum rtk_rldp_loopStatus_e { RTK_RLDP_LOOPSTS_NONE = 0, RTK_RLDP_LOOPSTS_LOOPING, RTK_RLDP_LOOPSTS_END } rtk_rldp_loopStatus_t;
 
-typedef enum rtk_rlpp_trapType_e
-{
-    RTK_RLPP_TRAPTYPE_NONE = 0,
-    RTK_RLPP_TRAPTYPE_CPU,
-    RTK_RLPP_TRAPTYPE_END
-} rtk_rlpp_trapType_t;
+typedef enum rtk_rlpp_trapType_e { RTK_RLPP_TRAPTYPE_NONE = 0, RTK_RLPP_TRAPTYPE_CPU, RTK_RLPP_TRAPTYPE_END } rtk_rlpp_trapType_t;
 
-typedef struct rtk_rldp_config_s
-{
-    rtk_enable_t        rldp_enable;
-    rtk_rldp_trigger_t trigger_mode;
-    rtk_mac_t           magic;
-    rtk_rldp_cmpType_t  compare_type;
-    rtk_uint32              interval_check; /* Checking interval for check state */
-    rtk_uint32              num_check;      /* Checking number for check state */
-    rtk_uint32              interval_loop;  /* Checking interval for loop state */
-    rtk_uint32              num_loop;       /* Checking number for loop state */
+typedef struct rtk_rldp_config_s {
+	rtk_enable_t rldp_enable;
+	rtk_rldp_trigger_t trigger_mode;
+	rtk_mac_t magic;
+	rtk_rldp_cmpType_t compare_type;
+	rtk_uint32 interval_check; /* Checking interval for check state */
+	rtk_uint32 num_check; /* Checking number for check state */
+	rtk_uint32 interval_loop; /* Checking interval for loop state */
+	rtk_uint32 num_loop; /* Checking number for loop state */
 } rtk_rldp_config_t;
 
-typedef struct rtk_rldp_portConfig_s
-{
-    rtk_enable_t        tx_enable;
+typedef struct rtk_rldp_portConfig_s {
+	rtk_enable_t tx_enable;
 } rtk_rldp_portConfig_t;
 
-typedef struct rtk_rldp_status_s
-{
-    rtk_mac_t           id;
+typedef struct rtk_rldp_status_s {
+	rtk_mac_t id;
 } rtk_rldp_status_t;
 
-typedef struct rtk_rldp_portStatus_s
-{
-    rtk_rldp_loopStatus_t   loop_status;
-    rtk_rldp_loopStatus_t   loop_enter;
-    rtk_rldp_loopStatus_t   loop_leave;
+typedef struct rtk_rldp_portStatus_s {
+	rtk_rldp_loopStatus_t loop_status;
+	rtk_rldp_loopStatus_t loop_enter;
+	rtk_rldp_loopStatus_t loop_leave;
 } rtk_rldp_portStatus_t;
 
 /*
  * Data Declaration
  */
 
-
 /*
  * Macro Declaration
  */
 
-#define RTK_RLDP_INTERVAL_MAX  0xffff
-#define RTK_RLDP_NUM_MAX       0xff
-
+#define RTK_RLDP_INTERVAL_MAX 0xffff
+#define RTK_RLDP_NUM_MAX 0xff
 
 /*
  * Function Declaration
  */
 
 /* Module Name : RLDP */
-
 
 /* Function Name:
  *      rtk_rldp_config_set
@@ -127,7 +101,6 @@ typedef struct rtk_rldp_portStatus_s
  */
 extern rtk_api_ret_t rtk_rldp_config_set(rtk_rldp_config_t *pConfig);
 
-
 /* Function Name:
  *      rtk_rldp_config_get
  * Description:
@@ -145,7 +118,6 @@ extern rtk_api_ret_t rtk_rldp_config_set(rtk_rldp_config_t *pConfig);
  *      None
  */
 extern rtk_api_ret_t rtk_rldp_config_get(rtk_rldp_config_t *pConfig);
-
 
 /* Function Name:
  *      rtk_rldp_portConfig_set
@@ -166,7 +138,6 @@ extern rtk_api_ret_t rtk_rldp_config_get(rtk_rldp_config_t *pConfig);
  */
 extern rtk_api_ret_t rtk_rldp_portConfig_set(rtk_port_t port, rtk_rldp_portConfig_t *pPortConfig);
 
-
 /* Function Name:
  *      rtk_rldp_portConfig_get
  * Description:
@@ -185,7 +156,6 @@ extern rtk_api_ret_t rtk_rldp_portConfig_set(rtk_port_t port, rtk_rldp_portConfi
  */
 extern rtk_api_ret_t rtk_rldp_portConfig_get(rtk_port_t port, rtk_rldp_portConfig_t *pPortConfig);
 
-
 /* Function Name:
  *      rtk_rldp_status_get
  * Description:
@@ -202,7 +172,6 @@ extern rtk_api_ret_t rtk_rldp_portConfig_get(rtk_port_t port, rtk_rldp_portConfi
  *      None
  */
 extern rtk_api_ret_t rtk_rldp_status_get(rtk_rldp_status_t *pStatus);
-
 
 /* Function Name:
  *      rtk_rldp_portStatus_get
@@ -221,7 +190,6 @@ extern rtk_api_ret_t rtk_rldp_status_get(rtk_rldp_status_t *pStatus);
  *      None
  */
 extern rtk_api_ret_t rtk_rldp_portStatus_get(rtk_port_t port, rtk_rldp_portStatus_t *pPortStatus);
-
 
 /* Function Name:
  *      rtk_rldp_portStatus_clear
@@ -243,7 +211,6 @@ extern rtk_api_ret_t rtk_rldp_portStatus_get(rtk_port_t port, rtk_rldp_portStatu
  */
 extern rtk_api_ret_t rtk_rldp_portStatus_set(rtk_port_t port, rtk_rldp_portStatus_t *pPortStatus);
 
-
 /* Function Name:
  *      rtk_rldp_portLoopPair_get
  * Description:
@@ -263,4 +230,3 @@ extern rtk_api_ret_t rtk_rldp_portStatus_set(rtk_port_t port, rtk_rldp_portStatu
 extern rtk_api_ret_t rtk_rldp_portLoopPair_get(rtk_port_t port, rtk_portmask_t *pPortmask);
 
 #endif /* __RTK_RLDP_H__ */
-

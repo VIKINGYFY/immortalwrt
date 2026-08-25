@@ -15,7 +15,6 @@
  *
  */
 
-
 /* Function Name:
  *      rtk_port_isolation_set
  * Description:
@@ -52,7 +51,3 @@ extern ret_t rtk_port_isolation_set(rtk_port_t port, rtk_uint32 permitPortmask);
  *      None
  */
 extern ret_t rtk_port_isolation_get(rtk_port_t port, rtk_uint32 *pPermitPortmask);
-
-
-
-

@@ -1,4 +1,4 @@
- /*
+/*
  * Copyright (C) 2013 Realtek Semiconductor Corp.
  * All Rights Reserved.
  *
@@ -21,100 +21,81 @@
 /*
  * Data Type Declaration
  */
-#define QOS_DEFAULT_TICK_PERIOD                     (19-1)
-#define QOS_DEFAULT_BYTE_PER_TOKEN                  34
-#define QOS_DEFAULT_LK_THRESHOLD                    (34*3) /* Why use 0x400? */
+#define QOS_DEFAULT_TICK_PERIOD (19 - 1)
+#define QOS_DEFAULT_BYTE_PER_TOKEN 34
+#define QOS_DEFAULT_LK_THRESHOLD (34 * 3) /* Why use 0x400? */
 
+#define QOS_DEFAULT_INGRESS_BANDWIDTH 0x3FFF /* 0x3FFF => unlimit */
+#define QOS_DEFAULT_EGRESS_BANDWIDTH 0x3D08 /*( 0x3D08 + 1) * 64Kbps => 1Gbps*/
+#define QOS_DEFAULT_PREIFP 1
+#define QOS_DEFAULT_PACKET_USED_PAGES_FC 0x60
+#define QOS_DEFAULT_PACKET_USED_FC_EN 0
+#define QOS_DEFAULT_QUEUE_BASED_FC_EN 1
 
-#define QOS_DEFAULT_INGRESS_BANDWIDTH               0x3FFF /* 0x3FFF => unlimit */
-#define QOS_DEFAULT_EGRESS_BANDWIDTH                0x3D08 /*( 0x3D08 + 1) * 64Kbps => 1Gbps*/
-#define QOS_DEFAULT_PREIFP                          1
-#define QOS_DEFAULT_PACKET_USED_PAGES_FC            0x60
-#define QOS_DEFAULT_PACKET_USED_FC_EN               0
-#define QOS_DEFAULT_QUEUE_BASED_FC_EN               1
+#define QOS_DEFAULT_PRIORITY_SELECT_PORT 8
+#define QOS_DEFAULT_PRIORITY_SELECT_1Q 0
+#define QOS_DEFAULT_PRIORITY_SELECT_ACL 0
+#define QOS_DEFAULT_PRIORITY_SELECT_DSCP 0
 
-#define QOS_DEFAULT_PRIORITY_SELECT_PORT            8
-#define QOS_DEFAULT_PRIORITY_SELECT_1Q              0
-#define QOS_DEFAULT_PRIORITY_SELECT_ACL             0
-#define QOS_DEFAULT_PRIORITY_SELECT_DSCP            0
+#define QOS_DEFAULT_DSCP_MAPPING_PRIORITY 0
 
-#define QOS_DEFAULT_DSCP_MAPPING_PRIORITY           0
+#define QOS_DEFAULT_1Q_REMARKING_ABILITY 0
+#define QOS_DEFAULT_DSCP_REMARKING_ABILITY 0
+#define QOS_DEFAULT_QUEUE_GAP 20
+#define QOS_DEFAULT_QUEUE_NO_MAX 6
+#define QOS_DEFAULT_AVERAGE_PACKET_RATE 0x3FFF
+#define QOS_DEFAULT_BURST_SIZE_IN_APR 0x3F
+#define QOS_DEFAULT_PEAK_PACKET_RATE 2
+#define QOS_DEFAULT_SCHEDULER_ABILITY_APR 1 /*disable*/
+#define QOS_DEFAULT_SCHEDULER_ABILITY_PPR 1 /*disable*/
+#define QOS_DEFAULT_SCHEDULER_ABILITY_WFQ 1 /*disable*/
 
-#define QOS_DEFAULT_1Q_REMARKING_ABILITY            0
-#define QOS_DEFAULT_DSCP_REMARKING_ABILITY          0
-#define QOS_DEFAULT_QUEUE_GAP                       20
-#define QOS_DEFAULT_QUEUE_NO_MAX                    6
-#define QOS_DEFAULT_AVERAGE_PACKET_RATE             0x3FFF
-#define QOS_DEFAULT_BURST_SIZE_IN_APR               0x3F
-#define QOS_DEFAULT_PEAK_PACKET_RATE                2
-#define QOS_DEFAULT_SCHEDULER_ABILITY_APR           1     /*disable*/
-#define QOS_DEFAULT_SCHEDULER_ABILITY_PPR           1    /*disable*/
-#define QOS_DEFAULT_SCHEDULER_ABILITY_WFQ           1    /*disable*/
+#define QOS_WEIGHT_MAX 127
 
-#define QOS_WEIGHT_MAX                              127
+#define RTK_MAX_NUM_OF_PRIORITY 8
+#define RTK_MAX_NUM_OF_QUEUE 8
 
-#define RTK_MAX_NUM_OF_PRIORITY                     8
-#define RTK_MAX_NUM_OF_QUEUE                        8
-
-#define RTK_PRIMAX                                             7
-#define RTK_QIDMAX                                             7
-#define RTK_DSCPMAX                                         63
-
+#define RTK_PRIMAX 7
+#define RTK_QIDMAX 7
+#define RTK_DSCPMAX 63
 
 /* enum Priority Selection Index */
-typedef enum rtk_qos_priDecTbl_e
-{
-    PRIDECTBL_IDX0 = 0,
-    PRIDECTBL_IDX1,
-    PRIDECTBL_END,
-}rtk_qos_priDecTbl_t;
-
+typedef enum rtk_qos_priDecTbl_e {
+	PRIDECTBL_IDX0 = 0,
+	PRIDECTBL_IDX1,
+	PRIDECTBL_END,
+} rtk_qos_priDecTbl_t;
 
 /* Types of 802.1p remarking source */
-typedef enum rtk_qos_1pRmkSrc_e
-{
-    DOT1P_RMK_SRC_USER_PRI,
-    DOT1P_RMK_SRC_TAG_PRI,
-    DOT1P_RMK_SRC_END
-} rtk_qos_1pRmkSrc_t;
-
+typedef enum rtk_qos_1pRmkSrc_e { DOT1P_RMK_SRC_USER_PRI, DOT1P_RMK_SRC_TAG_PRI, DOT1P_RMK_SRC_END } rtk_qos_1pRmkSrc_t;
 
 /* Types of DSCP remarking source */
-typedef enum rtk_qos_dscpRmkSrc_e
-{
-    DSCP_RMK_SRC_INT_PRI,
-    DSCP_RMK_SRC_DSCP,
-    DSCP_RMK_SRC_USER_PRI,
-    DSCP_RMK_SRC_END
-} rtk_qos_dscpRmkSrc_t;
+typedef enum rtk_qos_dscpRmkSrc_e { DSCP_RMK_SRC_INT_PRI, DSCP_RMK_SRC_DSCP, DSCP_RMK_SRC_USER_PRI, DSCP_RMK_SRC_END } rtk_qos_dscpRmkSrc_t;
 
-typedef struct rtk_priority_select_s
-{
-    rtk_uint32 port_pri;
-    rtk_uint32 dot1q_pri;
-    rtk_uint32 acl_pri;
-    rtk_uint32 dscp_pri;;
-    rtk_uint32 svlan_pri;
+typedef struct rtk_priority_select_s {
+	rtk_uint32 port_pri;
+	rtk_uint32 dot1q_pri;
+	rtk_uint32 acl_pri;
+	rtk_uint32 dscp_pri;
+	;
+	rtk_uint32 svlan_pri;
 } rtk_priority_select_t;
 
-typedef struct rtk_qos_pri2queue_s
-{
-    rtk_uint32 pri2queue[RTK_MAX_NUM_OF_PRIORITY];
+typedef struct rtk_qos_pri2queue_s {
+	rtk_uint32 pri2queue[RTK_MAX_NUM_OF_PRIORITY];
 } rtk_qos_pri2queue_t;
 
-typedef struct rtk_qos_queue_weights_s
-{
-    rtk_uint32 weights[RTK_MAX_NUM_OF_QUEUE];
+typedef struct rtk_qos_queue_weights_s {
+	rtk_uint32 weights[RTK_MAX_NUM_OF_QUEUE];
 } rtk_qos_queue_weights_t;
 
-typedef enum rtk_qos_scheduling_type_e
-{
-    RTK_QOS_WFQ = 0,    /* Weighted-Fair-Queue */
-    RTK_QOS_SRR,        /* Weighted-Round-Robin */
-    SCHEDULING_TYPE_END
+typedef enum rtk_qos_scheduling_type_e {
+	RTK_QOS_WFQ = 0, /* Weighted-Fair-Queue */
+	RTK_QOS_SRR, /* Weighted-Round-Robin */
+	SCHEDULING_TYPE_END
 } rtk_qos_scheduling_type_t;
 
-typedef rtk_uint32  rtk_queue_num_t;    /* queue number*/
+typedef rtk_uint32 rtk_queue_num_t; /* queue number*/
 
 /* Function Name:
  *      rtk_qos_init
@@ -329,7 +310,7 @@ extern rtk_api_ret_t rtk_qos_RspanPriRemap_get(rtk_pri_t rspan_pri, rtk_pri_t *p
  * Note:
  *      The API can set priority of port assignments for queue usage and packet scheduling.
  */
-extern rtk_api_ret_t rtk_qos_portPri_set(rtk_port_t port, rtk_pri_t int_pri) ;
+extern rtk_api_ret_t rtk_qos_portPri_set(rtk_port_t port, rtk_pri_t int_pri);
 
 /* Function Name:
  *      rtk_qos_portPri_get
@@ -348,7 +329,7 @@ extern rtk_api_ret_t rtk_qos_portPri_set(rtk_port_t port, rtk_pri_t int_pri) ;
  * Note:
  *      The API can get priority of port assignments for queue usage and packet scheduling.
  */
-extern rtk_api_ret_t rtk_qos_portPri_get(rtk_port_t port, rtk_pri_t *pInt_pri) ;
+extern rtk_api_ret_t rtk_qos_portPri_get(rtk_port_t port, rtk_pri_t *pInt_pri);
 
 /* Function Name:
  *      rtk_qos_priMap_set
@@ -663,7 +644,6 @@ extern rtk_api_ret_t rtk_qos_intpri2dscp_Remark_get(rtk_pri_t int_pri, rtk_dscp_
  */
 rtk_api_ret_t rtk_qos_dscp2dscp_Remark_set(rtk_pri_t ori_dscp, rtk_dscp_t RmkDscp);
 
-
 /* Function Name:
  *      rtk_qos_dscp2dscp_Remark_get
  * Description:
@@ -681,7 +661,6 @@ rtk_api_ret_t rtk_qos_dscp2dscp_Remark_set(rtk_pri_t ori_dscp, rtk_dscp_t RmkDsc
  *      The API can get DSCP parameters. It would return DSCP value for mapping priority.
  */
 rtk_api_ret_t rtk_qos_dscp2dscp_Remark_get(rtk_pri_t ori_dscp, rtk_dscp_t *pRmkDscp);
-
 
 /* Function Name:
  *      rtk_qos_dscpRemarkSrcSel_set
@@ -799,6 +778,4 @@ extern rtk_api_ret_t rtk_qos_schedulingType_set(rtk_port_t port, rtk_qos_schedul
  */
 extern rtk_api_ret_t rtk_qos_schedulingType_get(rtk_port_t port, rtk_qos_scheduling_type_t *pQueueType);
 
-
 #endif /* __RTK_API_QOS_H__ */
-

@@ -23,14 +23,13 @@
 #include <rtl8373_asicdrv.h>
 #include <linux/string.h>
 
-
 /* Function Name:
  *      dal_rtl8373_asicMstpPortStatus_set
  * Description:
  *      Set MSTP port status
  * Input:
  *      fid     - mstp index
- *      port     - 
+ *      port     -
  *      statys  - 0 disable  1 blocking     2 learning    3 forwarding
  * Output:
  *      None
@@ -42,19 +41,17 @@
  */
 ret_t dal_rtl8373_asicMstpPortStatus_set(rtk_uint32 fid, rtk_uint32 port, rtk_uint32 status)
 {
-    ret_t retVal;
+	ret_t retVal;
 
-    if(fid > RTL8373_FIDMAX)
-        return RT_ERR_INPUT;
+	if (fid > RTL8373_FIDMAX)
+		return RT_ERR_INPUT;
 
+	retVal = rtl8373_setAsicRegBits(RTL8373_MSPT_STATE_ADDR(fid), 0x3 << (port * 2), status);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_MSPT_STATE_ADDR(fid), 0x3<<(port*2), status);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_asicMstpPortStatus_get
@@ -62,7 +59,7 @@ ret_t dal_rtl8373_asicMstpPortStatus_set(rtk_uint32 fid, rtk_uint32 port, rtk_ui
  *      Get MSTP port status
  * Input:
  *      fid     - mstp index
- *      port     - 
+ *      port     -
  *      *pStatys  - 0 disable  1 blocking     2 learning    3 forwarding
  * Output:
  *      None
@@ -72,24 +69,16 @@ ret_t dal_rtl8373_asicMstpPortStatus_set(rtk_uint32 fid, rtk_uint32 port, rtk_ui
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicMstpPortStatus_get(rtk_uint32 fid, rtk_uint32 port, rtk_uint32* pStatus)
+ret_t dal_rtl8373_asicMstpPortStatus_get(rtk_uint32 fid, rtk_uint32 port, rtk_uint32 *pStatus)
 {
-    ret_t retVal;
+	ret_t retVal;
 
-    if(fid > RTL8373_FIDMAX)
-        return RT_ERR_INPUT;
+	if (fid > RTL8373_FIDMAX)
+		return RT_ERR_INPUT;
 
+	retVal = rtl8373_getAsicRegBits(RTL8373_MSPT_STATE_ADDR(fid), 0x3 << (port * 2), pStatus);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_MSPT_STATE_ADDR(fid), 0x3<<(port*2), pStatus);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return retVal;
+	return retVal;
 }
-
-
-
-
-
-
-

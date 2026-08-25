@@ -44,16 +44,16 @@
  */
 rtk_api_ret_t rtk_filter_igrAcl_init(void)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_init)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_init)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_init();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_init();
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -77,18 +77,18 @@ rtk_api_ret_t rtk_filter_igrAcl_init(void)
  *      comparison rules by means of linked list. Pointer pFilter_field will be added to linked
  *      list keeped by structure that pFilter_cfg points to.
  */
-rtk_api_ret_t rtk_filter_igrAcl_field_add(rtk_filter_cfg_t* pFilterCfg, rtk_filter_field_t* pFilterField)
+rtk_api_ret_t rtk_filter_igrAcl_field_add(rtk_filter_cfg_t *pFilterCfg, rtk_filter_field_t *pFilterField)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_field_add)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_field_add)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_field_add(pFilterCfg, pFilterField);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_field_add(pFilterCfg, pFilterField);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -115,18 +115,18 @@ rtk_api_ret_t rtk_filter_igrAcl_field_add(rtk_filter_cfg_t* pFilterCfg, rtk_filt
  *      This function store pFilter_cfg, pFilter_action into ASIC. The starting
  *      index(es) is filter_id.
  */
-rtk_api_ret_t rtk_filter_igrAcl_cfg_add(rtk_filter_id_t filterId, rtk_filter_cfg_t* pFilterCfg, rtk_filter_action_t* pFilterAction, rtk_filter_number_t *ruleNum)
+rtk_api_ret_t rtk_filter_igrAcl_cfg_add(rtk_filter_id_t filterId, rtk_filter_cfg_t *pFilterCfg, rtk_filter_action_t *pFilterAction, rtk_filter_number_t *ruleNum)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_cfg_add)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_cfg_add)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_cfg_add(filterId, pFilterCfg, pFilterAction, ruleNum);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_cfg_add(filterId, pFilterCfg, pFilterAction, ruleNum);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -147,16 +147,16 @@ rtk_api_ret_t rtk_filter_igrAcl_cfg_add(rtk_filter_id_t filterId, rtk_filter_cfg
  */
 rtk_api_ret_t rtk_filter_igrAcl_cfg_del(rtk_filter_id_t filterId)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_cfg_del)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_cfg_del)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_cfg_del(filterId);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_cfg_del(filterId);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -176,16 +176,16 @@ rtk_api_ret_t rtk_filter_igrAcl_cfg_del(rtk_filter_id_t filterId)
  */
 rtk_api_ret_t rtk_filter_igrAcl_cfg_delAll(void)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_cfg_delAll)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_cfg_delAll)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_cfg_delAll();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_cfg_delAll();
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -208,16 +208,16 @@ rtk_api_ret_t rtk_filter_igrAcl_cfg_delAll(void)
  */
 rtk_api_ret_t rtk_filter_igrAcl_cfg_get(rtk_filter_id_t filterId, rtk_filter_cfg_raw_t *pFilterCfg, rtk_filter_action_t *pAction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_cfg_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_cfg_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_cfg_get(filterId,  pFilterCfg,  pAction);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_cfg_get(filterId, pFilterCfg, pAction);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -240,16 +240,16 @@ rtk_api_ret_t rtk_filter_igrAcl_cfg_get(rtk_filter_id_t filterId, rtk_filter_cfg
  */
 rtk_api_ret_t rtk_filter_igrAcl_unmatchAction_set(rtk_port_t port, rtk_filter_unmatch_action_t action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_unmatchAction_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_unmatchAction_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_unmatchAction_set(port, action);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_unmatchAction_set(port, action);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -269,18 +269,18 @@ rtk_api_ret_t rtk_filter_igrAcl_unmatchAction_set(rtk_port_t port, rtk_filter_un
  * Note:
  *      This function gets action of packets when no ACL configruation matches.
  */
-rtk_api_ret_t rtk_filter_igrAcl_unmatchAction_get(rtk_port_t port, rtk_filter_unmatch_action_t* pAction)
+rtk_api_ret_t rtk_filter_igrAcl_unmatchAction_get(rtk_port_t port, rtk_filter_unmatch_action_t *pAction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_unmatchAction_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_unmatchAction_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_unmatchAction_get(port, pAction);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_unmatchAction_get(port, pAction);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -303,16 +303,16 @@ rtk_api_ret_t rtk_filter_igrAcl_unmatchAction_get(rtk_port_t port, rtk_filter_un
  */
 rtk_api_ret_t rtk_filter_igrAcl_state_set(rtk_port_t port, rtk_filter_state_t state)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_state_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_state_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_state_set(port, state);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_state_set(port, state);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -332,18 +332,18 @@ rtk_api_ret_t rtk_filter_igrAcl_state_set(rtk_port_t port, rtk_filter_state_t st
  * Note:
  *      This function gets action of packets when no ACL configruation matches.
  */
-rtk_api_ret_t rtk_filter_igrAcl_state_get(rtk_port_t port, rtk_filter_state_t* pState)
+rtk_api_ret_t rtk_filter_igrAcl_state_get(rtk_port_t port, rtk_filter_state_t *pState)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_state_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_state_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_state_get(port, pState);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_state_get(port, pState);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -364,16 +364,16 @@ rtk_api_ret_t rtk_filter_igrAcl_state_get(rtk_port_t port, rtk_filter_state_t* p
  */
 rtk_api_ret_t rtk_filter_igrAcl_template_set(rtk_filter_template_t *aclTemplate)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_template_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_template_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_template_set(aclTemplate);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_template_set(aclTemplate);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -393,16 +393,16 @@ rtk_api_ret_t rtk_filter_igrAcl_template_set(rtk_filter_template_t *aclTemplate)
  */
 rtk_api_ret_t rtk_filter_igrAcl_template_get(rtk_filter_template_t *aclTemplate)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_template_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_template_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_template_get(aclTemplate);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_template_get(aclTemplate);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -427,16 +427,16 @@ rtk_api_ret_t rtk_filter_igrAcl_template_get(rtk_filter_template_t *aclTemplate)
  */
 rtk_api_ret_t rtk_filter_igrAcl_field_sel_set(rtk_uint32 index, rtk_field_sel_t format, rtk_uint32 offset)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_field_sel_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_field_sel_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_field_sel_set(index, format, offset);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_field_sel_set(index, format, offset);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -457,16 +457,16 @@ rtk_api_ret_t rtk_filter_igrAcl_field_sel_set(rtk_uint32 index, rtk_field_sel_t 
  */
 rtk_api_ret_t rtk_filter_igrAcl_field_sel_get(rtk_uint32 index, rtk_field_sel_t *pFormat, rtk_uint32 *pOffset)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_field_sel_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_field_sel_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_field_sel_get(index, pFormat, pOffset);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_field_sel_get(index, pFormat, pOffset);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -491,16 +491,16 @@ rtk_api_ret_t rtk_filter_igrAcl_field_sel_get(rtk_uint32 index, rtk_field_sel_t 
  */
 rtk_api_ret_t rtk_filter_iprange_set(rtk_uint32 index, rtk_filter_iprange_t type, ipaddr_t upperIp, ipaddr_t lowerIp)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_iprange_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_iprange_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_iprange_set(index, type, upperIp, lowerIp);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_iprange_set(index, type, upperIp, lowerIp);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -523,16 +523,16 @@ rtk_api_ret_t rtk_filter_iprange_set(rtk_uint32 index, rtk_filter_iprange_t type
  */
 rtk_api_ret_t rtk_filter_iprange_get(rtk_uint32 index, rtk_filter_iprange_t *pType, ipaddr_t *pUpperIp, ipaddr_t *pLowerIp)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_iprange_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_iprange_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_iprange_get(index, pType, pUpperIp, pLowerIp);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_iprange_get(index, pType, pUpperIp, pLowerIp);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -557,16 +557,16 @@ rtk_api_ret_t rtk_filter_iprange_get(rtk_uint32 index, rtk_filter_iprange_t *pTy
  */
 rtk_api_ret_t rtk_filter_vidrange_set(rtk_uint32 index, rtk_filter_vidrange_t type, rtk_uint32 upperVid, rtk_uint32 lowerVid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_vidrange_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_vidrange_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_vidrange_set(index, type, upperVid, lowerVid);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_vidrange_set(index, type, upperVid, lowerVid);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -589,16 +589,16 @@ rtk_api_ret_t rtk_filter_vidrange_set(rtk_uint32 index, rtk_filter_vidrange_t ty
  */
 rtk_api_ret_t rtk_filter_vidrange_get(rtk_uint32 index, rtk_filter_vidrange_t *pType, rtk_uint32 *pUpperVid, rtk_uint32 *pLowerVid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_vidrange_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_vidrange_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_vidrange_get(index, pType, pUpperVid, pLowerVid);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_vidrange_get(index, pType, pUpperVid, pLowerVid);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -623,16 +623,16 @@ rtk_api_ret_t rtk_filter_vidrange_get(rtk_uint32 index, rtk_filter_vidrange_t *p
  */
 rtk_api_ret_t rtk_filter_portrange_set(rtk_uint32 index, rtk_filter_portrange_t type, rtk_uint32 upperPort, rtk_uint32 lowerPort)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_portrange_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_portrange_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_portrange_set(index, type, upperPort, lowerPort);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_portrange_set(index, type, upperPort, lowerPort);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -656,17 +656,16 @@ rtk_api_ret_t rtk_filter_portrange_set(rtk_uint32 index, rtk_filter_portrange_t 
  */
 rtk_api_ret_t rtk_filter_portrange_get(rtk_uint32 index, rtk_filter_portrange_t *pType, rtk_uint32 *pUpperPort, rtk_uint32 *pLowerPort)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_portrange_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_portrange_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_portrange_get(index, pType, pUpperPort, pLowerPort);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_portrange_get(index, pType, pUpperPort, pLowerPort);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 /* Function Name:
  *      rtk_filter_igrAcl_gpioPolarity_set
@@ -684,16 +683,16 @@ rtk_api_ret_t rtk_filter_portrange_get(rtk_uint32 index, rtk_filter_portrange_t 
  */
 rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_set(rtk_uint32 polarity)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_gpioPolarity_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_gpioPolarity_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_gpioPolarity_set(polarity);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_gpioPolarity_set(polarity);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 /* Function Name:
  *      rtk_filter_igrAcl_gpioPolarity_get
@@ -709,19 +708,18 @@ rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_set(rtk_uint32 polarity)
  * Note:
  *      none
  */
-rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_get(rtk_uint32* pPolarity)
+rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_get(rtk_uint32 *pPolarity)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_gpioPolarity_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_gpioPolarity_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_gpioPolarity_get(pPolarity);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_gpioPolarity_get(pPolarity);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 
 /* Function Name:
@@ -732,7 +730,7 @@ rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_get(rtk_uint32* pPolarity)
  *      gpioPinNum       - gpio pin number (0~3)
  *      enabled            - acl gpio pin enable or not
  * Output:
- *      none       - 
+ *      none       -
  * Return:
  *      RT_ERR_OK              - OK
  *      RT_ERR_FAILED          - Failed
@@ -744,16 +742,16 @@ rtk_api_ret_t rtk_filter_igrAcl_gpioPolarity_get(rtk_uint32* pPolarity)
  */
 rtk_api_ret_t rtk_filter_igrAcl_gpioEn_set(rtk_uint32 gpioPinNum, rtk_enable_t enabled)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_gpioEn_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_gpioEn_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_gpioEn_set(gpioPinNum, enabled);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_gpioEn_set(gpioPinNum, enabled);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -775,18 +773,17 @@ rtk_api_ret_t rtk_filter_igrAcl_gpioEn_set(rtk_uint32 gpioPinNum, rtk_enable_t e
  */
 rtk_api_ret_t rtk_filter_igrAcl_gpioEn_get(rtk_uint32 gpioPinNum, rtk_enable_t *pEnabled)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_gpioEn_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_gpioEn_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_gpioEn_get(gpioPinNum, pEnabled);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_gpioEn_get(gpioPinNum, pEnabled);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /*******************************************************************************
 * Function Name:
@@ -806,16 +803,14 @@ rtk_api_ret_t rtk_filter_igrAcl_gpioEn_get(rtk_uint32 gpioPinNum, rtk_enable_t *
 *******************************************************************************/
 rtk_api_ret_t rtk_filter_igrAcl_table_Reset(void)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    if (NULL == RT_MAPPER->filter_igrAcl_tbl_rst)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->filter_igrAcl_tbl_rst)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->filter_igrAcl_tbl_rst();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->filter_igrAcl_tbl_rst();
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
-

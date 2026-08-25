@@ -18,31 +18,17 @@
 #ifndef __RTK_API_RMA_H__
 #define __RTK_API_RMA_H__
 
+enum RTK_RMAOP { RMAOP_FORWARD = 0, RMAOP_TRAP_TO_CPU, RMAOP_DROP, RMAOP_FORWARD_EXCLUDE_CPU, RMAOP_END };
 
-enum RTK_RMAOP
-{
-    RMAOP_FORWARD = 0,
-    RMAOP_TRAP_TO_CPU,
-    RMAOP_DROP,
-    RMAOP_FORWARD_EXCLUDE_CPU,
-    RMAOP_END
-};
+typedef struct rtk_rmaParam_s {
+	rtk_uint32 operation;
+	rtk_uint32 discard_storm_filter;
+	rtk_uint32 trap_priority;
+	rtk_uint32 keep_format;
+	rtk_uint32 vlan_leaky;
+	rtk_uint32 portiso_leaky;
 
-
-
-
-
-typedef struct  rtk_rmaParam_s{
-
-    rtk_uint32 operation;
-    rtk_uint32 discard_storm_filter;
-    rtk_uint32 trap_priority;
-    rtk_uint32 keep_format;
-    rtk_uint32 vlan_leaky;
-    rtk_uint32 portiso_leaky;
-
-}rtk_rmaParam_t;
-
+} rtk_rmaParam_t;
 
 /* Function Name:
  *      rtk_rma_set
@@ -66,8 +52,7 @@ typedef struct  rtk_rmaParam_s{
  * Note:
  *      Reset MIB counter of ports. API will use global reset while port mask is all-ports.
  */
-extern rtk_api_ret_t rtk_rma_set(rtk_uint32 rmaAddr, rtk_rmaParam_t* rmaParam);
-
+extern rtk_api_ret_t rtk_rma_set(rtk_uint32 rmaAddr, rtk_rmaParam_t *rmaParam);
 
 /* Function Name:
  *      rtk_rma_get
@@ -91,10 +76,6 @@ extern rtk_api_ret_t rtk_rma_set(rtk_uint32 rmaAddr, rtk_rmaParam_t* rmaParam);
  * Note:
  *      Reset MIB counter of ports. API will use global reset while port mask is all-ports.
  */
-extern rtk_api_ret_t rtk_rma_get(rtk_uint32 rmaAddr, rtk_rmaParam_t* rmaParam);
-
-
-
+extern rtk_api_ret_t rtk_rma_get(rtk_uint32 rmaAddr, rtk_rmaParam_t *rmaParam);
 
 #endif /* __RTK_API_RMA_H__ */
-

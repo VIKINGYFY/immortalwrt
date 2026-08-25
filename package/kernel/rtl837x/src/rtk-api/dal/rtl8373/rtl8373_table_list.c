@@ -24,63 +24,54 @@
 #include "rtl8373_table_struct.h"
 #include "rtl8373_tableField_list.h"
 
-rtk_table_t rtl8373_table_list[] =
-{
-    {   /* table name               VLAN_TBL */
-        /* access table set */      99,
-        /* access table type */     3,
-        /* table size */            4096,
-        /* total data registers */  1,
-        /* total field numbers */   6,
-        /* table fields */          RTL8373_VLAN_TBL_FIELDS
-    },
-    {   /* table name               L2_IPMC */
-        /* access table set */      99,
-        /* access table type */     1,
-        /* table size */            4096,
-        /* total data registers */  3,
-        /* total field numbers */   6,
-        /* table fields */          RTL8373_L2_IPMC_FIELDS
-    },
-    {   /* table name               L2_MC */
-        /* access table set */      99,
-        /* access table type */     0,
-        /* table size */            4096,
-        /* total data registers */  3,
-        /* total field numbers */   7,
-        /* table fields */          RTL8373_L2_MC_FIELDS
-    },
-    {   /* table name               L2_UC */
-        /* access table set */      99,
-        /* access table type */     0,
-        /* table size */            4096,
-        /* total data registers */  3,
-        /* total field numbers */   8,
-        /* table fields */          RTL8373_L2_UC_FIELDS
-    },
-    {   /* table name               IGMP_GROUP_TBL */
-        /* access table set */      99,
-        /* access table type */     5,
-        /* table size */            256,
-        /* total data registers */  1,
-        /* total field numbers */   11,
-        /* table fields */          RTL8373_IGMP_GROUP_TBL_FIELDS
-    },
-    {   /* table name               ACL_ACT_ENTRY */
-        /* access table set */      99,
-        /* access table type */     2,
-        /* table size */            96,
-        /* total data registers */  3,
-        /* total field numbers */   18,
-        /* table fields */          RTL8373_ACL_ACT_ENTRY_FIELDS
-    },
-    {   /* table name               ACL_RULE_DATA */
-        /* access table set */      99,
-        /* access table type */     1,
-        /* table size */            96,
-        /* total data registers */  5,
-        /* total field numbers */   27,
-        /* table fields */          RTL8373_ACL_RULE_DATA_FIELDS
-    },
+rtk_table_t rtl8373_table_list[] = {
+	{ /* table name               VLAN_TBL */
+	  /* access table set */ 99,
+	  /* access table type */ 3,
+	  /* table size */ 4096,
+	  /* total data registers */ 1,
+	  /* total field numbers */ 6,
+	  /* table fields */ RTL8373_VLAN_TBL_FIELDS },
+	{ /* table name               L2_IPMC */
+	  /* access table set */ 99,
+	  /* access table type */ 1,
+	  /* table size */ 4096,
+	  /* total data registers */ 3,
+	  /* total field numbers */ 6,
+	  /* table fields */ RTL8373_L2_IPMC_FIELDS },
+	{ /* table name               L2_MC */
+	  /* access table set */ 99,
+	  /* access table type */ 0,
+	  /* table size */ 4096,
+	  /* total data registers */ 3,
+	  /* total field numbers */ 7,
+	  /* table fields */ RTL8373_L2_MC_FIELDS },
+	{ /* table name               L2_UC */
+	  /* access table set */ 99,
+	  /* access table type */ 0,
+	  /* table size */ 4096,
+	  /* total data registers */ 3,
+	  /* total field numbers */ 8,
+	  /* table fields */ RTL8373_L2_UC_FIELDS },
+	{ /* table name               IGMP_GROUP_TBL */
+	  /* access table set */ 99,
+	  /* access table type */ 5,
+	  /* table size */ 256,
+	  /* total data registers */ 1,
+	  /* total field numbers */ 11,
+	  /* table fields */ RTL8373_IGMP_GROUP_TBL_FIELDS },
+	{ /* table name               ACL_ACT_ENTRY */
+	  /* access table set */ 99,
+	  /* access table type */ 2,
+	  /* table size */ 96,
+	  /* total data registers */ 3,
+	  /* total field numbers */ 18,
+	  /* table fields */ RTL8373_ACL_ACT_ENTRY_FIELDS },
+	{ /* table name               ACL_RULE_DATA */
+	  /* access table set */ 99,
+	  /* access table type */ 1,
+	  /* table size */ 96,
+	  /* total data registers */ 5,
+	  /* total field numbers */ 27,
+	  /* table fields */ RTL8373_ACL_RULE_DATA_FIELDS },
 };
-

@@ -3,13 +3,6 @@
 
 #include <interrupt.h>
 
-
-
-
-
-
-
-
 /* Function Name:
  *      dal_rtl8373_intMode_set
  * Description:
@@ -23,11 +16,9 @@
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_intMode_set(rtk_int_polarity_t mode);
-
-
 
 /* Function Name:
  *      dal_rtl8373_intMode_get
@@ -42,11 +33,9 @@ extern rtk_api_ret_t dal_rtl8373_intMode_set(rtk_int_polarity_t mode);
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
-extern rtk_api_ret_t dal_rtl8373_intMode_get(rtk_int_polarity_t* pMode);
-
-
+extern rtk_api_ret_t dal_rtl8373_intMode_get(rtk_int_polarity_t *pMode);
 
 /* Function Name:
  *      dal_rtl8373_portLinkChgIMR_set
@@ -63,10 +52,9 @@ extern rtk_api_ret_t dal_rtl8373_intMode_get(rtk_int_polarity_t* pMode);
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_portLinkChgIMR_set(rtk_uint32 type, rtk_uint32 port, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_portLinkChgIMR_get
@@ -83,11 +71,10 @@ extern rtk_api_ret_t dal_rtl8373_portLinkChgIMR_set(rtk_uint32 type, rtk_uint32 
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portLinkChgIMR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_portLinkChgIMR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_gphyIMR_set
@@ -104,10 +91,9 @@ extern rtk_api_ret_t dal_rtl8373_portLinkChgIMR_get(rtk_uint32 type, rtk_uint32 
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_gphyIMR_set(rtk_uint32 type, rtk_uint32 phy, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_gphyIMR_get
@@ -124,12 +110,10 @@ extern rtk_api_ret_t dal_rtl8373_gphyIMR_set(rtk_uint32 type, rtk_uint32 phy, rt
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_gphyIMR_get(rtk_uint32 type, rtk_uint32 phy, rtk_uint32* pEnable);
-
-
+extern rtk_api_ret_t dal_rtl8373_gphyIMR_get(rtk_uint32 type, rtk_uint32 phy, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_portLrnOverIMR_set
@@ -146,10 +130,9 @@ extern rtk_api_ret_t dal_rtl8373_gphyIMR_get(rtk_uint32 type, rtk_uint32 phy, rt
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_portLrnOverIMR_set(rtk_uint32 type, rtk_uint32 port, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_portLrnOverIMR_get
@@ -166,11 +149,10 @@ extern rtk_api_ret_t dal_rtl8373_portLrnOverIMR_set(rtk_uint32 type, rtk_uint32 
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portLrnOverIMR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_portLrnOverIMR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_portRLFDIMR_set
@@ -187,10 +169,9 @@ extern rtk_api_ret_t dal_rtl8373_portLrnOverIMR_get(rtk_uint32 type, rtk_uint32 
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_portRLFDIMR_set(rtk_uint32 type, rtk_uint32 port, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_portRLFDIMR_get
@@ -207,11 +188,10 @@ extern rtk_api_ret_t dal_rtl8373_portRLFDIMR_set(rtk_uint32 type, rtk_uint32 por
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portRLFDIMR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_portRLFDIMR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_portWolIMR_set
@@ -228,10 +208,9 @@ extern rtk_api_ret_t dal_rtl8373_portRLFDIMR_get(rtk_uint32 type, rtk_uint32 por
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_portWolIMR_set(rtk_uint32 type, rtk_uint32 port, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_portWolIMR_get
@@ -248,11 +227,10 @@ extern rtk_api_ret_t dal_rtl8373_portWolIMR_set(rtk_uint32 type, rtk_uint32 port
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portWolIMR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_portWolIMR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_portSdsLnkFltIMR_set
@@ -269,10 +247,9 @@ extern rtk_api_ret_t dal_rtl8373_portWolIMR_get(rtk_uint32 type, rtk_uint32 port
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltIMR_set(rtk_uint32 type, rtk_uint32 sds, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_portSdsLnkFltIMR_get
@@ -289,11 +266,10 @@ extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltIMR_set(rtk_uint32 type, rtk_uint3
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltIMR_get(rtk_uint32 type, rtk_uint32 sds, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltIMR_get(rtk_uint32 type, rtk_uint32 sds, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_portSdsUpdPhyIMR_set
@@ -310,10 +286,9 @@ extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltIMR_get(rtk_uint32 type, rtk_uint3
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyIMR_set(rtk_uint32 type, rtk_uint32 sds, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_portSdsUpdPhyIMR_get
@@ -330,11 +305,10 @@ extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyIMR_set(rtk_uint32 type, rtk_uint3
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyIMR_get(rtk_uint32 type, rtk_uint32 sds, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyIMR_get(rtk_uint32 type, rtk_uint32 sds, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_gpioIMR_set
@@ -351,10 +325,9 @@ extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyIMR_get(rtk_uint32 type, rtk_uint3
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_gpioIMR_set(rtk_uint32 type, rtk_uint32 gpio, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_gpioIMR_get
@@ -371,11 +344,10 @@ extern rtk_api_ret_t dal_rtl8373_gpioIMR_set(rtk_uint32 type, rtk_uint32 gpio, r
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_gpioIMR_get(rtk_uint32 type, rtk_uint32 gpio, rtk_uint32* pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_gpioIMR_get(rtk_uint32 type, rtk_uint32 gpio, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_miscIMR_set
@@ -392,10 +364,9 @@ extern rtk_api_ret_t dal_rtl8373_gpioIMR_get(rtk_uint32 type, rtk_uint32 gpio, r
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_miscIMR_set(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_miscIMR_get
@@ -412,13 +383,10 @@ extern rtk_api_ret_t dal_rtl8373_miscIMR_set(rtk_uint32 type, interrupt_misc_t i
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_miscIMR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32* pEnable);
-
-
-
+extern rtk_api_ret_t dal_rtl8373_miscIMR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_portLinkChgISR_get
@@ -435,12 +403,10 @@ extern rtk_api_ret_t dal_rtl8373_miscIMR_get(rtk_uint32 type, interrupt_misc_t i
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portLinkChgISR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_portLinkChgISR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_gphyIMR_get
@@ -457,13 +423,10 @@ extern rtk_api_ret_t dal_rtl8373_portLinkChgISR_get(rtk_uint32 type, rtk_uint32 
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_gphyISR_get(rtk_uint32 type, rtk_uint32 phy, rtk_uint32* pStatus);
-
-
-
+extern rtk_api_ret_t dal_rtl8373_gphyISR_get(rtk_uint32 type, rtk_uint32 phy, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_portLrnOverIMR_get
@@ -480,12 +443,10 @@ extern rtk_api_ret_t dal_rtl8373_gphyISR_get(rtk_uint32 type, rtk_uint32 phy, rt
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portLrnOverISR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_portLrnOverISR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_portRLFDIMR_get
@@ -502,12 +463,10 @@ extern rtk_api_ret_t dal_rtl8373_portLrnOverISR_get(rtk_uint32 type, rtk_uint32 
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portRLFDISR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_portRLFDISR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_portWolIMR_get
@@ -524,12 +483,10 @@ extern rtk_api_ret_t dal_rtl8373_portRLFDISR_get(rtk_uint32 type, rtk_uint32 por
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portWolISR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_portWolISR_get(rtk_uint32 type, rtk_uint32 port, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_portSdsLnkFltIMR_get
@@ -546,12 +503,10 @@ extern rtk_api_ret_t dal_rtl8373_portWolISR_get(rtk_uint32 type, rtk_uint32 port
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltISR_get(rtk_uint32 type, rtk_uint32 sds, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltISR_get(rtk_uint32 type, rtk_uint32 sds, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_portSdsUpdPhyIMR_get
@@ -568,12 +523,10 @@ extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltISR_get(rtk_uint32 type, rtk_uint3
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyISR_get(rtk_uint32 type, rtk_uint32 sds, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyISR_get(rtk_uint32 type, rtk_uint32 sds, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_gpioIMR_get
@@ -590,12 +543,10 @@ extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyISR_get(rtk_uint32 type, rtk_uint3
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_gpioISR_get(rtk_uint32 type, rtk_uint32 gpio, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_gpioISR_get(rtk_uint32 type, rtk_uint32 gpio, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_miscIMR_get
@@ -612,12 +563,10 @@ extern rtk_api_ret_t dal_rtl8373_gpioISR_get(rtk_uint32 type, rtk_uint32 gpio, r
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_miscISR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_miscISR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_glbISR_get
@@ -634,12 +583,10 @@ extern rtk_api_ret_t dal_rtl8373_miscISR_get(rtk_uint32 type, interrupt_misc_t i
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_glbISR_get(rtk_uint32 type, interrupt_glb_t interrupt, rtk_uint32* pStatus);
-
-
+extern rtk_api_ret_t dal_rtl8373_glbISR_get(rtk_uint32 type, interrupt_glb_t interrupt, rtk_uint32 *pStatus);
 
 /* Function Name:
  *      dal_rtl8373_IE_set
@@ -654,11 +601,10 @@ extern rtk_api_ret_t dal_rtl8373_glbISR_get(rtk_uint32 type, interrupt_glb_t int
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t dal_rtl8373_IE_set(rtk_uint32 enable);
-
 
 /* Function Name:
  *      dal_rtl8373_IE_get
@@ -673,15 +619,12 @@ extern rtk_api_ret_t dal_rtl8373_IE_set(rtk_uint32 enable);
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-extern rtk_api_ret_t dal_rtl8373_IE_get(rtk_uint32* pEnable);
+extern rtk_api_ret_t dal_rtl8373_IE_get(rtk_uint32 *pEnable);
 
-
-
-
- /* Function Name:
+/* Function Name:
   *      dal_rtl8373_portLinkChgISR_clear
   * Description:
   *      Set link change interrupt IMR
@@ -696,14 +639,12 @@ extern rtk_api_ret_t dal_rtl8373_IE_get(rtk_uint32* pEnable);
   *      RT_ERR_FAILED       - Failed
   *      RT_ERR_SMI          - SMI access error
   * Note:
-   *      The API can set wol enable 
+   *      The API can set wol enable
   */
- 
- extern rtk_api_ret_t dal_rtl8373_portLinkChgISR_clear(rtk_uint32 type, rtk_uint32 port);
- 
- 
- 
- /* Function Name:
+
+extern rtk_api_ret_t dal_rtl8373_portLinkChgISR_clear(rtk_uint32 type, rtk_uint32 port);
+
+/* Function Name:
   *      dal_rtl8373_gphyISR_clear
   * Description:
   *      Set link change interrupt IMR
@@ -718,15 +659,12 @@ extern rtk_api_ret_t dal_rtl8373_IE_get(rtk_uint32* pEnable);
   *      RT_ERR_FAILED       - Failed
   *      RT_ERR_SMI          - SMI access error
   * Note:
-   *      The API can set wol enable 
+   *      The API can set wol enable
   */
- 
- extern rtk_api_ret_t dal_rtl8373_gphyISR_clear(rtk_uint32 type, rtk_uint32 phy);
- 
- 
- 
- 
- /* Function Name:
+
+extern rtk_api_ret_t dal_rtl8373_gphyISR_clear(rtk_uint32 type, rtk_uint32 phy);
+
+/* Function Name:
   *      dal_rtl8373_portLrnOverISR_clear
   * Description:
   *      Set link change interrupt IMR
@@ -742,13 +680,11 @@ extern rtk_api_ret_t dal_rtl8373_IE_get(rtk_uint32* pEnable);
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t dal_rtl8373_portLrnOverISR_clear(rtk_uint32 type, rtk_uint32 port);
 
-
-
 /* Function Name:
  *      dal_rtl8373_portRLFDISR_clear
  * Description:
@@ -764,13 +700,11 @@ extern rtk_api_ret_t dal_rtl8373_portLrnOverISR_clear(rtk_uint32 type, rtk_uint3
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t dal_rtl8373_portRLFDISR_clear(rtk_uint32 type, rtk_uint32 port);
 
-
-
 /* Function Name:
  *      dal_rtl8373_portRLFDISR_clear
  * Description:
@@ -786,12 +720,10 @@ extern rtk_api_ret_t dal_rtl8373_portRLFDISR_clear(rtk_uint32 type, rtk_uint32 p
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t dal_rtl8373_portWolISR_clear(rtk_uint32 type, rtk_uint32 port);
-
-
 
 /* Function Name:
  *      dal_rtl8373_portSdsLnkFltISR_clear
@@ -808,12 +740,10 @@ extern rtk_api_ret_t dal_rtl8373_portWolISR_clear(rtk_uint32 type, rtk_uint32 po
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltISR_clear(rtk_uint32 type, rtk_uint32 sds);
-
-
 
 /* Function Name:
  *      dal_rtl8373_portSdsUpdPhyISR_clear
@@ -830,12 +760,10 @@ extern rtk_api_ret_t dal_rtl8373_portSdsLnkFltISR_clear(rtk_uint32 type, rtk_uin
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyISR_clear(rtk_uint32 type, rtk_uint32 sds);
-
-
 
 /* Function Name:
  *      dal_rtl8373_gpioISR_clear
@@ -852,12 +780,10 @@ extern rtk_api_ret_t dal_rtl8373_portSdsUpdPhyISR_clear(rtk_uint32 type, rtk_uin
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t dal_rtl8373_gpioISR_clear(rtk_uint32 type, rtk_uint32 gpio);
-
-
 
 /* Function Name:
  *      dal_rtl8373_miscISR_clear
@@ -874,7 +800,7 @@ extern rtk_api_ret_t dal_rtl8373_gpioISR_clear(rtk_uint32 type, rtk_uint32 gpio)
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 extern rtk_api_ret_t dal_rtl8373_miscISR_clear(rtk_uint32 type, interrupt_misc_t interrupt);
@@ -895,12 +821,9 @@ extern rtk_api_ret_t dal_rtl8373_miscISR_clear(rtk_uint32 type, interrupt_misc_t
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 extern rtk_api_ret_t dal_rtl8373_portIntIMR_set(rtk_port_t port, rtk_int_cpu_t inttype, rtk_int_type_t intnum, rtk_enable_t enable);
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_portIntIMR_get
@@ -918,12 +841,8 @@ extern rtk_api_ret_t dal_rtl8373_portIntIMR_set(rtk_port_t port, rtk_int_cpu_t i
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
-extern rtk_api_ret_t dal_rtl8373_portIntIMR_get(rtk_port_t port, rtk_int_cpu_t inttype, rtk_int_type_t intnum, rtk_enable_t* pEnable);
-
-
-
+extern rtk_api_ret_t dal_rtl8373_portIntIMR_get(rtk_port_t port, rtk_int_cpu_t inttype, rtk_int_type_t intnum, rtk_enable_t *pEnable);
 
 #endif
-

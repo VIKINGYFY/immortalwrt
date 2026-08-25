@@ -15,7 +15,6 @@
  *
  */
 
- 
 /* Function Name:
  *      dal_rtl8373_port_isolation_set
  * Description:
@@ -52,5 +51,3 @@ extern ret_t dal_rtl8373_port_isolation_set(rtk_port_t port, rtk_uint32 permitPo
  *      None
  */
 extern ret_t dal_rtl8373_port_isolation_get(rtk_port_t port, rtk_uint32 *pPermitPortmask);
-
-

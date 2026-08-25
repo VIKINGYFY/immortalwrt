@@ -18,147 +18,110 @@
 #ifndef __RTK_API_L2_H__
 #define __RTK_API_L2_H__
 
-
 /*
  * Data Type Declaration
  */
-#define RTK_MAX_NUM_OF_LEARN_LIMIT                  (rtk_switch_maxLutAddrNumber_get())
+#define RTK_MAX_NUM_OF_LEARN_LIMIT (rtk_switch_maxLutAddrNumber_get())
 
-#define RTK_MAC_ADDR_LEN                            6
-#define RTK_MAX_LUT_ADDRESS                         (RTK_MAX_NUM_OF_LEARN_LIMIT)
-#define RTK_MAX_LUT_ADDR_ID                         (RTK_MAX_LUT_ADDRESS - 1)
+#define RTK_MAC_ADDR_LEN 6
+#define RTK_MAX_LUT_ADDRESS (RTK_MAX_NUM_OF_LEARN_LIMIT)
+#define RTK_MAX_LUT_ADDR_ID (RTK_MAX_LUT_ADDRESS - 1)
 
 typedef rtk_uint32 rtk_l2_age_time_t;
 
-typedef enum rtk_l2_flood_type_e
-{
-    FLOOD_UNKNOWNDA = 0,
-    FLOOD_UNKNOWNL2MC,
-    FLOOD_UNKNOWNV4MC,
-    FLOOD_UNKNOWNV6MC,
-    FLOOD_BC,
-    FLOOD_END
-} rtk_l2_flood_type_t;
+typedef enum rtk_l2_flood_type_e { FLOOD_UNKNOWNDA = 0, FLOOD_UNKNOWNL2MC, FLOOD_UNKNOWNV4MC, FLOOD_UNKNOWNV6MC, FLOOD_BC, FLOOD_END } rtk_l2_flood_type_t;
 
 typedef rtk_uint32 rtk_l2_flushItem_t;
 
-typedef enum rtk_l2_flushType_e
-{
-    FLUSH_TYPE_BY_PORT = 0,       /* physical port       */
-    FLUSH_TYPE_BY_PORT_VID,       /* physical port + VID */
-    FLUSH_TYPE_BY_PORT_FID,       /* physical port + FID */
-    FLUSH_TYPE_END
+typedef enum rtk_l2_flushType_e {
+	FLUSH_TYPE_BY_PORT = 0, /* physical port       */
+	FLUSH_TYPE_BY_PORT_VID, /* physical port + VID */
+	FLUSH_TYPE_BY_PORT_FID, /* physical port + FID */
+	FLUSH_TYPE_END
 } rtk_l2_flushType_t;
 
-typedef struct rtk_l2_flushCfg_s
-{
-    rtk_enable_t    flushByVid;
-    rtk_vlan_t      vid;
-    rtk_enable_t    flushByFid;
-    rtk_uint32      fid;
-    rtk_enable_t    flushByPort;
-    rtk_uint32      portmask;
-    rtk_enable_t    flushStaticAddr;
-	rtk_enable_t    flushAddrOnAllPorts;
+typedef struct rtk_l2_flushCfg_s {
+	rtk_enable_t flushByVid;
+	rtk_vlan_t vid;
+	rtk_enable_t flushByFid;
+	rtk_uint32 fid;
+	rtk_enable_t flushByPort;
+	rtk_uint32 portmask;
+	rtk_enable_t flushStaticAddr;
+	rtk_enable_t flushAddrOnAllPorts;
 } rtk_l2_flushCfg_t;
 
-typedef enum rtk_l2_read_method_e{
+typedef enum rtk_l2_read_method_e {
 
-    READMETHOD_MAC = 0,
-    READMETHOD_ADDRESS,
-    READMETHOD_NEXT_ADDRESS,
-    READMETHOD_NEXT_L2UC, ///3
-    READMETHOD_NEXT_L2MC,
-    READMETHOD_NEXT_L3MC,
-    READMETHOD_NEXT_L2L3MC,
-    READMETHOD_NEXT_L2UCSPA, //7
-    READMETHOD_END
-}rtk_l2_read_method_t;
+	READMETHOD_MAC = 0,
+	READMETHOD_ADDRESS,
+	READMETHOD_NEXT_ADDRESS,
+	READMETHOD_NEXT_L2UC, ///3
+	READMETHOD_NEXT_L2MC,
+	READMETHOD_NEXT_L3MC,
+	READMETHOD_NEXT_L2L3MC,
+	READMETHOD_NEXT_L2UCSPA, //7
+	READMETHOD_END
+} rtk_l2_read_method_t;
 
 /* l2 limit learning count action */
-typedef enum rtk_l2_limitLearnCntAction_e
-{
-    LIMIT_LEARN_CNT_ACTION_DROP = 0,
-    LIMIT_LEARN_CNT_ACTION_FORWARD,
-    LIMIT_LEARN_CNT_ACTION_TO_CPU,
-    LIMIT_LEARN_CNT_ACTION_END
-} rtk_l2_limitLearnCntAction_t;
+typedef enum rtk_l2_limitLearnCntAction_e { LIMIT_LEARN_CNT_ACTION_DROP = 0, LIMIT_LEARN_CNT_ACTION_FORWARD, LIMIT_LEARN_CNT_ACTION_TO_CPU, LIMIT_LEARN_CNT_ACTION_END } rtk_l2_limitLearnCntAction_t;
 
-typedef enum rtk_l2_ipmc_lookup_type_e
-{
-    LOOKUP_MAC = 0,
-    LOOKUP_IP,
-    LOOKUP_END
-} rtk_l2_ipmc_lookup_type_t;
+typedef enum rtk_l2_ipmc_lookup_type_e { LOOKUP_MAC = 0, LOOKUP_IP, LOOKUP_END } rtk_l2_ipmc_lookup_type_t;
 
 /* l2 address table - unicast data structure */
-typedef struct rtk_l2_ucastAddr_s
-{
-    rtk_mac_t       mac;
-    rtk_uint32      ivl;
-    rtk_uint32      vid_fid;
-    rtk_uint32      port;
-    rtk_uint32      auth;
-    rtk_uint32      is_static;
-    rtk_uint32      address;
-    rtk_uint32      age;
-}rtk_l2_ucastAddr_t;
+typedef struct rtk_l2_ucastAddr_s {
+	rtk_mac_t mac;
+	rtk_uint32 ivl;
+	rtk_uint32 vid_fid;
+	rtk_uint32 port;
+	rtk_uint32 auth;
+	rtk_uint32 is_static;
+	rtk_uint32 address;
+	rtk_uint32 age;
+} rtk_l2_ucastAddr_t;
 
 /* l2 address table - multicast data structure */
-typedef struct rtk_l2_mcastAddr_s
-{
-    rtk_uint32      vid_fid;
-    rtk_mac_t       mac;
-    rtk_portmask_t  portmask;
-    rtk_uint32      ivl;
-    rtk_uint32      igmp_asic;
-    rtk_uint32      igmp_index;
-    rtk_uint32      address;
-}rtk_l2_mcastAddr_t;
+typedef struct rtk_l2_mcastAddr_s {
+	rtk_uint32 vid_fid;
+	rtk_mac_t mac;
+	rtk_portmask_t portmask;
+	rtk_uint32 ivl;
+	rtk_uint32 igmp_asic;
+	rtk_uint32 igmp_index;
+	rtk_uint32 address;
+} rtk_l2_mcastAddr_t;
 
 /* l2 address table - ip multicast data structure */
-typedef struct rtk_l2_ipMcastAddr_s
-{
-    ipaddr_t        dip;
-    ipaddr_t        sip;
-    rtk_portmask_t  portmask;
-    rtk_uint32      igmp_asic;
-    rtk_uint32      igmp_index;
-    rtk_uint32      address;
-}rtk_l2_ipMcastAddr_t;
+typedef struct rtk_l2_ipMcastAddr_s {
+	ipaddr_t dip;
+	ipaddr_t sip;
+	rtk_portmask_t portmask;
+	rtk_uint32 igmp_asic;
+	rtk_uint32 igmp_index;
+	rtk_uint32 address;
+} rtk_l2_ipMcastAddr_t;
 
+typedef struct rtk_l2_addr_table_s {
+	rtk_uint32 index;
+	ipaddr_t sip;
+	ipaddr_t dip;
+	rtk_mac_t mac;
+	rtk_uint32 auth;
+	rtk_portmask_t portmask;
+	rtk_uint32 age;
+	rtk_uint32 ivl;
+	rtk_uint32 vid_fid;
+	rtk_uint32 is_ipmul;
+	rtk_uint32 is_static;
+	rtk_uint32 igmp_idx;
+	rtk_uint32 igmp_asic;
+	rtk_uint32 srcport;
+} rtk_l2_addr_table_t;
 
-typedef struct rtk_l2_addr_table_s
-{
-    rtk_uint32  index;
-    ipaddr_t    sip;
-    ipaddr_t    dip;
-    rtk_mac_t   mac;
-    rtk_uint32  auth;
-    rtk_portmask_t  portmask;
-    rtk_uint32  age;
-    rtk_uint32  ivl;
-    rtk_uint32  vid_fid;
-    rtk_uint32  is_ipmul;
-    rtk_uint32  is_static;
-    rtk_uint32  igmp_idx;
-    rtk_uint32  igmp_asic;
-	rtk_uint32	srcport;
-}rtk_l2_addr_table_t;
+typedef enum rtk_l2_clearStatus_e { L2_CLEAR_STATE_FINISH = 0, L2_CLEAR_STATE_BUSY, L2_CLEAR_STATE_END } rtk_l2_clearStatus_t;
 
-typedef enum rtk_l2_clearStatus_e
-{
-    L2_CLEAR_STATE_FINISH = 0,
-    L2_CLEAR_STATE_BUSY,
-    L2_CLEAR_STATE_END
-}rtk_l2_clearStatus_t;
-
-typedef enum rtk_l2_lookupHitIsolationAction_e
-{
-    L2_LOOKUPHIT_ISOACTION_NOP = 0,
-    L2_LOOKUPHIT_ISOACTION_UNKNOWN,
-    L2_LOOKUPHIT_ISOACTION_END
-}rtk_l2_lookupHitIsolationAction_t;
+typedef enum rtk_l2_lookupHitIsolationAction_e { L2_LOOKUPHIT_ISOACTION_NOP = 0, L2_LOOKUPHIT_ISOACTION_UNKNOWN, L2_LOOKUPHIT_ISOACTION_END } rtk_l2_lookupHitIsolationAction_t;
 
 /* Function Name:
  *      rtk_l2_init
@@ -448,8 +411,6 @@ extern rtk_api_ret_t rtk_l2_ipMcastAddr_next_get(rtk_uint32 *pAddress, rtk_l2_ip
  *      The API can delete a IP multicast address entry from the specified device.
  */
 extern rtk_api_ret_t rtk_l2_ipMcastAddr_del(rtk_l2_ipMcastAddr_t *pIpMcastAddr);
-
-
 
 /* Function Name:
  *      rtk_l2_ucastAddr_flush
@@ -1127,4 +1088,3 @@ extern rtk_api_ret_t rtk_l2_lookupHitIsolationAction_set(rtk_l2_lookupHitIsolati
 extern rtk_api_ret_t rtk_l2_lookupHitIsolationAction_get(rtk_l2_lookupHitIsolationAction_t *pAction);
 
 #endif /* __RTK_API_L2_H__ */
-

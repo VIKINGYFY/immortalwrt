@@ -24,7 +24,6 @@
 #include <linux/string.h>
 #include <dal/dal_mgmt.h>
 
-
 /* Function Name:
  *      rtk_port_phyReg_set
  * Description:
@@ -47,17 +46,16 @@
  */
 rtk_api_ret_t rtk_port_phyReg_set(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 indata)
 {
-       rtk_api_ret_t retVal;
-       
-    if (NULL == RT_MAPPER->fMdrv_miim_mmd_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->fMdrv_miim_mmd_write(phy_mask,dev_addr,reg_addr,indata);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->fMdrv_miim_mmd_write)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->fMdrv_miim_mmd_write(phy_mask, dev_addr, reg_addr, indata);
+	RTK_API_UNLOCK();
 
+	return retVal;
 }
 
 /* Function Name:
@@ -80,20 +78,19 @@ rtk_api_ret_t rtk_port_phyReg_set(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_
  * Note:
  *      This API will configure phy register data.
  */
- 
+
 rtk_api_ret_t rtk_port_phyReg_get(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 *pdata)
 {
-       rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->fMdrv_miim_mmd_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->fMdrv_miim_mmd_read)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->fMdrv_miim_mmd_read(phy_id,dev_addr,reg_addr,pdata);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->fMdrv_miim_mmd_read(phy_id, dev_addr, reg_addr, pdata);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 
 /* Function Name:
@@ -116,19 +113,19 @@ rtk_api_ret_t rtk_port_phyReg_get(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_ui
  * Note:
  *      This API will configure phy register data.
  */
- 
-rtk_api_ret_t rtk_port_phyReg_getBits(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr,  rtk_uint32 bitsMask,rtk_uint32 *pdata)
+
+rtk_api_ret_t rtk_port_phyReg_getBits(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitsMask, rtk_uint32 *pdata)
 {
-        rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->fMdrv_miim_mmd_readbits)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->fMdrv_miim_mmd_readbits)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->fMdrv_miim_mmd_readbits(phy_id,dev_addr,reg_addr,bitsMask,pdata);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->fMdrv_miim_mmd_readbits(phy_id, dev_addr, reg_addr, bitsMask, pdata);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -151,22 +148,20 @@ rtk_api_ret_t rtk_port_phyReg_getBits(rtk_uint32 phy_id, rtk_uint32 dev_addr, rt
  * Note:
  *      This API will configure phy register data.
  */
- 
-rtk_api_ret_t rtk_port_phyReg_setBits(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_uint32 reg_addr,  rtk_uint32 bitsMask,rtk_uint32 indata)
+
+rtk_api_ret_t rtk_port_phyReg_setBits(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitsMask, rtk_uint32 indata)
 {
-       rtk_api_ret_t retVal;
-       
-    if (NULL == RT_MAPPER->fMdrv_miim_mmd_writebits)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->fMdrv_miim_mmd_writebits(phy_mask,dev_addr,reg_addr,bitsMask,indata);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->fMdrv_miim_mmd_writebits)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->fMdrv_miim_mmd_writebits(phy_mask, dev_addr, reg_addr, bitsMask, indata);
+	RTK_API_UNLOCK();
 
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_port_macForceLink_set
@@ -197,15 +192,15 @@ rtk_api_ret_t rtk_port_phyReg_setBits(rtk_uint32 phy_mask, rtk_uint32 dev_addr, 
  */
 rtk_api_ret_t rtk_port_macForceLink_set(rtk_port_t port, rtk_port_ability_t *pPortability)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->port_macForceLink_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->port_macForceLink_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_macForceLink_set(port, pPortability);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_macForceLink_set(port, pPortability);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -227,18 +222,17 @@ rtk_api_ret_t rtk_port_macForceLink_set(rtk_port_t port, rtk_port_ability_t *pPo
  */
 rtk_api_ret_t rtk_port_macForceLink_get(rtk_port_t port, rtk_port_ability_t *pPortability)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_macForceLink_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_macForceLink_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_macForceLink_get(port, pPortability);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_macForceLink_get(port, pPortability);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_port_macStatus_get
@@ -258,18 +252,17 @@ rtk_api_ret_t rtk_port_macForceLink_get(rtk_port_t port, rtk_port_ability_t *pPo
  */
 rtk_api_ret_t rtk_port_macStatus_get(rtk_port_t port, rtk_port_status_t *pPortstatus)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_macStatus_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_macStatus_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_macStatus_get(port, pPortstatus);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_macStatus_get(port, pPortstatus);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_port_macLocalLoopbackEnable_set
@@ -294,16 +287,16 @@ rtk_api_ret_t rtk_port_macStatus_get(rtk_port_t port, rtk_port_status_t *pPortst
  */
 rtk_api_ret_t rtk_port_macLocalLoopbackEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_macLocalLoopbackEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_macLocalLoopbackEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_macLocalLoopbackEnable_set(port, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_macLocalLoopbackEnable_set(port, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -324,18 +317,17 @@ rtk_api_ret_t rtk_port_macLocalLoopbackEnable_set(rtk_port_t port, rtk_enable_t 
  */
 rtk_api_ret_t rtk_port_macLocalLoopbackEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_macLocalLoopbackEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_macLocalLoopbackEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_macLocalLoopbackEnable_get(port, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_macLocalLoopbackEnable_get(port, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_port_backpressureEnable_set
@@ -360,16 +352,16 @@ rtk_api_ret_t rtk_port_macLocalLoopbackEnable_get(rtk_port_t port, rtk_enable_t 
  */
 rtk_api_ret_t rtk_port_backpressureEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_backpressureEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_backpressureEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_backpressureEnable_set(port, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_backpressureEnable_set(port, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -393,16 +385,16 @@ rtk_api_ret_t rtk_port_backpressureEnable_set(rtk_port_t port, rtk_enable_t enab
  */
 rtk_api_ret_t rtk_port_backpressureEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_backpressureEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_backpressureEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_backpressureEnable_get(port, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_backpressureEnable_get(port, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -423,16 +415,16 @@ rtk_api_ret_t rtk_port_backpressureEnable_get(rtk_port_t port, rtk_enable_t *pEn
  */
 rtk_api_ret_t rtk_port_rtctEnable_set(rtk_uint32 portmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_rtct_start)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_rtct_start)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_rtct_start(portmask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_rtct_start(portmask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -453,19 +445,17 @@ rtk_api_ret_t rtk_port_rtctEnable_set(rtk_uint32 portmask)
  */
 rtk_api_ret_t rtk_port_rtct_init(void)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_rtct_init)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_rtct_init)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_rtct_init();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_rtct_init();
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-
 
 /* Function Name:
  *      rtk_port_rtctResult_get
@@ -494,19 +484,17 @@ rtk_api_ret_t rtk_port_rtct_init(void)
  */
 rtk_api_ret_t rtk_port_rtctResult_get(rtk_port_t port, rtk_rtct_result_t *pRtctResult)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_rtctResult_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_rtctResult_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_rtctResult_get(port, pRtctResult);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_rtctResult_get(port, pRtctResult);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-
 
 /* Function Name:
  *      rtk_sdsMode_get
@@ -527,18 +515,17 @@ rtk_api_ret_t rtk_port_rtctResult_get(rtk_port_t port, rtk_rtct_result_t *pRtctR
  */
 rtk_api_ret_t rtk_sdsMode_get(rtk_uint32 sdsId, rtk_sds_mode_t *pSdsMode)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_sdsMode_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_sdsMode_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_sdsMode_get(sdsId, pSdsMode);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_sdsMode_get(sdsId, pSdsMode);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_sdsMode_set
@@ -559,16 +546,16 @@ rtk_api_ret_t rtk_sdsMode_get(rtk_uint32 sdsId, rtk_sds_mode_t *pSdsMode)
  */
 rtk_api_ret_t rtk_sdsMode_set(rtk_uint32 sdsId, rtk_sds_mode_t sdsMode)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_sdsMode_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_sdsMode_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_sdsMode_set(sdsId, sdsMode);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_sdsMode_set(sdsId, sdsMode);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -590,18 +577,17 @@ rtk_api_ret_t rtk_sdsMode_set(rtk_uint32 sdsId, rtk_sds_mode_t sdsMode)
  */
 rtk_api_ret_t rtk_port_sdsNway_get(rtk_uint32 sdsId, rtk_sds_mode_t sdsMode, rtk_enable_t *pState)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_sdsNway_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_sdsNway_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_sdsNway_get(sdsId, sdsMode, pState);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_sdsNway_get(sdsId, sdsMode, pState);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_port_sdsNway_set
@@ -623,18 +609,17 @@ rtk_api_ret_t rtk_port_sdsNway_get(rtk_uint32 sdsId, rtk_sds_mode_t sdsMode, rtk
  */
 rtk_api_ret_t rtk_port_sdsNway_set(rtk_uint32 sdsId, rtk_sds_mode_t sdsMode, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_sdsNway_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_sdsNway_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_sdsNway_set(sdsId, sdsMode, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_sdsNway_set(sdsId, sdsMode, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_port_extphyid_set
@@ -652,20 +637,19 @@ rtk_api_ret_t rtk_port_sdsNway_set(rtk_uint32 sdsId, rtk_sds_mode_t sdsMode, rtk
  *      None
  */
 
-rtk_api_ret_t rtk_port_extphyid_set(rtk_uint32 sdsid,  rtk_uint32 phyid)
+rtk_api_ret_t rtk_port_extphyid_set(rtk_uint32 sdsid, rtk_uint32 phyid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_extphyid_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_extphyid_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_extphyid_set(sdsid, phyid);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_extphyid_set(sdsid, phyid);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_port_extphyid_get
@@ -683,17 +667,16 @@ rtk_api_ret_t rtk_port_extphyid_set(rtk_uint32 sdsid,  rtk_uint32 phyid)
  *      None
  */
 
-rtk_api_ret_t rtk_port_extphyid_get(rtk_uint32 sdsid,  rtk_uint32 *phyid)
+rtk_api_ret_t rtk_port_extphyid_get(rtk_uint32 sdsid, rtk_uint32 *phyid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_extphyid_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_extphyid_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_extphyid_get(sdsid, phyid);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_extphyid_get(sdsid, phyid);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-

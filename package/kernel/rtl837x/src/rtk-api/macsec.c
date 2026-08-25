@@ -15,7 +15,7 @@
  *
  */
 
- #include <rtk_switch.h>
+#include <rtk_switch.h>
 #include <rtk_error.h>
 #include <macsec.h>
 #include <linux/string.h>
@@ -46,7 +46,7 @@ rtk_api_ret_t rtk_macsec_enable_set(rtk_uint32 port, rtk_uint32 ingress_en, rtk_
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_enable_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_enable_set(port, ingress_en, egress_en);
@@ -78,7 +78,7 @@ rtk_api_ret_t rtk_macsec_enable_get(rtk_uint32 port, rtk_uint32 *ingress_en, rtk
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_enable_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_enable_get(port, ingress_en, egress_en);
@@ -111,7 +111,7 @@ rtk_api_ret_t rtk_macsec_egress_set(rtk_uint32 port, rtk_uint32 addr, rtk_uint32
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_egress_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_egress_set(port, addr, value);
@@ -143,7 +143,7 @@ rtk_api_ret_t rtk_macsec_egress_get(rtk_uint32 port, rtk_uint32 addr, rtk_uint32
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_egress_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_egress_get(port, addr, value);
@@ -176,7 +176,7 @@ rtk_api_ret_t rtk_macsec_ingress_set(rtk_uint32 port, rtk_uint32 addr, rtk_uint3
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_ingress_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_ingress_set(port, addr, value);
@@ -208,7 +208,7 @@ rtk_api_ret_t rtk_macsec_ingress_get(rtk_uint32 port, rtk_uint32 addr, rtk_uint3
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_ingress_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_ingress_get(port, addr, value);
@@ -239,7 +239,7 @@ rtk_api_ret_t rtk_macsec_rxgating_set(rtk_uint32 port)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_rxgating_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_rxgating_set(port);
@@ -270,7 +270,7 @@ rtk_api_ret_t rtk_macsec_rxgating_cancel(rtk_uint32 port)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_rxgating_cancel)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_rxgating_cancel(port);
@@ -301,7 +301,7 @@ rtk_api_ret_t rtk_macsec_txgating_set(rtk_uint32 port)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_txgating_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_txgating_set(port);
@@ -332,7 +332,7 @@ rtk_api_ret_t rtk_macsec_txgating_cancel(rtk_uint32 port)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_txgating_cancel)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_txgating_cancel(port);
@@ -364,7 +364,7 @@ rtk_api_ret_t rtk_macsec_rxIPbypass_set(rtk_uint32 port, rtk_uint32 enable)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_rxIPbypass_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_rxIPbypass_set(port, enable);
@@ -395,7 +395,7 @@ rtk_api_ret_t rtk_macsec_rxIPbypass_get(rtk_uint32 port, rtk_uint32 *enable)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_rxIPbypass_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_rxIPbypass_get(port, enable);
@@ -427,7 +427,7 @@ rtk_api_ret_t rtk_macsec_txIPbypass_set(rtk_uint32 port, rtk_uint32 enable)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_txIPbypass_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_txIPbypass_set(port, enable);
@@ -459,7 +459,7 @@ rtk_api_ret_t rtk_macsec_txIPbypass_get(rtk_uint32 port, rtk_uint32 *enable)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_txIPbypass_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_txIPbypass_get(port, enable);
@@ -491,7 +491,7 @@ rtk_api_ret_t rtk_macsec_rxbypass_set(rtk_uint32 port, rtk_uint32 enable)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_rxbypass_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_rxbypass_set(port, enable);
@@ -522,7 +522,7 @@ rtk_api_ret_t rtk_macsec_rxbypass_get(rtk_uint32 port, rtk_uint32 *enable)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_rxbypass_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_rxbypass_get(port, enable);
@@ -554,7 +554,7 @@ rtk_api_ret_t rtk_macsec_txbypass_set(rtk_uint32 port, rtk_uint32 enable)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_txbypass_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_txbypass_set(port, enable);
@@ -585,7 +585,7 @@ rtk_api_ret_t rtk_macsec_txbypass_get(rtk_uint32 port, rtk_uint32 *enable)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_txbypass_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_txbypass_get(port, enable);
@@ -593,7 +593,6 @@ rtk_api_ret_t rtk_macsec_txbypass_get(rtk_uint32 port, rtk_uint32 *enable)
 
 	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_wrapper_int_control_set
@@ -628,7 +627,7 @@ rtk_api_ret_t rtk_wrapper_int_control_set(rtk_uint32 port, rtk_macsec_int_type_t
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->wrapper_int_control_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->wrapper_int_control_set(port, type, enable);
@@ -669,7 +668,7 @@ rtk_api_ret_t rtk_wrapper_int_control_get(rtk_uint32 port, rtk_macsec_int_type_t
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->wrapper_int_control_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->wrapper_int_control_get(port, type, pEnable);
@@ -710,7 +709,7 @@ rtk_api_ret_t rtk_wrapper_int_status_set(rtk_uint32 port, rtk_uint32 statusMask)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->wrapper_int_status_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->wrapper_int_status_set(port, statusMask);
@@ -751,7 +750,7 @@ rtk_api_ret_t rtk_wrapper_int_status_get(rtk_uint32 port, rtk_uint32 *pStatusMas
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->wrapper_int_status_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->wrapper_int_status_get(port, pStatusMask);
@@ -783,7 +782,7 @@ rtk_api_ret_t rtk_wrapper_mib_reset(rtk_uint32 port, rtk_uint32 reset)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->wrapper_mib_reset)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->wrapper_mib_reset(port, reset);
@@ -809,12 +808,12 @@ rtk_api_ret_t rtk_wrapper_mib_reset(rtk_uint32 port, rtk_uint32 reset)
  * Note:
  *      This API will get wrapper mib counters.
  */
-rtk_api_ret_t rtk_wrapper_mib_counter(rtk_uint32 port, RTL8373_WRAPPER_MIBCOUNTER mibIdx, rtk_uint64* pCounter)
+rtk_api_ret_t rtk_wrapper_mib_counter(rtk_uint32 port, RTL8373_WRAPPER_MIBCOUNTER mibIdx, rtk_uint64 *pCounter)
 {
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->wrapper_mib_counter)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->wrapper_mib_counter(port, mibIdx, pCounter);
@@ -843,13 +842,13 @@ rtk_api_ret_t rtk_wrapper_mib_counter(rtk_uint32 port, RTL8373_WRAPPER_MIBCOUNTE
  */
 rtk_api_ret_t rtk_macsec_ipg_len_set(rtk_uint32 port, rtk_uint32 length)
 {
-   	rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_ipg_len_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
-	retVal = RT_MAPPER->macsec_ipg_len_set(port,length);
+	retVal = RT_MAPPER->macsec_ipg_len_set(port, length);
 	RTK_API_UNLOCK();
 
 	return retVal;
@@ -874,12 +873,12 @@ rtk_api_ret_t rtk_macsec_ipg_len_set(rtk_uint32 port, rtk_uint32 length)
  */
 rtk_api_ret_t rtk_macsec_ipg_len_get(rtk_uint32 port, rtk_uint32 *plength)
 {
-   	rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 	if (NULL == RT_MAPPER->macsec_ipg_len_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
-	retVal = RT_MAPPER->macsec_ipg_len_get(port,plength);
+	retVal = RT_MAPPER->macsec_ipg_len_get(port, plength);
 	RTK_API_UNLOCK();
 
 	return retVal;
@@ -910,13 +909,13 @@ rtk_api_ret_t rtk_macsec_ipg_len_get(rtk_uint32 port, rtk_uint32 *plength)
  */
 rtk_api_ret_t rtk_macsec_ipg_mode_set(rtk_uint32 port, rtk_uint32 mode)
 {
-   	rtk_api_ret_t retVal;
-	
+	rtk_api_ret_t retVal;
+
 	if (NULL == RT_MAPPER->macsec_ipg_mode_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
-	retVal = RT_MAPPER->macsec_ipg_mode_set(port,mode);
+	retVal = RT_MAPPER->macsec_ipg_mode_set(port, mode);
 	RTK_API_UNLOCK();
 
 	return retVal;
@@ -947,12 +946,12 @@ rtk_api_ret_t rtk_macsec_ipg_mode_set(rtk_uint32 port, rtk_uint32 mode)
 rtk_api_ret_t rtk_macsec_ipg_mode_get(rtk_uint32 port, rtk_uint32 *pmode)
 {
 	rtk_api_ret_t retVal;
-	
+
 	if (NULL == RT_MAPPER->macsec_ipg_mode_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
-	retVal = RT_MAPPER->macsec_ipg_mode_get(port,pmode);
+	retVal = RT_MAPPER->macsec_ipg_mode_get(port, pmode);
 	RTK_API_UNLOCK();
 
 	return retVal;
@@ -979,10 +978,10 @@ rtk_api_ret_t rtk_macsec_ipg_mode_get(rtk_uint32 port, rtk_uint32 *pmode)
  */
 rtk_api_ret_t rtk_macsec_eth_set(rtk_uint32 port, rtk_uint32 entry, rtk_uint32 ethertype)
 {
-   	rtk_api_ret_t retVal;
-	
+	rtk_api_ret_t retVal;
+
 	if (NULL == RT_MAPPER->macsec_eth_set)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_eth_set(port, entry, ethertype);
@@ -1011,10 +1010,10 @@ rtk_api_ret_t rtk_macsec_eth_set(rtk_uint32 port, rtk_uint32 entry, rtk_uint32 e
  */
 rtk_api_ret_t rtk_macsec_eth_get(rtk_uint32 port, rtk_uint32 entry, rtk_uint32 *pethertype)
 {
-   	rtk_api_ret_t retVal;
-	
+	rtk_api_ret_t retVal;
+
 	if (NULL == RT_MAPPER->macsec_eth_get)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_eth_get(port, entry, pethertype);
@@ -1045,7 +1044,7 @@ rtk_api_ret_t rtk_macsec_init(rtk_uint32 port_mask)
 	rtk_api_ret_t retVal;
 
 	if (NULL == RT_MAPPER->macsec_init)
-	    return RT_ERR_DRIVER_NOT_FOUND;
+		return RT_ERR_DRIVER_NOT_FOUND;
 
 	RTK_API_LOCK();
 	retVal = RT_MAPPER->macsec_init(port_mask);
@@ -1053,11 +1052,3 @@ rtk_api_ret_t rtk_macsec_init(rtk_uint32 port_mask)
 
 	return retVal;
 }
-
-
-
-
-
-
-
-

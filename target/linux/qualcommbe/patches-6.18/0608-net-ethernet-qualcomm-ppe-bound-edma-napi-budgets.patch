@@ -1,0 +1,88 @@
+From: VKing <noreply@openwrt.local>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: bound EDMA NAPI budgets
+
+Linux 6.18 reports an error when a NAPI weight exceeds NAPI_POLL_WEIGHT. The
+IPQ5332 EDMA profile still supplied 128 for RX and 512 for TX, while the
+existing module parameter validation did not affect the values passed to
+netif_napi_add_weight(). Keep the profile values as the automatic defaults,
+cap them at the kernel limit, and honor explicit valid module values.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
+@@ -45,1 +45,1 @@
+-MODULE_PARM_DESC(edma_rx_napi_budget, "Rx NAPI budget (default:128, min:16, max:512)");
++MODULE_PARM_DESC(edma_rx_napi_budget, "Rx NAPI budget (default:auto, min:16, max:kernel limit)");
+@@ -49,1 +49,1 @@
+-MODULE_PARM_DESC(edma_tx_napi_budget, "Tx NAPI budget (default:512 for ipq95xx, min:16, max:512)");
++MODULE_PARM_DESC(edma_tx_napi_budget, "Tx NAPI budget (default:auto, min:16, max:kernel limit)");
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
+@@ -943,1 +943,2 @@
+ 	u32 i;
++	int napi_budget;
+@@ -945,6 +946,10 @@
+-	if (edma_rx_napi_budget < EDMA_RX_NAPI_WORK_MIN ||
+-	    edma_rx_napi_budget > EDMA_RX_NAPI_WORK_MAX) {
+-		pr_err("Incorrect Rx NAPI budget: %d, setting to default: %d",
+-		       edma_rx_napi_budget, hw_info->napi_budget_rx);
+-		edma_rx_napi_budget = hw_info->napi_budget_rx;
+-	}
++	napi_budget = edma_rx_napi_budget ?:
++		min_t(int, hw_info->napi_budget_rx, NAPI_POLL_WEIGHT);
++	if (napi_budget < EDMA_RX_NAPI_WORK_MIN ||
++	    napi_budget > EDMA_RX_NAPI_WORK_MAX) {
++		pr_err("Incorrect Rx NAPI budget: %d, setting to default: %d",
++		       napi_budget, min_t(int, hw_info->napi_budget_rx,
++						  NAPI_POLL_WEIGHT));
++		napi_budget = min_t(int, hw_info->napi_budget_rx,
++				    NAPI_POLL_WEIGHT);
++	}
+@@ -955,1 +960,1 @@
+-				      edma_rx_napi_poll, hw_info->napi_budget_rx);
++				      edma_rx_napi_poll, napi_budget);
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
+@@ -9,1 +9,1 @@
+-#define EDMA_RX_NAPI_WORK_DEF		128
++#define EDMA_RX_NAPI_WORK_DEF		0
+@@ -15,1 +15,1 @@
+-#define EDMA_RX_NAPI_WORK_MAX		512
++#define EDMA_RX_NAPI_WORK_MAX		NAPI_POLL_WEIGHT
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
+@@ -653,1 +653,2 @@
+ 	u32 i, ring_idx;
++	int napi_budget;
+@@ -655,6 +656,10 @@
+-	if (edma_tx_napi_budget < EDMA_TX_NAPI_WORK_MIN ||
+-	    edma_tx_napi_budget > EDMA_TX_NAPI_WORK_MAX) {
+-		pr_err("Incorrect Tx NAPI budget: %d, setting to default: %d",
+-		       edma_tx_napi_budget, hw_info->napi_budget_tx);
+-		edma_tx_napi_budget = hw_info->napi_budget_tx;
+-	}
++	napi_budget = edma_tx_napi_budget ?:
++		min_t(int, hw_info->napi_budget_tx, NAPI_POLL_WEIGHT);
++	if (napi_budget < EDMA_TX_NAPI_WORK_MIN ||
++	    napi_budget > EDMA_TX_NAPI_WORK_MAX) {
++		pr_err("Incorrect Tx NAPI budget: %d, setting to default: %d",
++		       napi_budget, min_t(int, hw_info->napi_budget_tx,
++						  NAPI_POLL_WEIGHT));
++		napi_budget = min_t(int, hw_info->napi_budget_tx,
++				    NAPI_POLL_WEIGHT);
++	}
+@@ -667,1 +672,1 @@
+-				      edma_tx_napi_poll, hw_info->napi_budget_tx);
++				      edma_tx_napi_poll, napi_budget);
+@@ -672,1 +677,1 @@
+-	netdev_dbg(netdev, "Tx NAPI budget: %d\n", edma_tx_napi_budget);
++	netdev_dbg(netdev, "Tx NAPI budget: %d\n", napi_budget);
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
+@@ -8,1 +8,1 @@
+-#define EDMA_TX_NAPI_WORK_DEF	512
++#define EDMA_TX_NAPI_WORK_DEF	0
+@@ -10,1 +10,1 @@
+-#define EDMA_TX_NAPI_WORK_MAX	512
++#define EDMA_TX_NAPI_WORK_MAX	NAPI_POLL_WEIGHT

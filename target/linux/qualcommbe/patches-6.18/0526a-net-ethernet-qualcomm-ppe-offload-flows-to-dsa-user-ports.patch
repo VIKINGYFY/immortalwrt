@@ -1,0 +1,239 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Wed, 29 Jul 2026 00:00:00 +0530
+Subject: [PATCH] net: ethernet: qualcomm: ppe: offload flows through DSA user ports
+
+A flow whose ingress or egress device is a DSA user port behind a PPE
+conduit (the RTL8372N switch on IPQ5332 boards) was rejected, leaving
+routed and NAT'd traffic involving wired LAN clients on the software
+path while the same traffic involving a wireless client already
+offloads through virtual ports.
+
+With a tag_8021q tagger the switch needs no header the PPE cannot
+produce: forward the flow through the conduit's PPE port and let the
+next hop push the user port's standalone VID, which the switch decodes
+for precise delivery and strips on egress, exactly as the tagger's own
+xmit path does. The egress L3 interface is the conduit port's, so the
+source-MAC rewrite and MY_MAC entry land where the reverse direction
+ingresses.
+
+Resolve ingress from a DSA user port to the conduit and classify its
+active tag_8021q VID through the existing VLAN-uplink machinery. This is
+the standalone VID for a standalone port and the bridge VID after a port
+joins a VLAN-unaware bridge. It makes the hardware lookup key match
+packets before the DSA receive path removes the tag. Use the same VID for
+egress, and keep a reference to the DSA netdev so carrier loss or a VID
+change stops refreshing a flow which can no longer deliver packets.
+
+Ports under a proprietary tagger stay rejected, as do DSA flows that
+already carry a user VLAN: the hardware path exposed by this driver has
+only one VLAN slot and cannot represent both the tag_8021q tag and a
+user tag.
+
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -16,6 +16,7 @@
+ 
+ #include <linux/atomic.h>
+ #include <linux/debugfs.h>
++#include <linux/dsa/8021q.h>
+ #include <linux/etherdevice.h>
+ #include <linux/hashtable.h>
+ #include <linux/if_arp.h>
+@@ -160,6 +161,8 @@ static_assert(offsetof(struct ppe_ft_vla
+  * @pppoe: PPPoE session slot held by the flow, negative when none.
+  * @vlan: VLAN uplink slot held by the flow, negative when none.
+  * @eport: Egress PPE port of the flow.
++ * @egress_dev: DSA user netdev held for carrier and topology checks.
++ * @egress_vid: tag_8021q VID programmed for DSA egress.
+  * @packets: Hit packet count at the last stats read.
+  * @bytes: Hit byte count at the last stats read.
+  */
+@@ -181,6 +184,8 @@ struct ppe_ft_flow {
+ 	int ivp;
+ 	struct ppe_vp_flow vp_flow;
+ 	u8 eport;
++	struct net_device *egress_dev;
++	u16 egress_vid;
+ 	u32 packets;
+ 	u64 bytes;
+ };
+@@ -1778,6 +1783,42 @@ static void ppe_ft_flow_quarantine(struc
+ 	list_add_tail(&flow->zombie_node, &ft->zombies);
+ }
+ 
++static void ppe_ft_flow_release(struct ppe_ft_flow *flow)
++{
++	if (flow->egress_dev)
++		dev_put(flow->egress_dev);
++	kfree(flow);
++}
++
++static int ppe_ft_dsa_port(struct net_device *dev, struct dsa_port **dpp)
++{
++	struct dsa_port *dp;
++
++	if (!dev || !dsa_user_dev_check(dev))
++		return -EOPNOTSUPP;
++
++	dp = dsa_port_from_netdev(dev);
++	if (IS_ERR(dp))
++		return PTR_ERR(dp);
++
++	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_VSC73XX_8021Q)
++		return -EOPNOTSUPP;
++
++	if (!edma_port_dev_check(dsa_port_to_conduit(dp)))
++		return -EOPNOTSUPP;
++
++	if (dsa_port_is_vlan_filtering(dp))
++		return -EOPNOTSUPP;
++
++	if (dpp)
++		*dpp = dp;
++
++	if (dsa_port_bridge_dev_get(dp))
++		return dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
++
++	return dsa_tag_8021q_standalone_vid(dp);
++}
++
+ static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
+ 			       struct flow_cls_offload *f)
+ {
+@@ -2147,6 +2188,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	}
+ 	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
+ 	if (!tunnel_encap && !edma_port_dev_check(odev) &&
++	    ppe_ft_dsa_port(odev, NULL) < 0 &&
+ 	    (!ft->ppe_dev->variant->has_vports ||
+ 	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
+ 		ret = -EOPNOTSUPP;
+@@ -2169,6 +2211,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	 */
+ 	if (data.ingress_ifindex) {
+ 		struct net_device *idev;
++		struct dsa_port *dp;
+ 		struct net_device *master;
+ 		int vp_ret = 0;
+ 
+@@ -2193,6 +2236,29 @@ static int ppe_ft_flow_replace(struct pp
+ 			struct edma_port_priv *ipriv = netdev_priv(idev);
+ 
+ 			iport = ipriv->ppe_port->port_id;
++		} else if (dsa_user_dev_check(idev)) {
++			struct net_device *conduit;
++			struct edma_port_priv *ipriv;
++			int dsa_ivid;
++
++			dsa_ivid = ppe_ft_dsa_port(idev, &dp);
++			if (dsa_ivid < 0) {
++				vp_ret = dsa_ivid;
++				goto put_idev;
++			}
++			conduit = dsa_port_to_conduit(dp);
++
++			/* The parser exposes one VLAN layer. A user VLAN inside
++			 * the tag_8021q tag cannot use this path.
++			 */
++			if (data.ingress_vid >= 0) {
++				vp_ret = -EOPNOTSUPP;
++				goto put_idev;
++			}
++
++			ipriv = netdev_priv(conduit);
++			iport = ipriv->ppe_port->port_id;
++			data.ingress_vid = dsa_ivid;
+ 		} else if (ft->ppe_dev->variant->has_vports &&
+ 			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
+ 			reject_reason = PPE_FT_REJECT_INGRESS_VP;
+@@ -2201,6 +2267,7 @@ static int ppe_ft_flow_replace(struct pp
+ 			if (vp_ret >= 0)
+ 				flow->ivp = vp_ret;
+ 		}
++put_idev:
+ 		dev_put(idev);
+ 
+ 		if (vp_ret < 0) {
+@@ -2220,6 +2287,30 @@ static int ppe_ft_flow_replace(struct pp
+ 			port_priv = netdev_priv(odev);
+ 			nh.port = port_priv->ppe_port->port_id;
+ 			nh.l3_if = nh.port;
++		} else if (dsa_user_dev_check(odev)) {
++			struct dsa_port *dp;
++			int dsa_ovid;
++
++			/* The next hop pushes one tag; a switch port
++			 * with tagged bridge-vlan egress would need
++			 * its 802.1Q tag inside the tag_8021q one.
++			 */
++			if (nh.vid >= 0) {
++				ret = -EOPNOTSUPP;
++				goto err_prelock_ivp;
++			}
++			dsa_ovid = ppe_ft_dsa_port(odev, &dp);
++			if (dsa_ovid < 0) {
++				ret = dsa_ovid;
++				goto err_prelock_ivp;
++			}
++			port_priv = netdev_priv(dsa_port_to_conduit(dp));
++			nh.port = port_priv->ppe_port->port_id;
++			nh.l3_if = nh.port;
++			nh.vid = dsa_ovid;
++			flow->egress_dev = odev;
++			flow->egress_vid = dsa_ovid;
++			dev_hold(flow->egress_dev);
+ 		} else {
+ 			ret = ppe_vp_get(ft->ppe_dev, odev,
+ 					 f->common.prio);
+@@ -2556,6 +2647,8 @@ err_prelock_ivp:
+ err_free:
+ 	if (ret)
+ 		atomic_long_inc(&ft->rejects[reject_reason]);
++	if (flow && flow->egress_dev)
++		dev_put(flow->egress_dev);
+ 	kfree_rcu(flow, rcu);
+ 
+ 	return ret;
+@@ -2588,6 +2681,8 @@ static int ppe_ft_flow_destroy(struct pp
+ 		ppe_ft_tunnel_put(ft, flow->tunnel);
+ 		ppe_vp_put(ft->ppe_dev, flow->vp);
+ 		ppe_vp_put(ft->ppe_dev, flow->ivp);
++		if (flow->egress_dev)
++			dev_put(flow->egress_dev);
+ 	} else {
+ 		ppe_ft_flow_quarantine(ft, flow);
+ 		flow = NULL;
+@@ -2654,6 +2749,13 @@ static int ppe_ft_flow_stats(struct ppe_
+ 		return -ENOENT;
+ 	}
+ 
++	if (flow->egress_dev &&
++	    (!netif_carrier_ok(flow->egress_dev) ||
++	     ppe_ft_dsa_port(flow->egress_dev, NULL) != flow->egress_vid)) {
++		rcu_read_unlock();
++		return 0;
++	}
++
+ 	/* Hardware-forwarded packets never revalidate the route in
+ 	 * software, and the hit counter of a flow counts at ingress
+ 	 * lookup whether or not egress delivery still works: a flow
+@@ -3485,7 +3587,7 @@ int ppe_flowtable_setup(struct ppe_devic
+ 
+ static void ppe_ft_flow_free(void *ptr, void *arg)
+ {
+-	kfree(ptr);
++	ppe_ft_flow_release(ptr);
+ }
+ 
+ /**
+@@ -3528,7 +3630,7 @@ void ppe_flowtable_destroy(struct ppe_de
+ 	rhashtable_free_and_destroy(&ft->flows, ppe_ft_flow_free, NULL);
+ 	list_for_each_entry_safe(flow, flow_tmp, &ft->zombies, zombie_node) {
+ 		list_del(&flow->zombie_node);
+-		kfree(flow);
++		ppe_ft_flow_release(flow);
+ 	}
+ 
+ 	hash_for_each_safe(ft->hosts, i, tmp, host, node) {

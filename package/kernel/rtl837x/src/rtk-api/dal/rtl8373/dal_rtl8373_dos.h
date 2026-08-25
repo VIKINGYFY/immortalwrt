@@ -3,7 +3,6 @@
 
 #include "dos.h"
 
-
 /* Function Name:
  *      rtl8373_setAsicDos
  * Description:
@@ -21,8 +20,6 @@
  */
 ret_t dal_rtl8373_asicDos_set(rtk_port_autoDosType_t index, rtk_uint32 enable);
 
-
-
 /* Function Name:
  *      rtl8373_getAsicDos
  * Description:
@@ -38,7 +35,6 @@ ret_t dal_rtl8373_asicDos_set(rtk_port_autoDosType_t index, rtk_uint32 enable);
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicDos_get(rtk_port_autoDosType_t index, rtk_uint32* pEnable);
+ret_t dal_rtl8373_asicDos_get(rtk_port_autoDosType_t index, rtk_uint32 *pEnable);
 
 #endif
-

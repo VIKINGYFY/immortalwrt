@@ -1,4 +1,4 @@
- /*
+/*
  * Copyright (C) 2013 Realtek Semiconductor Corp.
  * All Rights Reserved.
  *
@@ -20,14 +20,12 @@
 
 #include <qos.h>
 
-#define RTL8373_QTYPE_STRICT  1
-#define RTL8373_QTYPE_WFQ     0
-#define RTL8373_QTYPE_SRR     1
+#define RTL8373_QTYPE_STRICT 1
+#define RTL8373_QTYPE_WFQ 0
+#define RTL8373_QTYPE_SRR 1
 
-#define RTL8373_PRIDEC_END    5
-#define RTL8373_PRIIDX_END    2
-
-
+#define RTL8373_PRIDEC_END 5
+#define RTL8373_PRIIDX_END 2
 
 /* Function Name:
  *      dal_rtl8373_qos_init
@@ -74,7 +72,6 @@ extern rtk_api_ret_t dal_rtl8373_qos_init(void);
  *      - RTL8373_PRIDEC_SVLAN
  */
 extern rtk_api_ret_t dal_rtl8373_qos_priSel_set(rtk_qos_priDecTbl_t index, rtk_priority_select_t *pPriDec);
-
 
 /* Function Name:
  *      dal_rtl8373_qos_priSel_get
@@ -262,7 +259,7 @@ extern rtk_api_ret_t dal_rtl8373_qos_portPri_set(rtk_port_t port, rtk_pri_t int_
  * Note:
  *      The API can get priority of port assignments for queue usage and packet scheduling.
  */
-extern rtk_api_ret_t dal_rtl8373_qos_portPri_get(rtk_port_t port, rtk_pri_t *pInt_pri) ;
+extern rtk_api_ret_t dal_rtl8373_qos_portPri_get(rtk_port_t port, rtk_pri_t *pInt_pri);
 
 /* Function Name:
  *      dal_rtl8373_qos_priMap_set
@@ -718,4 +715,3 @@ extern rtk_api_ret_t dal_rtl8373_qos_portPriSelIndex_set(rtk_port_t port, rtk_qo
 extern rtk_api_ret_t dal_rtl8373_qos_portPriSelIndex_get(rtk_port_t port, rtk_qos_priDecTbl_t *pIndex);
 
 #endif /* __DAL_rtl8373_QOS_H__*/
-

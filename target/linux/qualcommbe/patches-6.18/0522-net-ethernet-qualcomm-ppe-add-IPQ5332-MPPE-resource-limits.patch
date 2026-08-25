@@ -1,0 +1,348 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 25 Jul 2026 00:00:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: add IPQ5332 MPPE resource limits
+
+IPQ5332 uses the MPPE variant of the Qualcomm packet processing engine.
+It shares the APPE register layout and optional tunnel and virtual-port
+blocks, but runs at 200 MHz and has smaller L3 tables.
+
+Describe the clock and L3 resource depths in the per-SoC variant. Limit
+software allocation and direct table access to the active variant so MPPE
+never reaches the APPE-only portion of a table.
+
+The values match the QCA SSDK MPPE register definitions: 2048 flows, 768
+hosts and 768 next hops. IPQ9574 retains its APPE values.
+
+Report active_flows as two space-separated fields, current and capacity.
+The capacity is the smaller of the variant's flow and next-hop depths
+because the current allocator assigns one next-hop entry to every installed
+flow.
+Keeping the fields separate avoids encoding presentation syntax in debugfs.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
+@@ -238,7 +238,7 @@ static int qcom_ppe_probe(struct platfor
+ 	ppe_dev->variant = of_device_get_match_data(dev);
+ 	if (!ppe_dev->variant)
+ 		return -ENODEV;
+-	ppe_dev->clk_rate = PPE_CLK_RATE;
++	ppe_dev->clk_rate = ppe_dev->variant->ppe_clock_hz;
+ 	ppe_dev->num_ports = num_ports;
+ 	ppe_dev->num_icc_paths = num_icc;
+ 
+@@ -326,7 +326,11 @@ static void qcom_ppe_remove(struct platf
+ 
+ static const struct ppe_variant ppe_variant_ipq5332 = {
+ 	.name			= "IPQ5332",
++	.ppe_clock_hz		= 200000000,
+ 	.num_pppoe_sessions	= 64,
++	.num_flow_entries	= 2048,
++	.num_host_entries	= 768,
++	.num_nexthop_entries	= 768,
+ 	.shaper_clock_khz	= 200000,
+ 	.has_tunnel_engine	= true,
+ 	.has_vports		= true,
+@@ -334,7 +338,11 @@ static const struct ppe_variant ppe_vari
+ 
+ static const struct ppe_variant ppe_variant_ipq9574 = {
+ 	.name			= "IPQ9574",
++	.ppe_clock_hz		= PPE_CLK_RATE,
+ 	.num_pppoe_sessions	= 64,
++	.num_flow_entries	= 4096,
++	.num_host_entries	= 6144,
++	.num_nexthop_entries	= 2560,
+ 	.shaper_clock_khz	= 353000,
+ 	.has_tunnel_engine	= true,
+ 	.has_vports		= true,
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+@@ -28,34 +28,34 @@ struct ppe_vp;
+ #define PPE_TUNNEL_L3_IF_COUNT	128
+ #define PPE_TUNNEL_VP_COUNT	184
+ 
+-/* Per-SoC PPE parameters. The PPE register layer is shared between the
+- * HPPE (IPQ807x) and APPE (IPQ9574) generations; this collects the few
+- * things that actually differ so the shared code stays chip-agnostic.
+- * The table geometry (flow/host/VSI/XLT/MY_MAC/PUB_IP/nexthop) is
+- * identical across both generations and stays as the compile-time
+- * PPE_*_ENTRIES macros.
++/* Per-SoC PPE parameters. The PPE register layout is shared between the
++ * variants, while resource depth, clocks and optional engines differ.
+  */
+ struct ppe_variant {
+ 	const char *name;
++	unsigned long ppe_clock_hz;
+ 
+-	/* PPPoE session table depth: 64 on APPE, 16 on HPPE. The bank
+-	 * base addresses live in the APPE tunnel block; an HPPE port must
++	/* PPPoE session table depth: 64 on APPE/MPPE, 16 on HPPE. The bank
++	 * base addresses live in the APPE/MPPE tunnel block; an HPPE port must
+ 	 * relocate them (see ppe_pppoe_session_set()).
+ 	 */
+ 	u16 num_pppoe_sessions;
++	u16 num_flow_entries;
++	u16 num_host_entries;
++	u16 num_nexthop_entries;
+ 
+-	/* Port shaper token clock, in kHz (353000 on APPE, 300000 on
+-	 * HPPE).
++	/* Port shaper token clock, in kHz (353000 on APPE, 200000 on MPPE,
++	 * 300000 on HPPE).
+ 	 */
+ 	u32 shaper_clock_khz;
+ 
+-	/* On-die tunnel engine (VXLAN/GENEVE/MAP-T). APPE only; gates the
++	/* On-die tunnel engine (VXLAN/GENEVE/MAP-T). APPE and MPPE; gates the
+ 	 * flowtable tunnel seam.
+ 	 */
+ 	bool has_tunnel_engine;
+ 
+ 	/* Virtual ports 64..255 for binding non-PPE netdevs such as wifi
+-	 * VAPs. APPE only; consumed by the virtual-port offload work.
++	 * VAPs. APPE and MPPE; consumed by the virtual-port offload work.
+ 	 */
+ 	bool has_vports;
+ };
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -185,6 +185,8 @@ int ppe_host_entry_add(struct ppe_device
+ 	if (!ret)
+ 		ret = ppe_host_op_issue(ppe_dev, PPE_FDB_OP_TYPE_ADD, false, 0);
+ 	mutex_unlock(&ppe_dev->flow_lock);
++	if (ret >= ppe_dev->variant->num_host_entries)
++		return -ERANGE;
+ 	return ret;
+ }
+ 
+@@ -192,6 +194,9 @@ int ppe_host_entry_del(struct ppe_device
+ {
+ 	int ret;
+ 
++	if (index < 0 || index >= ppe_dev->variant->num_host_entries)
++		return -EINVAL;
++
+ 	mutex_lock(&ppe_dev->flow_lock);
+ 	ret = ppe_host_op_issue(ppe_dev, PPE_FDB_OP_TYPE_DEL, true, index);
+ 	mutex_unlock(&ppe_dev->flow_lock);
+@@ -211,6 +216,8 @@ int ppe_flow_entry_add(struct ppe_device
+ 	if (!ret)
+ 		ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_ADD, false, 0);
+ 	mutex_unlock(&ppe_dev->flow_lock);
++	if (ret >= ppe_dev->variant->num_flow_entries)
++		return -ERANGE;
+ 	return ret;
+ }
+ 
+@@ -221,6 +228,9 @@ int ppe_flow_entry_enable(struct ppe_dev
+ 	u32 val[PPE_FLOW_TBL_WORDS];
+ 	int ret;
+ 
++	if (index < 0 || index >= ppe_dev->variant->num_flow_entries)
++		return -EINVAL;
++
+ 	mutex_lock(&ppe_dev->flow_lock);
+ 	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+ 	if (!ret) {
+@@ -242,6 +252,9 @@ int ppe_flow_entry_del(struct ppe_device
+ {
+ 	int ret;
+ 
++	if (index < 0 || index >= ppe_dev->variant->num_flow_entries)
++		return -EINVAL;
++
+ 	mutex_lock(&ppe_dev->flow_lock);
+ 	ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_DEL, true, index);
+ 	mutex_unlock(&ppe_dev->flow_lock);
+@@ -266,6 +279,9 @@ int ppe_flow_stats_get(struct ppe_device
+ 	u32 val[3];
+ 	int ret;
+ 
++	if (index < 0 || index >= ppe_dev->variant->num_flow_entries)
++		return -EINVAL;
++
+ 	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+ 	if (ret)
+ 		return ret;
+@@ -591,6 +607,9 @@ int ppe_nexthop_set(struct ppe_device *p
+ 	u32 reg = PPE_NEXTHOP_TBL_ADDR + PPE_NEXTHOP_TBL_INC * index;
+ 	u32 val[4] = {};
+ 
++	if (index < 0 || index >= ppe_dev->variant->num_nexthop_entries)
++		return -EINVAL;
++
+ 	val[0] = PPE_NEXTHOP_W0_TYPE;
+ 	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_PORT, nh->port);
+ 	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_POST_L3_IF, nh->l3_if);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -258,6 +258,7 @@ struct ppe_flowtable {
+ 	struct rhashtable flows;
+ 	struct list_head zombies;
+ 	struct dentry *debugfs;
++	struct dentry *debugfs_active;
+ 	struct dentry *debugfs_rows;
+ 	struct dentry *debugfs_pipeline;
+ 	struct dentry *debugfs_reasons;
+@@ -2377,8 +2378,8 @@ static int ppe_ft_flow_replace(struct pp
+ 	}
+ 
+ 	nexthop = find_first_zero_bit(ft->nexthop_used,
+-				      PPE_NEXTHOP_TBL_ENTRIES);
+-	if (nexthop >= PPE_NEXTHOP_TBL_ENTRIES) {
++				      ft->ppe_dev->variant->num_nexthop_entries);
++	if (nexthop >= ft->ppe_dev->variant->num_nexthop_entries) {
+ 		ret = -ENOSPC;
+ 		goto err_my_mac;
+ 	}
+@@ -3188,6 +3189,20 @@ static int ppe_ft_flows_show(struct seq_
+ }
+ DEFINE_SHOW_ATTRIBUTE(ppe_ft_flows);
+ 
++static int ppe_ft_active_flows_show(struct seq_file *seq, void *data)
++{
++	struct ppe_flowtable *ft = seq->private;
++	unsigned int capacity;
++
++	/* Every installed flow currently owns one next-hop table entry. */
++	capacity = min(ft->ppe_dev->variant->num_flow_entries,
++		       ft->ppe_dev->variant->num_nexthop_entries);
++	seq_printf(seq, "%d %u\n", atomic_read(&ft->flows.nelems), capacity);
++
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(ppe_ft_active_flows);
++
+ /**
+  * ppe_flowtable_debugfs_init - Expose the flowtable state in debugfs
+  * @ppe_dev: PPE device
+@@ -3206,8 +3221,10 @@ void ppe_flowtable_debugfs_init(struct p
+ 	ft->debugfs = debugfs_create_file("flows", 0400,
+ 					  ppe_dev->debugfs_root, ft,
+ 					  &ppe_ft_flows_fops);
+-	debugfs_create_atomic_t("active_flows", 0400,
+-				ppe_dev->debugfs_root, &ft->flows.nelems);
++	ft->debugfs_active =
++		debugfs_create_file("active_flows", 0400,
++				    ppe_dev->debugfs_root, ft,
++				    &ppe_ft_active_flows_fops);
+ 	ft->debugfs_rows = debugfs_create_file("flow_rows", 0400,
+ 					       ppe_dev->debugfs_root, ft,
+ 					       &ppe_ft_flow_rows_fops);
+@@ -3428,6 +3445,7 @@ void ppe_flowtable_destroy(struct ppe_de
+ 	debugfs_remove(ft->debugfs_reasons);
+ 	debugfs_remove(ft->debugfs_pipeline);
+ 	debugfs_remove(ft->debugfs_rows);
++	debugfs_remove(ft->debugfs_active);
+ 	debugfs_remove(ft->debugfs);
+ 	ppe_dev->flowtable = NULL;
+ 	rhashtable_free_and_destroy(&ft->flows, ppe_ft_flow_free, NULL);
+--- a/Documentation/networking/qualcomm-ppe-offload.rst
++++ b/Documentation/networking/qualcomm-ppe-offload.rst
+@@ -11,13 +11,13 @@ for L3 flows - with no vendor frameworks
+ patch offloads keeps working through the ordinary software path when
+ the hardware cannot express it.
+ 
+-The PPE register layer is shared across two silicon generations, HPPE
+-(IPQ807x) and APPE (IPQ9574): the vendor SSDK drives both with one set
+-of L2, L3 and flow accessors. The offload is therefore written against
+-a per-SoC variant rather than a single chip. IPQ9574 is the generation
+-it is wired up and described for here; an HPPE part reuses the same
+-table and flow programming and supplies only its own EDMA glue, as the
+-variant section spells out.
++The PPE register layer is shared across three silicon generations, HPPE
++(IPQ807x), APPE (IPQ9574) and MPPE (IPQ5332): the vendor SSDK drives them
++with one set of L2, L3 and flow accessors. The offload is therefore written
++against a per-SoC variant rather than a single chip. IPQ9574 and IPQ5332 are
++wired up and described here; an HPPE part reuses the same table and flow
++programming and supplies only its own EDMA glue, as the variant section
++spells out.
+ 
+ Starting point
+ --------------
+@@ -41,37 +41,35 @@ switch ports the same way).
+ Supported hardware and the SoC variant
+ --------------------------------------
+ 
+-struct ppe_variant, attached to the compatible as match data and read
+-at probe, holds the parameters that differ between the generations:
+-the PPPoE session table depth (64 entries on APPE, 16 on HPPE), the
+-port shaper token clock (353 against 300 MHz), and whether the on-die
+-tunnel engine and the virtual ports (PPE port numbers 64..255 that
+-bind IEEE 802.11 Ethernet interfaces) are present - both APPE only. The shared
+-table geometry (flow, host, VSI, translation, router MAC, public IP
+-and next hop) is identical between the generations and stays in the
+-compile-time PPE_*_ENTRIES macros; only what actually diverges lives
+-in the variant.
+-
+-                                  APPE (IPQ9574)     HPPE (IPQ807x)
+-  switchdev bridge, VLAN, MDB     yes                register-portable
+-  FDB with software ageing        yes                register-portable
+-  L3 flows (IPv4 NAT, IPv6)       yes                register-portable
+-  PPPoE offload                   yes, 64 sessions   portable, 16
+-  VLAN uplinks                    yes                register-portable
+-  single-copy flood               yes                needs EDMA support
+-  TBF port shaper                 yes                register-portable
+-  on-die tunnel engine seam       present            absent
+-  virtual ports (wireless)        present            absent
+-
+-"Register-portable" means the table and flow programming applies
+-unchanged; what an HPPE port supplies is the EDMA glue, not new PPE
+-code. Bringing one up needs an EDMA driver for that generation's
+-descriptors (the IPQ807x EDMA/UNIPHY rework in the qualcommax target
+-grows one) meeting the CPU-port contract below, and a variant instance
+-with the PPPoE table relocated to its HPPE address. The virtual-port
+-work does not carry over - HPPE offloads wireless through its NSS
+-firmware cores, which OpenWrt leaves idle - so wireless there stays on
+-the CPU.
++``struct ppe_variant``, attached to the compatible as match data and read
++at probe, holds the parameters that differ between the generations: the PPE
++and port-shaper clocks, PPPoE session depth, L3 table depths, and whether the
++on-die tunnel engine and virtual ports (PPE port numbers 64..255 that bind
++IEEE 802.11 Ethernet interfaces) are present. APPE and MPPE have the tunnel
++and virtual-port blocks, but MPPE runs at 200 MHz and has smaller flow, host
++and next-hop tables. Compile-time table constants describe the largest APPE
++layout; the active variant constrains allocation and direct table access.
++
++                                  APPE (IPQ9574)  MPPE (IPQ5332)  HPPE (IPQ807x)
++  switchdev bridge, VLAN, MDB     yes             yes             register-portable
++  FDB with software ageing        yes             yes             register-portable
++  L3 flows (IPv4 NAT, IPv6)       yes             yes             register-portable
++  flow/host/next-hop entries      4096/6144/2560  2048/768/768    variant-specific
++  PPPoE offload                   64 sessions     64 sessions     portable, 16
++  VLAN uplinks                    yes             yes             register-portable
++  single-copy flood               yes             yes             needs EDMA support
++  TBF port shaper                 yes             yes             register-portable
++  on-die tunnel engine seam       present         present         absent
++  virtual ports (wireless)        present         present         absent
++
++IPQ5332 MPPE is wired through the same EDMA CPU-port contract as IPQ9574.
++"Register-portable" means the table and flow programming applies unchanged;
++what a future HPPE port supplies is the EDMA glue, not new PPE code. Bringing
++one up needs an EDMA driver for that generation's descriptors (the IPQ807x
++EDMA/UNIPHY rework in the qualcommax target grows one), and a variant instance
++with its table geometry and the PPPoE table's HPPE address. The virtual-port
++work does not carry over - HPPE offloads wireless through its NSS firmware
++cores, which OpenWrt leaves idle - so wireless there stays on the CPU.
+ 
+ L2 bridge offload
+ -----------------
+@@ -176,7 +174,7 @@ device's software receive path. The bind
+ wireless port bridged in hardware is not the target, only routed and
+ NAT'd traffic - and the egress source MAC rewrite sits on an L3 interface
+ the virtual port reserves past the PPPoE and VLAN-uplink ones. Virtual
+-ports are an APPE feature.
++ports are an APPE and MPPE feature.
+ 
+ Flow misses and rejected rules take the ordinary software path, and
+ per-flow hit counters feed the flowtable statistics. Flows egressing a
+@@ -246,7 +244,7 @@ References
+ Register and table layouts, operation protocols and reset defaults
+ come from the public SSDK source (qca-ssdk NHSS.QSDK.14.0, the
+ adpt_hppe_* and hppe_*_reg.h files), which is accurate for the L2,
+-VLAN and L3 blocks of this SoC. The driver's own register writes were
++VLAN and L3 blocks of the APPE and MPPE SoCs. The driver's register writes were
+ cross-checked against it, including the MAC byte order of the router
+ MAC, next hop and egress L3 interface tables (the SSDK's mac_0/mac_1
+ and mac_da_0/mac_da_1 packings) and the base index of a double-width

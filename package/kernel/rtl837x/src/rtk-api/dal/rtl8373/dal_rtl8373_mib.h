@@ -3,11 +3,7 @@
 
 #include <mib.h>
 
-
-
-
-#define RTL8373_PORT_MIB_NUMBER    104
-
+#define RTL8373_PORT_MIB_NUMBER 104
 
 /* Function Name:
  *      dal_rtl8373_globalMib_rst
@@ -25,7 +21,6 @@
  */
 extern ret_t dal_rtl8373_globalMib_rst(void);
 
-
 /* Function Name:
  *      dal_rtl8373_portMib_rst
  * Description:
@@ -41,7 +36,6 @@ extern ret_t dal_rtl8373_globalMib_rst(void);
  *      None
  */
 extern ret_t dal_rtl8373_portMib_rst(rtk_uint32 port);
-
 
 /* Function Name:
  *      dal_rtl8373_dbgMib_rst
@@ -59,9 +53,6 @@ extern ret_t dal_rtl8373_portMib_rst(rtk_uint32 port);
  */
 extern ret_t dal_rtl8373_dbgMib_rst(rtk_uint32 port);
 
-
-
-
 /* Function Name:
  *      dal_rtl8373_dbgMib_rst
  * Description:
@@ -76,8 +67,7 @@ extern ret_t dal_rtl8373_dbgMib_rst(rtk_uint32 port);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_portMib_read(rtk_uint32 portid, rtk_stat_port_type_t mibid, rtk_uint64 * pMibCounter);
-
+extern ret_t dal_rtl8373_portMib_read(rtk_uint32 portid, rtk_stat_port_type_t mibid, rtk_uint64 *pMibCounter);
 
 /* Function Name:
  *      dal_rtl8373_mibLength_set
@@ -95,7 +85,6 @@ extern ret_t dal_rtl8373_portMib_read(rtk_uint32 portid, rtk_stat_port_type_t mi
  */
 extern ret_t dal_rtl8373_mibLength_set(rtk_stat_lengthMode_t txMode, rtk_stat_lengthMode_t rxMode);
 
-
 /* Function Name:
  *      dal_rtl8373_mibLength_get
  * Description:
@@ -110,10 +99,6 @@ extern ret_t dal_rtl8373_mibLength_set(rtk_stat_lengthMode_t txMode, rtk_stat_le
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_mibLength_get(rtk_stat_lengthMode_t* pTxMode, rtk_stat_lengthMode_t* pRxMode);
-
-
-
+extern ret_t dal_rtl8373_mibLength_get(rtk_stat_lengthMode_t *pTxMode, rtk_stat_lengthMode_t *pRxMode);
 
 #endif
-

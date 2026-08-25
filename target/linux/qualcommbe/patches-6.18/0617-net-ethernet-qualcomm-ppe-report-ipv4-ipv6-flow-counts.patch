@@ -1,0 +1,95 @@
+From: VIKINGYFY <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: report IPv4 and IPv6 flow counts
+
+Track active offloaded flows by address family while preserving the shared
+MPPE flow-index pool. QSDK reports one flow capacity (2048 on IPQ5332);
+IPv4 and IPv6 use different logical row formats but do not create separate
+runtime quotas.
+
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -326,6 +326,8 @@ struct ppe_flowtable {
+ 	struct dentry *debugfs_pipeline;
+ 	struct dentry *debugfs_reasons;
+ 	struct dentry *debugfs_resources;
++	atomic_t ipv4_flows;
++	atomic_t ipv6_flows;
+ 	atomic_long_t replace_calls;
+ 	atomic_long_t replace_unsupported;
+ 	atomic_long_t replace_failed;
+@@ -361,6 +363,24 @@ static const struct rhashtable_params pp
+ 	.automatic_shrinking = true,
+ };
+ 
++static void ppe_ft_flow_count_inc(struct ppe_flowtable *ft,
++				  const struct ppe_ft_flow *flow)
++{
++	if (flow->entry.is_ipv6)
++		atomic_inc(&ft->ipv6_flows);
++	else
++		atomic_inc(&ft->ipv4_flows);
++}
++
++static void ppe_ft_flow_count_dec(struct ppe_flowtable *ft,
++				  const struct ppe_ft_flow *flow)
++{
++	if (flow->entry.is_ipv6)
++		atomic_dec(&ft->ipv6_flows);
++	else
++		atomic_dec(&ft->ipv4_flows);
++}
++
+ /* The mangle words of an offloaded rule, collected before translation.
+  * The Ethernet buffer overlays the destination and source addresses as
+  * they appear in the header.
+@@ -2820,6 +2840,7 @@ put_idev:
+ 					    ppe_ft_params);
+ 	if (ret)
+ 		goto err_hw_flow;
++	ppe_ft_flow_count_inc(ft, flow);
+ 
+ 	if (flow->ivp >= 0) {
+ 		ret = ppe_vp_flow_add(ft->ppe_dev, flow->ivp,
+@@ -2827,6 +2848,7 @@ put_idev:
+ 		if (ret) {
+ 			rhashtable_remove_fast(&ft->flows, &flow->node,
+ 					       ppe_ft_params);
++			ppe_ft_flow_count_dec(ft, flow);
+ 			goto err_hw_flow;
+ 		}
+ 	}
+@@ -2903,6 +2925,7 @@ static int ppe_ft_flow_destroy(struct pp
+ 	}
+ 
+ 	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
++	ppe_ft_flow_count_dec(ft, flow);
+ 	ppe_vp_flow_del(ft->ppe_dev, flow->ivp, &flow->vp_flow);
+ 
+ 	if (ppe_ft_flow_hw_del(ft, flow)) {
+@@ -3627,9 +3650,11 @@ static int ppe_ft_active_flows_show(stru
+ 	struct ppe_flowtable *ft = seq->private;
+ 	unsigned int capacity;
+ 
+-	/* Shared next hops remove the previous one-row-per-flow constraint. */
++	/* QSDK MPPE exposes one shared flow-index pool for IPv4 and IPv6. */
+ 	capacity = ft->ppe_dev->variant->num_flow_entries;
+-	seq_printf(seq, "%d %u\n", atomic_read(&ft->flows.nelems), capacity);
++	seq_printf(seq, "IPv4: %d/%u IPv6: %d/%u\n",
++		   atomic_read(&ft->ipv4_flows), capacity,
++		   atomic_read(&ft->ipv6_flows), capacity);
+ 
+ 	return 0;
+ }
+@@ -3837,6 +3862,8 @@ int ppe_flowtable_setup(struct ppe_devic
+ 	}
+ 
+ 	mutex_init(&ft->lock);
++	atomic_set(&ft->ipv4_flows, 0);
++	atomic_set(&ft->ipv6_flows, 0);
+ 	INIT_LIST_HEAD(&ft->block_cb_list);
+ 	INIT_LIST_HEAD(&ft->zombies);
+ 	init_llist_head(&ft->neigh_events);

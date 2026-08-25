@@ -40,16 +40,16 @@
  */
 rtk_api_ret_t rtk_time_init(rtk_portmask_t ptpinternalpmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_init)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_init)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_init(ptpinternalpmask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_init(ptpinternalpmask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 /* Function Name:
  *      rtk_time_portPtpbypassEnable_get
@@ -74,15 +74,15 @@ rtk_api_ret_t rtk_time_init(rtk_portmask_t ptpinternalpmask)
  */
 rtk_api_ret_t rtk_time_portPtpbypassEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->time_portPtpbypassptpEn_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->time_portPtpbypassptpEn_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portPtpbypassptpEn_get(port, pEnable);
-    RTK_API_UNLOCK();
-    return retVal;
-} 
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portPtpbypassptpEn_get(port, pEnable);
+	RTK_API_UNLOCK();
+	return retVal;
+}
 
 /* Function Name:
  *      rtk_time_portPtpbypassEnable_set
@@ -108,14 +108,14 @@ rtk_api_ret_t rtk_time_portPtpbypassEnable_get(rtk_port_t port, rtk_enable_t *pE
  */
 rtk_api_ret_t rtk_time_portPtpbypassEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-     rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->time_portPtpbypassptpEn_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->time_portPtpbypassptpEn_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portPtpbypassptpEn_set(port, enable);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portPtpbypassptpEn_set(port, enable);
+	RTK_API_UNLOCK();
+	return retVal;
 
 } /* end of rtk_time_portPtpEnable_set */
 /* Function Name:
@@ -136,23 +136,23 @@ rtk_api_ret_t rtk_time_portPtpbypassEnable_set(rtk_port_t port, rtk_enable_t ena
  *      RT_ERR_PORT         - invalid port id
  *      RT_ERR_NULL_POINTER - input parameter may be null pointer
  * Applicable:
- *      
+ *
  * Note:
  *      None
  * Changes:
  *      None
  */
-ret_t rtk_time_portPtpEnable_get( rtk_port_t port, rtk_ptp_header_t type,rtk_enable_t *pEnable)
+ret_t rtk_time_portPtpEnable_get(rtk_port_t port, rtk_ptp_header_t type, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->time_portPtpEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portPtpEnable_get(port, type,pEnable);
-    RTK_API_UNLOCK();
-    return retVal;
+	if (NULL == RT_MAPPER->time_portPtpEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portPtpEnable_get(port, type, pEnable);
+	RTK_API_UNLOCK();
+	return retVal;
 }
 /* Function Name:
  *      rtk_time_portPtpEnable_set
@@ -170,23 +170,23 @@ ret_t rtk_time_portPtpEnable_get( rtk_port_t port, rtk_ptp_header_t type,rtk_ena
  *      RT_ERR_PORT         - invalid port id
  *      RT_ERR_NULL_POINTER - input parameter may be null pointer
  * Applicable:
- *      
+ *
  * Note:
  *      None
  * Changes:
  *      None
  */
-ret_t rtk_time_portPtpEnable_set( rtk_port_t port, rtk_ptp_header_t type,rtk_enable_t Enable)
+ret_t rtk_time_portPtpEnable_set(rtk_port_t port, rtk_ptp_header_t type, rtk_enable_t Enable)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->time_portPtpEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portPtpEnable_set(port, type,Enable);
-    RTK_API_UNLOCK();
-    return retVal;
+	if (NULL == RT_MAPPER->time_portPtpEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portPtpEnable_set(port, type, Enable);
+	RTK_API_UNLOCK();
+	return retVal;
 }
 /* Function Name:
  *      rtk_time_portRefTime_get
@@ -208,20 +208,18 @@ ret_t rtk_time_portPtpEnable_set( rtk_port_t port, rtk_ptp_header_t type,rtk_ena
  * Changes:
  *          Add port parameter.
  */
-rtk_api_ret_t rtk_time_portRefTime_get( rtk_time_timeStamp_t *pTimeStamp)
+rtk_api_ret_t rtk_time_portRefTime_get(rtk_time_timeStamp_t *pTimeStamp)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->time_portRefTime_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portRefTime_get(pTimeStamp);
-    RTK_API_UNLOCK();
-    return retVal;
-} 
+	if (NULL == RT_MAPPER->time_portRefTime_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portRefTime_get(pTimeStamp);
+	RTK_API_UNLOCK();
+	return retVal;
+}
 
 /* Function Name:
  *      rtk_time_portRefTime_set
@@ -243,27 +241,26 @@ rtk_api_ret_t rtk_time_portRefTime_get( rtk_time_timeStamp_t *pTimeStamp)
  * Changes:
  *          Add portmask parameter.
  */
-rtk_api_ret_t rtk_time_portRefTime_set( rtk_time_timeStamp_t timeStamp,rtk_enable_t apply)
+rtk_api_ret_t rtk_time_portRefTime_set(rtk_time_timeStamp_t timeStamp, rtk_enable_t apply)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->time_portRefTime_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portRefTime_set( timeStamp,apply);
-    RTK_API_UNLOCK();
-    return retVal;
-   
+	if (NULL == RT_MAPPER->time_portRefTime_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portRefTime_set(timeStamp, apply);
+	RTK_API_UNLOCK();
+	return retVal;
+
 } /* end of rtk_time_portRefTime_set */
-
 
 /* Function Name:
  *      rtk_time_portPtpOper_triger
  * Description:
  *      Set the PTP time operation triger.
  * Input:
- *      triType     
+ *      triType
  * Output:
  *      None
  * Return:
@@ -279,16 +276,15 @@ rtk_api_ret_t rtk_time_portRefTime_set( rtk_time_timeStamp_t timeStamp,rtk_enabl
  */
 rtk_api_ret_t rtk_time_portPtpOper_triger(void)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->time_portRefTime_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portPtpOper_triger( );
-    RTK_API_UNLOCK();
-    return retVal;
+	if (NULL == RT_MAPPER->time_portRefTime_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portPtpOper_triger();
+	RTK_API_UNLOCK();
+	return retVal;
 }
 /* Function Name:
  *      rtk_time_portRefTimeAdjust_set
@@ -315,18 +311,17 @@ rtk_api_ret_t rtk_time_portPtpOper_triger(void)
  */
 rtk_api_ret_t rtk_time_portRefTimeAdjust_set(rtk_uint32 sign, rtk_time_timeStamp_t timeStamp, rtk_enable_t apply)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->time_portRefTimeAdjust_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portRefTimeAdjust_set( sign, timeStamp,  apply);
-    RTK_API_UNLOCK();
-    return retVal;
+	if (NULL == RT_MAPPER->time_portRefTimeAdjust_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portRefTimeAdjust_set(sign, timeStamp, apply);
+	RTK_API_UNLOCK();
+	return retVal;
 
 } /* end of rtk_time_refTimeAdjust_set */
-
 
 /* Function Name:
  *      rtk_time_portRefTimeEnable_get
@@ -351,18 +346,17 @@ rtk_api_ret_t rtk_time_portRefTimeAdjust_set(rtk_uint32 sign, rtk_time_timeStamp
  */
 rtk_api_ret_t rtk_time_portRefTimeEnable_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portRefTimeEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portRefTimeEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portRefTimeEnable_get(pEnable);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portRefTimeEnable_get(pEnable);
+	RTK_API_UNLOCK();
+	return retVal;
 
 } /* end of rtk_time_portRefTimeEnable_get */
-
 
 /* Function Name:
  *      rtk_time_portRefTimeEnable_set
@@ -386,21 +380,19 @@ rtk_api_ret_t rtk_time_portRefTimeEnable_get(rtk_enable_t *pEnable)
  *          Change name from rtk_time_refTimeEnable_set.
  *          Add portmask parameter.
  */
-rtk_api_ret_t rtk_time_portRefTimeEnable_set( rtk_enable_t enable)
+rtk_api_ret_t rtk_time_portRefTimeEnable_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portRefTimeEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portRefTimeEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->time_portRefTimeEnable_set(enable);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->time_portRefTimeEnable_set(enable);
+	RTK_API_UNLOCK();
+	return retVal;
 
 } /* end of rtk_time_portRefTimeEnable_set */
-
-
 
 /* Function Name:
  *      rtk_time_portPtpVlanTpid_get
@@ -422,21 +414,20 @@ rtk_api_ret_t rtk_time_portRefTimeEnable_set( rtk_enable_t enable)
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtpVlanTpid_get(  rtk_vlanType_t type, rtk_uint32 idx, rtk_uint32 *pTpid)
+rtk_api_ret_t rtk_time_portPtpVlanTpid_get(rtk_vlanType_t type, rtk_uint32 idx, rtk_uint32 *pTpid)
 {
-       /* function body */
-    rtk_api_ret_t retVal;
+	/* function body */
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpVlanTpid_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpVlanTpid_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpVlanTpid_get( type, idx, pTpid);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpVlanTpid_get(type, idx, pTpid);
+	RTK_API_UNLOCK();
+	return retVal;
 } /* end of rtk_time_portPtpVlanTpid_get */
-
 
 /* Function Name:
  *      rtk_time_portPtpVlanTpid_set
@@ -463,18 +454,18 @@ rtk_api_ret_t rtk_time_portPtpVlanTpid_get(  rtk_vlanType_t type, rtk_uint32 idx
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtpVlanTpid_set( rtk_vlanType_t type, rtk_uint32 idx, rtk_uint32 tpid)
+rtk_api_ret_t rtk_time_portPtpVlanTpid_set(rtk_vlanType_t type, rtk_uint32 idx, rtk_uint32 tpid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpVlanTpid_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpVlanTpid_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpVlanTpid_set( type, idx, tpid);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpVlanTpid_set(type, idx, tpid);
+	RTK_API_UNLOCK();
+	return retVal;
 
 } /* end of rtk_time_portPtpVlanTpid_get */
 
@@ -500,19 +491,18 @@ rtk_api_ret_t rtk_time_portPtpVlanTpid_set( rtk_vlanType_t type, rtk_uint32 idx,
  */
 rtk_api_ret_t rtk_time_portPtpOper_get(rtk_time_operCfg_t *pOperCfg)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpOper_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpOper_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpOper_get(pOperCfg);
-    RTK_API_UNLOCK();
-    return retVal;
-    
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpOper_get(pOperCfg);
+	RTK_API_UNLOCK();
+	return retVal;
+
 } /* end of rtk_time_portPtpOper_get */
-
 
 /* Function Name:
  *      rtk_time_portPtpOper_set
@@ -536,20 +526,19 @@ rtk_api_ret_t rtk_time_portPtpOper_get(rtk_time_operCfg_t *pOperCfg)
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtpOper_set( rtk_time_operCfg_t pOperCfg)
+rtk_api_ret_t rtk_time_portPtpOper_set(rtk_time_operCfg_t pOperCfg)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpOper_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpOper_set(pOperCfg);
-    RTK_API_UNLOCK();
-    return retVal;
+	if (NULL == RT_MAPPER->time_portPtpOper_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpOper_set(pOperCfg);
+	RTK_API_UNLOCK();
+	return retVal;
 
 } /* end of rtk_time_portPtpOper_set */
-
 
 /* Function Name:
  *      rtk_time_portPtpLatchTime_get
@@ -573,19 +562,18 @@ rtk_api_ret_t rtk_time_portPtpOper_set( rtk_time_operCfg_t pOperCfg)
  */
 rtk_api_ret_t rtk_time_portPtpLatchTime_get(rtk_time_timeStamp_t *pLatchTime)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpLatchTime_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpLatchTime_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpLatchTime_get( pLatchTime);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpLatchTime_get(pLatchTime);
+	RTK_API_UNLOCK();
+	return retVal;
 
 } /* end of rtk_time_portPtpLatchTime_get */
-
 
 /* Function Name:
  *      rtk_time_portPtpRefTimeFreqCfg_get
@@ -610,16 +598,16 @@ rtk_api_ret_t rtk_time_portPtpLatchTime_get(rtk_time_timeStamp_t *pLatchTime)
  */
 rtk_api_ret_t rtk_time_portPtpRefTimeFreqCfg_get(rtk_uint32 *pFreqCfg, rtk_uint32 *pFreqCur)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpRefTimeFreqCfg_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpRefTimeFreqCfg_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpRefTimeFreqCfg_get(pFreqCfg, pFreqCur);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpRefTimeFreqCfg_get(pFreqCfg, pFreqCur);
+	RTK_API_UNLOCK();
+	return retVal;
 }
 
 /* Function Name:
@@ -648,18 +636,17 @@ rtk_api_ret_t rtk_time_portPtpRefTimeFreqCfg_get(rtk_uint32 *pFreqCfg, rtk_uint3
  */
 rtk_api_ret_t rtk_time_portPtpRefTimeFreqCfg_set(rtk_uint32 freq, rtk_enable_t apply)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpRefTimeFreqCfg_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpRefTimeFreqCfg_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpRefTimeFreqCfg_set(freq, apply);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpRefTimeFreqCfg_set(freq, apply);
+	RTK_API_UNLOCK();
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_time_portPtpTxTimestampFifo_get
@@ -683,20 +670,19 @@ rtk_api_ret_t rtk_time_portPtpRefTimeFreqCfg_set(rtk_uint32 freq, rtk_enable_t a
  *      [SDK_NEXT_RELEASE_VERSION]
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtpTxTimestampFifo_get( rtk_time_txTimeEntry_t *pTimeEntry)
+rtk_api_ret_t rtk_time_portPtpTxTimestampFifo_get(rtk_time_txTimeEntry_t *pTimeEntry)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpTxTimestampFifo_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpTxTimestampFifo_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpTxTimestampFifo_get(pTimeEntry);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpTxTimestampFifo_get(pTimeEntry);
+	RTK_API_UNLOCK();
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_time_portPtp1PPSOutput_get
@@ -720,21 +706,19 @@ rtk_api_ret_t rtk_time_portPtpTxTimestampFifo_get( rtk_time_txTimeEntry_t *pTime
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtp1PPSOutput_get( rtk_uint32 *pPulseWidth, rtk_enable_t *pEnable)
+rtk_api_ret_t rtk_time_portPtp1PPSOutput_get(rtk_uint32 *pPulseWidth, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtp1PPSOutput_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtp1PPSOutput_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtp1PPSOutput_get( pPulseWidth, pEnable);
-    RTK_API_UNLOCK();
-    return retVal;
-
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtp1PPSOutput_get(pPulseWidth, pEnable);
+	RTK_API_UNLOCK();
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_time_portPtp1PPSOutput_set
@@ -760,19 +744,18 @@ rtk_api_ret_t rtk_time_portPtp1PPSOutput_get( rtk_uint32 *pPulseWidth, rtk_enabl
  *      [SDK_NEXT_RELEASE_VERSION]
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtp1PPSOutput_set( rtk_uint32 pulseWidth, rtk_enable_t enable)
+rtk_api_ret_t rtk_time_portPtp1PPSOutput_set(rtk_uint32 pulseWidth, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtp1PPSOutput_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtp1PPSOutput_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtp1PPSOutput_set(pulseWidth, enable);
-    RTK_API_UNLOCK();
-    return retVal;
-
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtp1PPSOutput_set(pulseWidth, enable);
+	RTK_API_UNLOCK();
+	return retVal;
 }
 /* Function Name:
  *      rtk_time_portPtpClkSrcCtrl_get
@@ -789,21 +772,19 @@ rtk_api_ret_t rtk_time_portPtp1PPSOutput_set( rtk_uint32 pulseWidth, rtk_enable_
  * 0: internal clock (Internal PLL, 1GMHz)
  * 1: external clock, refer to cfg_ext_clk_src)
  */
-rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_get(rtk_enable_t* clksrc)
+rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_get(rtk_enable_t *clksrc)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpClkSrcCtrl_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpClkSrcCtrl_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpClkSrcCtrl_get(clksrc);
-    RTK_API_UNLOCK();
-    return retVal;
-
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpClkSrcCtrl_get(clksrc);
+	RTK_API_UNLOCK();
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_time_portPtpClkSrcCtrl_set
@@ -820,24 +801,23 @@ rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_get(rtk_enable_t* clksrc)
  * 0: internal clock (Internal PLL, 1GMHz)
  * 1: external clock, refer to cfg_ext_clk_src)
  */
-rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_set( rtk_enable_t clksrc)
+rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_set(rtk_enable_t clksrc)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpClkSrcCtrl_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpClkSrcCtrl_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpClkSrcCtrl_set(clksrc);
-    RTK_API_UNLOCK();
-    return retVal;
-
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpClkSrcCtrl_set(clksrc);
+	RTK_API_UNLOCK();
+	return retVal;
 }
 /* Function Name:
  *      rtk_time_portPtptoddelay_get
  * Description:
- *     
+ *
  * Input:
  *      port        - port id
  * Output:
@@ -853,26 +833,24 @@ rtk_api_ret_t rtk_time_portPtpClkSrcCtrl_set( rtk_enable_t clksrc)
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtptoddelay_get(rtk_uint32* toddelay)
+rtk_api_ret_t rtk_time_portPtptoddelay_get(rtk_uint32 *toddelay)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtp1PPSOutput_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtp1PPSOutput_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpToddelay_get(toddelay);
-    RTK_API_UNLOCK();
-    return retVal;
-
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpToddelay_get(toddelay);
+	RTK_API_UNLOCK();
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_time_portPtptoddelay_set
  * Description:
- *      
+ *
  * Input:
  *     toddelay
  * Output:
@@ -890,19 +868,18 @@ rtk_api_ret_t rtk_time_portPtptoddelay_get(rtk_uint32* toddelay)
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtptoddelay_set( rtk_uint32 toddelay)
+rtk_api_ret_t rtk_time_portPtptoddelay_set(rtk_uint32 toddelay)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtp1PPSOutput_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtp1PPSOutput_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpToddelay_set(toddelay);
-    RTK_API_UNLOCK();
-    return retVal;
-
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpToddelay_set(toddelay);
+	RTK_API_UNLOCK();
+	return retVal;
 }
 /* Function Name:
  *      rtk_time_portPtpClockOutput_get
@@ -928,19 +905,17 @@ rtk_api_ret_t rtk_time_portPtptoddelay_set( rtk_uint32 toddelay)
  */
 rtk_api_ret_t rtk_time_portPtpClockOutput_get(rtk_time_clkOutput_t *pClkOutput)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpClockOutput_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpClockOutput_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpClockOutput_get(pClkOutput);
-    RTK_API_UNLOCK();
-    return retVal;
-
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpClockOutput_get(pClkOutput);
+	RTK_API_UNLOCK();
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_time_portPtpClockOutput_set
@@ -961,19 +936,19 @@ rtk_api_ret_t rtk_time_portPtpClockOutput_get(rtk_time_clkOutput_t *pClkOutput)
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtpClockOutput_set( rtk_time_clkOutput_t pClkOutput)
+rtk_api_ret_t rtk_time_portPtpClockOutput_set(rtk_time_clkOutput_t pClkOutput)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpClockOutput_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpClockOutput_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpClockOutput_set( pClkOutput);
-    RTK_API_UNLOCK();
-    
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpClockOutput_set(pClkOutput);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -995,20 +970,19 @@ rtk_api_ret_t rtk_time_portPtpClockOutput_set( rtk_time_clkOutput_t pClkOutput)
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtpPortctrl_set( rtk_port_t port,rtk_ptp_port_ctrl_t portcfg)
+rtk_api_ret_t rtk_time_portPtpPortctrl_set(rtk_port_t port, rtk_ptp_port_ctrl_t portcfg)
 {
-   rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpPortctrl_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpPortctrl_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpPortctrl_set(port,portcfg);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpPortctrl_set(port, portcfg);
+	RTK_API_UNLOCK();
+	return retVal;
 }
-
 
 /* Function Name:
   *      Get the PTP rtk_time_portPtpPortctrl_get ability.
@@ -1028,18 +1002,18 @@ rtk_api_ret_t rtk_time_portPtpPortctrl_set( rtk_port_t port,rtk_ptp_port_ctrl_t 
  * Changes:
  *          New added function.
  */
-rtk_api_ret_t rtk_time_portPtpPortctrl_get( rtk_port_t port, rtk_ptp_port_ctrl_t *portcfg)
+rtk_api_ret_t rtk_time_portPtpPortctrl_get(rtk_port_t port, rtk_ptp_port_ctrl_t *portcfg)
 {
-   rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->time_portPtpPortctrl_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->time_portPtpPortctrl_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    /* function body */
-    retVal = RT_MAPPER->time_portPtpPortctrl_get(port,portcfg);
-    RTK_API_UNLOCK();
-    return retVal;
+	RTK_API_LOCK();
+	/* function body */
+	retVal = RT_MAPPER->time_portPtpPortctrl_get(port, portcfg);
+	RTK_API_UNLOCK();
+	return retVal;
 }
 
 /* Function Name:
@@ -1060,18 +1034,18 @@ rtk_api_ret_t rtk_time_portPtpPortctrl_get( rtk_port_t port, rtk_ptp_port_ctrl_t
  *      The API can set PTP interrupt status configuration.
  *      The interrupt trigger status is shown in the following:
  */
-rtk_api_ret_t rtk_time_PtpIntControl_set(rtk_ptp_intType_t type,rtk_enable_t enable)
+rtk_api_ret_t rtk_time_PtpIntControl_set(rtk_ptp_intType_t type, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->ptp_intControl_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->ptp_intControl_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->ptp_intControl_set(type,enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->ptp_intControl_set(type, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -1090,18 +1064,18 @@ rtk_api_ret_t rtk_time_PtpIntControl_set(rtk_ptp_intType_t type,rtk_enable_t ena
  *      The API can get interrupt status configuration.
  *      The interrupt trigger status is shown in the following:
  */
-rtk_api_ret_t rtk_time_PtpIntControl_get(rtk_ptp_intType_t type,rtk_enable_t *pEnable)
+rtk_api_ret_t rtk_time_PtpIntControl_get(rtk_ptp_intType_t type, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->ptp_intControl_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->ptp_intControl_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->ptp_intControl_get(type,pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->ptp_intControl_get(type, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -1127,16 +1101,16 @@ rtk_api_ret_t rtk_time_PtpIntControl_get(rtk_ptp_intType_t type,rtk_enable_t *pE
  */
 rtk_api_ret_t rtk_time_PtpIntStatus_get(rtk_ptp_intStatus_t *pStatusMask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->ptp_intStatus_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->ptp_intStatus_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->ptp_intStatus_get(pStatusMask);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->ptp_intStatus_get(pStatusMask);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -1156,18 +1130,18 @@ rtk_api_ret_t rtk_time_PtpIntStatus_get(rtk_ptp_intStatus_t *pStatusMask)
  * Note:
  *      None
  */
-rtk_api_ret_t rtk_time_portPtpTrap_set( rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl )
+rtk_api_ret_t rtk_time_portPtpTrap_set(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->ptp_portTrap_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->ptp_portTrap_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->ptp_portTrap_set(port,trapctrl);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->ptp_portTrap_set(port, trapctrl);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -1186,18 +1160,16 @@ rtk_api_ret_t rtk_time_portPtpTrap_set( rtk_port_t port, rtk_ptp_porttrap_ctrl_t
  * Note:
  *      None
  */
-rtk_api_ret_t rtk_time_portPtpTrap_get(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl )
+rtk_api_ret_t rtk_time_portPtpTrap_get(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->ptp_portTrap_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->ptp_portTrap_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->ptp_portTrap_get(port,trapctrl);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->ptp_portTrap_get(port, trapctrl);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-

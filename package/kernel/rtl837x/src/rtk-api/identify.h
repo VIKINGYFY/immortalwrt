@@ -33,8 +33,7 @@
  * Note:
  *      None
  */
-extern rt_phyctrl_t * phy_identify_driver_find_blindly(void);
-
+extern rt_phyctrl_t *phy_identify_driver_find_blindly(void);
 
 /* Function Name:
  *      phy_identify_init
@@ -50,6 +49,5 @@ extern rt_phyctrl_t * phy_identify_driver_find_blindly(void);
  *      None
  */
 extern rtk_api_ret_t phy_identify_init(void);
-
 
 #endif

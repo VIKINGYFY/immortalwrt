@@ -31,7 +31,7 @@
  * Input:
  *      port                -port number
  * Output:
- *      None     - 
+ *      None     -
  * Return:
  *      RT_ERR_OK       - Success
  *      RT_ERR_SMI      - SMI access error
@@ -40,16 +40,16 @@
  */
 rtk_api_ret_t rtk_cpu_externalCpuPort_set(rtk_uint32 port)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_externalCpuPort_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_externalCpuPort_set(port);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_externalCpuPort_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_externalCpuPort_set(port);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -68,16 +68,16 @@ rtk_api_ret_t rtk_cpu_externalCpuPort_set(rtk_uint32 port)
  */
 rtk_api_ret_t rtk_cpu_externalCpuPort_get(rtk_uint32 *pPort)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_externalCpuPort_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_externalCpuPort_get(pPort);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_externalCpuPort_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_externalCpuPort_get(pPort);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -96,16 +96,16 @@ rtk_api_ret_t rtk_cpu_externalCpuPort_get(rtk_uint32 *pPort)
  */
 rtk_api_ret_t rtk_cpuTag_tpid_set(rtk_uint32 tpid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_tpid_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_tpid_set(tpid);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_tpid_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_tpid_set(tpid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -124,16 +124,16 @@ rtk_api_ret_t rtk_cpuTag_tpid_set(rtk_uint32 tpid)
  */
 rtk_api_ret_t rtk_cpuTag_tpid_get(rtk_uint32 *pTpid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_tpid_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_tpid_get(pTpid);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_tpid_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_tpid_get(pTpid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -153,18 +153,18 @@ rtk_api_ret_t rtk_cpuTag_tpid_get(rtk_uint32 *pTpid)
  * Note:
  *      The API can set internal CPU port & external CPU port function enable/disable.
  */
-rtk_api_ret_t rtk_cpuTag_enable_set(rtk_cpu_type_t type,  rtk_enable_t  status)
+rtk_api_ret_t rtk_cpuTag_enable_set(rtk_cpu_type_t type, rtk_enable_t status)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_enable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_enable_set(type, status);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_enable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_enable_set(type, status);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -184,18 +184,18 @@ rtk_api_ret_t rtk_cpuTag_enable_set(rtk_cpu_type_t type,  rtk_enable_t  status)
  * Note:
  *      The API can get internal CPU port & external CPU port  function enable/disable.
  */
-rtk_api_ret_t rtk_cpuTag_enable_get(rtk_cpu_type_t type,  rtk_enable_t *pStatus)
+rtk_api_ret_t rtk_cpuTag_enable_get(rtk_cpu_type_t type, rtk_enable_t *pStatus)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_enable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_enable_get(type, pStatus);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_enable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_enable_get(type, pStatus);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -220,17 +220,17 @@ rtk_api_ret_t rtk_cpuTag_enable_get(rtk_cpu_type_t type,  rtk_enable_t *pStatus)
  *      - CPU_INSERT_TO_TRAPPING
  *      - CPU_INSERT_TO_NONE
  */
-rtk_api_ret_t rtk_cpuTag_insertMode_set(rtk_cpu_type_t type,  rtk_cpuTag_insertMode_t mode)
+rtk_api_ret_t rtk_cpuTag_insertMode_set(rtk_cpu_type_t type, rtk_cpuTag_insertMode_t mode)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_insertMode_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_insertMode_set(type, mode);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_insertMode_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_insertMode_set(type, mode);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -254,20 +254,19 @@ rtk_api_ret_t rtk_cpuTag_insertMode_set(rtk_cpu_type_t type,  rtk_cpuTag_insertM
  *      - CPU_INSERT_TO_TRAPPING
  *      - CPU_INSERT_TO_NONE
  */
-rtk_api_ret_t rtk_cpuTag_insertMode_get(rtk_cpu_type_t type,  rtk_cpuTag_insertMode_t *pMode)
+rtk_api_ret_t rtk_cpuTag_insertMode_get(rtk_cpu_type_t type, rtk_cpuTag_insertMode_t *pMode)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_insertMode_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_insertMode_get(type, pMode);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_insertMode_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_insertMode_get(type, pMode);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_cpuTag_awarePort_set
@@ -287,16 +286,16 @@ rtk_api_ret_t rtk_cpuTag_insertMode_get(rtk_cpu_type_t type,  rtk_cpuTag_insertM
  */
 rtk_api_ret_t rtk_cpuTag_awarePort_set(rtk_portmask_t *pPortmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_awarePort_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_awarePort_set(pPortmask);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_awarePort_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_awarePort_set(pPortmask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -316,16 +315,16 @@ rtk_api_ret_t rtk_cpuTag_awarePort_set(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t rtk_cpuTag_awarePort_get(rtk_portmask_t *pPortmask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_awarePort_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_awarePort_get(pPortmask);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_awarePort_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_awarePort_get(pPortmask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -350,16 +349,16 @@ rtk_api_ret_t rtk_cpuTag_awarePort_get(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t rtk_cpuTag_priRemap_set(rtk_cpu_type_t type, rtk_pri_t intPri, rtk_pri_t newPri)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_priRemap_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_priRemap_set(type, intPri, newPri);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_priRemap_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_priRemap_set(type, intPri, newPri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -383,16 +382,14 @@ rtk_api_ret_t rtk_cpuTag_priRemap_set(rtk_cpu_type_t type, rtk_pri_t intPri, rtk
  */
 rtk_api_ret_t rtk_cpuTag_priRemap_get(rtk_cpu_type_t type, rtk_pri_t intPri, rtk_pri_t *pNewPri)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->cpuTag_priRemap_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->cpuTag_priRemap_get(type, intPri, pNewPri);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->cpuTag_priRemap_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->cpuTag_priRemap_get(type, intPri, pNewPri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
-

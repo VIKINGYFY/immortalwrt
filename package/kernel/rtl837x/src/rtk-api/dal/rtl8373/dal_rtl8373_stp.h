@@ -6,14 +6,7 @@
 #include <rtl8373_asicdrv.h>
 #include <linux/string.h>
 
-enum RTL8373_MSTP_STATE
-{
-    MSTP_DISABLE = 0,
-    MSTP_BLOCKING,
-    MSTP_LEARNING,
-    MSTP_FORWARDING,
-    MSTP_END
-};
+enum RTL8373_MSTP_STATE { MSTP_DISABLE = 0, MSTP_BLOCKING, MSTP_LEARNING, MSTP_FORWARDING, MSTP_END };
 
 /* Function Name:
  *      dal_rtl8373_asicMstpPortStatus_set
@@ -21,7 +14,7 @@ enum RTL8373_MSTP_STATE
  *      Set MSTP port status
  * Input:
  *      fid     - mstp index
- *      port     - 
+ *      port     -
  *      statys  - 0 disable  1 blocking     2 learning    3 forwarding
  * Output:
  *      None
@@ -33,15 +26,13 @@ enum RTL8373_MSTP_STATE
  */
 extern ret_t dal_rtl8373_asicMstpPortStatus_set(rtk_uint32 fid, rtk_uint32 port, rtk_uint32 status);
 
-
-
 /* Function Name:
  *      dal_rtl8373_asicMstpPortStatus_get
  * Description:
  *      Get MSTP port status
  * Input:
  *      fid     - mstp index
- *      port     - 
+ *      port     -
  *      *pStatys  - 0 disable  1 blocking     2 learning    3 forwarding
  * Output:
  *      None
@@ -51,9 +42,6 @@ extern ret_t dal_rtl8373_asicMstpPortStatus_set(rtk_uint32 fid, rtk_uint32 port,
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_asicMstpPortStatus_get(rtk_uint32 fid, rtk_uint32 port, rtk_uint32* pStatus);
-
-
+extern ret_t dal_rtl8373_asicMstpPortStatus_get(rtk_uint32 fid, rtk_uint32 port, rtk_uint32 *pStatus);
 
 #endif
-

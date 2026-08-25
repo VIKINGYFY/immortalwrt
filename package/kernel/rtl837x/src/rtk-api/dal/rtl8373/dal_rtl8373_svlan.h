@@ -22,7 +22,6 @@
 #include <dal/rtl8373/rtl8373_asicdrv.h>
 #include <linux/string.h>
 
-
 /* Function Name:
  *      dal_rtl8373_svlanInit
  * Description:
@@ -485,6 +484,5 @@ extern rtk_api_ret_t dal_rtl8373_svlanTrapCpumsk_set(rtk_pri_t mask);
  *      None
  */
 extern rtk_api_ret_t dal_rtl8373_svlanTrapCpumsk_get(rtk_pri_t *pMask);
-
 
 #endif /* __DAL_RTL8373_SVLAN_H__ */

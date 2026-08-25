@@ -21,95 +21,44 @@
 /*
  * Data Type Declaration
  */
-typedef enum rtk_igmp_type_e
-{
-    IGMP_IPV4 = 0,
-    IGMP_PPPOE_IPV4,
-    IGMP_MLD,
-    IGMP_PPPOE_MLD,
-    IGMP_TYPE_END
-} rtk_igmp_type_t;
+typedef enum rtk_igmp_type_e { IGMP_IPV4 = 0, IGMP_PPPOE_IPV4, IGMP_MLD, IGMP_PPPOE_MLD, IGMP_TYPE_END } rtk_igmp_type_t;
 
-typedef enum rtk_trap_igmp_action_e
-{
-    IGMP_ACTION_FORWARD = 0,
-    IGMP_ACTION_TRAP2CPU,
-    IGMP_ACTION_DROP,
-    IGMP_ACTION_ASIC,
-    IGMP_ACTION_END
-} rtk_igmp_action_t;
+typedef enum rtk_trap_igmp_action_e { IGMP_ACTION_FORWARD = 0, IGMP_ACTION_TRAP2CPU, IGMP_ACTION_DROP, IGMP_ACTION_ASIC, IGMP_ACTION_END } rtk_igmp_action_t;
 
-typedef enum rtk_igmp_protocol_e
-{
-    PROTOCOL_IGMPv1 = 0,
-    PROTOCOL_IGMPv2,
-    PROTOCOL_IGMPv3,
-    PROTOCOL_MLDv1,
-    PROTOCOL_MLDv2,
-    PROTOCOL_END
-} rtk_igmp_protocol_t;
+typedef enum rtk_igmp_protocol_e { PROTOCOL_IGMPv1 = 0, PROTOCOL_IGMPv2, PROTOCOL_IGMPv3, PROTOCOL_MLDv1, PROTOCOL_MLDv2, PROTOCOL_END } rtk_igmp_protocol_t;
 
-typedef enum rtk_igmp_tableFullAction_e
-{
-    IGMP_TABLE_FULL_FORWARD = 0,
-    IGMP_TABLE_FULL_DROP,
-    IGMP_TABLE_FULL_TRAP,
-    IGMP_TABLE_FULL_OP_END
-}rtk_igmp_tableFullAction_t;
+typedef enum rtk_igmp_tableFullAction_e { IGMP_TABLE_FULL_FORWARD = 0, IGMP_TABLE_FULL_DROP, IGMP_TABLE_FULL_TRAP, IGMP_TABLE_FULL_OP_END } rtk_igmp_tableFullAction_t;
 
-typedef enum rtk_igmp_checksumErrorAction_e
-{
-    IGMP_CRC_ERR_DROP = 0,
-    IGMP_CRC_ERR_TRAP,
-    IGMP_CRC_ERR_FORWARD,
-    IGMP_CRC_ERR_OP_END
-}rtk_igmp_checksumErrorAction_t;
+typedef enum rtk_igmp_checksumErrorAction_e { IGMP_CRC_ERR_DROP = 0, IGMP_CRC_ERR_TRAP, IGMP_CRC_ERR_FORWARD, IGMP_CRC_ERR_OP_END } rtk_igmp_checksumErrorAction_t;
 
-typedef enum rtk_igmp_bypassGroup_e
-{
-    IGMP_BYPASS_224_0_0_X = 0,
-    IGMP_BYPASS_224_0_1_X,
-    IGMP_BYPASS_239_255_255_X,
-    IGMP_BYPASS_IPV6_00XX,
-    IGMP_BYPASS_GROUP_END
-}rtk_igmp_bypassGroup_t;
+typedef enum rtk_igmp_bypassGroup_e { IGMP_BYPASS_224_0_0_X = 0, IGMP_BYPASS_224_0_1_X, IGMP_BYPASS_239_255_255_X, IGMP_BYPASS_IPV6_00XX, IGMP_BYPASS_GROUP_END } rtk_igmp_bypassGroup_t;
 
+typedef struct rtk_igmp_dynamicRouterPort_s {
+	rtk_enable_t dynamicRouterPort0Valid;
+	rtk_port_t dynamicRouterPort0;
+	rtk_uint32 dynamicRouterPort0Timer;
+	rtk_enable_t dynamicRouterPort1Valid;
+	rtk_port_t dynamicRouterPort1;
+	rtk_uint32 dynamicRouterPort1Timer;
 
-typedef struct rtk_igmp_dynamicRouterPort_s
-{
-    rtk_enable_t    dynamicRouterPort0Valid;
-    rtk_port_t      dynamicRouterPort0;
-    rtk_uint32      dynamicRouterPort0Timer;
-    rtk_enable_t    dynamicRouterPort1Valid;
-    rtk_port_t      dynamicRouterPort1;
-    rtk_uint32      dynamicRouterPort1Timer;
+} rtk_igmp_dynamicRouterPort_t;
 
-}rtk_igmp_dynamicRouterPort_t;
+typedef struct rtk_igmp_rxPktEnable_s {
+	rtk_enable_t rxQuery;
+	rtk_enable_t rxReport;
+	rtk_enable_t rxLeave;
+	rtk_enable_t rxMRP;
+	rtk_enable_t rxMcast;
+} rtk_igmp_rxPktEnable_t;
 
-typedef struct rtk_igmp_rxPktEnable_s
-{
-    rtk_enable_t rxQuery;
-    rtk_enable_t rxReport;
-    rtk_enable_t rxLeave;
-    rtk_enable_t rxMRP;
-    rtk_enable_t rxMcast;
-}rtk_igmp_rxPktEnable_t;
+typedef struct rtk_igmp_groupInfo_s {
+	rtk_enable_t valid;
+	rtk_portmask_t member;
+	rtk_uint32 timer[RTK_PORT_MAX];
+	rtk_uint32 reportSuppFlag;
+} rtk_igmp_groupInfo_t;
 
-typedef struct rtk_igmp_groupInfo_s
-{
-    rtk_enable_t    valid;
-    rtk_portmask_t  member;
-    rtk_uint32      timer[RTK_PORT_MAX];
-    rtk_uint32      reportSuppFlag;
-}rtk_igmp_groupInfo_t;
-
-typedef enum rtk_igmp_ReportLeaveFwdAct_e
-{
-    IGMP_REPORT_LEAVE_TO_ROUTER = 0,
-    IGMP_REPORT_LEAVE_TO_ALLPORT,
-    IGMP_REPORT_LEAVE_TO_ROUTER_PORT_ADV,
-    IGMP_REPORT_LEAVE_ACT_END
-}rtk_igmp_ReportLeaveFwdAct_t;
+typedef enum rtk_igmp_ReportLeaveFwdAct_e { IGMP_REPORT_LEAVE_TO_ROUTER = 0, IGMP_REPORT_LEAVE_TO_ALLPORT, IGMP_REPORT_LEAVE_TO_ROUTER_PORT_ADV, IGMP_REPORT_LEAVE_ACT_END } rtk_igmp_ReportLeaveFwdAct_t;
 
 /* Function Name:
  *      rtk_igmp_init

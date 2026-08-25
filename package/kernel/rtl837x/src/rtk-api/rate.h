@@ -18,25 +18,18 @@
 #ifndef __RTK_API_RATE_H__
 #define __RTK_API_RATE_H__
 
-#define INBW_CTRL_RATE_MAX     (0xFFFFF * 16)
-#define INBW_CTRL_MAX_PORT_ID 	(8)
+#define INBW_CTRL_RATE_MAX (0xFFFFF * 16)
+#define INBW_CTRL_MAX_PORT_ID (8)
 
-#define EBW_CTRL_RATE_MAX      (0xFFFFF * 16)
-#define EBW_CTRL_MAX_PORT_ID 	(8)
+#define EBW_CTRL_RATE_MAX (0xFFFFF * 16)
+#define EBW_CTRL_MAX_PORT_ID (8)
 
-
-typedef enum rtk_rate_igrBwCongestSts_e
-{
-    INBW_RATE_NOT_EXCEED = 0,
-    INBW_RATE_EXCEED,
-    INBW_RATE_STATE_END
-} rtk_rate_igrBwCongestSts_t;
-
+typedef enum rtk_rate_igrBwCongestSts_e { INBW_RATE_NOT_EXCEED = 0, INBW_RATE_EXCEED, INBW_RATE_STATE_END } rtk_rate_igrBwCongestSts_t;
 
 /* Function Name:
  *      rtk_rate_igrBwCtrlPortEn_set
  * Description:
- *      Enable or disable port ingress bandwidth control 
+ *      Enable or disable port ingress bandwidth control
  * Input:
  *      port        - Port id
  *      bwEn        - enable ingress bandwidth control or not
@@ -50,14 +43,14 @@ typedef enum rtk_rate_igrBwCongestSts_e
  *      RT_ERR_ENABLE       - Invalid IFG parameter.
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_rate_igrBwCtrlPortEn_set(rtk_port_t port, rtk_enable_t bwEn);
 
 /* Function Name:
  *      rtk_rate_igrBwCtrlPortEn_get
  * Description:
- *      Enable or disable port ingress bandwidth control 
+ *      Enable or disable port ingress bandwidth control
  * Input:
  *      port        - Port id
  *
@@ -71,7 +64,7 @@ extern rtk_api_ret_t rtk_rate_igrBwCtrlPortEn_set(rtk_port_t port, rtk_enable_t 
  *      RT_ERR_ENABLE       - Invalid IFG parameter.
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_rate_igrBwCtrlPortEn_get(rtk_port_t port, rtk_enable_t *pBwEn);
 
@@ -199,7 +192,7 @@ extern rtk_api_ret_t rtk_rate_igrBwCtrlCongestSts_get(rtk_port_t port, rtk_rate_
  *     The rate unit is 1 kbps and the range is from 8k to 1048568k. The granularity of rate is 8 kbps.
  *     The ifg_include parameter is used for rate calculation with/without inter-frame-gap and preamble.
  */
-extern rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_set( rtk_port_t port, rtk_rate_t rate,  rtk_enable_t ifg_include);
+extern rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, rtk_rate_t rate, rtk_enable_t ifg_include);
 
 /* Function Name:
  *      rtk_rate_egrBandwidthCtrlRate_get
@@ -308,8 +301,4 @@ extern rtk_api_ret_t rtk_rate_egrQueueBwCtrlRate_get(rtk_port_t port, rtk_qid_t 
  */
 extern rtk_api_ret_t rtk_rate_egrQueueBwCtrlRate_set(rtk_port_t port, rtk_qid_t queue, rtk_meter_id_t index);
 
-
-
 #endif /* __RTK_API_RATE_H__ */
-
-

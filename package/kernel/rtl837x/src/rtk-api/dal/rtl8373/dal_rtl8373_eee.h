@@ -15,10 +15,9 @@
  *
  */
 
-#ifndef  __DAL_RTL8373_EEE_H__
-#define  __DAL_RTL8373_EEE_H__
+#ifndef __DAL_RTL8373_EEE_H__
+#define __DAL_RTL8373_EEE_H__
 #include <eee.h>
-
 
 /* Function Name:
  *      dal_rtl8373_eee_init

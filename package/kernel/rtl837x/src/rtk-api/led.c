@@ -23,8 +23,6 @@
 #include <linux/string.h>
 #include <dal/dal_mgmt.h>
 
-
-
 /* Function Name:
  *      rtk_led_blinkRate_set
  * Description:
@@ -43,16 +41,16 @@
  */
 rtk_api_ret_t rtk_led_blinkRate_set(rtk_led_blink_rate_t blinkRate)
 {
-     rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->led_blinkRate_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->led_blinkRate_set(blinkRate);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->led_blinkRate_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->led_blinkRate_set(blinkRate);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -73,16 +71,16 @@ rtk_api_ret_t rtk_led_blinkRate_set(rtk_led_blink_rate_t blinkRate)
  */
 rtk_api_ret_t rtk_led_blinkRate_get(rtk_led_blink_rate_t *pBlinkRate)
 {
-     rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->led_blinkRate_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->led_blinkRate_get(pBlinkRate);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->led_blinkRate_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->led_blinkRate_get(pBlinkRate);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -110,8 +108,8 @@ rtk_api_ret_t rtk_led_blinkRate_get(rtk_led_blink_rate_t *pBlinkRate)
  *                      led_master;
  *                      led_10g;
  *                      led_two_pair_5g;
- *                      led_5g; 
- *                      led_two_pair_2p5g; 
+ *                      led_5g;
+ *                      led_two_pair_2p5g;
  * Output:
  *      None
  * Return:
@@ -123,20 +121,19 @@ rtk_api_ret_t rtk_led_blinkRate_get(rtk_led_blink_rate_t *pBlinkRate)
  *      The API can be used to enable LED per port per group.
  */
 
-rtk_api_ret_t rtk_led_groupConfig_set(rtk_led_set_t setid, rtk_uint32 ledid, rtk_led_config_t * config)
+rtk_api_ret_t rtk_led_groupConfig_set(rtk_led_set_t setid, rtk_uint32 ledid, rtk_led_config_t *config)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->led_groupConfig_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->led_groupConfig_set(setid, ledid, config);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->led_groupConfig_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->led_groupConfig_set(setid, ledid, config);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_led_portSelConfig_set
@@ -144,7 +141,7 @@ rtk_api_ret_t rtk_led_groupConfig_set(rtk_led_set_t setid, rtk_uint32 ledid, rtk
  *      Set led group connfig for per port
  * Input:
  *      port   - port id 0 ~ 8
- *      setid  - led config group id 0 ~ 3 
+ *      setid  - led config group id 0 ~ 3
  * Output:
  *      None
  * Return:
@@ -157,18 +154,17 @@ rtk_api_ret_t rtk_led_groupConfig_set(rtk_led_set_t setid, rtk_uint32 ledid, rtk
  */
 rtk_api_ret_t rtk_led_portSelConfig_set(rtk_port_t port, rtk_led_set_t setid)
 {
-     rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->led_portSelConfig_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->led_portSelConfig_set(port, setid);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->led_portSelConfig_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->led_portSelConfig_set(port, setid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_led_portSelConfig_get
@@ -176,7 +172,7 @@ rtk_api_ret_t rtk_led_portSelConfig_set(rtk_port_t port, rtk_led_set_t setid)
  *      Get led group connfig for per port
  * Input:
  *      port   - port id 0 ~ 8
- *      setid  - led config group id 0 ~ 3 
+ *      setid  - led config group id 0 ~ 3
  * Output:
  *      None
  * Return:
@@ -187,17 +183,16 @@ rtk_api_ret_t rtk_led_portSelConfig_set(rtk_port_t port, rtk_led_set_t setid)
  * Note:
  *      ASIC support 6 types of LED blinking rates at 32ms, 64ms, 128ms, 256ms, 512ms and 1024ms.
  */
-rtk_api_ret_t rtk_led_portSelConfig_get(rtk_port_t port, rtk_led_set_t * setid)
+rtk_api_ret_t rtk_led_portSelConfig_get(rtk_port_t port, rtk_led_set_t *setid)
 {
-     rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->led_portSelConfig_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->led_portSelConfig_get(port, setid);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->led_portSelConfig_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->led_portSelConfig_get(port, setid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-

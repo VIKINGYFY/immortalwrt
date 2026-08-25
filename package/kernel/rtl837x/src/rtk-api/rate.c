@@ -27,7 +27,7 @@
 /* Function Name:
  *      rtk_rate_igrBwCtrlPortEn_set
  * Description:
- *      Enable or disable port ingress bandwidth control 
+ *      Enable or disable port ingress bandwidth control
  * Input:
  *      port        - Port id
  *      bwEn        - enable ingress bandwidth control or not
@@ -41,26 +41,26 @@
  *      RT_ERR_ENABLE       - Invalid IFG parameter.
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_rate_igrBwCtrlPortEn_set(rtk_port_t port, rtk_enable_t bwEn)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_igrBwCtrlPortEn_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_igrBwCtrlPortEn_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_igrBwCtrlPortEn_set(port, bwEn);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_igrBwCtrlPortEn_set(port, bwEn);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
  *      rtk_rate_igrBwCtrlPortEn_get
  * Description:
- *      Enable or disable port ingress bandwidth control 
+ *      Enable or disable port ingress bandwidth control
  * Input:
  *      port        - Port id
  *
@@ -74,20 +74,20 @@ rtk_api_ret_t rtk_rate_igrBwCtrlPortEn_set(rtk_port_t port, rtk_enable_t bwEn)
  *      RT_ERR_ENABLE       - Invalid IFG parameter.
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
- *     
+ *
  */
 rtk_api_ret_t rtk_rate_igrBwCtrlPortEn_get(rtk_port_t port, rtk_enable_t *pBwEn)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_igrBwCtrlPortEn_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_igrBwCtrlPortEn_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_igrBwCtrlPortEn_get(port, pBwEn);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_igrBwCtrlPortEn_get(port, pBwEn);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -113,16 +113,16 @@ rtk_api_ret_t rtk_rate_igrBwCtrlPortEn_get(rtk_port_t port, rtk_enable_t *pBwEn)
  */
 rtk_api_ret_t rtk_rate_igrBwCtrlRate_set(rtk_port_t port, rtk_rate_t rate, rtk_enable_t fcEn)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_igrBwCtrlRate_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_igrBwCtrlRate_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_igrBwCtrlRate_set(port, rate, fcEn);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_igrBwCtrlRate_set(port, rate, fcEn);
+	RTK_API_UNLOCK();
 
-    return retVal;	
+	return retVal;
 }
 
 /* Function Name:
@@ -148,16 +148,16 @@ rtk_api_ret_t rtk_rate_igrBwCtrlRate_set(rtk_port_t port, rtk_rate_t rate, rtk_e
  */
 rtk_api_ret_t rtk_rate_igrBwCtrlRate_get(rtk_port_t port, rtk_rate_t *pRate, rtk_enable_t *pFcEn)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_igrBwCtrlRate_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_igrBwCtrlRate_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_igrBwCtrlRate_get(port, pRate, pFcEn);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_igrBwCtrlRate_get(port, pRate, pFcEn);
+	RTK_API_UNLOCK();
 
-    return retVal;	
+	return retVal;
 }
 
 /* Function Name:
@@ -179,16 +179,16 @@ rtk_api_ret_t rtk_rate_igrBwCtrlRate_get(rtk_port_t port, rtk_rate_t *pRate, rtk
  */
 rtk_api_ret_t rtk_rate_igrBwCtrlIfg_set(rtk_enable_t ifgInclude)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_igrBwCtrlIfg_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_igrBwCtrlIfg_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_igrBwCtrlIfg_set(ifgInclude);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_igrBwCtrlIfg_set(ifgInclude);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -210,16 +210,16 @@ rtk_api_ret_t rtk_rate_igrBwCtrlIfg_set(rtk_enable_t ifgInclude)
  */
 rtk_api_ret_t rtk_rate_igrBwCtrlIfg_get(rtk_enable_t *pIfgInclude)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_igrBwCtrlIfg_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_igrBwCtrlIfg_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_igrBwCtrlIfg_get(pIfgInclude);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_igrBwCtrlIfg_get(pIfgInclude);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -241,18 +241,17 @@ rtk_api_ret_t rtk_rate_igrBwCtrlIfg_get(rtk_enable_t *pIfgInclude)
  */
 rtk_api_ret_t rtk_rate_igrBwCtrlCongestSts_get(rtk_port_t port, rtk_rate_igrBwCongestSts_t *pCongestSts)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_igrBwCtrlCongestSts_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_igrBwCtrlCongestSts_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_igrBwCtrlCongestSts_get(port, pCongestSts);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_igrBwCtrlCongestSts_get(port, pCongestSts);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_rate_egrBandwidthCtrlRate_set
@@ -275,18 +274,18 @@ rtk_api_ret_t rtk_rate_igrBwCtrlCongestSts_get(rtk_port_t port, rtk_rate_igrBwCo
  *     The rate unit is 1 kbps and the range is from 8k to 1048568k. The granularity of rate is 8 kbps.
  *     The ifg_include parameter is used for rate calculation with/without inter-frame-gap and preamble.
  */
-rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_set( rtk_port_t port, rtk_rate_t rate,  rtk_enable_t ifg_include)
+rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, rtk_rate_t rate, rtk_enable_t ifg_include)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_egrBandwidthCtrlRate_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_egrBandwidthCtrlRate_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_egrBandwidthCtrlRate_set(port, rate, ifg_include);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_egrBandwidthCtrlRate_set(port, rate, ifg_include);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -310,16 +309,16 @@ rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_set( rtk_port_t port, rtk_rate_t rat
  */
 rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_get(rtk_port_t port, rtk_rate_t *pRate, rtk_enable_t *pIfg_include)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_egrBandwidthCtrlRate_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_egrBandwidthCtrlRate_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_egrBandwidthCtrlRate_get(port, pRate, pIfg_include);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_egrBandwidthCtrlRate_get(port, pRate, pIfg_include);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -343,16 +342,16 @@ rtk_api_ret_t rtk_rate_egrBandwidthCtrlRate_get(rtk_port_t port, rtk_rate_t *pRa
  */
 rtk_api_ret_t rtk_rate_egrQueueBwCtrlEnable_get(rtk_port_t port, rtk_qid_t queue, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_egrQueueBwCtrlEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_egrQueueBwCtrlEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_egrQueueBwCtrlEnable_get(port, queue, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_egrQueueBwCtrlEnable_get(port, queue, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -376,16 +375,16 @@ rtk_api_ret_t rtk_rate_egrQueueBwCtrlEnable_get(rtk_port_t port, rtk_qid_t queue
  */
 rtk_api_ret_t rtk_rate_egrQueueBwCtrlEnable_set(rtk_port_t port, rtk_qid_t queue, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_egrQueueBwCtrlEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_egrQueueBwCtrlEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_egrQueueBwCtrlEnable_set(port, queue, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_egrQueueBwCtrlEnable_set(port, queue, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -410,16 +409,16 @@ rtk_api_ret_t rtk_rate_egrQueueBwCtrlEnable_set(rtk_port_t port, rtk_qid_t queue
  */
 rtk_api_ret_t rtk_rate_egrQueueBwCtrlRate_get(rtk_port_t port, rtk_qid_t queue, rtk_meter_id_t *pIndex)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_egrQueueBwCtrlRate_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_egrQueueBwCtrlRate_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_egrQueueBwCtrlRate_get(port, queue, pIndex);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_egrQueueBwCtrlRate_get(port, queue, pIndex);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -444,16 +443,14 @@ rtk_api_ret_t rtk_rate_egrQueueBwCtrlRate_get(rtk_port_t port, rtk_qid_t queue, 
  */
 rtk_api_ret_t rtk_rate_egrQueueBwCtrlRate_set(rtk_port_t port, rtk_qid_t queue, rtk_meter_id_t index)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rate_egrQueueBwCtrlRate_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->rate_egrQueueBwCtrlRate_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rate_egrQueueBwCtrlRate_set(port, queue, index);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rate_egrQueueBwCtrlRate_set(port, queue, index);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-

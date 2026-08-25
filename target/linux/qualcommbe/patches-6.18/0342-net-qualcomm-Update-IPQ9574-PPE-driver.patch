@@ -39,8 +39,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  create mode 100644 drivers/net/ethernet/qualcomm/ppe/ppe_api.c
  create mode 100644 drivers/net/ethernet/qualcomm/ppe/ppe_api.h
 
---- a/drivers/net/ethernet/qualcomm/ppe/Makefile
-+++ b/drivers/net/ethernet/qualcomm/ppe/Makefile
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/Makefile
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/Makefile
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/Makefile
 @@ -4,7 +4,7 @@
  #
  
@@ -50,8 +52,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  
  #EDMA
  qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o edma_ethtool.o
---- a/drivers/net/ethernet/qualcomm/ppe/edma.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 - /* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -252,15 +256,6 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	ret = edma_cfg_rx_rps_hash_map();
  	if (ret) {
  		pr_err("Failed to configure rps hash table: %d\n",
-@@ -767,6 +742,8 @@ static int edma_hw_configure(void)
- 		goto edma_cfg_rx_rps_hash_map_failed;
- 	}
- 
-+	pr_info("EDMA Hardware Configured\n");
-+
- 	return 0;
- 
- edma_cfg_rx_rps_hash_map_failed:
 @@ -803,14 +780,13 @@ void edma_destroy(struct ppe_device *ppe
  		edma_ctx->rx_rps_ctl_table_hdr = NULL;
  	}
@@ -391,8 +386,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 -
 -	return ppe_ring_queue_map_set(ppe_dev, ring_id, queue_bmap);
 -}
---- a/drivers/net/ethernet/qualcomm/ppe/edma.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma.h
 @@ -1,13 +1,13 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -458,8 +455,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 -
 -
  #endif
---- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -520,11 +519,11 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	struct edma_ring_info *rx = hw_info->rx;
  	u32 i, data, reg;
  
-+        /* Set RXDESC2FILL_MAP_xx reg.
-+         * 3 registers hold the Rxfill mapping for all Rx desc rings.
-+         * 3 bits holds the Rx fill ring mapping for each of the
-+         * Rx descriptor ring.
-+         */
++	/* Set RXDESC2FILL_MAP_xx reg.
++	 * 3 registers hold the Rxfill mapping for all Rx desc rings.
++	 * 3 bits holds the Rx fill ring mapping for each of the
++	 * Rx descriptor ring.
++	 */
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_0_ADDR, 0);
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_1_ADDR, 0);
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_2_ADDR, 0);
@@ -687,8 +686,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  		if (ret)
  			return ret;
  
---- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -713,8 +714,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  		    void *buffer, size_t *lenp, loff_t *ppos);
  int edma_cfg_rx_rps_bitmap(const struct ctl_table *table, int write,
  			   void *buffer, size_t *lenp, loff_t *ppos);
---- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -813,8 +816,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	}
  
  	netdev_dbg(netdev, "Tx NAPI budget: %d\n", edma_tx_napi_budget);
---- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -822,8 +827,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
   */
  
  #ifndef __EDMA_CFG_TX__
---- a/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -831,8 +838,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
   */
  
  /* EDMA debugfs routines for display of Tx/Rx counters. */
---- a/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -883,8 +892,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  };
  
  /**
---- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_port.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 - /* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -974,8 +985,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	return ret;
  
  register_netdev_fail:
---- a/drivers/net/ethernet/qualcomm/ppe/edma_port.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_port.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_port.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -992,8 +1005,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
   * @rx_pkts: Number of Rx packets
   * @rx_bytes: Number of Rx bytes
   * @rx_drops: Number of Rx drops
---- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1065,8 +1080,9 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 - * status in descriptor.
 - */
 -static void edma_rx_checksum_verify(struct edma_rxdesc_pri *rxdesc_pri,
+-				    struct sk_buff *skb)
 +static inline uint8_t edma_rx_checksum_verify(struct edma_rxdesc_pri *rxdesc_pri,
- 				    struct sk_buff *skb)
++					      struct sk_buff *skb)
  {
  	u8 pid = EDMA_RXDESC_PID_GET(rxdesc_pri);
  
@@ -1226,8 +1242,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  
  		/* Update consumer index. */
  		cons_idx = (cons_idx + 1) & EDMA_RX_RING_SIZE_MASK;
---- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1235,8 +1253,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
   */
  
  #ifndef __EDMA_RX__
---- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 @@ -1,5 +1,5 @@
  // SPDX-License-Identifier: GPL-2.0-only
 -/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1290,58 +1310,51 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	while (likely(avail--)) {
  		/* The last descriptor holds the SKB pointer for scattered frames.
  		 * So skip the descriptors with more bit set.
-@@ -172,27 +164,13 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -172,7 +164,21 @@ u32 edma_tx_complete(u32 work_to_do, str
  			++txcmpl_stats->invalid_buffer;
  			u64_stats_update_end(&txcmpl_stats->syncp);
  		} else {
 -			dev_dbg(dev, "TXCMPL: skb:%p, skb->len %d, skb->data_len %d, cons_idx:%d prod_idx:%d word2:0x%x word3:0x%x\n",
--				skb, skb->len, skb->data_len, cons_idx, prod_idx,
--				txcmpl->word2, txcmpl->word3);
--
--			txcmpl_errors = EDMA_TXCOMP_RING_ERROR_GET(txcmpl->word3);
--			if (unlikely(txcmpl_errors)) {
--				if (net_ratelimit())
--					dev_err(dev, "Error 0x%0x observed in tx complete %d ring\n",
--						txcmpl_errors, txcmpl_ring->id);
--
--				u64_stats_update_begin(&txcmpl_stats->syncp);
--				++txcmpl_stats->errors;
--				u64_stats_update_end(&txcmpl_stats->syncp);
--			}
- 
- 			/* Retrieve pool id for unmapping.
- 			 * 0 for linear skb and (pool id - 1) represents nr_frag index.
- 			 */
- 			if (!EDMA_TXCOMP_POOL_ID_GET(txcmpl)) {
- 				dma_unmap_single(dev, virt_to_phys(skb->data),
--						 skb->len, DMA_TO_DEVICE);
++			/* Retrieve pool id for unmapping.
++			 * 0 for linear skb and (pool id - 1) represents nr_frag index.
++			 */
++			if (!EDMA_TXCOMP_POOL_ID_GET(txcmpl)) {
++				dma_unmap_single(dev, virt_to_phys(skb->data),
 +						 skb_headlen(skb), DMA_TO_DEVICE);
- 			} else {
- 				u8 frag_index = (EDMA_TXCOMP_POOL_ID_GET(txcmpl) - 1);
- 				skb_frag_t *frag = &skb_shinfo(skb)->frags[frag_index];
-@@ -201,6 +179,21 @@ u32 edma_tx_complete(u32 work_to_do, str
- 					       PAGE_SIZE, DMA_TO_DEVICE);
- 			}
- 
-+			dev_dbg(dev, "TXCMPL: skb:%pK, skb->len %d, skb->data_len %d, cons_idx:%d prod_idx:%d word2:0x%x word3:0x%x\n",
-+				skb, skb->len, skb->data_len, cons_idx, prod_idx,
-+				txcmpl->word2, txcmpl->word3);
++			} else {
++				u8 frag_index = (EDMA_TXCOMP_POOL_ID_GET(txcmpl) - 1);
++				skb_frag_t *frag = &skb_shinfo(skb)->frags[frag_index];
 +
-+			txcmpl_errors = EDMA_TXCOMP_RING_ERROR_GET(txcmpl->word3);
-+			if (unlikely(txcmpl_errors)) {
-+				if (net_ratelimit())
-+					dev_err(dev, "Error 0x%0x observed in tx complete %d ring\n",
-+						txcmpl_errors, txcmpl_ring->id);
-+
-+				u64_stats_update_begin(&txcmpl_stats->syncp);
-+				++txcmpl_stats->errors;
-+				u64_stats_update_end(&txcmpl_stats->syncp);
++				dma_unmap_page(dev, virt_to_phys(frag),
++					       PAGE_SIZE, DMA_TO_DEVICE);
 +			}
 +
++			dev_dbg(dev, "TXCMPL: skb:%pK, skb->len %d, skb->data_len %d, cons_idx:%d prod_idx:%d word2:0x%x word3:0x%x\n",
+ 				skb, skb->len, skb->data_len, cons_idx, prod_idx,
+ 				txcmpl->word2, txcmpl->word3);
+ 
+@@ -187,20 +193,6 @@ u32 edma_tx_complete(u32 work_to_do, str
+ 				u64_stats_update_end(&txcmpl_stats->syncp);
+ 			}
+ 
+-			/* Retrieve pool id for unmapping.
+-			 * 0 for linear skb and (pool id - 1) represents nr_frag index.
+-			 */
+-			if (!EDMA_TXCOMP_POOL_ID_GET(txcmpl)) {
+-				dma_unmap_single(dev, virt_to_phys(skb->data),
+-						 skb->len, DMA_TO_DEVICE);
+-			} else {
+-				u8 frag_index = (EDMA_TXCOMP_POOL_ID_GET(txcmpl) - 1);
+-				skb_frag_t *frag = &skb_shinfo(skb)->frags[frag_index];
+-
+-				dma_unmap_page(dev, virt_to_phys(frag),
+-					       PAGE_SIZE, DMA_TO_DEVICE);
+-			}
+-
  			dev_kfree_skb(skb);
  		}
  
-@@ -211,7 +204,7 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -211,7 +203,7 @@ u32 edma_tx_complete(u32 work_to_do, str
  	txcmpl_ring->cons_idx = cons_idx;
  	txcmpl_ring->avail_pkt -= count;
  
@@ -1350,7 +1363,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  		txcmpl_ring->id, count, prod_idx, cons_idx);
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CONS_IDX(txcmpl_ring->id);
  	regmap_write(regmap, reg, cons_idx);
-@@ -265,7 +258,7 @@ int edma_tx_napi_poll(struct napi_struct
+@@ -265,7 +257,7 @@ int edma_tx_napi_poll(struct napi_struct
  	/* No more packets to process. Finish NAPI processing. */
  	napi_complete(napi);
  
@@ -1359,16 +1372,20 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
  	regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
  
-@@ -392,7 +385,7 @@ static u32 edma_tx_skb_nr_frags(struct e
+@@ -392,9 +384,9 @@ static u32 edma_tx_skb_nr_frags(struct e
  	return num_descs;
  }
  
 -static void edma_tx_fill_pp_desc(struct edma_port_priv *port_priv,
+-				 struct edma_txdesc_pri *txd, struct sk_buff *skb,
+-	struct edma_port_tx_stats *stats)
 +static void edma_tx_fill_desc(struct edma_port_priv *port_priv,
- 				 struct edma_txdesc_pri *txd, struct sk_buff *skb,
- 	struct edma_port_tx_stats *stats)
++			      struct edma_txdesc_pri *txd, struct sk_buff *skb,
++			      struct edma_port_tx_stats *stats)
  {
-@@ -463,7 +456,7 @@ static struct edma_txdesc_pri *edma_tx_s
+ 	struct ppe_port *port = port_priv->ppe_port;
+ 	int port_id = port->port_id;
+@@ -463,7 +455,7 @@ static struct edma_txdesc_pri *edma_tx_s
  
  	EDMA_TXDESC_BUFFER_ADDR_SET(txd, buff_addr);
  	EDMA_TXDESC_POOL_ID_SET(txd, 0);
@@ -1377,7 +1394,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  
  	/* Set packet length in the descriptor. */
  	EDMA_TXDESC_DATA_LEN_SET(txd, buf_len);
-@@ -528,6 +521,23 @@ static u32 edma_tx_skb_sg_fill_desc(stru
+@@ -528,6 +520,23 @@ static u32 edma_tx_skb_sg_fill_desc(stru
  	/* Head skb processed already. */
  	num_descs++;
  
@@ -1401,7 +1418,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	if (unlikely(skb_has_frag_list(skb))) {
  		struct edma_txdesc_pri *start_desc = NULL;
  		u32 start_idx = 0, end_idx = 0;
-@@ -608,23 +618,9 @@ skip_primary:
+@@ -608,23 +617,9 @@ skip_primary:
  		u64_stats_update_begin(&stats->syncp);
  		stats->tx_fraglist_pkts++;
  		u64_stats_update_end(&stats->syncp);
@@ -1426,7 +1443,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  		skb, num_descs, skb_shinfo(skb)->nr_frags, num_sg_frag_list);
  
  	*txdesc = txd;
-@@ -775,7 +771,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -775,7 +770,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
  			netdev_dbg(netdev, "No descriptor available for ring %d\n",
  				   txdesc_ring->id);
  			dma_unmap_single(dev, virt_to_phys(skb->data),
@@ -1435,7 +1452,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  			u64_stats_update_begin(&txdesc_stats->syncp);
  			++txdesc_stats->no_desc_avail;
  			u64_stats_update_end(&txdesc_stats->syncp);
-@@ -792,10 +788,12 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -792,10 +787,12 @@ enum edma_tx_status edma_tx_ring_xmit(st
  	txdesc_ring->prod_idx = hw_next_to_use & EDMA_TXDESC_PROD_IDX_MASK;
  	txdesc_ring->avail_desc -= num_desc_filled;
  
@@ -1449,8 +1466,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_PROD_IDX(txdesc_ring->id);
  	regmap_write(regmap, reg, txdesc_ring->prod_idx);
  
---- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
 @@ -1,5 +1,5 @@
  /* SPDX-License-Identifier: GPL-2.0-only
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1521,8 +1540,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
   * @napi: NAPI
   * @cons_idx: Consumer index
   * @avail_pkt: Number of available packets to process
---- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
 @@ -229,11 +229,9 @@ static void qcom_ppe_remove(struct platf
  	struct ppe_device *ppe_dev;
  
@@ -1536,8 +1557,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  }
  
  static const struct of_device_id qcom_ppe_of_match[] = {
---- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.h
 @@ -13,6 +13,8 @@ struct device;
  struct regmap;
  struct dentry;
@@ -1547,8 +1570,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  /**
   * struct ppe_device - PPE device private data.
   * @dev: PPE device structure.
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.c
+===================================================================
 --- /dev/null
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_api.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.c
 @@ -0,0 +1,113 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
@@ -1600,7 +1625,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 + * @type: The type can be internal priority or PPE hash
 + * @index: Class index, which can be internal priority or hash value
 + * @queue_offset: Queue offset value which is added by the queue base to get
-+ * 		  the egress queue ID.
++ *		  the egress queue ID.
 + *
 + * PPE EDMA queue offset is configured based on the PPE internal priority or
 + * RSS hash value, the profile ID is fixed to 0 for the EDMA interface.
@@ -1663,8 +1688,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +
 +	return ppe_ring_queue_map_set(ppe_dev, ring_id, queue_bmap);
 +}
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.h
+===================================================================
 --- /dev/null
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_api.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_api.h
 @@ -0,0 +1,43 @@
 +/* SPDX-License-Identifier: GPL-2.0-only
 + *
@@ -1709,8 +1736,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +int ppe_edma_ring_to_queues_config(struct ppe_device *ppe_dev, int ring_id,
 +				   int num, int queues[]);
 +#endif
---- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 @@ -889,7 +889,7 @@ static int ppe_scheduler_l0_queue_map_se
  				  val);
  }
@@ -1820,8 +1849,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  static int ppe_config_bm_threshold(struct ppe_device *ppe_dev, int bm_port_id,
  				   const struct ppe_bm_port_config port_cfg)
  {
---- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 @@ -294,8 +294,6 @@ int ppe_queue_scheduler_set(struct ppe_d
  int ppe_queue_scheduler_get(struct ppe_device *ppe_dev,
  			    int node_id, bool flow_level, int *port,
@@ -1831,8 +1862,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  int ppe_queue_ucast_base_set(struct ppe_device *ppe_dev,
  			     struct ppe_queue_ucast_dest queue_dst,
  			     int queue_base,
---- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 @@ -1,16 +1,17 @@
  // SPDX-License-Identifier: GPL-2.0-only
  /*
@@ -2929,8 +2962,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  		ppe_port_clock_deinit(ppe_port);
  	}
  }
---- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
 @@ -1,16 +1,23 @@
  /* SPDX-License-Identifier: GPL-2.0-only
   *
@@ -3000,8 +3035,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 -int ppe_port_set_mac_eee(struct ppe_port *ppe_port, struct ethtool_keee *eee);
  int ppe_port_set_maxframe(struct ppe_port *ppe_port, int maxframe_size);
  #endif
---- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -20,16 +20,6 @@
  #define PPE_PORT5_SEL_PCS1			BIT(4)
  #define PPE_PORT_SEL_XGMAC(x)			(BIT(8) << ((x) - 1))

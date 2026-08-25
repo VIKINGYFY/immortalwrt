@@ -18,38 +18,15 @@
 #ifndef __RTK_API_DOT1X_H__
 #define __RTK_API_DOT1X_H__
 
-
 /* Type of port-based dot1x auth/unauth*/
-typedef enum rtk_dot1x_auth_status_e
-{
-    UNAUTH = 0,
-    AUTH,
-    AUTH_STATUS_END
-} rtk_dot1x_auth_status_t;
+typedef enum rtk_dot1x_auth_status_e { UNAUTH = 0, AUTH, AUTH_STATUS_END } rtk_dot1x_auth_status_t;
 
-typedef enum rtk_dot1x_direction_e
-{
-    DIR_BOTH = 0,
-    DIR_IN,
-    DIRECTION_END
-} rtk_dot1x_direction_t;
+typedef enum rtk_dot1x_direction_e { DIR_BOTH = 0, DIR_IN, DIRECTION_END } rtk_dot1x_direction_t;
 
 /* unauth pkt action */
-typedef enum rtk_dot1x_unauth_action_e
-{
-    DOT1X_ACTION_DROP = 0,
-    DOT1X_ACTION_TRAP2CPU,
-    DOT1X_ACTION_GUESTVLAN,
-    DOT1X_ACTION_END
-} rtk_dot1x_unauth_action_t;
+typedef enum rtk_dot1x_unauth_action_e { DOT1X_ACTION_DROP = 0, DOT1X_ACTION_TRAP2CPU, DOT1X_ACTION_GUESTVLAN, DOT1X_ACTION_END } rtk_dot1x_unauth_action_t;
 
-typedef enum rtk_dot1x_cpu_select_e
-{
-   DOT1X_CPU_SEL_INTERNAL = 1,
-   DOT1X_CPU_SEL_EXTERNAL,
-   DOT1X_CPU_SEL_ALL,
-   DOT1X_CPU_SEL_END
-}rtk_dot1x_cpu_select_t;
+typedef enum rtk_dot1x_cpu_select_e { DOT1X_CPU_SEL_INTERNAL = 1, DOT1X_CPU_SEL_EXTERNAL, DOT1X_CPU_SEL_ALL, DOT1X_CPU_SEL_END } rtk_dot1x_cpu_select_t;
 
 /* Function Name:
  *      rtk_dot1x_unauthPacketOper_set
@@ -168,7 +145,7 @@ extern rtk_api_ret_t rtk_dot1x_trap2CPU_Sel_set(rtk_dot1x_cpu_select_t cpu_sel);
  * Input:
  *      NULL
  * Output:
- *      pCpu_sel - 802.1X trap cpu select value. 
+ *      pCpu_sel - 802.1X trap cpu select value.
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -551,7 +528,4 @@ extern rtk_api_ret_t rtk_dot1x_guestVlan2Auth_set(rtk_enable_t enable);
  */
 extern rtk_api_ret_t rtk_dot1x_guestVlan2Auth_get(rtk_enable_t *pEnable);
 
-
 #endif /* __RTK_API_DOT1X_H__ */
-
-

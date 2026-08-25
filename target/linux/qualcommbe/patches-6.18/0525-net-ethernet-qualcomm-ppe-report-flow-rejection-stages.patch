@@ -1,0 +1,195 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 25 Jul 2026 23:20:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: report flow rejection stages
+
+The aggregate flowtable counters show that only one direction of a Wi-Fi
+connection is accepted, but do not identify which validation or resource
+stage rejects the other direction.  This makes hardware offload failures
+difficult to distinguish from a successfully installed but non-matching
+flow.
+
+Count failures after initial key admission by processing stage and expose
+the counters through the existing read-only flows debugfs file.  Include
+the ingress and egress virtual-port indices on installed flow lines so VP
+classification can be correlated with hardware packet counters.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c | 51 +++++++++++++++++++++--
+ 1 file changed, 49 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -225,6 +225,33 @@ static_assert(offsetof(struct ppe_ft_tun
+ 
+ #define PPE_FT_HOST_HASH_BITS	8
+ 
++enum ppe_ft_reject_reason {
++	PPE_FT_REJECT_PARSE,
++	PPE_FT_REJECT_ACTION,
++	PPE_FT_REJECT_OUTPUT,
++	PPE_FT_REJECT_OUTPUT_DEVICE,
++	PPE_FT_REJECT_INGRESS_DEVICE,
++	PPE_FT_REJECT_INGRESS_VP,
++	PPE_FT_REJECT_EGRESS_VP,
++	PPE_FT_REJECT_NAT,
++	PPE_FT_REJECT_PPPOE,
++	PPE_FT_REJECT_RESOURCE,
++	PPE_FT_REJECT_MAX,
++};
++
++static const char * const ppe_ft_reject_names[PPE_FT_REJECT_MAX] = {
++	[PPE_FT_REJECT_PARSE] = "parse",
++	[PPE_FT_REJECT_ACTION] = "action",
++	[PPE_FT_REJECT_OUTPUT] = "output",
++	[PPE_FT_REJECT_OUTPUT_DEVICE] = "output_dev",
++	[PPE_FT_REJECT_INGRESS_DEVICE] = "input_dev",
++	[PPE_FT_REJECT_INGRESS_VP] = "input_vp",
++	[PPE_FT_REJECT_EGRESS_VP] = "output_vp",
++	[PPE_FT_REJECT_NAT] = "nat",
++	[PPE_FT_REJECT_PPPOE] = "pppoe",
++	[PPE_FT_REJECT_RESOURCE] = "resource",
++};
++
+ /* Refcounted hardware host entry. Its hardware-selected index is
+  * carried explicitly by every flow which references it.
+  */
+@@ -267,6 +294,7 @@ struct ppe_flowtable {
+ 	atomic_long_t replace_unsupported;
+ 	atomic_long_t replace_failed;
+ 	atomic_long_t destroy_calls;
++	atomic_long_t rejects[PPE_FT_REJECT_MAX];
+ 	DECLARE_HASHTABLE(hosts, PPE_FT_HOST_HASH_BITS);
+ 	DECLARE_BITMAP(nexthop_used, PPE_NEXTHOP_TBL_ENTRIES);
+ 	struct ppe_ft_my_mac my_macs[PPE_MY_MAC_TBL_ENTRIES];
+@@ -1762,6 +1790,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	struct ppe_flow_nexthop nh = {};
+ 	struct ppe_ft_data data = {};
+ 	struct ppe_ft_flow *flow;
++	enum ppe_ft_reject_reason reject_reason = PPE_FT_REJECT_PARSE;
+ 	int vlan_pops = 0;
+ 	struct in6_addr lwt_local = {}, lwt_remote = {};
+ 	u8 lwt_hop_limit = 0;
+@@ -1977,6 +2006,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	data.sport = flow->entry.sport;
+ 	data.dport = flow->entry.dport;
+ 
++	reject_reason = PPE_FT_REJECT_ACTION;
+ 	flow_action_for_each(i, act, &rule->action) {
+ 		switch (act->id) {
+ 		case FLOW_ACTION_REDIRECT:
+@@ -2076,6 +2106,7 @@ static int ppe_ft_flow_replace(struct pp
+ 		}
+ 	}
+ 
++	reject_reason = PPE_FT_REJECT_OUTPUT;
+ 	if (tunnel_flow) {
+ 		if (!odev) {
+ 			ret = -EOPNOTSUPP;
+@@ -2114,6 +2145,7 @@ static int ppe_ft_flow_replace(struct pp
+ 		ret = -EOPNOTSUPP;
+ 		goto err_tdev;
+ 	}
++	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
+ 	if (!tunnel_encap && !edma_port_dev_check(odev) &&
+ 	    (!ft->ppe_dev->variant->has_vports ||
+ 	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
+@@ -2129,6 +2161,7 @@ static int ppe_ft_flow_replace(struct pp
+ 		goto err_tdev;
+ 	}
+ 
++	reject_reason = PPE_FT_REJECT_INGRESS_DEVICE;
+ 	/* Resolve the ingress identity. Tagged physical ingress needs a VLAN
+ 	 * uplink. Wireless ingress takes its own VP reference so the mapping
+ 	 * and interception hook live for this direction independently of the
+@@ -2162,6 +2195,7 @@ static int ppe_ft_flow_replace(struct pp
+ 			iport = ipriv->ppe_port->port_id;
+ 		} else if (ft->ppe_dev->variant->has_vports &&
+ 			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
++			reject_reason = PPE_FT_REJECT_INGRESS_VP;
+ 			vp_ret = ppe_vp_get(ft->ppe_dev, idev,
+ 					    f->common.prio);
+ 			if (vp_ret >= 0)
+@@ -2180,6 +2214,7 @@ static int ppe_ft_flow_replace(struct pp
+ 		}
+ 	}
+ 
++	reject_reason = PPE_FT_REJECT_EGRESS_VP;
+ 	if (!tunnel_encap) {
+ 		if (edma_port_dev_check(odev)) {
+ 			port_priv = netdev_priv(odev);
+@@ -2232,6 +2267,7 @@ static int ppe_ft_flow_replace(struct pp
+ 		}
+ 	}
+ 
++	reject_reason = PPE_FT_REJECT_NAT;
+ 	/* The hardware rewrites one direction per flow: the translated
+ 	 * source of SNAT comes from the public IP table, the translated
+ 	 * destination of DNAT from the next hop, and the translated L4
+@@ -2315,6 +2351,7 @@ static int ppe_ft_flow_replace(struct pp
+ 		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
+ 	}
+ 
++	reject_reason = PPE_FT_REJECT_RESOURCE;
+ 	/* An ingress virtual port is an independent L3 endpoint.  A flow
+ 	 * may be accepted without its reverse direction, so it cannot rely
+ 	 * on the reverse rule to publish the bridge MAC or configure the VP
+@@ -2361,6 +2398,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	 * entry of the slot terminates the reverse direction, whose
+ 	 * rule arrives as a plain flow of the inner tuple.
+ 	 */
++	reject_reason = PPE_FT_REJECT_PPPOE;
+ 	if (data.pppoe_sid >= 0) {
+ 		/* A PPPoE session is matched by an ingress physical-port
+ 		 * bitmap that cannot represent a virtual port, so a PPPoE
+@@ -2380,6 +2418,7 @@ static int ppe_ft_flow_replace(struct pp
+ 		}
+ 		nh.l3_if = ppe_ft_pppoe_l3_if(ft, flow->pppoe);
+ 	}
++	reject_reason = PPE_FT_REJECT_RESOURCE;
+ 
+ 	/* The source MAC of this direction is the router MAC the
+ 	 * reverse direction ingresses on; the egress L3 interface
+@@ -2515,6 +2554,8 @@ err_prelock_ivp:
+ 	if (tdev)
+ 		dev_put(tdev);
+ err_free:
++	if (ret)
++		atomic_long_inc(&ft->rejects[reject_reason]);
+ 	kfree_rcu(flow, rcu);
+ 
+ 	return ret;
+@@ -3180,7 +3221,7 @@ static int ppe_ft_flows_show(struct seq_
+ 	struct rhashtable_iter iter;
+ 	struct ppe_ft_flow *flow;
+ 	struct list_head *pos;
+-	int zombies = 0;
++	int i, zombies = 0;
+ 
+ 	mutex_lock(&ft->lock);
+ 	list_for_each(pos, &ft->zombies)
+@@ -3194,6 +3235,11 @@ static int ppe_ft_flows_show(struct seq_
+ 		   atomic_long_read(&ft->replace_unsupported),
+ 		   atomic_long_read(&ft->replace_failed),
+ 		   atomic_long_read(&ft->destroy_calls), zombies);
++	seq_puts(seq, "reject");
++	for (i = 0; i < PPE_FT_REJECT_MAX; i++)
++		seq_printf(seq, " %s:%ld", ppe_ft_reject_names[i],
++			   atomic_long_read(&ft->rejects[i]));
++	seq_putc(seq, '\n');
+ 
+ 	rhashtable_walk_enter(&ft->flows, &iter);
+ 	rhashtable_walk_start(&iter);
+@@ -3225,10 +3271,11 @@ static int ppe_ft_flows_show(struct seq_
+ 				   &flow->entry.dip.ip4,
+ 				   be16_to_cpu(flow->entry.dport));
+ 		seq_printf(seq,
+-			   " proto:%u index:%d valid:%u host:%u host_dst:%u nexthop:%u packets:%u bytes:%llu\n",
++			   " proto:%u index:%d valid:%u host:%u host_dst:%u nexthop:%u ivp:%d vp:%d packets:%u bytes:%llu\n",
+ 			   flow->entry.proto, flow->index,
+ 			   !!(w0 & PPE_FLOW_W0_VALID), flow->entry.host_index,
+ 			   !!(w0 & PPE_FLOW_W0_HOST_INDEX_TYPE), flow->nexthop,
++			   flow->ivp, flow->vp,
+ 			   packets, (unsigned long long)bytes);
+ 	}
+ 	rhashtable_walk_stop(&iter);

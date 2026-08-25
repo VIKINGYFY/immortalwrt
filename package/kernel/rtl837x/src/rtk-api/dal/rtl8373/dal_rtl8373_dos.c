@@ -23,7 +23,6 @@
 #include <rtl8373_asicdrv.h>
 #include <linux/string.h>
 
-
 /* Function Name:
  *      rtl8373_setAsicDos
  * Description:
@@ -41,16 +40,14 @@
  */
 ret_t dal_rtl8373_asicDos_set(rtk_port_autoDosType_t index, rtk_uint32 enable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
+	retVal = rtl8373_setAsicRegBit(RTL8373_ATK_PRVNT_CTRL_ADDR, index, enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    retVal = rtl8373_setAsicRegBit(RTL8373_ATK_PRVNT_CTRL_ADDR, index, enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      rtl8373_getAsicDos
@@ -67,22 +64,13 @@ ret_t dal_rtl8373_asicDos_set(rtk_port_autoDosType_t index, rtk_uint32 enable)
  * Note:
  *      None
  */
-ret_t dal_rtl8373_asicDos_get(rtk_port_autoDosType_t index, rtk_uint32* pEnable)
+ret_t dal_rtl8373_asicDos_get(rtk_port_autoDosType_t index, rtk_uint32 *pEnable)
 {
-    ret_t retVal;
+	ret_t retVal;
 
-    retVal = rtl8373_getAsicRegBit(RTL8373_ATK_PRVNT_CTRL_ADDR, index, pEnable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBit(RTL8373_ATK_PRVNT_CTRL_ADDR, index, pEnable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
-
-
-
-
-
-

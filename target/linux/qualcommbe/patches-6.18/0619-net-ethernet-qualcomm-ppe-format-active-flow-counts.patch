@@ -1,0 +1,28 @@
+From: VIKINGYFY <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: format active flow counts
+
+Report IPv4 and IPv6 active counts separately and show their shared
+total against the single MPPE flow-index capacity.
+
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -3657,12 +3657,14 @@ static int ppe_ft_active_flows_show(stru
+ {
+ 	struct ppe_flowtable *ft = seq->private;
+ 	unsigned int capacity;
++	int ipv4, ipv6;
+ 
+ 	/* QSDK MPPE exposes one shared flow-index pool for IPv4 and IPv6. */
+ 	capacity = ft->ppe_dev->variant->num_flow_entries;
+-	seq_printf(seq, "IPv4: %d/%u IPv6: %d/%u\n",
+-		   atomic_read(&ft->ipv4_flows), capacity,
+-		   atomic_read(&ft->ipv6_flows), capacity);
++	ipv4 = atomic_read(&ft->ipv4_flows);
++	ipv6 = atomic_read(&ft->ipv6_flows);
++	seq_printf(seq, "IPv4: %d IPv6: %d Total: %d/%u\n",
++		   ipv4, ipv6, ipv4 + ipv6, capacity);
+ 
+ 	return 0;
+ }

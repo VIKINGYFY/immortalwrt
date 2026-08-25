@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+/dts-v1/;
+
+#include "ipq5332-be3600-pro-wired-common.dtsi"
+
+/ {
+	model = "Xiaomi BE3600 Pro Wired (5-Ports)";
+	compatible = "xiaomi,be3600-pro-wired-p5", "qcom,ipq5332";
+
+	aliases {
+		ethernet0 = &ppe_switch;
+		ethernet1 = &ppe_wan;
+	};
+};
+
+&mdio {
+	wan_phy: ethernet-phy@1 {
+		compatible = "ethernet-phy-id001c.c849";
+		reg = <1>;
+	};
+
+	rtl837x: rtl837x-dsa@29 {
+		compatible = "realtek,rtl837x";
+		reg = <29>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		realtek,preserve-boot-config;
+		realtek,rtl8372n-led-init;
+		rtl837x,sds1mode = "10g-usxg";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@8 {
+				reg = <8>;
+				label = "cpu";
+				ethernet = <&ppe_switch>;
+				phy-mode = "usxgmii";
+
+				fixed-link {
+					speed = <10000>;
+					full-duplex;
+				};
+			};
+
+			port@7 {
+				reg = <7>;
+				label = "lan1";
+				phy-mode = "internal";
+			};
+
+			port@6 {
+				reg = <6>;
+				label = "lan2";
+				phy-mode = "internal";
+			};
+
+			port@5 {
+				reg = <5>;
+				label = "lan3";
+				phy-mode = "internal";
+			};
+
+			port@4 {
+				reg = <4>;
+				label = "lan4";
+				phy-mode = "internal";
+			};
+		};
+	};
+};
+
+&qcom_ppe {
+	ethernet-ports {
+		ppe_switch: port@1 {
+			fixed-link {
+				speed = <10000>;
+				full-duplex;
+			};
+		};
+
+		ppe_wan: port@2 {
+			label = "wan";
+			phy-handle = <&wan_phy>;
+		};
+	};
+};

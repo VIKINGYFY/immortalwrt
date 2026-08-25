@@ -1,4 +1,4 @@
- /*
+/*
  * Copyright (C) 2013 Realtek Semiconductor Corp.
  * All Rights Reserved.
  *
@@ -18,125 +18,94 @@
 #ifndef __RTK_API_PORT_H__
 #define __RTK_API_PORT_H__
 
-typedef enum rtk_port_speed_e
-{
-    PORT_SPEED_10M = 0,
-    PORT_SPEED_100M,
-    PORT_SPEED_1000M,
-    PORT_SPEED_500M,
-    PORT_SPEED_10G,
-    PORT_SPEED_2500M,
-    PORT_SPEED_5G,
-    PORT_SPEED_END
-} rtk_port_speed_t;
+typedef enum rtk_port_speed_e { PORT_SPEED_10M = 0, PORT_SPEED_100M, PORT_SPEED_1000M, PORT_SPEED_500M, PORT_SPEED_10G, PORT_SPEED_2500M, PORT_SPEED_5G, PORT_SPEED_END } rtk_port_speed_t;
 
-typedef enum rtk_port_duplex_e
-{
-    PORT_HALF_DUPLEX = 0,
-    PORT_FULL_DUPLEX,
-    PORT_DUPLEX_END
-} rtk_port_duplex_t;
+typedef enum rtk_port_duplex_e { PORT_HALF_DUPLEX = 0, PORT_FULL_DUPLEX, PORT_DUPLEX_END } rtk_port_duplex_t;
 
-typedef enum rtk_port_linkStatus_e
-{
-    PORT_LINKDOWN = 0,
-    PORT_LINKUP,
-    PORT_LINKSTATUS_END
-} rtk_port_linkStatus_t;
+typedef enum rtk_port_linkStatus_e { PORT_LINKDOWN = 0, PORT_LINKUP, PORT_LINKSTATUS_END } rtk_port_linkStatus_t;
 
-typedef enum rtk_port_media_e
-{
-    PORT_MEDIA_UTP = 0,
-    PORT_MEDIA_FIBER,
-    PORT_MEDIA_END
-}rtk_port_media_t;
+typedef enum rtk_port_media_e { PORT_MEDIA_UTP = 0, PORT_MEDIA_FIBER, PORT_MEDIA_END } rtk_port_media_t;
 
-typedef enum rtk_sds_mode_e 
-{
-    SERDES_10GQXG,
-    SERDES_10GUSXG = 0xD,
-    SERDES_10GR = 0x1A,
-    SERDES_HSG = 0x12,
-    SERDES_2500BASEX = 0x16,
-    SERDES_SG = 2,
-    SERDES_1000BASEX = 4,
-    SERDES_100FX = 5,  
-    SERDES_OFF = 0x1F,
-    SERDES_8221B = 0x21,
-    SERDES_ON = 0x22,
-    SERDES_END
-}rtk_sds_mode_t;
+typedef enum rtk_sds_mode_e {
+	SERDES_10GQXG,
+	SERDES_10GUSXG = 0xD,
+	SERDES_10GR = 0x1A,
+	SERDES_HSG = 0x12,
+	SERDES_2500BASEX = 0x16,
+	SERDES_SG = 2,
+	SERDES_1000BASEX = 4,
+	SERDES_100FX = 5,
+	SERDES_OFF = 0x1F,
+	SERDES_8221B = 0x21,
+	SERDES_ON = 0x22,
+	SERDES_END
+} rtk_sds_mode_t;
 
-typedef struct  rtk_port_ability_s{
-    rtk_enable_t forcemode;
-    rtk_enable_t txpause;
-    rtk_enable_t rxpause;
-    rtk_port_linkStatus_t link;
-    rtk_port_duplex_t duplex;
-    rtk_port_speed_t speed;
-    rtk_port_media_t media;
-    rtk_enable_t smi_force_fc;
-}rtk_port_ability_t;
+typedef struct rtk_port_ability_s {
+	rtk_enable_t forcemode;
+	rtk_enable_t txpause;
+	rtk_enable_t rxpause;
+	rtk_port_linkStatus_t link;
+	rtk_port_duplex_t duplex;
+	rtk_port_speed_t speed;
+	rtk_port_media_t media;
+	rtk_enable_t smi_force_fc;
+} rtk_port_ability_t;
 
+typedef struct rtk_port_status_s {
+	rtk_uint32 txpause;
+	rtk_uint32 rxpause;
+	rtk_uint32 link;
+	rtk_uint32 duplex;
+	rtk_uint32 speed;
+	rtk_uint32 media;
+	rtk_uint32 eee;
+	rtk_uint32 master;
+	rtk_uint32 master_slave;
 
+} rtk_port_status_t;
 
-typedef struct  rtk_port_status_s{
-    rtk_uint32 txpause;
-    rtk_uint32 rxpause;
-    rtk_uint32 link;
-    rtk_uint32 duplex;
-    rtk_uint32 speed;
-    rtk_uint32 media;
-    rtk_uint32 eee;
-    rtk_uint32 master;
-    rtk_uint32 master_slave;
+typedef struct rtct_result_s {
+	rtk_uint32 channelABusy;
+	rtk_uint32 channelBBusy;
+	rtk_uint32 channelCBusy;
+	rtk_uint32 channelDBusy;
 
-}rtk_port_status_t;
+	rtk_uint32 channelAMisOpen;
+	rtk_uint32 channelBMisOpen;
+	rtk_uint32 channelCMisOpen;
+	rtk_uint32 channelDMisOpen;
 
+	rtk_uint32 channelAMisShort;
+	rtk_uint32 channelBMisShort;
+	rtk_uint32 channelCMisShort;
+	rtk_uint32 channelDMisShort;
 
-typedef struct rtct_result_s
-{
-	rtk_uint32      channelABusy;
-    rtk_uint32      channelBBusy;
-    rtk_uint32      channelCBusy;
-    rtk_uint32      channelDBusy;
+	rtk_uint32 channelAOpen;
+	rtk_uint32 channelBOpen;
+	rtk_uint32 channelCOpen;
+	rtk_uint32 channelDOpen;
 
-	rtk_uint32      channelAMisOpen;
-    rtk_uint32      channelBMisOpen;
-    rtk_uint32      channelCMisOpen;
-    rtk_uint32      channelDMisOpen;
+	rtk_uint32 channelAShort;
+	rtk_uint32 channelBShort;
+	rtk_uint32 channelCShort;
+	rtk_uint32 channelDShort;
 
-	rtk_uint32      channelAMisShort;
-    rtk_uint32      channelBMisShort;
-    rtk_uint32      channelCMisShort;
-    rtk_uint32      channelDMisShort;
+	rtk_uint32 channelANormal;
+	rtk_uint32 channelBNormal;
+	rtk_uint32 channelCNormal;
+	rtk_uint32 channelDNormal;
 
-	rtk_uint32      channelAOpen;
-    rtk_uint32      channelBOpen;
-    rtk_uint32      channelCOpen;
-    rtk_uint32      channelDOpen;
+	rtk_uint32 channelADone;
+	rtk_uint32 channelBDone;
+	rtk_uint32 channelCDone;
+	rtk_uint32 channelDDone;
 
-	rtk_uint32      channelAShort;
-    rtk_uint32      channelBShort;
-    rtk_uint32      channelCShort;
-    rtk_uint32      channelDShort;
-
-    rtk_uint32      channelANormal;
-    rtk_uint32      channelBNormal;
-    rtk_uint32      channelCNormal;
-    rtk_uint32      channelDNormal;
-
-    rtk_uint32      channelADone;
-    rtk_uint32      channelBDone;
-    rtk_uint32      channelCDone;
-    rtk_uint32      channelDDone;
-
-    rtk_uint32      channelAInterShort;
-    rtk_uint32      channelBInterShort;
-    rtk_uint32      channelCInterShort;
-    rtk_uint32      channelDInterShort;
+	rtk_uint32 channelAInterShort;
+	rtk_uint32 channelBInterShort;
+	rtk_uint32 channelCInterShort;
+	rtk_uint32 channelDInterShort;
 } rtk_rtct_result_t;
-
 
 /* Function Name:
  *      rtk_setAsicPHYReg
@@ -180,7 +149,7 @@ extern rtk_api_ret_t rtk_port_phyReg_set(rtk_uint32 phy_mask, rtk_uint32 dev_add
  * Note:
  *      This API will configure phy register data.
  */
- 
+
 extern rtk_api_ret_t rtk_port_phyReg_get(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 *pdata);
 
 /* Function Name:
@@ -203,9 +172,8 @@ extern rtk_api_ret_t rtk_port_phyReg_get(rtk_uint32 phy_id, rtk_uint32 dev_addr,
  * Note:
  *      This API will configure phy register data.
  */
- 
-extern rtk_api_ret_t rtk_port_phyReg_getBits(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr,  rtk_uint32 bitsMask,rtk_uint32 *pdata);
 
+extern rtk_api_ret_t rtk_port_phyReg_getBits(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitsMask, rtk_uint32 *pdata);
 
 /* Function Name:
  *      rtk_port_phyReg_setBits
@@ -227,8 +195,8 @@ extern rtk_api_ret_t rtk_port_phyReg_getBits(rtk_uint32 phy_id, rtk_uint32 dev_a
  * Note:
  *      This API will configure phy register data.
  */
- 
-extern rtk_api_ret_t rtk_port_phyReg_setBits(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_uint32 reg_addr,  rtk_uint32 bitsMask,rtk_uint32 indata);
+
+extern rtk_api_ret_t rtk_port_phyReg_setBits(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitsMask, rtk_uint32 indata);
 
 /* Function Name:
  *      rtk_port_macForceLink_set
@@ -249,7 +217,6 @@ extern rtk_api_ret_t rtk_port_phyReg_setBits(rtk_uint32 phy_mask, rtk_uint32 dev
  */
 extern rtk_api_ret_t rtk_port_macForceLink_set(rtk_port_t port, rtk_port_ability_t *pPortability);
 
-
 /* Function Name:
  *      rtk_port_macForceLink_get
  * Description:
@@ -269,7 +236,6 @@ extern rtk_api_ret_t rtk_port_macForceLink_set(rtk_port_t port, rtk_port_ability
  */
 extern rtk_api_ret_t rtk_port_macForceLink_get(rtk_port_t port, rtk_port_ability_t *pPortability);
 
-
 /* Function Name:
  *      rtk_port_macStatus_get
  * Description:
@@ -287,7 +253,6 @@ extern rtk_api_ret_t rtk_port_macForceLink_get(rtk_port_t port, rtk_port_ability
  *      This API can get Port/PHY properties.
  */
 extern rtk_api_ret_t rtk_port_macStatus_get(rtk_port_t port, rtk_port_status_t *pPortstatus);
-
 
 /* Function Name:
  *      rtk_port_macLocalLoopbackEnable_set
@@ -329,7 +294,6 @@ extern rtk_api_ret_t rtk_port_macLocalLoopbackEnable_set(rtk_port_t port, rtk_en
  *      None.
  */
 extern rtk_api_ret_t rtk_port_macLocalLoopbackEnable_get(rtk_port_t port, rtk_enable_t *pEnable);
-
 
 /* Function Name:
  *      rtk_port_backpressureEnable_set
@@ -411,7 +375,6 @@ extern rtk_api_ret_t rtk_port_rtctEnable_set(rtk_uint32 portmask);
  */
 extern rtk_api_ret_t rtk_port_rtct_init(void);
 
-
 /* Function Name:
  *      rtk_port_rtctResult_get
  * Description:
@@ -439,7 +402,6 @@ extern rtk_api_ret_t rtk_port_rtct_init(void);
  */
 extern rtk_api_ret_t rtk_port_rtctResult_get(rtk_port_t port, rtk_rtct_result_t *pRtctResult);
 
-
 /* Function Name:
  *      rtk_sdsMode_get
  * Description:
@@ -458,7 +420,6 @@ extern rtk_api_ret_t rtk_port_rtctResult_get(rtk_port_t port, rtk_rtct_result_t 
  * Note:
  */
 extern rtk_api_ret_t rtk_sdsMode_get(rtk_uint32 sdsId, rtk_sds_mode_t *pSdsMode);
-
 
 /* Function Name:
  *      rtk_sdsMode_set
@@ -534,7 +495,7 @@ extern rtk_api_ret_t rtk_port_sdsNway_set(rtk_uint32 sdsId, rtk_sds_mode_t sdsMo
  *      None
  */
 
-extern rtk_api_ret_t rtk_port_extphyid_set(rtk_uint32 sdsid,  rtk_uint32 phyid);
+extern rtk_api_ret_t rtk_port_extphyid_set(rtk_uint32 sdsid, rtk_uint32 phyid);
 
 /* Function Name:
  *      rtk_port_extphyid_get
@@ -552,6 +513,6 @@ extern rtk_api_ret_t rtk_port_extphyid_set(rtk_uint32 sdsid,  rtk_uint32 phyid);
  *      None
  */
 
-rtk_api_ret_t rtk_port_extphyid_get(rtk_uint32 sdsid,  rtk_uint32 *phyid);
+rtk_api_ret_t rtk_port_extphyid_get(rtk_uint32 sdsid, rtk_uint32 *phyid);
 
 #endif

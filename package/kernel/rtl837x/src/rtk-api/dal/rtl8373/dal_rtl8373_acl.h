@@ -20,207 +20,188 @@
 
 #include <acl.h>
 
-#define RTL8373_ACLRULENO                   (96)
+#define RTL8373_ACLRULENO (96)
 
-#define RTL8373_ACLRULEMAX                 (RTL8373_ACLRULENO-1)
-#define RTL8373_ACLRULEFIELDNO             (8)
-#define RTL8373_ACLTEMPLATENO              (5)
-#define RTL8373_ACLTYPEMAX                 (RTL8373_ACLTEMPLATENO-1)
+#define RTL8373_ACLRULEMAX (RTL8373_ACLRULENO - 1)
+#define RTL8373_ACLRULEFIELDNO (8)
+#define RTL8373_ACLTEMPLATENO (5)
+#define RTL8373_ACLTYPEMAX (RTL8373_ACLTEMPLATENO - 1)
 
-#define RTL8373_ACL_RULE_ENTRY_LEN               (5)
-#define RTL8373_ACL_ACT_ENTRY_LEN                 (3)
-#define RTL8373_ACLRULE_VALIDBIT_OFFSET                 (21)
+#define RTL8373_ACL_RULE_ENTRY_LEN (5)
+#define RTL8373_ACL_ACT_ENTRY_LEN (3)
+#define RTL8373_ACLRULE_VALIDBIT_OFFSET (21)
 
-#define RTL8373_ACLRULETBADDR(type, rule)  ((type << 7) | rule)
+#define RTL8373_ACLRULETBADDR(type, rule) ((type << 7) | rule)
 #define RTL8373_ACLRULETBADDR2(type, rule) ((type << 5) | (rule + 64))
 
-#define ACL_ACT_CVLAN_ENABLE_MASK                                  (0x1)
-#define ACL_ACT_SVLAN_ENABLE_MASK                                  (0x2)
-#define ACL_ACT_PRI_ENABLE_MASK                                       (0x4)
-#define ACL_ACT_1PRMK_ENABLE_MASK                                  (0x8)
-#define ACL_ACT_DSCPRMK_ENABLE_MASK                              (0x10)
-#define ACL_ACT_POLICING_ENABLE_MASK                              (0x20)
-#define ACL_ACT_LOGGING_ENABLE_MASK                               (0x40)
-#define ACL_ACT_FWD_ENABLE_MASK                                       (0x80)
-#define ACL_ACT_INTGPIO_ENABLE_MASK                                (0x100)
-#define ACL_ACT_BYPASS_ENABLE_MASK                                  (0x200)
+#define ACL_ACT_CVLAN_ENABLE_MASK (0x1)
+#define ACL_ACT_SVLAN_ENABLE_MASK (0x2)
+#define ACL_ACT_PRI_ENABLE_MASK (0x4)
+#define ACL_ACT_1PRMK_ENABLE_MASK (0x8)
+#define ACL_ACT_DSCPRMK_ENABLE_MASK (0x10)
+#define ACL_ACT_POLICING_ENABLE_MASK (0x20)
+#define ACL_ACT_LOGGING_ENABLE_MASK (0x40)
+#define ACL_ACT_FWD_ENABLE_MASK (0x80)
+#define ACL_ACT_INTGPIO_ENABLE_MASK (0x100)
+#define ACL_ACT_BYPASS_ENABLE_MASK (0x200)
 
-#define RTL8373_ACLRULETAGBITS             (5)
-#define RTL8373_ACLRANGENO                    (16)
-#define RTL8373_ACLTEMPLATE_MASK                     (7)
-#define ACL_BYPASS_IGRBW_STORM_MASK               (1)
-#define ACL_BYPASS_STP_SRC_CHK_MASK                (2)
-#define ACL_BYPASS_IGRVLAN_FLTR_MASK              (4)
+#define RTL8373_ACLRULETAGBITS (5)
+#define RTL8373_ACLRANGENO (16)
+#define RTL8373_ACLTEMPLATE_MASK (7)
+#define ACL_BYPASS_IGRBW_STORM_MASK (1)
+#define ACL_BYPASS_STP_SRC_CHK_MASK (2)
+#define ACL_BYPASS_IGRVLAN_FLTR_MASK (4)
 
+#define RTL8373_ACLRANGEMAX (RTL8373_ACLRANGENO - 1)
 
-#define RTL8373_ACLRANGEMAX                (RTL8373_ACLRANGENO-1)
+#define RTL8373_ACL_PORTRANGEMAX (0xFFFF)
 
-#define RTL8373_ACL_PORTRANGEMAX           (0xFFFF)
+#define RTL8373_FIELDSEL_FORMAT_NUMBER (16)
+#define RTL8373_FIELDSEL_MAX_OFFSET (255)
 
-#define RTL8373_FIELDSEL_FORMAT_NUMBER     (16)
-#define RTL8373_FIELDSEL_MAX_OFFSET            (255)
+#define RTL8373_MAX_LOG_CNT_NUM (32)
+#define RTL8373_RTK_IPV6_ADDR_WORD_LENGTH (2UL)
 
-#define RTL8373_MAX_LOG_CNT_NUM            (32)
-#define RTL8373_RTK_IPV6_ADDR_WORD_LENGTH           (2UL)
+#define RTL8373_ACLGPIOPINNO (16)
 
-#define RTL8373_ACLGPIOPINNO               (16)
+#define ACL_RULE_TEMPLATE_IDX_OFFSET (0)
+#define ACL_RULE_TAG_PPPOE_OFFSET (3)
+#define ACL_RULE_L3FMT_OFFSET (6)
+#define ACL_RULE_L4FMT_OFFSET (8)
+#define ACL_RULE_ACTIVE_PMSK_OFFSET (11)
 
-#define ACL_RULE_TEMPLATE_IDX_OFFSET  (0)
-#define ACL_RULE_TAG_PPPOE_OFFSET         (3)
-#define ACL_RULE_L3FMT_OFFSET         (6)
-#define ACL_RULE_L4FMT_OFFSET         (8)
-#define ACL_RULE_ACTIVE_PMSK_OFFSET      (11)
+enum RTL8373_ACL_GPIO_POLARITY { RTL8373_GPIO_PULL_LOW = 0, RTL8373_GPIO_PILL_HIGH, RTL8373_GPIO_POLARITY_END };
 
-enum RTL8373_ACL_GPIO_POLARITY
-{
-    RTL8373_GPIO_PULL_LOW = 0,
-    RTL8373_GPIO_PILL_HIGH,
-    RTL8373_GPIO_POLARITY_END
+enum RTL8373_FIELDSEL_FORMAT_FORMAT {
+	RTL8373_FIELDSEL_FORMAT_DEFAULT = 0,
+	RTL8373_FIELDSEL_FORMAT_RAW,
+	RTL8373_FIELDSEL_FORMAT_LLC,
+	RTL8373_FIELDSEL_FORMAT_IPV4,
+	RTL8373_FIELDSEL_FORMAT_ARP,
+	RTL8373_FIELDSEL_FORMAT_IPV6,
+	RTL8373_FIELDSEL_FORMAT_IPPAYLOAD,
+	RTL8373_FIELDSEL_FORMAT_L4PAYLOAD,
+	RTL8373_FIELDSEL_FORMAT_END
 };
 
-enum RTL8373_FIELDSEL_FORMAT_FORMAT
-{
-    RTL8373_FIELDSEL_FORMAT_DEFAULT = 0,
-    RTL8373_FIELDSEL_FORMAT_RAW,
-    RTL8373_FIELDSEL_FORMAT_LLC,
-    RTL8373_FIELDSEL_FORMAT_IPV4,
-    RTL8373_FIELDSEL_FORMAT_ARP,
-    RTL8373_FIELDSEL_FORMAT_IPV6,
-    RTL8373_FIELDSEL_FORMAT_IPPAYLOAD,
-    RTL8373_FIELDSEL_FORMAT_L4PAYLOAD,
-    RTL8373_FIELDSEL_FORMAT_END
+enum RTL8373_ACLFIELDTYPES {
+	RTL8373_ACL_DMAC0 = 0,
+	RTL8373_ACL_DMAC1,
+	RTL8373_ACL_DMAC2,
+	RTL8373_ACL_SMAC0,
+	RTL8373_ACL_SMAC1,
+	RTL8373_ACL_SMAC2,
+	RTL8373_ACL_ETHERTYPE,
+	RTL8373_ACL_STAG,
+	RTL8373_ACL_CTAG,
+
+	RTL8373_ACL_IP4SIP0 = 0x10,
+	RTL8373_ACL_IP4SIP1,
+	RTL8373_ACL_IP4DIP0,
+	RTL8373_ACL_IP4DIP1,
+
+	RTL8373_ACL_VIDRANGE = 0x30,
+	RTL8373_ACL_IPRANGE,
+	RTL8373_ACL_PORTRANGE,
+	RTL8373_ACL_FIELD_VALID,
+	RTL8373_ACL_IPTOSPROTO,
+	RTL8373_ACL_L4SPORT,
+	RTL8373_ACL_L4DPORT,
+
+	RTL8373_ACL_FIELD_SELECT00 = 0x40,
+	RTL8373_ACL_FIELD_SELECT01,
+	RTL8373_ACL_FIELD_SELECT02,
+	RTL8373_ACL_FIELD_SELECT03,
+	RTL8373_ACL_FIELD_SELECT04,
+	RTL8373_ACL_FIELD_SELECT05,
+	RTL8373_ACL_FIELD_SELECT06,
+	RTL8373_ACL_FIELD_SELECT07,
+	RTL8373_ACL_FIELD_SELECT08,
+	RTL8373_ACL_FIELD_SELECT09,
+	RTL8373_ACL_FIELD_SELECT10,
+	RTL8373_ACL_FIELD_SELECT11,
+	RTL8373_ACL_FIELD_SELECT12,
+	RTL8373_ACL_FIELD_SELECT13,
+	RTL8373_ACL_FIELD_SELECT14,
+	RTL8373_ACL_FIELD_SELECT15,
+	RTL8373_ACL_TYPE_END
 };
 
-enum RTL8373_ACLFIELDTYPES
-{
-    RTL8373_ACL_DMAC0 = 0,
-    RTL8373_ACL_DMAC1,
-    RTL8373_ACL_DMAC2,
-    RTL8373_ACL_SMAC0,
-    RTL8373_ACL_SMAC1,
-    RTL8373_ACL_SMAC2,
-    RTL8373_ACL_ETHERTYPE,
-    RTL8373_ACL_STAG,
-    RTL8373_ACL_CTAG,
-    
-    RTL8373_ACL_IP4SIP0 = 0x10,
-    RTL8373_ACL_IP4SIP1,
-    RTL8373_ACL_IP4DIP0,
-    RTL8373_ACL_IP4DIP1,
+enum RTL8373_ACLTCAMTYPES { RTL8373_CAREBITS = 0, RTL8373_DATABITS };
 
-    RTL8373_ACL_VIDRANGE = 0x30,
-    RTL8373_ACL_IPRANGE,
-    RTL8373_ACL_PORTRANGE,
-    RTL8373_ACL_FIELD_VALID,
-    RTL8373_ACL_IPTOSPROTO,
-    RTL8373_ACL_L4SPORT,
-    RTL8373_ACL_L4DPORT,
-    
-    RTL8373_ACL_FIELD_SELECT00 = 0x40,
-    RTL8373_ACL_FIELD_SELECT01,
-    RTL8373_ACL_FIELD_SELECT02,
-    RTL8373_ACL_FIELD_SELECT03,
-    RTL8373_ACL_FIELD_SELECT04,
-    RTL8373_ACL_FIELD_SELECT05,
-    RTL8373_ACL_FIELD_SELECT06,
-    RTL8373_ACL_FIELD_SELECT07,
-    RTL8373_ACL_FIELD_SELECT08,
-    RTL8373_ACL_FIELD_SELECT09,
-    RTL8373_ACL_FIELD_SELECT10,
-    RTL8373_ACL_FIELD_SELECT11,
-    RTL8373_ACL_FIELD_SELECT12,
-    RTL8373_ACL_FIELD_SELECT13,
-    RTL8373_ACL_FIELD_SELECT14,
-    RTL8373_ACL_FIELD_SELECT15,
-    RTL8373_ACL_TYPE_END
-};
-
-enum RTL8373_ACLTCAMTYPES
-{
-    RTL8373_CAREBITS= 0,
-    RTL8373_DATABITS
-};
-
-typedef enum rtl8373_aclFwd
-{
-    RTL8373_ACL_FWD_COPY = 0,
-    RTL8373_ACL_FWD_REDIRECT,
-    RTL8373_ACL_FWD_MIRROR ,
-    RTL8373_ACL_FWD_INT_TRAP,
-    RTL8373_ACL_FWD_EXT_TRAP,
-    RTL8373_ACL_FWD_INT_EXT_TRAP,
+typedef enum rtl8373_aclFwd {
+	RTL8373_ACL_FWD_COPY = 0,
+	RTL8373_ACL_FWD_REDIRECT,
+	RTL8373_ACL_FWD_MIRROR,
+	RTL8373_ACL_FWD_INT_TRAP,
+	RTL8373_ACL_FWD_EXT_TRAP,
+	RTL8373_ACL_FWD_INT_EXT_TRAP,
 } rtl8373_aclFwd_t;
 
-
-struct acl_rule_smi_st{
-    rtk_uint32 field[RTL8373_ACLRULEFIELDNO/2];    
-    rtk_uint32 rule_info;
+struct acl_rule_smi_st {
+	rtk_uint32 field[RTL8373_ACLRULEFIELDNO / 2];
+	rtk_uint32 rule_info;
 };
 
-typedef struct RTL8373_aclRule_SMI{
-    struct acl_rule_smi_st  care_bits;
-    rtk_uint32      valid:1;
-    struct acl_rule_smi_st  data_bits;
-}rtl8373_aclRule_smi_t;
+typedef struct RTL8373_aclRule_SMI {
+	struct acl_rule_smi_st care_bits;
+	rtk_uint32 valid : 1;
+	struct acl_rule_smi_st data_bits;
+} rtl8373_aclRule_smi_t;
 
-typedef struct acl_ruleContent_s{
-    rtk_uint32 templateIdx:3;
-    rtk_uint32 tagPppoe:3;
-    rtk_uint32 l3fmt:2;
-    rtk_uint32 l4fmt:3;
-    rtk_uint32 activePmsk:10;
+typedef struct acl_ruleContent_s {
+	rtk_uint32 templateIdx : 3;
+	rtk_uint32 tagPppoe : 3;
+	rtk_uint32 l3fmt : 2;
+	rtk_uint32 l4fmt : 3;
+	rtk_uint32 activePmsk : 10;
 
-    rtk_uint16 field[RTL8373_ACLRULEFIELDNO];
-}acl_ruleContent_t;
+	rtk_uint16 field[RTL8373_ACLRULEFIELDNO];
+} acl_ruleContent_t;
 
-typedef struct rtl8373_acl_rule_s{
-    acl_ruleContent_t  data_bits;
-    rtk_uint32      valid:1;
-    acl_ruleContent_t  care_bits;
-}rtl8373_acl_rule_t;
+typedef struct rtl8373_acl_rule_s {
+	acl_ruleContent_t data_bits;
+	rtk_uint32 valid : 1;
+	acl_ruleContent_t care_bits;
+} rtl8373_acl_rule_t;
 
+typedef struct rtl8373_acl_template_s {
+	rtk_uint8 field[RTL8373_ACLRULEFIELDNO];
+} rtl8373_acl_template_t;
 
-typedef struct rtl8373_acl_template_s{
-    rtk_uint8 field[RTL8373_ACLRULEFIELDNO];
-}rtl8373_acl_template_t;
+typedef struct rtl8373_acl_act_s {
+	rtk_uint32 cact : 2;
+	rtk_uint32 cactExt : 2;
+	rtk_uint32 cvid : 12;
+	rtk_uint32 tagFmt : 2;
+	rtk_uint32 sact : 2;
+	rtk_uint32 svid : 12;
 
+	rtk_uint32 aclPri : 3;
+	rtk_uint32 aclRmkAct : 1;
+	rtk_uint32 aclRmkVal : 6;
+	rtk_uint32 aclPolicingLogAct : 1;
+	rtk_uint32 aclMeterLoggIdx : 6;
 
-typedef struct rtl8373_acl_act_s{
-    rtk_uint32 cact:2;
-    rtk_uint32 cactExt:2;
-    rtk_uint32 cvid:12;
-    rtk_uint32 tagFmt:2;
-    rtk_uint32 sact:2;
-    rtk_uint32 svid:12;
+	rtk_uint32 fwdPmsk : 10;
+	rtk_uint32 fwdAct : 3;
+	rtk_uint32 fwdActExt : 1;
+	rtk_uint32 aclInt : 1;
+	rtk_uint32 gpioEn : 1;
+	rtk_uint32 gpioPin : 4;
+	rtk_uint32 bypassAct : 3;
 
+} rtl8373_acl_act_t;
 
-    rtk_uint32 aclPri:3;
-    rtk_uint32 aclRmkAct:1;
-    rtk_uint32 aclRmkVal:6;
-    rtk_uint32 aclPolicingLogAct:1;
-    rtk_uint32 aclMeterLoggIdx:6;
+typedef struct rtl8373_acl_ruleUnion_s {
+	rtl8373_acl_rule_t aclRule;
+	rtl8373_acl_act_t aclAct;
+	rtk_uint32 aclActCtrl;
+	rtk_uint32 aclNot;
+} rtl8373_acl_ruleUnion_t;
 
-    rtk_uint32 fwdPmsk:10;
-    rtk_uint32 fwdAct:3;
-    rtk_uint32 fwdActExt:1;
-    rtk_uint32 aclInt:1;
-    rtk_uint32 gpioEn:1;
-    rtk_uint32 gpioPin:4;
-    rtk_uint32 bypassAct:3;
-
-}rtl8373_acl_act_t;
-
-typedef struct rtl8373_acl_ruleUnion_s
-{
-    rtl8373_acl_rule_t aclRule;
-    rtl8373_acl_act_t aclAct;
-    rtk_uint32 aclActCtrl;
-    rtk_uint32 aclNot;
-}rtl8373_acl_ruleUnion_t;
-
-extern rtk_api_ret_t _rtl8373_setAclRule(rtk_uint32 index, rtl8373_acl_rule_t* pAclRule);
-extern rtk_api_ret_t _rtl8373_getAclRule(rtk_uint32 index, rtl8373_acl_rule_t* pAclRule);
-
+extern rtk_api_ret_t _rtl8373_setAclRule(rtk_uint32 index, rtl8373_acl_rule_t *pAclRule);
+extern rtk_api_ret_t _rtl8373_getAclRule(rtk_uint32 index, rtl8373_acl_rule_t *pAclRule);
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_init
@@ -261,7 +242,7 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_init(void);
  *      comparison rules by means of linked list. Pointer pFilter_field will be added to linked
  *      list keeped by structure that pFilter_cfg points to.
  */
-extern rtk_api_ret_t dal_rtl8373_igrAcl_field_add(rtk_filter_cfg_t* pFilterCfg, rtk_filter_field_t* pFilterField);
+extern rtk_api_ret_t dal_rtl8373_igrAcl_field_add(rtk_filter_cfg_t *pFilterCfg, rtk_filter_field_t *pFilterField);
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_cfg_delAll
@@ -304,7 +285,7 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_cfg_delAll(void);
  *      This function store pFilter_cfg, pFilter_action into ASIC. The starting
  *      index(es) is filter_id.
  */
-extern rtk_api_ret_t dal_rtl8373_igrAcl_cfg_add(rtk_filter_id_t filterIdx, rtk_filter_cfg_t* pFilterCfg, rtk_filter_action_t* pAction, rtk_filter_number_t *ruleNum);
+extern rtk_api_ret_t dal_rtl8373_igrAcl_cfg_add(rtk_filter_id_t filterIdx, rtk_filter_cfg_t *pFilterCfg, rtk_filter_action_t *pAction, rtk_filter_number_t *ruleNum);
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_cfg_del
@@ -323,7 +304,6 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_cfg_add(rtk_filter_id_t filterIdx, rtk_f
  *      This function delete a group of ACL rules starting from filter_id.
  */
 extern rtk_api_ret_t dal_rtl8373_igrAcl_cfg_del(rtk_filter_id_t filterIdx);
-
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_cfg_get
@@ -382,7 +362,7 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_unmatchAction_set(rtk_port_t port, rtk_f
  * Note:
  *      This function gets action of packets when no ACL configruation matches.
  */
-extern rtk_api_ret_t dal_rtl8373_igrAcl_unmatchAction_get(rtk_port_t port, rtk_filter_unmatch_action_t* pAction);
+extern rtk_api_ret_t dal_rtl8373_igrAcl_unmatchAction_get(rtk_port_t port, rtk_filter_unmatch_action_t *pAction);
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_state_set
@@ -421,7 +401,7 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_state_set(rtk_port_t port, rtk_filter_st
  * Note:
  *      This function gets action of packets when no ACL configruation matches.
  */
-extern rtk_api_ret_t dal_rtl8373_igrAcl_state_get(rtk_port_t port, rtk_filter_state_t* pState);
+extern rtk_api_ret_t dal_rtl8373_igrAcl_state_get(rtk_port_t port, rtk_filter_state_t *pState);
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_template_set
@@ -655,7 +635,7 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioPolarity_set(rtk_uint32 polarity);
  * Note:
  *      none
  */
-extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioPolarity_get(rtk_uint32* pPolarity);
+extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioPolarity_get(rtk_uint32 *pPolarity);
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_gpioEn_set
@@ -672,7 +652,7 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioPolarity_get(rtk_uint32* pPolarity);
  * Note:
  *      none
  */
-extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioEn_set(rtk_uint32 pinNum,  rtk_enable_t enabled);
+extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioEn_set(rtk_uint32 pinNum, rtk_enable_t enabled);
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_gpioEn_get
@@ -688,7 +668,7 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioEn_set(rtk_uint32 pinNum,  rtk_enabl
  * Note:
  *      none
  */
-extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioEn_get(rtk_uint32 pinNum,  rtk_enable_t * pEnabled);
+extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioEn_get(rtk_uint32 pinNum, rtk_enable_t *pEnabled);
 
 /* Function Name:
  *      dal_rtl8373_igrAcl_table_rst
@@ -707,6 +687,5 @@ extern rtk_api_ret_t dal_rtl8373_igrAcl_gpioEn_get(rtk_uint32 pinNum,  rtk_enabl
  *      None.
  */
 extern rtk_api_ret_t dal_rtl8373_igrAcl_table_rst(void);
-
 
 #endif /* __DAL_RTL8373_ACL_H__ */

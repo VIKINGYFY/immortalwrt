@@ -41,15 +41,15 @@
 */
 rtk_api_ret_t rtk_phy_common_c45_an_restart(rtk_port_t port)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_an_restart)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_an_restart)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_an_restart(port);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_an_restart(port);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -66,20 +66,18 @@ rtk_api_ret_t rtk_phy_common_c45_an_restart(rtk_port_t port)
  * Note:
  *      None
  */
-rtk_api_ret_t rtk_phy_common_c45_autoNegoEnable_get( rtk_port_t port, rtk_enable_t *pEnable)
+rtk_api_ret_t rtk_phy_common_c45_autoNegoEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_autoNegoEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_autoNegoEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_autoNegoEnable_get(port, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_autoNegoEnable_get(port, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-
 
 /* Function Name:
  *      rtk_phy_common_c45_autoNegoEnable_set
@@ -98,15 +96,15 @@ rtk_api_ret_t rtk_phy_common_c45_autoNegoEnable_get( rtk_port_t port, rtk_enable
  */
 rtk_api_ret_t rtk_phy_common_c45_autoNegoEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_autoNegoEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_autoNegoEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_autoNegoEnable_set(port, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_autoNegoEnable_set(port, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -126,17 +124,16 @@ rtk_api_ret_t rtk_phy_common_c45_autoNegoEnable_set(rtk_port_t port, rtk_enable_
  */
 rtk_api_ret_t rtk_phy_autoNegoAbility_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_autoNegoAbility_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_autoNegoAbility_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_autoNegoAbility_set(port, pAbility);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_autoNegoAbility_set(port, pAbility);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_phy_conmmon_c45_autoSpeed_set
@@ -156,19 +153,16 @@ rtk_api_ret_t rtk_phy_autoNegoAbility_set(rtk_port_t port, rtk_port_phy_ability_
 
 rtk_api_ret_t rtk_phy_common_c45_autoSpeed_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_autoSpeed_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_autoSpeed_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_autoSpeed_set(port, pAbility);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_autoSpeed_set(port, pAbility);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
-
-
 
 /* Function Name:
  *      rtk_phy_common_c45_speed_set
@@ -187,16 +181,15 @@ rtk_api_ret_t rtk_phy_common_c45_autoSpeed_set(rtk_port_t port, rtk_port_phy_abi
  */
 rtk_api_ret_t rtk_phy_common_c45_speed_set(rtk_port_t port, rtk_port_speed_t speed)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_speed_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_speed_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_speed_set(port, speed);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_speed_set(port, speed);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 
 /* Function Name:
@@ -215,18 +208,16 @@ rtk_api_ret_t rtk_phy_common_c45_speed_set(rtk_port_t port, rtk_port_speed_t spe
  */
 rtk_api_ret_t rtk_phy_common_c45_speed_get(rtk_port_t port, rtk_port_speed_t *pSpeed)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_speed_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_speed_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_speed_get(port, pSpeed);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_speed_get(port, pSpeed);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_phy_common_c45_enable_set
@@ -245,16 +236,15 @@ rtk_api_ret_t rtk_phy_common_c45_speed_get(rtk_port_t port, rtk_port_speed_t *pS
  */
 rtk_api_ret_t rtk_phy_common_c45_enable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_enable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_enable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_enable_set(port, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_enable_set(port, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 
 /* Function Name:
@@ -271,18 +261,17 @@ rtk_api_ret_t rtk_phy_common_c45_enable_set(rtk_port_t port, rtk_enable_t enable
  * Note:
  *      None
  */
-rtk_api_ret_t rtk_phy_common_c45_enable_get( rtk_port_t port, rtk_enable_t *pEnable)
+rtk_api_ret_t rtk_phy_common_c45_enable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_enable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_enable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_enable_get(port, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_enable_get(port, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 
 /* Function Name:
@@ -303,16 +292,15 @@ rtk_api_ret_t rtk_phy_common_c45_enable_get( rtk_port_t port, rtk_enable_t *pEna
  */
 rtk_api_ret_t rtk_phy_common_c45_duplex_set(rtk_port_t port, rtk_port_duplex_t duplex)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_duplex_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_duplex_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_duplex_set(port, duplex);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_duplex_set(port, duplex);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 
 /* Function Name:
@@ -332,16 +320,15 @@ rtk_api_ret_t rtk_phy_common_c45_duplex_set(rtk_port_t port, rtk_port_duplex_t d
  */
 rtk_api_ret_t rtk_phy_common_c45_duplex_get(rtk_port_t port, rtk_port_duplex_t *pDuplex)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_duplex_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_duplex_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_duplex_get(port, pDuplex);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_duplex_get(port, pDuplex);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }
 
 /* Function Name:
@@ -361,14 +348,13 @@ rtk_api_ret_t rtk_phy_common_c45_duplex_get(rtk_port_t port, rtk_port_duplex_t *
  */
 rtk_int32 rtk_phy_common_c45_speedDuplexStatusResReg_get(rtk_port_t port, rtk_port_speed_t *pSpeed, rtk_port_duplex_t *pDuplex)
 {
-    rtk_api_ret_t retVal;
-    if (NULL == RT_MAPPER->phy_common_c45_speedDuplexStatusResReg_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->phy_common_c45_speedDuplexStatusResReg_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->phy_common_c45_speedDuplexStatusResReg_get(port, pSpeed, pDuplex);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->phy_common_c45_speedDuplexStatusResReg_get(port, pSpeed, pDuplex);
+	RTK_API_UNLOCK();
 
-    return retVal;
-
+	return retVal;
 }

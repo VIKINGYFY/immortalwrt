@@ -19,7 +19,6 @@
 #include <rtk_error.h>
 #include <dal/dal_mapper.h>
 
-
 /*
  * Symbol Definition
  */
@@ -36,7 +35,6 @@
  * Function Declaration
  */
 
-
 /* Function Name:
  *      dal_rtl8373_mapper_get
  * Description:
@@ -51,4 +49,4 @@
  */
 extern dal_mapper_t *dal_rtl8373_mapper_get(void);
 
-#endif  /* __DAL_RTL8373_MAPPER_H__ */
+#endif /* __DAL_RTL8373_MAPPER_H__ */

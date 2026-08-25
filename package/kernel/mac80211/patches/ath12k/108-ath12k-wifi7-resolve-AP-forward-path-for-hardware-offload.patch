@@ -1,0 +1,56 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sun, 26 Jul 2026 00:20:00 +0800
+Subject: [PATCH] wifi: ath12k: resolve AP forward path for hardware offload
+
+Hardware flowtable route construction walks through a bridge to the
+destination wireless interface using ndo_fill_forward_path.  mac80211
+delegates the last step to the driver's net_fill_forward_path callback,
+but ath12k does not provide one.  The complete path is consequently
+discarded and netfilter falls back to the bridge device for both the
+redirect action and ingress metadata.  PPE cannot allocate a virtual
+port for such a rule.
+
+Expose a Wi-Fi 7 AP interface as the terminal Ethernet device in the
+forward path.  This only resolves the logical path; the flowtable driver
+still decides whether it supports the wireless device and may reject the
+rule normally.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/wifi7/hw.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -1097,6 +1097,23 @@ static void ath12k_wifi7_mac_op_tx(struc
+ 	}
+ }
+ 
++static int
++ath12k_wifi7_net_fill_forward_path(struct ieee80211_hw *hw,
++				   struct ieee80211_vif *vif,
++				   struct ieee80211_sta *sta,
++				   struct net_device_path_ctx *ctx,
++				   struct net_device_path *path)
++{
++	if (vif->type != NL80211_IFTYPE_AP)
++		return -EOPNOTSUPP;
++
++	path->type = DEV_PATH_ETHERNET;
++	path->dev = ctx->dev;
++	ctx->dev = NULL;
++
++	return 0;
++}
++
+ static const struct ieee80211_ops ath12k_ops_wifi7 = {
+ 	.tx				= ath12k_wifi7_mac_op_tx,
+ 	.wake_tx_queue			= ieee80211_handle_wake_tx_queue,
+@@ -1141,6 +1158,7 @@ static const struct ieee80211_ops ath12k
+ 	.cancel_remain_on_channel       = ath12k_mac_op_cancel_remain_on_channel,
+ 	.change_sta_links               = ath12k_mac_op_change_sta_links,
+ 	.can_activate_links             = ath12k_mac_op_can_activate_links,
++	.net_fill_forward_path		= ath12k_wifi7_net_fill_forward_path,
+ #ifdef CONFIG_PM
+ 	.suspend			= ath12k_wow_op_suspend,
+ 	.resume				= ath12k_wow_op_resume,

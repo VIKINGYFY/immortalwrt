@@ -22,42 +22,61 @@
 #include <identify.h>
 #include <dal/dal_mgmt.h>
 
-static init_state_t    init_state = INIT_NOT_COMPLETED;
+static init_state_t init_state = INIT_NOT_COMPLETED;
 
 #if defined(RTK_X86_CLE)
 pthread_mutex_t api_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
-static rtk_switch_halCtrl_t *halCtrl = NULL;
+static rtk_switch_halCtrl_t *halCtrl;
 
+static rtk_api_ret_t _rtk_switch_attach(void)
+{
+	rtk_int32 retVal;
+	switch_chip_t switchChip;
+
+	/* Find device */
+	if ((halCtrl = hal_find_device()) == NULL)
+		return RT_ERR_CHIP_NOT_FOUND;
+
+	if ((retVal = phy_identify_init()) != RT_ERR_OK)
+		return retVal;
+
+	/* Attached DAL mapper */
+	switchChip = halCtrl->switch_type;
+	if ((retVal = dal_mgmt_attachDevice(switchChip)) != RT_ERR_OK)
+		return retVal;
+
+	/* Set initial state */
+	if ((retVal = rtk_switch_initialState_set(INIT_COMPLETED)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
+}
 
 static rtk_api_ret_t _rtk_switch_init(void)
 {
-    rtk_int32  retVal;
-    switch_chip_t   switchChip;
-    
-    /* Find device */
-    if((halCtrl = hal_find_device()) == NULL)
-        return RT_ERR_CHIP_NOT_FOUND;
+	rtk_int32 retVal;
 
-     if((retVal = phy_identify_init()) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = _rtk_switch_attach()) != RT_ERR_OK)
+		return retVal;
 
-    /* Attached DAL mapper */
-    switchChip = halCtrl->switch_type;
-    if((retVal = dal_mgmt_attachDevice(switchChip)) != RT_ERR_OK)
-        return retVal;
+	/* Call initial function */
+	if ((retVal = RT_MAPPER->switch_init()) != RT_ERR_OK)
+		return retVal;
 
-    /* Set initial state */
-    if((retVal = rtk_switch_initialState_set(INIT_COMPLETED)) != RT_ERR_OK)
-        return retVal;
+	return RT_ERR_OK;
+}
 
-    /* Call initial function */
-    if((retVal = RT_MAPPER->switch_init()) != RT_ERR_OK)
-        return retVal;
+rtk_api_ret_t rtk_switch_attach(void)
+{
+	rtk_api_ret_t retVal;
 
+	RTK_API_LOCK();
+	retVal = _rtk_switch_attach();
+	RTK_API_UNLOCK();
 
-    return RT_ERR_OK;
+	return retVal;
 }
 
 /* Function Name:
@@ -73,11 +92,10 @@ static rtk_api_ret_t _rtk_switch_init(void)
  * Note:
  *      The function have found the exactly hal control information structure.
  */
-rtk_switch_halCtrl_t *
-hal_ctrlInfo_get(void)
+rtk_switch_halCtrl_t *hal_ctrlInfo_get(void)
 {
-   return  halCtrl;
-} 
+	return halCtrl;
+}
 /* Function Name:
  *      rtk_switch_initialState_set
  * Description:
@@ -94,11 +112,11 @@ hal_ctrlInfo_get(void)
  */
 rtk_api_ret_t rtk_switch_initialState_set(init_state_t state)
 {
-    if(state >= INIT_STATE_END)
-        return RT_ERR_FAILED;
+	if (state >= INIT_STATE_END)
+		return RT_ERR_FAILED;
 
-    init_state = state;
-    return RT_ERR_OK;
+	init_state = state;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -117,7 +135,7 @@ rtk_api_ret_t rtk_switch_initialState_set(init_state_t state)
  */
 init_state_t rtk_switch_initialState_get(void)
 {
-    return init_state;
+	return init_state;
 }
 
 /* Function Name:
@@ -137,16 +155,16 @@ init_state_t rtk_switch_initialState_get(void)
  */
 rtk_api_ret_t rtk_switch_logicalPortCheck(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return RT_ERR_FAILED;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return RT_ERR_FAILED;
 
-    if(halCtrl->l2p_port[logicalPort] == 0xFF)
-        return RT_ERR_FAILED;
+	if (halCtrl->l2p_port[logicalPort] == 0xFF)
+		return RT_ERR_FAILED;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -166,16 +184,16 @@ rtk_api_ret_t rtk_switch_logicalPortCheck(rtk_port_t logicalPort)
  */
 rtk_api_ret_t rtk_switch_isUtpPort(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return RT_ERR_FAILED;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return RT_ERR_FAILED;
 
-    if(halCtrl->log_port_type[logicalPort] == UTP_PORT)
-        return RT_ERR_OK;
-    else
-        return RT_ERR_FAILED;
+	if (halCtrl->log_port_type[logicalPort] == UTP_PORT)
+		return RT_ERR_OK;
+	else
+		return RT_ERR_FAILED;
 }
 
 /* Function Name:
@@ -195,18 +213,17 @@ rtk_api_ret_t rtk_switch_isUtpPort(rtk_port_t logicalPort)
  */
 rtk_api_ret_t rtk_switch_isExtPort(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return RT_ERR_FAILED;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return RT_ERR_FAILED;
 
-    if(halCtrl->log_port_type[logicalPort] == EXT_PORT)
-        return RT_ERR_OK;
-    else
-        return RT_ERR_FAILED;
+	if (halCtrl->log_port_type[logicalPort] == EXT_PORT)
+		return RT_ERR_OK;
+	else
+		return RT_ERR_FAILED;
 }
-
 
 /* Function Name:
  *      rtk_switch_isHsgPort
@@ -225,16 +242,16 @@ rtk_api_ret_t rtk_switch_isExtPort(rtk_port_t logicalPort)
  */
 rtk_api_ret_t rtk_switch_isHsgPort(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return RT_ERR_FAILED;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return RT_ERR_FAILED;
 
-    if( ((0x01 << logicalPort) & halCtrl->hsg_logical_portmask) != 0)
-        return RT_ERR_OK;
-    else
-        return RT_ERR_FAILED;
+	if (((0x01 << logicalPort) & halCtrl->hsg_logical_portmask) != 0)
+		return RT_ERR_OK;
+	else
+		return RT_ERR_FAILED;
 }
 
 /* Function Name:
@@ -254,16 +271,16 @@ rtk_api_ret_t rtk_switch_isHsgPort(rtk_port_t logicalPort)
  */
 rtk_api_ret_t rtk_switch_isSgmiiPort(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return RT_ERR_FAILED;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return RT_ERR_FAILED;
 
-    if( ((0x01 << logicalPort) & halCtrl->sg_logical_portmask) != 0)
-        return RT_ERR_OK;
-    else
-        return RT_ERR_FAILED;
+	if (((0x01 << logicalPort) & halCtrl->sg_logical_portmask) != 0)
+		return RT_ERR_OK;
+	else
+		return RT_ERR_FAILED;
 }
 
 /* Function Name:
@@ -283,16 +300,16 @@ rtk_api_ret_t rtk_switch_isSgmiiPort(rtk_port_t logicalPort)
  */
 rtk_api_ret_t rtk_switch_isCPUPort(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return RT_ERR_FAILED;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return RT_ERR_FAILED;
 
-    if( ((0x01 << logicalPort) & halCtrl->valid_cpu_portmask) != 0)
-        return RT_ERR_OK;
-    else
-        return RT_ERR_FAILED;
+	if (((0x01 << logicalPort) & halCtrl->valid_cpu_portmask) != 0)
+		return RT_ERR_OK;
+	else
+		return RT_ERR_FAILED;
 }
 
 /* Function Name:
@@ -312,16 +329,16 @@ rtk_api_ret_t rtk_switch_isCPUPort(rtk_port_t logicalPort)
  */
 rtk_api_ret_t rtk_switch_isComboPort(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return RT_ERR_FAILED;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return RT_ERR_FAILED;
 
-    if(halCtrl->combo_logical_port == logicalPort)
-        return RT_ERR_OK;
-    else
-        return RT_ERR_FAILED;
+	if (halCtrl->combo_logical_port == logicalPort)
+		return RT_ERR_OK;
+	else
+		return RT_ERR_FAILED;
 }
 
 /* Function Name:
@@ -339,7 +356,7 @@ rtk_api_ret_t rtk_switch_isComboPort(rtk_port_t logicalPort)
  */
 rtk_uint32 rtk_switch_ComboPort_get(void)
 {
-    return halCtrl->combo_logical_port;
+	return halCtrl->combo_logical_port;
 }
 
 /* Function Name:
@@ -359,16 +376,16 @@ rtk_uint32 rtk_switch_ComboPort_get(void)
  */
 rtk_api_ret_t rtk_switch_isPtpPort(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return RT_ERR_FAILED;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return RT_ERR_FAILED;
 
-    if(halCtrl->ptp_port[logicalPort] == 1)
-        return RT_ERR_OK;
-    else
-        return RT_ERR_FAILED;
+	if (halCtrl->ptp_port[logicalPort] == 1)
+		return RT_ERR_OK;
+	else
+		return RT_ERR_FAILED;
 }
 
 /* Function Name:
@@ -386,13 +403,13 @@ rtk_api_ret_t rtk_switch_isPtpPort(rtk_port_t logicalPort)
  */
 rtk_uint32 rtk_switch_port_L2P_get(rtk_port_t logicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return UNDEFINE_PHY_PORT;
+	if (init_state != INIT_COMPLETED)
+		return UNDEFINE_PHY_PORT;
 
-    if(logicalPort >= RTK_SWITCH_PORT_NUM)
-        return UNDEFINE_PHY_PORT;
+	if (logicalPort >= RTK_SWITCH_PORT_NUM)
+		return UNDEFINE_PHY_PORT;
 
-    return (halCtrl->l2p_port[logicalPort]);
+	return (halCtrl->l2p_port[logicalPort]);
 }
 
 /* Function Name:
@@ -410,13 +427,13 @@ rtk_uint32 rtk_switch_port_L2P_get(rtk_port_t logicalPort)
  */
 rtk_port_t rtk_switch_port_P2L_get(rtk_uint32 physicalPort)
 {
-    if(init_state != INIT_COMPLETED)
-        return UNDEFINE_PORT;
+	if (init_state != INIT_COMPLETED)
+		return UNDEFINE_PORT;
 
-    if(physicalPort >= RTK_SWITCH_PORT_NUM)
-        return UNDEFINE_PORT;
+	if (physicalPort >= RTK_SWITCH_PORT_NUM)
+		return UNDEFINE_PORT;
 
-    return (halCtrl->p2l_port[physicalPort]);
+	return (halCtrl->p2l_port[physicalPort]);
 }
 
 /* Function Name:
@@ -437,16 +454,16 @@ rtk_port_t rtk_switch_port_P2L_get(rtk_uint32 physicalPort)
  */
 rtk_api_ret_t rtk_switch_isPortMaskValid(rtk_portmask_t *pPmask)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(NULL == pPmask)
-        return RT_ERR_NULL_POINTER;
+	if (pPmask == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    if( (pPmask->bits[0] | halCtrl->valid_portmask) != halCtrl->valid_portmask )
-        return RT_ERR_FAILED;
-    else
-        return RT_ERR_OK;
+	if ((pPmask->bits[0] | halCtrl->valid_portmask) != halCtrl->valid_portmask)
+		return RT_ERR_FAILED;
+	else
+		return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -467,16 +484,16 @@ rtk_api_ret_t rtk_switch_isPortMaskValid(rtk_portmask_t *pPmask)
  */
 rtk_api_ret_t rtk_switch_isPortMaskUtp(rtk_portmask_t *pPmask)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(NULL == pPmask)
-        return RT_ERR_NULL_POINTER;
+	if (pPmask == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    if( (pPmask->bits[0] | halCtrl->valid_utp_portmask) != halCtrl->valid_utp_portmask )
-        return RT_ERR_FAILED;
-    else
-        return RT_ERR_OK;
+	if ((pPmask->bits[0] | halCtrl->valid_utp_portmask) != halCtrl->valid_utp_portmask)
+		return RT_ERR_FAILED;
+	else
+		return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -497,16 +514,16 @@ rtk_api_ret_t rtk_switch_isPortMaskUtp(rtk_portmask_t *pPmask)
  */
 rtk_api_ret_t rtk_switch_isPortMaskExt(rtk_portmask_t *pPmask)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(NULL == pPmask)
-        return RT_ERR_NULL_POINTER;
+	if (pPmask == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    if( (pPmask->bits[0] | halCtrl->valid_ext_portmask) != halCtrl->valid_ext_portmask )
-        return RT_ERR_FAILED;
-    else
-        return RT_ERR_OK;
+	if ((pPmask->bits[0] | halCtrl->valid_ext_portmask) != halCtrl->valid_ext_portmask)
+		return RT_ERR_FAILED;
+	else
+		return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -527,30 +544,30 @@ rtk_api_ret_t rtk_switch_isPortMaskExt(rtk_portmask_t *pPmask)
  */
 rtk_api_ret_t rtk_switch_portmask_L2P_get(rtk_portmask_t *pLogicalPmask, rtk_uint32 *pPhysicalPortmask)
 {
-    rtk_uint32 log_port, phy_port;
+	rtk_uint32 log_port, phy_port;
 
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(NULL == pLogicalPmask)
-        return RT_ERR_NULL_POINTER;
+	if (pLogicalPmask == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    if(NULL == pPhysicalPortmask)
-        return RT_ERR_NULL_POINTER;
+	if (pPhysicalPortmask == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    if(rtk_switch_isPortMaskValid(pLogicalPmask) != RT_ERR_OK)
-        return RT_ERR_PORT_MASK;
+	if (rtk_switch_isPortMaskValid(pLogicalPmask) != RT_ERR_OK)
+		return RT_ERR_PORT_MASK;
 
-    /* reset physical port mask */
-    *pPhysicalPortmask = 0;
+	/* reset physical port mask */
+	*pPhysicalPortmask = 0;
 
-    RTK_PORTMASK_SCAN((*pLogicalPmask), log_port)
-    {
-        phy_port = rtk_switch_port_L2P_get((rtk_port_t)log_port);
-        *pPhysicalPortmask |= (0x0001 << phy_port);
-    }
+	RTK_PORTMASK_SCAN((*pLogicalPmask), log_port)
+	{
+		phy_port = rtk_switch_port_L2P_get((rtk_port_t)log_port);
+		*pPhysicalPortmask |= (0x0001 << phy_port);
+	}
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -571,29 +588,26 @@ rtk_api_ret_t rtk_switch_portmask_L2P_get(rtk_portmask_t *pLogicalPmask, rtk_uin
  */
 rtk_api_ret_t rtk_switch_portmask_P2L_get(rtk_uint32 physicalPortmask, rtk_portmask_t *pLogicalPmask)
 {
-    rtk_uint32 log_port, phy_port;
+	rtk_uint32 log_port, phy_port;
 
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_NOT_INIT;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_NOT_INIT;
 
-    if(NULL == pLogicalPmask)
-        return RT_ERR_NULL_POINTER;
+	if (pLogicalPmask == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    RTK_PORTMASK_CLEAR(*pLogicalPmask);
+	RTK_PORTMASK_CLEAR(*pLogicalPmask);
 
-    for(phy_port = halCtrl->min_phy_port; phy_port <= halCtrl->max_phy_port; phy_port++)
-    {
-        if(physicalPortmask & (0x0001 << phy_port))
-        {
-            log_port = rtk_switch_port_P2L_get(phy_port);
-            if(log_port != UNDEFINE_PORT)
-            {
-                RTK_PORTMASK_PORT_SET(*pLogicalPmask, log_port);
-            }
-        }
-    }
+	for (phy_port = halCtrl->min_phy_port; phy_port <= halCtrl->max_phy_port; phy_port++) {
+		if (physicalPortmask & (0x0001 << phy_port)) {
+			log_port = rtk_switch_port_P2L_get(phy_port);
+			if (log_port != UNDEFINE_PORT) {
+				RTK_PORTMASK_PORT_SET(*pLogicalPmask, log_port);
+			}
+		}
+	}
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -612,10 +626,10 @@ rtk_api_ret_t rtk_switch_portmask_P2L_get(rtk_uint32 physicalPortmask, rtk_portm
  */
 rtk_uint32 rtk_switch_phyPortMask_get(void)
 {
-    if(init_state != INIT_COMPLETED)
-        return 0x00; /* No port in portmask */
+	if (init_state != INIT_COMPLETED)
+		return 0x00; /* No port in portmask */
 
-    return (halCtrl->phy_portmask);
+	return (halCtrl->phy_portmask);
 }
 
 /* Function Name:
@@ -635,14 +649,14 @@ rtk_uint32 rtk_switch_phyPortMask_get(void)
  */
 rtk_api_ret_t rtk_switch_logPortMask_get(rtk_portmask_t *pPortmask)
 {
-    if(init_state != INIT_COMPLETED)
-        return RT_ERR_FAILED;
+	if (init_state != INIT_COMPLETED)
+		return RT_ERR_FAILED;
 
-    if(NULL == pPortmask)
-        return RT_ERR_NULL_POINTER;
+	if (pPortmask == NULL)
+		return RT_ERR_NULL_POINTER;
 
-    pPortmask->bits[0] = halCtrl->valid_portmask;
-    return RT_ERR_OK;
+	pPortmask->bits[0] = halCtrl->valid_portmask;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -662,13 +676,13 @@ rtk_api_ret_t rtk_switch_logPortMask_get(rtk_portmask_t *pPortmask)
  */
 rtk_api_ret_t rtk_switch_init(void)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = _rtk_switch_init();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = _rtk_switch_init();
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -690,16 +704,16 @@ rtk_api_ret_t rtk_switch_init(void)
  */
 rtk_api_ret_t rtk_switch_portMaxPktLen_set(rtk_port_t port, rtk_switch_maxPktLen_linkSpeed_t speed, rtk_uint32 cfgId)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->switch_portMaxPktLen_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (RT_MAPPER->switch_portMaxPktLen_set == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->switch_portMaxPktLen_set(port, speed, cfgId);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->switch_portMaxPktLen_set(port, speed, cfgId);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -720,16 +734,16 @@ rtk_api_ret_t rtk_switch_portMaxPktLen_set(rtk_port_t port, rtk_switch_maxPktLen
  */
 rtk_api_ret_t rtk_switch_portMaxPktLen_get(rtk_port_t port, rtk_switch_maxPktLen_linkSpeed_t speed, rtk_uint32 *pCfgId)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->switch_portMaxPktLen_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (RT_MAPPER->switch_portMaxPktLen_get == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->switch_portMaxPktLen_get(port, speed, pCfgId);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->switch_portMaxPktLen_get(port, speed, pCfgId);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -750,16 +764,16 @@ rtk_api_ret_t rtk_switch_portMaxPktLen_get(rtk_port_t port, rtk_switch_maxPktLen
  */
 rtk_api_ret_t rtk_switch_maxPktLenCfg_set(rtk_uint32 cfgId, rtk_uint32 pktLen)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->switch_maxPktLenCfg_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (RT_MAPPER->switch_maxPktLenCfg_set == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->switch_maxPktLenCfg_set(cfgId, pktLen);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->switch_maxPktLenCfg_set(cfgId, pktLen);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -780,16 +794,16 @@ rtk_api_ret_t rtk_switch_maxPktLenCfg_set(rtk_uint32 cfgId, rtk_uint32 pktLen)
  */
 rtk_api_ret_t rtk_switch_maxPktLenCfg_get(rtk_uint32 cfgId, rtk_uint32 *pPktLen)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->switch_maxPktLenCfg_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (RT_MAPPER->switch_maxPktLenCfg_get == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->switch_maxPktLenCfg_get(cfgId, pPktLen);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->switch_maxPktLenCfg_get(cfgId, pPktLen);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -813,16 +827,16 @@ rtk_api_ret_t rtk_switch_maxPktLenCfg_get(rtk_uint32 cfgId, rtk_uint32 *pPktLen)
  */
 rtk_api_ret_t rtk_switch_greenEthernet_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->switch_greenEthernet_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (RT_MAPPER->switch_greenEthernet_set == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->switch_greenEthernet_set(enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->switch_greenEthernet_set(enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -842,16 +856,16 @@ rtk_api_ret_t rtk_switch_greenEthernet_set(rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_switch_greenEthernet_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->switch_greenEthernet_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (RT_MAPPER->switch_greenEthernet_get == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->switch_greenEthernet_get(pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->switch_greenEthernet_get(pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -869,21 +883,19 @@ rtk_api_ret_t rtk_switch_greenEthernet_get(rtk_enable_t *pEnable)
  */
 rtk_port_t rtk_switch_maxLogicalPort_get(void)
 {
-    rtk_port_t port, maxLogicalPort = 0;
+	rtk_port_t port, maxLogicalPort = 0;
 
-    /* Check initialization state */
-    if(rtk_switch_initialState_get() != INIT_COMPLETED)
-    {
-        return UNDEFINE_PORT;
-    }
+	/* Check initialization state */
+	if (rtk_switch_initialState_get() != INIT_COMPLETED) {
+		return UNDEFINE_PORT;
+	}
 
-    for(port = 0; port < RTK_SWITCH_PORT_NUM; port++)
-    {
-        if( (halCtrl->log_port_type[port] == UTP_PORT) || (halCtrl->log_port_type[port] == EXT_PORT) )
-            maxLogicalPort = port;
-    }
+	for (port = 0; port < RTK_SWITCH_PORT_NUM; port++) {
+		if ((halCtrl->log_port_type[port] == UTP_PORT) || (halCtrl->log_port_type[port] == EXT_PORT))
+			maxLogicalPort = port;
+	}
 
-    return maxLogicalPort;
+	return maxLogicalPort;
 }
 
 /* Function Name:
@@ -902,10 +914,10 @@ rtk_port_t rtk_switch_maxLogicalPort_get(void)
  */
 rtk_uint32 rtk_switch_maxMeterId_get(void)
 {
-    if(init_state != INIT_COMPLETED)
-        return 0x00;
+	if (init_state != INIT_COMPLETED)
+		return 0x00;
 
-    return (halCtrl->max_meter_id);
+	return (halCtrl->max_meter_id);
 }
 
 /* Function Name:
@@ -924,10 +936,10 @@ rtk_uint32 rtk_switch_maxMeterId_get(void)
  */
 rtk_uint32 rtk_switch_maxLutAddrNumber_get(void)
 {
-    if(init_state != INIT_COMPLETED)
-        return 0x00;
+	if (init_state != INIT_COMPLETED)
+		return 0x00;
 
-    return (halCtrl->max_lut_addr_num);
+	return (halCtrl->max_lut_addr_num);
 }
 
 /* Function Name:
@@ -946,14 +958,13 @@ rtk_uint32 rtk_switch_maxLutAddrNumber_get(void)
  */
 rtk_uint32 rtk_switch_isValidTrunkGrpId(rtk_uint32 grpId)
 {
-    if(init_state != INIT_COMPLETED)
-        return 0x00;
+	if (init_state != INIT_COMPLETED)
+		return 0x00;
 
-    if( (halCtrl->trunk_group_mask & (0x01 << grpId) ) != 0)
-        return RT_ERR_OK;
-    else
-        return RT_ERR_LA_TRUNK_ID;
-
+	if ((halCtrl->trunk_group_mask & (0x01 << grpId)) != 0)
+		return RT_ERR_OK;
+	else
+		return RT_ERR_LA_TRUNK_ID;
 }
 
 /* Function Name:
@@ -971,10 +982,10 @@ rtk_uint32 rtk_switch_isValidTrunkGrpId(rtk_uint32 grpId)
  */
 rtk_uint32 rtk_switch_maxBufferPageNum_get(void)
 {
-    if(init_state != INIT_COMPLETED)
-        return 0x00;
+	if (init_state != INIT_COMPLETED)
+		return 0x00;
 
-    return (halCtrl->packet_buffer_page_num);
+	return (halCtrl->packet_buffer_page_num);
 }
 
 /* Function Name:
@@ -993,362 +1004,358 @@ rtk_uint32 rtk_switch_maxBufferPageNum_get(void)
  */
 switch_chip_t rtk_switch_chipType_get(void)
 {
-    if (halCtrl == NULL)
-        return CHIP_END;
+	if (halCtrl == NULL)
+		return CHIP_END;
 
-    return halCtrl->switch_type;
+	return halCtrl->switch_type;
 }
 
 rtk_api_ret_t rtk_fw_reset_flow_tgr_tgx(rtk_uint32 sdsid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->fw_reset_flow_tgr_tgx)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->fw_reset_flow_tgr_tgx(sdsid);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->fw_reset_flow_tgr_tgx == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->fw_reset_flow_tgr_tgx(sdsid);
+	RTK_API_UNLOCK();
 
+	return retVal;
 }
 
 rtk_api_ret_t rtk_fw_reset_flow_tgr_8224(rtk_uint32 sdsid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->fw_reset_flow_tgr_8224)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->fw_reset_flow_tgr_8224(sdsid);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->fw_reset_flow_tgr_8224 == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->fw_reset_flow_tgr_8224(sdsid);
+	RTK_API_UNLOCK();
 
+	return retVal;
 }
 
 rtk_api_ret_t rtk_fw_reset_flow_8221B(rtk_uint32 sdsid)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->fw_reset_flow_8221B)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->fw_reset_flow_8221B(sdsid);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->fw_reset_flow_8221B == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->fw_reset_flow_8221B(sdsid);
+	RTK_API_UNLOCK();
 
+	return retVal;
 }
 
-
-rtk_api_ret_t  rtk_rtl8224_top_reg_write(rtk_uint32 top_reg_addr,  rtk_uint32 value)
+rtk_api_ret_t rtk_rtl8224_top_reg_write(rtk_uint32 top_reg_addr, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_top_reg_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_top_reg_write(top_reg_addr, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_top_reg_write == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_top_reg_write(top_reg_addr, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t  rtk_rtl8224_top_reg_read(rtk_uint32 top_reg_addr,  rtk_uint32* pvalue)
+rtk_api_ret_t rtk_rtl8224_top_reg_read(rtk_uint32 top_reg_addr, rtk_uint32 *pvalue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_top_reg_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_top_reg_read(top_reg_addr, pvalue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_top_reg_read == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_top_reg_read(top_reg_addr, pvalue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t  rtk_rtl8224_top_regbit_write(rtk_uint32 top_reg_addr,  rtk_uint32 offset, rtk_uint32 value)
+rtk_api_ret_t rtk_rtl8224_top_regbit_write(rtk_uint32 top_reg_addr, rtk_uint32 offset, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_top_regbit_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_top_regbit_write(top_reg_addr, offset, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_top_regbit_write == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_top_regbit_write(top_reg_addr, offset, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t  rtk_rtl8224_top_regbit_read(rtk_uint32 top_reg_addr,  rtk_uint32 offset, rtk_uint32* pvalue)
+rtk_api_ret_t rtk_rtl8224_top_regbit_read(rtk_uint32 top_reg_addr, rtk_uint32 offset, rtk_uint32 *pvalue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_top_regbit_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_top_regbit_read(top_reg_addr, offset, pvalue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_top_regbit_read == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_top_regbit_read(top_reg_addr, offset, pvalue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t  rtk_rtl8224_top_regbits_write(rtk_uint32 top_reg_addr,  rtk_uint32 bitmask, rtk_uint32 value)
+rtk_api_ret_t rtk_rtl8224_top_regbits_write(rtk_uint32 top_reg_addr, rtk_uint32 bitmask, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_top_regbits_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_top_regbits_write(top_reg_addr, bitmask, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_top_regbits_write == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_top_regbits_write(top_reg_addr, bitmask, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t  rtk_rtl8224_top_regbits_read(rtk_uint32 top_reg_addr,  rtk_uint32 bitmask, rtk_uint32* pvalue)
+rtk_api_ret_t rtk_rtl8224_top_regbits_read(rtk_uint32 top_reg_addr, rtk_uint32 bitmask, rtk_uint32 *pvalue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_top_regbits_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_top_regbits_read(top_reg_addr, bitmask, pvalue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_top_regbits_read == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_top_regbits_read(top_reg_addr, bitmask, pvalue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 rtk_api_ret_t rtk_rtl8373_sds_reg_write(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 regdata)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_sds_reg_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_sds_reg_write(sds_index, sds_page, sds_reg, regdata);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_sds_reg_write == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_sds_reg_write(sds_index, sds_page, sds_reg, regdata);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t rtk_rtl8373_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 * pdata)
+rtk_api_ret_t rtk_rtl8373_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 *pdata)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_sds_reg_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_sds_reg_read(sds_index, sds_page, sds_reg, pdata);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_sds_reg_read == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_sds_reg_read(sds_index, sds_page, sds_reg, pdata);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 rtk_api_ret_t rtk_rtl8373_sds_regbits_write(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_sds_regbits_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_sds_regbits_write(sds_index, sds_page, sds_reg, bitmask, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_sds_regbits_write == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_sds_regbits_write(sds_index, sds_page, sds_reg, bitmask, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t rtk_rtl8373_sds_regbits_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 * pvalue)
+rtk_api_ret_t rtk_rtl8373_sds_regbits_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 *pvalue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_sds_regbits_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_sds_regbits_read(sds_index, sds_page, sds_reg, bitmask, pvalue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_sds_regbits_read == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_sds_regbits_read(sds_index, sds_page, sds_reg, bitmask, pvalue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 rtk_api_ret_t rtk_rtl8224_sds_reg_write(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 regdata)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_sds_reg_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_sds_reg_write(sds_index, sds_page, sds_reg, regdata);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_sds_reg_write == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_sds_reg_write(sds_index, sds_page, sds_reg, regdata);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t rtk_rtl8224_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 * pdata)
+rtk_api_ret_t rtk_rtl8224_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 *pdata)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_sds_reg_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_sds_reg_read(sds_index, sds_page, sds_reg, pdata);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_sds_reg_read == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_sds_reg_read(sds_index, sds_page, sds_reg, pdata);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 rtk_api_ret_t rtk_rtl8224_sds_regbits_write(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_sds_regbits_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_sds_regbits_write(sds_index, sds_page, sds_reg, bitmask, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_sds_regbits_write == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_sds_regbits_write(sds_index, sds_page, sds_reg, bitmask, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t rtk_rtl8224_sds_regbits_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 * pvalue)
+rtk_api_ret_t rtk_rtl8224_sds_regbits_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 *pvalue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8224_sds_regbits_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8224_sds_regbits_read(sds_index, sds_page, sds_reg, bitmask, pvalue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8224_sds_regbits_read == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8224_sds_regbits_read(sds_index, sds_page, sds_reg, bitmask, pvalue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 rtk_api_ret_t rtk_rtl8373_phy_regbits_write(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitmask, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_phy_regbits_write)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_phy_regbits_write(phy_mask, dev_addr, reg_addr, bitmask, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_phy_regbits_write == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_phy_regbits_write(phy_mask, dev_addr, reg_addr, bitmask, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
-rtk_api_ret_t rtk_rtl8373_phy_regbits_read(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitmask, rtk_uint32 * pvalue)
+rtk_api_ret_t rtk_rtl8373_phy_regbits_read(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitmask, rtk_uint32 *pvalue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_phy_regbits_read)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_phy_regbits_read(phy_id, dev_addr, reg_addr, bitmask, pvalue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_phy_regbits_read == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_phy_regbits_read(phy_id, dev_addr, reg_addr, bitmask, pvalue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 ret_t rtk_rtl8373_setAsicRegBit(rtk_uint32 reg, rtk_uint32 offset, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_setAsicRegBit)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_setAsicRegBit(reg, offset, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_setAsicRegBit == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_setAsicRegBit(reg, offset, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 ret_t rtk_rtl8373_getAsicRegBit(rtk_uint32 reg, rtk_uint32 offset, rtk_uint32 *pValue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_getAsicRegBit)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_getAsicRegBit(reg, offset, pValue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_getAsicRegBit == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_getAsicRegBit(reg, offset, pValue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 ret_t rtk_rtl8373_setAsicRegBits(rtk_uint32 reg, rtk_uint32 bitsMask, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_setAsicRegBits)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_setAsicRegBits(reg, bitsMask, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_setAsicRegBits == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_setAsicRegBits(reg, bitsMask, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 ret_t rtk_rtl8373_getAsicRegBits(rtk_uint32 reg, rtk_uint32 bitsMask, rtk_uint32 *pValue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_getAsicRegBits)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_getAsicRegBits(reg, bitsMask, pValue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_getAsicRegBits == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_getAsicRegBits(reg, bitsMask, pValue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 ret_t rtk_rtl8373_setAsicReg(rtk_uint32 reg, rtk_uint32 value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_setAsicReg)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_setAsicReg(reg, value);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_setAsicReg == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_setAsicReg(reg, value);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 ret_t rtk_rtl8373_getAsicReg(rtk_uint32 reg, rtk_uint32 *pValue)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->rtl8373_getAsicReg)
-        return RT_ERR_DRIVER_NOT_FOUND;
-        
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->rtl8373_getAsicReg(reg, pValue);
-    RTK_API_UNLOCK();
+	if (RT_MAPPER->rtl8373_getAsicReg == NULL)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->rtl8373_getAsicReg(reg, pValue);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }

@@ -20,7 +20,7 @@
 
 #include <mirror.h>
 
-#define MIR_SAMPLE_RATE_MAX   (0xFFFF)
+#define MIR_SAMPLE_RATE_MAX (0xFFFF)
 
 /* Function Name:
  *      dal_rtl8373_mirror_set_en
@@ -146,7 +146,6 @@ extern rtk_api_ret_t dal_rtl8373_mirror_portIso_get(rtk_enable_t *pEnable);
  */
 extern rtk_api_ret_t dal_rtl8373_mirror_vlanLeaky_set(rtk_enable_t txenable, rtk_enable_t rxenable);
 
-
 /* Function Name:
  *      dal_rtl8373_mirror_vlanLeaky_get
  * Description:
@@ -225,7 +224,6 @@ extern rtk_api_ret_t dal_rtl8373_mirror_isolationLeaky_get(rtk_enable_t *pTxenab
  *      - MIRROR_KEEP_END
  */
 extern rtk_api_ret_t dal_rtl8373_mirror_keep_set(rtk_mirror_keep_t mode);
-
 
 /* Function Name:
  *      dal_rtl8373_mirror_keep_get
@@ -405,7 +403,7 @@ extern rtk_api_ret_t dal_rtl8373_rspan_rxTagEnSts_get(rtk_enable_t *pEnable);
  * Input:
  *      pRspanTag  - rspan tag context:TPID PRI CFI  VID .
  * Output:
- *      None  
+ *      None
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -487,7 +485,7 @@ extern rtk_api_ret_t dal_rtl8373_rspan_tagRemove_set(rtk_enable_t enable);
 *Input:
 *       None
 *Output:
-*       pEnable - 
+*       pEnable -
 *Return:
 *       RT_ERR_OK           - OK
 *       RT_ERR_FAILED       - Failed
@@ -496,4 +494,3 @@ extern rtk_api_ret_t dal_rtl8373_rspan_tagRemove_set(rtk_enable_t enable);
 extern rtk_api_ret_t dal_rtl8373_rspan_tagRemove_get(rtk_enable_t *pEnable);
 
 #endif /* __DAL_RTL8373_MIRROR_H__ */
-

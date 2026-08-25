@@ -28,7 +28,6 @@
 //#include <rtl8373_asicdrv_lut.h>
 //#include <rtl8373_asicdrv_vlan.h>
 
-
 /* Function Name:
  *      dal_rtl8373_dot1x_unauthPacketOper_set
  * Description:
@@ -53,21 +52,21 @@
  */
 rtk_api_ret_t dal_rtl8373_dot1x_unauthPacketOper_set(rtk_port_t port, rtk_dot1x_unauth_action_t unauth_action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (unauth_action >= DOT1X_ACTION_END)
-        return RT_ERR_DOT1X_PROC;
+	if (unauth_action >= DOT1X_ACTION_END)
+		return RT_ERR_DOT1X_PROC;
 
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_DOT1X_UNAUTH_ACT_ADDR(port), RTL8373_DOT1X_UNAUTH_ACT_PORT_ACT_MASK(port), unauth_action)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_DOT1X_UNAUTH_ACT_ADDR(port), RTL8373_DOT1X_UNAUTH_ACT_PORT_ACT_MASK(port), unauth_action)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -93,21 +92,21 @@ rtk_api_ret_t dal_rtl8373_dot1x_unauthPacketOper_set(rtk_port_t port, rtk_dot1x_
  */
 rtk_api_ret_t dal_rtl8373_dot1x_unauthPacketOper_get(rtk_port_t port, rtk_dot1x_unauth_action_t *pUnauth_action)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if(NULL == pUnauth_action)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pUnauth_action)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_DOT1X_UNAUTH_ACT_ADDR(port), RTL8373_DOT1X_UNAUTH_ACT_PORT_ACT_MASK(port), pUnauth_action)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_DOT1X_UNAUTH_ACT_ADDR(port), RTL8373_DOT1X_UNAUTH_ACT_PORT_ACT_MASK(port), pUnauth_action)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -129,18 +128,18 @@ rtk_api_ret_t dal_rtl8373_dot1x_unauthPacketOper_get(rtk_port_t port, rtk_dot1x_
  */
 rtk_api_ret_t dal_rtl8373_dot1x_trap2CPU_Sel_set(rtk_dot1x_cpu_select_t cpu_sel)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(cpu_sel >= DOT1X_CPU_SEL_END)
-        return RT_ERR_INPUT;
+	if (cpu_sel >= DOT1X_CPU_SEL_END)
+		return RT_ERR_INPUT;
 
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_DOT1X_TRAP_CPU_SEL_ADDR, RTL8373_DOT1X_TRAP_CPU_SEL_TRAP_CPU_SEL_MASK, cpu_sel)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_DOT1X_TRAP_CPU_SEL_ADDR, RTL8373_DOT1X_TRAP_CPU_SEL_TRAP_CPU_SEL_MASK, cpu_sel)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -162,18 +161,18 @@ rtk_api_ret_t dal_rtl8373_dot1x_trap2CPU_Sel_set(rtk_dot1x_cpu_select_t cpu_sel)
  */
 rtk_api_ret_t dal_rtl8373_dot1x_trap2CPU_Sel_get(rtk_dot1x_cpu_select_t *pCpu_sel)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pCpu_sel)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pCpu_sel)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_DOT1X_TRAP_CPU_SEL_ADDR, RTL8373_DOT1X_TRAP_CPU_SEL_TRAP_CPU_SEL_MASK, pCpu_sel)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_DOT1X_TRAP_CPU_SEL_ADDR, RTL8373_DOT1X_TRAP_CPU_SEL_TRAP_CPU_SEL_MASK, pCpu_sel)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -195,18 +194,18 @@ rtk_api_ret_t dal_rtl8373_dot1x_trap2CPU_Sel_get(rtk_dot1x_cpu_select_t *pCpu_se
  */
 rtk_api_ret_t dal_rtl8373_dot1x_trap_priority_set(rtk_pri_t pri_value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(pri_value > 7)
-        return RT_ERR_INPUT;
+	if (pri_value > 7)
+		return RT_ERR_INPUT;
 
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_DOT1X_TRAP_PRIORITY_ADDR, RTL8373_DOT1X_TRAP_PRIORITY_TRAP_PRI_MASK, pri_value)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_DOT1X_TRAP_PRIORITY_ADDR, RTL8373_DOT1X_TRAP_PRIORITY_TRAP_PRI_MASK, pri_value)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -228,20 +227,19 @@ rtk_api_ret_t dal_rtl8373_dot1x_trap_priority_set(rtk_pri_t pri_value)
  */
 rtk_api_ret_t dal_rtl8373_dot1x_trap_priority_get(rtk_pri_t *pri_value)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pri_value)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pri_value)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_DOT1X_TRAP_PRIORITY_ADDR, RTL8373_DOT1X_TRAP_PRIORITY_TRAP_PRI_MASK, pri_value)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_DOT1X_TRAP_PRIORITY_ADDR, RTL8373_DOT1X_TRAP_PRIORITY_TRAP_PRI_MASK, pri_value)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 #if 0
 /* Function Name:
@@ -266,30 +264,29 @@ rtk_api_ret_t dal_rtl8373_dot1x_trap_priority_get(rtk_pri_t *pri_value)
  */
 rtk_api_ret_t dal_rtl8373_dot1x_eapolFrame2CpuEnable_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
-    rtk_uint32 action;
+	rtk_api_ret_t retVal;
+	rtk_uint32 action;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (enable >= RTK_ENABLE_END)
-        return RT_ERR_ENABLE;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_ENABLE;
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_REG_RMA_CTRL03,RTL8367D_RMA_CTRL03_OPERATION_MASK, &action)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_REG_RMA_CTRL03, RTL8367D_RMA_CTRL03_OPERATION_MASK, &action)) != RT_ERR_OK)
+		return retVal;
 
-    if (ENABLED == enable)
-        action = RMA_ACTION_TRAP2CPU;
-    else if (DISABLED == enable)
-    {
-        if (RMA_ACTION_TRAP2CPU == action)
-        action = RMA_ACTION_FORWARD;
-    }
+	if (ENABLED == enable)
+		action = RMA_ACTION_TRAP2CPU;
+	else if (DISABLED == enable) {
+		if (RMA_ACTION_TRAP2CPU == action)
+			action = RMA_ACTION_FORWARD;
+	}
 
-    if ((retVal = rtl8367d_setAsicRegBits(RTL8367D_REG_RMA_CTRL03,RTL8367D_RMA_CTRL03_OPERATION_MASK, action)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8367d_setAsicRegBits(RTL8367D_REG_RMA_CTRL03, RTL8367D_RMA_CTRL03_OPERATION_MASK, action)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -314,24 +311,24 @@ rtk_api_ret_t dal_rtl8373_dot1x_eapolFrame2CpuEnable_set(rtk_enable_t enable)
  */
 rtk_api_ret_t dal_rtl8373_dot1x_eapolFrame2CpuEnable_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    rtl8373_rma_t rmacfg;
+	rtk_api_ret_t retVal;
+	rtl8373_rma_t rmacfg;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRma(3, &rmacfg)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRma(3, &rmacfg)) != RT_ERR_OK)
+		return retVal;
 
-    if (RMAOP_TRAP_TO_CPU == rmacfg.operation)
-        *pEnable = ENABLED;
-    else
-        *pEnable = DISABLED;
+	if (RMAOP_TRAP_TO_CPU == rmacfg.operation)
+		*pEnable = ENABLED;
+	else
+		*pEnable = DISABLED;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 #endif
 /* Function Name:
@@ -360,21 +357,21 @@ rtk_api_ret_t dal_rtl8373_dot1x_eapolFrame2CpuEnable_get(rtk_enable_t *pEnable)
  */
 rtk_api_ret_t dal_rtl8373_dot1x_portBasedEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (enable >= RTK_ENABLE_END)
-        return RT_ERR_ENABLE;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_ENABLE;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_PORT_EN_ADDR(port), RTL8373_DOT1X_PORT_EN_PORT_EN_OFFSET(port), enable)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_PORT_EN_ADDR(port), RTL8373_DOT1X_PORT_EN_PORT_EN_OFFSET(port), enable)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -396,21 +393,21 @@ rtk_api_ret_t dal_rtl8373_dot1x_portBasedEnable_set(rtk_port_t port, rtk_enable_
  */
 rtk_api_ret_t dal_rtl8373_dot1x_portBasedEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
-rtlglue_printf("555. %d\n", port);
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_PORT_EN_ADDR(port), RTL8373_DOT1X_PORT_EN_PORT_EN_OFFSET(port), pEnable)) != RT_ERR_OK)
-        return retVal;
-rtlglue_printf("666\n");
-    return RT_ERR_OK;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
+	rtlglue_printf("555. %d\n", port);
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_PORT_EN_ADDR(port), RTL8373_DOT1X_PORT_EN_PORT_EN_OFFSET(port), pEnable)) != RT_ERR_OK)
+		return retVal;
+	rtlglue_printf("666\n");
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -435,22 +432,21 @@ rtlglue_printf("666\n");
  */
 rtk_api_ret_t dal_rtl8373_dot1x_portBasedAuthStatus_set(rtk_port_t port, rtk_dot1x_auth_status_t port_auth)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-     if (port_auth >= AUTH_STATUS_END)
-        return RT_ERR_DOT1X_PORTBASEDAUTH;
+	if (port_auth >= AUTH_STATUS_END)
+		return RT_ERR_DOT1X_PORTBASEDAUTH;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_PORT_AUTH_ADDR(port), RTL8373_DOT1X_PORT_AUTH_PORT_AUTH_OFFSET(port), port_auth)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_PORT_AUTH_ADDR(port), RTL8373_DOT1X_PORT_AUTH_PORT_AUTH_OFFSET(port), port_auth)) != RT_ERR_OK)
+		return retVal;
 
-
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -472,21 +468,21 @@ rtk_api_ret_t dal_rtl8373_dot1x_portBasedAuthStatus_set(rtk_port_t port, rtk_dot
  */
 rtk_api_ret_t dal_rtl8373_dot1x_portBasedAuthStatus_get(rtk_port_t port, rtk_dot1x_auth_status_t *pPort_auth)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pPort_auth)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pPort_auth)
+		return RT_ERR_NULL_POINTER;
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_PORT_AUTH_ADDR(port), RTL8373_DOT1X_PORT_AUTH_PORT_AUTH_OFFSET(port), pPort_auth)) != RT_ERR_OK)
-        return retVal;
-	
-    return RT_ERR_OK;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_PORT_AUTH_ADDR(port), RTL8373_DOT1X_PORT_AUTH_PORT_AUTH_OFFSET(port), pPort_auth)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -511,21 +507,21 @@ rtk_api_ret_t dal_rtl8373_dot1x_portBasedAuthStatus_get(rtk_port_t port, rtk_dot
  */
 rtk_api_ret_t dal_rtl8373_dot1x_portBasedDirection_set(rtk_port_t port, rtk_dot1x_direction_t port_direction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (port_direction >= DIRECTION_END)
-        return RT_ERR_DOT1X_PORTBASEDOPDIR;
+	if (port_direction >= DIRECTION_END)
+		return RT_ERR_DOT1X_PORTBASEDOPDIR;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_PORT_DIR_ADDR(port), RTL8373_DOT1X_PORT_DIR_PORT_DIR_OFFSET(port), port_direction)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_PORT_DIR_ADDR(port), RTL8373_DOT1X_PORT_DIR_PORT_DIR_OFFSET(port), port_direction)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -547,21 +543,21 @@ rtk_api_ret_t dal_rtl8373_dot1x_portBasedDirection_set(rtk_port_t port, rtk_dot1
  */
 rtk_api_ret_t dal_rtl8373_dot1x_portBasedDirection_get(rtk_port_t port, rtk_dot1x_direction_t *pPort_direction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pPort_direction)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pPort_direction)
+		return RT_ERR_NULL_POINTER;
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_PORT_DIR_ADDR(port), RTL8373_DOT1X_PORT_DIR_PORT_DIR_OFFSET(port), pPort_direction)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_PORT_DIR_ADDR(port), RTL8373_DOT1X_PORT_DIR_PORT_DIR_OFFSET(port), pPort_direction)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -589,21 +585,21 @@ rtk_api_ret_t dal_rtl8373_dot1x_portBasedDirection_get(rtk_port_t port, rtk_dot1
  */
 rtk_api_ret_t dal_rtl8373_dot1x_macBasedEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (enable >= RTK_ENABLE_END)
-        return RT_ERR_ENABLE;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_ENABLE;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_MAC_EN_ADDR(port), RTL8373_DOT1X_MAC_EN_MAC_EN_OFFSET(port), enable)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_MAC_EN_ADDR(port), RTL8373_DOT1X_MAC_EN_MAC_EN_OFFSET(port), enable)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -629,21 +625,21 @@ rtk_api_ret_t dal_rtl8373_dot1x_macBasedEnable_set(rtk_port_t port, rtk_enable_t
  */
 rtk_api_ret_t dal_rtl8373_dot1x_macBasedEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_MAC_EN_ADDR(port), RTL8373_DOT1X_MAC_EN_MAC_EN_OFFSET(port), pEnable)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_MAC_EN_ADDR(port), RTL8373_DOT1X_MAC_EN_MAC_EN_OFFSET(port), pEnable)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -669,44 +665,41 @@ rtk_api_ret_t dal_rtl8373_dot1x_macBasedEnable_get(rtk_port_t port, rtk_enable_t
  */
 rtk_api_ret_t dal_rtl8373_dot1x_macBasedAuthMac_add(rtk_port_t port, rtk_mac_t *pAuth_mac, rtk_fid_t fid)
 {
-    rtk_api_ret_t retVal;
-    rtk_l2_ucastAddr_t l2Table;
+	rtk_api_ret_t retVal;
+	rtk_l2_ucastAddr_t l2Table;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* must be unicast address */
-    if ((pAuth_mac == NULL) || (pAuth_mac->octet[0] & 0x1))
-        return RT_ERR_MAC;
+	/* must be unicast address */
+	if ((pAuth_mac == NULL) || (pAuth_mac->octet[0] & 0x1))
+		return RT_ERR_MAC;
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (fid > RTL8373_FIDMAX)
-        return RT_ERR_L2_FID;
+	if (fid > RTL8373_FIDMAX)
+		return RT_ERR_L2_FID;
 
-    memset(&l2Table, 0, sizeof(rtk_l2_ucastAddr_t));
+	memset(&l2Table, 0, sizeof(rtk_l2_ucastAddr_t));
 
-    /* fill key (MAC,FID) to get L2 entry */
-    memcpy(l2Table.mac.octet, pAuth_mac->octet, ETHER_ADDR_LEN);
-    l2Table.ivl = 0;
-    l2Table.vid_fid = fid;
-    retVal = dal_rtl8373_l2_addr_get(pAuth_mac, &l2Table);
-    if ( RT_ERR_OK == retVal)
-    {
-        if (l2Table.port != rtk_switch_port_L2P_get(port))
-            return RT_ERR_DOT1X_MAC_PORT_MISMATCH;
+	/* fill key (MAC,FID) to get L2 entry */
+	memcpy(l2Table.mac.octet, pAuth_mac->octet, ETHER_ADDR_LEN);
+	l2Table.ivl = 0;
+	l2Table.vid_fid = fid;
+	retVal = dal_rtl8373_l2_addr_get(pAuth_mac, &l2Table);
+	if (RT_ERR_OK == retVal) {
+		if (l2Table.port != rtk_switch_port_L2P_get(port))
+			return RT_ERR_DOT1X_MAC_PORT_MISMATCH;
 
-        memcpy(l2Table.mac.octet, pAuth_mac->octet, ETHER_ADDR_LEN);
-        l2Table.ivl = 0;
-        l2Table.vid_fid = fid;
-        l2Table.auth = 1;
-        retVal = dal_rtl8373_l2_addr_add(pAuth_mac, &l2Table);
-        return retVal;
-    }
-    else
-        return retVal;
-
+		memcpy(l2Table.mac.octet, pAuth_mac->octet, ETHER_ADDR_LEN);
+		l2Table.ivl = 0;
+		l2Table.vid_fid = fid;
+		l2Table.auth = 1;
+		retVal = dal_rtl8373_l2_addr_add(pAuth_mac, &l2Table);
+		return retVal;
+	} else
+		return retVal;
 }
 
 /* Function Name:
@@ -731,44 +724,41 @@ rtk_api_ret_t dal_rtl8373_dot1x_macBasedAuthMac_add(rtk_port_t port, rtk_mac_t *
  */
 rtk_api_ret_t dal_rtl8373_dot1x_macBasedAuthMac_del(rtk_port_t port, rtk_mac_t *pAuth_mac, rtk_fid_t fid)
 {
-    rtk_api_ret_t retVal;
-    rtk_l2_ucastAddr_t l2Table;
+	rtk_api_ret_t retVal;
+	rtk_l2_ucastAddr_t l2Table;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* must be unicast address */
-    if ((pAuth_mac == NULL) || (pAuth_mac->octet[0] & 0x1))
-        return RT_ERR_MAC;
+	/* must be unicast address */
+	if ((pAuth_mac == NULL) || (pAuth_mac->octet[0] & 0x1))
+		return RT_ERR_MAC;
 
-    /* Check port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if (fid > RTL8373_FIDMAX)
-        return RT_ERR_L2_FID;
+	if (fid > RTL8373_FIDMAX)
+		return RT_ERR_L2_FID;
 
-    memset(&l2Table, 0, sizeof(rtk_l2_ucastAddr_t));
+	memset(&l2Table, 0, sizeof(rtk_l2_ucastAddr_t));
 
-    /* fill key (MAC,FID) to get L2 entry */
-    memcpy(l2Table.mac.octet, pAuth_mac->octet, ETHER_ADDR_LEN);
-    l2Table.ivl = 0;
-    l2Table.vid_fid = fid;
-    retVal = dal_rtl8373_l2_addr_get(pAuth_mac, &l2Table);
-    if (RT_ERR_OK == retVal)
-    {
-        if (l2Table.port != rtk_switch_port_L2P_get(port))
-            return RT_ERR_DOT1X_MAC_PORT_MISMATCH;
+	/* fill key (MAC,FID) to get L2 entry */
+	memcpy(l2Table.mac.octet, pAuth_mac->octet, ETHER_ADDR_LEN);
+	l2Table.ivl = 0;
+	l2Table.vid_fid = fid;
+	retVal = dal_rtl8373_l2_addr_get(pAuth_mac, &l2Table);
+	if (RT_ERR_OK == retVal) {
+		if (l2Table.port != rtk_switch_port_L2P_get(port))
+			return RT_ERR_DOT1X_MAC_PORT_MISMATCH;
 
-        memcpy(l2Table.mac.octet, pAuth_mac->octet, ETHER_ADDR_LEN);
-	 l2Table.ivl = 0;
-        l2Table.vid_fid = fid;
-        l2Table.auth = 0;
-        retVal = dal_rtl8373_l2_addr_add(pAuth_mac, &l2Table);
-        return retVal;
-    }
-    else
-        return retVal;
-
+		memcpy(l2Table.mac.octet, pAuth_mac->octet, ETHER_ADDR_LEN);
+		l2Table.ivl = 0;
+		l2Table.vid_fid = fid;
+		l2Table.auth = 0;
+		retVal = dal_rtl8373_l2_addr_add(pAuth_mac, &l2Table);
+		return retVal;
+	} else
+		return retVal;
 }
 
 /* Function Name:
@@ -792,18 +782,18 @@ rtk_api_ret_t dal_rtl8373_dot1x_macBasedAuthMac_del(rtk_port_t port, rtk_mac_t *
  */
 rtk_api_ret_t dal_rtl8373_dot1x_macBasedDirection_set(rtk_dot1x_direction_t mac_direction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (mac_direction >= DIRECTION_END)
-        return RT_ERR_DOT1X_MACBASEDOPDIR;
+	if (mac_direction >= DIRECTION_END)
+		return RT_ERR_DOT1X_MACBASEDOPDIR;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_MAC_DIR_OFFSET, mac_direction)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_MAC_DIR_OFFSET, mac_direction)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -824,18 +814,18 @@ rtk_api_ret_t dal_rtl8373_dot1x_macBasedDirection_set(rtk_dot1x_direction_t mac_
  */
 rtk_api_ret_t dal_rtl8373_dot1x_macBasedDirection_get(rtk_dot1x_direction_t *pMac_direction)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pMac_direction)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pMac_direction)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_MAC_DIR_OFFSET, pMac_direction)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_MAC_DIR_OFFSET, pMac_direction)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -856,27 +846,27 @@ rtk_api_ret_t dal_rtl8373_dot1x_macBasedDirection_get(rtk_dot1x_direction_t *pMa
  */
 rtk_api_ret_t dal_rtl8373_dot1x_guestVlan_set(rtk_vlan_t vid)
 {
-    rtk_api_ret_t retVal;
-    rtk_vlan_entry_t vlancfg;
+	rtk_api_ret_t retVal;
+	rtk_vlan_entry_t vlancfg;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* vid must be 0~4095 */
-    if (vid > RTL8373_VIDMAX)
-        return RT_ERR_VLAN_VID;
+	/* vid must be 0~4095 */
+	if (vid > RTL8373_VIDMAX)
+		return RT_ERR_VLAN_VID;
 
-    if((retVal = dal_rtl8373_vlan_get(vid, &vlancfg)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = dal_rtl8373_vlan_get(vid, &vlancfg)) != RT_ERR_OK)
+		return retVal;
 
-    //No member in vid entry
-    if (vlancfg.mbr.bits[0] == 0)
-        return RT_ERR_DOT1X_GVLANIDX;
+	//No member in vid entry
+	if (vlancfg.mbr.bits[0] == 0)
+		return RT_ERR_DOT1X_GVLANIDX;
 
-    if ((retVal = rtl8373_setAsicRegBits(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_GUEST_VID_MASK, vid)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_GUEST_VID_MASK, vid)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -897,18 +887,18 @@ rtk_api_ret_t dal_rtl8373_dot1x_guestVlan_set(rtk_vlan_t vid)
  */
 rtk_api_ret_t dal_rtl8373_dot1x_guestVlan_get(rtk_vlan_t *pVid)
 {
-    rtk_api_ret_t retVal;
-    
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	rtk_api_ret_t retVal;
 
-    if(NULL == pVid)
-        return RT_ERR_NULL_POINTER;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if ((retVal = rtl8373_getAsicRegBits(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_GUEST_VID_MASK, pVid)) != RT_ERR_OK)
-        return retVal;
+	if (NULL == pVid)
+		return RT_ERR_NULL_POINTER;
 
-    return RT_ERR_OK;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_GUEST_VID_MASK, pVid)) != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -931,18 +921,18 @@ rtk_api_ret_t dal_rtl8373_dot1x_guestVlan_get(rtk_vlan_t *pVid)
  */
 rtk_api_ret_t dal_rtl8373_dot1x_guestVlan2Auth_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (enable >= RTK_ENABLE_END)
-        return RT_ERR_ENABLE;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_ENABLE;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_GUSET_OP_OFFSET, enable)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_GUSET_OP_OFFSET, enable)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -963,18 +953,16 @@ rtk_api_ret_t dal_rtl8373_dot1x_guestVlan2Auth_set(rtk_enable_t enable)
  */
 rtk_api_ret_t dal_rtl8373_dot1x_guestVlan2Auth_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_GUSET_OP_OFFSET, pEnable)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_DOT1X_CFG_ADDR, RTL8373_DOT1X_CFG_GUSET_OP_OFFSET, pEnable)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-

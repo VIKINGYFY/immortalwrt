@@ -45,16 +45,16 @@
  */
 rtk_api_ret_t rtk_trunk_port_set(rtk_trunk_group_t trk_gid, rtk_portmask_t *pTrunk_member_portmask)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_port_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_port_set(trk_gid, pTrunk_member_portmask);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_port_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_port_set(trk_gid, pTrunk_member_portmask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -75,16 +75,16 @@ rtk_api_ret_t rtk_trunk_port_set(rtk_trunk_group_t trk_gid, rtk_portmask_t *pTru
  */
 rtk_api_ret_t rtk_trunk_port_get(rtk_trunk_group_t trk_gid, rtk_portmask_t *pTrunk_member_portmask)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_port_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_port_get(trk_gid, pTrunk_member_portmask);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_port_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_port_get(trk_gid, pTrunk_member_portmask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -119,16 +119,16 @@ rtk_api_ret_t rtk_trunk_port_get(rtk_trunk_group_t trk_gid, rtk_portmask_t *pTru
  */
 rtk_api_ret_t rtk_trunk_distributionAlgorithm_set(rtk_trunk_group_t trk_gid, rtk_uint32 algo_bitmask)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_distributionAlgorithm_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_distributionAlgorithm_set(trk_gid, algo_bitmask);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_distributionAlgorithm_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_distributionAlgorithm_set(trk_gid, algo_bitmask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -149,16 +149,16 @@ rtk_api_ret_t rtk_trunk_distributionAlgorithm_set(rtk_trunk_group_t trk_gid, rtk
  */
 rtk_api_ret_t rtk_trunk_distributionAlgorithm_get(rtk_trunk_group_t trk_gid, rtk_uint32 *pAlgo_bitmask)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_distributionAlgorithm_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_distributionAlgorithm_get(trk_gid, pAlgo_bitmask);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_distributionAlgorithm_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_distributionAlgorithm_get(trk_gid, pAlgo_bitmask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -182,16 +182,16 @@ rtk_api_ret_t rtk_trunk_distributionAlgorithm_get(rtk_trunk_group_t trk_gid, rtk
  */
 rtk_api_ret_t rtk_trunk_trafficSeparate_set(rtk_trunk_group_t trk_gid, rtk_trunk_separateType_t separateType)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_trafficSeparate_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_trafficSeparate_set(trk_gid, separateType);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_trafficSeparate_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_trafficSeparate_set(trk_gid, separateType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -214,16 +214,16 @@ rtk_api_ret_t rtk_trunk_trafficSeparate_set(rtk_trunk_group_t trk_gid, rtk_trunk
  */
 rtk_api_ret_t rtk_trunk_trafficSeparate_get(rtk_trunk_group_t trk_gid, rtk_trunk_separateType_t *pSeparateType)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_trafficSeparate_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_trafficSeparate_get(trk_gid, pSeparateType);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_trafficSeparate_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_trafficSeparate_get(trk_gid, pSeparateType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -245,16 +245,16 @@ rtk_api_ret_t rtk_trunk_trafficSeparate_get(rtk_trunk_group_t trk_gid, rtk_trunk
  */
 rtk_api_ret_t rtk_trunk_mode_set(rtk_trunk_mode_t mode)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_mode_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_mode_set(mode);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_mode_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_mode_set(mode);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -276,16 +276,16 @@ rtk_api_ret_t rtk_trunk_mode_set(rtk_trunk_mode_t mode)
  */
 rtk_api_ret_t rtk_trunk_mode_get(rtk_trunk_mode_t *pMode)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_mode_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_mode_get(pMode);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_mode_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_mode_get(pMode);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -306,16 +306,16 @@ rtk_api_ret_t rtk_trunk_mode_get(rtk_trunk_mode_t *pMode)
  */
 rtk_api_ret_t rtk_trunk_trafficPause_set(rtk_trunk_group_t trk_gid, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_trafficPause_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_trafficPause_set(trk_gid, enable);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_trafficPause_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_trafficPause_set(trk_gid, enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -336,16 +336,16 @@ rtk_api_ret_t rtk_trunk_trafficPause_set(rtk_trunk_group_t trk_gid, rtk_enable_t
  */
 rtk_api_ret_t rtk_trunk_trafficPause_get(rtk_trunk_group_t trk_gid, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_trafficPause_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_trafficPause_get(trk_gid, pEnable);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_trafficPause_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_trafficPause_get(trk_gid, pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -372,16 +372,16 @@ rtk_api_ret_t rtk_trunk_trafficPause_get(rtk_trunk_group_t trk_gid, rtk_enable_t
  */
 rtk_api_ret_t rtk_trunk_hashMappingTable_set(rtk_trunk_group_t trk_gid, rtk_trunk_hashVal2Port_t *pHash2Port_array)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_hashMappingTable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_hashMappingTable_set(trk_gid, pHash2Port_array);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_hashMappingTable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_hashMappingTable_set(trk_gid, pHash2Port_array);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -404,16 +404,16 @@ rtk_api_ret_t rtk_trunk_hashMappingTable_set(rtk_trunk_group_t trk_gid, rtk_trun
  */
 rtk_api_ret_t rtk_trunk_hashMappingTable_get(rtk_trunk_group_t trk_gid, rtk_trunk_hashVal2Port_t *pHash2Port_array)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_hashMappingTable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_hashMappingTable_get(trk_gid, pHash2Port_array);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_hashMappingTable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_hashMappingTable_get(trk_gid, pHash2Port_array);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -433,16 +433,14 @@ rtk_api_ret_t rtk_trunk_hashMappingTable_get(rtk_trunk_group_t trk_gid, rtk_trun
  */
 rtk_api_ret_t rtk_trunk_portQueueEmpty_get(rtk_portmask_t *pEmpty_portmask)
 {
-    rtk_api_ret_t retVal;
-    
-    if (NULL == RT_MAPPER->trunk_portQueueEmpty_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->trunk_portQueueEmpty_get(pEmpty_portmask);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->trunk_portQueueEmpty_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->trunk_portQueueEmpty_get(pEmpty_portmask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
-

@@ -19,7 +19,6 @@
  *
  */
 
-
 /*
  * Include Files
  */
@@ -45,16 +44,14 @@
  */
 ret_t dal_rtl8373_ignrOUI_set(rtk_uint32 enabled)
 {
-    ret_t retVal;
+	ret_t retVal;
 
-    retVal = rtl8373_setAsicRegBit(RTL8373_PARSER_CTRL_ADDR, RTL8373_PARSER_CTRL_RFC1042_OUI_IGNORE_OFFSET,enabled);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBit(RTL8373_PARSER_CTRL_ADDR, RTL8373_PARSER_CTRL_RFC1042_OUI_IGNORE_OFFSET, enabled);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_ignrOUI_get
@@ -73,17 +70,14 @@ ret_t dal_rtl8373_ignrOUI_set(rtk_uint32 enabled)
  */
 ret_t dal_rtl8373_ignrOUI_get(rtk_uint32 *pEnabled)
 {
-    ret_t retVal;
+	ret_t retVal;
 
-    retVal = rtl8373_getAsicRegBit(RTL8373_PARSER_CTRL_ADDR, RTL8373_PARSER_CTRL_RFC1042_OUI_IGNORE_OFFSET,pEnabled);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBit(RTL8373_PARSER_CTRL_ADDR, RTL8373_PARSER_CTRL_RFC1042_OUI_IGNORE_OFFSET, pEnabled);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
-
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_rxReason_get
@@ -102,17 +96,14 @@ ret_t dal_rtl8373_ignrOUI_get(rtk_uint32 *pEnabled)
  */
 ret_t dal_rtl8373_rxReason_get(rtk_uint32 port, rtk_uint32 *pReason)
 {
-    ret_t retVal;
+	ret_t retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_PARSER_DROP_REASON_ADDR(port), RTL8373_PARSER_DROP_REASON_REASON_MASK,pReason);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_PARSER_DROP_REASON_ADDR(port), RTL8373_PARSER_DROP_REASON_REASON_MASK, pReason);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
-
+	return RT_ERR_OK;
 }
-
-
 
 /* Function Name:
  *      dal_rtl8373_fieldSelector_set
@@ -133,20 +124,18 @@ ret_t dal_rtl8373_rxReason_get(rtk_uint32 port, rtk_uint32 *pReason)
  */
 ret_t dal_rtl8373_fieldSelector_set(rtk_uint32 index, rtk_uint32 format, rtk_uint32 offset)
 {
-    ret_t retVal;
+	ret_t retVal;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_PARSER_FIELD_SELTOR_CTRL_ADDR(index), RTL8373_PARSER_FIELD_SELTOR_CTRL_FMT_MASK,format);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_PARSER_FIELD_SELTOR_CTRL_ADDR(index), RTL8373_PARSER_FIELD_SELTOR_CTRL_FMT_MASK, format);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    
-    retVal = rtl8373_setAsicRegBits(RTL8373_PARSER_FIELD_SELTOR_CTRL_ADDR(index), RTL8373_PARSER_FIELD_SELTOR_CTRL_OFFSET_MASK,offset);
-        if(retVal != RT_ERR_OK)
-            return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_PARSER_FIELD_SELTOR_CTRL_ADDR(index), RTL8373_PARSER_FIELD_SELTOR_CTRL_OFFSET_MASK, offset);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_fieldSelector_get
@@ -167,23 +156,15 @@ ret_t dal_rtl8373_fieldSelector_set(rtk_uint32 index, rtk_uint32 format, rtk_uin
  */
 ret_t dal_rtl8373_fieldSelector_get(rtk_uint32 index, rtk_uint32 *pFormat, rtk_uint32 *pOffset)
 {
-    ret_t retVal;
+	ret_t retVal;
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_PARSER_FIELD_SELTOR_CTRL_ADDR(index), RTL8373_PARSER_FIELD_SELTOR_CTRL_FMT_MASK,pFormat);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_PARSER_FIELD_SELTOR_CTRL_ADDR(index), RTL8373_PARSER_FIELD_SELTOR_CTRL_FMT_MASK, pFormat);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    
-    retVal = rtl8373_getAsicRegBits(RTL8373_PARSER_FIELD_SELTOR_CTRL_ADDR(index), RTL8373_PARSER_FIELD_SELTOR_CTRL_OFFSET_MASK,pOffset);
-        if(retVal != RT_ERR_OK)
-            return retVal;
+	retVal = rtl8373_getAsicRegBits(RTL8373_PARSER_FIELD_SELTOR_CTRL_ADDR(index), RTL8373_PARSER_FIELD_SELTOR_CTRL_OFFSET_MASK, pOffset);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
-
-
-
-
-
-
-

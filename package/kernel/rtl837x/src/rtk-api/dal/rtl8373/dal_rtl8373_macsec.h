@@ -490,7 +490,7 @@ extern rtk_api_ret_t dal_rtl8373_wrapper_int_status_set(rtk_uint32 port, rtk_uin
  *      Configure MACsec interrupt status.
  * Input:
  *      port  -  port id
- 
+
  * Output:
  *      pStatusMask  -  interrupt status mask
  * Return:
@@ -550,7 +550,7 @@ extern rtk_api_ret_t dal_rtl8373_wrapper_mib_reset(rtk_uint32 port, rtk_uint32 r
  * Note:
  *      This API will get wrapper mib counters.
  */
-extern rtk_api_ret_t dal_rtl8373_wrapper_mib_counter(rtk_uint32 port, RTL8373_WRAPPER_MIBCOUNTER mibIdx, rtk_uint64* pCounter);
+extern rtk_api_ret_t dal_rtl8373_wrapper_mib_counter(rtk_uint32 port, RTL8373_WRAPPER_MIBCOUNTER mibIdx, rtk_uint64 *pCounter);
 
 /* Function Name:
  *      dal_rtl8373_macsec_ipg_len_set
@@ -700,7 +700,4 @@ extern rtk_api_ret_t dal_rtl8373_macsec_eth_get(rtk_uint32 port, rtk_uint32 entr
  */
 extern rtk_api_ret_t dal_rtl8373_macsec_init(rtk_uint32 port_mask);
 
-
 #endif
-
-

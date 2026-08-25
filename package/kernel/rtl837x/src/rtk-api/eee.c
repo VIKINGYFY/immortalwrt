@@ -24,7 +24,6 @@
 
 #include <dal/dal_mgmt.h>
 
-
 /* Function Name:
  *      rtk_eee_init
  * Description:
@@ -49,16 +48,16 @@
 
 rtk_api_ret_t rtk_eee_init(void)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->eee_init)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->eee_init)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->eee_init();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->eee_init();
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -85,16 +84,16 @@ rtk_api_ret_t rtk_eee_init(void)
  */
 rtk_api_ret_t rtk_eee_macForceSpeedEn_set(rtk_port_t port, rtk_eee_speedInMacForceMode_t speed, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->eee_macForceSpeedEn_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->eee_macForceSpeedEn_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->eee_macForceSpeedEn_set(port, speed, enable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->eee_macForceSpeedEn_set(port, speed, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -120,16 +119,16 @@ rtk_api_ret_t rtk_eee_macForceSpeedEn_set(rtk_port_t port, rtk_eee_speedInMacFor
  */
 rtk_api_ret_t rtk_eee_macForceSpeedEn_get(rtk_port_t port, rtk_eee_speedInMacForceMode_t speed, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->eee_macForceSpeedEn_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->eee_macForceSpeedEn_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->eee_macForceSpeedEn_get(port, speed, pEnable);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->eee_macForceSpeedEn_get(port, speed, pEnable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -153,16 +152,16 @@ rtk_api_ret_t rtk_eee_macForceSpeedEn_get(rtk_port_t port, rtk_eee_speedInMacFor
  */
 rtk_api_ret_t rtk_eee_macForceAllSpeedEn_get(rtk_port_t port, rtk_uint32 *pState)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->eee_macForceAllSpeedEn_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->eee_macForceAllSpeedEn_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->eee_macForceAllSpeedEn_get(port, pState);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->eee_macForceAllSpeedEn_get(port, pState);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -189,16 +188,16 @@ rtk_api_ret_t rtk_eee_macForceAllSpeedEn_get(rtk_port_t port, rtk_uint32 *pState
  */
 rtk_api_ret_t rtk_eee_portTxRxEn_set(rtk_port_t port, rtk_enable_t rxEn, rtk_enable_t txEn)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->eee_portTxRxEn_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->eee_portTxRxEn_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->eee_portTxRxEn_set(port, rxEn, txEn);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->eee_portTxRxEn_set(port, rxEn, txEn);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -225,16 +224,14 @@ rtk_api_ret_t rtk_eee_portTxRxEn_set(rtk_port_t port, rtk_enable_t rxEn, rtk_ena
  */
 rtk_api_ret_t rtk_eee_portTxRxEn_get(rtk_port_t port, rtk_enable_t *pRxEn, rtk_enable_t *pTxEn)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->eee_portTxRxEn_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->eee_portTxRxEn_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->eee_portTxRxEn_get(port, pRxEn, pTxEn);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->eee_portTxRxEn_get(port, pRxEn, pTxEn);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-

@@ -37,19 +37,19 @@
  */
 rtk_api_ret_t dal_rtl8373_mirror_set_en(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
-    
-    if(enable > RTK_ENABLE_END)
-        return RT_ERR_INPUT;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    retVal = rtl8373_setAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_EN_OFFSET, (rtk_uint32)enable);
-    if( retVal !=  RT_ERR_OK )
-        return retVal;
+	if (enable > RTK_ENABLE_END)
+		return RT_ERR_INPUT;
 
-    return RT_ERR_OK ;
+	retVal = rtl8373_setAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_EN_OFFSET, (rtk_uint32)enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -68,21 +68,21 @@ rtk_api_ret_t dal_rtl8373_mirror_set_en(rtk_enable_t enable)
  */
 rtk_api_ret_t dal_rtl8373_mirror_setStatus_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regData = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regData = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pEnable)
-           return RT_ERR_NULL_POINTER;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    retVal = rtl8373_getAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_EN_OFFSET, &regData);
-    if( retVal !=  RT_ERR_OK )
-        return retVal;
-    *pEnable = (rtk_enable_t)regData;
+	retVal = rtl8373_getAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_EN_OFFSET, &regData);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+	*pEnable = (rtk_enable_t)regData;
 
-    return RT_ERR_OK ;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -108,46 +108,46 @@ rtk_api_ret_t dal_rtl8373_mirror_setStatus_get(rtk_enable_t *pEnable)
  */
 rtk_api_ret_t dal_rtl8373_mirror_entry_set(rtk_port_mir_set_t *pMirSet)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint16 tmp = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint16 tmp = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pMirSet)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pMirSet)
+		return RT_ERR_NULL_POINTER;
 
-    if( (pMirSet->rx_tx_sel) >=  MIRROR_DIR_END )
-        return RT_ERR_INPUT;
-    
-    /* Check port valid */
-    RTK_CHK_PORTMASK_VALID(&pMirSet->tx_pmsk);
-    RTK_CHK_PORTMASK_VALID(&pMirSet->rx_pmsk);
-    RTK_CHK_PORT_VALID(pMirSet->mtp_port); 
-    
-    /*Check mirrored port not include mtp port*/
-    tmp = 1<<(pMirSet->mtp_port);
-    
-    if( (tmp & pMirSet->rx_pmsk.bits[0]) || (tmp & pMirSet->tx_pmsk.bits[0]) )
-        return RT_ERR_INPUT;
+	if ((pMirSet->rx_tx_sel) >= MIRROR_DIR_END)
+		return RT_ERR_INPUT;
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MTP_PORT_MASK, pMirSet->mtp_port);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	/* Check port valid */
+	RTK_CHK_PORTMASK_VALID(&pMirSet->tx_pmsk);
+	RTK_CHK_PORTMASK_VALID(&pMirSet->rx_pmsk);
+	RTK_CHK_PORT_VALID(pMirSet->mtp_port);
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_MIR_SET_PMSK_ADDR, RTL8373_MIR_SET_PMSK_RX_PMSK_MASK, pMirSet->rx_pmsk.bits[0]);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	/*Check mirrored port not include mtp port*/
+	tmp = 1 << (pMirSet->mtp_port);
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_MIR_SET_PMSK_ADDR, RTL8373_MIR_SET_PMSK_TX_PMSK_MASK, pMirSet->tx_pmsk.bits[0]);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	if ((tmp & pMirSet->rx_pmsk.bits[0]) || (tmp & pMirSet->tx_pmsk.bits[0]))
+		return RT_ERR_INPUT;
 
-    retVal = rtl8373_setAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_RX_TX_SEL_OFFSET, (rtk_uint32)pMirSet->rx_tx_sel);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MTP_PORT_MASK, pMirSet->mtp_port);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	retVal = rtl8373_setAsicRegBits(RTL8373_MIR_SET_PMSK_ADDR, RTL8373_MIR_SET_PMSK_RX_PMSK_MASK, pMirSet->rx_pmsk.bits[0]);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	retVal = rtl8373_setAsicRegBits(RTL8373_MIR_SET_PMSK_ADDR, RTL8373_MIR_SET_PMSK_TX_PMSK_MASK, pMirSet->tx_pmsk.bits[0]);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	retVal = rtl8373_setAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_RX_TX_SEL_OFFSET, (rtk_uint32)pMirSet->rx_tx_sel);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -170,35 +170,34 @@ rtk_api_ret_t dal_rtl8373_mirror_entry_set(rtk_port_mir_set_t *pMirSet)
  */
 rtk_api_ret_t dal_rtl8373_mirror_entry_get(rtk_port_mir_set_t *pMirSet)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 txRxSel = 0;
-    rtk_uint32 regData = 0;
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 txRxSel = 0;
+	rtk_uint32 regData = 0;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pMirSet)
-        return RT_ERR_NULL_POINTER;
-    /* Get source portmask */
-    if((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_SET_PMSK_ADDR, RTL8373_MIR_SET_PMSK_TX_PMSK_MASK , &regData)) != RT_ERR_OK)
-        return retVal;
-    pMirSet->tx_pmsk.bits[0] = regData;
+	if (NULL == pMirSet)
+		return RT_ERR_NULL_POINTER;
+	/* Get source portmask */
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_SET_PMSK_ADDR, RTL8373_MIR_SET_PMSK_TX_PMSK_MASK, &regData)) != RT_ERR_OK)
+		return retVal;
+	pMirSet->tx_pmsk.bits[0] = regData;
 
-    if((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_SET_PMSK_ADDR, RTL8373_MIR_SET_PMSK_RX_PMSK_MASK, &regData)) != RT_ERR_OK)
-        return retVal;
-    pMirSet->rx_pmsk.bits[0] = regData;
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_SET_PMSK_ADDR, RTL8373_MIR_SET_PMSK_RX_PMSK_MASK, &regData)) != RT_ERR_OK)
+		return retVal;
+	pMirSet->rx_pmsk.bits[0] = regData;
 
-    if((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_RX_TX_SEL_OFFSET,  &txRxSel)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_RX_TX_SEL_OFFSET, &txRxSel)) != RT_ERR_OK)
+		return retVal;
 
-    /* Get monitor(destination) port */
-    if((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MTP_PORT_MASK,  &regData)) != RT_ERR_OK)
-        return retVal;
+	/* Get monitor(destination) port */
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MTP_PORT_MASK, &regData)) != RT_ERR_OK)
+		return retVal;
 
-    pMirSet->mtp_port = regData;
+	pMirSet->mtp_port = regData;
 
-    pMirSet->rx_tx_sel = (rtk_mirror_direction_t)(txRxSel) ;
-    return RT_ERR_OK;
-
+	pMirSet->rx_tx_sel = (rtk_mirror_direction_t)(txRxSel);
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -219,20 +218,20 @@ rtk_api_ret_t dal_rtl8373_mirror_entry_get(rtk_port_mir_set_t *pMirSet)
  */
 rtk_api_ret_t dal_rtl8373_mirror_portIso_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 isoEn = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 isoEn = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (enable >= RTK_ENABLE_END)
-        return RT_ERR_ENABLE;
+	if (enable >= RTK_ENABLE_END)
+		return RT_ERR_ENABLE;
 
-    isoEn = (enable == ENABLED) ? 1 : 0;
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_ISO_OFFSET, isoEn)) != RT_ERR_OK)
-        return retVal;
+	isoEn = (enable == ENABLED) ? 1 : 0;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_ISO_OFFSET, isoEn)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -253,20 +252,20 @@ rtk_api_ret_t dal_rtl8373_mirror_portIso_set(rtk_enable_t enable)
  */
 rtk_api_ret_t dal_rtl8373_mirror_portIso_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 isoEn = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 isoEn = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_ISO_OFFSET, &isoEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_SET_CTRL_ADDR, RTL8373_MIR_SET_CTRL_MIR_ISO_OFFSET, &isoEn)) != RT_ERR_OK)
+		return retVal;
 
-    *pEnable = (isoEn == 1) ? ENABLED : DISABLED;
-    return RT_ERR_OK;
+	*pEnable = (isoEn == 1) ? ENABLED : DISABLED;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -288,24 +287,24 @@ rtk_api_ret_t dal_rtl8373_mirror_portIso_get(rtk_enable_t *pEnable)
  */
 rtk_api_ret_t dal_rtl8373_mirror_vlanLeaky_set(rtk_enable_t txenable, rtk_enable_t rxenable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 txEn = 0, rxEn = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 txEn = 0, rxEn = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if ((txenable >= RTK_ENABLE_END) ||(rxenable >= RTK_ENABLE_END))
-        return RT_ERR_ENABLE;
+	if ((txenable >= RTK_ENABLE_END) || (rxenable >= RTK_ENABLE_END))
+		return RT_ERR_ENABLE;
 
-    txEn = (txenable == ENABLED) ? 1 : 0;
-    rxEn = (rxenable == ENABLED) ? 1 : 0;
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_TX_VLAN_LKY_OFFSET, txEn)) != RT_ERR_OK)
-        return retVal;
+	txEn = (txenable == ENABLED) ? 1 : 0;
+	rxEn = (rxenable == ENABLED) ? 1 : 0;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_TX_VLAN_LKY_OFFSET, txEn)) != RT_ERR_OK)
+		return retVal;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_RX_VLAN_LKY_OFFSET, rxEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_RX_VLAN_LKY_OFFSET, rxEn)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -327,24 +326,24 @@ rtk_api_ret_t dal_rtl8373_mirror_vlanLeaky_set(rtk_enable_t txenable, rtk_enable
  */
 rtk_api_ret_t dal_rtl8373_mirror_vlanLeaky_get(rtk_enable_t *pTxenable, rtk_enable_t *pRxenable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 txEn = 0, rxEn = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 txEn = 0, rxEn = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if( (NULL == pTxenable) || (NULL == pRxenable) )
-        return RT_ERR_NULL_POINTER;
+	if ((NULL == pTxenable) || (NULL == pRxenable))
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_TX_VLAN_LKY_OFFSET, &txEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_TX_VLAN_LKY_OFFSET, &txEn)) != RT_ERR_OK)
+		return retVal;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_RX_VLAN_LKY_OFFSET, &rxEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_RX_VLAN_LKY_OFFSET, &rxEn)) != RT_ERR_OK)
+		return retVal;
 
-    *pTxenable = (txEn == 1) ? ENABLED : DISABLED;
-    *pRxenable = (rxEn == 1) ? ENABLED : DISABLED;
-    return RT_ERR_OK;
+	*pTxenable = (txEn == 1) ? ENABLED : DISABLED;
+	*pRxenable = (rxEn == 1) ? ENABLED : DISABLED;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -366,24 +365,24 @@ rtk_api_ret_t dal_rtl8373_mirror_vlanLeaky_get(rtk_enable_t *pTxenable, rtk_enab
  */
 rtk_api_ret_t dal_rtl8373_mirror_isolationLeaky_set(rtk_enable_t txenable, rtk_enable_t rxenable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 txEn = 0, rxEn = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 txEn = 0, rxEn = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if ((txenable >= RTK_ENABLE_END) ||(rxenable >= RTK_ENABLE_END))
-        return RT_ERR_ENABLE;
+	if ((txenable >= RTK_ENABLE_END) || (rxenable >= RTK_ENABLE_END))
+		return RT_ERR_ENABLE;
 
-    txEn = (txenable == ENABLED) ? 1 : 0;
-    rxEn = (rxenable == ENABLED) ? 1 : 0;
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_TX_ISOLATE_LKY_OFFSET, txEn)) != RT_ERR_OK)
-        return retVal;
+	txEn = (txenable == ENABLED) ? 1 : 0;
+	rxEn = (rxenable == ENABLED) ? 1 : 0;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_TX_ISOLATE_LKY_OFFSET, txEn)) != RT_ERR_OK)
+		return retVal;
 
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_RX_ISOLATE_LKY_OFFSET, rxEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_RX_ISOLATE_LKY_OFFSET, rxEn)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -405,24 +404,24 @@ rtk_api_ret_t dal_rtl8373_mirror_isolationLeaky_set(rtk_enable_t txenable, rtk_e
  */
 rtk_api_ret_t dal_rtl8373_mirror_isolationLeaky_get(rtk_enable_t *pTxenable, rtk_enable_t *pRxenable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 txEn = 0, rxEn = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 txEn = 0, rxEn = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if( (NULL == pTxenable) || (NULL == pRxenable) )
-        return RT_ERR_NULL_POINTER;
+	if ((NULL == pTxenable) || (NULL == pRxenable))
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_TX_ISOLATE_LKY_OFFSET, &txEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_TX_ISOLATE_LKY_OFFSET, &txEn)) != RT_ERR_OK)
+		return retVal;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_RX_ISOLATE_LKY_OFFSET, &rxEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_RX_ISOLATE_LKY_OFFSET, &rxEn)) != RT_ERR_OK)
+		return retVal;
 
-    *pTxenable = (txEn == 1) ? ENABLED : DISABLED;
-    *pRxenable = (rxEn == 1) ? ENABLED : DISABLED;
-    return RT_ERR_OK;
+	*pTxenable = (txEn == 1) ? ENABLED : DISABLED;
+	*pRxenable = (rxEn == 1) ? ENABLED : DISABLED;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -447,20 +446,20 @@ rtk_api_ret_t dal_rtl8373_mirror_isolationLeaky_get(rtk_enable_t *pTxenable, rtk
  */
 rtk_api_ret_t dal_rtl8373_mirror_keep_set(rtk_mirror_keep_t mode)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 keepMode = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 keepMode = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if (mode >= MIRROR_KEEP_END)
-        return RT_ERR_ENABLE;
+	if (mode >= MIRROR_KEEP_END)
+		return RT_ERR_ENABLE;
 
-    keepMode = (mode == MIRROR_FOLLOW_VLAN) ? 0 : 1;
-    if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_REALKEEP_EN_OFFSET, keepMode)) != RT_ERR_OK)
-        return retVal;
+	keepMode = (mode == MIRROR_FOLLOW_VLAN) ? 0 : 1;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_REALKEEP_EN_OFFSET, keepMode)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -485,20 +484,20 @@ rtk_api_ret_t dal_rtl8373_mirror_keep_set(rtk_mirror_keep_t mode)
  */
 rtk_api_ret_t dal_rtl8373_mirror_keep_get(rtk_mirror_keep_t *pMode)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 keepMode = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 keepMode = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pMode)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pMode)
+		return RT_ERR_NULL_POINTER;
 
-    if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_REALKEEP_EN_OFFSET, &keepMode)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIR_REALKEEP_EN_OFFSET, &keepMode)) != RT_ERR_OK)
+		return retVal;
 
-    *pMode = (keepMode == 0) ? MIRROR_FOLLOW_VLAN : MIRROR_KEEP_ORIGINAL;
-    return RT_ERR_OK;
+	*pMode = (keepMode == 0) ? MIRROR_FOLLOW_VLAN : MIRROR_KEEP_ORIGINAL;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -522,24 +521,24 @@ rtk_api_ret_t dal_rtl8373_mirror_keep_get(rtk_mirror_keep_t *pMode)
  */
 rtk_api_ret_t dal_rtl8373_mirror_override_set(rtk_enable_t rxMirror, rtk_enable_t txMirror, rtk_enable_t aclMirror)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if( (rxMirror >= RTK_ENABLE_END) || (txMirror >= RTK_ENABLE_END) || (aclMirror >= RTK_ENABLE_END))
-        return RT_ERR_NULL_POINTER;
+	if ((rxMirror >= RTK_ENABLE_END) || (txMirror >= RTK_ENABLE_END) || (aclMirror >= RTK_ENABLE_END))
+		return RT_ERR_NULL_POINTER;
 
-    if((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_RX_OVERRIDE_EN_OFFSET, (rxMirror == ENABLED) ? 1 : 0)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_RX_OVERRIDE_EN_OFFSET, (rxMirror == ENABLED) ? 1 : 0)) != RT_ERR_OK)
+		return retVal;
 
-    if((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_TX_OVERRIDE_EN_OFFSET, (txMirror == ENABLED) ? 1 : 0)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_TX_OVERRIDE_EN_OFFSET, (txMirror == ENABLED) ? 1 : 0)) != RT_ERR_OK)
+		return retVal;
 
-    if((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_ACL_OVERRIDE_EN_OFFSET, (aclMirror == ENABLED) ? 1 : 0)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_setAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_ACL_OVERRIDE_EN_OFFSET, (aclMirror == ENABLED) ? 1 : 0)) != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -564,28 +563,28 @@ rtk_api_ret_t dal_rtl8373_mirror_override_set(rtk_enable_t rxMirror, rtk_enable_
  */
 rtk_api_ret_t dal_rtl8373_mirror_override_get(rtk_enable_t *pRxMirror, rtk_enable_t *pTxMirror, rtk_enable_t *pAclMirror)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 txEn = 0, rxEn = 0, aclEn = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 txEn = 0, rxEn = 0, aclEn = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if( (pRxMirror == NULL) || (pTxMirror == NULL) || (pAclMirror == NULL))
-        return RT_ERR_NULL_POINTER;
+	if ((pRxMirror == NULL) || (pTxMirror == NULL) || (pAclMirror == NULL))
+		return RT_ERR_NULL_POINTER;
 
-    if((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_RX_OVERRIDE_EN_OFFSET, &rxEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_RX_OVERRIDE_EN_OFFSET, &rxEn)) != RT_ERR_OK)
+		return retVal;
 
-    if((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_TX_OVERRIDE_EN_OFFSET, &txEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_TX_OVERRIDE_EN_OFFSET, &txEn)) != RT_ERR_OK)
+		return retVal;
 
-    if((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_ACL_OVERRIDE_EN_OFFSET, &aclEn)) != RT_ERR_OK)
-        return retVal;
+	if ((retVal = rtl8373_getAsicRegBit(RTL8373_MIR_CTRL_ADDR, RTL8373_MIR_CTRL_MIRROR_ACL_OVERRIDE_EN_OFFSET, &aclEn)) != RT_ERR_OK)
+		return retVal;
 
-    *pRxMirror = (rxEn == 1) ? ENABLED : DISABLED;
-    *pTxMirror = (txEn == 1) ? ENABLED : DISABLED;
-    *pAclMirror = (aclEn == 1) ? ENABLED : DISABLED;
-    return RT_ERR_OK;
+	*pRxMirror = (rxEn == 1) ? ENABLED : DISABLED;
+	*pTxMirror = (txEn == 1) ? ENABLED : DISABLED;
+	*pAclMirror = (aclEn == 1) ? ENABLED : DISABLED;
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -606,18 +605,18 @@ rtk_api_ret_t dal_rtl8373_mirror_override_get(rtk_enable_t *pRxMirror, rtk_enabl
  */
 rtk_api_ret_t dal_rtl8373_mirror_sampeRate_set(rtk_uint32 rateVal)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(rateVal > MIR_SAMPLE_RATE_MAX)
-        return RT_ERR_INPUT;
-    
-    if((retVal = rtl8373_setAsicRegBits(RTL8373_MIR_SAMPLE_CRTL_ADDR, RTL8373_MIR_SAMPLE_CRTL_RATE_MASK, rateVal) != RT_ERR_OK))
-           return retVal;
-    
-    return RT_ERR_OK;
+	if (rateVal > MIR_SAMPLE_RATE_MAX)
+		return RT_ERR_INPUT;
+
+	if ((retVal = rtl8373_setAsicRegBits(RTL8373_MIR_SAMPLE_CRTL_ADDR, RTL8373_MIR_SAMPLE_CRTL_RATE_MASK, rateVal) != RT_ERR_OK))
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -638,18 +637,18 @@ rtk_api_ret_t dal_rtl8373_mirror_sampeRate_set(rtk_uint32 rateVal)
  */
 rtk_api_ret_t dal_rtl8373_mirror_sampeRate_get(rtk_uint32 *pRateVal)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
-        
-    if( pRateVal == NULL)
-        return RT_ERR_NULL_POINTER;
-    
-    if((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_SAMPLE_CRTL_ADDR, RTL8373_MIR_SAMPLE_CRTL_RATE_MASK, pRateVal) != RT_ERR_OK))
-           return retVal;
-    
-    return RT_ERR_OK;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
+
+	if (pRateVal == NULL)
+		return RT_ERR_NULL_POINTER;
+
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_SAMPLE_CRTL_ADDR, RTL8373_MIR_SAMPLE_CRTL_RATE_MASK, pRateVal) != RT_ERR_OK))
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -670,18 +669,18 @@ rtk_api_ret_t dal_rtl8373_mirror_sampeRate_get(rtk_uint32 *pRateVal)
  */
 rtk_api_ret_t dal_rtl8373_mirror_pktCnt_get(rtk_uint32 *pCntr)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
-        
-    if( pCntr == NULL)
-        return RT_ERR_NULL_POINTER;
-    
-    if((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_MATCHED_ADDR, RTL8373_MIR_MATCHED_PKT_CNT_MASK, pCntr) != RT_ERR_OK))
-           return retVal;
-    
-    return RT_ERR_OK;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
+
+	if (pCntr == NULL)
+		return RT_ERR_NULL_POINTER;
+
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_MATCHED_ADDR, RTL8373_MIR_MATCHED_PKT_CNT_MASK, pCntr) != RT_ERR_OK))
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -702,18 +701,18 @@ rtk_api_ret_t dal_rtl8373_mirror_pktCnt_get(rtk_uint32 *pCntr)
  */
 rtk_api_ret_t dal_rtl8373_mirror_samplePktCnt_get(rtk_uint32 *pCntr)
 {
-    rtk_api_ret_t retVal = 0;
-    
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
-        
-    if( pCntr == NULL)
-        return RT_ERR_NULL_POINTER;
-    
-    if((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_MATCHED_ADDR, RTL8373_MIR_MATCHED_SAMPLE_PKT_CNT_MASK, pCntr) != RT_ERR_OK))
-           return retVal;
-    
-    return RT_ERR_OK;
+	rtk_api_ret_t retVal = 0;
+
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
+
+	if (pCntr == NULL)
+		return RT_ERR_NULL_POINTER;
+
+	if ((retVal = rtl8373_getAsicRegBits(RTL8373_MIR_MATCHED_ADDR, RTL8373_MIR_MATCHED_SAMPLE_PKT_CNT_MASK, pCntr) != RT_ERR_OK))
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -733,19 +732,19 @@ rtk_api_ret_t dal_rtl8373_mirror_samplePktCnt_get(rtk_uint32 *pCntr)
  */
 rtk_api_ret_t dal_rtl8373_rspan_rxTag_en(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(enable > RTK_ENABLE_END)
-        return RT_ERR_INPUT;
-    
-    retVal = rtl8373_setAsicRegBit(RTL8373_MIR_RSPAN_CTRL_ADDR, RTL8373_MIR_RSPAN_CTRL_RX_TAG_EN_OFFSET, (rtk_uint32)enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	if (enable > RTK_ENABLE_END)
+		return RT_ERR_INPUT;
 
-    return RT_ERR_OK;
+	retVal = rtl8373_setAsicRegBit(RTL8373_MIR_RSPAN_CTRL_ADDR, RTL8373_MIR_RSPAN_CTRL_RX_TAG_EN_OFFSET, (rtk_uint32)enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -765,22 +764,22 @@ rtk_api_ret_t dal_rtl8373_rspan_rxTag_en(rtk_enable_t enable)
  */
 rtk_api_ret_t dal_rtl8373_rspan_rxTagEnSts_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regData = 0;
-    
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regData = 0;
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
-    
-    retVal = rtl8373_getAsicRegBit(RTL8373_MIR_RSPAN_CTRL_ADDR, RTL8373_MIR_RSPAN_CTRL_RX_TAG_EN_OFFSET, &regData);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    *pEnable = (rtk_enable_t )regData;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    return RT_ERR_OK;
+	retVal = rtl8373_getAsicRegBit(RTL8373_MIR_RSPAN_CTRL_ADDR, RTL8373_MIR_RSPAN_CTRL_RX_TAG_EN_OFFSET, &regData);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	*pEnable = (rtk_enable_t)regData;
+
+	return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -790,7 +789,7 @@ rtk_api_ret_t dal_rtl8373_rspan_rxTagEnSts_get(rtk_enable_t *pEnable)
  * Input:
  *      pRspanTag  - rspan tag context:TPID PRI CFI  VID .
  * Output:
- *      None  
+ *      None
  * Return:
  *      RT_ERR_OK           - OK
  *      RT_ERR_FAILED       - Failed
@@ -800,37 +799,36 @@ rtk_api_ret_t dal_rtl8373_rspan_rxTagEnSts_get(rtk_enable_t *pEnable)
  */
 rtk_api_ret_t dal_rtl8373_rspan_tagContext_set(rtk_rspan_tag_t *pRspanTag)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regData = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regData = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pRspanTag)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pRspanTag)
+		return RT_ERR_NULL_POINTER;
 
-    if (pRspanTag->tpid > RTK_MAX_NUM_OF_PROTO_TYPE)
-        return RT_ERR_INPUT;
+	if (pRspanTag->tpid > RTK_MAX_NUM_OF_PROTO_TYPE)
+		return RT_ERR_INPUT;
 
-    if (pRspanTag->vid > RTL8373_VIDMAX)
-        return RT_ERR_VLAN_VID;
+	if (pRspanTag->vid > RTL8373_VIDMAX)
+		return RT_ERR_VLAN_VID;
 
-    if (pRspanTag->pri > RTL8373_PRIMAX)
-        return RT_ERR_VLAN_PRIORITY;
+	if (pRspanTag->pri > RTL8373_PRIMAX)
+		return RT_ERR_VLAN_PRIORITY;
 
-    if (pRspanTag->cfi > RTK_ENABLE_END)
-        return RT_ERR_INPUT;
+	if (pRspanTag->cfi > RTK_ENABLE_END)
+		return RT_ERR_INPUT;
 
-    regData = ((pRspanTag->tpid  & 0xFFFF)<< RTL8373_MIR_RSPAN_TAG_CTRL_TPID_OFFSET) | \
-                    ((pRspanTag->pri & 0x7) << RTL8373_MIR_RSPAN_TAG_CTRL_PRI_OFFSET) | \
-                    ((pRspanTag->cfi & 0x1) << RTL8373_MIR_RSPAN_TAG_CTRL_CFI_OFFSET) | (pRspanTag->vid & 0xFFF);                    
+	regData = ((pRspanTag->tpid & 0xFFFF) << RTL8373_MIR_RSPAN_TAG_CTRL_TPID_OFFSET) | ((pRspanTag->pri & 0x7) << RTL8373_MIR_RSPAN_TAG_CTRL_PRI_OFFSET) | ((pRspanTag->cfi & 0x1) << RTL8373_MIR_RSPAN_TAG_CTRL_CFI_OFFSET) |
+		  (pRspanTag->vid & 0xFFF);
 
-    retVal = rtl8373_setAsicReg(RTL8373_MIR_RSPAN_TAG_CTRL_ADDR, regData);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicReg(RTL8373_MIR_RSPAN_TAG_CTRL_ADDR, regData);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
- }
+	return RT_ERR_OK;
+}
 
 /* Function Name:
  *      dal_rtl8373_rspan_tagContext_get
@@ -849,19 +847,19 @@ rtk_api_ret_t dal_rtl8373_rspan_tagContext_set(rtk_rspan_tag_t *pRspanTag)
  */
 rtk_api_ret_t dal_rtl8373_rspan_tagContext_get(rtk_rspan_tag_t *pRspanTag)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regData = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regData = 0;
 
-    retVal = rtl8373_getAsicReg(RTL8373_MIR_RSPAN_TAG_CTRL_ADDR, &regData);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_getAsicReg(RTL8373_MIR_RSPAN_TAG_CTRL_ADDR, &regData);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    pRspanTag->tpid = (regData >> RTL8373_MIR_RSPAN_TAG_CTRL_TPID_OFFSET) & RTK_MAX_NUM_OF_PROTO_TYPE ;
-    pRspanTag->pri = (regData >> RTL8373_MIR_RSPAN_TAG_CTRL_PRI_OFFSET) & RTL8373_PRIMAX ;
-    pRspanTag->cfi = (regData >> RTL8373_MIR_RSPAN_TAG_CTRL_CFI_OFFSET) & 0x1 ;
-    pRspanTag->vid = (regData >> RTL8373_MIR_RSPAN_TAG_CTRL_VID_OFFSET) & RTL8373_VIDMAX ;
+	pRspanTag->tpid = (regData >> RTL8373_MIR_RSPAN_TAG_CTRL_TPID_OFFSET) & RTK_MAX_NUM_OF_PROTO_TYPE;
+	pRspanTag->pri = (regData >> RTL8373_MIR_RSPAN_TAG_CTRL_PRI_OFFSET) & RTL8373_PRIMAX;
+	pRspanTag->cfi = (regData >> RTL8373_MIR_RSPAN_TAG_CTRL_CFI_OFFSET) & 0x1;
+	pRspanTag->vid = (regData >> RTL8373_MIR_RSPAN_TAG_CTRL_VID_OFFSET) & RTL8373_VIDMAX;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /*
@@ -880,17 +878,17 @@ rtk_api_ret_t dal_rtl8373_rspan_tagContext_get(rtk_rspan_tag_t *pRspanTag)
 */
 rtk_api_ret_t dal_rtl8373_rspan_tagAdd_set(rtk_portmask_t pmsk)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
-    RTK_CHK_PORTMASK_VALID(&pmsk);
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
+	RTK_CHK_PORTMASK_VALID(&pmsk);
 
-    retVal = rtl8373_setAsicRegBits(RTL8373_MIR_RSPAN_TX_PORT_CTRL_ADDR, RTL8373_MIR_RSPAN_TX_PORT_CTRL_TAG_ADD_MASK, pmsk.bits[0]);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	retVal = rtl8373_setAsicRegBits(RTL8373_MIR_RSPAN_TX_PORT_CTRL_ADDR, RTL8373_MIR_RSPAN_TX_PORT_CTRL_TAG_ADD_MASK, pmsk.bits[0]);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 
 /*
@@ -909,22 +907,22 @@ rtk_api_ret_t dal_rtl8373_rspan_tagAdd_set(rtk_portmask_t pmsk)
 */
 rtk_api_ret_t dal_rtl8373_rspan_tagAdd_get(rtk_portmask_t *pPmskSts)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regData = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regData = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
-    
-    if(NULL == pPmskSts)
-        return RT_ERR_NULL_POINTER;
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    retVal = rtl8373_getAsicRegBits(RTL8373_MIR_RSPAN_TX_PORT_CTRL_ADDR, RTL8373_MIR_RSPAN_TX_PORT_CTRL_TAG_ADD_MASK, &regData);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	if (NULL == pPmskSts)
+		return RT_ERR_NULL_POINTER;
 
-    pPmskSts->bits[0] = regData;
+	retVal = rtl8373_getAsicRegBits(RTL8373_MIR_RSPAN_TX_PORT_CTRL_ADDR, RTL8373_MIR_RSPAN_TX_PORT_CTRL_TAG_ADD_MASK, &regData);
+	if (retVal != RT_ERR_OK)
+		return retVal;
 
-    return RT_ERR_OK;
+	pPmskSts->bits[0] = regData;
+
+	return RT_ERR_OK;
 }
 
 /*
@@ -943,19 +941,19 @@ rtk_api_ret_t dal_rtl8373_rspan_tagAdd_get(rtk_portmask_t *pPmskSts)
 */
 rtk_api_ret_t dal_rtl8373_rspan_tagRemove_set(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal = 0;
+	rtk_api_ret_t retVal = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(enable > RTK_ENABLE_END)
-        return RT_ERR_INPUT;
-    
-    retVal = rtl8373_setAsicRegBit(RTL8373_MIR_RSPAN_RX_ACT_ADDR, RTL8373_MIR_RSPAN_RX_ACT_TAG_RM_OFFSET, enable);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	if (enable > RTK_ENABLE_END)
+		return RT_ERR_INPUT;
 
-    return RT_ERR_OK;
+	retVal = rtl8373_setAsicRegBit(RTL8373_MIR_RSPAN_RX_ACT_ADDR, RTL8373_MIR_RSPAN_RX_ACT_TAG_RM_OFFSET, enable);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	return RT_ERR_OK;
 }
 
 /*
@@ -966,7 +964,7 @@ rtk_api_ret_t dal_rtl8373_rspan_tagRemove_set(rtk_enable_t enable)
 *Input:
 *       None
 *Output:
-*       pEnable - 
+*       pEnable -
 *Return:
 *       RT_ERR_OK           - OK
 *       RT_ERR_FAILED       - Failed
@@ -974,21 +972,20 @@ rtk_api_ret_t dal_rtl8373_rspan_tagRemove_set(rtk_enable_t enable)
 */
 rtk_api_ret_t dal_rtl8373_rspan_tagRemove_get(rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal = 0;
-    rtk_uint32 regData = 0;
+	rtk_api_ret_t retVal = 0;
+	rtk_uint32 regData = 0;
 
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    if(NULL == pEnable)
-        return RT_ERR_NULL_POINTER;
-    
-    retVal = rtl8373_getAsicRegBit(RTL8373_MIR_RSPAN_RX_ACT_ADDR, RTL8373_MIR_RSPAN_RX_ACT_TAG_RM_OFFSET, &regData);
-    if(retVal != RT_ERR_OK)
-        return retVal;
+	if (NULL == pEnable)
+		return RT_ERR_NULL_POINTER;
 
-    *pEnable = (rtk_enable_t )regData;
-    
-    return RT_ERR_OK;
+	retVal = rtl8373_getAsicRegBit(RTL8373_MIR_RSPAN_RX_ACT_ADDR, RTL8373_MIR_RSPAN_RX_ACT_TAG_RM_OFFSET, &regData);
+	if (retVal != RT_ERR_OK)
+		return retVal;
+
+	*pEnable = (rtk_enable_t)regData;
+
+	return RT_ERR_OK;
 }
-

@@ -18,29 +18,26 @@
 #ifndef __RTK_API_GPIO_H__
 #define __RTK_API_GPIO_H__
 
-#define GPIO_PIN_NUM            (64)
-#define GPIO_MAX_PIN_NUM    (GPIO_PIN_NUM -1)
+#define GPIO_PIN_NUM (64)
+#define GPIO_MAX_PIN_NUM (GPIO_PIN_NUM - 1)
 
-typedef enum rtk_gpio_groupReg_e 
-{
-    GPIO_INOUT_LSB_REG = 0,
-    GPIO_INOUT_MSB_REG,
-    GPIO_INOUT_REG_END, 
-}rtk_gpio_groupReg_t;
+typedef enum rtk_gpio_groupReg_e {
+	GPIO_INOUT_LSB_REG = 0,
+	GPIO_INOUT_MSB_REG,
+	GPIO_INOUT_REG_END,
+} rtk_gpio_groupReg_t;
 
-typedef enum rtk_gpio_direction_e 
-{
-    GPIO_DIR_INPUT = 0,
-    GPIO_DIR_OUTPUT,
-    GPIO_DIR_END, 
-}rtk_gpio_direction_t;
+typedef enum rtk_gpio_direction_e {
+	GPIO_DIR_INPUT = 0,
+	GPIO_DIR_OUTPUT,
+	GPIO_DIR_END,
+} rtk_gpio_direction_t;
 
-typedef enum rtk_gpio_level_e 
-{
-    GPIO_LEVEL_LOW = 0,
-    GPIO_LEVEL_HIGH,
-    GPIO_LEVEL_END, 
-}rtk_gpio_level_t;
+typedef enum rtk_gpio_level_e {
+	GPIO_LEVEL_LOW = 0,
+	GPIO_LEVEL_HIGH,
+	GPIO_LEVEL_END,
+} rtk_gpio_level_t;
 
 /* Function Name:
  *      rtk_gpio_muxSel_set
@@ -55,14 +52,14 @@ typedef enum rtk_gpio_level_e
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_gpio_muxSel_set(rtk_uint32 gpioNum);
 
 /* Function Name:
  *      dal_rtl8371c_gpio_muxSel_get
  * Description:
- *      Get gpio pin status 
+ *      Get gpio pin status
  * Input:
  *      gpioNum - GPIO pin number
  * Output:
@@ -72,9 +69,9 @@ extern rtk_api_ret_t rtk_gpio_muxSel_set(rtk_uint32 gpioNum);
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
-extern rtk_api_ret_t rtk_gpio_muxSel_get(rtk_uint32 gpioNum, rtk_enable_t *pStatus );
+extern rtk_api_ret_t rtk_gpio_muxSel_get(rtk_uint32 gpioNum, rtk_enable_t *pStatus);
 
 /* Function Name:
  *      rtk_gpio_groupVal_write
@@ -90,14 +87,14 @@ extern rtk_api_ret_t rtk_gpio_muxSel_get(rtk_uint32 gpioNum, rtk_enable_t *pStat
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_gpio_groupVal_write(rtk_gpio_groupReg_t idx, rtk_uint32 val);
 
 /* Function Name:
  *      rtk_gpio_groupVal_read
  * Description:
- *      Read group 32bits gpio pin val 
+ *      Read group 32bits gpio pin val
  * Input:
  *      idx - GPIO pin LSB 32bits or MSB 31bits
  * Output:
@@ -107,7 +104,7 @@ extern rtk_api_ret_t rtk_gpio_groupVal_write(rtk_gpio_groupReg_t idx, rtk_uint32
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_gpio_groupVal_read(rtk_gpio_groupReg_t idx, rtk_uint32 *pVal);
 
@@ -125,14 +122,14 @@ extern rtk_api_ret_t rtk_gpio_groupVal_read(rtk_gpio_groupReg_t idx, rtk_uint32 
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
-extern rtk_api_ret_t rtk_gpio_pinVal_write(rtk_uint32 gpioNum, rtk_gpio_level_t val );
+extern rtk_api_ret_t rtk_gpio_pinVal_write(rtk_uint32 gpioNum, rtk_gpio_level_t val);
 
 /* Function Name:
  *      rtk_gpio_pinVal_read
  * Description:
- *      Read gpio pin val 
+ *      Read gpio pin val
  * Input:
  *      gpioNum - GPIO pin num
  * Output:
@@ -142,7 +139,7 @@ extern rtk_api_ret_t rtk_gpio_pinVal_write(rtk_uint32 gpioNum, rtk_gpio_level_t 
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_gpio_pinVal_read(rtk_uint32 gpioNum, rtk_gpio_level_t *pVal);
 
@@ -160,7 +157,7 @@ extern rtk_api_ret_t rtk_gpio_pinVal_read(rtk_uint32 gpioNum, rtk_gpio_level_t *
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_gpio_pinDir_set(rtk_uint32 gpioNum, rtk_gpio_direction_t dir);
 
@@ -177,7 +174,7 @@ extern rtk_api_ret_t rtk_gpio_pinDir_set(rtk_uint32 gpioNum, rtk_gpio_direction_
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_gpio_pinDir_get(rtk_uint32 gpioNum, rtk_gpio_direction_t *pDir);
 
@@ -194,10 +191,8 @@ extern rtk_api_ret_t rtk_gpio_pinDir_get(rtk_uint32 gpioNum, rtk_gpio_direction_
  *      RT_ERR_SMI      - SMI access error
  *      RT_ERR_RANGE  - out of range
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t rtk_gpio_groupDir_get(rtk_gpio_groupReg_t idx, rtk_uint32 *pDirVal);
 
 #endif /* __RTK_API_GPIO_H__ */
-
-

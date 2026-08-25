@@ -1,0 +1,49 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 25 Jul 2026 22:30:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: use source IP flow keys
+
+The flow insertion command hashes entries by source IP regardless of the
+packet direction.  Boot firmware can leave one or more FLOW_CTRL1 key
+selectors set, making the corresponding direction use the destination IP
+for lookup instead.  Such entries are accepted by the hardware but never
+match packets; on IPQ5332 this was observed as 0x00020000 in both unicast
+FLOW_CTRL1 rows and zero packet counters under sustained traffic.
+
+Clear every unicast key selector for both IPv4 and IPv6 so lookup uses the
+same source-IP key as insertion in every direction.  Leave the multicast
+row untouched.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/ethernet/qualcomm/ppe/ppe_flow.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -639,7 +639,7 @@ int ppe_nexthop_set(struct ppe_device *p
+ int ppe_flow_hw_init(struct ppe_device *ppe_dev)
+ {
+ 	u32 mask, val;
+-	int ret;
++	int type, ret;
+ 
+ 	mutex_init(&ppe_dev->flow_lock);
+ 
+@@ -649,6 +649,17 @@ int ppe_flow_hw_init(struct ppe_device *
+ 	 */
+ 	ppe_dev->flow_cmd_id = 1;
+ 
++	/* Flow insertion hashes on the source address for both directions.
++	 * Match lookup to it instead of inheriting firmware key selection.
++	 */
++	for (type = 0; type < 2; type++) {
++		ret = regmap_update_bits(ppe_dev->regmap,
++					 PPE_FLOW_CTRL1_ADDR + type * PPE_FLOW_CTRL1_INC,
++					 PPE_FLOW_CTRL1_KEY_SEL, 0);
++		if (ret)
++			return ret;
++	}
++
+ 	mask = PPE_L3_ROUTE_CTRL_IP_MRU_FAIL |
+ 	       PPE_L3_ROUTE_CTRL_IP_MRU_DEACCEL |
+ 	       PPE_L3_ROUTE_CTRL_IP_MTU_FAIL |

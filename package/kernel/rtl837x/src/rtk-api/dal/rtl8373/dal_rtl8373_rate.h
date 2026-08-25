@@ -15,14 +15,14 @@
  *
  */
 
-#ifndef  __DAL_RTL8373_RATE_H__
-#define  __DAL_RTL8373_RATE_H__
+#ifndef __DAL_RTL8373_RATE_H__
+#define __DAL_RTL8373_RATE_H__
 #include <rate.h>
 
 /* Function Name:
  *      dal_rtl8373_rate_igrBwCtrlPortEn_set
  * Description:
- *      Enable or disable port ingress bandwidth control 
+ *      Enable or disable port ingress bandwidth control
  * Input:
  *      port        - Port id
  *      bwEn        - enable ingress bandwidth control or not
@@ -36,14 +36,14 @@
  *      RT_ERR_ENABLE       - Invalid IFG parameter.
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_rate_igrBwCtrlPortEn_set(rtk_port_t port, rtk_enable_t bwEn);
 
 /* Function Name:
  *      dal_rtl8373_rate_igrBwCtrlPortEn_get
  * Description:
- *      Enable or disable port ingress bandwidth control 
+ *      Enable or disable port ingress bandwidth control
  * Input:
  *      port        - Port id
  *
@@ -57,7 +57,7 @@ extern rtk_api_ret_t dal_rtl8373_rate_igrBwCtrlPortEn_set(rtk_port_t port, rtk_e
  *      RT_ERR_ENABLE       - Invalid IFG parameter.
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_rate_igrBwCtrlPortEn_get(rtk_port_t port, rtk_enable_t *pBwEn);
 
@@ -164,11 +164,10 @@ extern rtk_api_ret_t dal_rtl8373_rate_igrBwCtrlIfg_get(rtk_enable_t *pIfgInclude
  */
 extern rtk_api_ret_t dal_rtl8373_rate_igrBwCtrlCongestSts_get(rtk_port_t port, rtk_rate_igrBwCongestSts_t *pCongestSts);
 
-
 /* Function Name:
  *      dal_rtl8373_rate_egrBwCtrlPortEn_set
  * Description:
- *      Enable or disable port egress bandwidth control 
+ *      Enable or disable port egress bandwidth control
  * Input:
  *      port        - Port id
  *      bwEn        - enable egress bandwidth control or not
@@ -182,14 +181,14 @@ extern rtk_api_ret_t dal_rtl8373_rate_igrBwCtrlCongestSts_get(rtk_port_t port, r
  *      RT_ERR_ENABLE       - Invalid IFG parameter.
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_rate_egrBwCtrlPortEn_set(rtk_port_t port, rtk_enable_t bwEn);
 
 /* Function Name:
  *      dal_rtl8373_rate_egrBwCtrlPortEn_get
  * Description:
- *      Enable or disable port egress bandwidth control 
+ *      Enable or disable port egress bandwidth control
  * Input:
  *      port        - Port id
  *
@@ -203,10 +202,9 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrBwCtrlPortEn_set(rtk_port_t port, rtk_e
  *      RT_ERR_ENABLE       - Invalid IFG parameter.
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
- *     
+ *
  */
 extern rtk_api_ret_t dal_rtl8373_rate_egrBwCtrlPortEn_get(rtk_port_t port, rtk_enable_t *pBwEn);
-
 
 /* Function Name:
  *      dal_rtl8373_rate_egrBwCtrlRate_set
@@ -215,7 +213,7 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrBwCtrlPortEn_get(rtk_port_t port, rtk_e
  * Input:
  *      port        - Port id
  *      rate        - Rate of share meter(uint: kpbs)
- *      ipg  	    - include ipg or not, ENABLE:include DISABLE:exclude
+ *      ipg	    - include ipg or not, ENABLE:include DISABLE:exclude
  * Output:
  *      None
  * Return:
@@ -254,8 +252,6 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrBwCtrlRate_set(rtk_port_t port, rtk_rat
  */
 extern rtk_api_ret_t dal_rtl8373_rate_egrBwCtrlRate_get(rtk_port_t port, rtk_rate_t *pRate, rtk_enable_t *pIpg);
 
-
-
 /* Function Name:
  *      dal_rtl8373_rate_egrQueueMaxBwEn_set
  * Description:
@@ -263,7 +259,7 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrBwCtrlRate_get(rtk_port_t port, rtk_rat
  * Input:
  *      port        - Port id
  *      qid         - Queue ID
- *      enable 	    - 1:enable, 0:disable
+ *      enable	    - 1:enable, 0:disable
  * Output:
  *      None
  * Return:
@@ -277,7 +273,6 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrBwCtrlRate_get(rtk_port_t port, rtk_rat
  */
 extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwEn_set(rtk_port_t port, rtk_qid_t qid, rtk_enable_t enable);
 
-
 /* Function Name:
  *      dal_rtl8373_rate_egrQueueMaxBwEn_gget
  * Description:
@@ -285,7 +280,7 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwEn_set(rtk_port_t port, rtk_q
  * Input:
  *      port        - Port id
  *      qid         - Queue ID
- *      pEnable 	    - 1:enable, 0:disable
+ *      pEnable	    - 1:enable, 0:disable
  * Output:
  *      None
  * Return:
@@ -297,8 +292,7 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwEn_set(rtk_port_t port, rtk_q
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
  */
-extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwEn_get(rtk_port_t port, rtk_qid_t qid, rtk_enable_t * pEnable);
-
+extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwEn_get(rtk_port_t port, rtk_qid_t qid, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_rate_egrQueueMaxBwRate_set
@@ -307,7 +301,7 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwEn_get(rtk_port_t port, rtk_q
  * Input:
  *      port        - Port id
  *      qid         - Queue ID
- *      rate 	    - Rate of share meter(uint: kpbs)
+ *      rate	    - Rate of share meter(uint: kpbs)
  * Output:
  *      None
  * Return:
@@ -321,7 +315,6 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwEn_get(rtk_port_t port, rtk_q
  */
 extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwRate_set(rtk_port_t port, rtk_qid_t qid, rtk_rate_t rate);
 
-
 /* Function Name:
  *      dal_rtl8373_rate_egrQueueMaxBwRate_get
  * Description:
@@ -329,7 +322,7 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwRate_set(rtk_port_t port, rtk
  * Input:
  *      port        - Port id
  *      qid         - Queue ID
- *      rate 	    - Rate of share meter(uint: kpbs)
+ *      rate	    - Rate of share meter(uint: kpbs)
  * Output:
  *      None
  * Return:
@@ -341,15 +334,6 @@ extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwRate_set(rtk_port_t port, rtk
  *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
  * Note:
  */
-extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwRate_get(rtk_port_t port, rtk_qid_t qid, rtk_rate_t * pRate);
-
-
-
-
-
-
-
+extern rtk_api_ret_t dal_rtl8373_rate_egrQueueMaxBwRate_get(rtk_port_t port, rtk_qid_t qid, rtk_rate_t *pRate);
 
 #endif /*  __DAL_RTL8373_RATE_H__ */
-
-

@@ -45,16 +45,16 @@ struct rtk_gsw *rtl_gbl_priv;
  */
 ret_t rtl8373_setAsicRegBit(rtk_uint32 reg, rtk_uint32 offset, rtk_uint32 value)
 {
-    int ret;
+	int ret;
 
-    if(value)
-        ret = regmap_set_bits(rtl_gbl_priv->map, reg, BIT(offset));
-    else
-        ret = regmap_clear_bits(rtl_gbl_priv->map, reg, BIT(offset));
+	if (value)
+		ret = regmap_set_bits(rtl_gbl_priv->map, reg, BIT(offset));
+	else
+		ret = regmap_clear_bits(rtl_gbl_priv->map, reg, BIT(offset));
 
-    if (ret)
-        return RT_ERR_SMI;
-    return RT_ERR_OK;
+	if (ret)
+		return RT_ERR_SMI;
+	return RT_ERR_OK;
 }
 /* Function Name:
  *      rtl8373_getAsicRegBit
@@ -75,17 +75,17 @@ ret_t rtl8373_setAsicRegBit(rtk_uint32 reg, rtk_uint32 offset, rtk_uint32 value)
  */
 ret_t rtl8373_getAsicRegBit(rtk_uint32 reg, rtk_uint32 offset, rtk_uint32 *pValue)
 {
-    int ret;
-    u32 val;
+	int ret;
+	u32 val;
 
-    ret = regmap_read(rtl_gbl_priv->map, reg, &val);
+	ret = regmap_read(rtl_gbl_priv->map, reg, &val);
 
-    if (ret)
-        return RT_ERR_SMI;
+	if (ret)
+		return RT_ERR_SMI;
 
-    *pValue = !!(val & (0x1 << offset));
+	*pValue = !!(val & (0x1 << offset));
 
-    return RT_ERR_OK;
+	return RT_ERR_OK;
 }
 /* Function Name:
  *      rtl8373_setAsicRegBits
@@ -106,12 +106,12 @@ ret_t rtl8373_getAsicRegBit(rtk_uint32 reg, rtk_uint32 offset, rtk_uint32 *pValu
  */
 ret_t rtl8373_setAsicRegBits(rtk_uint32 reg, rtk_uint32 bitsMask, rtk_uint32 value)
 {
-    int ret;
+	int ret;
 
-    ret = regmap_update_bits(rtl_gbl_priv->map, reg, bitsMask, (value << __ffs(bitsMask)) & bitsMask);
-    if (ret)
-        return RT_ERR_SMI;
-    return RT_ERR_OK;
+	ret = regmap_update_bits(rtl_gbl_priv->map, reg, bitsMask, (value << __ffs(bitsMask)) & bitsMask);
+	if (ret)
+		return RT_ERR_SMI;
+	return RT_ERR_OK;
 }
 /* Function Name:
  *      rtl8373_getAsicRegBits
@@ -132,16 +132,16 @@ ret_t rtl8373_setAsicRegBits(rtk_uint32 reg, rtk_uint32 bitsMask, rtk_uint32 val
  */
 ret_t rtl8373_getAsicRegBits(rtk_uint32 reg, rtk_uint32 bitsMask, rtk_uint32 *pValue)
 {
-    int ret;
-    u32 val;
+	int ret;
+	u32 val;
 
-    ret = regmap_read(rtl_gbl_priv->map, reg, &val);
+	ret = regmap_read(rtl_gbl_priv->map, reg, &val);
 
-    if (ret)
-        return RT_ERR_SMI;
+	if (ret)
+		return RT_ERR_SMI;
 
-    *pValue = (val & bitsMask) >> __ffs(bitsMask);
-    return RT_ERR_OK;
+	*pValue = (val & bitsMask) >> __ffs(bitsMask);
+	return RT_ERR_OK;
 }
 /* Function Name:
  *      rtl8373_setAsicReg
@@ -160,13 +160,13 @@ ret_t rtl8373_getAsicRegBits(rtk_uint32 reg, rtk_uint32 bitsMask, rtk_uint32 *pV
  */
 ret_t rtl8373_setAsicReg(rtk_uint32 reg, rtk_uint32 value)
 {
-    int ret;
+	int ret;
 
-    ret = regmap_write(rtl_gbl_priv->map, reg, value);
+	ret = regmap_write(rtl_gbl_priv->map, reg, value);
 
-    if (ret)
-        return RT_ERR_SMI;
-    return RT_ERR_OK;
+	if (ret)
+		return RT_ERR_SMI;
+	return RT_ERR_OK;
 }
 /* Function Name:
  *      rtl8373_getAsicReg
@@ -185,14 +185,14 @@ ret_t rtl8373_setAsicReg(rtk_uint32 reg, rtk_uint32 value)
  */
 ret_t rtl8373_getAsicReg(rtk_uint32 reg, rtk_uint32 *pValue)
 {
-    int ret;
-    u32 val;
+	int ret;
+	u32 val;
 
-    ret = regmap_read(rtl_gbl_priv->map, reg, &val);
+	ret = regmap_read(rtl_gbl_priv->map, reg, &val);
 
-    if (ret)
-        return RT_ERR_SMI;
+	if (ret)
+		return RT_ERR_SMI;
 
-    *pValue = val;
-    return RT_ERR_OK;
+	*pValue = val;
+	return RT_ERR_OK;
 }

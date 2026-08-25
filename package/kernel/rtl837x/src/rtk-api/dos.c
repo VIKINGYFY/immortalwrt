@@ -43,16 +43,16 @@
  */
 rtk_api_ret_t rtk_port_autoDos_set(rtk_port_autoDosType_t type, rtk_enable_t state)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_autoDos_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_autoDos_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_autoDos_set(type, state);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_autoDos_set(type, state);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -73,17 +73,16 @@ rtk_api_ret_t rtk_port_autoDos_set(rtk_port_autoDosType_t type, rtk_enable_t sta
  */
 rtk_api_ret_t rtk_port_autoDos_get(rtk_port_autoDosType_t type, rtk_enable_t *pState)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->port_autoDos_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->port_autoDos_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->port_autoDos_get(type, pState);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->port_autoDos_get(type, pState);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 #endif
-

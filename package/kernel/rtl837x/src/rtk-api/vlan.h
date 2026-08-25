@@ -18,88 +18,55 @@
 #ifndef __RTK_API_VLAN_H__
 #define __RTK_API_VLAN_H__
 
-
 /*
  * Data Type Declaration
  */
-#define RTK_VID_MAX                                                 (0xFFF)
-#define RTK_MAX_NUM_OF_MSTI                               (0xF)
-#define RTK_FID_MAX                                                 (0xF)
+#define RTK_VID_MAX (0xFFF)
+#define RTK_MAX_NUM_OF_MSTI (0xF)
+#define RTK_FID_MAX (0xF)
 
-typedef rtk_uint32  rtk_stp_msti_id_t;     /* MSTI ID  */
+typedef rtk_uint32 rtk_stp_msti_id_t; /* MSTI ID  */
 
-typedef enum rtk_stp_state_e
-{
-    STP_STATE_DISABLED = 0,
-    STP_STATE_BLOCKING,
-    STP_STATE_LEARNING,
-    STP_STATE_FORWARDING,
-    STP_STATE_END
-} rtk_stp_state_t;
+typedef enum rtk_stp_state_e { STP_STATE_DISABLED = 0, STP_STATE_BLOCKING, STP_STATE_LEARNING, STP_STATE_FORWARDING, STP_STATE_END } rtk_stp_state_t;
 
-typedef rtk_uint32  rtk_vlan_proto_type_t;     /* protocol and port based VLAN protocol type  */
+typedef rtk_uint32 rtk_vlan_proto_type_t; /* protocol and port based VLAN protocol type  */
 
-
-typedef enum rtk_vlan_acceptFrameType_e
-{
-    ACCEPT_FRAME_TYPE_ALL = 0,             /* untagged, priority-tagged and tagged */
-    ACCEPT_FRAME_TYPE_TAG_ONLY,         /* tagged */
-    ACCEPT_FRAME_TYPE_UNTAG_ONLY,     /* untagged and priority-tagged */
-    ACCEPT_FRAME_TYPE_END
+typedef enum rtk_vlan_acceptFrameType_e {
+	ACCEPT_FRAME_TYPE_ALL = 0, /* untagged, priority-tagged and tagged */
+	ACCEPT_FRAME_TYPE_TAG_ONLY, /* tagged */
+	ACCEPT_FRAME_TYPE_UNTAG_ONLY, /* untagged and priority-tagged */
+	ACCEPT_FRAME_TYPE_END
 } rtk_vlan_acceptFrameType_t;
 
-
 /* frame type of protocol vlan - reference 802.1v standard */
-typedef enum rtk_vlan_protoVlan_frameType_e
-{
-    FRAME_TYPE_ETHERNET = 0,
-    FRAME_TYPE_LLCOTHER,
-    FRAME_TYPE_RFC1042,
-    FRAME_TYPE_END
-} rtk_vlan_protoVlan_frameType_t;
+typedef enum rtk_vlan_protoVlan_frameType_e { FRAME_TYPE_ETHERNET = 0, FRAME_TYPE_LLCOTHER, FRAME_TYPE_RFC1042, FRAME_TYPE_END } rtk_vlan_protoVlan_frameType_t;
 
 /* tagged mode of VLAN - reference realtek private specification */
-typedef enum rtk_vlan_egressTagMode_e
-{
-    VLAN_EGRESS_TAG_MODE_ORIGINAL = 0,
-    VLAN_EGRESS_TAG_MODE_KEEP_FORMAT,
-    VLAN_EGRESS_TAG_MODE_PRI,
-    VLAN_EGRESS_TAG_MODE_REAL_KEEP,
-    VLAN_EGRESS_TAG_MODE_END
-} rtk_vlan_egressTagMode_t;
+typedef enum rtk_vlan_egressTagMode_e { VLAN_EGRESS_TAG_MODE_ORIGINAL = 0, VLAN_EGRESS_TAG_MODE_KEEP_FORMAT, VLAN_EGRESS_TAG_MODE_PRI, VLAN_EGRESS_TAG_MODE_REAL_KEEP, VLAN_EGRESS_TAG_MODE_END } rtk_vlan_egressTagMode_t;
 
-typedef enum rtk_vlan_resVidAction_e
-{
-    RSV_VID_ACTION_UNTAG = 0,
-    RSV_VID_ACTION_TAG,
-    RSV_VID_ACTION_END
-}
-rtk_vlan_resVidAction_t;
+typedef enum rtk_vlan_resVidAction_e { RSV_VID_ACTION_UNTAG = 0, RSV_VID_ACTION_TAG, RSV_VID_ACTION_END } rtk_vlan_resVidAction_t;
 
 /* Protocol-and-port-based Vlan structure */
-typedef struct rtk_vlan_protoAndPortInfo_s
-{
-    rtk_uint32                         proto_type;
-    rtk_vlan_protoVlan_frameType_t frame_type;
-    rtk_vlan_t                     cvid;
-    rtk_pri_t                     cpri;
-}rtk_vlan_protoAndPortInfo_t;
+typedef struct rtk_vlan_protoAndPortInfo_s {
+	rtk_uint32 proto_type;
+	rtk_vlan_protoVlan_frameType_t frame_type;
+	rtk_vlan_t cvid;
+	rtk_pri_t cpri;
+} rtk_vlan_protoAndPortInfo_t;
 
-typedef struct  rtk_vlan_entry_s
-{
-    rtk_portmask_t  mbr;
-    rtk_portmask_t  untag;
-    rtk_uint16      fid_msti;
-    rtk_uint16      svlan_chk_ivl_svl;
-    rtk_uint16      ivl_svl;
-}rtk_vlan_entry_t;
+typedef struct rtk_vlan_entry_s {
+	rtk_portmask_t mbr;
+	rtk_portmask_t untag;
+	rtk_uint16 fid_msti;
+	rtk_uint16 svlan_chk_ivl_svl;
+	rtk_uint16 ivl_svl;
+} rtk_vlan_entry_t;
 
-typedef struct rtk_vlan_disL2_learn_s
-{
-    rtk_uint32 valid;
-    rtk_uint32 vid;
-    rtk_uint32 act;
-}rtk_vlan_disL2_learn_t;
+typedef struct rtk_vlan_disL2_learn_s {
+	rtk_uint32 valid;
+	rtk_uint32 vid;
+	rtk_uint32 act;
+} rtk_vlan_disL2_learn_t;
 
 /* Function Name:
  *      rtk_vlan_init

@@ -476,7 +476,4 @@ extern rtk_api_ret_t dal_rtl8373_dot1x_guestVlan2Auth_set(rtk_enable_t enable);
  */
 rtk_api_ret_t dal_rtl8373_dot1x_guestVlan2Auth_get(rtk_enable_t *pEnable);
 
-
 #endif /* __DAL_RTL8367C_DOT1X_H__ */
-
-

@@ -18,78 +18,62 @@
 #ifndef __RTK_API_LED_H__
 #define __RTK_API_LED_H__
 
-typedef enum rtk_led_operation_e
-{
-    LED_OP_SCAN=0,
-    LED_OP_PARALLEL,
-    LED_OP_SERIAL,
-    LED_OP_END,
-}rtk_led_operation_t;
+typedef enum rtk_led_operation_e {
+	LED_OP_SCAN = 0,
+	LED_OP_PARALLEL,
+	LED_OP_SERIAL,
+	LED_OP_END,
+} rtk_led_operation_t;
 
+typedef enum rtk_led_active_e {
+	LED_ACTIVE_HIGH = 0,
+	LED_ACTIVE_LOW,
+	LED_ACTIVE_END,
+} rtk_led_active_t;
 
-typedef enum rtk_led_active_e
-{
-    LED_ACTIVE_HIGH=0,
-    LED_ACTIVE_LOW,
-    LED_ACTIVE_END,
-}rtk_led_active_t;
+typedef struct rtk_led_ability_s {
+	rtk_enable_t link_10m;
+	rtk_enable_t link_100m;
+	rtk_enable_t link_500m;
+	rtk_enable_t link_1000m;
+	rtk_enable_t link_2500m;
+	rtk_enable_t act_rx;
+	rtk_enable_t act_tx;
+} rtk_led_ability_t;
 
+typedef enum rtk_led_blink_rate_e {
+	LED_BLINKRATE_32MS = 1,
+	LED_BLINKRATE_64MS,
+	LED_BLINKRATE_128MS,
+	LED_BLINKRATE_256MS,
+	LED_BLINKRATE_512MS,
+	LED_BLINKRATE_1024MS,
+	LED_BLINKRATE_END,
+} rtk_led_blink_rate_t;
 
-typedef struct rtk_led_ability_s
-{
-    rtk_enable_t link_10m;
-    rtk_enable_t link_100m;
-    rtk_enable_t link_500m;
-    rtk_enable_t link_1000m;
-    rtk_enable_t link_2500m;
-    rtk_enable_t act_rx;
-    rtk_enable_t act_tx;
-}rtk_led_ability_t;
+typedef enum rtk_led_set_e { LED_SET_0 = 0, LED_SET_1, LED_SET_2, LED_SET_3, LED_SET_END } rtk_led_set_t;
 
-typedef enum rtk_led_blink_rate_e
-{
-    LED_BLINKRATE_32MS=1,
-    LED_BLINKRATE_64MS,
-    LED_BLINKRATE_128MS,
-    LED_BLINKRATE_256MS,
-    LED_BLINKRATE_512MS,
-    LED_BLINKRATE_1024MS,
-    LED_BLINKRATE_END,
-}rtk_led_blink_rate_t;
-
-typedef enum rtk_led_set_e
-{
-    LED_SET_0 = 0,
-    LED_SET_1,
-    LED_SET_2,
-    LED_SET_3,
-    LED_SET_END
-}rtk_led_set_t;
-
-
-typedef struct rtk_led_config_e
-{
-    rtk_uint8 led_2p5g;
-    rtk_uint8 led_two_pair_1g;
-    rtk_uint8 led_1g;
-    rtk_uint8 led_500m;
-    rtk_uint8 led_100m;
-    rtk_uint8 led_10m;
-    rtk_uint8 led_link;
-    rtk_uint8 led_link_flash;
-    rtk_uint8 led_act;
-    rtk_uint8 led_rx;
-    rtk_uint8 led_tx;
-    rtk_uint8 led_col;
-    rtk_uint8 led_duplex;
-    rtk_uint8 led_training;
-    rtk_uint8 led_master;
-    rtk_uint8 led_10g;
-    rtk_uint8 led_two_pair_5g;
-    rtk_uint8 led_5g;
-    rtk_uint8 led_two_pair_2p5g;
-}rtk_led_config_t;
-
+typedef struct rtk_led_config_e {
+	rtk_uint8 led_2p5g;
+	rtk_uint8 led_two_pair_1g;
+	rtk_uint8 led_1g;
+	rtk_uint8 led_500m;
+	rtk_uint8 led_100m;
+	rtk_uint8 led_10m;
+	rtk_uint8 led_link;
+	rtk_uint8 led_link_flash;
+	rtk_uint8 led_act;
+	rtk_uint8 led_rx;
+	rtk_uint8 led_tx;
+	rtk_uint8 led_col;
+	rtk_uint8 led_duplex;
+	rtk_uint8 led_training;
+	rtk_uint8 led_master;
+	rtk_uint8 led_10g;
+	rtk_uint8 led_two_pair_5g;
+	rtk_uint8 led_5g;
+	rtk_uint8 led_two_pair_2p5g;
+} rtk_led_config_t;
 
 /* Function Name:
  *      rtk_led_blinkRate_set
@@ -161,7 +145,7 @@ extern rtk_api_ret_t rtk_led_blinkRate_get(rtk_led_blink_rate_t *pBlinkRate);
  *      - 1110        Master            Link on Master Indicator.
  *      - 1111        Act               Activity Indicator. Low for link established.
  */
-extern rtk_api_ret_t rtk_led_groupConfig_set(rtk_led_set_t setid, rtk_uint32 ledid, rtk_led_config_t * config);
+extern rtk_api_ret_t rtk_led_groupConfig_set(rtk_led_set_t setid, rtk_uint32 ledid, rtk_led_config_t *config);
 
 /* Function Name:
  *      rtk_led_portSelConfig_set
@@ -169,7 +153,7 @@ extern rtk_api_ret_t rtk_led_groupConfig_set(rtk_led_set_t setid, rtk_uint32 led
  *      Set led group connfig for per port
  * Input:
  *      port   - port id 0 ~ 8
- *      setid  - led config group id 0 ~ 3 
+ *      setid  - led config group id 0 ~ 3
  * Output:
  *      None
  * Return:
@@ -182,14 +166,13 @@ extern rtk_api_ret_t rtk_led_groupConfig_set(rtk_led_set_t setid, rtk_uint32 led
  */
 extern rtk_api_ret_t rtk_led_portSelConfig_set(rtk_port_t port, rtk_led_set_t setid);
 
-
 /* Function Name:
  *      rtk_led_portSelConfig_get
  * Description:
  *      Get led group connfig for per port
  * Input:
  *      port   - port id 0 ~ 8
- *      setid  - led config group id 0 ~ 3 
+ *      setid  - led config group id 0 ~ 3
  * Output:
  *      None
  * Return:
@@ -200,8 +183,6 @@ extern rtk_api_ret_t rtk_led_portSelConfig_set(rtk_port_t port, rtk_led_set_t se
  * Note:
  *      ASIC support 6 types of LED blinking rates at 32ms, 64ms, 128ms, 256ms, 512ms and 1024ms.
  */
-extern rtk_api_ret_t rtk_led_portSelConfig_get(rtk_port_t port, rtk_led_set_t * setid);
-
+extern rtk_api_ret_t rtk_led_portSelConfig_get(rtk_port_t port, rtk_led_set_t *setid);
 
 #endif /* __RTK_API_LED_H__ */
-

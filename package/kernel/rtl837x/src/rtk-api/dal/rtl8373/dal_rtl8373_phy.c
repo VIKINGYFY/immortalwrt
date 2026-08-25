@@ -8,8 +8,6 @@
 
 //#include "port.h"
 
-
-
 /* Function Name:
 *      phy_common_c45_an_restart
 * Description:
@@ -26,20 +24,19 @@
 */
 rtk_api_ret_t dal_rlt8373_phy_common_c45_an_restart(rtk_port_t port)
 {
-    rtk_int32   ret;
-    rtk_uint32 phyData = 0;
+	rtk_int32 ret;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_AN, 0, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_AN, 0, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    if (phyData & BIT_12) /*AN is enabled*/
-    {
-        phyData |= BIT_9; /*AN restart*/
-        if ((ret = dal_rtl8373_phy_write( 1UL<<port, PHY_MMD_AN, 0, phyData)) != RT_ERR_OK)
-            return ret;
-    }
-    
-    return ret;
+	if (phyData & BIT_12) { /*AN is enabled*/
+		phyData |= BIT_9; /*AN restart*/
+		if ((ret = dal_rtl8373_phy_write(1UL << port, PHY_MMD_AN, 0, phyData)) != RT_ERR_OK)
+			return ret;
+	}
+
+	return ret;
 }
 
 /* Function Name:
@@ -56,17 +53,17 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_an_restart(rtk_port_t port)
  * Note:
  *      None
  */
-rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_get( rtk_port_t port, rtk_enable_t *pEnable)
+rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t   ret;
-    rtk_uint32 phyData = 0;
+	rtk_api_ret_t ret;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read( port, PHY_MMD_AN, 0, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_AN, 0, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    *pEnable = (phyData & BIT_12) ? ENABLED : DISABLED;
+	*pEnable = (phyData & BIT_12) ? ENABLED : DISABLED;
 
-    return ret;
+	return ret;
 }
 
 /* Function Name:
@@ -86,16 +83,16 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_get( rtk_port_t port, rt
  */
 rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t   ret;
-    rtk_uint32  phyData = 0;
+	rtk_api_ret_t ret;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_AN, 0, &phyData)) != RT_ERR_OK)
-        return ret;
-    phyData &= (~(BIT_12 | BIT_9));
-    phyData |= (enable == ENABLED) ? (BIT_12 | BIT_9) : (0);
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_AN, 0, &phyData)) != RT_ERR_OK)
+		return ret;
+	phyData &= (~(BIT_12 | BIT_9));
+	phyData |= (enable == ENABLED) ? (BIT_12 | BIT_9) : (0);
 
-    ret = dal_rtl8373_phy_write(1UL<<port, PHY_MMD_AN, 0, phyData);
-    return ret;
+	ret = dal_rtl8373_phy_write(1UL << port, PHY_MMD_AN, 0, phyData);
+	return ret;
 }
 
 /* Function Name:
@@ -116,54 +113,52 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_autoNegoEnable_set(rtk_port_t port, rtk
  */
 rtk_api_ret_t dal_rlt8373_phy_autoNegoAbility_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
 {
-    rtk_api_ret_t   ret = RT_ERR_OK;
-    rtk_uint32  phyData = 0;
+	rtk_api_ret_t ret = RT_ERR_OK;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read( port, PHY_MMD_AN, 16, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_AN, 16, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    phyData &= (~(BIT_5 | BIT_6 | BIT_7 | BIT_8 | BIT_10 | BIT_11));
+	phyData &= (~(BIT_5 | BIT_6 | BIT_7 | BIT_8 | BIT_10 | BIT_11));
 
-    phyData |= (pAbility->Half_10) ? (BIT_5) : (0);
-    phyData |= (pAbility->Full_10) ? (BIT_6) : (0);
-    phyData |= (pAbility->Half_100) ? (BIT_7) : (0);
-    phyData |= (pAbility->Full_100) ? (BIT_8) : (0);
-    phyData |= (pAbility->FC) ? (BIT_10) : (0);
-    phyData |= (pAbility->AsyFC) ? (BIT_11) : (0);
+	phyData |= (pAbility->Half_10) ? (BIT_5) : (0);
+	phyData |= (pAbility->Full_10) ? (BIT_6) : (0);
+	phyData |= (pAbility->Half_100) ? (BIT_7) : (0);
+	phyData |= (pAbility->Full_100) ? (BIT_8) : (0);
+	phyData |= (pAbility->FC) ? (BIT_10) : (0);
+	phyData |= (pAbility->AsyFC) ? (BIT_11) : (0);
 
-    if ((ret = dal_rtl8373_phy_write(1UL<<port, PHY_MMD_AN, 16, phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_write(1UL << port, PHY_MMD_AN, 16, phyData)) != RT_ERR_OK)
+		return ret;
 
-    if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_AN, 32, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_AN, 32, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    phyData &= (~(BIT_7 | BIT_8 | BIT_12));
-    phyData |= (pAbility->adv_2_5G) ? (BIT_7) : (0);
+	phyData &= (~(BIT_7 | BIT_8 | BIT_12));
+	phyData |= (pAbility->adv_2_5G) ? (BIT_7) : (0);
 
-    phyData |= (pAbility->adv_5G) ? (BIT_8) : (0);
-    phyData |= (pAbility->adv_10GBase_T) ? (BIT_12) : (0);
+	phyData |= (pAbility->adv_5G) ? (BIT_8) : (0);
+	phyData |= (pAbility->adv_10GBase_T) ? (BIT_12) : (0);
 
-    if ((ret = dal_rtl8373_phy_write(1UL<<port, PHY_MMD_AN, 32, phyData)) != RT_ERR_OK)
+	if ((ret = dal_rtl8373_phy_write(1UL << port, PHY_MMD_AN, 32, phyData)) != RT_ERR_OK)
 
-        return ret;
+		return ret;
 
-    if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_VEND2, 0xA412, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_VEND2, 0xA412, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    phyData &= (~(BIT_9));
-    phyData |= (pAbility->Full_1000) ? (BIT_9) : (0);
+	phyData &= (~(BIT_9));
+	phyData |= (pAbility->Full_1000) ? (BIT_9) : (0);
 
-    if ((ret = dal_rtl8373_phy_write( 1UL<<port, PHY_MMD_VEND2, 0xA412, phyData)) != RT_ERR_OK)
-        return ret;
-    if ((ret = dal_rlt8373_phy_common_c45_an_restart(port) != RT_ERR_OK))
-    {
-    //printf("line %d\n",(uint16)__LINE__);
-    return ret;
-    }
+	if ((ret = dal_rtl8373_phy_write(1UL << port, PHY_MMD_VEND2, 0xA412, phyData)) != RT_ERR_OK)
+		return ret;
+	if ((ret = dal_rlt8373_phy_common_c45_an_restart(port) != RT_ERR_OK)) {
+		//printf("line %d\n",(uint16)__LINE__);
+		return ret;
+	}
 
-    return ret;
+	return ret;
 }
-
 
 /* Function Name:
  *      dal_rlt8373_phy_common_c45_autoSpeed_set
@@ -186,33 +181,30 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_autoSpeed_set(rtk_port_t port, rtk_port
 	rtk_uint32 ret = RT_ERR_FAILED;
 	rtk_enable_t AutoNegotiationEn = 1;
 	rtk_port_phy_ability_t ability;
-	
-	memset(&ability,0,sizeof(rtk_port_phy_ability_t));
-		
-	ability.Half_10 		= pAbility->Half_10;
-	ability.Full_10 		= pAbility->Full_10;
-	ability.Half_100		= pAbility->Half_100;
-	ability.Full_100		= pAbility->Full_100;
-	ability.Half_1000		= pAbility->Half_1000;
-	ability.Full_1000		= pAbility->Full_1000;
-	ability.adv_2_5G   = pAbility->adv_2_5G;
-	ability.adv_5G   = pAbility->adv_5G;
-	ability.adv_10GBase_T	=  pAbility->adv_10GBase_T;
-	ability.FC				= pAbility->FC;
-	ability.AsyFC			= pAbility->AsyFC;
 
-	if ((ret = dal_rlt8373_phy_common_c45_autoNegoEnable_set(port, AutoNegotiationEn)) != RT_ERR_OK)
-	{
+	memset(&ability, 0, sizeof(rtk_port_phy_ability_t));
+
+	ability.Half_10 = pAbility->Half_10;
+	ability.Full_10 = pAbility->Full_10;
+	ability.Half_100 = pAbility->Half_100;
+	ability.Full_100 = pAbility->Full_100;
+	ability.Half_1000 = pAbility->Half_1000;
+	ability.Full_1000 = pAbility->Full_1000;
+	ability.adv_2_5G = pAbility->adv_2_5G;
+	ability.adv_5G = pAbility->adv_5G;
+	ability.adv_10GBase_T = pAbility->adv_10GBase_T;
+	ability.FC = pAbility->FC;
+	ability.AsyFC = pAbility->AsyFC;
+
+	if ((ret = dal_rlt8373_phy_common_c45_autoNegoEnable_set(port, AutoNegotiationEn)) != RT_ERR_OK) {
 		return ret;
 	}
-	
-	if ((ret = dal_rlt8373_phy_autoNegoAbility_set(port, &ability)) != RT_ERR_OK)
-	{
+
+	if ((ret = dal_rlt8373_phy_autoNegoAbility_set(port, &ability)) != RT_ERR_OK) {
 		return ret;
 	}
 
 	return RT_ERR_OK;
-
 }
 
 /* Function Name:
@@ -231,51 +223,49 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_autoSpeed_set(rtk_port_t port, rtk_port
  */
 rtk_api_ret_t dal_rlt8373_phy_common_c45_speed_get(rtk_port_t port, rtk_port_speed_t *pSpeed)
 {
-    rtk_api_ret_t   ret;
-    rtk_uint32  phyData = 0;
-    rtk_uint8   speed_l = 0;
-    rtk_uint8   speed_h = 0;
+	rtk_api_ret_t ret;
+	rtk_uint32 phyData = 0;
+	rtk_uint8 speed_l = 0;
+	rtk_uint8 speed_h = 0;
 
-    if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_PMAPMD, 0, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_PMAPMD, 0, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    speed_l = (((phyData & BIT_6) ? 1 : 0) << 1) | ((phyData & BIT_13) ? 1 : 0);
-    speed_h = (phyData & (BIT_5 | BIT_4 | BIT_3 | BIT_2)) >> 2;
+	speed_l = (((phyData & BIT_6) ? 1 : 0) << 1) | ((phyData & BIT_13) ? 1 : 0);
+	speed_h = (phyData & (BIT_5 | BIT_4 | BIT_3 | BIT_2)) >> 2;
 
-    switch (speed_l)
-    {
-        case 0:
-            *pSpeed = PORT_SPEED_10M;
-            break;
-        case 1:
-            *pSpeed = PORT_SPEED_100M;
-            break;
-        case 2:
-            *pSpeed = PORT_SPEED_1000M;
-            break;
-        case 3:
-            switch (speed_h)
-            {
-                case 0:
-                    *pSpeed = PORT_SPEED_10G;
-                    break;
-                case 7:
-                    *pSpeed = PORT_SPEED_5G;
-                    break;
-                case 6:
-                    *pSpeed = PORT_SPEED_2500M;
-                    break;
-                default:
-                    *pSpeed = PORT_SPEED_10M;
-                    break;
-            }
-            break;
-        default:
-            *pSpeed = PORT_SPEED_10M;
-            break;
-    }
+	switch (speed_l) {
+	case 0:
+		*pSpeed = PORT_SPEED_10M;
+		break;
+	case 1:
+		*pSpeed = PORT_SPEED_100M;
+		break;
+	case 2:
+		*pSpeed = PORT_SPEED_1000M;
+		break;
+	case 3:
+		switch (speed_h) {
+		case 0:
+			*pSpeed = PORT_SPEED_10G;
+			break;
+		case 7:
+			*pSpeed = PORT_SPEED_5G;
+			break;
+		case 6:
+			*pSpeed = PORT_SPEED_2500M;
+			break;
+		default:
+			*pSpeed = PORT_SPEED_10M;
+			break;
+		}
+		break;
+	default:
+		*pSpeed = PORT_SPEED_10M;
+		break;
+	}
 
-    return ret;
+	return ret;
 }
 
 /* Function Name:
@@ -295,39 +285,38 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_speed_get(rtk_port_t port, rtk_port_spe
  */
 rtk_api_ret_t dal_rlt8373_phy_common_c45_speed_set(rtk_port_t port, rtk_port_speed_t speed)
 {
-    rtk_api_ret_t   ret;
-    rtk_uint32  phyData = 0;
+	rtk_api_ret_t ret;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read( port, PHY_MMD_PMAPMD, 0, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_PMAPMD, 0, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    phyData &= (~(BIT_13 | BIT_6 | BIT_5 | BIT_4 | BIT_3 | BIT_2));
+	phyData &= (~(BIT_13 | BIT_6 | BIT_5 | BIT_4 | BIT_3 | BIT_2));
 
-    switch (speed)
-    {
-        case PORT_SPEED_10M:
-            break;
-        case PORT_SPEED_100M:
-            phyData |= BIT_13;
-            break;
-        case PORT_SPEED_1000M:
-            phyData |= BIT_6;
-            break;
-        case PORT_SPEED_10G:
-            phyData |= (BIT_13 | BIT_6);
-            break;
-        case PORT_SPEED_2500M:
-            phyData |= (BIT_13 | BIT_6 | BIT_4 | BIT_3);
-            break;
-        case PORT_SPEED_5G:
-            phyData |= (BIT_13 | BIT_6 | BIT_4 | BIT_3 | BIT_2);
-            break;
-        default:
-            return RT_ERR_CHIP_NOT_SUPPORTED;
-    }
+	switch (speed) {
+	case PORT_SPEED_10M:
+		break;
+	case PORT_SPEED_100M:
+		phyData |= BIT_13;
+		break;
+	case PORT_SPEED_1000M:
+		phyData |= BIT_6;
+		break;
+	case PORT_SPEED_10G:
+		phyData |= (BIT_13 | BIT_6);
+		break;
+	case PORT_SPEED_2500M:
+		phyData |= (BIT_13 | BIT_6 | BIT_4 | BIT_3);
+		break;
+	case PORT_SPEED_5G:
+		phyData |= (BIT_13 | BIT_6 | BIT_4 | BIT_3 | BIT_2);
+		break;
+	default:
+		return RT_ERR_CHIP_NOT_SUPPORTED;
+	}
 
-    ret = dal_rtl8373_phy_write(1UL<<port, PHY_MMD_PMAPMD, 0, phyData);
-    return ret;
+	ret = dal_rtl8373_phy_write(1UL << port, PHY_MMD_PMAPMD, 0, phyData);
+	return ret;
 }
 
 /* Function Name:
@@ -347,17 +336,17 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_speed_set(rtk_port_t port, rtk_port_spe
  */
 rtk_api_ret_t dal_rlt8373_phy_common_c45_enable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t   ret;
-    rtk_uint32  phyData = 0;
+	rtk_api_ret_t ret;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_PMAPMD, 0, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_PMAPMD, 0, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    phyData &= (~BIT_11);
-    phyData |= (enable == ENABLED) ? (0) : (BIT_11);
+	phyData &= (~BIT_11);
+	phyData |= (enable == ENABLED) ? (0) : (BIT_11);
 
-    ret = dal_rtl8373_phy_write(1UL<<port, PHY_MMD_PMAPMD, 0, phyData);
-    return ret;
+	ret = dal_rtl8373_phy_write(1UL << port, PHY_MMD_PMAPMD, 0, phyData);
+	return ret;
 }
 
 /* Function Name:
@@ -374,16 +363,16 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_enable_set(rtk_port_t port, rtk_enable_
  * Note:
  *      None
  */
-rtk_api_ret_t dal_rlt8373_phy_common_c45_enable_get( rtk_port_t port, rtk_enable_t *pEnable)
+rtk_api_ret_t dal_rlt8373_phy_common_c45_enable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t   ret;
-    rtk_uint32  phyData = 0;
+	rtk_api_ret_t ret;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_PMAPMD, 0, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_PMAPMD, 0, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    *pEnable = (phyData & BIT_11) ? (DISABLED) : (ENABLED);
-    return ret;
+	*pEnable = (phyData & BIT_11) ? (DISABLED) : (ENABLED);
+	return ret;
 }
 /* Function Name:
  *      dal_rlt8373_phy_common_c45_duplex_get
@@ -402,15 +391,15 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_enable_get( rtk_port_t port, rtk_enable
  */
 rtk_api_ret_t dal_rlt8373_phy_common_c45_duplex_get(rtk_port_t port, rtk_port_duplex_t *pDuplex)
 {
-    rtk_api_ret_t   ret = RT_ERR_OK;
-    rtk_uint32  phyData = 0;
+	rtk_api_ret_t ret = RT_ERR_OK;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read((rtk_uint16)port, PHY_MMD_VEND2, 0xA400, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read((rtk_uint16)port, PHY_MMD_VEND2, 0xA400, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    *pDuplex = (phyData & BIT_8) ? PORT_FULL_DUPLEX : PORT_HALF_DUPLEX;
+	*pDuplex = (phyData & BIT_8) ? PORT_FULL_DUPLEX : PORT_HALF_DUPLEX;
 
-    return ret;
+	return ret;
 }
 
 /* Function Name:
@@ -431,18 +420,17 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_duplex_get(rtk_port_t port, rtk_port_du
  */
 rtk_api_ret_t dal_rlt8373_phy_common_c45_duplex_set(rtk_port_t port, rtk_port_duplex_t duplex)
 {
-    rtk_api_ret_t   ret = RT_ERR_OK;
-    rtk_uint32  phyData = 0;
+	rtk_api_ret_t ret = RT_ERR_OK;
+	rtk_uint32 phyData = 0;
 
-    if ((ret = dal_rtl8373_phy_read((rtk_uint16)port, PHY_MMD_VEND2, 0xA400, &phyData)) != RT_ERR_OK)
-        return ret;
+	if ((ret = dal_rtl8373_phy_read((rtk_uint16)port, PHY_MMD_VEND2, 0xA400, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    phyData = (duplex == PORT_FULL_DUPLEX) ? (phyData | BIT_8) : (phyData & ~BIT_8);
+	phyData = (duplex == PORT_FULL_DUPLEX) ? (phyData | BIT_8) : (phyData & ~BIT_8);
 
-    ret = dal_rtl8373_phy_write(1UL<< port, PHY_MMD_VEND2, 0xA400, phyData);
-    return ret;
+	ret = dal_rtl8373_phy_write(1UL << port, PHY_MMD_VEND2, 0xA400, phyData);
+	return ret;
 }
-
 
 /* Function Name:
  *      dal_rlt8373_phy_common_c45_speedDuplexStatusResReg_get
@@ -461,136 +449,125 @@ rtk_api_ret_t dal_rlt8373_phy_common_c45_duplex_set(rtk_port_t port, rtk_port_du
  */
 rtk_int32 dal_rlt8373_phy_common_c45_speedDuplexStatusResReg_get(rtk_port_t port, rtk_port_speed_t *pSpeed, rtk_port_duplex_t *pDuplex)
 {
-    rtk_int32   ret = RT_ERR_FAILED;
-    rtk_uint32  phyData, spd;
+	rtk_int32 ret = RT_ERR_FAILED;
+	rtk_uint32 phyData, spd;
 
-    *pSpeed = PORT_SPEED_10M;
-    *pDuplex = PORT_HALF_DUPLEX;
-    if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_VEND2, 0xA434, &phyData)) != RT_ERR_OK)
-        return ret;
+	*pSpeed = PORT_SPEED_10M;
+	*pDuplex = PORT_HALF_DUPLEX;
+	if ((ret = dal_rtl8373_phy_read(port, PHY_MMD_VEND2, 0xA434, &phyData)) != RT_ERR_OK)
+		return ret;
 
-    /* [10:9,5:4] */
-    spd = ((phyData & (0x3UL << 9)) >> (9 - 2)) | ((phyData & (0x3UL << 4)) >> 4);
-    switch (spd)
-    {
-        case 0x0:
-          *pSpeed = PORT_SPEED_10M;
-          break;
-        case 0x1:
-          *pSpeed = PORT_SPEED_100M;
-          break;
-        case 0x2:
-          *pSpeed = PORT_SPEED_1000M;
-          break;
-        case 0x3:
-          *pSpeed = PORT_SPEED_500M;
-          break;
-        case 0x4:
-          *pSpeed = PORT_SPEED_10G;
-          break;
-        case 0x5:
-          *pSpeed = PORT_SPEED_2500M;
-          break;
-        case 0x6:
-          *pSpeed = PORT_SPEED_5G;
-          break;        
-        default:
-          *pSpeed = PORT_SPEED_10M;
-          break;
-    }
+	/* [10:9,5:4] */
+	spd = ((phyData & (0x3UL << 9)) >> (9 - 2)) | ((phyData & (0x3UL << 4)) >> 4);
+	switch (spd) {
+	case 0x0:
+		*pSpeed = PORT_SPEED_10M;
+		break;
+	case 0x1:
+		*pSpeed = PORT_SPEED_100M;
+		break;
+	case 0x2:
+		*pSpeed = PORT_SPEED_1000M;
+		break;
+	case 0x3:
+		*pSpeed = PORT_SPEED_500M;
+		break;
+	case 0x4:
+		*pSpeed = PORT_SPEED_10G;
+		break;
+	case 0x5:
+		*pSpeed = PORT_SPEED_2500M;
+		break;
+	case 0x6:
+		*pSpeed = PORT_SPEED_5G;
+		break;
+	default:
+		*pSpeed = PORT_SPEED_10M;
+		break;
+	}
 
-    *pDuplex = (phyData & 0x8)? PORT_FULL_DUPLEX : PORT_HALF_DUPLEX;
-    return RT_ERR_OK;
+	*pDuplex = (phyData & 0x8) ? PORT_FULL_DUPLEX : PORT_HALF_DUPLEX;
+	return RT_ERR_OK;
 }
-
 
 void rtk_speedtest_1g(void)
 {
-    rtk_uint16 port=7;
-    dal_rtl8373_phy_writeBits(1<<port,7,0,1<<12,1);
-    dal_rtl8373_phy_writeBits(1<<port,7,32,1<<7,0);
-    dal_rtl8373_phy_writeBits(1<<port,31,0xA412,3<<8,2);
-    dal_rtl8373_phy_writeBits(1<<port,7,16,0xf<<5,0);
-    dal_rtl8373_phy_writeBits(1<<port,31,0xA428,1<<9,0);
-    dal_rtl8373_phy_writeBits(1<<port,31,0xA5EA,3,0);
-    dal_rtl8373_phy_writeBits(1<<port,7,0,1<<9,1);
+	rtk_uint16 port = 7;
+	dal_rtl8373_phy_writeBits(1 << port, 7, 0, 1 << 12, 1);
+	dal_rtl8373_phy_writeBits(1 << port, 7, 32, 1 << 7, 0);
+	dal_rtl8373_phy_writeBits(1 << port, 31, 0xA412, 3 << 8, 2);
+	dal_rtl8373_phy_writeBits(1 << port, 7, 16, 0xf << 5, 0);
+	dal_rtl8373_phy_writeBits(1 << port, 31, 0xA428, 1 << 9, 0);
+	dal_rtl8373_phy_writeBits(1 << port, 31, 0xA5EA, 3, 0);
+	dal_rtl8373_phy_writeBits(1 << port, 7, 0, 1 << 9, 1);
 
-    return;
+	return;
 }
-
 
 rtk_api_ret_t phy_conmmon_c45_autoSpeed_set_test(rtk_uint32 port, rtk_uint32 speed)
 {
-    if(speed == 1)
-    {
-        dal_rtl8373_phy_writeBits(1<<port,7,0,1<<12,1);
-        dal_rtl8373_phy_writeBits(1<<port,7,32,1<<7,0);
-        dal_rtl8373_phy_writeBits(1<<port,31,0xA412,3<<8,2);
-        dal_rtl8373_phy_writeBits(1<<port,7,16,0xf<<5,0);
-        dal_rtl8373_phy_writeBits(1<<port,31,0xA428,1<<9,0);
-        dal_rtl8373_phy_writeBits(1<<port,31,0xA5EA,3,0);
-        dal_rtl8373_phy_writeBits(1<<port,7,0,1<<9,1);
-    }
+	if (speed == 1) {
+		dal_rtl8373_phy_writeBits(1 << port, 7, 0, 1 << 12, 1);
+		dal_rtl8373_phy_writeBits(1 << port, 7, 32, 1 << 7, 0);
+		dal_rtl8373_phy_writeBits(1 << port, 31, 0xA412, 3 << 8, 2);
+		dal_rtl8373_phy_writeBits(1 << port, 7, 16, 0xf << 5, 0);
+		dal_rtl8373_phy_writeBits(1 << port, 31, 0xA428, 1 << 9, 0);
+		dal_rtl8373_phy_writeBits(1 << port, 31, 0xA5EA, 3, 0);
+		dal_rtl8373_phy_writeBits(1 << port, 7, 0, 1 << 9, 1);
+	}
 
-    
-    return RT_ERR_OK;
-
+	return RT_ERR_OK;
 }
 
 #if 0
 rtk_api_ret_t phy_conmmon_c45_autoSpeed_set_test(rtk_uint32 port, rtk_uint32 speed)
 {
-    rtk_uint32 ret = RT_ERR_FAILED;
-    rtk_enable_t AutoNegotiationEn = 1;
-    rtk_port_phy_ability_t ability;
-	
-    memset(&ability,0,sizeof(rtk_port_phy_ability_t));
+	rtk_uint32 ret = RT_ERR_FAILED;
+	rtk_enable_t AutoNegotiationEn = 1;
+	rtk_port_phy_ability_t ability;
 
-	switch (speed)
-	{
-		case 1: ///1G
-		    ability.Half_10         = 1;
-		    ability.Full_10         = 1;
-		    ability.Half_100        = 1;
-		    ability.Full_100        = 1;
-		    ability.Half_1000       = 1;
-		    ability.Full_1000       = 1;
-		    ability.adv_5G       = 0;
-		    ability.adv_2_5G   = 0;
-		    ability.adv_10GBase_T   =  0;
-		    ability.FC              = 1;
-		    ability.AsyFC           = 1;
+	memset(&ability, 0, sizeof(rtk_port_phy_ability_t));
 
-			break;
-	        case 2: ///2.5G
-		    ability.Half_10         = 0;
-		    ability.Full_10         = 0;
-		    ability.Half_100        = 0;
-		    ability.Full_100        = 0;
-		    ability.Half_1000       = 0;
-		    ability.Full_1000       = 0;
-		    ability.adv_5G       = 0;
-		    ability.adv_2_5G   = 1;
-		    ability.adv_10GBase_T   =  0;
-		    ability.FC              = 1;
-		    ability.AsyFC           = 1;
+	switch (speed) {
+	case 1: ///1G
+		ability.Half_10 = 1;
+		ability.Full_10 = 1;
+		ability.Half_100 = 1;
+		ability.Full_100 = 1;
+		ability.Half_1000 = 1;
+		ability.Full_1000 = 1;
+		ability.adv_5G = 0;
+		ability.adv_2_5G = 0;
+		ability.adv_10GBase_T = 0;
+		ability.FC = 1;
+		ability.AsyFC = 1;
 
-			break;
-		default:
-			return RT_ERR_FAILED;
+		break;
+	case 2: ///2.5G
+		ability.Half_10 = 0;
+		ability.Full_10 = 0;
+		ability.Half_100 = 0;
+		ability.Full_100 = 0;
+		ability.Half_1000 = 0;
+		ability.Full_1000 = 0;
+		ability.adv_5G = 0;
+		ability.adv_2_5G = 1;
+		ability.adv_10GBase_T = 0;
+		ability.FC = 1;
+		ability.AsyFC = 1;
+
+		break;
+	default:
+		return RT_ERR_FAILED;
 	}
 
-    if ((ret = dal_rlt8373_phy_common_c45_autoNegoEnable_set(port, AutoNegotiationEn)) != RT_ERR_OK)
-    {
-        return ret;
-                }
+	if ((ret = dal_rlt8373_phy_common_c45_autoNegoEnable_set(port, AutoNegotiationEn)) != RT_ERR_OK) {
+		return ret;
+	}
 
-    if ((ret = dal_rlt8373_phy_autoNegoAbility_set(port, &ability)) != RT_ERR_OK)
-    {
-        return ret;
-    }              
+	if ((ret = dal_rlt8373_phy_autoNegoAbility_set(port, &ability)) != RT_ERR_OK) {
+		return ret;
+	}
 	return RT_ERR_OK;
-
 }
 #endif
-

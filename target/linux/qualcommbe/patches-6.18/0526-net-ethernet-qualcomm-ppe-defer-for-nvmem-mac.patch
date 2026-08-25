@@ -1,0 +1,158 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 30 Jul 2026 16:00:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: defer for NVMEM MAC
+
+An Ethernet port's MAC address may be stored in an NVMEM provider which
+is registered after the PPE device, such as an MTD partition on SPI-NAND.
+Read all port MAC addresses before initializing the PPE and EDMA hardware.
+This caches available addresses in the device tree and safely defers the
+probe if a provider is not ready yet.
+
+Do not defer from edma_port_setup() after EDMA has been enabled.  Tearing
+down EDMA at that point can hang while synchronizing its active interrupts.
+Ports without an NVMEM cell, or with an invalid address, retain the driver's
+existing random address fallback.
+
+Rework the port initialization error path at the same time.  The existing
+path decrements the port index below zero before trying to release clocks,
+which makes a failure in edma_port_setup() unsafe.  Release the current port
+clock separately and then tear down only successfully created ports.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/ethernet/qualcomm/ppe/ppe.c      |  5 +++++
+ drivers/net/ethernet/qualcomm/ppe/ppe_port.c | 52 +++++++++++++++++++---------
+ drivers/net/ethernet/qualcomm/ppe/ppe_port.h |  1 +
+ 3 files changed, 40 insertions(+), 18 deletions(-)
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
+@@ -242,6 +242,11 @@ static int qcom_ppe_probe(struct platfor
+ 	ppe_dev->num_ports = num_ports;
+ 	ppe_dev->num_icc_paths = num_icc;
+ 
++	ret = ppe_port_mac_prepare(ppe_dev);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "PPE port MAC addresses not ready\n");
++
+ 	ret = ppe_clock_init_and_reset(ppe_dev, ppe_icc_data);
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "PPE clock config failed\n");
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+@@ -1388,6 +1388,40 @@ static int ppe_port_mac_hw_init(struct p
+ }
+ 
+ /**
++ * ppe_port_mac_prepare() - Resolve PPE port MAC addresses before HW setup
++ * @ppe_dev: PPE device
++ *
++ * Resolve and cache NVMEM-backed MAC addresses before EDMA is enabled.  Only
++ * an unavailable provider defers probing; missing or invalid addresses keep
++ * the random MAC fallback in edma_port_setup().
++ *
++ * Return: 0 if probing may continue or -EPROBE_DEFER if a provider is pending.
++ */
++int ppe_port_mac_prepare(struct ppe_device *ppe_dev)
++{
++	struct device_node *ports_node, *port_node;
++	u8 mac_addr[ETH_ALEN];
++	int ret;
++
++	ports_node = of_get_child_by_name(ppe_dev->dev->of_node,
++					  "ethernet-ports");
++	if (!ports_node)
++		return 0;
++
++	for_each_available_child_of_node(ports_node, port_node) {
++		ret = of_get_mac_address(port_node, mac_addr);
++		if (ret == -EPROBE_DEFER) {
++			of_node_put(port_node);
++			of_node_put(ports_node);
++			return ret;
++		}
++	}
++
++	of_node_put(ports_node);
++	return 0;
++}
++
++/**
+  * ppe_port_mac_init() - Initialization of PPE ports for the PPE device
+  * @ppe_dev: PPE device
+  *
+@@ -1427,13 +1461,13 @@ int ppe_port_mac_init(struct ppe_device
+ 		ret = of_property_read_u32(port_node, "reg", &port);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to get port id\n");
+-			goto err_port_node;
++			goto err_port_setup;
+ 		}
+ 
+ 		ret = of_get_phy_mode(port_node, &phy_mode);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to get phy mode\n");
+-			goto err_port_node;
++			goto err_port_setup;
+ 		}
+ 
+ 		ppe_ports->port[i].ppe_dev = ppe_dev;
+@@ -1445,20 +1479,19 @@ int ppe_port_mac_init(struct ppe_device
+ 		ret = ppe_port_clock_init(&ppe_ports->port[i]);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to initialize port clocks\n");
+-			goto err_port_clk;
++			goto err_port_setup;
+ 		}
+ 
+ 		ret = ppe_port_mac_hw_init(&ppe_ports->port[i]);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to initialize MAC hardware\n");
+-			goto err_port_node;
++			goto err_port_clk;
+ 		}
+ 
+ 		ret = edma_port_setup(&ppe_ports->port[i]);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "QCOM EDMA port setup failed\n");
+-			i--;
+-			goto err_port_setup;
++			goto err_port_clk;
+ 		}
+ 
+ 		i++;
+@@ -1467,20 +1500,16 @@ int ppe_port_mac_init(struct ppe_device
+ 	of_node_put(ports_node);
+ 	return 0;
+ 
++err_port_clk:
++	ppe_port_clock_deinit(&ppe_ports->port[i]);
+ err_port_setup:
+ 	/* Destroy edma ports created till now */
+-	while (i >= 0) {
+-		edma_port_destroy(&ppe_ports->port[i]);
+-		i--;
+-	}
+-
+-err_port_clk:
+ 	while (i) {
+ 		i--;
++		edma_port_destroy(&ppe_ports->port[i]);
+ 		ppe_port_clock_deinit(&ppe_ports->port[i]);
+ 	}
+ 
+-err_port_node:
+ 	of_node_put(port_node);
+ err_ports_node:
+ 	of_node_put(ports_node);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+@@ -84,6 +84,7 @@ struct ppe_ports {
+ 	struct ppe_port port[] __counted_by(num);
+ };
+ 
++int ppe_port_mac_prepare(struct ppe_device *ppe_dev);
+ int ppe_port_mac_init(struct ppe_device *ppe_dev);
+ void ppe_port_mac_deinit(struct ppe_device *ppe_dev);
+ int ppe_port_phylink_setup(struct ppe_port *ppe_port,

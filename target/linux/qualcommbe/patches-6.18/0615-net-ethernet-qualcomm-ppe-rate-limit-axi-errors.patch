@@ -1,0 +1,35 @@
+From: VKing <noreply@openwrt.local>
+Date: Mon, 24 Aug 2026 16:03:46 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: rate limit AXI errors
+
+The EDMA misc interrupt already rate limits descriptor, SRAM, completion,
+length and timeout errors. AXI read and write errors remain unbounded and
+can flood the kernel log while the interrupt counters continue to provide
+the exact event totals.
+
+Apply the same net_ratelimit guard to both AXI messages. This mirrors the
+targeted QSDK nss-dp correction without importing its private datapath.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
+@@ -368,14 +368,16 @@
+ 	pr_debug("Received misc irq %d, status: %d\n", irq, misc_intr_status);
+ 
+ 	if (FIELD_GET(EDMA_MISC_AXI_RD_ERR_MASK, misc_intr_status)) {
+-		pr_err("MISC AXI read error received\n");
++		if (net_ratelimit())
++			pr_err("MISC AXI read error received\n");
+ 		u64_stats_update_begin(&stats->syncp);
+ 		++stats->edma_axi_read_err;
+ 		u64_stats_update_end(&stats->syncp);
+ 	}
+ 
+ 	if (FIELD_GET(EDMA_MISC_AXI_WR_ERR_MASK, misc_intr_status)) {
+-		pr_err("MISC AXI write error received\n");
++		if (net_ratelimit())
++			pr_err("MISC AXI write error received\n");
+ 		u64_stats_update_begin(&stats->syncp);
+ 		++stats->edma_axi_write_err;
+ 		u64_stats_update_end(&stats->syncp);

@@ -21,45 +21,30 @@
 /*
  * Data Type Declaration
  */
-#define    RTK_TRUNK_DPORT_HASH_MASK     0x40
-#define    RTK_TRUNK_SPORT_HASH_MASK     0x20
-#define    RTK_TRUNK_DIP_HASH_MASK       0x10
-#define    RTK_TRUNK_SIP_HASH_MASK       0x8
-#define    RTK_TRUNK_DMAC_HASH_MASK      0x4
-#define    RTK_TRUNK_SMAC_HASH_MASK      0x2
-#define    RTK_TRUNK_SPA_HASH_MASK       0x1
+#define RTK_TRUNK_DPORT_HASH_MASK 0x40
+#define RTK_TRUNK_SPORT_HASH_MASK 0x20
+#define RTK_TRUNK_DIP_HASH_MASK 0x10
+#define RTK_TRUNK_SIP_HASH_MASK 0x8
+#define RTK_TRUNK_DMAC_HASH_MASK 0x4
+#define RTK_TRUNK_SMAC_HASH_MASK 0x2
+#define RTK_TRUNK_SPA_HASH_MASK 0x1
 
+#define RTK_MAX_NUM_OF_TRUNK_HASH_VAL 16
 
-#define RTK_MAX_NUM_OF_TRUNK_HASH_VAL               16
-
-typedef struct  rtk_trunk_hashVal2Port_s
-{
-    rtk_uint8 value[RTK_MAX_NUM_OF_TRUNK_HASH_VAL];
+typedef struct rtk_trunk_hashVal2Port_s {
+	rtk_uint8 value[RTK_MAX_NUM_OF_TRUNK_HASH_VAL];
 } rtk_trunk_hashVal2Port_t;
 
-typedef enum rtk_trunk_group_e
-{
-    TRUNK_GROUP0 = 0,
-    TRUNK_GROUP1,
-    TRUNK_GROUP2,
-    TRUNK_GROUP3,
-    TRUNK_GROUP_END
-} rtk_trunk_group_t;
+typedef enum rtk_trunk_group_e { TRUNK_GROUP0 = 0, TRUNK_GROUP1, TRUNK_GROUP2, TRUNK_GROUP3, TRUNK_GROUP_END } rtk_trunk_group_t;
 
-typedef enum rtk_trunk_separateType_e
-{
-    SEPARATE_NONE = 0,
-    SEPARATE_FLOOD,
-    SEPARATE_END
+typedef enum rtk_trunk_separateType_e {
+	SEPARATE_NONE = 0,
+	SEPARATE_FLOOD,
+	SEPARATE_END
 
 } rtk_trunk_separateType_t;
 
-typedef enum rtk_trunk_mode_e
-{
-    TRUNK_MODE_NORMAL = 0,
-    TRUNK_MODE_DUMB,
-    TRUNK_MODE_END
-} rtk_trunk_mode_t;
+typedef enum rtk_trunk_mode_e { TRUNK_MODE_NORMAL = 0, TRUNK_MODE_DUMB, TRUNK_MODE_END } rtk_trunk_mode_t;
 
 /* Function Name:
  *      rtk_trunk_port_set
@@ -190,7 +175,6 @@ extern rtk_api_ret_t rtk_trunk_trafficSeparate_set(rtk_trunk_group_t trk_gid, rt
  *      SEPARATE_FLOOD: trunk MSB link up port is dedicated to TX flooding (L2 lookup miss) traffic
  */
 extern rtk_api_ret_t rtk_trunk_trafficSeparate_get(rtk_trunk_group_t trk_gid, rtk_trunk_separateType_t *pSeparateType);
-
 
 /* Function Name:
  *      rtk_trunk_mode_set

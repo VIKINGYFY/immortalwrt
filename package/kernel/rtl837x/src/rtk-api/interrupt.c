@@ -42,19 +42,17 @@
  */
 rtk_api_ret_t rtk_int_enable(rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_enable)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_enable(enable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_enable)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_enable(enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
-
 
 /* Function Name:
  *      rtk_int_polarity_set
@@ -74,16 +72,16 @@ rtk_api_ret_t rtk_int_enable(rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_int_polarity_set(rtk_int_polarity_t type)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_polarity_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_polarity_set(type);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_polarity_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_polarity_set(type);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -103,16 +101,16 @@ rtk_api_ret_t rtk_int_polarity_set(rtk_int_polarity_t type)
  */
 rtk_api_ret_t rtk_int_polarity_get(rtk_int_polarity_t *pType)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_polarity_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_polarity_get(pType);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_polarity_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_polarity_get(pType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -145,16 +143,16 @@ rtk_api_ret_t rtk_int_polarity_get(rtk_int_polarity_t *pType)
  */
 rtk_api_ret_t rtk_portInt_control_set(rtk_port_t port, rtk_int_cpu_t intcpu, rtk_int_type_t type, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_control_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_control_set(port, intcpu, type, enable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_control_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_control_set(port, intcpu, type, enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -188,16 +186,16 @@ rtk_api_ret_t rtk_portInt_control_set(rtk_port_t port, rtk_int_cpu_t intcpu, rtk
 
 rtk_api_ret_t rtk_portInt_control_get(rtk_port_t port, rtk_int_cpu_t intcpu, rtk_int_type_t type, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_control_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_control_get(port, intcpu, type, pEnable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_control_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_control_get(port, intcpu, type, pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 /* Function Name:
  *      rtk_int_miscIMR_set
@@ -214,23 +212,21 @@ rtk_api_ret_t rtk_portInt_control_get(rtk_port_t port, rtk_int_cpu_t intcpu, rtk
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 rtk_api_ret_t rtk_int_miscIMR_set(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 enable)
 {
+	rtk_api_ret_t retVal;
 
-    rtk_api_ret_t retVal;
+	if (NULL == RT_MAPPER->int_miscIMR_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    if (NULL == RT_MAPPER->int_miscIMR_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_miscIMR_set( type,  interrupt,  enable);    
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_miscIMR_set(type, interrupt, enable);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
 
 /* Function Name:
  *      dal_rtl8373_miscIMR_get
@@ -247,22 +243,21 @@ rtk_api_ret_t rtk_int_miscIMR_set(rtk_uint32 type, interrupt_misc_t interrupt, r
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-rtk_api_ret_t rtk_int_miscIMR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32* pEnable)
+rtk_api_ret_t rtk_int_miscIMR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 *pEnable)
 {
-   
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_miscIMR_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_miscIMR_get(type, interrupt, pEnable);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_miscIMR_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_miscIMR_get(type, interrupt, pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -280,26 +275,22 @@ rtk_api_ret_t rtk_int_miscIMR_get(rtk_uint32 type, interrupt_misc_t interrupt, r
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
 rtk_api_ret_t rtk_int_miscISR_clear(rtk_uint32 type, interrupt_misc_t interrupt)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_miscISR_clear)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_miscISR_clear(type, interrupt);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_miscISR_clear)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_miscISR_clear(type, interrupt);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
-
-
-
 
 /* Function Name:
  *      dal_rtl8373_glbISR_get
@@ -316,21 +307,21 @@ rtk_api_ret_t rtk_int_miscISR_clear(rtk_uint32 type, interrupt_misc_t interrupt)
  *      RT_ERR_FAILED       - Failed
  *      RT_ERR_SMI          - SMI access error
  * Note:
-  *      The API can set wol enable 
+  *      The API can set wol enable
  */
 
-rtk_api_ret_t rtk_int_miscISR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32* pStatus)
+rtk_api_ret_t rtk_int_miscISR_get(rtk_uint32 type, interrupt_misc_t interrupt, rtk_uint32 *pStatus)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_miscISR_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_miscISR_get(type, interrupt,pStatus);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_miscISR_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_miscISR_get(type, interrupt, pStatus);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 #if 0
@@ -365,16 +356,16 @@ rtk_api_ret_t rtk_int_miscISR_get(rtk_uint32 type, interrupt_misc_t interrupt, r
  */
 rtk_api_ret_t rtk_int_status_set(rtk_int_status_t *pStatusMask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_status_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_status_set(pStatusMask);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_status_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_status_set(pStatusMask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -406,18 +397,18 @@ rtk_api_ret_t rtk_int_status_set(rtk_int_status_t *pStatusMask)
  *      - INT_TYPE_SLIENT         (value[0] (Bit11))
  *
  */
-rtk_api_ret_t rtk_int_status_get(rtk_int_status_t* pStatusMask)
+rtk_api_ret_t rtk_int_status_get(rtk_int_status_t *pStatusMask)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_status_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_status_get(pStatusMask);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_status_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_status_get(pStatusMask);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -439,17 +430,16 @@ rtk_api_ret_t rtk_int_status_get(rtk_int_status_t* pStatusMask)
  */
 rtk_api_ret_t rtk_int_advanceInfo_get(rtk_int_advType_t adv_type, rtk_int_info_t *pInfo)
 {
-     rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->int_advanceInfo_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
-    
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->int_advanceInfo_get(adv_type, pInfo);    
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->int_advanceInfo_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->int_advanceInfo_get(adv_type, pInfo);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
- #endif
-
+#endif

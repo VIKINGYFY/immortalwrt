@@ -1,0 +1,149 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Sat, 25 Jul 2026 23:10:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: configure ingress virtual port L3
+
+An accepted flow whose ingress device is a Wi-Fi virtual port currently
+only allocates the VP and installs its tuple interception hook.  It does
+not bind the VP to an L3 interface or publish the router MAC accepted by
+that interface.  Packets injected by the hook consequently fail before
+the L3 flow lookup, leaving valid hardware flow rows at zero hits.
+
+Configure the ingress VP independently from the egress topology.  Use the
+bridge master's address because stations send routed traffic to that MAC,
+program the VAP MTU, bind the VP to its reserved L3 interface and enable a
+refcounted MY_MAC entry.  Keep the MY_MAC reference in the flow so all
+failure and destroy paths release it.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c | 54 +++++++++++++++++++++--
+ 1 file changed, 52 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -154,6 +154,7 @@ static_assert(offsetof(struct ppe_ft_vla
+  * @index: Hardware flow table index.
+  * @entry: The flow, kept for the delete command.
+  * @nexthop: Next hop index of the flow.
++ * @ingress_my_mac: Router MAC slot of an ingress virtual port.
+  * @my_mac: Router MAC slot held by the flow, negative when none.
+  * @pub_ip: Public IP slot held by the flow, negative when none.
+  * @pppoe: PPPoE session slot held by the flow, negative when none.
+@@ -170,6 +171,7 @@ struct ppe_ft_flow {
+ 	int index;
+ 	struct ppe_flow_entry entry;
+ 	u16 nexthop;
++	int ingress_my_mac;
+ 	int my_mac;
+ 	int pub_ip;
+ 	int pppoe;
+@@ -293,6 +295,7 @@ struct ppe_ft_data {
+ 	struct {
+ 		u8 dst[ETH_ALEN];
+ 		u8 src[ETH_ALEN];
++		u8 ingress[ETH_ALEN];
+ 	} eth;
+ 	__be32 sip;
+ 	__be32 dip;
+@@ -1812,6 +1815,7 @@ static int ppe_ft_flow_replace(struct pp
+ 		return -ENOMEM;
+ 
+ 	flow->cookie = f->cookie;
++	flow->ingress_my_mac = -1;
+ 	flow->my_mac = -1;
+ 	flow->pub_ip = -1;
+ 	flow->pppoe = -1;
+@@ -2132,6 +2136,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	 */
+ 	if (data.ingress_ifindex) {
+ 		struct net_device *idev;
++		struct net_device *master;
+ 		int vp_ret = 0;
+ 
+ 		idev = dev_get_by_index(dev_net(odev), data.ingress_ifindex);
+@@ -2140,11 +2145,21 @@ static int ppe_ft_flow_replace(struct pp
+ 			goto err_prelock_ivp;
+ 		}
+ 
++		/* A station sends routed traffic to the bridge MAC, not to the
++		 * VAP's own address.  Preserve that ingress identity for the
++		 * virtual-port L3 interface programmed below.
++		 */
++		rcu_read_lock();
++		master = netdev_master_upper_dev_get_rcu(idev);
++		ether_addr_copy(data.eth.ingress,
++				master ? master->dev_addr : idev->dev_addr);
++		rcu_read_unlock();
++		imtu = idev->mtu;
++
+ 		if (edma_port_dev_check(idev)) {
+ 			struct edma_port_priv *ipriv = netdev_priv(idev);
+ 
+ 			iport = ipriv->ppe_port->port_id;
+-			imtu = idev->mtu;
+ 		} else if (ft->ppe_dev->variant->has_vports &&
+ 			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
+ 			vp_ret = ppe_vp_get(ft->ppe_dev, idev,
+@@ -2300,12 +2315,44 @@ static int ppe_ft_flow_replace(struct pp
+ 		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
+ 	}
+ 
++	/* An ingress virtual port is an independent L3 endpoint.  A flow
++	 * may be accepted without its reverse direction, so it cannot rely
++	 * on the reverse rule to publish the bridge MAC or configure the VP
++	 * binding.  Without this setup packets injected from Wi-Fi never
++	 * enter the PPE routing pipeline even though the flow row is valid.
++	 */
++	if (flow->ivp >= 0) {
++		int ingress_l3_if = ppe_ft_vp_l3_if(ft, flow->ivp);
++
++		flow->ingress_my_mac =
++			ppe_ft_my_mac_get(ft, data.eth.ingress);
++		if (flow->ingress_my_mac < 0) {
++			ret = flow->ingress_my_mac;
++			goto err_pub_ip;
++		}
++
++		ret = ppe_l3_if_set(ft->ppe_dev, ingress_l3_if,
++				    data.eth.ingress, imtu, -1);
++		if (ret)
++			goto err_ingress_my_mac;
++
++		ret = ppe_port_l3_if_set(ft->ppe_dev, flow->ivp,
++					 ingress_l3_if);
++		if (ret)
++			goto err_ingress_my_mac;
++
++		ret = ppe_l3_if_my_mac_set(ft->ppe_dev, ingress_l3_if,
++					   flow->ingress_my_mac, true);
++		if (ret)
++			goto err_ingress_my_mac;
++	}
++
+ 	if (data.ingress_vid >= 0) {
+ 		flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_vid,
+ 					     imtu);
+ 		if (flow->vlan < 0) {
+ 			ret = flow->vlan;
+-			goto err_pub_ip;
++			goto err_ingress_my_mac;
+ 		}
+ 	}
+ 
+@@ -2446,6 +2493,8 @@ err_pppoe:
+ 	ppe_ft_pppoe_put(ft, flow->pppoe);
+ err_vlan:
+ 	ppe_ft_vlan_put(ft, flow->vlan);
++err_ingress_my_mac:
++	ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
+ err_pub_ip:
+ 	ppe_ft_pub_ip_put(ft, flow->pub_ip);
+ err_vp:
+@@ -2491,6 +2540,7 @@ static int ppe_ft_flow_destroy(struct pp
+ 		ppe_ft_host_put(ft, &flow->entry);
+ 		clear_bit(flow->nexthop, ft->nexthop_used);
+ 		ppe_ft_my_mac_put(ft, flow->my_mac);
++		ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
+ 		ppe_ft_pppoe_put(ft, flow->pppoe);
+ 		ppe_ft_vlan_put(ft, flow->vlan);
+ 		ppe_ft_pub_ip_put(ft, flow->pub_ip);

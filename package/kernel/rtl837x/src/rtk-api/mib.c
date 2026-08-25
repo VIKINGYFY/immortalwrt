@@ -24,8 +24,7 @@
 
 #include <dal/dal_mgmt.h>
 
-
-#define MIB_NOT_SUPPORT     (0xFFFF)
+#define MIB_NOT_SUPPORT (0xFFFF)
 
 /* Function Name:
  *      rtk_stat_global_reset
@@ -44,16 +43,16 @@
  */
 rtk_api_ret_t rtk_stat_global_reset(void)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->stat_global_reset)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->stat_global_reset)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->stat_global_reset();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->stat_global_reset();
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -73,20 +72,17 @@ rtk_api_ret_t rtk_stat_global_reset(void)
  */
 rtk_api_ret_t rtk_stat_port_reset(rtk_port_t port)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->stat_port_reset)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->stat_port_reset)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->stat_port_reset(port);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->stat_port_reset(port);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-
-
 
 /* Function Name:
  *      rtk_stat_port_get
@@ -106,19 +102,17 @@ rtk_api_ret_t rtk_stat_port_reset(rtk_port_t port)
  */
 rtk_api_ret_t rtk_stat_port_get(rtk_port_t port, rtk_stat_port_type_t cntr_idx, rtk_stat_counter_t *pCntr)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->stat_port_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->stat_port_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->stat_port_get(port, cntr_idx, pCntr);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->stat_port_get(port, cntr_idx, pCntr);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-
-
 
 /* Function Name:
  *      rtk_stat_lengthMode_set
@@ -139,16 +133,16 @@ rtk_api_ret_t rtk_stat_port_get(rtk_port_t port, rtk_stat_port_type_t cntr_idx, 
  */
 rtk_api_ret_t rtk_stat_lengthMode_set(rtk_stat_lengthMode_t txMode, rtk_stat_lengthMode_t rxMode)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->stat_lengthMode_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->stat_lengthMode_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->stat_lengthMode_set(txMode, rxMode);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->stat_lengthMode_set(txMode, rxMode);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -169,15 +163,14 @@ rtk_api_ret_t rtk_stat_lengthMode_set(rtk_stat_lengthMode_t txMode, rtk_stat_len
  */
 rtk_api_ret_t rtk_stat_lengthMode_get(rtk_stat_lengthMode_t *pTxMode, rtk_stat_lengthMode_t *pRxMode)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->stat_lengthMode_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->stat_lengthMode_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->stat_lengthMode_get(pTxMode, pRxMode);
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->stat_lengthMode_get(pTxMode, pRxMode);
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
-

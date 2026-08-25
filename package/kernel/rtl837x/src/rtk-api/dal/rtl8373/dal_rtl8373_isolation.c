@@ -43,16 +43,16 @@
  */
 ret_t dal_rtl8373_port_isolation_set(rtk_port_t port, rtk_uint32 permitPortmask)
 {
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check Port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if( permitPortmask > RTL8373_PORTMASK)
-        return RT_ERR_PORT_MASK;
+	if (permitPortmask > RTL8373_PORTMASK)
+		return RT_ERR_PORT_MASK;
 
-    return rtl8373_setAsicReg(RTL8373_PORT_ISO_PORT_PMSK_ADDR(port), permitPortmask);
+	return rtl8373_setAsicReg(RTL8373_PORT_ISO_PORT_PMSK_ADDR(port), permitPortmask);
 }
 
 /* Function Name:
@@ -73,21 +73,14 @@ ret_t dal_rtl8373_port_isolation_set(rtk_port_t port, rtk_uint32 permitPortmask)
  */
 ret_t dal_rtl8373_port_isolation_get(rtk_port_t port, rtk_uint32 *pPermitPortmask)
 {
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
+	/* Check initialization state */
+	RTK_CHK_INIT_STATE();
 
-    /* Check Port Valid */
-    RTK_CHK_PORT_VALID(port);
+	/* Check Port Valid */
+	RTK_CHK_PORT_VALID(port);
 
-    if(NULL == pPermitPortmask)
-        return RT_ERR_NULL_POINTER;
+	if (NULL == pPermitPortmask)
+		return RT_ERR_NULL_POINTER;
 
-    return rtl8373_getAsicReg(RTL8373_PORT_ISO_PORT_PMSK_ADDR(port), pPermitPortmask);
+	return rtl8373_getAsicReg(RTL8373_PORT_ISO_PORT_PMSK_ADDR(port), pPermitPortmask);
 }
-
-
-
-
-
-
-

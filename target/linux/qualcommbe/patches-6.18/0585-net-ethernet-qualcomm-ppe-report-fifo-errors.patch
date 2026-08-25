@@ -1,0 +1,63 @@
+From: VKing <noreply@openwrt.local>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: report FIFO errors
+
+Report an XGMAC RX/TX FIFO counter change at most once per port every ten
+seconds. This keeps persistent hardware errors visible without turning
+normal statistics polling into a stream of informational messages.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+@@ -6,6 +6,7 @@
+ /* PPE Port MAC initialization and PPE port MAC functions. */
+
+ #include <linux/clk.h>
++#include <linux/jiffies.h>
+ #include <linux/of.h>
+ #include <linux/of_net.h>
+ #include <linux/pcs/pcs-qcom-ipq9574.h>
+@@ -546,6 +547,21 @@ void ppe_port_get_stats64(struct ppe_port *ppe_port,
+
+ 		spin_unlock(&ppe_port->gmib_stats_lock);
+ 	}
++
++	if ((s->rx_fifo_errors != ppe_port->fifo_report_rx ||
++	     s->tx_fifo_errors != ppe_port->fifo_report_tx) &&
++	    time_after_eq(jiffies, ppe_port->fifo_report_next)) {
++		dev_warn(ppe_port->ppe_dev->dev,
++			 "PPE port %d XGMAC FIFO errors: rx=%llu tx=%llu crc=%llu len=%llu\n",
++			 ppe_port->port_id,
++			 (unsigned long long)s->rx_fifo_errors,
++			 (unsigned long long)s->tx_fifo_errors,
++			 (unsigned long long)s->rx_crc_errors,
++			 (unsigned long long)s->rx_length_errors);
++		ppe_port->fifo_report_rx = s->rx_fifo_errors;
++		ppe_port->fifo_report_tx = s->tx_fifo_errors;
++		ppe_port->fifo_report_next = jiffies + 10 * HZ;
++	}
+ }
+
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+@@ -57,6 +57,9 @@ enum ppe_mac_type {
+  * @gmib_read: Delay work task for GMAC MIB statistics polling function
+  * @gmib_stats: GMAC MIB statistics array
+  * @gmib_stats_lock: Lock to protect GMAC MIB statistics
++ * @fifo_report_next: Earliest jiffies for the next FIFO error report
++ * @fifo_report_rx: RX FIFO counter at the previous report
++ * @fifo_report_tx: TX FIFO counter at the previous report
+  */
+ struct ppe_port {
+ 	struct device_node *np;
+@@ -72,6 +75,9 @@ struct ppe_port {
+ 	struct delayed_work gmib_read;
+ 	u64 *gmib_stats;
+ 	spinlock_t gmib_stats_lock; /* Protects GMIB stats */
++	unsigned long fifo_report_next;
++	u64 fifo_report_rx;
++	u64 fifo_report_tx;
+ };
+
+ /**

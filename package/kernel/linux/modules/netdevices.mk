@@ -2158,7 +2158,8 @@ $(eval $(call KernelPackage,net-selftests))
 
 define KernelPackage/qcom-ppe
   SUBMENU:=$(NETWORK_DEVICES_MENU)
-  DEPENDS:=@TARGET_qualcommbe +kmod-libphy +kmod-pcs-qcom-ipq9574
+  DEPENDS:=@TARGET_qualcommbe +kmod-libphy +kmod-nf-flow \
+	+kmod-pcs-qcom-ipq9574
   TITLE:=Qualcomm PPE ethernet controller
   KCONFIG:= CONFIG_QCOM_PPE
   FILES:=$(LINUX_DIR)/drivers/net/ethernet/qualcomm/ppe/qcom-ppe.ko

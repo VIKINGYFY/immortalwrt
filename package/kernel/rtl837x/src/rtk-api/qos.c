@@ -43,16 +43,16 @@
  */
 rtk_api_ret_t rtk_qos_init(void)
 {
-    rtk_api_ret_t retVal;
+	rtk_api_ret_t retVal;
 
-    if (NULL == RT_MAPPER->qos_init)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	if (NULL == RT_MAPPER->qos_init)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_init();
-    RTK_API_UNLOCK();
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_init();
+	RTK_API_UNLOCK();
 
-    return retVal;
+	return retVal;
 }
 
 /* Function Name:
@@ -82,16 +82,16 @@ rtk_api_ret_t rtk_qos_init(void)
  */
 rtk_api_ret_t rtk_qos_priSel_set(rtk_qos_priDecTbl_t index, rtk_priority_select_t *pPriDec)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_priSel_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_priSel_set(index, pPriDec);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_priSel_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_priSel_set(index, pPriDec);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -119,16 +119,16 @@ rtk_api_ret_t rtk_qos_priSel_set(rtk_qos_priDecTbl_t index, rtk_priority_select_
  */
 rtk_api_ret_t rtk_qos_priSel_get(rtk_qos_priDecTbl_t index, rtk_priority_select_t *pPriDec)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_priSel_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_priSel_get(index, pPriDec);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_priSel_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_priSel_get(index, pPriDec);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -152,16 +152,16 @@ rtk_api_ret_t rtk_qos_priSel_get(rtk_qos_priDecTbl_t index, rtk_priority_select_
  */
 rtk_api_ret_t rtk_qos_1pPriRemap_set(rtk_pri_t dot1p_pri, rtk_pri_t int_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_1pPriRemap_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_1pPriRemap_set(dot1p_pri, int_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_1pPriRemap_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_1pPriRemap_set(dot1p_pri, int_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -183,16 +183,16 @@ rtk_api_ret_t rtk_qos_1pPriRemap_set(rtk_pri_t dot1p_pri, rtk_pri_t int_pri)
  */
 rtk_api_ret_t rtk_qos_1pPriRemap_get(rtk_pri_t dot1p_pri, rtk_pri_t *pInt_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_1pPriRemap_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_1pPriRemap_get(dot1p_pri, pInt_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_1pPriRemap_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_1pPriRemap_get(dot1p_pri, pInt_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -218,16 +218,16 @@ rtk_api_ret_t rtk_qos_1pPriRemap_get(rtk_pri_t dot1p_pri, rtk_pri_t *pInt_pri)
  */
 rtk_api_ret_t rtk_qos_dscpPriRemap_set(rtk_dscp_t dscp, rtk_pri_t int_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_dscpPriRemap_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_dscpPriRemap_set(dscp, int_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_dscpPriRemap_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_dscpPriRemap_set(dscp, int_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -250,16 +250,16 @@ rtk_api_ret_t rtk_qos_dscpPriRemap_set(rtk_dscp_t dscp, rtk_pri_t int_pri)
  */
 rtk_api_ret_t rtk_qos_dscpPriRemap_get(rtk_dscp_t dscp, rtk_pri_t *pInt_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_dscpPriRemap_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_dscpPriRemap_get(dscp, pInt_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_dscpPriRemap_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_dscpPriRemap_get(dscp, pInt_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -283,16 +283,16 @@ rtk_api_ret_t rtk_qos_dscpPriRemap_get(rtk_dscp_t dscp, rtk_pri_t *pInt_pri)
  */
 rtk_api_ret_t rtk_qos_RspanPriRemap_set(rtk_pri_t rspan_pri, rtk_pri_t int_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_rspanpriRemap_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_rspanpriRemap_set(rspan_pri, int_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_rspanpriRemap_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_rspanpriRemap_set(rspan_pri, int_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -314,16 +314,16 @@ rtk_api_ret_t rtk_qos_RspanPriRemap_set(rtk_pri_t rspan_pri, rtk_pri_t int_pri)
  */
 rtk_api_ret_t rtk_qos_RspanPriRemap_get(rtk_pri_t rspan_pri, rtk_pri_t *pInt_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_rspanpriRemap_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_rspanpriRemap_get(rspan_pri, pInt_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_rspanpriRemap_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_rspanpriRemap_get(rspan_pri, pInt_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -347,16 +347,16 @@ rtk_api_ret_t rtk_qos_RspanPriRemap_get(rtk_pri_t rspan_pri, rtk_pri_t *pInt_pri
  */
 rtk_api_ret_t rtk_qos_portPri_set(rtk_port_t port, rtk_pri_t int_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_portPri_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_portPri_set(port, int_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_portPri_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_portPri_set(port, int_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -378,16 +378,16 @@ rtk_api_ret_t rtk_qos_portPri_set(rtk_port_t port, rtk_pri_t int_pri)
  */
 rtk_api_ret_t rtk_qos_portPri_get(rtk_port_t port, rtk_pri_t *pInt_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_portPri_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_portPri_get(port, pInt_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_portPri_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_portPri_get(port, pInt_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -413,16 +413,16 @@ rtk_api_ret_t rtk_qos_portPri_get(rtk_port_t port, rtk_pri_t *pInt_pri)
  */
 rtk_api_ret_t rtk_qos_priMap_set(rtk_port_t port, rtk_qos_pri2queue_t *pPri2qid)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_priMap_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_priMap_set(port, pPri2qid);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_priMap_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_priMap_set(port, pPri2qid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -444,16 +444,16 @@ rtk_api_ret_t rtk_qos_priMap_set(rtk_port_t port, rtk_qos_pri2queue_t *pPri2qid)
  */
 rtk_api_ret_t rtk_qos_priMap_get(rtk_port_t port, rtk_qos_pri2queue_t *pPri2qid)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_priMap_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_priMap_get(port, pPri2qid);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_priMap_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_priMap_get(port, pPri2qid);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -481,16 +481,16 @@ rtk_api_ret_t rtk_qos_priMap_get(rtk_port_t port, rtk_qos_pri2queue_t *pPri2qid)
  */
 rtk_api_ret_t rtk_qos_schedulingQueue_set(rtk_port_t port, rtk_qos_queue_weights_t *pQweights)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_schedulingQueue_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_schedulingQueue_set(port, pQweights);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_schedulingQueue_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_schedulingQueue_set(port, pQweights);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -513,16 +513,16 @@ rtk_api_ret_t rtk_qos_schedulingQueue_set(rtk_port_t port, rtk_qos_queue_weights
  */
 rtk_api_ret_t rtk_qos_schedulingQueue_get(rtk_port_t port, rtk_qos_queue_weights_t *pQweights)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_schedulingQueue_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_schedulingQueue_get(port, pQweights);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_schedulingQueue_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_schedulingQueue_get(port, pQweights);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -548,16 +548,16 @@ rtk_api_ret_t rtk_qos_schedulingQueue_get(rtk_port_t port, rtk_qos_queue_weights
  */
 rtk_api_ret_t rtk_qos_1pRemarkEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_1pRemarkEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_1pRemarkEnable_set(port, enable);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_1pRemarkEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_1pRemarkEnable_set(port, enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -581,16 +581,16 @@ rtk_api_ret_t rtk_qos_1pRemarkEnable_set(rtk_port_t port, rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_qos_1pRemarkEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_1pRemarkEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_1pRemarkEnable_get(port, pEnable);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_1pRemarkEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_1pRemarkEnable_get(port, pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -613,16 +613,16 @@ rtk_api_ret_t rtk_qos_1pRemarkEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
  */
 rtk_api_ret_t rtk_qos_1pRemark_set(rtk_pri_t int_pri, rtk_pri_t dot1p_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_1pRemark_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_1pRemark_set(int_pri, dot1p_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_1pRemark_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_1pRemark_set(int_pri, dot1p_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -643,18 +643,17 @@ rtk_api_ret_t rtk_qos_1pRemark_set(rtk_pri_t int_pri, rtk_pri_t dot1p_pri)
  */
 rtk_api_ret_t rtk_qos_1pRemark_get(rtk_pri_t int_pri, rtk_pri_t *pDot1p_pri)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_1pRemark_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_1pRemark_get(int_pri, pDot1p_pri);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_1pRemark_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_1pRemark_get(int_pri, pDot1p_pri);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
 
 /* Function Name:
  *      rtk_qos_1pRemarkSrcSel_set
@@ -677,16 +676,16 @@ rtk_api_ret_t rtk_qos_1pRemark_get(rtk_pri_t int_pri, rtk_pri_t *pDot1p_pri)
  */
 rtk_api_ret_t rtk_qos_1pRemarkSrcSel_set(rtk_qos_1pRmkSrc_t type)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_1pRemarkSrcSel_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_1pRemarkSrcSel_set(type);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_1pRemarkSrcSel_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_1pRemarkSrcSel_set(type);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -709,16 +708,16 @@ rtk_api_ret_t rtk_qos_1pRemarkSrcSel_set(rtk_qos_1pRmkSrc_t type)
  */
 rtk_api_ret_t rtk_qos_1pRemarkSrcSel_get(rtk_qos_1pRmkSrc_t *pType)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_1pRemarkSrcSel_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_1pRemarkSrcSel_get(pType);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_1pRemarkSrcSel_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_1pRemarkSrcSel_get(pType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -745,16 +744,16 @@ rtk_api_ret_t rtk_qos_1pRemarkSrcSel_get(rtk_qos_1pRmkSrc_t *pType)
  */
 rtk_api_ret_t rtk_qos_dscpRemarkEnable_set(rtk_port_t port, rtk_enable_t enable)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_dscpRemarkEnable_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_dscpRemarkEnable_set(port, enable);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_dscpRemarkEnable_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_dscpRemarkEnable_set(port, enable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -778,16 +777,16 @@ rtk_api_ret_t rtk_qos_dscpRemarkEnable_set(rtk_port_t port, rtk_enable_t enable)
  */
 rtk_api_ret_t rtk_qos_dscpRemarkEnable_get(rtk_port_t port, rtk_enable_t *pEnable)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_dscpRemarkEnable_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_dscpRemarkEnable_get(port, pEnable);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_dscpRemarkEnable_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_dscpRemarkEnable_get(port, pEnable);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -810,16 +809,16 @@ rtk_api_ret_t rtk_qos_dscpRemarkEnable_get(rtk_port_t port, rtk_enable_t *pEnabl
  */
 rtk_api_ret_t rtk_qos_intpri2dscp_Remark_set(rtk_pri_t int_pri, rtk_dscp_t dscp)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_intpri2dscpRemark_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_intpri2dscpRemark_set(int_pri, dscp);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_intpri2dscpRemark_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_intpri2dscpRemark_set(int_pri, dscp);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -840,16 +839,16 @@ rtk_api_ret_t rtk_qos_intpri2dscp_Remark_set(rtk_pri_t int_pri, rtk_dscp_t dscp)
  */
 rtk_api_ret_t rtk_qos_intpri2dscp_Remark_get(rtk_pri_t int_pri, rtk_dscp_t *pDscp)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_intpri2dscpRemark_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_intpri2dscpRemark_get(int_pri, pDscp);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_intpri2dscpRemark_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_intpri2dscpRemark_get(int_pri, pDscp);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -872,16 +871,16 @@ rtk_api_ret_t rtk_qos_intpri2dscp_Remark_get(rtk_pri_t int_pri, rtk_dscp_t *pDsc
  */
 rtk_api_ret_t rtk_qos_dscp2dscp_Remark_set(rtk_pri_t ori_dscp, rtk_dscp_t RmkDscp)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_dscp2dscpRemark_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_dscp2dscpRemark_set(ori_dscp, RmkDscp);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_dscp2dscpRemark_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_dscp2dscpRemark_set(ori_dscp, RmkDscp);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -902,16 +901,16 @@ rtk_api_ret_t rtk_qos_dscp2dscp_Remark_set(rtk_pri_t ori_dscp, rtk_dscp_t RmkDsc
  */
 rtk_api_ret_t rtk_qos_dscp2dscp_Remark_get(rtk_pri_t ori_dscp, rtk_dscp_t *pRmkDscp)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_dscp2dscpRemark_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_dscp2dscpRemark_get(ori_dscp, pRmkDscp);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_dscp2dscpRemark_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_dscp2dscpRemark_get(ori_dscp, pRmkDscp);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -935,16 +934,16 @@ rtk_api_ret_t rtk_qos_dscp2dscp_Remark_get(rtk_pri_t ori_dscp, rtk_dscp_t *pRmkD
  */
 rtk_api_ret_t rtk_qos_dscpRemarkSrcSel_set(rtk_qos_dscpRmkSrc_t type)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_dscpRemarkSrcSel_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_dscpRemarkSrcSel_set(type);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_dscpRemarkSrcSel_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_dscpRemarkSrcSel_set(type);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -968,16 +967,16 @@ rtk_api_ret_t rtk_qos_dscpRemarkSrcSel_set(rtk_qos_dscpRmkSrc_t type)
  */
 rtk_api_ret_t rtk_qos_dscpRemarkSrcSel_get(rtk_qos_dscpRmkSrc_t *pType)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_dscpRemarkSrcSel_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_dscpRemarkSrcSel_get(pType);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_dscpRemarkSrcSel_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_dscpRemarkSrcSel_get(pType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -1000,16 +999,16 @@ rtk_api_ret_t rtk_qos_dscpRemarkSrcSel_get(rtk_qos_dscpRmkSrc_t *pType)
  */
 rtk_api_ret_t rtk_qos_portPriSelIndex_set(rtk_port_t port, rtk_qos_priDecTbl_t index)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_portPriSelIndex_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_portPriSelIndex_set(port, index);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_portPriSelIndex_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_portPriSelIndex_set(port, index);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -1030,16 +1029,16 @@ rtk_api_ret_t rtk_qos_portPriSelIndex_set(rtk_port_t port, rtk_qos_priDecTbl_t i
  */
 rtk_api_ret_t rtk_qos_portPriSelIndex_get(rtk_port_t port, rtk_qos_priDecTbl_t *pIndex)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_portPriSelIndex_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_portPriSelIndex_get(port, pIndex);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_portPriSelIndex_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_portPriSelIndex_get(port, pIndex);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -1061,16 +1060,16 @@ rtk_api_ret_t rtk_qos_portPriSelIndex_get(rtk_port_t port, rtk_qos_priDecTbl_t *
  */
 rtk_api_ret_t rtk_qos_schedulingType_set(rtk_port_t port, rtk_qos_scheduling_type_t queueType)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_schedulingType_set)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_schedulingType_set(port, queueType);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_schedulingType_set)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_schedulingType_set(port, queueType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
 
 /* Function Name:
@@ -1091,20 +1090,14 @@ rtk_api_ret_t rtk_qos_schedulingType_set(rtk_port_t port, rtk_qos_scheduling_typ
  */
 rtk_api_ret_t rtk_qos_schedulingType_get(rtk_port_t port, rtk_qos_scheduling_type_t *pQueueType)
 {
-    rtk_api_ret_t retVal;
-	
-    if (NULL == RT_MAPPER->qos_schedulingType_get)
-        return RT_ERR_DRIVER_NOT_FOUND;
+	rtk_api_ret_t retVal;
 
-    RTK_API_LOCK();
-    retVal = RT_MAPPER->qos_schedulingType_get(port, pQueueType);
-    RTK_API_UNLOCK();
+	if (NULL == RT_MAPPER->qos_schedulingType_get)
+		return RT_ERR_DRIVER_NOT_FOUND;
 
-    return retVal;
+	RTK_API_LOCK();
+	retVal = RT_MAPPER->qos_schedulingType_get(port, pQueueType);
+	RTK_API_UNLOCK();
+
+	return retVal;
 }
-
-
-
-
-
-

@@ -20,54 +20,28 @@
 
 typedef rtk_uint32 rtk_svlan_index_t;
 
-typedef struct rtk_svlan_memberCfg_s{
-    rtk_uint32 svid;
-    rtk_portmask_t memberport;
-    rtk_portmask_t untagport;
-    rtk_uint32 fiden;
-    rtk_uint32 fid;
-    rtk_uint32 priority;
-    rtk_uint32 efiden;
-    rtk_uint32 efid;
-    rtk_uint32 chk_ivl_svl;	
-    rtk_uint32 ivl_svl;		
-}rtk_svlan_memberCfg_t;
+typedef struct rtk_svlan_memberCfg_s {
+	rtk_uint32 svid;
+	rtk_portmask_t memberport;
+	rtk_portmask_t untagport;
+	rtk_uint32 fiden;
+	rtk_uint32 fid;
+	rtk_uint32 priority;
+	rtk_uint32 efiden;
+	rtk_uint32 efid;
+	rtk_uint32 chk_ivl_svl;
+	rtk_uint32 ivl_svl;
+} rtk_svlan_memberCfg_t;
 
-typedef enum rtk_svlan_pri_ref_e
-{
-    REF_INTERNAL_PRI = 0,
-    REF_CTAG_PRI,
-    REF_RSV,
-    REF_PB_PRI,
-    REF_PRI_END
-} rtk_svlan_pri_ref_t;
-
+typedef enum rtk_svlan_pri_ref_e { REF_INTERNAL_PRI = 0, REF_CTAG_PRI, REF_RSV, REF_PB_PRI, REF_PRI_END } rtk_svlan_pri_ref_t;
 
 typedef rtk_uint32 rtk_svlan_tpid_t;
 
-typedef enum rtk_svlan_untag_action_e
-{
-    UNTAG_DROP = 0,
-    UNTAG_TRAP,
-    UNTAG_ASSIGN,
-    UNTAG_END
-} rtk_svlan_untag_action_t;
+typedef enum rtk_svlan_untag_action_e { UNTAG_DROP = 0, UNTAG_TRAP, UNTAG_ASSIGN, UNTAG_END } rtk_svlan_untag_action_t;
 
-typedef enum rtk_svlan_unassign_action_e
-{
-    UNASSIGN_PBSVID = 0,
-    UNASSIGN_TRAP,
-    UNASSIGN_END
-} rtk_svlan_unassign_action_t;
+typedef enum rtk_svlan_unassign_action_e { UNASSIGN_PBSVID = 0, UNASSIGN_TRAP, UNASSIGN_END } rtk_svlan_unassign_action_t;
 
-typedef enum rtk_svlan_trapCpuMsk_e
-{
-    TRAP_TO_NONE = 0,   
-    TRAP_TO_INT_CPU,
-    TRAP_TO_EXT_CPU,
-    TRAP_TO_BOTH_INT_EXT_CPU,
-    TRAP_TO_END
-} rtk_svlan_trapCpuMsk_t;
+typedef enum rtk_svlan_trapCpuMsk_e { TRAP_TO_NONE = 0, TRAP_TO_INT_CPU, TRAP_TO_EXT_CPU, TRAP_TO_BOTH_INT_EXT_CPU, TRAP_TO_END } rtk_svlan_trapCpuMsk_t;
 
 /* Function Name:
  *      rtk_svlan_init
@@ -542,7 +516,7 @@ extern rtk_api_ret_t rtk_svlan_trapCpumsk_set(rtk_uint32 cpuMsk);
  * Note:
  *      None
  */
-extern rtk_api_ret_t rtk_svlan_trapCpumsk_get(rtk_uint32 *pCpuMsk);   
+extern rtk_api_ret_t rtk_svlan_trapCpumsk_get(rtk_uint32 *pCpuMsk);
 
 /* Function Name:
  *      rtk_svlan_unassign_action_set

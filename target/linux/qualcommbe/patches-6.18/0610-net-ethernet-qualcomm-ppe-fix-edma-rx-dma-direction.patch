@@ -1,0 +1,21 @@
+From: VKing <noreply@openwrt.local>
+Date: Mon, 24 Aug 2026 16:03:46 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: fix EDMA RX DMA direction
+
+EDMA RX fill buffers are written by the device, but both the linear and
+page-mode allocation paths map them with DMA_TO_DEVICE. Their reap paths
+already unmap with DMA_FROM_DEVICE, exposing the mismatch on non-coherent
+systems.
+
+Map both receive buffer forms with DMA_FROM_DEVICE.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
+@@ -68 +68 @@
+-			buff_addr = dma_map_single(dev, skb->data, dma_map_size, DMA_TO_DEVICE);
++			buff_addr = dma_map_single(dev, skb->data, dma_map_size, DMA_FROM_DEVICE);
+@@ -87 +87 @@
+-			buff_addr = dma_map_page(dev, pg, 0, PAGE_SIZE, DMA_TO_DEVICE);
++			buff_addr = dma_map_page(dev, pg, 0, PAGE_SIZE, DMA_FROM_DEVICE);

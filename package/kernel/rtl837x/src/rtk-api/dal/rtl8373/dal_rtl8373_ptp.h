@@ -23,58 +23,40 @@
 /*
  * Symbol Definition
  */
-#define DAL_RTL8373_MAX_NUM_OF_NANO_SECOND                     0x3B9AC9FF
-#define DAL_RTL8373_PTP_INTR_MASK                                          0xFF
-#define DAL_RTL8373_MAX_NUM_OF_TPID                                    0xFFFF
-#define RTL8373_MAX_PPS_WIDTH                 630
+#define DAL_RTL8373_MAX_NUM_OF_NANO_SECOND 0x3B9AC9FF
+#define DAL_RTL8373_PTP_INTR_MASK 0xFF
+#define DAL_RTL8373_MAX_NUM_OF_TPID 0xFFFF
+#define RTL8373_MAX_PPS_WIDTH 630
 
+typedef enum RTL8373_PTP_TIME_CMD_E { PTP_TIME_READ = 0, PTP_TIME_WRITE, PTP_TIME_ADJUST, PTP_TIME_CMD_END } RTL8373_PTP_TIME_CMD;
 
+typedef enum RTL8373_PTP_TIME_ADJ_E { PTP_TIME_ADJ_INC = 0, PTP_TIME_ADJ_DEC, PTP_TIME_ADJ_END } RTL8373_PTP_TIME_ADJ;
 
+typedef struct rtl8373_ptp_tx_time_stamp_s {
+	rtk_uint32 valid;
+	rtk_uint32 portid;
+	rtk_uint32 msgtype;
+	rtk_ptp_info_t timestamp;
+} rtl8373_ptp_tx_time_stamp_t;
 
-typedef enum RTL8373_PTP_TIME_CMD_E
-{
-    PTP_TIME_READ = 0,
-    PTP_TIME_WRITE,
-     PTP_TIME_ADJUST,
-    PTP_TIME_CMD_END
-}RTL8373_PTP_TIME_CMD;
+typedef struct rtl8373_ptp_imr_s {
+	rtk_uint32 imr_pps_1;
+	rtk_uint32 imr_tod_done;
+	rtk_uint32 imr_txtime_empty;
+} rtl8373_ptp_imr_t;
 
+typedef struct rtl8373_ptp_isr_s {
+	rtk_uint32 isr_pps_1;
+	rtk_uint32 isr_tod_done;
+	rtk_uint32 isr_txtime_empty;
+} rtl8373_ptp_isr_t;
 
-typedef enum RTL8373_PTP_TIME_ADJ_E
-{
-    PTP_TIME_ADJ_INC = 0,
-    PTP_TIME_ADJ_DEC,
-    PTP_TIME_ADJ_END
-}RTL8373_PTP_TIME_ADJ;
+typedef struct rtl8373_ptp_todframe_s {
+	rtk_uint16 TodDate[16];
+} rtl8373_ptp_todframe_t;
+#define RTL8373_PTP_INTR_MASK 0xFF
 
-
-
-typedef struct  rtl8373_ptp_tx_time_stamp_s{
-    rtk_uint32 valid;
-    rtk_uint32 portid;
-    rtk_uint32 msgtype;
-    rtk_ptp_info_t timestamp;
-}rtl8373_ptp_tx_time_stamp_t;
-
-typedef struct  rtl8373_ptp_imr_s{
-    rtk_uint32 imr_pps_1;
-    rtk_uint32 imr_tod_done;
-    rtk_uint32 imr_txtime_empty;
-}rtl8373_ptp_imr_t;
-
-typedef struct  rtl8373_ptp_isr_s{
-    rtk_uint32 isr_pps_1;
-    rtk_uint32 isr_tod_done;
-    rtk_uint32 isr_txtime_empty;
-}rtl8373_ptp_isr_t;
-
-
-typedef struct  rtl8373_ptp_todframe_s{
-    rtk_uint16 TodDate[16];
-}rtl8373_ptp_todframe_t;
-#define RTL8373_PTP_INTR_MASK        0xFF
-
-#define RTL8373_PTP_PORT_MASK        0x3FF
+#define RTL8373_PTP_PORT_MASK 0x3FF
 /*
  * Data Declaration
  */
@@ -113,8 +95,6 @@ extern rtk_uint32 rtk_switch_port_L2Ptpport_get(rtk_port_t logicalPort);
  */
 ret_t dal_rtl8373_ptp_internalport(rtk_portmask_t portmask);
 
-
-
 /* Function Name:
  *      dal_rtl8373_ptp_init
  * Description:
@@ -130,7 +110,7 @@ ret_t dal_rtl8373_ptp_internalport(rtk_portmask_t portmask);
  * Note:
  *      This API is used to initialize EEE status.
  */
-extern ret_t dal_rtl8373_ptp_init(  rtk_portmask_t ptpinternalpmask);
+extern ret_t dal_rtl8373_ptp_init(rtk_portmask_t ptpinternalpmask);
 /* Function Name:
  *      dal_rtl8373_bypassptpEn_get
  * Description:
@@ -147,7 +127,7 @@ extern ret_t dal_rtl8373_ptp_init(  rtk_portmask_t ptpinternalpmask);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_bypassptpEn_get( rtk_port_t port, rtk_enable_t *pEnable);
+extern ret_t dal_rtl8373_bypassptpEn_get(rtk_port_t port, rtk_enable_t *pEnable);
 /* Function Name:
  *      dal_rtl8373_bypassptpEn_set
  * Description:
@@ -165,7 +145,7 @@ extern ret_t dal_rtl8373_bypassptpEn_get( rtk_port_t port, rtk_enable_t *pEnable
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_bypassptpEn_set( rtk_port_t port, rtk_enable_t Enable);
+extern ret_t dal_rtl8373_bypassptpEn_set(rtk_port_t port, rtk_enable_t Enable);
 
 /* Function Name:
  *      dal_rtl8373_ptpEn_get
@@ -183,8 +163,7 @@ extern ret_t dal_rtl8373_bypassptpEn_set( rtk_port_t port, rtk_enable_t Enable);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptpEn_get( rtk_port_t port, rtk_ptp_header_t type,rtk_enable_t *pEnable);
-
+extern ret_t dal_rtl8373_ptpEn_get(rtk_port_t port, rtk_ptp_header_t type, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_ptpEn_get
@@ -202,7 +181,7 @@ extern ret_t dal_rtl8373_ptpEn_get( rtk_port_t port, rtk_ptp_header_t type,rtk_e
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptpEn_set( rtk_port_t port, rtk_ptp_header_t type,rtk_enable_t Enable);
+extern ret_t dal_rtl8373_ptpEn_set(rtk_port_t port, rtk_ptp_header_t type, rtk_enable_t Enable);
 
 /* Function Name:
  *      dal_rtl8373_ptp_TxTimestampFifo_get
@@ -223,13 +202,13 @@ extern ret_t dal_rtl8373_ptpEn_set( rtk_port_t port, rtk_ptp_header_t type,rtk_e
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_TxTimestampFifo_get( rtk_time_txTimeEntry_t *pTimeEntry);
+extern ret_t dal_rtl8373_ptp_TxTimestampFifo_get(rtk_time_txTimeEntry_t *pTimeEntry);
 /* Function Name:
  *      dal_rtl8373_ptp_Oper_triger
  * Description:
  *      Set the PTP time operation configuration of specific port.
  * Input:
- *      triType     
+ *      triType
  * Output:
  *      None
  * Return:
@@ -284,7 +263,7 @@ extern ret_t dal_rtl8373_ptp_Oper_get(rtk_time_operCfg_t *pOperCfg);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_Oper_set( rtk_time_operCfg_t pOperCfg);
+extern ret_t dal_rtl8373_ptp_Oper_set(rtk_time_operCfg_t pOperCfg);
 /* Function Name:
  *      dal_rtl8373_ptp_LatchTime_get
  * Description:
@@ -303,7 +282,7 @@ extern ret_t dal_rtl8373_ptp_Oper_set( rtk_time_operCfg_t pOperCfg);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_LatchTime_get( rtk_time_timeStamp_t *pLatchTime);
+extern ret_t dal_rtl8373_ptp_LatchTime_get(rtk_time_timeStamp_t *pLatchTime);
 
 /* Function Name:
  *      dal_rtl8373_ptp_1PPSOutput_get
@@ -345,7 +324,7 @@ extern ret_t dal_rtl8373_ptp_1PPSOutput_get(rtk_uint32 *pPulseWidth, rtk_enable_
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_1PPSOutput_set( rtk_uint32 pulseWidth, rtk_enable_t enable);
+extern ret_t dal_rtl8373_ptp_1PPSOutput_set(rtk_uint32 pulseWidth, rtk_enable_t enable);
 
 /* Function Name:
  *      dal_rtl8373_ptp_ClockOutput_get
@@ -366,7 +345,7 @@ extern ret_t dal_rtl8373_ptp_1PPSOutput_set( rtk_uint32 pulseWidth, rtk_enable_t
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_ClockOutput_get( rtk_time_clkOutput_t *pClkOutput);
+extern ret_t dal_rtl8373_ptp_ClockOutput_get(rtk_time_clkOutput_t *pClkOutput);
 /* Function Name:
  *      dal_rtl8373_ptp_ClockOutput_set
  * Description:
@@ -385,7 +364,7 @@ extern ret_t dal_rtl8373_ptp_ClockOutput_get( rtk_time_clkOutput_t *pClkOutput);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_ClockOutput_set( rtk_time_clkOutput_t pClkOutput);
+extern ret_t dal_rtl8373_ptp_ClockOutput_set(rtk_time_clkOutput_t pClkOutput);
 #if 0
 /* Function Name:
  *      dal_rtl8373_ptp_mac_set
@@ -431,7 +410,7 @@ extern ret_t dal_rtl8373_ptp_mac_get(rtk_mac_t *pMac);
  *      port    - port id
  *      portcfg   -port role/udp_en/eth_en/always_ts
  * Output:
- *      
+ *
  * Return:
  *      RT_ERR_OK
  *      RT_ERR_FAILED
@@ -443,7 +422,7 @@ extern ret_t dal_rtl8373_ptp_mac_get(rtk_mac_t *pMac);
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_portctrl_set( rtk_port_t port, rtk_ptp_port_ctrl_t portcfg);
+extern ret_t dal_rtl8373_ptp_portctrl_set(rtk_port_t port, rtk_ptp_port_ctrl_t portcfg);
 /* Function Name:
  *      dal_rtl8373_ptp_TransEnable_get
  * Description:
@@ -463,7 +442,7 @@ extern ret_t dal_rtl8373_ptp_portctrl_set( rtk_port_t port, rtk_ptp_port_ctrl_t 
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_portctrl_get( rtk_port_t port, rtk_ptp_port_ctrl_t *pportcfg);
+extern ret_t dal_rtl8373_ptp_portctrl_get(rtk_port_t port, rtk_ptp_port_ctrl_t *pportcfg);
 /* Function Name:
  *      dal_rtl8373_ptp_tpid_set
  * Description:
@@ -651,7 +630,7 @@ extern ret_t dal_rtl8373_ptp_portEnable_get(rtk_port_t port, rtk_enable_t *pEnab
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_portTimestamp_get( rtk_port_t port, rtk_ptp_msgType_t type, rtk_ptp_info_t *pInfo);
+extern ret_t dal_rtl8373_ptp_portTimestamp_get(rtk_port_t port, rtk_ptp_msgType_t type, rtk_ptp_info_t *pInfo);
 
 /* Function Name:
  *      dal_rtl8373_ptp_intControl_set
@@ -674,7 +653,7 @@ extern ret_t dal_rtl8373_ptp_portTimestamp_get( rtk_port_t port, rtk_ptp_msgType
  *      PTP_INT_TYPE_TOD_DONE,
  *      PTP_INT_TYPE_TXTIME_EMPTY
  */
-extern  ret_t dal_rtl8373_ptp_intControl_set(rtk_ptp_intType_t type, rtk_enable_t enable);
+extern ret_t dal_rtl8373_ptp_intControl_set(rtk_ptp_intType_t type, rtk_enable_t enable);
 ;
 
 /* Function Name:
@@ -696,7 +675,7 @@ extern  ret_t dal_rtl8373_ptp_intControl_set(rtk_ptp_intType_t type, rtk_enable_
  *      PTP_INT_TYPE_TOD_DONE,
  *      PTP_INT_TYPE_TXTIME_EMPTY
  */
-extern  ret_t dal_rtl8373_ptp_intControl_get(rtk_ptp_intType_t type,rtk_enable_t *pEnable);
+extern ret_t dal_rtl8373_ptp_intControl_get(rtk_ptp_intType_t type, rtk_enable_t *pEnable);
 
 /* Function Name:
  *      dal_rtl8373_ptp_intStatus_get
@@ -717,7 +696,7 @@ extern  ret_t dal_rtl8373_ptp_intControl_get(rtk_ptp_intType_t type,rtk_enable_t
  *      PTP_INT_TYPE_TOD_DONE,
  *      PTP_INT_TYPE_TXTIME_EMPTY,
  */
- extern ret_t dal_rtl8373_ptp_intStatus_get(rtk_uint32 *mask);
+extern ret_t dal_rtl8373_ptp_intStatus_get(rtk_uint32 *mask);
 /* Function Name:
  *      dal_rtl8373_ptp_toddelay_set
  * Description:
@@ -736,7 +715,7 @@ extern  ret_t dal_rtl8373_ptp_intControl_get(rtk_ptp_intType_t type,rtk_enable_t
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_toddelay_set( rtk_uint32 toddelay);
+extern ret_t dal_rtl8373_ptp_toddelay_set(rtk_uint32 toddelay);
 
 /* Function Name:
  *      dal_rtl8373_ptp_toddelay_get
@@ -779,14 +758,14 @@ extern ret_t dal_rtl8373_ptp_toddelay_get(rtk_uint32 *ptoddelay);
  *      If it is configured to 0x8000000, the tick frequency would be half of default.
  *      If it is configured to 0x20000000, the tick frequency would be one and half times of default.
  */
-extern ret_t dal_rtl8373_ptp_RefTimeFreqCfg_set(rtk_uint32 freq,rtk_enable_t apply);
+extern ret_t dal_rtl8373_ptp_RefTimeFreqCfg_set(rtk_uint32 freq, rtk_enable_t apply);
 
 /* Function Name:
  *      dal_rtl8373_ptp_RefTimeFreqCfg_get
  * Description:
  *      Set  ptp_RefTimeFreqCfg_get.
  * Input:
- *      None    
+ *      None
  * Output:
  *      cfgFreq
  *      curFreq
@@ -799,8 +778,7 @@ extern ret_t dal_rtl8373_ptp_RefTimeFreqCfg_set(rtk_uint32 freq,rtk_enable_t app
  *      RT_ERR_INPUT    - invalid input parameter
  * Note:
  */
-extern ret_t dal_rtl8373_ptp_RefTimeFreqCfg_get(rtk_uint32 *cfgFreq,rtk_uint32 *curFreq);
-
+extern ret_t dal_rtl8373_ptp_RefTimeFreqCfg_get(rtk_uint32 *cfgFreq, rtk_uint32 *curFreq);
 
 /* Function Name:
  *      rtk_ptp_portIntStatus_set
@@ -875,7 +853,7 @@ extern ret_t dal_rtl8373_ptp_portIntStatus_get(rtk_ptp_intStatus_t *pStatusMask)
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_portTrap_set(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl );
+extern ret_t dal_rtl8373_ptp_portTrap_set(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl);
 
 /* Function Name:
  *      dal_rtl8373_ptp_portTrap_get
@@ -893,8 +871,7 @@ extern ret_t dal_rtl8373_ptp_portTrap_set(rtk_port_t port, rtk_ptp_porttrap_ctrl
  * Note:
  *      None
  */
-extern ret_t dal_rtl8373_ptp_portTrap_get(rtk_port_t port,  rtk_ptp_porttrap_ctrl_t *trapctrl);
-
+extern ret_t dal_rtl8373_ptp_portTrap_get(rtk_port_t port, rtk_ptp_porttrap_ctrl_t *trapctrl);
 
 /* Function Name:
  *      dal_rtl8373_ptp_TransEnable_set
@@ -916,7 +893,7 @@ extern ret_t dal_rtl8373_ptp_portTrap_get(rtk_port_t port,  rtk_ptp_porttrap_ctr
  * Note:
  *      unit: 1 ns
  */
-ret_t dal_rtl8373_ptp_TxImbal_set(rtk_port_t port, rtk_uint32 TxImbal,rtk_uint32 RxImbal);
+ret_t dal_rtl8373_ptp_TxImbal_set(rtk_port_t port, rtk_uint32 TxImbal, rtk_uint32 RxImbal);
 
 /* Function Name:
  *      dal_rtl8373_ptp_TxImbal_get
@@ -938,7 +915,7 @@ ret_t dal_rtl8373_ptp_TxImbal_set(rtk_port_t port, rtk_uint32 TxImbal,rtk_uint32
  * Note:
  *      unit: 1 ns
  */
-ret_t dal_rtl8373_ptp_TxImbal_get(rtk_port_t port, rtk_uint32 *pTxImbal,rtk_uint32 *pRxImbal);
+ret_t dal_rtl8373_ptp_TxImbal_get(rtk_port_t port, rtk_uint32 *pTxImbal, rtk_uint32 *pRxImbal);
 /* Function Name:
  *      dal_rtl8373_ptp_toddelay_set
  * Description:
@@ -958,7 +935,7 @@ ret_t dal_rtl8373_ptp_TxImbal_get(rtk_port_t port, rtk_uint32 *pTxImbal,rtk_uint
  * Note:
  *      None
  */
-ret_t dal_rtl8373_ptp_toddelay_set(  rtk_uint32 toddelay);
+ret_t dal_rtl8373_ptp_toddelay_set(rtk_uint32 toddelay);
 
 /* Function Name:
  *      dal_rtl8373_ptp_toddelay_get
@@ -979,7 +956,7 @@ ret_t dal_rtl8373_ptp_toddelay_set(  rtk_uint32 toddelay);
  * Note:
  *      None
  */
-ret_t dal_rtl8373_ptp_toddelay_get( rtk_uint32 *ptoddelay);
+ret_t dal_rtl8373_ptp_toddelay_get(rtk_uint32 *ptoddelay);
 /* Function Name:
  *      dal_rtl8373_ptp_phyidtoptpid_set
  * Description:
@@ -1040,7 +1017,7 @@ ret_t dal_rtl8373_ptp_phyidtoportid_get(rtk_port_t port, rtk_port_t *pptp_portin
  * Note:
  *      mac mode only
  */
-ret_t dal_rtl8373_ptp_PPSLatchTime_get( rtk_time_timeStamp_t *pLatchTime);
+ret_t dal_rtl8373_ptp_PPSLatchTime_get(rtk_time_timeStamp_t *pLatchTime);
 /* Function Name:
  *      dal_rtl8373_ptp_RefTimeFreqCfg_set
  * Description:
@@ -1070,7 +1047,7 @@ ret_t dal_rtl8373_ptp_RefTimeFreqCfg_set(rtk_uint32 freq, rtk_enable_t apply);
  * Description:
  *      Set  ptp_RefTimeFreqCfg_get.
  * Input:
- *      None    
+ *      None
  * Output:
  *      cfgFreq
  *      curFreq
@@ -1083,8 +1060,7 @@ ret_t dal_rtl8373_ptp_RefTimeFreqCfg_set(rtk_uint32 freq, rtk_enable_t apply);
  *      RT_ERR_INPUT    - invalid input parameter
  * Note:
  */
-ret_t dal_rtl8373_ptp_RefTimeFreqCfg_get(rtk_uint32 *cfgFreq,rtk_uint32 *curFreq);
-
+ret_t dal_rtl8373_ptp_RefTimeFreqCfg_get(rtk_uint32 *cfgFreq, rtk_uint32 *curFreq);
 
 /* Function Name:
  *      dal_rtl8373_ptp_ClkSrcCtrl_set
@@ -1120,7 +1096,4 @@ ret_t dal_rtl8373_ptp_ClkSrcCtrl_set(rtk_enable_t clksrc);
  */
 ret_t dal_rtl8373_ptp_ClkSrcCtrl_get(rtk_enable_t *clksrc);
 
-
-
 #endif /* __DAL_RTL8373_PTP_H__ */
-

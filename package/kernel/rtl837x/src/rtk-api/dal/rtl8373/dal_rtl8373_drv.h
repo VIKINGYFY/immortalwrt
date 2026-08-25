@@ -15,18 +15,17 @@
  *
  */
 
- #ifndef __DAL_RTL8373_DRV_H__
+#ifndef __DAL_RTL8373_DRV_H__
 #define __DAL_RTL8373_DRV_H__
 
-#define RTL8373_MAX_POLLCNT  1000UL
-
+#define RTL8373_MAX_POLLCNT 1000UL
 
 /* Function Name:
  *      dal_rtl8373_mdc_en
  * Description:
  *      Enbale MDC function.
  * Input:
- *      enable  - enable 
+ *      enable  - enable
  * Output:
  *      None
  * Return:
@@ -40,7 +39,7 @@
  */
 extern rtk_api_ret_t dal_rtl8373_mdc_en(rtk_uint32 enable);
 
- /* Function Name:
+/* Function Name:
  *      dal_rtl8373_phy_write
  * Description:
  *      Configure phy register data.
@@ -102,8 +101,8 @@ extern rtk_api_ret_t dal_rtl8373_phy_read(rtk_uint32 phy_id, rtk_uint32 dev_addr
  * Note:
  *      This API will configure phy register data.
  */
- 
-extern rtk_api_ret_t dal_rtl8373_phy_readBits(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr,  rtk_uint32 bitsMask,rtk_uint32 *pdata);
+
+extern rtk_api_ret_t dal_rtl8373_phy_readBits(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitsMask, rtk_uint32 *pdata);
 
 /* Function Name:
  *      rtk_port_phyReg_setBits
@@ -125,8 +124,8 @@ extern rtk_api_ret_t dal_rtl8373_phy_readBits(rtk_uint32 phy_id, rtk_uint32 dev_
  * Note:
  *      This API will configure phy register data.
  */
- 
-extern rtk_api_ret_t dal_rtl8373_phy_writeBits(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_uint32 reg_addr,  rtk_uint32 bitsMask,rtk_uint32 indata);
+
+extern rtk_api_ret_t dal_rtl8373_phy_writeBits(rtk_uint32 phy_mask, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitsMask, rtk_uint32 indata);
 /* Function Name:
  *      dal_rtl8224_top_reg_write
  * Description:
@@ -146,7 +145,7 @@ extern rtk_api_ret_t dal_rtl8373_phy_writeBits(rtk_uint32 phy_mask, rtk_uint32 d
  *      This API will set phy register data.
  */
 
-extern rtk_api_ret_t  dal_rtl8224_top_reg_write(rtk_uint32 top_reg_addr,  rtk_uint32 value);
+extern rtk_api_ret_t dal_rtl8224_top_reg_write(rtk_uint32 top_reg_addr, rtk_uint32 value);
 
 /* Function Name:
  *      dal_rtl8224_top_reg_read
@@ -167,8 +166,7 @@ extern rtk_api_ret_t  dal_rtl8224_top_reg_write(rtk_uint32 top_reg_addr,  rtk_ui
  *      This API will get phy register data.
  */
 
-extern rtk_api_ret_t  dal_rtl8224_top_reg_read(rtk_uint32 top_reg_addr,  rtk_uint32* pvalue);
-
+extern rtk_api_ret_t dal_rtl8224_top_reg_read(rtk_uint32 top_reg_addr, rtk_uint32 *pvalue);
 
 /* Function Name:
  *      dal_rtl8224_top_regbit_write
@@ -190,8 +188,7 @@ extern rtk_api_ret_t  dal_rtl8224_top_reg_read(rtk_uint32 top_reg_addr,  rtk_uin
  *      This API will set phy register data.
  */
 
-extern rtk_api_ret_t  dal_rtl8224_top_regbit_write(rtk_uint32 top_reg_addr,  rtk_uint32 offset, rtk_uint32 value);
-
+extern rtk_api_ret_t dal_rtl8224_top_regbit_write(rtk_uint32 top_reg_addr, rtk_uint32 offset, rtk_uint32 value);
 
 /* Function Name:
  *      dal_rtl8224_top_regbit_read
@@ -213,8 +210,7 @@ extern rtk_api_ret_t  dal_rtl8224_top_regbit_write(rtk_uint32 top_reg_addr,  rtk
  *      This API will get phy register data.
  */
 
-extern rtk_api_ret_t  dal_rtl8224_top_regbit_read(rtk_uint32 top_reg_addr,  rtk_uint32 offset, rtk_uint32* pvalue);
-
+extern rtk_api_ret_t dal_rtl8224_top_regbit_read(rtk_uint32 top_reg_addr, rtk_uint32 offset, rtk_uint32 *pvalue);
 
 /* Function Name:
  *      dal_rtl8224_top_regbits_write
@@ -236,9 +232,7 @@ extern rtk_api_ret_t  dal_rtl8224_top_regbit_read(rtk_uint32 top_reg_addr,  rtk_
  *      This API will set phy register data.
  */
 
-extern rtk_api_ret_t  dal_rtl8224_top_regbits_write(rtk_uint32 top_reg_addr,  rtk_uint32 bitmask, rtk_uint32 value);
-
-
+extern rtk_api_ret_t dal_rtl8224_top_regbits_write(rtk_uint32 top_reg_addr, rtk_uint32 bitmask, rtk_uint32 value);
 
 /* Function Name:
  *      dal_rtl8224_top_regbits_read
@@ -260,7 +254,7 @@ extern rtk_api_ret_t  dal_rtl8224_top_regbits_write(rtk_uint32 top_reg_addr,  rt
  *      This API will get phy register data.
  */
 
-extern rtk_api_ret_t  dal_rtl8224_top_regbits_read(rtk_uint32 top_reg_addr,  rtk_uint32 bitmask, rtk_uint32* pvalue);
+extern rtk_api_ret_t dal_rtl8224_top_regbits_read(rtk_uint32 top_reg_addr, rtk_uint32 bitmask, rtk_uint32 *pvalue);
 
 /* Function Name:
  *      dal_rtl8373_sds_reg_write
@@ -285,7 +279,6 @@ extern rtk_api_ret_t  dal_rtl8224_top_regbits_read(rtk_uint32 top_reg_addr,  rtk
 
 extern rtk_api_ret_t dal_rtl8373_sds_reg_write(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 regdata);
 
-
 /* Function Name:
  *      dal_rtl8373_sds_reg_read
  * Description:
@@ -307,9 +300,7 @@ extern rtk_api_ret_t dal_rtl8373_sds_reg_write(rtk_uint32 sds_index, rtk_uint32 
  *      This API will configure phy register data.
  */
 
-extern rtk_api_ret_t dal_rtl8373_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 * pdata);
-
-
+extern rtk_api_ret_t dal_rtl8373_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 *pdata);
 
 /* Function Name:
  *      dal_rtl8373_sds_regbits_write
@@ -335,7 +326,6 @@ extern rtk_api_ret_t dal_rtl8373_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 s
 
 extern rtk_api_ret_t dal_rtl8373_sds_regbits_write(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 value);
 
-
 /* Function Name:
  *      dal_rtl8373_sds_regbis_read
  * Description:
@@ -357,10 +347,7 @@ extern rtk_api_ret_t dal_rtl8373_sds_regbits_write(rtk_uint32 sds_index, rtk_uin
  *      This API will configure phy register data.
  */
 
-extern rtk_api_ret_t dal_rtl8373_sds_regbits_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 * pvalue);
-
-
-
+extern rtk_api_ret_t dal_rtl8373_sds_regbits_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 *pvalue);
 
 /* Function Name:
  *      dal_rtl8224_sdsreg_write
@@ -385,7 +372,6 @@ extern rtk_api_ret_t dal_rtl8373_sds_regbits_read(rtk_uint32 sds_index, rtk_uint
 
 extern rtk_api_ret_t dal_rtl8224_sds_reg_write(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 regdata);
 
-
 /* Function Name:
  *      dal_rtl8224_sdsreg_read
  * Description:
@@ -407,8 +393,7 @@ extern rtk_api_ret_t dal_rtl8224_sds_reg_write(rtk_uint32 sds_index, rtk_uint32 
  *      This API will configure phy register data.
  */
 
-extern rtk_api_ret_t dal_rtl8224_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 * pdata);
-
+extern rtk_api_ret_t dal_rtl8224_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 *pdata);
 
 /* Function Name:
  *      dal_rtl8224_sds_regbits_write
@@ -434,7 +419,6 @@ extern rtk_api_ret_t dal_rtl8224_sds_reg_read(rtk_uint32 sds_index, rtk_uint32 s
 
 extern rtk_api_ret_t dal_rtl8224_sds_regbits_write(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 value);
 
-
 /* Function Name:
  *      dal_rtl8224_sds_regbis_read
  * Description:
@@ -456,7 +440,7 @@ extern rtk_api_ret_t dal_rtl8224_sds_regbits_write(rtk_uint32 sds_index, rtk_uin
  *      This API will configure phy register data.
  */
 
-extern rtk_api_ret_t dal_rtl8224_sds_regbits_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 * pvalue);
+extern rtk_api_ret_t dal_rtl8224_sds_regbits_read(rtk_uint32 sds_index, rtk_uint32 sds_page, rtk_uint32 sds_reg, rtk_uint32 bitmask, rtk_uint32 *pvalue);
 
 /* Function Name:
  *      dal_rtl8373_phy_regbits_write
@@ -503,8 +487,6 @@ extern rtk_api_ret_t dal_rtl8373_phy_regbits_write(rtk_uint32 phy_mask, rtk_uint
  *      This API will get phy register data.
  */
 
-extern rtk_api_ret_t dal_rtl8373_phy_regbits_read(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitmask, rtk_uint32 * pvalue);
-
+extern rtk_api_ret_t dal_rtl8373_phy_regbits_read(rtk_uint32 phy_id, rtk_uint32 dev_addr, rtk_uint32 reg_addr, rtk_uint32 bitmask, rtk_uint32 *pvalue);
 
 #endif
-

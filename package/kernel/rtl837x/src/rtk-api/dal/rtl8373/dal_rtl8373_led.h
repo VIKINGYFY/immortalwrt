@@ -19,6 +19,8 @@
 #define __DAL_RTL8373_LED_H__
 #include <led.h>
 
+extern rtk_api_ret_t dal_rtl8373_led_default_init(void);
+
 /* Function Name:
  *      dal_rtl8373_led_config_set
  * Description:
@@ -44,7 +46,7 @@
  *                      led_master;
  *                      led_10g;
  *                      led_two_pair_5g;
- *                      led_5g; 
+ *                      led_5g;
  *                      led_two_pair_2p5g; * Output:
  *      None
  * Return:
@@ -57,7 +59,6 @@
  *      The API can be used to enable LED per port per group.
  */
 extern rtk_api_ret_t dal_rtl8373_led_config_set(rtk_led_set_t setid, rtk_uint32 ledid, rtk_led_config_t *pConfig);
-
 
 /* Function Name:
  *      dal_rtl8373_portLedConfig_set
@@ -78,7 +79,6 @@ extern rtk_api_ret_t dal_rtl8373_led_config_set(rtk_led_set_t setid, rtk_uint32 
  */
 extern rtk_api_ret_t dal_rtl8373_portLedConfig_set(rtk_port_t port, rtk_led_set_t setid);
 
-
 /* Function Name:
  *      dal_rtl8373_portLedConfig_get
  * Description:
@@ -96,17 +96,14 @@ extern rtk_api_ret_t dal_rtl8373_portLedConfig_set(rtk_port_t port, rtk_led_set_
  * Note:
  *      The API can be used to get  LED per port config.
  */
-extern rtk_api_ret_t dal_rtl8373_portLedConfig_get(rtk_port_t port, rtk_led_set_t * pSetid);
-
-
-
+extern rtk_api_ret_t dal_rtl8373_portLedConfig_get(rtk_port_t port, rtk_led_set_t *pSetid);
 
 /* Function Name:
  *      dal_rtl8373_led_blinkRate_set
  * Description:
  *      Set Led blink rate
  * Input:
- *      rate      -  
+ *      rate      -
  *                   LED_BLINKRATE_32MS=1,
  *                   LED_BLINKRATE_64MS,
  *                   LED_BLINKRATE_128MS,
@@ -130,7 +127,7 @@ extern rtk_api_ret_t dal_rtl8373_led_blinkRate_set(rtk_led_blink_rate_t rate);
  * Description:
  *      Set Led blink rate
  * Input:
- *      pRate      -  
+ *      pRate      -
  *                   LED_BLINKRATE_32MS=1,
  *                   LED_BLINKRATE_64MS,
  *                   LED_BLINKRATE_128MS,
@@ -147,9 +144,6 @@ extern rtk_api_ret_t dal_rtl8373_led_blinkRate_set(rtk_led_blink_rate_t rate);
  * Note:
  *      The API can be used to enable LED per port per group.
  */
-extern rtk_api_ret_t dal_rtl8373_led_blinkRate_get(rtk_led_blink_rate_t * pRate);
-
-
+extern rtk_api_ret_t dal_rtl8373_led_blinkRate_get(rtk_led_blink_rate_t *pRate);
 
 #endif /* __DAL_RTL8373_LED_H__ */
-

@@ -18,8 +18,7 @@
 #ifndef __RTK_API_MACSEC_H__
 #define __RTK_API_MACSEC_H__
 
-typedef enum rtk_macsec_int_type_e
-{
+typedef enum rtk_macsec_int_type_e {
 	INT_TYPE_TX_IPE_GLB = 0,
 	INT_TYPE_TX_IPESECFAIL,
 	INT_TYPE_TX_IPELOCK,
@@ -29,10 +28,9 @@ typedef enum rtk_macsec_int_type_e
 	INT_TYPE_RX_IPILOCK,
 	INT_TYPE_RX_IPILOCK_XG,
 	INT_TYPE_MACSEC_END
-}rtk_macsec_int_type_t;
+} rtk_macsec_int_type_t;
 
-typedef enum RTL8373_WRAPPER_MIBCOUNTER_e
-{
+typedef enum RTL8373_WRAPPER_MIBCOUNTER_e {
 	/* TX */
 	TXSYS_CRCERR = 0,
 	TXSYS_PKTERR,
@@ -58,8 +56,8 @@ typedef enum RTL8373_WRAPPER_MIBCOUNTER_e
 	RXSYS_OK, //64bit
 	RXSYS_DROP = 28,
 	RXSYS_DECRYPTSRT,
-	RXSYS_GERR		
-}RTL8373_WRAPPER_MIBCOUNTER;
+	RXSYS_GERR
+} RTL8373_WRAPPER_MIBCOUNTER;
 
 /* Function Name:
  *      rtk_macsec_enable_set
@@ -571,7 +569,7 @@ extern rtk_api_ret_t rtk_wrapper_mib_reset(rtk_uint32 port, rtk_uint32 reset);
  * Note:
  *      This API will get wrapper mib counters.
  */
-extern rtk_api_ret_t rtk_wrapper_mib_counter(rtk_uint32 port, RTL8373_WRAPPER_MIBCOUNTER mibIdx, rtk_uint64* pCounter);
+extern rtk_api_ret_t rtk_wrapper_mib_counter(rtk_uint32 port, RTL8373_WRAPPER_MIBCOUNTER mibIdx, rtk_uint64 *pCounter);
 
 /* Function Name:
  *      rtk_macsec_ipg_len_set
@@ -722,5 +720,3 @@ extern rtk_api_ret_t rtk_macsec_eth_get(rtk_uint32 port, rtk_uint32 entry, rtk_u
 extern rtk_api_ret_t rtk_macsec_init(rtk_uint32 port_mask);
 
 #endif
-
-
