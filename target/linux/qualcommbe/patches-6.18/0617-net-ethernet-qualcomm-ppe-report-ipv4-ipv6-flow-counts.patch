@@ -82,7 +82,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -3837,6 +3862,8 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3690,6 +3715,8 @@ int ppe_flowtable_setup(struct ppe_devic
  	}
  
  	mutex_init(&ft->lock);
@@ -90,4 +90,3 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 +	atomic_set(&ft->ipv6_flows, 0);
  	INIT_LIST_HEAD(&ft->block_cb_list);
  	INIT_LIST_HEAD(&ft->zombies);
- 	init_llist_head(&ft->neigh_events);

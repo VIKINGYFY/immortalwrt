@@ -1,0 +1,300 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OpenWrt porting team <openwrt@example.invalid>
+Date: Wed, 26 Aug 2026 09:35:00 +0800
+Subject: [PATCH] net: dsa: qca8k: add QCA8386 support
+
+QCA8386 combines a QCA8K-compatible switch with a QCA8084 PHY package.
+Its switch registers use the MHT MDIO window and its CPU link is
+2500BASE-X. Add the device match, register access format, and phylink
+capabilities needed by the standard DSA driver.
+
+Signed-off-by: OpenWrt porting team <openwrt@example.invalid>
+
+--- a/drivers/net/dsa/qca/qca8k.h
++++ b/drivers/net/dsa/qca/qca8k.h
+@@ -28,6 +28,8 @@
+ #define QCA8K_ID_QCA8327				0x12
+ #define PHY_ID_QCA8337					0x004dd036
+ #define QCA8K_ID_QCA8337				0x13
++#define PHY_ID_QCA8386					0x004dd180
++#define QCA8K_ID_QCA8386				0x17
+ 
+ #define QCA8K_QCA832X_MIB_COUNT				39
+ #define QCA8K_QCA833X_MIB_COUNT				41
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -37,6 +37,27 @@
+ 	*page = regaddr & 0x3ff;
+ }
+ 
++static bool qca8k_is_qca8386(const struct qca8k_priv *priv)
++{
++	return priv->info && priv->info->id == QCA8K_ID_QCA8386;
++}
++
++static void
++qca8k_mht_split_addr(u32 regaddr, u16 *r1, u16 *r2, u16 *page,
++			     u16 *switch_phy_id)
++{
++	*r1 = regaddr & 0x1c;
++
++	regaddr >>= 5;
++	*r2 = regaddr & 0x7;
++
++	regaddr >>= 3;
++	*page = regaddr & 0xffff;
++
++	regaddr >>= 16;
++	*switch_phy_id = regaddr & 0xff;
++}
++
+ static int
+ qca8k_mii_write_lo(struct mii_bus *bus, int phy_id, u32 regnum, u32 val)
+ {
+@@ -432,6 +453,40 @@
+ 	u16 r1, r2, page;
+ 	int ret;
+ 
++	if (qca8k_is_qca8386(priv)) {
++		u16 switch_phy_id;
++		int lo, hi;
++
++		qca8k_mht_split_addr(reg, &r1, &r2, &page, &switch_phy_id);
++
++		mutex_lock_nested(&bus->mdio_lock, MDIO_MUTEX_NESTED);
++
++		ret = bus->write(bus, 0x18 | (switch_phy_id >> 5),
++				 switch_phy_id & 0x1f, page);
++		if (ret < 0)
++			goto mht_exit;
++
++		udelay(100);
++		lo = bus->read(bus, 0x10 | r2, r1);
++		if (lo < 0) {
++			ret = lo;
++			goto mht_exit;
++		}
++
++		hi = bus->read(bus, 0x10 | r2, r1 + 2);
++		if (hi < 0) {
++			ret = hi;
++			goto mht_exit;
++		}
++
++		*val = (hi << 16) | lo;
++		ret = 0;
++
++mht_exit:
++		mutex_unlock(&bus->mdio_lock);
++		return ret;
++	}
++
+ 	qca8k_split_addr(reg, &r1, &r2, &page);
+ 
+ 	mutex_lock_nested(&bus->mdio_lock, MDIO_MUTEX_NESTED);
+@@ -454,6 +509,30 @@
+ 	u16 r1, r2, page;
+ 	int ret;
+ 
++	if (qca8k_is_qca8386(priv)) {
++		u16 switch_phy_id;
++
++		qca8k_mht_split_addr(reg, &r1, &r2, &page, &switch_phy_id);
++
++		mutex_lock_nested(&bus->mdio_lock, MDIO_MUTEX_NESTED);
++
++		ret = bus->write(bus, 0x18 | (switch_phy_id >> 5),
++				 switch_phy_id & 0x1f, page);
++		if (ret < 0)
++			goto mht_exit;
++
++		udelay(100);
++		ret = bus->write(bus, 0x10 | r2, r1, lower_16_bits(val));
++		if (ret < 0)
++			goto mht_exit;
++
++		ret = bus->write(bus, 0x10 | r2, r1 + 2, upper_16_bits(val));
++
++mht_exit:
++		mutex_unlock(&bus->mdio_lock);
++		return ret;
++	}
++
+ 	qca8k_split_addr(reg, &r1, &r2, &page);
+ 
+ 	mutex_lock_nested(&bus->mdio_lock, MDIO_MUTEX_NESTED);
+@@ -478,6 +557,47 @@
+ 	u32 val;
+ 	int ret;
+ 
++	if (qca8k_is_qca8386(priv)) {
++		u16 switch_phy_id;
++		int lo, hi;
++
++		qca8k_mht_split_addr(reg, &r1, &r2, &page, &switch_phy_id);
++
++		mutex_lock_nested(&bus->mdio_lock, MDIO_MUTEX_NESTED);
++
++		ret = bus->write(bus, 0x18 | (switch_phy_id >> 5),
++				 switch_phy_id & 0x1f, page);
++		if (ret < 0)
++			goto mht_exit;
++
++		udelay(100);
++		lo = bus->read(bus, 0x10 | r2, r1);
++		if (lo < 0) {
++			ret = lo;
++			goto mht_exit;
++		}
++
++		hi = bus->read(bus, 0x10 | r2, r1 + 2);
++		if (hi < 0) {
++			ret = hi;
++			goto mht_exit;
++		}
++
++		val = (hi << 16) | lo;
++		val &= ~mask;
++		val |= write_val;
++
++		ret = bus->write(bus, 0x10 | r2, r1, lower_16_bits(val));
++		if (ret < 0)
++			goto mht_exit;
++
++		ret = bus->write(bus, 0x10 | r2, r1 + 2, upper_16_bits(val));
++
++mht_exit:
++		mutex_unlock(&bus->mdio_lock);
++		return ret;
++	}
++
+ 	qca8k_split_addr(reg, &r1, &r2, &page);
+ 
+ 	mutex_lock_nested(&bus->mdio_lock, MDIO_MUTEX_NESTED);
+@@ -508,7 +628,7 @@
+ 	struct qca8k_priv *priv = ctx;
+ 	u32 reg = *(u16 *)reg_buf;
+ 
+-	if (priv->mgmt_conduit &&
++	if (!qca8k_is_qca8386(priv) && priv->mgmt_conduit &&
+ 	    !qca8k_read_eth(priv, reg, val_buf, val_len))
+ 		return 0;
+ 
+@@ -531,7 +651,7 @@
+ 	u32 reg = *(u16 *)reg_buf;
+ 	u32 *val = (u32 *)val_buf;
+ 
+-	if (priv->mgmt_conduit &&
++	if (!qca8k_is_qca8386(priv) && priv->mgmt_conduit &&
+ 	    !qca8k_write_eth(priv, reg, val, val_len))
+ 		return 0;
+ 
+@@ -559,7 +679,8 @@
+ {
+ 	struct qca8k_priv *priv = ctx;
+ 
+-	if (!qca8k_regmap_update_bits_eth(priv, reg, mask, write_val))
++	if (!qca8k_is_qca8386(priv) &&
++	    !qca8k_regmap_update_bits_eth(priv, reg, mask, write_val))
+ 		return 0;
+ 
+ 	return qca8k_regmap_update_bits_mii(priv, reg, mask, write_val);
+@@ -930,7 +1051,12 @@
+ static int
+ qca8k_legacy_mdio_write(struct mii_bus *slave_bus, int port, int regnum, u16 data)
+ {
+-	port = qca8k_port_to_phy(port) % PHY_MAX_ADDR;
++	struct qca8k_priv *priv = slave_bus->priv;
++
++	if (qca8k_is_qca8386(priv))
++		port %= PHY_MAX_ADDR;
++	else
++		port = qca8k_port_to_phy(port) % PHY_MAX_ADDR;
+ 
+ 	return qca8k_internal_mdio_write(slave_bus, port, regnum, data);
+ }
+@@ -938,7 +1064,12 @@
+ static int
+ qca8k_legacy_mdio_read(struct mii_bus *slave_bus, int port, int regnum)
+ {
+-	port = qca8k_port_to_phy(port) % PHY_MAX_ADDR;
++	struct qca8k_priv *priv = slave_bus->priv;
++
++	if (qca8k_is_qca8386(priv))
++		port %= PHY_MAX_ADDR;
++	else
++		port = qca8k_port_to_phy(port) % PHY_MAX_ADDR;
+ 
+ 	return qca8k_internal_mdio_read(slave_bus, port, regnum);
+ }
+@@ -1384,11 +1515,16 @@
+ static void qca8k_phylink_get_caps(struct dsa_switch *ds, int port,
+ 				   struct phylink_config *config)
+ {
++	struct qca8k_priv *priv = ds->priv;
++
+ 	switch (port) {
+ 	case 0: /* 1st CPU port */
+ 		phy_interface_set_rgmii(config->supported_interfaces);
+ 		__set_bit(PHY_INTERFACE_MODE_SGMII,
+ 			  config->supported_interfaces);
++		if (qca8k_is_qca8386(priv))
++			__set_bit(PHY_INTERFACE_MODE_2500BASEX,
++				  config->supported_interfaces);
+ 		break;
+ 
+ 	case 1:
+@@ -1414,6 +1550,9 @@
+ 
+ 	config->mac_capabilities = MAC_ASYM_PAUSE | MAC_SYM_PAUSE |
+ 		MAC_10 | MAC_100 | MAC_1000FD;
++
++	if (qca8k_is_qca8386(priv))
++		config->mac_capabilities |= MAC_2500FD;
+ }
+ 
+ static void
+@@ -1448,6 +1587,7 @@
+ 			reg = QCA8K_PORT_STATUS_SPEED_100;
+ 			break;
+ 		case SPEED_1000:
++		case SPEED_2500:
+ 			reg = QCA8K_PORT_STATUS_SPEED_1000;
+ 			break;
+ 		default:
+@@ -2316,11 +2456,18 @@
+ 	.ops = &qca8xxx_ops,
+ };
+ 
++static const struct qca8k_match_data qca838x = {
++	.id = QCA8K_ID_QCA8386,
++	.mib_count = QCA8K_QCA833X_MIB_COUNT,
++	.ops = &qca8xxx_ops,
++};
++
+ static const struct of_device_id qca8k_of_match[] = {
+ 	{ .compatible = "qca,qca8327", .data = &qca8327 },
+ 	{ .compatible = "qca,qca8328", .data = &qca8328 },
+ 	{ .compatible = "qca,qca8334", .data = &qca833x },
+ 	{ .compatible = "qca,qca8337", .data = &qca833x },
++	{ .compatible = "qca,qca8386", .data = &qca838x },
+ 	{ /* sentinel */ },
+ };
+ 
+--- a/Documentation/devicetree/bindings/net/dsa/qca8k.yaml
++++ b/Documentation/devicetree/bindings/net/dsa/qca8k.yaml
+@@ -29,11 +29,13 @@
+           - qca,qca8328
+           - qca,qca8334
+           - qca,qca8337
++          - qca,qca8386
+     description: |
+       qca,qca8328: referenced as AR8328(N)-AK1(A/B) QFN 176 pin package
+       qca,qca8327: referenced as AR8327(N)-AL1A DR-QFN 148 pin package
+       qca,qca8334: referenced as QCA8334-AL3C QFN 88 pin package
+       qca,qca8337: referenced as QCA8337N-AL3(B/C) DR-QFN 148 pin package
++      qca,qca8386: referenced as QCA8386 switch with four integrated 2.5G PHYs
+ 
+   reg:
+     maxItems: 1
+

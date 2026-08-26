@@ -41,6 +41,12 @@ platform_do_upgrade() {
 	xiaomi,be3600-pro-wired-*)
 		nand_do_upgrade "$1"
 		;;
+	jdcloud,re-cs-08)
+		CI_KERNPART="0:HLOS"
+		CI_ROOTPART="rootfs"
+		CI_DATAPART="rootfs_data"
+		emmc_do_upgrade "$1"
+		;;
 	*)
 		echo "Sysupgrade is not supported on your board yet."
 		return 1
@@ -52,14 +58,13 @@ platform_check_image() {
 	[ "$#" -gt 1 ] && return 1
 
 	case "$(board_name)" in
-	gl.inet,gl-be6500)
+	gl.inet,gl-be6500|\
+	jdcloud,re-cs-08|\
+	xiaomi,be3600-pro-wired-*)
 		return 0
 		;;
 	ubnt,u7-pro-xgs)
 		fit_check_image "$1"
-		;;
-	xiaomi,be3600-pro-wired-*)
-		return 0
 		;;
 	*)
 		echo "Sysupgrade is not supported on your board yet."
@@ -70,6 +75,7 @@ platform_check_image() {
 
 platform_copy_config() {
 	case "$(board_name)" in
+	jdcloud,re-cs-08|\
 	ubnt,u7-pro-xgs)
 		emmc_copy_config
 		;;

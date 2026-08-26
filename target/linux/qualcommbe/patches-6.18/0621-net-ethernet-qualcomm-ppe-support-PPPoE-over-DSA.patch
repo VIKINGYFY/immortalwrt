@@ -1,0 +1,57 @@
+From: VKing <noreply@openwrt.local>
+Date: Wed, 26 Aug 2026 12:44:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: support PPPoE over DSA
+
+The PPP lifecycle forward path of a routed DSA user port contains a
+DEV_PATH_DSA entry before the Ethernet conduit.  Rejecting that entry
+prevents the PPPoE session from being published, so every later flow
+offload misses it.
+
+Resolve the DSA user port through the existing tag_8021q validation,
+classify its standalone VID on the conduit, and retain the user-port
+MAC used by the PPPoE session.  Continue rejecting a user VLAN on top
+of DSA because this flowtable implementation can represent only one
+ingress VLAN layer.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -692,6 +692,7 @@
+ static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
+ 			   int mtu, bool keep_tag);
+ static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index);
++static int ppe_ft_dsa_port(struct net_device *dev, struct dsa_port **dpp);
+ 
+ static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
+ 			     struct ppe_ft_pppoe_topo *topo)
+@@ -733,6 +734,19 @@
+ 			topo->vid = path->encap.id;
+ 			topo->vlan_mtu = path->dev->mtu;
+ 			break;
++		case DEV_PATH_DSA:
++			if (topo->vid >= 0) {
++				ret = -EOPNOTSUPP;
++				goto out_unlock;
++			}
++			ret = ppe_ft_dsa_port((struct net_device *)path->dev,
++					      NULL);
++			if (ret < 0)
++				goto out_unlock;
++			topo->vid = ret;
++			topo->vlan_mtu = path->dev->mtu;
++			ether_addr_copy(topo->local, path->dev->dev_addr);
++			break;
+ 		case DEV_PATH_ETHERNET: {
+ 			struct edma_port_priv *port_priv;
+ 
+@@ -742,7 +756,8 @@
+ 			}
+ 			port_priv = netdev_priv(path->dev);
+ 			topo->port = port_priv->ppe_port->port_id;
+-			ether_addr_copy(topo->local, path->dev->dev_addr);
++			if (is_zero_ether_addr(topo->local))
++				ether_addr_copy(topo->local, path->dev->dev_addr);
+ 			break;
+ 		}
+ 		default:

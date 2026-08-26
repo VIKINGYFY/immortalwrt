@@ -100,3 +100,20 @@ define Device/xiaomi_be3600-pro-wired-p8
 	SUPPORTED_DEVICES += xiaomi,be3600-pro-wired-p8
 endef
 TARGET_DEVICES += xiaomi_be3600-pro-wired-p8
+
+define Device/jdcloud_re-cs-08
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := JDCloud
+	DEVICE_MODEL := RE-CS-08
+	DEVICE_DTS := ipq5332-re-cs-08
+	DEVICE_DTS_CONFIG := config@mi01.6
+	# RE-CS-08 stock GPT reserves a 7 MiB HLOS/factory slot.  The vendor
+	# factory parser uses this boundary when extracting rootfs.
+	KERNEL_SIZE := 7168k
+	SOC := ipq5332
+	SUPPORTED_DEVICES += jdcloud,re-cs-08
+	DEVICE_PACKAGES := -wpad-openssl e2fsprogs f2fsck kmod-leds-gpio kmod-sfp
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
+TARGET_DEVICES += jdcloud_re-cs-08

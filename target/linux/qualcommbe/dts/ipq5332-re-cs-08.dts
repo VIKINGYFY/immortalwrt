@@ -1,0 +1,423 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+/dts-v1/;
+
+#include <arm64/qcom/ipq5332.dtsi>
+#include <dt-bindings/clock/qcom,qca8k-nsscc.h>
+#include <dt-bindings/clock/qcom,ipq5332-cmn-pll.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/net/qcom,qca808x.h>
+#include <dt-bindings/reset/qcom,qca8k-nsscc.h>
+
+/ {
+	model = "JDCloud RE-CS-08";
+	compatible = "jdcloud,re-cs-08", "qcom,ipq5332";
+
+	aliases {
+		serial0 = &blsp1_uart0;
+		ethernet0 = &ppe_sfp;
+		ethernet1 = &ppe_switch;
+		led-boot = &led_system_blue;
+		led-failsafe = &led_system_red;
+		led-running = &led_system_green;
+		led-upgrade = &led_system_red;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	clocks {
+		switch_rx312p5m: switch-rx312p5m {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <312500000>;
+		};
+
+		switch_tx312p5m: switch-tx312p5m {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <312500000>;
+		};
+	};
+
+	keys {
+		compatible = "gpio-keys";
+		pinctrl-0 = <&gpio_keys_default>;
+		pinctrl-names = "default";
+
+		button-wps {
+			label = "wps";
+			gpios = <&tlmm 31 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+			debounce-interval = <60>;
+		};
+
+		button-reset {
+			label = "reset";
+			gpios = <&tlmm 32 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+			debounce-interval = <60>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-0 = <&gpio_leds_default>;
+		pinctrl-names = "default";
+
+		led_system_red: led-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 24 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_system_green: led-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 33 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_system_blue: led-blue {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 49 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_sfp: led-sfp {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WAN;
+			gpios = <&tlmm 36 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
+
+	/* The stock board exposes SFP TX disable on GPIO34 and its SerDes RX
+	 * lane on GPIO45.  LOS/mod-def wiring is not present in the supplied DTS.
+	 */
+	sfp0: sfp-0 {
+		compatible = "sff,sfp";
+		i2c-bus = <&blsp1_i2c1>;
+		pinctrl-0 = <&sfp_default>;
+		pinctrl-names = "default";
+		tx-disable-gpios = <&tlmm 34 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&blsp1_uart0 {
+	pinctrl-0 = <&serial_0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&blsp1_i2c1 {
+	pinctrl-0 = <&i2c1_pins>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	status = "okay";
+};
+
+&sleep_clk {
+	clock-frequency = <32000>;
+};
+
+&xo_board {
+	clock-frequency = <24000000>;
+};
+
+&mdio {
+	status = "okay";
+
+	switch_cc: clock-controller@18 {
+		compatible = "qcom,qca8386-nsscc", "qcom,qca8084-nsscc";
+		reg = <0x18>;
+		reset-gpios = <&tlmm 51 GPIO_ACTIVE_LOW>;
+		clocks = <&cmn_pll IPQ5332_ETH_50MHZ_CLK>,
+			 <0>, <0>, <0>, <0>,
+			 <&switch_rx312p5m>, <&switch_tx312p5m>;
+		#clock-cells = <1>;
+		#reset-cells = <1>;
+	};
+
+	switch_phy_package: ethernet-phy-package@1 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "qcom,qca8084-package";
+		reg = <1>;
+		clocks = <&switch_cc NSS_CC_APB_BRIDGE_CLK>,
+			 <&switch_cc NSS_CC_AHB_CLK>,
+			 <&switch_cc NSS_CC_SEC_CTRL_AHB_CLK>,
+			 <&switch_cc NSS_CC_TLMM_CLK>,
+			 <&switch_cc NSS_CC_TLMM_AHB_CLK>,
+			 <&switch_cc NSS_CC_CNOC_AHB_CLK>,
+			 <&switch_cc NSS_CC_MDIO_AHB_CLK>;
+		clock-names = "apb_bridge", "ahb", "sec_ctrl_ahb", "tlmm",
+			      "tlmm_ahb", "cnoc_ahb", "mdio_ahb";
+		resets = <&switch_cc NSS_CC_GEPHY_FULL_ARES>;
+		qcom,phy-addr-fixup = <1 2 3 4 5 6 7>;
+		qcom,package-mode = <QCA808X_PCS1_SGMII_MAC_PCS0_SGMII_MAC>;
+
+		phy0: ethernet-phy@1 {
+			compatible = "ethernet-phy-id004d.d180";
+			reg = <1>;
+			clocks = <&switch_cc NSS_CC_GEPHY0_SYS_CLK>;
+			resets = <&switch_cc NSS_CC_GEPHY0_SYS_ARES>;
+		};
+
+		phy1: ethernet-phy@2 {
+			compatible = "ethernet-phy-id004d.d180";
+			reg = <2>;
+			clocks = <&switch_cc NSS_CC_GEPHY1_SYS_CLK>;
+			resets = <&switch_cc NSS_CC_GEPHY1_SYS_ARES>;
+		};
+
+		phy2: ethernet-phy@3 {
+			compatible = "ethernet-phy-id004d.d180";
+			reg = <3>;
+			clocks = <&switch_cc NSS_CC_GEPHY2_SYS_CLK>;
+			resets = <&switch_cc NSS_CC_GEPHY2_SYS_ARES>;
+		};
+
+		phy3: ethernet-phy@4 {
+			compatible = "ethernet-phy-id004d.d180";
+			reg = <4>;
+			clocks = <&switch_cc NSS_CC_GEPHY3_SYS_CLK>;
+			resets = <&switch_cc NSS_CC_GEPHY3_SYS_ARES>;
+		};
+	};
+
+	switch@10 {
+		compatible = "qca,qca8386";
+		reg = <0x10>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				label = "cpu";
+				ethernet = <&ppe_switch>;
+				phy-mode = "2500base-x";
+
+				fixed-link {
+					speed = <2500>;
+					full-duplex;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				label = "wan";
+				phy-mode = "internal";
+				phy-handle = <&phy0>;
+			};
+
+			port@2 {
+				reg = <2>;
+				label = "lan1";
+				phy-mode = "internal";
+				phy-handle = <&phy1>;
+			};
+
+			port@3 {
+				reg = <3>;
+				label = "lan2";
+				phy-mode = "internal";
+				phy-handle = <&phy2>;
+			};
+
+			port@4 {
+				reg = <4>;
+				label = "lan3";
+				phy-mode = "internal";
+				phy-handle = <&phy3>;
+			};
+		};
+	};
+};
+
+&pcs0 {
+	status = "okay";
+};
+
+&pcs1 {
+	status = "okay";
+};
+
+&qcom_ppe {
+	status = "okay";
+
+	ethernet-ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ppe_switch: port@1 {
+			reg = <1>;
+			phy-mode = "2500base-x";
+			label = "switch";
+			pcs-handle = <&pcs0_ch0>;
+			clocks = <&nsscc NSS_CC_PORT1_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT1_RX_CLK>,
+				 <&nsscc NSS_CC_PORT1_TX_CLK>;
+			clock-names = "mac", "rx", "tx";
+			resets = <&nsscc NSS_CC_PORT1_MAC_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT1_RX_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT1_TX_CLK_ARES>;
+			reset-names = "mac", "rx", "tx";
+
+			fixed-link {
+				speed = <2500>;
+				full-duplex;
+			};
+		};
+
+		ppe_sfp: port@2 {
+			reg = <2>;
+			phy-mode = "2500base-x";
+			label = "sfp";
+			managed = "in-band-status";
+			sfp = <&sfp0>;
+			pcs-handle = <&pcs1_ch0>;
+			clocks = <&nsscc NSS_CC_PORT2_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT2_RX_CLK>,
+				 <&nsscc NSS_CC_PORT2_TX_CLK>;
+			clock-names = "mac", "rx", "tx";
+			resets = <&nsscc NSS_CC_PORT2_MAC_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT2_RX_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT2_TX_CLK_ARES>;
+			reset-names = "mac", "rx", "tx";
+		};
+	};
+};
+
+/* The M.2 slot is wired to the two-lane PCIe1 controller in the stock DTS. */
+&pcie1 {
+	status = "okay";
+
+	perst-gpio = <&tlmm 47 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 48 GPIO_ACTIVE_LOW>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie1_pins>;
+};
+
+&pcie1_phy {
+	status = "okay";
+};
+
+&sdhc {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	bus-width = <4>;
+	max-frequency = <192000000>;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	non-removable;
+	pinctrl-0 = <&sdc_default_state>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+
+			partitions {
+				factory: block-partition-factory {
+					partname = "factory";
+				};
+
+				hlos: block-partition-hlos {
+					partname = "0:HLOS";
+				};
+
+				rootfs: block-partition-rootfs {
+					partname = "rootfs";
+				};
+
+				rootfs_data: block-partition-rootfs-data {
+					partname = "rootfs_data";
+				};
+			};
+		};
+	};
+};
+
+&tlmm {
+	i2c1_pins: i2c1-state {
+		pins = "gpio29", "gpio30";
+		function = "blsp1_i2c0";
+		drive-strength = <10>;
+		bias-pull-up;
+	};
+
+	pcie1_pins: pcie1-default-state {
+		pins = "gpio47";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+		output-high;
+	};
+
+	sfp_default: sfp-default-state {
+		rx-pins {
+			pins = "gpio45";
+			function = "rx1";
+			bias-disable;
+		};
+
+		tx-disable-pins {
+			pins = "gpio34";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+
+	gpio_keys_default: gpio-keys-default-state {
+		pins = "gpio31", "gpio32";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+
+	gpio_leds_default: gpio-leds-default-state {
+		pins = "gpio24", "gpio33", "gpio36", "gpio49";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-down;
+	};
+
+	sdc_default_state: sdc-default-state {
+		clk-pins {
+			pins = "gpio13";
+			function = "sdc_clk";
+			drive-strength = <8>;
+			bias-disable;
+		};
+
+		cmd-pins {
+			pins = "gpio12";
+			function = "sdc_cmd";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		data-pins {
+			pins = "gpio8", "gpio9", "gpio10", "gpio11";
+			function = "sdc_data";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+};
+
+/* FJ1 supplies the fan; no tachometer or PWM signal is wired. */

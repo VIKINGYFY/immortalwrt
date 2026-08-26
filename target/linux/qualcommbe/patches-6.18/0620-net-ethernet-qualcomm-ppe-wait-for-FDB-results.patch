@@ -1,0 +1,126 @@
+From: VKing <noreply@openwrt.local>
+Date: Wed, 26 Aug 2026 12:11:02 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: wait for FDB results
+
+The FDB result register reports both the command ID and the number of
+queued results.  Requiring only a matching ID while accepting a zero
+result count can complete a command before the operation engine has
+posted anything.
+
+Reading the result register advances the result queue.  For read
+operations, snapshot the data registers first in each polling pass so
+the data and the result which validates it belong to the same queue
+entry.  This follows the operation ordering fixed in the upstream
+qualcommax PPE implementation.
+
+Signed-off-by: VKing <noreply@openwrt.local>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -8,6 +8,7 @@
+  */
+ 
+ #include <linux/bitfield.h>
++#include <linux/delay.h>
+ #include <linux/bitmap.h>
+ #include <linux/bits.h>
+ #include <linux/device.h>
+@@ -2128,11 +2129,14 @@
+ /* Issue a command to the FDB operation registers and wait for its result.
+  * Must be called with the FDB lock held.
+  */
++#define PPE_FDB_OP_RETRIES	1000
++
+ static int ppe_fdb_op_issue(struct ppe_device *ppe_dev, u32 op_reg,
+-			    u32 rslt_reg, u32 op_type, u32 op_mode, int index)
++			    u32 rslt_reg, u32 op_type, u32 op_mode, int index,
++			    u32 *result_data)
+ {
+-	u32 val, cmd_id;
+-	int ret;
++	u32 val, cmd_id, valid_count;
++	int i, ret;
+ 
+ 	cmd_id = ppe_dev->fdb_cmd_id;
+ 	ppe_dev->fdb_cmd_id = (cmd_id + 1) % 15;
+@@ -2147,16 +2151,31 @@
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = regmap_read_poll_timeout(ppe_dev->regmap, rslt_reg, val,
+-				       FIELD_GET(PPE_FDB_OP_RSLT_CMD_ID, val) ==
+-				       cmd_id &&
+-				       FIELD_GET(PPE_FDB_OP_RSLT_VALID_CNT, val) <=
+-				       PPE_FDB_OP_FIFO_DEPTH,
+-				       10, 10000);
+-	if (ret)
+-		return ret;
++	for (i = 0; i < PPE_FDB_OP_RETRIES; i++) {
++		/* Reading the result register consumes the queue entry, so the
++		 * data must be captured first in the same polling pass.
++		 */
++		if (result_data) {
++			ret = regmap_bulk_read(ppe_dev->regmap,
++					       PPE_FDB_TBL_RD_OP_RSLT_DATA_ADDR,
++					       result_data, PPE_FDB_TBL_WORDS);
++			if (ret)
++				return ret;
++		}
+ 
+-	return val & PPE_FDB_OP_RSLT_FAIL ? -ENOENT : 0;
++		ret = regmap_read(ppe_dev->regmap, rslt_reg, &val);
++		if (ret)
++			return ret;
++
++		valid_count = FIELD_GET(PPE_FDB_OP_RSLT_VALID_CNT, val);
++		if (valid_count && valid_count <= PPE_FDB_OP_FIFO_DEPTH &&
++		    FIELD_GET(PPE_FDB_OP_RSLT_CMD_ID, val) == cmd_id)
++			return val & PPE_FDB_OP_RSLT_FAIL ? -ENOENT : 0;
++
++		usleep_range(10, 20);
++	}
++
++	return -ETIMEDOUT;
+ }
+ 
+ /**
+@@ -2182,7 +2201,7 @@
+ 		ret = ppe_fdb_op_issue(ppe_dev, PPE_FDB_TBL_OP_ADDR,
+ 				       PPE_FDB_TBL_OP_RSLT_ADDR,
+ 				       PPE_FDB_OP_TYPE_ADD,
+-				       PPE_FDB_OP_MODE_HASH, 0);
++				       PPE_FDB_OP_MODE_HASH, 0, NULL);
+ 	mutex_unlock(&ppe_dev->fdb_lock);
+ 
+ 	return ret;
+@@ -2211,7 +2230,7 @@
+ 		ret = ppe_fdb_op_issue(ppe_dev, PPE_FDB_TBL_OP_ADDR,
+ 				       PPE_FDB_TBL_OP_RSLT_ADDR,
+ 				       PPE_FDB_OP_TYPE_DEL,
+-				       PPE_FDB_OP_MODE_HASH, 0);
++				       PPE_FDB_OP_MODE_HASH, 0, NULL);
+ 	mutex_unlock(&ppe_dev->fdb_lock);
+ 
+ 	return ret;
+@@ -2247,7 +2266,7 @@
+ 	ret = ppe_fdb_op_issue(ppe_dev, PPE_FDB_TBL_RD_OP_ADDR,
+ 			       PPE_FDB_TBL_RD_OP_RSLT_ADDR,
+ 			       PPE_FDB_OP_TYPE_GET,
+-			       PPE_FDB_OP_MODE_INDEX, index);
++			       PPE_FDB_OP_MODE_INDEX, index, val);
+ 	if (ret) {
+ 		/* The read of an invalid entry fails the operation. */
+ 		if (ret == -ENOENT)
+@@ -2255,12 +2274,6 @@
+ 		goto out;
+ 	}
+ 
+-	ret = regmap_bulk_read(ppe_dev->regmap,
+-			       PPE_FDB_TBL_RD_OP_RSLT_DATA_ADDR,
+-			       val, ARRAY_SIZE(val));
+-	if (ret)
+-		goto out;
+-
+ 	ppe_fdb_entry_unpack(val, entry, valid);
+ out:
+ 	mutex_unlock(&ppe_dev->fdb_lock);
