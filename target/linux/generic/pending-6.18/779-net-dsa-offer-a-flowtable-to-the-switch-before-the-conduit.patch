@@ -1,0 +1,51 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Date: Tue, 25 Aug 2026 13:40:00 +0200
+Subject: [PATCH] net: dsa: offer a flowtable to the switch first
+
+A netfilter flowtable bound to a DSA user port reaches hardware through
+dsa_user_setup_ft_block(), which forwards the block to the conduit netdev.
+That route exists for a flow engine that sits on the conduit, as MediaTek's
+does. A switch that owns the flow tables itself has no way to be offered
+the block other than by taking it back off its own conduit, through
+conduit->dsa_ptr.
+
+That indirection does not survive teardown. dsa_tree_teardown() releases
+the conduit before the ports, so by the time a user port unregisters and
+netfilter issues FLOW_BLOCK_UNBIND, conduit->dsa_ptr is already NULL and
+the forward returns -EOPNOTSUPP. netfilter treats the refusal as "nothing
+to release" and the block callback stays on the driver's list, holding a
+pointer to memory the switch is about to free.
+
+Offer TC_SETUP_FT to the switch first and keep the conduit forward as the
+fallback, so a switch-side flow engine is reached through the port that
+owns it and a conduit-side one is reached exactly as before. The six
+drivers that implement .port_setup_tc all return -EOPNOTSUPP for a type
+they do not handle, so none of them changes behaviour.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+---
+--- a/net/dsa/user.c
++++ b/net/dsa/user.c
+@@ -1743,11 +1743,22 @@ static int dsa_user_setup_tc(struct net_
+ {
+ 	struct dsa_port *dp = dsa_user_to_port(dev);
+ 	struct dsa_switch *ds = dp->ds;
++	int err;
+ 
+ 	switch (type) {
+ 	case TC_SETUP_BLOCK:
+ 		return dsa_user_setup_tc_block(dev, type_data);
+ 	case TC_SETUP_FT:
++		/* A switch that owns the flow tables answers for itself; only
++		 * a conduit-side flow engine needs the block forwarded, and
++		 * that forward is gone by the time the port is torn down.
++		 */
++		if (ds->ops->port_setup_tc) {
++			err = ds->ops->port_setup_tc(ds, dp->index, type,
++						     type_data);
++			if (err != -EOPNOTSUPP)
++				return err;
++		}
+ 		return dsa_user_setup_ft_block(ds, dp->index, type_data);
+ 	default:
+ 		break;

@@ -11,6 +11,7 @@
 #include <linux/regmap.h>
 #include <linux/rhashtable.h>
 #include <linux/spinlock.h>
+#include <linux/workqueue.h>
 #include <linux/types.h>
 #include <linux/io.h>
 #include <net/dsa.h>
@@ -1083,6 +1084,7 @@
 #define PPE_FDB_OP_ENTRY_IDX		GENMASK(21, 11)
 
 #define PPE_FDB_RSLT_CMD_ID		GENMASK(3, 0)
+#define PPE_FDB_RSLT_VALID_CNT		GENMASK(8, 5)
 
 #define PPE_FDB_DATA1_VALID		BIT(16)
 #define PPE_FDB_DATA1_LKP_VALID	BIT(17)
@@ -1218,6 +1220,9 @@ struct qca_ppe_vlan_entry {
 	int xlt_pvid_idx;
 };
 
+/* Defined beside the MIB table that dimensions it. */
+struct qca_ppe_mib_stats;
+
 /* A traffic class's rate and the scheduler node that will carry it, worked out
  * before any of it is programmed.
  */
@@ -1249,6 +1254,7 @@ struct qca_ppe_priv {
 	struct clk_bulk_data *clks;
 	int num_clks;
 	spinlock_t fdb_lock;
+	u32 fdb_cmd_id;
 	struct mutex flow_lock;
 	/* The VSI, translation-index and bridge-VLAN state is reached from the
 	 * switchdev ops under rtnl and from the flowtable's workqueue, which
@@ -1315,6 +1321,15 @@ struct qca_ppe_priv {
 	struct clk *port_rx_clk[QCA_PPE_MAX_PORTS];
 	struct clk *port_tx_clk[QCA_PPE_MAX_PORTS];
 	struct reset_control *port_rst[QCA_PPE_MAX_PORTS];
+	bool port_xgmac[QCA_PPE_MAX_PORTS];
+	bool mib_xgmac[QCA_PPE_MAX_PORTS];
+	bool mib_rebase[QCA_PPE_MAX_PORTS];
+	struct qca_ppe_mib_stats *port_mib;
+	/* Guards port_mib, port_xgmac, mib_xgmac and mib_rebase; get_stats64
+	 * takes it in atomic context, so it is never a mutex.
+	 */
+	spinlock_t mib_lock;
+	struct delayed_work mib_work;
 };
 
 extern const struct psch_tdm_data cppe_psch_tdm_data;
@@ -1356,6 +1371,8 @@ static inline struct qca_ppe_priv *ds_to_priv(struct dsa_switch *ds)
 {
 	return container_of(ds, struct qca_ppe_priv, ds);
 }
+
+u64 ppe_mib_read(struct qca_ppe_priv *priv, int port, unsigned int off);
 
 struct tc_tbf_qopt_offload;
 struct tc_ets_qopt_offload;
@@ -1429,7 +1446,6 @@ int qca_ppe_port_vlan_del(struct dsa_switch *ds, int port,
 			  const struct switchdev_obj_port_vlan *vlan);
 
 unsigned long ppe_clk_rate(struct qca_ppe_priv *priv);
-u64 ppe_mib_read(struct qca_ppe_priv *priv, int port, unsigned int off);
 void ppe_flow_init(struct qca_ppe_priv *priv);
 int ppe_flow_op(struct qca_ppe_priv *priv, u32 op_type,
 		const u32 *entry, int nentry, const u32 *host, int nhost,

@@ -22,8 +22,16 @@ PARAM_DIR=/sys/module/qca_ppe/parameters
 PREF_BASE=256
 PREF_MAX=511
 
+# The classifier holds 512 entries for the whole switch. A rule's address and
+# port lists become a filter per combination, so the product of four lists can
+# ask for arbitrarily many; past the engine's capacity every one is refused and
+# still costs a fork and a netlink round trip.
+ACL_MAX=512
+
 # Class name -> DSCP value, RFC 4594 service classes.
 class_to_dscp() {
+	local d
+
 	case "$1" in
 	cs0) echo 0 ;;  cs1) echo 8 ;;  cs2) echo 16 ;; cs3) echo 24 ;;
 	cs4) echo 32 ;; cs5) echo 40 ;; cs6) echo 48 ;; cs7) echo 56 ;;
@@ -32,7 +40,10 @@ class_to_dscp() {
 	af31) echo 26 ;; af32) echo 28 ;; af33) echo 30 ;;
 	af41) echo 34 ;; af42) echo 36 ;; af43) echo 38 ;;
 	ef) echo 46 ;; va) echo 44 ;; le) echo 1 ;;
-	[0-9]|[0-9][0-9]) [ "$1" -le 63 ] && echo "$1" ;;
+	# The leading zero goes here rather than at the reader: the shell reads
+	# a padded value as octal in arithmetic, and the priority map is keyed
+	# on the unpadded number.
+	[0-9]|[0-9][0-9]) [ "$1" -le 63 ] && { d="${1#0}"; echo "${d:-0}"; } ;;
 	*) return 1 ;;
 	esac
 }
@@ -150,6 +161,11 @@ emit() {
 	for da in ${fdip:-any}; do
 	for sp in ${sport:-any}; do
 	for dp in ${dport:-any}; do
+		[ $((INSTALLED + SKIPPED)) -lt $ACL_MAX ] || {
+			SKIPPED=$((SKIPPED + 1))
+			return 0
+		}
+
 		# As written, on the ports a client sits behind: the service is
 		# the destination.
 		m=""

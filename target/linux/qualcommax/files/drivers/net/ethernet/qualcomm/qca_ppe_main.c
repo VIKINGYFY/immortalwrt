@@ -17,6 +17,12 @@
 
 #include "qca_ppe.h"
 
+/* A port carrying nothing but minimum-sized frames at 10G wraps a packet
+ * counter in under five minutes, and a total only stays monotonic for as long
+ * as no counter wraps twice unobserved between folds.
+ */
+#define PPE_MIB_FOLD_INTERVAL	(30 * HZ)
+
 static void ppe_port_gmac_set(struct qca_ppe_priv *priv, int port,
 			     bool tx_en, bool rx_en)
 {
@@ -346,20 +352,53 @@ static void ppe_port_vsi_set(struct qca_ppe_priv *priv, int port, u32 vsi)
 			     val[i]);
 }
 
+#define PPE_FDB_OP_RETRIES	100
+
+/* The result register reports a command id and how many results are queued
+ * behind it. An operation has finished only once the queue holds one and it
+ * carries this command's id: without the count, a register that has posted
+ * nothing reads back as a completed command 0, and an operation issued
+ * without an id of its own is told it succeeded before the engine has run.
+ */
 static int ppe_fdb_op_wait(struct qca_ppe_priv *priv, u32 rslt_reg,
-			   u32 cmd_id)
+			   u32 cmd_id, u32 *data)
 {
 	u32 val;
 	int i;
 
-	for (i = 0; i < 100; i++) {
+	for (i = 0; i < PPE_FDB_OP_RETRIES; i++) {
+		/* The entry lands in the result data registers and the
+		 * operation is reported in a queue that a read advances, so
+		 * the data is taken first, in the same pass as the report
+		 * that qualifies it.
+		 */
+		if (data) {
+			regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA0,
+				    &data[0]);
+			regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA1,
+				    &data[1]);
+			regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA2,
+				    &data[2]);
+		}
+
 		regmap_read(priv->regmap, rslt_reg, &val);
-		if (FIELD_GET(PPE_FDB_RSLT_CMD_ID, val) == cmd_id)
+		if (FIELD_GET(PPE_FDB_RSLT_VALID_CNT, val) &&
+		    FIELD_GET(PPE_FDB_RSLT_CMD_ID, val) == cmd_id)
 			return 0;
 		udelay(1);
 	}
 
 	return -ETIMEDOUT;
+}
+
+/* Ids are handed out in turn, so a result the previous operation left behind
+ * is never mistaken for this one's.
+ */
+static u32 ppe_fdb_next_cmd_id(struct qca_ppe_priv *priv)
+{
+	priv->fdb_cmd_id = (priv->fdb_cmd_id + 1) & PPE_FDB_OP_CMD_ID;
+
+	return priv->fdb_cmd_id;
 }
 
 static void ppe_fdb_encode(const unsigned char *addr, int port, u32 vsi,
@@ -380,7 +419,7 @@ static void ppe_fdb_encode(const unsigned char *addr, int port, u32 vsi,
 static int ppe_fdb_op(struct qca_ppe_priv *priv, const unsigned char *addr,
 		      int port, u32 vsi, u32 op_type)
 {
-	u32 data0, data1, data2;
+	u32 data0, data1, data2, cmd_id;
 	int ret;
 
 	ppe_fdb_encode(addr, port, vsi, op_type == PPE_FDB_OP_ADD,
@@ -391,11 +430,14 @@ static int ppe_fdb_op(struct qca_ppe_priv *priv, const unsigned char *addr,
 	regmap_write(priv->regmap, PPE_FDB_OP_DATA0, data0);
 	regmap_write(priv->regmap, PPE_FDB_OP_DATA1, data1);
 	regmap_write(priv->regmap, PPE_FDB_OP_DATA2, data2);
+
+	cmd_id = ppe_fdb_next_cmd_id(priv);
 	regmap_write(priv->regmap, PPE_FDB_OP,
+		     FIELD_PREP(PPE_FDB_OP_CMD_ID, cmd_id) |
 		     FIELD_PREP(PPE_FDB_OP_TYPE, op_type) |
 		     FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
 
-	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, 0);
+	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, cmd_id, NULL);
 
 	spin_unlock_bh(&priv->fdb_lock);
 
@@ -406,12 +448,12 @@ static int ppe_fdb_read_entry(struct qca_ppe_priv *priv, u32 index,
 			      unsigned char *addr, u32 *vsi, int *port,
 			      bool *is_static)
 {
-	u32 data0, data1, data2, cmd_id, val;
+	u32 data[3], cmd_id, val;
 	int ret;
 
-	cmd_id = index % 15;
-
 	spin_lock_bh(&priv->fdb_lock);
+
+	cmd_id = ppe_fdb_next_cmd_id(priv);
 
 	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA0, 0);
 	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA1, 0);
@@ -424,51 +466,47 @@ static int ppe_fdb_read_entry(struct qca_ppe_priv *priv, u32 index,
 	      FIELD_PREP(PPE_FDB_OP_ENTRY_IDX, index);
 	regmap_write(priv->regmap, PPE_FDB_RD_OP, val);
 
-	ret = ppe_fdb_op_wait(priv, PPE_FDB_RD_OP_RSLT, cmd_id);
-	if (ret)
-		goto unlock;
+	ret = ppe_fdb_op_wait(priv, PPE_FDB_RD_OP_RSLT, cmd_id, data);
 
-	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA0, &data0);
-	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA1, &data1);
-	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA2, &data2);
-
-unlock:
 	spin_unlock_bh(&priv->fdb_lock);
 
 	if (ret)
 		return ret;
 
-	if (!(data1 & PPE_FDB_DATA1_VALID))
+	if (!(data[1] & PPE_FDB_DATA1_VALID))
 		return -ENOENT;
 
-	if (FIELD_GET(PPE_FDB_DATA2_DST_TYPE, data2) != PPE_FDB_DST_PORT)
+	if (FIELD_GET(PPE_FDB_DATA2_DST_TYPE, data[2]) != PPE_FDB_DST_PORT)
 		return -ENOENT;
 
-	addr[2] = (data0 >> 24) & 0xff;
-	addr[3] = (data0 >> 16) & 0xff;
-	addr[4] = (data0 >> 8) & 0xff;
-	addr[5] = data0 & 0xff;
-	addr[0] = (data1 >> 8) & 0xff;
-	addr[1] = data1 & 0xff;
+	addr[2] = (data[0] >> 24) & 0xff;
+	addr[3] = (data[0] >> 16) & 0xff;
+	addr[4] = (data[0] >> 8) & 0xff;
+	addr[5] = data[0] & 0xff;
+	addr[0] = (data[1] >> 8) & 0xff;
+	addr[1] = data[1] & 0xff;
 
-	*vsi = FIELD_GET(PPE_FDB_DATA1_VSI, data1);
-	*port = FIELD_GET(PPE_FDB_DATA1_DST_LO, data1) |
-		(FIELD_GET(PPE_FDB_DATA2_DST_HI, data2) << 9);
-	*is_static = FIELD_GET(PPE_FDB_DATA2_HIT_AGE, data2) == PPE_FDB_AGE_STATIC;
+	*vsi = FIELD_GET(PPE_FDB_DATA1_VSI, data[1]);
+	*port = FIELD_GET(PPE_FDB_DATA1_DST_LO, data[1]) |
+		(FIELD_GET(PPE_FDB_DATA2_DST_HI, data[2]) << 9);
+	*is_static = FIELD_GET(PPE_FDB_DATA2_HIT_AGE, data[2]) == PPE_FDB_AGE_STATIC;
 
 	return 0;
 }
 
 static int ppe_fdb_flush(struct qca_ppe_priv *priv)
 {
+	u32 cmd_id;
 	int ret;
 
 	spin_lock_bh(&priv->fdb_lock);
 
+	cmd_id = ppe_fdb_next_cmd_id(priv);
 	regmap_write(priv->regmap, PPE_FDB_OP,
+		FIELD_PREP(PPE_FDB_OP_CMD_ID, cmd_id) |
 		FIELD_PREP(PPE_FDB_OP_TYPE, PPE_FDB_OP_FLUSH));
 
-	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, 0);
+	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, cmd_id, NULL);
 
 	spin_unlock_bh(&priv->fdb_lock);
 
@@ -493,7 +531,7 @@ static void ppe_fdb_encode_mcast(const unsigned char *addr, u32 portmap,
 static int ppe_fdb_lookup(struct qca_ppe_priv *priv,
 			  const unsigned char *addr, u32 vsi, u32 *portmap)
 {
-	u32 data1, data2;
+	u32 data[3], cmd_id;
 	int ret;
 
 	spin_lock_bh(&priv->fdb_lock);
@@ -505,24 +543,28 @@ static int ppe_fdb_lookup(struct qca_ppe_priv *priv,
 		     FIELD_PREP(PPE_FDB_DATA1_VSI, vsi));
 	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA2, 0);
 
+	cmd_id = ppe_fdb_next_cmd_id(priv);
 	regmap_write(priv->regmap, PPE_FDB_RD_OP,
+		     FIELD_PREP(PPE_FDB_OP_CMD_ID, cmd_id) |
 		     FIELD_PREP(PPE_FDB_OP_TYPE, PPE_FDB_OP_GET) |
 		     FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
 
-	ret = ppe_fdb_op_wait(priv, PPE_FDB_RD_OP_RSLT, 0);
+	ret = ppe_fdb_op_wait(priv, PPE_FDB_RD_OP_RSLT, cmd_id, data);
 	if (ret)
 		goto out;
 
-	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA1, &data1);
-	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA2, &data2);
-
-	if (!(data1 & PPE_FDB_DATA1_VALID)) {
+	/* The destination field of a unicast entry is a port number rather than
+	 * a member map, so an entry of the wrong type read back as one would
+	 * name a set of ports the group was never given.
+	 */
+	if (!(data[1] & PPE_FDB_DATA1_VALID) ||
+	    FIELD_GET(PPE_FDB_DATA2_DST_TYPE, data[2]) != PPE_FDB_DST_PORTMAP) {
 		ret = -ENOENT;
 		goto out;
 	}
 
-	*portmap = FIELD_GET(PPE_FDB_DATA1_DST_LO, data1) |
-		   (FIELD_GET(PPE_FDB_DATA2_DST_HI, data2) << 9);
+	*portmap = FIELD_GET(PPE_FDB_DATA1_DST_LO, data[1]) |
+		   (FIELD_GET(PPE_FDB_DATA2_DST_HI, data[2]) << 9);
 
 out:
 	spin_unlock_bh(&priv->fdb_lock);
@@ -533,7 +575,7 @@ static int ppe_fdb_mcast_op(struct qca_ppe_priv *priv,
 			    const unsigned char *addr, u32 portmap,
 			    u32 vsi, u32 op_type)
 {
-	u32 data0, data1, data2;
+	u32 data0, data1, data2, cmd_id;
 	int ret;
 
 	ppe_fdb_encode_mcast(addr, portmap, vsi, &data0, &data1, &data2);
@@ -543,11 +585,14 @@ static int ppe_fdb_mcast_op(struct qca_ppe_priv *priv,
 	regmap_write(priv->regmap, PPE_FDB_OP_DATA0, data0);
 	regmap_write(priv->regmap, PPE_FDB_OP_DATA1, data1);
 	regmap_write(priv->regmap, PPE_FDB_OP_DATA2, data2);
+
+	cmd_id = ppe_fdb_next_cmd_id(priv);
 	regmap_write(priv->regmap, PPE_FDB_OP,
+		     FIELD_PREP(PPE_FDB_OP_CMD_ID, cmd_id) |
 		     FIELD_PREP(PPE_FDB_OP_TYPE, op_type) |
 		     FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
 
-	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, 0);
+	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, cmd_id, NULL);
 
 	spin_unlock_bh(&priv->fdb_lock);
 
@@ -711,12 +756,6 @@ static int qca_ppe_devlink_info_get(struct dsa_switch *ds,
 					      buf);
 }
 
-static void qca_ppe_teardown(struct dsa_switch *ds)
-{
-	devlink_sb_unregister(ds->devlink, PPE_DEVLINK_SB);
-	dsa_devlink_resources_unregister(ds);
-}
-
 static int qca_ppe_setup(struct dsa_switch *ds)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
@@ -792,6 +831,8 @@ static int qca_ppe_setup(struct dsa_switch *ds)
 	ds->ageing_time_max = (unsigned int)min_t(u64,
 		(u64)PPE_AGE_UNIT_MS * PPE_AGE_TIMER_MASK, U32_MAX);
 	ds->assisted_learning_on_cpu_port = true;
+
+	schedule_delayed_work(&priv->mib_work, PPE_MIB_FOLD_INTERVAL);
 
 	return ppe_devlink_setup(ds);
 }
@@ -1200,11 +1241,12 @@ static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
 
 	switch (port) {
 	case 4:
+		/* The select names where port 4's GMII comes from, not the
+		 * protocol carried on it, so one value covers every interface
+		 * uniphy0 drives.
+		 */
 		mask = HPPE_PORT4_PCS_SEL;
-		if (interface == PHY_INTERFACE_MODE_QSGMII ||
-		    interface == PHY_INTERFACE_MODE_PSGMII)
-			val = FIELD_PREP(HPPE_PORT4_PCS_SEL,
-					 HPPE_PORT4_PCS0);
+		val = FIELD_PREP(HPPE_PORT4_PCS_SEL, HPPE_PORT4_PCS0);
 		break;
 	case 5:
 		mask = HPPE_PORT5_PCS_SEL | HPPE_PORT5_GMAC_SEL;
@@ -1356,6 +1398,12 @@ static void qca_ppe_xgmac_config(struct qca_ppe_priv *priv, int port)
 			   FIELD_PREP(PPE_XGMAC_PAUSE_TIME, 0xffff));
 }
 
+/* Defined with the MIB table it walks; the port reset and the bank change
+ * below have to bank the counters before the MIB they read stops being the
+ * one they were counted in.
+ */
+static void ppe_mib_fold(struct qca_ppe_priv *priv, int port);
+
 static void qca_ppe_mac_config(struct phylink_config *config,
 				    unsigned int mode,
 				    const struct phylink_link_state *state)
@@ -1372,9 +1420,27 @@ static void qca_ppe_mac_config(struct phylink_config *config,
 	}
 
 	if (priv->port_rst[port]) {
+		/* The reset clears the MIB, so bank what it has counted and
+		 * hold the rebase across the reset: a fold racing the window
+		 * below would otherwise consume it while the counters are
+		 * still running, and leave the drop to zero to be read as a
+		 * wrap. The baseline is taken here rather than left to the
+		 * periodic fold, so that nothing the port counts from
+		 * link-up is discarded.
+		 */
+		spin_lock_bh(&priv->mib_lock);
+		ppe_mib_fold(priv, port);
+		priv->mib_rebase[port] = true;
+		spin_unlock_bh(&priv->mib_lock);
+
 		reset_control_assert(priv->port_rst[port]);
 		msleep(150);
 		reset_control_deassert(priv->port_rst[port]);
+
+		spin_lock_bh(&priv->mib_lock);
+		ppe_mib_fold(priv, port);
+		priv->mib_rebase[port] = false;
+		spin_unlock_bh(&priv->mib_lock);
 	}
 }
 
@@ -1454,6 +1520,19 @@ static void qca_ppe_mac_link_down(struct phylink_config *config,
 	return;
 }
 
+static bool qca_ppe_port_uses_xgmac(unsigned int mode, phy_interface_t interface)
+{
+	switch (interface) {
+	case PHY_INTERFACE_MODE_2500BASEX:
+		return phylink_autoneg_inband(mode);
+	case PHY_INTERFACE_MODE_USXGMII:
+	case PHY_INTERFACE_MODE_10GBASER:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static void qca_ppe_mac_link_up(struct phylink_config *config,
 				     struct phy_device *phydev,
 				     unsigned int mode,
@@ -1464,7 +1543,11 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
-	unsigned long rate;
+	/* Neither speed table below is exhaustive, and a speed outside the one
+	 * its interface lands in leaves the gigabit rate rather than whatever
+	 * the stack held.
+	 */
+	unsigned long rate = 125000000;
 
 	/* Invalid mode for port < 5 */
 	if ((interface == PHY_INTERFACE_MODE_2500BASEX ||
@@ -1472,6 +1555,17 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	     interface == PHY_INTERFACE_MODE_10GBASER) &&
 	     port < 5)
 		return;
+
+	/* Bank what the MAC the port is leaving has counted, then baseline
+	 * the one it arrives on: a rebase left to the periodic fold would
+	 * discard everything the new MAC counted in the meantime. Where the
+	 * bank does not change the second fold adds nothing.
+	 */
+	spin_lock_bh(&priv->mib_lock);
+	ppe_mib_fold(priv, port);
+	priv->port_xgmac[port] = qca_ppe_port_uses_xgmac(mode, interface);
+	ppe_mib_fold(priv, port);
+	spin_unlock_bh(&priv->mib_lock);
 
 	switch (interface) {
 	case PHY_INTERFACE_MODE_SGMII:
@@ -1543,7 +1637,6 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 		}
 		break;
 	default:
-		rate = 125000000;
 		break;
 	}
 
@@ -1621,9 +1714,9 @@ struct qca_ppe_mib_desc {
 	  .xgmac_size = (_xsz), .name = _name }
 
 /* Each counter as both MACs express it: the GMAC offset and word count, then
- * the XGMAC MMC offset and word count, or 0 where the XGMAC has no equivalent.
- * The XGMAC lumps 1519-and-up into its 1024-to-max bin and counts no
- * collisions, no alignment error and no bad receive bytes.
+ * the XGMAC MMC offset and word count, or 0 where the XGMAC has no
+ * equivalent. The XGMAC lumps 1519-and-up into its 1024-to-max bin and counts
+ * no collisions, no alignment error and no bad receive bytes.
  */
 static const struct qca_ppe_mib_desc qca_ppe_mib[] = {
 	MIB_ROW(PPE_MIB_RXBROAD, 1, 0x918, 2, "rx_broadcast"),
@@ -1668,50 +1761,120 @@ static const struct qca_ppe_mib_desc qca_ppe_mib[] = {
 	MIB_ROW(PPE_MIB_TXUNI, 1, 0x864, 2, "tx_unicast"),
 };
 
-/* A port muxed to its XGMAC leaves the GMAC the port number names idle, and
- * that block reads back zero, so every counter is fetched from whichever MAC
- * the port is currently driving. This is the only place that knows which.
+/* What a counter has reached, and the raw register value that total was last
+ * brought up to date from.
  */
-static u64 ppe_mib_row_read(struct qca_ppe_priv *priv, int port,
-			    const struct qca_ppe_mib_desc *mib)
+struct qca_ppe_mib_stats {
+	u64 total;
+	u64 last;
+};
+
+static struct qca_ppe_mib_stats *ppe_port_mib(struct qca_ppe_priv *priv,
+					      int port)
 {
-	unsigned int reg, size;
-	u32 lo, hi = 0;
-
-	/* Both MIB windows are indexed from the first user port, so a port
-	 * that drives no MAC of its own has no counters rather than another
-	 * port's.
-	 */
-	if (port < 1 || port >= priv->ds.num_ports)
-		return 0;
-
-	if (priv->port_is_xgmac[port]) {
-		reg = PPE_XGMAC_MIB(port - 5, mib->xgmac);
-		size = mib->xgmac_size;
-	} else {
-		reg = PPE_GMAC_MIB(port - 1, mib->offset);
-		size = mib->size;
-	}
-
-	if (!size)
-		return 0;
-
-	regmap_read(priv->regmap, reg, &lo);
-	if (size > 1)
-		regmap_read(priv->regmap, reg + 4, &hi);
-
-	return (u64)hi << 32 | lo;
+	return priv->port_mib + port * ARRAY_SIZE(qca_ppe_mib);
 }
 
-u64 ppe_mib_read(struct qca_ppe_priv *priv, int port, unsigned int off)
+/* The GMAC keeps most counters in a single 32-bit register and neither MAC
+ * ever stops counting, so the registers wrap where the totals reported to
+ * userspace must not: each total takes the difference since the last fold, at
+ * the width of the register it came from.
+ *
+ * A difference is only meaningful across a counter that kept running. Two
+ * things break that, and both take a baseline instead: a port muxed to its
+ * XGMAC starts reading a second MAC's independent counters, since the idle
+ * block reads back zero; and resetting a port zeroes the MIB it owns, which
+ * an unguarded difference would read as a wrap and add 2^32 for.
+ */
+static void ppe_mib_fold(struct qca_ppe_priv *priv, int port)
+{
+	struct qca_ppe_mib_stats *stats;
+	bool xgmac, rebase;
+	int i;
+
+	/* The CPU port owns no MAC MIB, and phylink brings its fixed link up
+	 * like any other, so the fold guards itself rather than each caller.
+	 */
+	if (port < 1)
+		return;
+
+	stats = ppe_port_mib(priv, port);
+	xgmac = priv->port_xgmac[port];
+	rebase = priv->mib_rebase[port] || xgmac != priv->mib_xgmac[port];
+
+	for (i = 0; i < ARRAY_SIZE(qca_ppe_mib); i++) {
+		const struct qca_ppe_mib_desc *mib = &qca_ppe_mib[i];
+		unsigned int reg, size;
+		u32 lo, hi = 0;
+		u64 cur;
+
+		if (xgmac) {
+			reg = PPE_XGMAC_MIB(port - 5, mib->xgmac);
+			size = mib->xgmac_size;
+		} else {
+			reg = PPE_GMAC_MIB(port - 1, mib->offset);
+			size = mib->size;
+		}
+
+		if (!size)
+			continue;
+
+		regmap_read(priv->regmap, reg, &lo);
+		if (size > 1)
+			regmap_read(priv->regmap, reg + 4, &hi);
+		cur = (u64)hi << 32 | lo;
+
+		if (!rebase)
+			stats[i].total += size > 1 ? cur - stats[i].last :
+					  (u32)(cur - stats[i].last);
+		stats[i].last = cur;
+	}
+
+	priv->mib_xgmac[port] = xgmac;
+}
+
+static u64 ppe_mib_total(const struct qca_ppe_mib_stats *stats,
+			 unsigned int offset)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(qca_ppe_mib); i++)
-		if (qca_ppe_mib[i].offset == off)
-			return ppe_mib_row_read(priv, port, &qca_ppe_mib[i]);
+		if (qca_ppe_mib[i].offset == offset)
+			return stats[i].total;
 
 	return 0;
+}
+
+/* One counter's banked total, for a reader outside this file. The fold is what
+ * makes the value survive a register wrap and a port changing MAC, so a caller
+ * that read the register directly would report a rate spike for either.
+ */
+u64 ppe_mib_read(struct qca_ppe_priv *priv, int port, unsigned int off)
+{
+	u64 total;
+
+	spin_lock_bh(&priv->mib_lock);
+	ppe_mib_fold(priv, port);
+	total = ppe_mib_total(ppe_port_mib(priv, port), off);
+	spin_unlock_bh(&priv->mib_lock);
+
+	return total;
+}
+
+static void ppe_mib_work(struct work_struct *work)
+{
+	struct qca_ppe_priv *priv = container_of(to_delayed_work(work),
+						 struct qca_ppe_priv,
+						 mib_work);
+	struct dsa_port *dp;
+
+	dsa_switch_for_each_user_port(dp, &priv->ds) {
+		spin_lock_bh(&priv->mib_lock);
+		ppe_mib_fold(priv, dp->index);
+		spin_unlock_bh(&priv->mib_lock);
+	}
+
+	schedule_delayed_work(&priv->mib_work, PPE_MIB_FOLD_INTERVAL);
 }
 
 static void qca_ppe_get_strings(struct dsa_switch *ds, int port,
@@ -1739,6 +1902,7 @@ static void qca_ppe_get_ethtool_stats(struct dsa_switch *ds, int port,
 					  uint64_t *data)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct qca_ppe_mib_stats *stats;
 	int i;
 
 	if (port < 1 || port >= ds->num_ports) {
@@ -1746,36 +1910,57 @@ static void qca_ppe_get_ethtool_stats(struct dsa_switch *ds, int port,
 		return;
 	}
 
+	stats = ppe_port_mib(priv, port);
+
+	spin_lock_bh(&priv->mib_lock);
+	ppe_mib_fold(priv, port);
+
 	for (i = 0; i < ARRAY_SIZE(qca_ppe_mib); i++)
-		data[i] = ppe_mib_row_read(priv, port, &qca_ppe_mib[i]);
+		data[i] = stats[i].total;
+
+	spin_unlock_bh(&priv->mib_lock);
 }
 
-/* Shorthand for the readers below, each of which takes priv and port under
- * those names.
+/* Shorthand for the reader below, which holds the port's counters under that
+ * name.
  */
-#define MIB(_c)		ppe_mib_read(priv, port, PPE_MIB_ ## _c)
+#define MIB(_c)		ppe_mib_total(stats, PPE_MIB_ ## _c)
 
 static void qca_ppe_get_stats64(struct dsa_switch *ds, int port,
 				struct rtnl_link_stats64 *s)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct qca_ppe_mib_stats *stats;
+
+	if (port < 1 || port >= ds->num_ports)
+		return;
+
+	stats = ppe_port_mib(priv, port);
+
+	spin_lock_bh(&priv->mib_lock);
+	ppe_mib_fold(priv, port);
 
 	s->rx_packets = MIB(RXUNI) + MIB(RXMULTI) + MIB(RXBROAD);
 	s->tx_packets = MIB(TXUNI) + MIB(TXMULTI) + MIB(TXBROAD);
 	s->rx_bytes = MIB(RXGOODBYTE_L);
 	s->tx_bytes = MIB(TXBYTE_L);
 	s->multicast = MIB(RXMULTI);
-	s->rx_crc_errors = MIB(RXFCSERR);
-	s->rx_frame_errors = MIB(RXALIGNERR);
+
+	s->rx_crc_errors = MIB(RXFCSERR) + MIB(RXJUMBOFCSERR);
+	s->rx_frame_errors = MIB(RXALIGNERR) + MIB(RXJUMBOALIGNERR);
 	s->rx_length_errors = MIB(RXRUNT) + MIB(RXFRAG) + MIB(RXTOOLONG);
 	s->rx_errors = s->rx_crc_errors + s->rx_frame_errors +
 		       s->rx_length_errors;
-	s->collisions = MIB(TXCOLLISIONS);
+
 	s->tx_fifo_errors = MIB(TXUNDERRUN);
 	s->tx_aborted_errors = MIB(TXABORTCOL);
 	s->tx_window_errors = MIB(TXLATECOL);
 	s->tx_errors = s->tx_fifo_errors + s->tx_aborted_errors +
 		       s->tx_window_errors;
+
+	s->collisions = MIB(TXCOLLISIONS);
+
+	spin_unlock_bh(&priv->mib_lock);
 }
 
 /* CarrierSenseErrors, FramesLostDueToIntMACRcvError, InRangeLengthErrors and
@@ -1786,6 +1971,15 @@ static void qca_ppe_get_eth_mac_stats(struct dsa_switch *ds, int port,
 				      struct ethtool_eth_mac_stats *s)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct qca_ppe_mib_stats *stats;
+
+	if (port < 1 || port >= ds->num_ports)
+		return;
+
+	stats = ppe_port_mib(priv, port);
+
+	spin_lock_bh(&priv->mib_lock);
+	ppe_mib_fold(priv, port);
 
 	s->FramesTransmittedOK = MIB(TXUNI) + MIB(TXMULTI) + MIB(TXBROAD);
 	s->SingleCollisionFrames = MIB(TXSINGLECOL);
@@ -1805,6 +1999,8 @@ static void qca_ppe_get_eth_mac_stats(struct dsa_switch *ds, int port,
 	s->MulticastFramesReceivedOK = MIB(RXMULTI);
 	s->BroadcastFramesReceivedOK = MIB(RXBROAD);
 	s->FrameTooLongErrors = MIB(RXTOOLONG);
+
+	spin_unlock_bh(&priv->mib_lock);
 }
 
 /* Pause is the only MAC control opcode either MAC counts. */
@@ -1812,9 +2008,20 @@ static void qca_ppe_get_eth_ctrl_stats(struct dsa_switch *ds, int port,
 				       struct ethtool_eth_ctrl_stats *s)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct qca_ppe_mib_stats *stats;
+
+	if (port < 1 || port >= ds->num_ports)
+		return;
+
+	stats = ppe_port_mib(priv, port);
+
+	spin_lock_bh(&priv->mib_lock);
+	ppe_mib_fold(priv, port);
 
 	s->MACControlFramesTransmitted = MIB(TXPAUSE);
 	s->MACControlFramesReceived = MIB(RXPAUSE);
+
+	spin_unlock_bh(&priv->mib_lock);
 }
 
 /* The GMAC splits its top bin at 1518 and the XGMAC does not, so the two
@@ -1836,6 +2043,17 @@ qca_ppe_get_rmon_stats(struct dsa_switch *ds, int port,
 		       const struct ethtool_rmon_hist_range **ranges)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct qca_ppe_mib_stats *stats;
+
+	*ranges = qca_ppe_rmon_ranges;
+
+	if (port < 1 || port >= ds->num_ports)
+		return;
+
+	stats = ppe_port_mib(priv, port);
+
+	spin_lock_bh(&priv->mib_lock);
+	ppe_mib_fold(priv, port);
 
 	s->undersize_pkts = MIB(RXRUNT);
 	s->oversize_pkts = MIB(RXTOOLONG);
@@ -1856,27 +2074,48 @@ qca_ppe_get_rmon_stats(struct dsa_switch *ds, int port,
 	s->hist_tx[4] = MIB(TXPKT512TO1023);
 	s->hist_tx[5] = MIB(TXPKT1024TO1518) + MIB(TXPKT1519TOX);
 
-	*ranges = qca_ppe_rmon_ranges;
+	spin_unlock_bh(&priv->mib_lock);
 }
 
 static void qca_ppe_get_pause_stats(struct dsa_switch *ds, int port,
 				    struct ethtool_pause_stats *s)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct qca_ppe_mib_stats *stats;
+
+	if (port < 1 || port >= ds->num_ports)
+		return;
+
+	stats = ppe_port_mib(priv, port);
+
+	spin_lock_bh(&priv->mib_lock);
+	ppe_mib_fold(priv, port);
 
 	s->tx_pause_frames = MIB(TXPAUSE);
 	s->rx_pause_frames = MIB(RXPAUSE);
+
+	spin_unlock_bh(&priv->mib_lock);
 }
 
 #undef MIB
 
-/* No PHC, so the core leaves phc_index at -1; it also adds the receive and
- * software flags itself, leaving the transmit one to report here.
+/* The switch timestamps nothing and has no PHC. Answering at all is still the
+ * difference between ethtool reporting the software timestamping the core
+ * provides and failing the query outright.
  */
 static int qca_ppe_get_ts_info(struct dsa_switch *ds, int port,
 			       struct kernel_ethtool_ts_info *ts)
 {
 	return 0;
+}
+
+static void qca_ppe_teardown(struct dsa_switch *ds)
+{
+	struct qca_ppe_priv *priv = ds_to_priv(ds);
+
+	cancel_delayed_work_sync(&priv->mib_work);
+	devlink_sb_unregister(ds->devlink, PPE_DEVLINK_SB);
+	dsa_devlink_resources_unregister(ds);
 }
 
 /* Everything the PPE holds about one port that a value can be read out of:
@@ -2487,6 +2726,7 @@ static int ppe_ipq6018_mux_setup(struct qca_ppe_priv *priv)
 			continue;
 
 		port3_ch = pcs_args.args[0];
+		of_node_put(pcs_args.np);
 	}
 
 	of_node_put(ports_np);
@@ -2544,8 +2784,10 @@ static int qca_ppe_probe(struct platform_device *pdev)
 		return ret;
 
 	base = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
-	if (IS_ERR(base))
-		return dev_err_probe(&pdev->dev, PTR_ERR(base), "failed to ioremap resource");
+	if (IS_ERR(base)) {
+		ret = dev_err_probe(&pdev->dev, PTR_ERR(base), "failed to ioremap resource");
+		goto err_clk;
+	}
 
 	/* Bound the regmap by what is actually mapped: a register the window
 	 * does not cover is an -EIO rather than a fault on unmapped memory.
@@ -2554,8 +2796,10 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	regmap_cfg.max_register = resource_size(res) - sizeof(u32);
 
 	priv->regmap = devm_regmap_init_mmio(&pdev->dev, base, &regmap_cfg);
-	if (IS_ERR(priv->regmap))
-		return dev_err_probe(&pdev->dev, PTR_ERR(priv->regmap), "failed to init regmap");
+	if (IS_ERR(priv->regmap)) {
+		ret = dev_err_probe(&pdev->dev, PTR_ERR(priv->regmap), "failed to init regmap");
+		goto err_clk;
+	}
 
 	rst = devm_reset_control_get(&pdev->dev, "ppe_rst");
 	if (IS_ERR(rst)) {
@@ -2568,6 +2812,16 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	msleep(100);
 
 	spin_lock_init(&priv->fdb_lock);
+	spin_lock_init(&priv->mib_lock);
+	INIT_DELAYED_WORK(&priv->mib_work, ppe_mib_work);
+
+	priv->port_mib = devm_kcalloc(&pdev->dev,
+				      data->num_ports * ARRAY_SIZE(qca_ppe_mib),
+				      sizeof(*priv->port_mib), GFP_KERNEL);
+	if (!priv->port_mib) {
+		ret = -ENOMEM;
+		goto err_clk;
+	}
 
 	ds = &priv->ds;
 	ds->dev = &pdev->dev;

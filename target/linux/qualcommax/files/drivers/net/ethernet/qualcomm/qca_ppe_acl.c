@@ -445,7 +445,12 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 		}
 
 		flow_rule_match_vlan(rule, &match);
-		if (match.key->vlan_tpid != htons(ETH_P_8021Q)) {
+		/* ethtool registers the key on the tci alone and leaves the
+		 * tpid unset, which is a tag it did not name rather than one
+		 * this classifier has no slot for.
+		 */
+		if (match.mask->vlan_tpid &&
+		    match.key->vlan_tpid != htons(ETH_P_8021Q)) {
 			NL_SET_ERR_MSG_MOD(extack, "only an 802.1Q tag is classified");
 			return -EOPNOTSUPP;
 		}
@@ -468,13 +473,19 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 		s->mask[1] |= PPE_ACL_CTAG_FMT | PPE_ACL_STAG_FMT;
 	}
 
-	/* tc rewrites the frame's protocol to the one the session carries, so
-	 * the session ethertype comes from the PPPoE key itself.
+	/* The classifier has one ethertype field and PPPoE needs it for the
+	 * session, so a rule that also names the protocol the session carries -
+	 * which tc hands over in place of the frame's own - is declined rather
+	 * than installed matching only the half the field holds.
 	 */
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PPPOE)) {
 		struct flow_match_pppoe match;
 
 		flow_rule_match_pppoe(rule, &match);
+		if (match.mask->ppp_proto) {
+			NL_SET_ERR_MSG_MOD(extack, "the session is matched, not what it carries");
+			return -EOPNOTSUPP;
+		}
 		s = ppe_acl_slice_get(slice, &n, PPE_ACL_TYPE_L2MISC);
 		s->key[0] |= FIELD_PREP(PPE_ACL_L2_PROT,
 					ntohs(match.key->type));
@@ -1037,8 +1048,8 @@ static int ppe_acl_rule_add(struct qca_ppe_priv *priv, int port,
 	}
 
 	/* The meter index comes out of the same lock the entries do: the
-	 * small-packet parameters reach the table without rtnl, and so does a
-	 * filter added on another port.
+	 * small-packet parameters reach the table without rtnl, and so does
+	 * ethtool's n-tuple insert.
 	 */
 	mutex_lock(&priv->acl_lock);
 	ret = ppe_acl_parse_action(priv, rule, extack, family, r);
@@ -1150,8 +1161,12 @@ static struct ppe_acl_rule *ppe_acl_rule_at(struct qca_ppe_priv *priv,
 
 	lockdep_assert_held(&priv->acl_lock);
 
+	/* Only a rule ethtool inserted has a location. Without the sign test
+	 * the -1 of a tc rule promotes to 0xffffffff and a delete at that
+	 * location takes the tc rule's hardware entry away under it.
+	 */
 	list_for_each_entry(r, &priv->acl_rules, list)
-		if (r->port == port && r->loc == loc)
+		if (r->port == port && r->loc >= 0 && r->loc == loc)
 			return r;
 
 	return NULL;

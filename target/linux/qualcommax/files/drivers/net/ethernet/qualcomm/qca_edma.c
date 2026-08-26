@@ -18,8 +18,7 @@
 #include <linux/regmap.h>
 #include <linux/reset.h>
 #include <linux/version.h>
-#include <net/dsa.h>
-#include <net/pkt_cls.h>
+#include <net/netdev_queues.h>
 
 #include "qca_edma.h"
 
@@ -314,8 +313,31 @@ static bool edma_rx_page_take(struct edma_priv *priv, struct page *page,
 	return false;
 }
 
+/* Descriptors the transmit ring has left, taken from the hardware rather than
+ * from a cached index: the stop and its recheck have to see what the engine
+ * has consumed by now, not what it had consumed when the frame arrived.
+ */
+static u16 edma_txdesc_free(struct edma_priv *priv)
+{
+	const struct edma_soc_data *soc = priv->soc;
+	u32 prod, cons;
+
+	regmap_read(priv->regmap, EDMA_REG_TXDESC_PROD_IDX(soc->txdesc_ring),
+		    &prod);
+	regmap_read(priv->regmap, EDMA_REG_TXDESC_CONS_IDX(soc->txdesc_ring),
+		    &cons);
+
+	return ((cons & EDMA_TXDESC_CONS_IDX_MASK) -
+		(prod & EDMA_TXDESC_PROD_IDX_MASK) - 1) &
+	       (priv->txdesc_ring.count - 1);
+}
+
+/* @napi_budget is the NAPI budget the poll was given, or zero when the caller
+ * is not a poll: the skb cache napi_consume_skb() recycles into is per-CPU and
+ * is only safe to touch from softirq context.
+ */
 static u32 edma_clean_tx(struct edma_priv *priv, struct edma_ring *txcmpl_ring,
-			 int budget)
+			 int budget, int napi_budget)
 {
 	const struct edma_soc_data *soc = priv->soc;
 	struct platform_device *pdev = priv->pdev;
@@ -360,7 +382,7 @@ static u32 edma_clean_tx(struct edma_priv *priv, struct edma_ring *txcmpl_ring,
 				 le32_to_cpu(txdesc->buffer_addr),
 				 len, DMA_TO_DEVICE);
 		bytes += len - EDMA_TX_PREHDR_SIZE;
-		napi_consume_skb(skb, budget);
+		napi_consume_skb(skb, napi_budget);
 
 next:
 		if (++cons == txcmpl_ring->count)
@@ -372,8 +394,9 @@ next:
 	if (cleaned == 0)
 		return 0;
 
-	netdev_tx_completed_queue(netdev_get_tx_queue(priv->netdev, 0), cleaned,
-				  bytes);
+	netif_txq_completed_wake(netdev_get_tx_queue(priv->netdev, 0),
+				 cleaned, bytes, edma_txdesc_free(priv),
+				 EDMA_TX_RING_THRESH);
 
 	/* Ensure all TX completions are processed before updating cons idx */
 	wmb();
@@ -481,25 +504,9 @@ next:
 static int edma_tx_napi(struct napi_struct *napi, int budget)
 {
 	struct edma_priv *priv = container_of(napi, struct edma_priv, tx_napi);
-	int work = edma_clean_tx(priv, &priv->txcmpl_ring, budget);
+	int work = edma_clean_tx(priv, &priv->txcmpl_ring, budget, budget);
 	const struct edma_soc_data *soc = priv->soc;
 	u32 val;
-
-	if (priv->netdev && netif_queue_stopped(priv->netdev) &&
-	    netif_carrier_ok(priv->netdev)) {
-		u16 prod, cons, free;
-
-		regmap_read(priv->regmap,
-			    EDMA_REG_TXDESC_PROD_IDX(soc->txdesc_ring), &val);
-		prod = val & EDMA_TXDESC_PROD_IDX_MASK;
-		regmap_read(priv->regmap,
-			    EDMA_REG_TXDESC_CONS_IDX(soc->txdesc_ring), &val);
-		cons = val & EDMA_TXDESC_CONS_IDX_MASK;
-		free = (cons - prod - 1) & (priv->txdesc_ring.count - 1);
-
-		if (free > EDMA_TX_RING_THRESH)
-			netif_wake_queue(priv->netdev);
-	}
 
 	if (work < budget) {
 		regmap_read(priv->regmap,
@@ -587,11 +594,17 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 	cons = val & EDMA_TXDESC_CONS_IDX_MASK;
 
 	next = (prod + 1) & (txdesc_ring->count - 1);
+	idx = prod & (txdesc_ring->count - 1);
 
-	if (next == cons) {
-		spin_unlock_bh(&priv->tx_lock);
-		return NETDEV_TX_BUSY;
-	}
+	if (next == cons)
+		goto busy;
+
+	/* Both refusals come before the preheader is pushed: the qdisc requeues
+	 * the frame as it was handed over, and a second push would prefix it
+	 * twice and hand the hardware a length that no longer describes it.
+	 */
+	if (unlikely(txdesc_ring->skb_store[idx] != NULL))
+		goto busy;
 
 	buf_len = skb_headlen(skb);
 
@@ -606,12 +619,6 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 	memset((void *)txph, 0, EDMA_TX_PREHDR_SIZE);
 
 	txph->dst_info = dst_info;
-
-	idx = prod & (txdesc_ring->count - 1);
-	if (unlikely(txdesc_ring->skb_store[idx] != NULL)) {
-		spin_unlock_bh(&priv->tx_lock);
-		return NETDEV_TX_BUSY;
-	}
 
 	txdesc_ring->skb_store[idx] = skb;
 	txph->opaque = idx;
@@ -644,12 +651,34 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 		     EDMA_REG_TXDESC_PROD_IDX(soc->txdesc_ring),
 		     prod & EDMA_TXDESC_PROD_IDX_MASK);
 
-	if (((cons - prod - 1) & (txdesc_ring->count - 1)) <
-	    EDMA_TX_RING_THRESH)
-		netif_stop_queue(netdev);
+	/* The queue is rechecked against the hardware once it is stopped: a
+	 * completion that drains the ring between the descriptor going out and
+	 * the stop landing would otherwise find the queue still running and
+	 * leave nothing behind to start it again.
+	 */
+	netif_txq_maybe_stop(netdev_get_tx_queue(netdev, 0),
+			     edma_txdesc_free(priv), EDMA_TX_RING_THRESH,
+			     EDMA_TX_RING_THRESH);
 
 	spin_unlock_bh(&priv->tx_lock);
 	return NETDEV_TX_OK;
+
+busy:
+	/* A refusal stops the queue here rather than in the caller, so that the
+	 * recheck happens against the state this refusal was decided on: a
+	 * completion that drains the ring once the lock is dropped would
+	 * otherwise find the queue still running and leave nothing behind to
+	 * start it again. A taken store slot outlives the descriptor that named
+	 * it, because the engine releases the descriptor as soon as it reads it
+	 * and only the completion clears the slot, so a free descriptor count
+	 * would restart the queue on a resource the refused frame still lacks.
+	 */
+	netif_txq_try_stop(netdev_get_tx_queue(netdev, 0),
+			   txdesc_ring->skb_store[idx] ? 0 :
+			   edma_txdesc_free(priv), EDMA_TX_RING_THRESH);
+
+	spin_unlock_bh(&priv->tx_lock);
+	return NETDEV_TX_BUSY;
 }
 
 static void edma_rx_ring_free(struct edma_priv *priv, struct edma_ring *ring,
@@ -756,7 +785,7 @@ err_txcmpl:
 static void edma_rings_drain(struct edma_priv *priv)
 {
 	edma_txdesc_drain(priv, &priv->txdesc_ring);
-	edma_clean_tx(priv, &priv->txcmpl_ring, INT_MAX);
+	edma_clean_tx(priv, &priv->txcmpl_ring, INT_MAX, 0);
 
 	edma_tx_ring_free(priv, &priv->txdesc_ring, sizeof(struct edma_txdesc));
 	edma_ring_free(priv, &priv->txcmpl_ring, sizeof(struct edma_txcmpl));
@@ -1087,7 +1116,6 @@ static netdev_tx_t edma_ndo_xmit(struct sk_buff *skb, struct net_device *netdev)
 {
 	struct edma_priv *priv = netdev_priv(netdev);
 	const struct edma_soc_data *soc = priv->soc;
-	netdev_tx_t ret;
 	u32 nhead, ntail;
 
 	if (skb->len < ETH_HLEN)
@@ -1096,12 +1124,14 @@ static netdev_tx_t edma_ndo_xmit(struct sk_buff *skb, struct net_device *netdev)
 	if (skb_is_nonlinear(skb) && skb_linearize(skb))
 		goto drop;
 
-	if (soc->tx_min_size && skb->len < soc->tx_min_size) {
-		if (skb_padto(skb, soc->tx_min_size)) {
-			netdev->stats.tx_dropped++;
-			return NETDEV_TX_OK;
-		}
-		skb->len = soc->tx_min_size;
+	/* skb_padto() zero-fills the tailroom but leaves the tail where it
+	 * was, so advancing the length by hand puts skb->len past the data a
+	 * later head reallocation copies: the pad would be reallocated
+	 * uninitialised and transmitted.
+	 */
+	if (soc->tx_min_size && skb_put_padto(skb, soc->tx_min_size)) {
+		netdev->stats.tx_dropped++;
+		return NETDEV_TX_OK;
 	}
 
 	nhead = netdev->needed_headroom;
@@ -1112,11 +1142,7 @@ static netdev_tx_t edma_ndo_xmit(struct sk_buff *skb, struct net_device *netdev)
 	    pskb_expand_head(skb, nhead, ntail, GFP_ATOMIC))
 		goto drop;
 
-	ret = edma_ring_xmit(priv, netdev, skb, &priv->txdesc_ring);
-	if (ret == NETDEV_TX_BUSY)
-		netif_stop_queue(netdev);
-
-	return ret;
+	return edma_ring_xmit(priv, netdev, skb, &priv->txdesc_ring);
 
 drop:
 	dev_kfree_skb_any(skb);
@@ -1125,24 +1151,7 @@ drop:
 	return NETDEV_TX_OK;
 }
 
-/* The kernel binds a netfilter flowtable to the DSA user ports, and DSA
- * forwards the block to the conduit - this driver - rather than to the switch.
- * Hand it straight back to the switch, which owns the flow tables.
- */
-static int edma_setup_tc(struct net_device *dev, enum tc_setup_type type,
-			 void *type_data)
-{
-	struct dsa_port *cpu_dp = dev->dsa_ptr;
-
-	if (type != TC_SETUP_FT || !cpu_dp || !cpu_dp->ds->ops->port_setup_tc)
-		return -EOPNOTSUPP;
-
-	return cpu_dp->ds->ops->port_setup_tc(cpu_dp->ds, cpu_dp->index, type,
-					      type_data);
-}
-
 static const struct net_device_ops edma_netdev_ops = {
-	.ndo_setup_tc		= edma_setup_tc,
 	.ndo_open = edma_ndo_open,
 	.ndo_stop = edma_ndo_stop,
 	.ndo_start_xmit = edma_ndo_xmit,

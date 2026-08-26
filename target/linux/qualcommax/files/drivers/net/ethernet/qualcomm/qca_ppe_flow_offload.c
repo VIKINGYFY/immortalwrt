@@ -203,6 +203,11 @@ static void ppe_l3_if_mtu_set(struct qca_ppe_priv *priv, u32 vsi, u32 mtu)
 	u32 words[PPE_L3_IF_WORDS];
 	int i;
 
+	/* A bridge takes an mtu wider than the field holds, and the value that
+	 * survives the truncation reads back as a retired interface.
+	 */
+	mtu = min_t(u32, mtu, FIELD_MAX(PPE_L3_IF_MRU));
+
 	for (i = 0; i < PPE_L3_IF_WORDS; i++)
 		regmap_read(priv->regmap, PPE_IN_L3_IF_TBL(vsi) + i * 4,
 			    &words[i]);
@@ -337,16 +342,6 @@ static int ppe_flow_port_by_ifindex(struct qca_ppe_priv *priv, int ifindex)
 			return dp->index;
 
 	return -EOPNOTSUPP;
-}
-
-static int ppe_flow_dsa_port(struct net_device *dev)
-{
-	struct dsa_port *dp = dsa_port_from_netdev(dev);
-
-	if (IS_ERR(dp))
-		return -EOPNOTSUPP;
-
-	return dp->index;
 }
 
 /* Make a tagged PPPoE WAN port route its ingress traffic in hardware, so the
@@ -837,7 +832,7 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	u64 mac;
 	int port, ret;
 
-	port = ppe_flow_dsa_port(data->odev);
+	port = ppe_flow_port_by_ifindex(priv, data->odev->ifindex);
 	if (port < 0)
 		return port;
 
@@ -1515,9 +1510,8 @@ static void ppe_flow_block_release(void *cb_priv)
 	kfree(fb);
 }
 
-/* DSA binds the flowtable to the conduit, so every user port of the switch
- * arrives at the same block; the block is shared and reference counted rather
- * than refused as busy.
+/* Every user port of the switch binds the same flowtable block, so it is shared
+ * and reference counted rather than refused as busy.
  */
 static int ppe_setup_ft_block(struct qca_ppe_priv *priv,
 			      struct flow_block_offload *f)
