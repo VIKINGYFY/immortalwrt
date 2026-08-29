@@ -1,0 +1,162 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 28 Aug 2026 01:06:43 +0800
+Subject: [PATCH] net: dsa: add QCA 802.1Q tag protocol
+
+QCA8386 can use the switch standalone 802.1Q service VLANs as a DSA
+transport. This keeps normal Ethernet frames VLAN-tagged on the CPU link,
+so hardware flow offload can represent the switch port as an egress VID.
+
+Keep this protocol separate from the native QCA 2-byte header tag.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ .../devicetree/bindings/net/dsa/dsa-port.yaml |  1 +
+ include/linux/dsa/8021q.h                     |  1 +
+ include/net/dsa.h                             |  2 +
+ net/dsa/Makefile                              |  1 +
+ net/dsa/tag_qca_8021q.c                       | 76 +++++++++++++++++++
+ 5 files changed, 81 insertions(+)
+ create mode 100644 net/dsa/tag_qca_8021q.c
+
+diff --git a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
+index 4801204..688a370 100644
+--- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
++++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
+@@ -48,6 +48,7 @@ properties:
+   dsa-tag-protocol:
+     description:
+       Instead of the default, the switch will use this tag protocol if
++      - qca_8021q
+       possible. Useful when a device supports multiple protocols and
+       the default is incompatible with the Ethernet device.
+     enum:
+diff --git a/include/linux/dsa/8021q.h b/include/linux/dsa/8021q.h
+index d13aabd..342413f 100644
+--- a/include/linux/dsa/8021q.h
++++ b/include/linux/dsa/8021q.h
+@@ -7,6 +7,7 @@
+ 
+ #include <net/dsa.h>
+ #include <linux/types.h>
++#define DSA_TAG_8021Q_VLAN_PROTO ETH_P_8021Q
+ 
+ /* VBID is limited to three bits only and zero is reserved.
+  * Only 7 bridges can be enumerated.
+diff --git a/include/net/dsa.h b/include/net/dsa.h
+index 47579d0..cbcd159 100644
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -55,6 +55,7 @@ struct tc_action;
+ #define DSA_TAG_PROTO_RZN1_A5PSW_VALUE		26
+ #define DSA_TAG_PROTO_LAN937X_VALUE		27
+ #define DSA_TAG_PROTO_VSC73XX_8021Q_VALUE	28
++#define DSA_TAG_PROTO_QCA_8021Q_VALUE		32
+ #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
+ #define DSA_TAG_PROTO_MXL862_VALUE		30
+ #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
+@@ -89,6 +90,7 @@ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_RTL8_4T		= DSA_TAG_PROTO_RTL8_4T_VALUE,
+ 	DSA_TAG_PROTO_RZN1_A5PSW	= DSA_TAG_PROTO_RZN1_A5PSW_VALUE,
+ 	DSA_TAG_PROTO_LAN937X		= DSA_TAG_PROTO_LAN937X_VALUE,
++	DSA_TAG_PROTO_QCA_8021Q		= DSA_TAG_PROTO_QCA_8021Q_VALUE,
+ 	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
+ 	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
+ 	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
+diff --git a/net/dsa/Makefile b/net/dsa/Makefile
+index ad86a82..4f31b5a 100644
+--- a/net/dsa/Makefile
++++ b/net/dsa/Makefile
+@@ -34,6 +34,7 @@ obj-$(CONFIG_NET_DSA_TAG_NONE) += tag_none.o
+ obj-$(CONFIG_NET_DSA_TAG_OCELOT) += tag_ocelot.o
+ obj-$(CONFIG_NET_DSA_TAG_OCELOT_8021Q) += tag_ocelot_8021q.o
+ obj-$(CONFIG_NET_DSA_TAG_QCA) += tag_qca.o
++obj-$(CONFIG_NET_DSA_TAG_QCA) += tag_qca_8021q.o
+ obj-$(CONFIG_NET_DSA_TAG_RTL4_A) += tag_rtl4_a.o
+ obj-$(CONFIG_NET_DSA_TAG_RTL8_4) += tag_rtl8_4.o
+ obj-$(CONFIG_NET_DSA_TAG_RZN1_A5PSW) += tag_rzn1_a5psw.o
+diff --git a/net/dsa/tag_qca_8021q.c b/net/dsa/tag_qca_8021q.c
+new file mode 100644
+index 0000000..9d9c519
+--- /dev/null
++++ b/net/dsa/tag_qca_8021q.c
+@@ -0,0 +1,76 @@
++// SPDX-License-Identifier: GPL-2.0
++/* Copyright (c) 2026 OpenWrt porting team */
++
++#include <linux/dsa/8021q.h>
++#include <linux/if_vlan.h>
++
++#include "tag.h"
++#include "tag_8021q.h"
++
++#define QCA8021Q_NAME "qca_8021q"
++
++static struct sk_buff *qca_8021q_xmit(struct sk_buff *skb,
++				      struct net_device *netdev)
++{
++	struct dsa_port *dp = dsa_user_to_port(netdev);
++	u16 queue_mapping = skb_get_queue_mapping(skb);
++	u16 tx_vid = dsa_tag_8021q_standalone_vid(dp);
++	u8 pcp = netdev_txq_to_tc(netdev, queue_mapping);
++
++	return dsa_8021q_xmit(skb, netdev, ETH_P_8021Q,
++			      (pcp << VLAN_PRIO_SHIFT) | tx_vid);
++}
++
++/* QCA8386 returns a service VID which encodes the source port directly.
++ * Unlike the generic DSA 802.1Q tagger, it does not carry the reserved
++ * switch-id/port bits expected by dsa_8021q_rcv(). Decode the VID exactly
++ * as the QSDK QCA tagger does, while accepting both hardware-accelerated
++ * and in-packet VLAN tags.
++ */
++static struct sk_buff *qca_8021q_rcv(struct sk_buff *skb,
++				     struct net_device *netdev)
++{
++	int src_port, switch_id, qos_class;
++	u16 vid, tci;
++
++	if (skb_vlan_tag_present(skb)) {
++		tci = skb_vlan_tag_get(skb);
++		__vlan_hwaccel_clear_tag(skb);
++	} else {
++		skb_push_rcsum(skb, ETH_HLEN);
++		__skb_vlan_pop(skb, &tci);
++		skb_pull_rcsum(skb, ETH_HLEN);
++	}
++
++	vid = tci & VLAN_VID_MASK;
++	src_port = dsa_8021q_rx_source_port(vid);
++	switch_id = dsa_8021q_rx_switch_id(vid);
++	qos_class = (tci & VLAN_PRIO_MASK) >> VLAN_PRIO_SHIFT;
++
++	skb->dev = dsa_conduit_find_user(netdev, switch_id, src_port);
++	if (!skb->dev) {
++		dev_warn_ratelimited(&netdev->dev,
++				     "QCA 802.1Q decode failed: tci=0x%04x vid=%u src=%d switch=%d\n",
++				     tci, vid, src_port, switch_id);
++		return NULL;
++	}
++
++	skb->priority = qos_class;
++
++	return skb;
++}
++
++static const struct dsa_device_ops qca_8021q_netdev_ops = {
++	.name = QCA8021Q_NAME,
++	.proto = DSA_TAG_PROTO_QCA_8021Q,
++	.xmit = qca_8021q_xmit,
++	.rcv = qca_8021q_rcv,
++	.needed_headroom = VLAN_HLEN,
++	.promisc_on_conduit = true,
++};
++
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("DSA tag driver for Qualcomm Atheros QCA8K switches using VLAN");
++MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_QCA_8021Q, QCA8021Q_NAME);
++
++module_dsa_tag_driver(qca_8021q_netdev_ops);
+-- 
+2.53.0
+

@@ -1,0 +1,396 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 27 Aug 2026 17:06:00 +0800
+Subject: [PATCH] net: phy: qca8084: configure QCA8386 switch clocks and PCS1
+
+QCA8386 uses the QCA8084 package in switch mode. Configure PCS1 as a
+fixed 2500BASE-X SGMII+ MAC link, enable the switch CPU and user-port
+clocks, and update user-port clock rates when PHY speed changes. The
+sequence follows the QSDK MHT clock and SerDes initialization while
+remaining opt-in through device tree.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ drivers/net/phy/qcom/qca8084_serdes.c | 160 ++++++++++++++++++++++++--
+ drivers/net/phy/qcom/qca8084_serdes.h |   1 +
+ drivers/net/phy/qcom/qca808x.c        |  84 +++++++++++++-
+ 3 files changed, 234 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/net/phy/qcom/qca8084_serdes.c b/drivers/net/phy/qcom/qca8084_serdes.c
+index 46ba254..aaf307f 100644
+--- a/drivers/net/phy/qcom/qca8084_serdes.c
++++ b/drivers/net/phy/qcom/qca8084_serdes.c
+@@ -57,6 +57,11 @@
+ #define BYPASS_TUNNING_IPG_MASK			GENMASK(11, 0)
+ 
+ #define QP_USXG_RESET				0x18c
++#define QP_USXG_SGMII_CHANNEL0_CFG		0x120
++#define QP_USXG_SGMII_CH0_FORCE_SPEED_MASK	GENMASK(3, 1)
++#define QP_USXG_SGMII_CH0_FORCE_ENABLE		BIT(3)
++#define QP_USXG_SGMII_CH0_FORCE_SPEED_1G	BIT(2)
++#define QP_USXG_SGMII_CH0_ADPT_RESET		BIT(11)
+ #define QP_USXG_SGMII_FUNC_RESET		BIT(4)
+ #define QP_USXG_P3_FUNC_RESET			BIT(3)
+ #define QP_USXG_P2_FUNC_RESET			BIT(2)
+@@ -128,6 +133,14 @@ enum pcs_clk_id {
+ 	PCS_CLK_MAX
+ };
+ 
++enum pcs_mac_clk_id {
++	PCS_MAC_TX_CLK,
++	PCS_MAC_RX_CLK,
++	PCS_MAC_TX_SERDES_CLK,
++	PCS_MAC_RX_SERDES_CLK,
++	PCS_MAC_CLK_MAX
++};
++
+ enum xpcs_clk_id {
+ 	XPCS_XGMII_RX_CLK,
+ 	XPCS_XGMII_TX_CLK,
+@@ -148,7 +161,9 @@ struct qca8084_xpcs_channel_priv {
+ 
+ struct qca8084_pcs_data {
+ 	struct reset_control *rstc;
++	struct reset_control *xpcs_rstc;
+ 	struct clk *clks[PCS_CLK_MAX];
++	struct clk *mac_clks[PCS_MAC_CLK_MAX];
+ };
+ 
+ struct qca8084_xpcs_data {
+@@ -173,6 +188,13 @@ static const char *const pcs_clock_names[PCS_CLK_MAX] = {
+ 	[PCS_TX_ROOT_CLK] =	"pcs_tx_root",
+ };
+ 
++static const char *const pcs_mac_clock_names[PCS_MAC_CLK_MAX] = {
++	[PCS_MAC_TX_CLK] =		"mac_tx",
++	[PCS_MAC_RX_CLK] =		"mac_rx",
++	[PCS_MAC_TX_SERDES_CLK] =	"mac_tx_serdes",
++	[PCS_MAC_RX_SERDES_CLK] =	"mac_rx_serdes",
++};
++
+ static const int qca8084_xpcs_ch_mmd[QCA8084_CHANNEL_MAX] = { 31, 26, 27, 28 };
+ 
+ struct mdio_device *qca8084_package_pcs_probe(struct device_node *pcs_np)
+@@ -203,6 +225,14 @@ struct mdio_device *qca8084_package_pcs_probe(struct device_node *pcs_np)
+ 
+ 	pcs_data->rstc = rstc;
+ 
++	rstc = devm_reset_control_get_optional_exclusive(dev, "xpcs");
++	if (IS_ERR(rstc)) {
++		dev_err(dev, "Get optional XPCS reset failed\n");
++		return ERR_CAST(rstc);
++	}
++
++	pcs_data->xpcs_rstc = rstc;
++
+ 	for (i = 0; i < ARRAY_SIZE(pcs_clock_names); i++) {
+ 		clk = devm_clk_get(dev, pcs_clock_names[i]);
+ 		if (IS_ERR(clk)) {
+@@ -213,6 +243,16 @@ struct mdio_device *qca8084_package_pcs_probe(struct device_node *pcs_np)
+ 		pcs_data->clks[i] = clk;
+ 	}
+ 
++	for (i = 0; i < ARRAY_SIZE(pcs_mac_clock_names); i++) {
++		clk = devm_clk_get_optional(dev, pcs_mac_clock_names[i]);
++		if (IS_ERR(clk)) {
++			dev_err(dev, "Failed to get optional PCS MAC clock %s\n",
++				pcs_mac_clock_names[i]);
++			return ERR_CAST(clk);
++		}
++		pcs_data->mac_clks[i] = clk;
++	}
++
+ 	mdiodev_set_drvdata(mdiodev, pcs_data);
+ 
+ 	return mdiodev;
+@@ -333,18 +373,23 @@ put_ch_clk_rst:
+ void qca8084_package_xpcs_and_pcs_remove(struct mdio_device *xpcs_mdiodev,
+ 					 struct mdio_device *pcs_mdiodev)
+ {
+-	struct qca8084_xpcs_data *xpcs_data = mdiodev_get_drvdata(xpcs_mdiodev);
++	struct qca8084_xpcs_data *xpcs_data;
+ 	int i, j;
+ 
+-	for (i = 0; i < ARRAY_SIZE(xpcs_data->xpcs_ch); i++) {
+-		reset_control_put(xpcs_data->xpcs_ch[i].rstcs);
++	if (xpcs_mdiodev) {
++		xpcs_data = mdiodev_get_drvdata(xpcs_mdiodev);
++		for (i = 0; i < ARRAY_SIZE(xpcs_data->xpcs_ch); i++) {
++			reset_control_put(xpcs_data->xpcs_ch[i].rstcs);
+ 
+-		for (j = 0; j < ARRAY_SIZE(xpcs_data->xpcs_ch[i].clks); j++)
+-			clk_put(xpcs_data->xpcs_ch[i].clks[j]);
++			for (j = 0; j < ARRAY_SIZE(xpcs_data->xpcs_ch[i].clks); j++)
++				clk_put(xpcs_data->xpcs_ch[i].clks[j]);
++		}
++
++		mdio_device_put(xpcs_mdiodev);
+ 	}
+ 
+-	mdio_device_put(xpcs_mdiodev);
+-	mdio_device_put(pcs_mdiodev);
++	if (pcs_mdiodev)
++		mdio_device_put(pcs_mdiodev);
+ }
+ 
+ static int qca8084_pcs_set_interface_mode(struct mdio_device *mdio_dev,
+@@ -649,6 +694,107 @@ static int qca8084_pcs_ipg_tune_reset(struct mdio_device *mdio_dev,
+ 				  reset_function, reset_function);
+ }
+ 
++int qca8084_pcs_set_sgmii_mac_mode(struct mdio_device *mdio_dev)
++{
++	struct qca8084_pcs_data *pcs_data = mdiodev_get_drvdata(mdio_dev);
++	int i, ret;
++
++	if (!pcs_data)
++		return -ENODEV;
++
++	/* Keep PCS1 clock/reset sequencing aligned with the QSDK path. */
++	ret = clk_prepare_enable(pcs_data->clks[PCS_CLK]);
++	if (ret)
++		return ret;
++
++	ret = reset_control_deassert(pcs_data->rstc);
++	if (ret)
++		return ret;
++
++	if (pcs_data->xpcs_rstc) {
++		ret = reset_control_assert(pcs_data->xpcs_rstc);
++		if (ret)
++			return ret;
++	}
++
++	ret = clk_set_rate(pcs_data->clks[PCS_RX_ROOT_CLK], 312500000);
++	if (ret)
++		return ret;
++
++	ret = clk_set_rate(pcs_data->clks[PCS_TX_ROOT_CLK], 312500000);
++	if (ret)
++		return ret;
++
++	ret = mdiodev_c45_modify(mdio_dev, MDIO_MMD_PMAPMD,
++				 BYPASS_TUNNING_IPG, BYPASS_TUNNING_IPG_MASK, 0);
++	if (ret)
++		return ret;
++
++	ret = qca8084_pcs_set_interface_mode(mdio_dev,
++					     PHY_INTERFACE_MODE_2500BASEX);
++	if (ret)
++		return ret;
++
++	/* PCS1 is connected to the switch MAC, not to an external PHY. */
++	ret = mdiodev_c45_modify(mdio_dev, MDIO_MMD_PMAPMD, MODE_CONTROL,
++				 MODE_CONTROL_SGMII_SEL_MASK,
++				 FIELD_PREP(MODE_CONTROL_SGMII_SEL_MASK,
++					    MODE_CONTROL_SGMII_MAC));
++	if (ret)
++		return ret;
++
++	/* SGMII+ uses the 1G channel encoding for a fixed 2.5G link. */
++	ret = mdiodev_c45_modify(mdio_dev, MDIO_MMD_PMAPMD,
++				 QP_USXG_SGMII_CHANNEL0_CFG,
++				 QP_USXG_SGMII_CH0_FORCE_SPEED_MASK,
++				 QP_USXG_SGMII_CH0_FORCE_ENABLE |
++				 QP_USXG_SGMII_CH0_FORCE_SPEED_1G);
++	if (ret)
++		return ret;
++
++	ret = qca8084_do_calibration(mdio_dev);
++	if (ret)
++		return ret;
++
++	for (i = 0; i < ARRAY_SIZE(pcs_data->mac_clks); i++) {
++		if (!pcs_data->mac_clks[i])
++			continue;
++
++		ret = clk_set_rate(pcs_data->mac_clks[i], 312500000);
++		if (ret)
++			return ret;
++
++		ret = clk_prepare_enable(pcs_data->mac_clks[i]);
++		if (ret)
++			return ret;
++	}
++
++	ret = mdiodev_c45_modify(mdio_dev, MDIO_MMD_PMAPMD,
++				 QP_USXG_SGMII_CHANNEL0_CFG,
++				 QP_USXG_SGMII_CH0_ADPT_RESET,
++				 0);
++	if (ret)
++		return ret;
++
++	usleep_range(1000, 1100);
++
++	ret = mdiodev_c45_modify(mdio_dev, MDIO_MMD_PMAPMD,
++				 QP_USXG_SGMII_CHANNEL0_CFG,
++				 QP_USXG_SGMII_CH0_ADPT_RESET,
++				 QP_USXG_SGMII_CH0_ADPT_RESET);
++	if (ret)
++		return ret;
++
++	ret = qca8084_pcs_ipg_tune_reset(mdio_dev,
++					 QP_USXG_SGMII_FUNC_RESET);
++	if (ret)
++		return ret;
++
++	dev_info(&mdio_dev->dev,
++		 "QCA8084 PCS1 SGMII+ MAC 2500 initialized\n");
++	return 0;
++}
++
+ static int qca8084_xpcs_an_restart(struct mdio_device *xpcs_mdiodev,
+ 				   int channel)
+ {
+diff --git a/drivers/net/phy/qcom/qca8084_serdes.h b/drivers/net/phy/qcom/qca8084_serdes.h
+index a346877..02afea0 100644
+--- a/drivers/net/phy/qcom/qca8084_serdes.h
++++ b/drivers/net/phy/qcom/qca8084_serdes.h
+@@ -17,6 +17,7 @@ void qca8084_package_xpcs_and_pcs_remove(struct mdio_device *xpcs_mdiodev,
+ 					 struct mdio_device *pcs_mdiodev);
+ int qca8084_qxgmii_set_mode(struct mdio_device *xpcs_mdiodev,
+ 			    struct mdio_device *pcs_mdiodev);
++int qca8084_pcs_set_sgmii_mac_mode(struct mdio_device *mdio_dev);
+ void qca8084_qxgmii_set_speed(struct mdio_device *xpcs_mdiodev,
+ 			      struct mdio_device *pcs_mdiodev,
+ 			      int channel, int speed);
+diff --git a/drivers/net/phy/qcom/qca808x.c b/drivers/net/phy/qcom/qca808x.c
+index fd6f765..fb34a16 100644
+--- a/drivers/net/phy/qcom/qca808x.c
++++ b/drivers/net/phy/qcom/qca808x.c
+@@ -175,6 +175,10 @@ struct qca808x_priv {
+ 	int led_polarity_mode;
+ 	int channel_id;
+ 	struct qcom_phy_hw_stats hw_stats;
++	struct clk *mac_tx_clk;
++	struct clk *mac_rx_clk;
++	struct clk *gephy_tx_clk;
++	struct clk *gephy_rx_clk;
+ };
+ 
+ struct qca808x_shared_priv {
+@@ -953,6 +957,16 @@ static int qca8084_phy_package_config_init_once(struct phy_device *phydev)
+ 					      shared_priv->mdiodev[0]);
+ 		if (ret)
+ 			return ret;
++	} else if (shared_priv->package_mode ==
++		   QCA808X_PCS1_SGMII_MAC_PCS0_SGMII_MAC &&
++		   of_property_read_bool(phy_package_get_node(phydev),
++					 "qcom,pcs1-sgmii-plus")) {
++		if (!shared_priv->mdiodev[0])
++			return -ENODEV;
++
++		ret = qca8084_pcs_set_sgmii_mac_mode(shared_priv->mdiodev[0]);
++		if (ret)
++			return ret;
+ 	}
+ 
+ 	/* Initialize the PHY package clock and reset, which is the
+@@ -997,8 +1011,51 @@ static int qca8084_config_init(struct phy_device *phydev)
+ 
+ static void qca8084_link_change_notify(struct phy_device *phydev)
+ {
++	struct qca808x_priv *priv = phydev->priv;
+ 	struct qca808x_shared_priv *shared_priv;
+-	int ret;
++	struct clk *mac_clks[] = {
++		priv->mac_tx_clk,
++		priv->mac_rx_clk,
++		priv->gephy_tx_clk,
++		priv->gephy_rx_clk,
++	};
++	unsigned long rate;
++	int i, ret;
++
++	if (phydev->link) {
++		switch (phydev->speed) {
++		case SPEED_2500:
++			rate = 312500000;
++			break;
++		case SPEED_1000:
++			rate = 125000000;
++			break;
++		case SPEED_100:
++			rate = 25000000;
++			break;
++		case SPEED_10:
++			rate = 2500000;
++			break;
++		default:
++			phydev_err(phydev,
++				   "Unsupported link speed %d for MAC clocks\n",
++				   phydev->speed);
++			return;
++		}
++
++		for (i = 0; i < ARRAY_SIZE(mac_clks); i++) {
++			if (!mac_clks[i])
++				continue;
++
++			ret = clk_set_rate(mac_clks[i], rate);
++			if (ret) {
++				phydev_err(phydev,
++					   "Setting switch MAC clock to %lu failed: %pe\n",
++					   rate, ERR_PTR(ret));
++				return;
++			}
++		}
++	}
+ 
+ 	/* Assert the FIFO between PHY and MAC. */
+ 	ret = phy_modify(phydev, QCA8084_FIFO_CONTROL,
+@@ -1166,6 +1223,7 @@ static void qca8084_phy_package_remove_once(struct phy_device *phydev)
+ 
+ static int qca8084_probe(struct phy_device *phydev)
+ {
++	struct qca808x_priv *priv;
+ 	struct qca808x_shared_priv *shared_priv;
+ 	struct device *dev = &phydev->mdio.dev;
+ 	struct reset_control *rstc;
+@@ -1185,6 +1243,7 @@ static int qca8084_probe(struct phy_device *phydev)
+ 	ret = qca808x_probe(phydev);
+ 	if (ret)
+ 		return ret;
++	priv = phydev->priv;
+ 
+ 	/* Enable clock of PHY device, so that the PHY register
+ 	 * can be accessed to get PHY features.
+@@ -1194,6 +1253,26 @@ static int qca8084_probe(struct phy_device *phydev)
+ 		return dev_err_probe(dev, PTR_ERR(clk),
+ 				     "Enable PHY clock failed\n");
+ 
++	priv->mac_tx_clk = devm_clk_get_optional_enabled(dev, "mac_tx");
++	if (IS_ERR(priv->mac_tx_clk))
++		return dev_err_probe(dev, PTR_ERR(priv->mac_tx_clk),
++				     "Enable switch MAC TX clock failed\n");
++
++	priv->mac_rx_clk = devm_clk_get_optional_enabled(dev, "mac_rx");
++	if (IS_ERR(priv->mac_rx_clk))
++		return dev_err_probe(dev, PTR_ERR(priv->mac_rx_clk),
++				     "Enable switch MAC RX clock failed\n");
++
++	priv->gephy_tx_clk = devm_clk_get_optional_enabled(dev, "gephy_tx");
++	if (IS_ERR(priv->gephy_tx_clk))
++		return dev_err_probe(dev, PTR_ERR(priv->gephy_tx_clk),
++				     "Enable GEPHY TX clock failed\n");
++
++	priv->gephy_rx_clk = devm_clk_get_optional_enabled(dev, "gephy_rx");
++	if (IS_ERR(priv->gephy_rx_clk))
++		return dev_err_probe(dev, PTR_ERR(priv->gephy_rx_clk),
++				     "Enable GEPHY RX clock failed\n");
++
+ 	/* De-assert PHY reset after the clock of PHY enabled. */
+ 	rstc = devm_reset_control_get_exclusive(dev, NULL);
+ 	if (IS_ERR(rstc))
+@@ -1205,9 +1284,6 @@ static int qca8084_probe(struct phy_device *phydev)
+ 
+ static void qca8084_remove(struct phy_device *phydev)
+ {
+-	if (phydev->interface != PHY_INTERFACE_MODE_10G_QXGMII)
+-		return;
+-
+ 	if (phy_package_remove_once(phydev))
+ 		qca8084_phy_package_remove_once(phydev);
+ }
+-- 
+2.53.0

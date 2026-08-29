@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 27 Aug 2026 12:37:53 +0800
+Subject: [PATCH] net: dsa: qca8k: expose QCA8386 PHY serial modes
+
+QCA8386 integrates the four-port QCA8084 PHY package.  The QCA8084 PHY
+driver advertises SGMII for 10/100/1000 links and 2500BASE-X for 2.5G.
+Expose both modes on QCA8386 user ports so phylink can intersect the
+switch and PHY interface capabilities when the ports use PHY handles.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -1538,3 +1538,9 @@ static void qca8k_phylink_get_caps(struct dsa_switch *ds, int port,
+		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
+			  config->supported_interfaces);
++		if (qca8k_is_qca8386(priv)) {
++			__set_bit(PHY_INTERFACE_MODE_SGMII,
++				  config->supported_interfaces);
++			__set_bit(PHY_INTERFACE_MODE_2500BASEX,
++				  config->supported_interfaces);
++		}
+ 		break;

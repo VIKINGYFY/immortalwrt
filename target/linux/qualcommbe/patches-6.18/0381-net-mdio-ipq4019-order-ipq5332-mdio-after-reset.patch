@@ -1,0 +1,39 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: mdio: ipq4019: start IPQ5332 MDIO after switch reset
+
+The IPQ5332 QSDK sequence releases the external switch reset before
+enabling the MDIO AHB clock.  Keep that ordering for the QCA8386 fixup so
+the switch is not accessed while its reset and MDIO clocks are racing.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/mdio/mdio-ipq4019.c
++++ b/drivers/net/mdio/mdio-ipq4019.c
+@@ -477,21 +477,21 @@ static int ipq_mdio_reset(struct mii_bus *bus)
+ 		fsleep(IPQ_PHY_SET_DELAY_US);
+ 	}
+ 
+-	/* Configure MDIO clock source frequency if clock is specified in the device tree */
+-	ret = clk_set_rate(priv->mdio_clk, IPQ_MDIO_CLK_RATE);
++	ret = ipq_mdio_reset_devices(bus);
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = clk_prepare_enable(priv->mdio_clk);
++	mdelay(10);
++
++	/* Configure MDIO only after the external switch reset is released. */
++	ret = clk_set_rate(priv->mdio_clk, IPQ_MDIO_CLK_RATE);
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = ipq_mdio_reset_devices(bus);
++	ret = clk_prepare_enable(priv->mdio_clk);
+ 	if (ret)
+ 		return ret;
+ 
+-	mdelay(10);
+-
+ 	ret = ipq4019_mdio_set_div(priv);
+ 	reported_rate = priv->mdio_clk ? clk_get_rate(priv->mdio_clk) : 0;
+ 	ahb_rate = ipq4019_mdio_get_clk_rate(priv);

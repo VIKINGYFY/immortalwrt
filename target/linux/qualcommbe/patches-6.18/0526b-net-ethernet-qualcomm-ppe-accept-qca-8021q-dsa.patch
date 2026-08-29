@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 27 Aug 2026 22:08:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe accept QCA 802.1Q DSA
+
+The QCA8386 VLAN DSA transport exposes the same standalone VID contract as
+the existing PPE DSA path. Accept it as an offloadable conduit and use the
+standalone VID even when the switch user port is attached to a bridge. The
+QCA VLAN tagger always transmits standalone VIDs; bridge-specific VIDs are
+only valid for the VSC tagger path.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -1931,7 +1931,8 @@
+ 	if (IS_ERR(dp))
+ 		return PTR_ERR(dp);
+ 
+-	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_VSC73XX_8021Q)
++	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_VSC73XX_8021Q &&
++	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_QCA_8021Q)
+ 		return -EOPNOTSUPP;
+ 
+ 	if (!edma_port_dev_check(dsa_port_to_conduit(dp)))
+@@ -1943,7 +1944,8 @@
+ 	if (dpp)
+ 		*dpp = dp;
+ 
+-	if (dsa_port_bridge_dev_get(dp))
++	if (dp->cpu_dp->tag_ops->proto == DSA_TAG_PROTO_VSC73XX_8021Q &&
++	    dsa_port_bridge_dev_get(dp))
+ 		return dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
+ 
+ 	return dsa_tag_8021q_standalone_vid(dp);
+-- 
+2.39.5

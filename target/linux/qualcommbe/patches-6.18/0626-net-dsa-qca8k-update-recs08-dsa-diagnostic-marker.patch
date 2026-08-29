@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 28 Aug 2026 23:15:00 +0800
+Subject: [PATCH] net: dsa: qca8k update RE-CS-08 DSA diagnostic marker
+
+Update the temporary QCA8386 marker for the DSA/PPE mapping diagnostic
+image.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -2383,7 +2383,7 @@
+ 	priv->info = of_device_get_match_data(priv->dev);
+ 	if (qca8k_is_qca8386(priv))
+ 		dev_info_once(priv->dev,
+-			      "RE-CS-08 firmware debug tag: 20260828-221512-qca4b-output-debug\n");
++			      "RE-CS-08 firmware debug tag: 20260828-231500-qca4b-dsa-diag\n");
+ 
+ 	priv->reset_gpio = devm_gpiod_get_optional(priv->dev, "reset",
+ 						   GPIOD_OUT_HIGH);
+-- 
+2.53.0

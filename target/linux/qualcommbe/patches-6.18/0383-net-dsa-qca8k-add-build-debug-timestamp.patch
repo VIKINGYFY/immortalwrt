@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 28 Aug 2026 01:06:43 +0800
+Subject: [PATCH] net: dsa: qca8k: add RE-CS-08 firmware debug tag
+
+Print a temporary one-shot build tag when the QCA8386 match data is
+selected. This lets serial-console logs identify the exact RE-CS-08 test
+image while board bring-up is being validated.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ drivers/net/dsa/qca/qca8k-8xxx.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/net/dsa/qca/qca8k-8xxx.c b/drivers/net/dsa/qca/qca8k-8xxx.c
+index b659394..99899e3 100644
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -2378,6 +2378,9 @@ qca8k_sw_probe(struct mdio_device *mdiodev)
+ 	priv->bus = mdiodev->bus;
+ 	priv->dev = &mdiodev->dev;
+ 	priv->info = of_device_get_match_data(priv->dev);
++	if (qca8k_is_qca8386(priv))
++		dev_info_once(priv->dev,
++			      "RE-CS-08 firmware debug tag: 20260828-010643\n");
+ 
+ 	priv->reset_gpio = devm_gpiod_get_optional(priv->dev, "reset",
+ 						   GPIOD_OUT_HIGH);
+-- 
+2.53.0
+

@@ -1,0 +1,29 @@
+From 6bc17581763892e7bbaaea6d6e5aa5ad2287451b Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 28 Aug 2026 15:56:44 +0800
+Subject: [PATCH] net: dsa: qca8k: mark SFP LOS test build
+
+Keep a distinct temporary firmware marker for the RE-CS-08 native QCA
+tag baseline with the standard SFP RX_LOS wiring enabled.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ drivers/net/dsa/qca/qca8k-8xxx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/dsa/qca/qca8k-8xxx.c b/drivers/net/dsa/qca/qca8k-8xxx.c
+index f7ce8eb..22b41a1 100644
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -2380,7 +2380,7 @@ qca8k_sw_probe(struct mdio_device *mdiodev)
+ 	priv->info = of_device_get_match_data(priv->dev);
+ 	if (qca8k_is_qca8386(priv))
+ 		dev_info_once(priv->dev,
+-			      "RE-CS-08 firmware debug tag: 20260828-112511\n");
++			      "RE-CS-08 firmware debug tag: 20260828-155644-native-qca-sfp-los\n");
+ 
+ 	priv->reset_gpio = devm_gpiod_get_optional(priv->dev, "reset",
+ 						   GPIOD_OUT_HIGH);
+-- 
+2.53.0
+

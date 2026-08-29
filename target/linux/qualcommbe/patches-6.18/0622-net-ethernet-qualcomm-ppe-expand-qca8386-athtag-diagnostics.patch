@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 28 Aug 2026 21:04:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe expand QCA8386 ATH diagnostics
+
+Read every physical and reserved virtual EG_VP row in the QCA8386 ATH
+diagnostic. QSDK programs ATH insertion per internal VP, so sampling only
+row 1 cannot distinguish a missing physical mapping from a missing VP
+mapping. Keep the interface read-only while the hardware contract is being
+implemented.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c | 52 ++++++++++++++++++------
+ 1 file changed, 40 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -20,6 +20,7 @@
+ #include "ppe_debugfs.h"
+ #include "ppe_flowtable.h"
+ #include "ppe_regs.h"
++#include "ppe_vp.h"
+ 
+ #define PPE_PKT_CNT_TBL_SIZE				3
+ #define PPE_DROP_PKT_CNT_TBL_SIZE			5
+@@ -831,12 +832,45 @@
+ 	return ppe_dev->variant && !strcmp(ppe_dev->variant->name, "IPQ5332");
+ }
+ 
++static void ppe_athtag_dump_vp(struct seq_file *seq,
++				       struct ppe_device *ppe_dev, int vp,
++				       bool *tx_enabled)
++{
++	u32 action, bitmap, row[3];
++	u32 version;
++	int ret;
++
++	ret = regmap_bulk_read(ppe_dev->regmap,
++			       PPE_ATHTAG_EG_VP_TBL_ADDR +
++			       PPE_ATHTAG_EG_VP_TBL_INC * vp,
++			       row, ARRAY_SIZE(row));
++	if (ret) {
++		seq_printf(seq, "eg_vp[%d]=read-error:%d\n", vp, ret);
++		return;
++	}
++
++	bitmap = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_BITMAP, row[1]);
++	if (row[2] & PPE_ATHTAG_EG_VP_ATH_BITMAP_HI)
++		bitmap |= BIT(6);
++	version = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_VERSION, row[1]);
++	action = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_DEFAULT, row[1]);
++	*tx_enabled |= !!(row[1] & PPE_ATHTAG_EG_VP_ATH_INSERT);
++	seq_printf(seq,
++		   "eg_vp[%d]=%08x:%08x:%08x insert=%u ver=%u type=%u bitmap=%u disable=%u from_cpu=%u\n",
++		   vp, row[2], row[1], row[0],
++		   !!(row[1] & PPE_ATHTAG_EG_VP_ATH_INSERT),
++		   version, action, bitmap,
++		   !!(row[2] & PPE_ATHTAG_EG_VP_ATH_DISABLE_BIT),
++		   !!(row[2] & PPE_ATHTAG_EG_VP_ATH_FROM_CPU));
++}
++
+ static int ppe_athtag_show(struct seq_file *seq, void *data)
+ {
+ 	struct ppe_device *ppe_dev = seq->private;
+ 	bool rx_enabled = false;
+-	u32 action, bitmap, old_value, port_type, row[3];
+-	u32 type, value, version, vp;
++	bool tx_enabled = false;
++	u32 old_value, port_type;
++	u32 type, value, vp;
+ 	int ret, port;
+ 
+ 	if (!ppe_athtag_supported(ppe_dev))
+@@ -873,25 +907,14 @@
+ 			   !!(value & PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE));
+ 	}
+ 
+-	ret = regmap_bulk_read(ppe_dev->regmap, PPE_ATHTAG_EG_VP_TBL_ADDR +
+-				       PPE_ATHTAG_EG_VP_TBL_INC, row, ARRAY_SIZE(row));
+-	if (ret)
+-		return ret;
+-	bitmap = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_BITMAP, row[1]);
+-	if (row[2] & PPE_ATHTAG_EG_VP_ATH_BITMAP_HI)
+-		bitmap |= BIT(6);
+-	version = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_VERSION, row[1]);
+-	action = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_DEFAULT, row[1]);
+-	seq_printf(seq,
+-		   "eg_vp[1]=%08x:%08x:%08x insert=%u ver=%u type=%u bitmap=%u disable=%u from_cpu=%u\n",
+-		   row[2], row[1], row[0],
+-		   !!(row[1] & PPE_ATHTAG_EG_VP_ATH_INSERT),
+-		   version, action, bitmap,
+-		   !!(row[2] & PPE_ATHTAG_EG_VP_ATH_DISABLE_BIT),
+-		   !!(row[2] & PPE_ATHTAG_EG_VP_ATH_FROM_CPU));
+-	seq_printf(seq, "ath_path_active=%u\n",
+-		   type == PPE_ATHTAG_TYPE && rx_enabled &&
+-		   !!(row[1] & PPE_ATHTAG_EG_VP_ATH_INSERT));
++	seq_puts(seq, "eg_vp_range=physical:0-7 virtual:64-71\n");
++	for (vp = 0; vp < 8; vp++)
++		ppe_athtag_dump_vp(seq, ppe_dev, vp, &tx_enabled);
++	for (vp = PPE_VP_PORT_BASE; vp < PPE_VP_PORT_BASE + 8; vp++)
++		ppe_athtag_dump_vp(seq, ppe_dev, vp, &tx_enabled);
++	seq_printf(seq, "ath_path_active=%u tx_rows_enabled=%u\n",
++		   type == PPE_ATHTAG_TYPE && rx_enabled && tx_enabled,
++		   tx_enabled);
+ 
+ 	return 0;
+ }
+-- 
+2.53.0

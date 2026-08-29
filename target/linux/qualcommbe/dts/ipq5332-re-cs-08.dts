@@ -2,9 +2,8 @@
 
 /dts-v1/;
 
-#include <arm64/qcom/ipq5332.dtsi>
+#include "ipq5332.dtsi"
 #include <dt-bindings/clock/qcom,qca8k-nsscc.h>
-#include <dt-bindings/clock/qcom,ipq5332-cmn-pll.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
@@ -18,7 +17,7 @@
 	aliases {
 		serial0 = &blsp1_uart0;
 		ethernet0 = &ppe_sfp;
-		ethernet1 = &ppe_switch;
+		ethernet1 = &ppe_qca8386;
 		led-boot = &led_system_blue;
 		led-failsafe = &led_system_red;
 		led-running = &led_system_green;
@@ -30,13 +29,13 @@
 	};
 
 	clocks {
-		switch_rx312p5m: switch-rx312p5m {
+		qca8386_rx_312p5m: qca8386-rx-312p5m {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <312500000>;
 		};
 
-		switch_tx312p5m: switch-tx312p5m {
+		qca8386_tx_312p5m: qca8386-tx-312p5m {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <312500000>;
@@ -45,7 +44,7 @@
 
 	keys {
 		compatible = "gpio-keys";
-		pinctrl-0 = <&gpio_keys_default>;
+		pinctrl-0 = <&button_pins>;
 		pinctrl-names = "default";
 
 		button-wps {
@@ -65,31 +64,31 @@
 
 	leds {
 		compatible = "gpio-leds";
-		pinctrl-0 = <&gpio_leds_default>;
+		pinctrl-0 = <&led_pins>;
 		pinctrl-names = "default";
 
-		led_system_red: led-red {
+		led_system_red: system-red {
 			color = <LED_COLOR_ID_RED>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 24 GPIO_ACTIVE_HIGH>;
 			default-state = "off";
 		};
 
-		led_system_green: led-green {
+		led_system_green: system-green {
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 33 GPIO_ACTIVE_HIGH>;
 			default-state = "off";
 		};
 
-		led_system_blue: led-blue {
+		led_system_blue: system-blue {
 			color = <LED_COLOR_ID_BLUE>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&tlmm 49 GPIO_ACTIVE_HIGH>;
 			default-state = "off";
 		};
 
-		led_sfp: led-sfp {
+		sfp-green {
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_WAN;
 			gpios = <&tlmm 36 GPIO_ACTIVE_HIGH>;
@@ -97,101 +96,174 @@
 		};
 	};
 
-	/* The stock board exposes SFP TX disable on GPIO34 and its SerDes RX
-	 * lane on GPIO45.  LOS/mod-def wiring is not present in the supplied DTS.
-	 */
+	/* QWRT identifies GPIO45 as RX_LOS and GPIO34 as TX_DISABLE. */
 	sfp0: sfp-0 {
 		compatible = "sff,sfp";
 		i2c-bus = <&blsp1_i2c1>;
-		pinctrl-0 = <&sfp_default>;
+		pinctrl-0 = <&sfp_pins>;
 		pinctrl-names = "default";
+		los-gpios = <&tlmm 45 GPIO_ACTIVE_HIGH>;
 		tx-disable-gpios = <&tlmm 34 GPIO_ACTIVE_HIGH>;
 	};
 };
 
 &blsp1_uart0 {
+	status = "okay";
+
 	pinctrl-0 = <&serial_0_pins>;
 	pinctrl-names = "default";
-	status = "okay";
 };
 
 &blsp1_i2c1 {
+	clock-frequency = <400000>;
+	status = "okay";
+
 	pinctrl-0 = <&i2c1_pins>;
 	pinctrl-names = "default";
-	clock-frequency = <100000>;
-	status = "okay";
+};
+
+&q6_region {
+	reg = <0x0 0x4a900000 0x0 0x800000>;
 };
 
 &sleep_clk {
 	clock-frequency = <32000>;
 };
 
-&xo_board {
+&ref_48mhz_clk {
+	clock-div = <1>;
+	clock-mult = <2>;
+};
+
+&xo_clk {
 	clock-frequency = <24000000>;
+};
+
+&xo_board {
+	clock-div = <2>;
+	clock-mult = <1>;
 };
 
 &mdio {
 	status = "okay";
+	clocks = <&gcc GCC_MDIO_AHB_CLK>,
+		 <&gcc GCC_UNIPHY0_AHB_CLK>,
+		 <&gcc GCC_UNIPHY0_SYS_CLK>,
+		 <&gcc GCC_UNIPHY1_AHB_CLK>,
+		 <&gcc GCC_UNIPHY1_SYS_CLK>;
+	clock-names = "gcc_mdio_ahb_clk",
+		      "uniphy0_ahb_clk", "uniphy0_sys_clk",
+		      "uniphy1_ahb_clk", "uniphy1_sys_clk";
+	phy-reset-gpios = <&tlmm 51 GPIO_ACTIVE_LOW>;
+	mdio_clk_fixup;
 
-	switch_cc: clock-controller@18 {
+	qca8386_nsscc: clock-controller@18 {
 		compatible = "qcom,qca8386-nsscc", "qcom,qca8084-nsscc";
 		reg = <0x18>;
-		reset-gpios = <&tlmm 51 GPIO_ACTIVE_LOW>;
 		clocks = <&cmn_pll IPQ5332_ETH_50MHZ_CLK>,
-			 <0>, <0>, <0>, <0>,
-			 <&switch_rx312p5m>, <&switch_tx312p5m>;
+			 <0>, <0>,
+			 <&qca8386_rx_312p5m>, <&qca8386_tx_312p5m>,
+			 <&qca8386_rx_312p5m>, <&qca8386_tx_312p5m>;
 		#clock-cells = <1>;
 		#reset-cells = <1>;
 	};
 
-	switch_phy_package: ethernet-phy-package@1 {
+	qca8386_phy_package: ethernet-phy-package@1 {
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "qcom,qca8084-package";
 		reg = <1>;
-		clocks = <&switch_cc NSS_CC_APB_BRIDGE_CLK>,
-			 <&switch_cc NSS_CC_AHB_CLK>,
-			 <&switch_cc NSS_CC_SEC_CTRL_AHB_CLK>,
-			 <&switch_cc NSS_CC_TLMM_CLK>,
-			 <&switch_cc NSS_CC_TLMM_AHB_CLK>,
-			 <&switch_cc NSS_CC_CNOC_AHB_CLK>,
-			 <&switch_cc NSS_CC_MDIO_AHB_CLK>;
-		clock-names = "apb_bridge", "ahb", "sec_ctrl_ahb", "tlmm",
-			      "tlmm_ahb", "cnoc_ahb", "mdio_ahb";
-		resets = <&switch_cc NSS_CC_GEPHY_FULL_ARES>;
+		clocks = <&qca8386_nsscc NSS_CC_APB_BRIDGE_CLK>,
+			 <&qca8386_nsscc NSS_CC_AHB_CLK>,
+			 <&qca8386_nsscc NSS_CC_SEC_CTRL_AHB_CLK>,
+			 <&qca8386_nsscc NSS_CC_TLMM_CLK>,
+			 <&qca8386_nsscc NSS_CC_TLMM_AHB_CLK>,
+			 <&qca8386_nsscc NSS_CC_CNOC_AHB_CLK>,
+			 <&qca8386_nsscc NSS_CC_MDIO_AHB_CLK>;
+		clock-names = "apb_bridge",
+			      "ahb",
+			      "sec_ctrl_ahb",
+			      "tlmm",
+			      "tlmm_ahb",
+			      "cnoc_ahb",
+			      "mdio_ahb";
+		resets = <&qca8386_nsscc NSS_CC_GEPHY_FULL_ARES>;
 		qcom,phy-addr-fixup = <1 2 3 4 5 6 7>;
 		qcom,package-mode = <QCA808X_PCS1_SGMII_MAC_PCS0_SGMII_MAC>;
+		qcom,pcs1-sgmii-plus;
 
-		phy0: ethernet-phy@1 {
+		qca8386_phy1: ethernet-phy@1 {
 			compatible = "ethernet-phy-id004d.d180";
 			reg = <1>;
-			clocks = <&switch_cc NSS_CC_GEPHY0_SYS_CLK>;
-			resets = <&switch_cc NSS_CC_GEPHY0_SYS_ARES>;
+			clocks = <&qca8386_nsscc NSS_CC_GEPHY0_SYS_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC1_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC1_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC1_GEPHY0_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC1_GEPHY0_RX_CLK>;
+			clock-names = "phy", "mac_tx", "mac_rx",
+				      "gephy_tx", "gephy_rx";
+			resets = <&qca8386_nsscc NSS_CC_GEPHY0_SYS_ARES>;
 		};
 
-		phy1: ethernet-phy@2 {
+		qca8386_phy2: ethernet-phy@2 {
 			compatible = "ethernet-phy-id004d.d180";
 			reg = <2>;
-			clocks = <&switch_cc NSS_CC_GEPHY1_SYS_CLK>;
-			resets = <&switch_cc NSS_CC_GEPHY1_SYS_ARES>;
+			clocks = <&qca8386_nsscc NSS_CC_GEPHY1_SYS_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC2_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC2_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC2_GEPHY1_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC2_GEPHY1_RX_CLK>;
+			clock-names = "phy", "mac_tx", "mac_rx",
+				      "gephy_tx", "gephy_rx";
+			resets = <&qca8386_nsscc NSS_CC_GEPHY1_SYS_ARES>;
 		};
 
-		phy2: ethernet-phy@3 {
+		qca8386_phy3: ethernet-phy@3 {
 			compatible = "ethernet-phy-id004d.d180";
 			reg = <3>;
-			clocks = <&switch_cc NSS_CC_GEPHY2_SYS_CLK>;
-			resets = <&switch_cc NSS_CC_GEPHY2_SYS_ARES>;
+			clocks = <&qca8386_nsscc NSS_CC_GEPHY2_SYS_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC3_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC3_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC3_GEPHY2_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC3_GEPHY2_RX_CLK>;
+			clock-names = "phy", "mac_tx", "mac_rx",
+				      "gephy_tx", "gephy_rx";
+			resets = <&qca8386_nsscc NSS_CC_GEPHY2_SYS_ARES>;
 		};
 
-		phy3: ethernet-phy@4 {
+		qca8386_phy4: ethernet-phy@4 {
 			compatible = "ethernet-phy-id004d.d180";
 			reg = <4>;
-			clocks = <&switch_cc NSS_CC_GEPHY3_SYS_CLK>;
-			resets = <&switch_cc NSS_CC_GEPHY3_SYS_ARES>;
+			clocks = <&qca8386_nsscc NSS_CC_GEPHY3_SYS_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC4_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC4_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC4_GEPHY3_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC4_GEPHY3_RX_CLK>;
+			clock-names = "phy", "mac_tx", "mac_rx",
+				      "gephy_tx", "gephy_rx";
+			resets = <&qca8386_nsscc NSS_CC_GEPHY3_SYS_ARES>;
+		};
+
+		/* PCS1 is the QCA8386 switch CPU SerDes (MDIO base + 5). */
+		qca8386_pcs1: pcs-phy@6 {
+			compatible = "qcom,qca8k-pcs-phy";
+			reg = <6>;
+			clocks = <&qca8386_nsscc NSS_CC_SRDS1_SYS_CLK>,
+				 <&qca8386_rx_312p5m>, <&qca8386_tx_312p5m>,
+				 <&qca8386_nsscc NSS_CC_MAC0_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC0_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC0_TX_SRDS1_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC0_RX_SRDS1_CLK>;
+			clock-names = "pcs", "pcs_rx_root", "pcs_tx_root",
+				      "mac_tx", "mac_rx",
+				      "mac_tx_serdes", "mac_rx_serdes";
+			resets = <&qca8386_nsscc NSS_CC_SRDS1_SYS_ARES>,
+				 <&qca8386_nsscc NSS_CC_XPCS_ARES>;
+			reset-names = "pcs", "xpcs";
 		};
 	};
 
-	switch@10 {
+	qca8386: switch@10 {
 		compatible = "qca,qca8386";
 		reg = <0x10>;
 
@@ -202,7 +274,8 @@
 			port@0 {
 				reg = <0>;
 				label = "cpu";
-				ethernet = <&ppe_switch>;
+				ethernet = <&ppe_qca8386>;
+				dsa-tag-protocol = "qca_4b";
 				phy-mode = "2500base-x";
 
 				fixed-link {
@@ -214,29 +287,29 @@
 			port@1 {
 				reg = <1>;
 				label = "wan";
-				phy-mode = "internal";
-				phy-handle = <&phy0>;
+				phy-mode = "sgmii";
+				phy-handle = <&qca8386_phy1>;
 			};
 
 			port@2 {
 				reg = <2>;
 				label = "lan1";
-				phy-mode = "internal";
-				phy-handle = <&phy1>;
+				phy-mode = "sgmii";
+				phy-handle = <&qca8386_phy2>;
 			};
 
 			port@3 {
 				reg = <3>;
 				label = "lan2";
-				phy-mode = "internal";
-				phy-handle = <&phy2>;
+				phy-mode = "sgmii";
+				phy-handle = <&qca8386_phy3>;
 			};
 
 			port@4 {
 				reg = <4>;
 				label = "lan3";
-				phy-mode = "internal";
-				phy-handle = <&phy3>;
+				phy-mode = "sgmii";
+				phy-handle = <&qca8386_phy4>;
 			};
 		};
 	};
@@ -257,19 +330,23 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		ppe_switch: port@1 {
+		ppe_qca8386: port@1 {
 			reg = <1>;
-			phy-mode = "2500base-x";
 			label = "switch";
+			phy-mode = "2500base-x";
 			pcs-handle = <&pcs0_ch0>;
 			clocks = <&nsscc NSS_CC_PORT1_MAC_CLK>,
 				 <&nsscc NSS_CC_PORT1_RX_CLK>,
 				 <&nsscc NSS_CC_PORT1_TX_CLK>;
-			clock-names = "mac", "rx", "tx";
+			clock-names = "mac",
+				      "rx",
+				      "tx";
 			resets = <&nsscc NSS_CC_PORT1_MAC_CLK_ARES>,
 				 <&nsscc NSS_CC_PORT1_RX_CLK_ARES>,
 				 <&nsscc NSS_CC_PORT1_TX_CLK_ARES>;
-			reset-names = "mac", "rx", "tx";
+			reset-names = "mac",
+				      "rx",
+				      "tx";
 
 			fixed-link {
 				speed = <2500>;
@@ -279,31 +356,41 @@
 
 		ppe_sfp: port@2 {
 			reg = <2>;
-			phy-mode = "2500base-x";
 			label = "sfp";
+			phy-mode = "2500base-x";
 			managed = "in-band-status";
 			sfp = <&sfp0>;
 			pcs-handle = <&pcs1_ch0>;
 			clocks = <&nsscc NSS_CC_PORT2_MAC_CLK>,
 				 <&nsscc NSS_CC_PORT2_RX_CLK>,
 				 <&nsscc NSS_CC_PORT2_TX_CLK>;
-			clock-names = "mac", "rx", "tx";
+			clock-names = "mac",
+				      "rx",
+				      "tx";
 			resets = <&nsscc NSS_CC_PORT2_MAC_CLK_ARES>,
 				 <&nsscc NSS_CC_PORT2_RX_CLK_ARES>,
 				 <&nsscc NSS_CC_PORT2_TX_CLK_ARES>;
-			reset-names = "mac", "rx", "tx";
+			reset-names = "mac",
+				      "rx",
+				      "tx";
 		};
 	};
 };
 
-/* The M.2 slot is wired to the two-lane PCIe1 controller in the stock DTS. */
 &pcie1 {
 	status = "okay";
 
-	perst-gpio = <&tlmm 47 GPIO_ACTIVE_LOW>;
-	wake-gpios = <&tlmm 48 GPIO_ACTIVE_LOW>;
-	pinctrl-names = "default";
 	pinctrl-0 = <&pcie1_pins>;
+	pinctrl-names = "default";
+
+	/delete-property/ phys;
+	/delete-property/ phy-names;
+
+	pcie@0 {
+		phys = <&pcie1_phy>;
+		reset-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
+		wake-gpios = <&tlmm 48 GPIO_ACTIVE_LOW>;
+	};
 };
 
 &pcie1_phy {
@@ -311,6 +398,8 @@
 };
 
 &sdhc {
+	status = "okay";
+
 	#address-cells = <1>;
 	#size-cells = <0>;
 	bus-width = <4>;
@@ -320,7 +409,6 @@
 	non-removable;
 	pinctrl-0 = <&sdc_default_state>;
 	pinctrl-names = "default";
-	status = "okay";
 
 	card@0 {
 		compatible = "mmc-card";
@@ -354,22 +442,38 @@
 	i2c1_pins: i2c1-state {
 		pins = "gpio29", "gpio30";
 		function = "blsp1_i2c0";
-		drive-strength = <10>;
+		drive-strength = <16>;
 		bias-pull-up;
 	};
 
 	pcie1_pins: pcie1-default-state {
-		pins = "gpio47";
-		function = "gpio";
-		drive-strength = <8>;
-		bias-pull-up;
-		output-high;
+		clkreq-n-pins {
+			pins = "gpio46";
+			function = "pcie1_clk";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		perst-n-pins {
+			pins = "gpio47";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-low;
+		};
+
+		wake-n-pins {
+			pins = "gpio48";
+			function = "pcie1_wake";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
 	};
 
-	sfp_default: sfp-default-state {
+	sfp_pins: sfp-default-state {
 		rx-pins {
 			pins = "gpio45";
-			function = "rx1";
+			function = "gpio";
 			bias-disable;
 		};
 
@@ -382,14 +486,14 @@
 		};
 	};
 
-	gpio_keys_default: gpio-keys-default-state {
+	button_pins: button-pins {
 		pins = "gpio31", "gpio32";
 		function = "gpio";
 		drive-strength = <8>;
 		bias-pull-up;
 	};
 
-	gpio_leds_default: gpio-leds-default-state {
+	led_pins: led-pins {
 		pins = "gpio24", "gpio33", "gpio36", "gpio49";
 		function = "gpio";
 		drive-strength = <8>;
@@ -419,5 +523,3 @@
 		};
 	};
 };
-
-/* FJ1 supplies the fan; no tachometer or PWM signal is wired. */

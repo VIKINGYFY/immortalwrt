@@ -1,0 +1,20 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 29 Aug 2026 11:11:00 +0800
+Subject: [PATCH] net: dsa: qca8k: update RE-CS-08 QCA4B VP marker
+
+Update the temporary boot marker so runtime logs can distinguish the first
+QCA8386 persistent-VP offload test image.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -2383,7 +2383,7 @@
+ 	priv->info = of_device_get_match_data(priv->dev);
+ 	if (qca8k_is_qca8386(priv))
+ 		dev_info_once(priv->dev,
+-			      "RE-CS-08 firmware debug tag: 20260829-002912-qca8386-l2-stats\n");
++			      "RE-CS-08 firmware debug tag: 20260829-103452-qca8386-qca4b-vp-r1\n");
+ 
+ 	priv->reset_gpio = devm_gpiod_get_optional(priv->dev, "reset",
+ 						   GPIOD_OUT_HIGH);

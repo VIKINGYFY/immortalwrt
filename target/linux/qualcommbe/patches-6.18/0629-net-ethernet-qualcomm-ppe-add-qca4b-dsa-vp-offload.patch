@@ -1,0 +1,1243 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 29 Aug 2026 11:10:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: add QCA4B DSA VP offload
+
+Allocate persistent PPE virtual ports for QCA4B-tagged QCA8386 DSA user
+ports. Program and verify the ATH header ingress and egress mappings as a
+transaction, use the VP in flow rules, and restore the switch state when a
+port is unregistered.
+
+Reinject VP exception traffic through the DSA conduit and expose the live
+manager state plus per-VP packet counters in debugfs. Keep the generic
+tag_8021q path unchanged.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
+@@ -178,10 +178,13 @@
+ static void edma_rx_vp_punt_finish(struct edma_rxdesc_pri *rxdesc_pri,
+ 				   struct sk_buff *skb, int vp)
+ {
++	u8 ip_summed;
++
+ 	if (edma_rx_deliver_vp(rxdesc_pri, skb))
+ 		return;
+ 
+-	if (unlikely(!ppe_vp_rx_fallback(edma_ctx->ppe_dev, vp, skb)))
++	ip_summed = edma_rx_checksum_verify(rxdesc_pri, skb);
++	if (unlikely(!ppe_vp_rx_fallback(edma_ctx->ppe_dev, vp, skb, ip_summed)))
+ 		dev_kfree_skb_any(skb);
+ }
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -870,6 +870,37 @@
+ 		   !!(row[2] & PPE_ATHTAG_EG_VP_ATH_FROM_CPU));
+ }
+ 
++static int ppe_athtag_dump_vp_stats(struct seq_file *seq,
++				    struct ppe_device *ppe_dev, int vp)
++{
++	u32 rx, rx_drop, tx, tx_drop;
++	int ret;
++
++	ret = ppe_pkt_cnt_get(ppe_dev,
++			      PPE_PORT_RX_CNT_TBL_ADDR +
++			      PPE_PORT_RX_CNT_TBL_INC * vp,
++			      PPE_PKT_CNT_SIZE_5WORD, &rx, &rx_drop);
++	if (ret)
++		return ret;
++	ret = ppe_pkt_cnt_get(ppe_dev,
++			      PPE_VPORT_TX_COUNTER_TBL_ADDR +
++			      PPE_VPORT_TX_COUNTER_TBL_INC * vp,
++			      PPE_PKT_CNT_SIZE_3WORD, &tx, NULL);
++	if (ret)
++		return ret;
++	ret = ppe_pkt_cnt_get(ppe_dev,
++			      PPE_VPORT_TX_DROP_CNT_TBL_ADDR +
++			      PPE_VPORT_TX_DROP_CNT_TBL_INC * vp,
++			      PPE_PKT_CNT_SIZE_3WORD, &tx_drop, NULL);
++	if (ret)
++		return ret;
++
++	seq_printf(seq,
++		   "vp_stats[%d] rx_packets=%u rx_drop=%u tx_packets=%u tx_drop=%u\n",
++		   vp, rx, rx_drop, tx, tx_drop);
++	return 0;
++}
++
+ static int ppe_athtag_show(struct seq_file *seq, void *data)
+ {
+ 	struct ppe_device *ppe_dev = seq->private;
+@@ -893,7 +924,7 @@
+ 	if (ret)
+ 		return ret;
+ 
+-	seq_puts(seq, "mode=observe-only\n");
++	seq_puts(seq, "mode=qca4b-persistent-vp\n");
+ 	seq_printf(seq, "eg_gen_ctrl[0x%x]=0x%08x ath_type=0x%04x\n",
+ 		   PPE_ATHTAG_EG_GEN_CTRL_ADDR, value, type);
+ 	seq_printf(seq, "unsafe_old_eg_gen_ctrl[0x%x]=0x%08x\n",
+@@ -918,6 +949,14 @@
+ 		ppe_athtag_dump_vp(seq, ppe_dev, vp, &tx_enabled);
+ 	for (vp = PPE_VP_PORT_BASE; vp < PPE_VP_PORT_BASE + 8; vp++)
+ 		ppe_athtag_dump_vp(seq, ppe_dev, vp, &tx_enabled);
++	seq_puts(seq, "[qca4b-vp-manager]\n");
++	ppe_vp_qca4b_debug_show(ppe_dev, seq);
++	seq_puts(seq, "[qca4b-vp-counters]\n");
++	for (vp = PPE_VP_PORT_BASE; vp < PPE_VP_PORT_BASE + 8; vp++) {
++		ret = ppe_athtag_dump_vp_stats(seq, ppe_dev, vp);
++		if (ret)
++			return ret;
++	}
+ 	seq_printf(seq, "ath_path_active=%u tx_rows_enabled=%u\n",
+ 		   type == PPE_ATHTAG_TYPE && rx_enabled && tx_enabled,
+ 		   tx_enabled);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -692,7 +692,14 @@
+ static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
+ 			   int mtu, bool keep_tag);
+ static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index);
+-static int ppe_ft_dsa_port(struct net_device *dev, struct dsa_port **dpp);
++
++enum ppe_ft_dsa_mode {
++	PPE_FT_DSA_TAG_8021Q,
++	PPE_FT_DSA_QCA4B,
++};
++
++static int ppe_ft_dsa_resolve(struct net_device *dev, struct dsa_port **dpp,
++			      int *vid);
+ 
+ static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
+ 			     struct ppe_ft_pppoe_topo *topo)
+@@ -735,19 +742,25 @@
+ 			topo->vlan_mtu = path->dev->mtu;
+ 			break;
+ 		case DEV_PATH_DSA:
++		{
++			int dsa_mode, vid;
++
+ 			if (topo->vid >= 0) {
+ 				ret = -EOPNOTSUPP;
+ 				goto out_unlock;
+ 			}
+-			ret = ppe_ft_dsa_port((struct net_device *)path->dev,
+-					      NULL);
+-			if (ret < 0)
++			dsa_mode = ppe_ft_dsa_resolve((struct net_device *)path->dev,
++						      NULL, &vid);
++			if (dsa_mode < 0) {
++				ret = dsa_mode;
+ 				goto out_unlock;
+-			topo->vid = ret;
+-			ret = 0;
++			}
++			if (dsa_mode == PPE_FT_DSA_TAG_8021Q)
++				topo->vid = vid;
+ 			topo->vlan_mtu = path->dev->mtu;
+ 			ether_addr_copy(topo->local, path->dev->dev_addr);
+ 			break;
++		}
+ 		case DEV_PATH_ETHERNET: {
+ 			struct edma_port_priv *port_priv;
+ 
+@@ -1959,7 +1972,8 @@
+ 			     dp_index >= 0 ? PPE_VP_PORT_BASE + dp_index : -1);
+ }
+ 
+-static int ppe_ft_dsa_port(struct net_device *dev, struct dsa_port **dpp)
++static int ppe_ft_dsa_resolve(struct net_device *dev, struct dsa_port **dpp,
++			      int *vid)
+ {
+ 	struct dsa_port *dp;
+ 
+@@ -1970,8 +1984,7 @@
+ 	if (IS_ERR(dp))
+ 		return PTR_ERR(dp);
+ 
+-	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_VSC73XX_8021Q &&
+-	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_QCA_8021Q)
++	if (!dp->cpu_dp || !dp->cpu_dp->tag_ops)
+ 		return -EOPNOTSUPP;
+ 
+ 	if (!edma_port_dev_check(dsa_port_to_conduit(dp)))
+@@ -1983,11 +1996,24 @@
+ 	if (dpp)
+ 		*dpp = dp;
+ 
++	if (dp->cpu_dp->tag_ops->proto == DSA_TAG_PROTO_QCA_4B) {
++		if (vid)
++			*vid = -1;
++		return PPE_FT_DSA_QCA4B;
++	}
++	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_VSC73XX_8021Q &&
++	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_QCA_8021Q)
++		return -EOPNOTSUPP;
++
+ 	if (dp->cpu_dp->tag_ops->proto == DSA_TAG_PROTO_VSC73XX_8021Q &&
+-	    dsa_port_bridge_dev_get(dp))
+-		return dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
++	    dsa_port_bridge_dev_get(dp)) {
++		if (vid)
++			*vid = dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
++	} else if (vid) {
++		*vid = dsa_tag_8021q_standalone_vid(dp);
++	}
+ 
+-	return dsa_tag_8021q_standalone_vid(dp);
++	return PPE_FT_DSA_TAG_8021Q;
+ }
+ 
+ static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
+@@ -2360,7 +2386,7 @@
+ 	}
+ 	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
+ 	if (!tunnel_encap && !edma_port_dev_check(odev) &&
+-	    ppe_ft_dsa_port(odev, NULL) < 0 &&
++	    ppe_ft_dsa_resolve(odev, NULL, NULL) < 0 &&
+ 	    (!ft->ppe_dev->variant->has_vports ||
+ 	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
+ 		ppe_ft_debug_output_device(ft, odev);
+@@ -2414,27 +2440,35 @@
+ 		} else if (dsa_user_dev_check(idev)) {
+ 			struct net_device *conduit;
+ 			struct edma_port_priv *ipriv;
+-			int dsa_ivid;
++			int dsa_ivid, dsa_mode;
+ 
+-			dsa_ivid = ppe_ft_dsa_port(idev, &dp);
+-			if (dsa_ivid < 0) {
+-				vp_ret = dsa_ivid;
++			dsa_mode = ppe_ft_dsa_resolve(idev, &dp,
++						      &dsa_ivid);
++			if (dsa_mode < 0) {
++				vp_ret = dsa_mode;
+ 				goto put_idev;
+ 			}
+-			conduit = dsa_port_to_conduit(dp);
+ 
+ 			/* The parser exposes one VLAN layer. A user VLAN inside
+-			 * the tag_8021q tag cannot use this path.
++			 * either DSA transport cannot use this path.
+ 			 */
+ 			if (data.ingress_vid >= 0) {
+ 				vp_ret = -EOPNOTSUPP;
+ 				goto put_idev;
+ 			}
+ 
+-			ipriv = netdev_priv(conduit);
+-			iport = ipriv->ppe_port->port_id;
+-			data.ingress_vid = dsa_ivid;
+-			data.ingress_dsa = true;
++			if (dsa_mode == PPE_FT_DSA_QCA4B) {
++				reject_reason = PPE_FT_REJECT_INGRESS_VP;
++				vp_ret = ppe_vp_get_qca4b(ft->ppe_dev, idev);
++				if (vp_ret >= 0)
++					flow->ivp = vp_ret;
++			} else {
++				conduit = dsa_port_to_conduit(dp);
++				ipriv = netdev_priv(conduit);
++				iport = ipriv->ppe_port->port_id;
++				data.ingress_vid = dsa_ivid;
++				data.ingress_dsa = true;
++			}
+ 		} else if (ft->ppe_dev->variant->has_vports &&
+ 			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
+ 			reject_reason = PPE_FT_REJECT_INGRESS_VP;
+@@ -2465,7 +2499,7 @@
+ 			nh.l3_if = nh.port;
+ 		} else if (dsa_user_dev_check(odev)) {
+ 			struct dsa_port *dp;
+-			int dsa_ovid;
++			int dsa_ovid, dsa_mode;
+ 
+ 			/* The next hop pushes one tag; a switch port
+ 			 * with tagged bridge-vlan egress would need
+@@ -2475,15 +2509,25 @@
+ 				ret = -EOPNOTSUPP;
+ 				goto err_prelock_ivp;
+ 			}
+-			dsa_ovid = ppe_ft_dsa_port(odev, &dp);
+-			if (dsa_ovid < 0) {
+-				ret = dsa_ovid;
++			dsa_mode = ppe_ft_dsa_resolve(odev, &dp, &dsa_ovid);
++			if (dsa_mode < 0) {
++				ret = dsa_mode;
+ 				goto err_prelock_ivp;
+ 			}
+-			port_priv = netdev_priv(dsa_port_to_conduit(dp));
+-			nh.port = port_priv->ppe_port->port_id;
+-			nh.l3_if = nh.port;
+-			nh.vid = dsa_ovid;
++			if (dsa_mode == PPE_FT_DSA_QCA4B) {
++				ret = ppe_vp_get_qca4b(ft->ppe_dev, odev);
++				if (ret < 0)
++					goto err_prelock_ivp;
++				flow->vp = ret;
++				nh.port = ret;
++				nh.l3_if = ppe_ft_vp_l3_if(ft, ret);
++				dsa_ovid = -1;
++			} else {
++				port_priv = netdev_priv(dsa_port_to_conduit(dp));
++				nh.port = port_priv->ppe_port->port_id;
++				nh.l3_if = nh.port;
++				nh.vid = dsa_ovid;
++			}
+ 			flow->egress_dev = odev;
+ 			flow->egress_vid = dsa_ovid;
+ 			dev_hold(flow->egress_dev);
+@@ -2667,18 +2711,28 @@
+ 	 */
+ 	reject_reason = PPE_FT_REJECT_PPPOE;
+ 	if (data.pppoe_sid >= 0) {
++		int pppoe_port = nh.port;
++
+ 		/* A PPPoE session is matched by an ingress physical-port
+ 		 * bitmap that cannot represent a virtual port, so a PPPoE
+ 		 * flow egressing a VAP is not offloadable.
+ 		 */
+-		if (flow->vp >= 0) {
++		if (flow->vp >= 0 &&
++		    !ppe_vp_is_qca4b(ft->ppe_dev, flow->vp)) {
+ 			ret = -EOPNOTSUPP;
+ 			goto err_vlan;
+ 		}
++		if (flow->vp >= 0) {
++			pppoe_port = ppe_vp_physical_port(ft->ppe_dev, flow->vp);
++			if (pppoe_port < 0) {
++				ret = pppoe_port;
++				goto err_vlan;
++			}
++		}
+ 
+ 		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
+ 					       data.eth.dst, data.eth.src,
+-					       nh.port, nh.vid);
++					       pppoe_port, nh.vid);
+ 		if (flow->pppoe < 0) {
+ 			ret = flow->pppoe;
+ 			goto err_vlan;
+@@ -2904,6 +2958,7 @@
+ 			     struct flow_cls_offload *f)
+ {
+ 	struct ppe_ft_flow *flow;
++	int dsa_mode = -1, dsa_vid = -1;
+ 	u32 packets;
+ 	u64 bytes;
+ 	int ret;
+@@ -2922,9 +2977,14 @@
+ 		return -ENOENT;
+ 	}
+ 
++	if (flow->egress_dev)
++		dsa_mode = ppe_ft_dsa_resolve(flow->egress_dev, NULL,
++					      &dsa_vid);
+ 	if (flow->egress_dev &&
+-	    (!netif_carrier_ok(flow->egress_dev) ||
+-	     ppe_ft_dsa_port(flow->egress_dev, NULL) != flow->egress_vid)) {
++	    (!netif_carrier_ok(flow->egress_dev) || dsa_mode < 0 ||
++	     (dsa_mode == PPE_FT_DSA_TAG_8021Q &&
++	      dsa_vid != flow->egress_vid) ||
++	     (dsa_mode == PPE_FT_DSA_QCA4B && flow->egress_vid >= 0))) {
+ 		rcu_read_unlock();
+ 		return 0;
+ 	}
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
+@@ -40,11 +40,15 @@
+ #include <linux/rhashtable.h>
+ #include <linux/rtnetlink.h>
+ #include <linux/regmap.h>
++#include <linux/seq_file.h>
+ #include <linux/skbuff.h>
+ 
++#include <net/dsa.h>
++#include <net/dst_metadata.h>
+ #include <net/ip.h>
+ 
+ #include "edma.h"
++#include "edma_port.h"
+ #include "edma_tx.h"
+ #include "ppe.h"
+ #include "ppe_config.h"
+@@ -55,6 +59,12 @@
+ /* The PPE CPU port, whose queue the EDMA rings drain. */
+ #define PPE_VP_CPU_PORT		0
+ 
++enum ppe_vp_slot_type {
++	PPE_VP_SLOT_NONE,
++	PPE_VP_SLOT_WIRELESS,
++	PPE_VP_SLOT_QCA4B,
++};
++
+ struct ppe_vp_slot {
+ 	struct net_device __rcu *dev;
+ 	struct rhashtable flows;
+@@ -63,9 +73,16 @@
+ 	u64 host_mac;		/* router (bridge) MAC; zero = inject all unicast */
+ 	int vp;			/* PPE port id, read by the ingress hook */
+ 	int refcnt;
++	enum ppe_vp_slot_type type;
++	u8 switch_port;
++	u8 physical_port;
++	struct metadata_dst *dsa_meta;
++	u32 athtag_orig_prx;
++	u32 athtag_orig_eg_vp[3];
+ 	bool hook_registered;
+ 	bool poisoned;
+ 	bool miss_disabled;
++	bool athtag_active;
+ };
+ 
+ struct ppe_vp {
+@@ -73,6 +90,10 @@
+ 	struct mutex lock;		/* serialises slot allocation */
+ 	struct notifier_block notifier;
+ 	bool inject_disabled;
++	u32 athtag_orig_eg_gen;
++	u32 athtag_orig_rx[PPE_PORT_ID_COUNT];
++	u8 athtag_rx_users[PPE_PORT_ID_COUNT];
++	u8 athtag_users;
+ 	struct ppe_vp_slot slots[PPE_VP_SLOTS];
+ };
+ 
+@@ -87,12 +108,14 @@
+  * of a virtual port. The field set mirrors the vendor driver's
+  * ppe_drv_port_alloc() for a wireless virtual port.
+  */
+-static int ppe_vp_hw_set(struct ppe_device *ppe_dev, int vp, bool active)
++static int ppe_vp_hw_set(struct ppe_device *ppe_dev, int vp,
++			 int physical_port, int mtu, bool active)
+ {
+ 	struct ppe_queue_ucast_dest queue_dst = {};
+ 	int ret, res_start, res_end;
++	u32 mtu_tbl[3] = {};
+ 	u32 tbl[4] = {};
+-	u32 reg;
++	u32 mtu_reg, reg;
+ 
+ 	if (active) {
+ 		/* A wireless virtual port is routed, not bridged, so it has
+@@ -104,40 +127,336 @@
+ 		tbl[0] = PPE_L2_VP_PORT_W0_INVALID_VSI_FWD_EN |
+ 			 PPE_L2_VP_PORT_W0_PROMISC_EN |
+ 			 FIELD_PREP(PPE_L2_VP_PORT_W0_PHYSICAL_PORT,
+-				    PPE_VP_CPU_PORT);
++				    physical_port);
+ 		tbl[1] = PPE_L2_VP_PORT_W1_VP_TYPE |
+ 			 PPE_L2_VP_PORT_W1_CONTEXT_ACTIVE;
++		PPE_MRU_MTU_CTRL_SET_MRU(mtu_tbl, mtu + ETH_HLEN);
++		PPE_MRU_MTU_CTRL_SET_MTU(mtu_tbl, mtu + ETH_HLEN);
++		PPE_MRU_MTU_CTRL_SET_MRU_CMD(mtu_tbl,
++					     PPE_ACTION_REDIRECT_TO_CPU);
++		PPE_MRU_MTU_CTRL_SET_MTU_CMD(mtu_tbl, PPE_ACTION_DROP);
++		PPE_MRU_MTU_CTRL_SET_RX_CNT_EN(mtu_tbl, true);
++		PPE_MRU_MTU_CTRL_SET_TX_CNT_EN(mtu_tbl, true);
+ 	}
+ 
+ 	/* Resolve and program the queue before exposing an active VP. */
+-	ret = ppe_port_resource_get(ppe_dev, PPE_VP_CPU_PORT, PPE_RES_UCAST,
++	ret = ppe_port_resource_get(ppe_dev, physical_port, PPE_RES_UCAST,
+ 				    &res_start, &res_end);
+ 	if (ret)
+ 		return ret;
+ 
+ 	queue_dst.dest_port = vp;
+ 	reg = PPE_L2_VP_PORT_TBL_ADDR + PPE_L2_VP_PORT_TBL_INC * vp;
++	mtu_reg = PPE_MRU_MTU_CTRL_TBL_ADDR +
++		  PPE_MRU_MTU_CTRL_TBL_INC * vp;
+ 
+ 	if (active) {
+ 		ret = ppe_queue_ucast_base_set(ppe_dev, queue_dst, res_start,
+-					       EDMA_CPU_PORT_PROFILE_ID);
++					       physical_port);
+ 		if (ret)
+ 			return ret;
+ 
++		ret = regmap_bulk_write(ppe_dev->regmap, mtu_reg, mtu_tbl,
++					ARRAY_SIZE(mtu_tbl));
++		if (ret)
++			goto clear_queue;
+ 		ret = regmap_bulk_write(ppe_dev->regmap, reg, tbl,
+ 					ARRAY_SIZE(tbl));
+-		if (ret)
+-			ppe_queue_ucast_base_set(ppe_dev, queue_dst, 0,
+-						 EDMA_CPU_PORT_PROFILE_ID);
++		if (ret) {
++			memset(mtu_tbl, 0, sizeof(mtu_tbl));
++			regmap_bulk_write(ppe_dev->regmap, mtu_reg, mtu_tbl,
++					  ARRAY_SIZE(mtu_tbl));
++			goto clear_queue;
++		}
++		return ret;
++
++clear_queue:
++		ppe_queue_ucast_base_set(ppe_dev, queue_dst, 0,
++					 physical_port);
+ 		return ret;
+ 	}
+ 
+ 	ret = regmap_bulk_write(ppe_dev->regmap, reg, tbl, ARRAY_SIZE(tbl));
+ 	if (ret)
+ 		return ret;
++	ret = regmap_bulk_write(ppe_dev->regmap, mtu_reg, mtu_tbl,
++				ARRAY_SIZE(mtu_tbl));
++	if (ret)
++		return ret;
+ 
+ 	return ppe_queue_ucast_base_set(ppe_dev, queue_dst, 0,
+-					EDMA_CPU_PORT_PROFILE_ID);
++					physical_port);
++}
++
++static int ppe_vp_mtu_update(struct ppe_device *ppe_dev, int vp, int mtu)
++{
++	u32 old[3], new[3];
++	u32 reg;
++	int ret;
++
++	reg = PPE_MRU_MTU_CTRL_TBL_ADDR + PPE_MRU_MTU_CTRL_TBL_INC * vp;
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, old, ARRAY_SIZE(old));
++	if (ret)
++		return ret;
++
++	memcpy(new, old, sizeof(new));
++	PPE_MRU_MTU_CTRL_SET_MRU(new, mtu + ETH_HLEN);
++	PPE_MRU_MTU_CTRL_SET_MTU(new, mtu + ETH_HLEN);
++	ret = regmap_bulk_write(ppe_dev->regmap, reg, new, ARRAY_SIZE(new));
++	if (ret)
++		regmap_bulk_write(ppe_dev->regmap, reg, old, ARRAY_SIZE(old));
++
++	return ret;
++}
++
++static int ppe_vp_qca4b_info(struct ppe_device *ppe_dev,
++			     struct net_device *dev, struct dsa_port **dpp,
++			     int *physical_port)
++{
++	struct edma_port_priv *port_priv;
++	struct net_device *conduit;
++	struct dsa_port *dp;
++
++	if (!dsa_user_dev_check(dev))
++		return -EOPNOTSUPP;
++
++	dp = dsa_port_from_netdev(dev);
++	if (IS_ERR(dp))
++		return PTR_ERR(dp);
++	if (!dp->cpu_dp || !dp->cpu_dp->tag_ops ||
++	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_QCA_4B)
++		return -EOPNOTSUPP;
++
++	conduit = dsa_port_to_conduit(dp);
++	if (!conduit || !edma_port_dev_check(conduit))
++		return -EOPNOTSUPP;
++
++	port_priv = netdev_priv(conduit);
++	if (!port_priv->ppe_port || port_priv->ppe_port->ppe_dev != ppe_dev)
++		return -ENODEV;
++	if (dp->index >= 128 || port_priv->ppe_port->port_id < 0 ||
++	    port_priv->ppe_port->port_id >= PPE_PORT_ID_COUNT)
++		return -ERANGE;
++
++	if (dpp)
++		*dpp = dp;
++	if (physical_port)
++		*physical_port = port_priv->ppe_port->port_id;
++
++	return 0;
++}
++
++static int ppe_vp_athtag_add(struct ppe_vp *vp, struct ppe_vp_slot *slot)
++{
++	struct ppe_device *ppe_dev = vp->ppe_dev;
++	u32 eg_gen_old, eg_gen_new, eg_vp_new[3];
++	u32 physical_old, physical_new;
++	u32 switch_old = 0, switch_new;
++	u32 value, verify[3];
++	u32 eg_vp_reg, physical_reg, switch_reg;
++	bool first_eg, first_rx;
++	int ret;
++
++	first_eg = !vp->athtag_users;
++	first_rx = !vp->athtag_rx_users[slot->physical_port];
++	eg_vp_reg = PPE_ATHTAG_EG_VP_TBL_ADDR +
++		    PPE_ATHTAG_EG_VP_TBL_INC * slot->vp;
++	physical_reg = PPE_ATHTAG_PRX_PORT_TO_VP_ADDR +
++		       PPE_ATHTAG_PRX_PORT_TO_VP_INC * slot->physical_port;
++	switch_reg = PPE_ATHTAG_PRX_PORT_TO_VP_ADDR +
++		     PPE_ATHTAG_PRX_PORT_TO_VP_INC * slot->switch_port;
++
++	ret = regmap_read(ppe_dev->regmap, PPE_ATHTAG_EG_GEN_CTRL_ADDR,
++			  &eg_gen_old);
++	if (ret)
++		return ret;
++	ret = regmap_read(ppe_dev->regmap, physical_reg, &physical_old);
++	if (ret)
++		return ret;
++	if (switch_reg != physical_reg) {
++		ret = regmap_read(ppe_dev->regmap, switch_reg, &switch_old);
++		if (ret)
++			return ret;
++	} else {
++		switch_old = physical_old;
++	}
++	ret = regmap_bulk_read(ppe_dev->regmap, eg_vp_reg,
++			       slot->athtag_orig_eg_vp,
++			       ARRAY_SIZE(slot->athtag_orig_eg_vp));
++	if (ret)
++		return ret;
++
++	if (first_eg)
++		vp->athtag_orig_eg_gen = eg_gen_old;
++	if (first_rx)
++		vp->athtag_orig_rx[slot->physical_port] = physical_old;
++	slot->athtag_orig_prx = switch_old;
++
++	eg_gen_new = (eg_gen_old & ~PPE_ATHTAG_EG_GEN_CTRL_TYPE) |
++		     FIELD_PREP(PPE_ATHTAG_EG_GEN_CTRL_TYPE,
++				PPE_ATHTAG_TYPE);
++	physical_new = (physical_old &
++			~(PPE_ATHTAG_PRX_PORT_TO_VP_TYPE |
++			  PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE)) |
++		       FIELD_PREP(PPE_ATHTAG_PRX_PORT_TO_VP_TYPE,
++				  PPE_ATHTAG_TYPE) |
++		       PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE;
++	switch_new = (switch_old & ~PPE_ATHTAG_PRX_PORT_TO_VP_PORT) |
++		     FIELD_PREP(PPE_ATHTAG_PRX_PORT_TO_VP_PORT, slot->vp);
++	if (switch_reg == physical_reg)
++		physical_new = (physical_new &
++				~PPE_ATHTAG_PRX_PORT_TO_VP_PORT) |
++			       FIELD_PREP(PPE_ATHTAG_PRX_PORT_TO_VP_PORT,
++					  slot->vp);
++
++	memcpy(eg_vp_new, slot->athtag_orig_eg_vp, sizeof(eg_vp_new));
++	eg_vp_new[1] &= ~(PPE_ATHTAG_EG_VP_ATH_VERSION |
++			    PPE_ATHTAG_EG_VP_ATH_DEFAULT |
++			    PPE_ATHTAG_EG_VP_ATH_BITMAP);
++	eg_vp_new[1] |= PPE_ATHTAG_EG_VP_ATH_INSERT |
++			 FIELD_PREP(PPE_ATHTAG_EG_VP_ATH_VERSION, 3) |
++			 FIELD_PREP(PPE_ATHTAG_EG_VP_ATH_DEFAULT, 0) |
++			 FIELD_PREP(PPE_ATHTAG_EG_VP_ATH_BITMAP,
++				    slot->switch_port & 0x3f);
++	eg_vp_new[2] &= ~(PPE_ATHTAG_EG_VP_ATH_BITMAP_HI |
++			    PPE_ATHTAG_EG_VP_ATH_DISABLE_BIT);
++	if (slot->switch_port & BIT(6))
++		eg_vp_new[2] |= PPE_ATHTAG_EG_VP_ATH_BITMAP_HI;
++	eg_vp_new[2] |= PPE_ATHTAG_EG_VP_ATH_FROM_CPU;
++
++	ret = regmap_write(ppe_dev->regmap, PPE_ATHTAG_EG_GEN_CTRL_ADDR,
++			   eg_gen_new);
++	if (ret)
++		goto rollback;
++	ret = regmap_write(ppe_dev->regmap, physical_reg, physical_new);
++	if (ret)
++		goto rollback;
++	if (switch_reg != physical_reg) {
++		ret = regmap_write(ppe_dev->regmap, switch_reg, switch_new);
++		if (ret)
++			goto rollback;
++	}
++	ret = regmap_bulk_write(ppe_dev->regmap, eg_vp_reg, eg_vp_new,
++				ARRAY_SIZE(eg_vp_new));
++	if (ret)
++		goto rollback;
++
++	ret = regmap_read(ppe_dev->regmap, PPE_ATHTAG_EG_GEN_CTRL_ADDR,
++			  &value);
++	if (ret || FIELD_GET(PPE_ATHTAG_EG_GEN_CTRL_TYPE, value) !=
++		   PPE_ATHTAG_TYPE) {
++		if (!ret)
++			ret = -EIO;
++		goto rollback;
++	}
++	ret = regmap_read(ppe_dev->regmap, physical_reg, &value);
++	if (ret || (value & (PPE_ATHTAG_PRX_PORT_TO_VP_TYPE |
++			     PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE)) !=
++		  (physical_new & (PPE_ATHTAG_PRX_PORT_TO_VP_TYPE |
++				   PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE))) {
++		if (!ret)
++			ret = -EIO;
++		goto rollback;
++	}
++	ret = regmap_read(ppe_dev->regmap, switch_reg, &value);
++	if (ret || FIELD_GET(PPE_ATHTAG_PRX_PORT_TO_VP_PORT, value) !=
++		   slot->vp) {
++		if (!ret)
++			ret = -EIO;
++		goto rollback;
++	}
++	ret = regmap_bulk_read(ppe_dev->regmap, eg_vp_reg, verify,
++			       ARRAY_SIZE(verify));
++	if (ret || memcmp(verify, eg_vp_new, sizeof(verify))) {
++		if (!ret)
++			ret = -EIO;
++		goto rollback;
++	}
++
++	vp->athtag_users++;
++	vp->athtag_rx_users[slot->physical_port]++;
++	slot->athtag_active = true;
++	return 0;
++
++rollback:
++	regmap_bulk_write(ppe_dev->regmap, eg_vp_reg,
++			  slot->athtag_orig_eg_vp,
++			  ARRAY_SIZE(slot->athtag_orig_eg_vp));
++	if (switch_reg != physical_reg)
++		regmap_write(ppe_dev->regmap, switch_reg, switch_old);
++	regmap_write(ppe_dev->regmap, physical_reg, physical_old);
++	regmap_write(ppe_dev->regmap, PPE_ATHTAG_EG_GEN_CTRL_ADDR,
++		     eg_gen_old);
++	return ret;
++}
++
++static int ppe_vp_athtag_del(struct ppe_vp *vp, struct ppe_vp_slot *slot)
++{
++	struct ppe_device *ppe_dev = vp->ppe_dev;
++	u32 physical_restore, physical_reg, switch_reg, eg_vp_reg;
++	int ret = 0, err;
++
++	if (!slot->athtag_active)
++		return 0;
++
++	eg_vp_reg = PPE_ATHTAG_EG_VP_TBL_ADDR +
++		    PPE_ATHTAG_EG_VP_TBL_INC * slot->vp;
++	physical_reg = PPE_ATHTAG_PRX_PORT_TO_VP_ADDR +
++		       PPE_ATHTAG_PRX_PORT_TO_VP_INC * slot->physical_port;
++	switch_reg = PPE_ATHTAG_PRX_PORT_TO_VP_ADDR +
++		     PPE_ATHTAG_PRX_PORT_TO_VP_INC * slot->switch_port;
++
++	err = regmap_bulk_write(ppe_dev->regmap, eg_vp_reg,
++				slot->athtag_orig_eg_vp,
++				ARRAY_SIZE(slot->athtag_orig_eg_vp));
++	if (!ret)
++		ret = err;
++
++	if (switch_reg != physical_reg) {
++		err = regmap_write(ppe_dev->regmap, switch_reg,
++				   slot->athtag_orig_prx);
++		if (!ret)
++			ret = err;
++	}
++
++	if (WARN_ON_ONCE(!vp->athtag_rx_users[slot->physical_port]))
++		goto restore_global;
++	vp->athtag_rx_users[slot->physical_port]--;
++	if (!vp->athtag_rx_users[slot->physical_port]) {
++		physical_restore = vp->athtag_orig_rx[slot->physical_port];
++	} else if (switch_reg == physical_reg) {
++		physical_restore =
++			(slot->athtag_orig_prx &
++			 ~(PPE_ATHTAG_PRX_PORT_TO_VP_TYPE |
++			   PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE)) |
++			 FIELD_PREP(PPE_ATHTAG_PRX_PORT_TO_VP_TYPE,
++				    PPE_ATHTAG_TYPE) |
++			 PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE;
++	} else {
++		physical_restore = 0;
++	}
++	if (!vp->athtag_rx_users[slot->physical_port] ||
++	    switch_reg == physical_reg) {
++		err = regmap_write(ppe_dev->regmap, physical_reg,
++				   physical_restore);
++		if (!ret)
++			ret = err;
++	}
++
++restore_global:
++	if (WARN_ON_ONCE(!vp->athtag_users))
++		goto out;
++	vp->athtag_users--;
++	if (!vp->athtag_users) {
++		err = regmap_write(ppe_dev->regmap,
++				   PPE_ATHTAG_EG_GEN_CTRL_ADDR,
++				   vp->athtag_orig_eg_gen);
++		if (!ret)
++			ret = err;
++	}
++out:
++	slot->athtag_active = false;
++	return ret;
+ }
+ 
+ /* Netfilter ingress hook on a virtual port's bound device: offload the
+@@ -328,18 +647,107 @@
+ static void ppe_vp_slot_release(struct ppe_device *ppe_dev,
+ 				struct ppe_vp *vp, int i)
+ {
+-	struct net_device *dev = rcu_access_pointer(vp->slots[i].dev);
++	struct ppe_vp_slot *slot = &vp->slots[i];
++	struct net_device *dev = rcu_access_pointer(slot->dev);
+ 	int ret;
+ 
+-	ppe_vp_hook_unregister(&vp->slots[i], dev);
+-	ret = ppe_vp_hw_set(ppe_dev, PPE_VP_PORT_BASE + i, false);
++	ppe_vp_hook_unregister(slot, dev);
++	if (slot->type == PPE_VP_SLOT_QCA4B) {
++		ret = ppe_vp_athtag_del(vp, slot);
++		if (ret) {
++			slot->poisoned = true;
++			dev_err(ppe_dev->dev,
++				"failed to restore QCA4B ATH mapping for VP %d: %d\n",
++				slot->vp, ret);
++		}
++	}
++	ret = ppe_vp_hw_set(ppe_dev, PPE_VP_PORT_BASE + i,
++			    slot->physical_port, 0, false);
+ 	if (ret) {
+-		vp->slots[i].poisoned = true;
++		slot->poisoned = true;
+ 		dev_err(ppe_dev->dev,
+ 			"failed to disable VP %d, quarantining slot: %d\n",
+ 			PPE_VP_PORT_BASE + i, ret);
+ 	}
+-	rcu_assign_pointer(vp->slots[i].dev, NULL);
++	rcu_assign_pointer(slot->dev, NULL);
++}
++
++static void ppe_vp_slot_reset(struct ppe_vp_slot *slot)
++{
++	if (slot->dsa_meta)
++		metadata_dst_free(slot->dsa_meta);
++	slot->dsa_meta = NULL;
++	slot->type = PPE_VP_SLOT_NONE;
++	slot->switch_port = 0;
++	slot->physical_port = 0;
++	slot->vp = 0;
++	slot->miss_disabled = false;
++	slot->athtag_active = false;
++}
++
++static int ppe_vp_qca4b_create_locked(struct ppe_vp *vp,
++				      struct net_device *dev)
++{
++	struct ppe_device *ppe_dev = vp->ppe_dev;
++	struct ppe_vp_slot *slot;
++	struct metadata_dst *metadata;
++	struct dsa_port *dp;
++	int physical_port;
++	int free = -1;
++	int i, ret;
++
++	ret = ppe_vp_qca4b_info(ppe_dev, dev, &dp, &physical_port);
++	if (ret)
++		return ret;
++
++	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		if (rcu_access_pointer(vp->slots[i].dev) == dev)
++			return vp->slots[i].type == PPE_VP_SLOT_QCA4B ? 0 :
++				-EEXIST;
++		if (free < 0 && !vp->slots[i].poisoned &&
++		    !rcu_access_pointer(vp->slots[i].dev) &&
++		    !vp->slots[i].refcnt)
++			free = i;
++	}
++	if (free < 0)
++		return -ENOSPC;
++
++	metadata = metadata_dst_alloc(0, METADATA_HW_PORT_MUX, GFP_KERNEL);
++	if (!metadata)
++		return -ENOMEM;
++	metadata->u.port_info.port_id = dp->index;
++
++	slot = &vp->slots[free];
++	slot->type = PPE_VP_SLOT_QCA4B;
++	slot->vp = PPE_VP_PORT_BASE + free;
++	slot->switch_port = dp->index;
++	slot->physical_port = physical_port;
++	slot->dsa_meta = metadata;
++	slot->refcnt = 1;
++	WRITE_ONCE(slot->miss_disabled, false);
++
++	ret = ppe_vp_hw_set(ppe_dev, slot->vp, physical_port, dev->mtu,
++			    true);
++	if (ret)
++		goto err_reset;
++	ret = ppe_vp_athtag_add(vp, slot);
++	if (ret)
++		goto err_hw;
++
++	rcu_assign_pointer(slot->dev, dev);
++	ppe_flowtable_port_carrier(ppe_dev, slot->vp,
++				   netif_carrier_ok(dev));
++	dev_info(ppe_dev->dev,
++		 "QCA4B DSA VP active: dev=%s switch_port=%u vp=%d physical_port=%u\n",
++		 dev->name, slot->switch_port, slot->vp, slot->physical_port);
++	return 0;
++
++err_hw:
++	ppe_vp_hw_set(ppe_dev, slot->vp, physical_port, 0, false);
++err_reset:
++	slot->refcnt = 0;
++	ppe_vp_slot_reset(slot);
++	return ret;
+ }
+ 
+ /**
+@@ -395,7 +803,8 @@
+ 		return -ENOSPC;
+ 	}
+ 
+-	ret = ppe_vp_hw_set(ppe_dev, PPE_VP_PORT_BASE + free, true);
++	ret = ppe_vp_hw_set(ppe_dev, PPE_VP_PORT_BASE + free,
++			    PPE_VP_CPU_PORT, dev->mtu, true);
+ 	if (ret) {
+ 		mutex_unlock(&vp->lock);
+ 		return ret;
+@@ -403,6 +812,8 @@
+ 
+ 	/* Publish the mapping before its optional ingress hook goes live. */
+ 	vp->slots[free].refcnt = 1;
++	vp->slots[free].type = PPE_VP_SLOT_WIRELESS;
++	vp->slots[free].physical_port = PPE_VP_CPU_PORT;
+ 	WRITE_ONCE(vp->slots[free].miss_disabled, false);
+ 	rcu_assign_pointer(vp->slots[free].dev, dev);
+ 
+@@ -425,6 +836,47 @@
+ 	return PPE_VP_PORT_BASE + free;
+ }
+ 
++int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev)
++{
++	struct ppe_vp *vp = ppe_dev->vp;
++	int i, ret;
++
++	if (!vp)
++		return -EOPNOTSUPP;
++
++	mutex_lock(&vp->lock);
++	if (vp->inject_disabled) {
++		ret = -ESHUTDOWN;
++		goto out;
++	}
++	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		if (rcu_access_pointer(vp->slots[i].dev) != dev)
++			continue;
++		if (vp->slots[i].type != PPE_VP_SLOT_QCA4B) {
++			ret = -EOPNOTSUPP;
++			goto out;
++		}
++		vp->slots[i].refcnt++;
++		ret = vp->slots[i].vp;
++		goto out;
++	}
++
++	ret = ppe_vp_qca4b_create_locked(vp, dev);
++	if (ret)
++		goto out;
++	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		if (rcu_access_pointer(vp->slots[i].dev) == dev) {
++			vp->slots[i].refcnt++;
++			ret = vp->slots[i].vp;
++			goto out;
++		}
++	}
++	ret = -ENOENT;
++out:
++	mutex_unlock(&vp->lock);
++	return ret;
++}
++
+ /**
+  * ppe_vp_put - Release a virtual port
+  * @ppe_dev: PPE device
+@@ -455,6 +907,7 @@
+ 
+ 	if (rcu_access_pointer(vpt->slots[i].dev))
+ 		ppe_vp_slot_release(ppe_dev, vpt, i);
++	ppe_vp_slot_reset(&vpt->slots[i]);
+ 	mutex_unlock(&vpt->lock);
+ }
+ 
+@@ -463,6 +916,7 @@
+  * @ppe_dev: PPE device
+  * @vp: source virtual port of the punt
+  * @skb: complete punted frame, Ethernet header first
++ * @ip_summed: checksum state decoded from the EDMA descriptor
+  *
+  * Tuple gating makes a miss anomalous: software installed the flow but the
+  * hardware did not match it. Disable further injection for the whole VP
+@@ -472,27 +926,56 @@
+  *
+  * Return: true if the software receive path consumed the frame.
+  */
+-bool ppe_vp_rx_fallback(struct ppe_device *ppe_dev, int vp, struct sk_buff *skb)
++bool ppe_vp_rx_fallback(struct ppe_device *ppe_dev, int vp,
++			struct sk_buff *skb, u8 ip_summed)
+ {
+ 	struct ppe_vp *vpt = ppe_dev->vp;
++	struct ppe_vp_slot *slot;
+ 	struct net_device *dev;
+ 	int i = vp - PPE_VP_PORT_BASE;
+ 
+ 	if (!vpt || i < 0 || i >= PPE_VP_SLOTS)
+ 		return false;
+ 
++	slot = &vpt->slots[i];
+ 	rcu_read_lock();
+-	dev = rcu_dereference(vpt->slots[i].dev);
++	dev = rcu_dereference(slot->dev);
+ 	if (unlikely(!dev)) {
+ 		rcu_read_unlock();
+ 		return false;
+ 	}
++	if (slot->type == PPE_VP_SLOT_QCA4B) {
++		struct dsa_port *dp = dsa_port_from_netdev(dev);
++		struct net_device *conduit;
++
++		if (IS_ERR(dp) || !slot->dsa_meta) {
++			rcu_read_unlock();
++			return false;
++		}
++		conduit = dsa_port_to_conduit(dp);
++		if (!conduit) {
++			rcu_read_unlock();
++			return false;
++		}
++
++		skb_dst_set_noref(skb, &slot->dsa_meta->dst);
++		skb->dev = conduit;
++		skb->skb_iif = conduit->ifindex;
++		skb->protocol = eth_type_trans(skb, conduit);
++		if (likely(conduit->features & NETIF_F_RXCSUM))
++			skb->ip_summed = ip_summed;
++		netif_receive_skb(skb);
++		rcu_read_unlock();
++		return true;
++	}
+ 
+ 	/* Publish the circuit breaker before netif_receive_skb() can run the
+ 	 * ingress hook again, including after an RPS hand-off.
+ 	 */
+ 	ppe_vp_miss_disable(ppe_dev, vp);
+ 	skb->protocol = eth_type_trans(skb, dev);
++	if (likely(dev->features & NETIF_F_RXCSUM))
++		skb->ip_summed = ip_summed;
+ 	netif_receive_skb(skb);
+ 	rcu_read_unlock();
+ 
+@@ -522,6 +1005,8 @@
+ 
+ 	if (!vpt || i < 0 || i >= PPE_VP_SLOTS)
+ 		return -EINVAL;
++	if (READ_ONCE(vpt->slots[i].type) == PPE_VP_SLOT_QCA4B)
++		return 0;
+ 
+ 	ret = rhashtable_insert_fast(&vpt->slots[i].flows, &flow->node,
+ 				     ppe_vp_flow_params);
+@@ -566,6 +1051,74 @@
+ 	return rcu_dereference(vpt->slots[i].dev);
+ }
+ 
++bool ppe_vp_is_qca4b(struct ppe_device *ppe_dev, int vp)
++{
++	struct ppe_vp *vpt = ppe_dev->vp;
++	int i = vp - PPE_VP_PORT_BASE;
++
++	return vpt && i >= 0 && i < PPE_VP_SLOTS &&
++	       READ_ONCE(vpt->slots[i].type) == PPE_VP_SLOT_QCA4B;
++}
++
++int ppe_vp_physical_port(struct ppe_device *ppe_dev, int vp)
++{
++	struct ppe_vp *vpt = ppe_dev->vp;
++	int i = vp - PPE_VP_PORT_BASE;
++
++	if (!vpt || i < 0 || i >= PPE_VP_SLOTS ||
++	    READ_ONCE(vpt->slots[i].type) == PPE_VP_SLOT_NONE)
++		return -EINVAL;
++
++	return READ_ONCE(vpt->slots[i].physical_port);
++}
++
++void ppe_vp_qca4b_debug_show(struct ppe_device *ppe_dev,
++			     struct seq_file *seq)
++{
++	struct ppe_vp *vp = ppe_dev->vp;
++	int i;
++
++	if (!vp) {
++		seq_puts(seq, "qca4b_vp_manager=unavailable\n");
++		return;
++	}
++
++	mutex_lock(&vp->lock);
++	seq_printf(seq, "qca4b_users=%u\n", vp->athtag_users);
++	for (i = 0; i < PPE_PORT_ID_COUNT; i++) {
++		if (vp->athtag_rx_users[i])
++			seq_printf(seq, "qca4b_rx_port[%d]_users=%u\n", i,
++				   vp->athtag_rx_users[i]);
++	}
++	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		struct ppe_vp_slot *slot = &vp->slots[i];
++		struct net_device *dev;
++		u32 eg_vp[3] = {}, prx = 0;
++		int eg_ret, prx_ret;
++
++		if (slot->type != PPE_VP_SLOT_QCA4B)
++			continue;
++		dev = rcu_dereference_protected(slot->dev,
++						lockdep_is_held(&vp->lock));
++		prx_ret = regmap_read(ppe_dev->regmap,
++				      PPE_ATHTAG_PRX_PORT_TO_VP_ADDR +
++				      PPE_ATHTAG_PRX_PORT_TO_VP_INC * slot->switch_port,
++				      &prx);
++		eg_ret = regmap_bulk_read(ppe_dev->regmap,
++					  PPE_ATHTAG_EG_VP_TBL_ADDR +
++					  PPE_ATHTAG_EG_VP_TBL_INC * slot->vp,
++					  eg_vp, ARRAY_SIZE(eg_vp));
++		seq_printf(seq,
++			   "qca4b_slot=%d dev=%s vp=%d switch_port=%u physical_port=%u refs=%d carrier=%u mapping=%u poisoned=%u prx_ret=%d prx=%08x eg_ret=%d eg=%08x:%08x:%08x\n",
++			   i, dev ? dev->name : "<unregistered>", slot->vp,
++			   slot->switch_port, slot->physical_port, slot->refcnt,
++			   dev ? netif_carrier_ok(dev) : 0, slot->athtag_active,
++			   slot->poisoned, prx_ret, prx, eg_ret,
++			   eg_vp[2], eg_vp[1], eg_vp[0]);
++	}
++	mutex_unlock(&vp->lock);
++}
++
+ static int ppe_vp_netdev_event(struct notifier_block *nb, unsigned long event,
+ 			       void *ptr)
+ {
+@@ -575,9 +1128,11 @@
+ 	int carrier = -1, i;
+ 
+ 	switch (event) {
++	case NETDEV_REGISTER:
+ 	case NETDEV_UNREGISTER:
+ 	case NETDEV_CHANGE:
+ 	case NETDEV_CHANGEADDR:
++	case NETDEV_CHANGEMTU:
+ 	case NETDEV_CHANGEUPPER:
+ 	case NETDEV_UP:
+ 	case NETDEV_DOWN:
+@@ -586,6 +1141,18 @@
+ 		return NOTIFY_DONE;
+ 	}
+ 
++	if (event == NETDEV_REGISTER) {
++		int ret;
++
++		mutex_lock(&vp->lock);
++		ret = ppe_vp_qca4b_create_locked(vp, dev);
++		mutex_unlock(&vp->lock);
++		if (ret && ret != -EOPNOTSUPP)
++			netdev_warn(dev, "QCA4B persistent VP setup failed: %d\n",
++				    ret);
++		return NOTIFY_DONE;
++	}
++
+ 	mutex_lock(&vp->lock);
+ 	for (i = 0; i < PPE_VP_SLOTS; i++) {
+ 		struct net_device *bound;
+@@ -604,13 +1171,28 @@
+ 		}
+ 
+ 		if (event == NETDEV_UNREGISTER) {
++			bool qca4b = vp->slots[i].type == PPE_VP_SLOT_QCA4B;
++
+ 			ppe_vp_slot_release(vp->ppe_dev, vp, i);
++			if (qca4b && vp->slots[i].refcnt)
++				vp->slots[i].refcnt--;
+ 			cleared = true;
+ 			carrier = PPE_VP_PORT_BASE + i;
+ 		} else {
+ 			if (event == NETDEV_CHANGEUPPER)
+ 				WRITE_ONCE(vp->slots[i].host_mac,
+ 					   ppe_vp_host_mac(bound));
++			if (event == NETDEV_CHANGEMTU) {
++				int ret;
++
++				ret = ppe_vp_mtu_update(vp->ppe_dev,
++							PPE_VP_PORT_BASE + i,
++							dev->mtu);
++				if (ret)
++					netdev_warn(dev,
++						    "failed to update VP MTU: %d\n",
++						    ret);
++			}
+ 			carrier = PPE_VP_PORT_BASE + i;
+ 			carrier_up = netif_carrier_ok(dev);
+ 		}
+@@ -622,6 +1204,16 @@
+ 		ppe_flowtable_port_carrier(vp->ppe_dev, carrier, carrier_up);
+ 	if (cleared)
+ 		synchronize_rcu();
++	if (cleared) {
++		mutex_lock(&vp->lock);
++		for (i = 0; i < PPE_VP_SLOTS; i++) {
++			if (!vp->slots[i].refcnt &&
++			    !rcu_access_pointer(vp->slots[i].dev) &&
++			    vp->slots[i].type != PPE_VP_SLOT_NONE)
++				ppe_vp_slot_reset(&vp->slots[i]);
++		}
++		mutex_unlock(&vp->lock);
++	}
+ 
+ 	return NOTIFY_DONE;
+ }
+@@ -649,14 +1241,15 @@
+ 			goto err_flows;
+ 	}
+ 
++	ppe_dev->vp = vp;
+ 	ret = register_netdevice_notifier(&vp->notifier);
+ 	if (ret)
+-		goto err_flows;
+-
+-	ppe_dev->vp = vp;
++		goto err_publish;
+ 
+ 	return 0;
+ 
++err_publish:
++	ppe_dev->vp = NULL;
+ err_flows:
+ 	while (i--)
+ 		rhashtable_destroy(&vp->slots[i].flows);
+@@ -710,7 +1303,9 @@
+ 	mutex_unlock(&vp->lock);
+ 
+ 	synchronize_rcu();
+-	for (i = 0; i < PPE_VP_SLOTS; i++)
++	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		ppe_vp_slot_reset(&vp->slots[i]);
+ 		rhashtable_destroy(&vp->slots[i].flows);
++	}
+ 	mutex_destroy(&vp->lock);
+ }
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
+@@ -12,6 +12,7 @@
+ struct ppe_device;
+ struct net_device;
+ struct sk_buff;
++struct seq_file;
+ 
+ /* An installed VP-uplink flow is the authority for source-tagged
+  * injection. The flowtable embeds this object in its flow lifetime; the
+@@ -53,14 +54,19 @@
+ 
+ int ppe_vp_get(struct ppe_device *ppe_dev, struct net_device *dev,
+ 	       int priority);
++int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev);
+ void ppe_vp_put(struct ppe_device *ppe_dev, int vp);
+ struct net_device *ppe_vp_dev(struct ppe_device *ppe_dev, int vp);
++bool ppe_vp_is_qca4b(struct ppe_device *ppe_dev, int vp);
++int ppe_vp_physical_port(struct ppe_device *ppe_dev, int vp);
+ bool ppe_vp_rx_fallback(struct ppe_device *ppe_dev, int vp,
+-			struct sk_buff *skb);
++			struct sk_buff *skb, u8 ip_summed);
+ void ppe_vp_miss_disable(struct ppe_device *ppe_dev, int vp);
+ int ppe_vp_flow_add(struct ppe_device *ppe_dev, int vp,
+ 		    struct ppe_vp_flow *flow);
+ void ppe_vp_flow_del(struct ppe_device *ppe_dev, int vp,
+ 		     struct ppe_vp_flow *flow);
++void ppe_vp_qca4b_debug_show(struct ppe_device *ppe_dev,
++			     struct seq_file *seq);
+ 
+ #endif

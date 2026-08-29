@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 27 Aug 2026 15:12:22 +0800
+Subject: [PATCH] net: dsa: qca8k: configure QCA8386 2500BASE-X CPU pad
+
+The QCA8386 CPU link uses SGMII+ on the switch side and fixed
+2500BASE-X on the IPQ UNIPHY side. qca8k advertises the mode for
+QCA8386, but qca8k_phylink_mac_config() returns before enabling the
+port 0 SGMII pad when phylink selects 2500BASE-X. This leaves all user
+ports with working PHY link state but no traffic through the CPU port.
+
+Accept 2500BASE-X only for QCA8386 CPU port 0 and enable its SGMII pad.
+The PPE/IPQ PCS remains responsible for configuring the 2.5G UNIPHY
+side of the fixed link.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ drivers/net/dsa/qca/qca8k-8xxx.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -1438,7 +1438,9 @@ qca8k_phylink_mac_config(struct phylink_config *config, unsigned int mode,
+ 		    state->interface != PHY_INTERFACE_MODE_RGMII_ID &&
+ 		    state->interface != PHY_INTERFACE_MODE_RGMII_TXID &&
+ 		    state->interface != PHY_INTERFACE_MODE_RGMII_RXID &&
+-		    state->interface != PHY_INTERFACE_MODE_SGMII)
++		    state->interface != PHY_INTERFACE_MODE_SGMII &&
++		    !(qca8k_is_qca8386(priv) &&
++		      state->interface == PHY_INTERFACE_MODE_2500BASEX))
+ 			return;
+ 
+ 		reg = QCA8K_REG_PORT0_PAD_CTRL;
+@@ -1490,6 +1491,7 @@ qca8k_phylink_mac_config(struct phylink_config *config, unsigned int mode,
+ 		break;
+ 	case PHY_INTERFACE_MODE_SGMII:
+ 	case PHY_INTERFACE_MODE_1000BASEX:
++	case PHY_INTERFACE_MODE_2500BASEX:
+ 		/* Enable SGMII on the port */
+ 		qca8k_write(priv, reg, QCA8K_PORT_PAD_SGMII_EN);
+ 		break;

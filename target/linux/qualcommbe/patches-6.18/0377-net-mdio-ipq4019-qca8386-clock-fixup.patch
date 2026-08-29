@@ -1,0 +1,173 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: mdio: ipq4019: initialize QCA8386 clocks before scan
+
+QCA8386 exposes its switch and clock controller through the MHT MDIO
+window.  The integrated SerDes and EPHY clocks must be enabled and reset
+before the MDIO bus scans the switch, otherwise the switch ID read returns
+an invalid value.  Follow the QSDK mdio_clk_fixup sequence during the bus
+reset callback.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/mdio/mdio-ipq4019.c
++++ b/drivers/net/mdio/mdio-ipq4019.c
+@@ -49,13 +49,31 @@
+ #define IPQ_PHY_SET_DELAY_US	100000
+ 
++#define IPQ_HIGH_ADDR_PREFIX		0x18
++#define IPQ_LOW_ADDR_PREFIX		0x10
++
++#define EPHY_CFG			0xC90F018
++#define GEPHY0_TX_CBCR			0xC800058
++#define SRDS0_SYS_CBCR			0xC8001A8
++#define SRDS1_SYS_CBCR			0xC8001AC
++#define EPHY0_SYS_CBCR			0xC8001B0
++#define EPHY1_SYS_CBCR			0xC8001B4
++#define EPHY2_SYS_CBCR			0xC8001B8
++#define EPHY3_SYS_CBCR			0xC8001BC
++#define GCC_GEPHY_MISC			0xC800304
++
+ struct ipq4019_mdio_data {
+ 	void __iomem	*membase;
+ 	void __iomem *eth_ldo_rdy;
+ 	struct clk *mdio_clk;
+ 	unsigned int mdc_rate;
+ 	bool mdc_rate_logged;
++	void (*preinit)(struct mii_bus *bus);
+ };
+ 
++static u32 ipq_mii_read(struct mii_bus *bus, u32 reg);
++static void ipq_mii_write(struct mii_bus *bus, u32 reg, u32 val);
++static void ipq_mii_preinit(struct mii_bus *bus);
++
+ static unsigned long
+ ipq4019_mdio_get_clk_rate(struct ipq4019_mdio_data *priv)
+ {
+@@ -226,6 +244,110 @@ static int ipq4019_mdio_write_c22(struct
+ 	return 0;
+ }
+ 
++static inline void qca8386_split_addr(u32 regaddr, u16 *r1, u16 *r2,
++				      u16 *page, u16 *switch_phy_id)
++{
++	*r1 = regaddr & 0x1c;
++	regaddr >>= 5;
++	*r2 = regaddr & 0x7;
++	regaddr >>= 3;
++	*page = regaddr & 0xffff;
++	regaddr >>= 16;
++	*switch_phy_id = regaddr & 0xff;
++}
++
++static u32 qca8386_read(struct mii_bus *bus, u32 reg)
++{
++	u16 r1, r2, page, switch_phy_id;
++	int lo, hi;
++
++	qca8386_split_addr(reg, &r1, &r2, &page, &switch_phy_id);
++	bus->write(bus, IPQ_HIGH_ADDR_PREFIX | (switch_phy_id >> 5),
++		   switch_phy_id & 0x1f, page);
++	lo = bus->read(bus, IPQ_LOW_ADDR_PREFIX | r2, r1);
++	hi = bus->read(bus, IPQ_LOW_ADDR_PREFIX | r2, r1 | BIT(1));
++	if (lo < 0 || hi < 0)
++		return 0xffffffff;
++
++	return (u32)hi << 16 | (u16)lo;
++}
++
++static void qca8386_write(struct mii_bus *bus, u32 reg, u32 val)
++{
++	u16 r1, r2, page, switch_phy_id;
++
++	qca8386_split_addr(reg, &r1, &r2, &page, &switch_phy_id);
++	bus->write(bus, IPQ_HIGH_ADDR_PREFIX | (switch_phy_id >> 5),
++		   switch_phy_id & 0x1f, page);
++	bus->write(bus, IPQ_LOW_ADDR_PREFIX | r2, r1, lower_16_bits(val));
++	bus->write(bus, IPQ_LOW_ADDR_PREFIX | r2, r1 | BIT(1),
++		   upper_16_bits(val));
++}
++
++static u32 ipq_mii_read(struct mii_bus *bus, u32 reg)
++{
++	return qca8386_read(bus, reg);
++}
++
++static void ipq_mii_write(struct mii_bus *bus, u32 reg, u32 val)
++{
++	qca8386_write(bus, reg, val);
++}
++
++static void qca8386_clk_enable(struct mii_bus *bus, u32 reg)
++{
++	ipq_mii_write(bus, reg, ipq_mii_read(bus, reg) | BIT(0));
++}
++
++static void qca8386_clk_reset(struct mii_bus *bus, u32 reg)
++{
++	u32 val = ipq_mii_read(bus, reg) | BIT(2);
++
++	ipq_mii_write(bus, reg, val);
++	usleep_range(20000, 21000);
++	ipq_mii_write(bus, reg, val & ~BIT(2));
++}
++
++static void qca8386_clk_disable(struct mii_bus *bus, u32 reg)
++{
++	ipq_mii_write(bus, reg, ipq_mii_read(bus, reg) & ~BIT(0));
++}
++
++static void qca8386_clock_init(struct mii_bus *bus)
++{
++	u32 val;
++	int i;
++
++	qca8386_clk_enable(bus, SRDS0_SYS_CBCR);
++	qca8386_clk_enable(bus, SRDS1_SYS_CBCR);
++	qca8386_clk_reset(bus, SRDS0_SYS_CBCR);
++	qca8386_clk_reset(bus, SRDS1_SYS_CBCR);
++
++	for (i = 0; i < 2 * 4; i++)
++		qca8386_clk_disable(bus, GEPHY0_TX_CBCR + i * 0x20);
++
++	qca8386_clk_enable(bus, EPHY0_SYS_CBCR);
++	qca8386_clk_enable(bus, EPHY1_SYS_CBCR);
++	qca8386_clk_enable(bus, EPHY2_SYS_CBCR);
++	qca8386_clk_enable(bus, EPHY3_SYS_CBCR);
++	qca8386_clk_reset(bus, EPHY0_SYS_CBCR);
++	qca8386_clk_reset(bus, EPHY1_SYS_CBCR);
++	qca8386_clk_reset(bus, EPHY2_SYS_CBCR);
++	qca8386_clk_reset(bus, EPHY3_SYS_CBCR);
++
++	val = ipq_mii_read(bus, GCC_GEPHY_MISC);
++	ipq_mii_write(bus, GCC_GEPHY_MISC, val & ~GENMASK(4, 0));
++	val = ipq_mii_read(bus, EPHY_CFG);
++	ipq_mii_write(bus, EPHY_CFG, val & ~GENMASK(21, 20));
++	usleep_range(10000, 11000);
++}
++
++static void ipq_mii_preinit(struct mii_bus *bus)
++{
++	if (of_property_read_bool(bus->parent->of_node, "mdio_clk_fixup"))
++		qca8386_clock_init(bus);
++}
++
+ static int ipq_mdio_reset(struct mii_bus *bus)
+ {
+ 	struct ipq4019_mdio_data *priv = bus->priv;
+@@ -296,6 +418,9 @@ static int ipq_mdio_reset(struct mii_bus
+ 			DIV_ROUND_UP(ahb_rate, div), val, ret);
+ 		return ret;
+ 	}
+ 
++	if (priv->preinit)
++		priv->preinit(bus);
++
+ 	if (!priv->mdc_rate_logged) {
+ 		dev_info(bus->parent,
+@@ -390,5 +515,6 @@ static int ipq4019_mdio_probe(struct pla
+ 	bus->reset = ipq_mdio_reset;
+ 	bus->parent = &pdev->dev;
+ 	snprintf(bus->id, MII_BUS_ID_SIZE, "%s%d", pdev->name, pdev->id);
++	priv->preinit = ipq_mii_preinit;
+ 
+ 	ret = of_mdiobus_register(bus, pdev->dev.of_node);

@@ -1,0 +1,123 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: mdio: ipq4019: prepare IPQ5332 UNIPHY clocks before reset
+
+The IPQ5332 QSDK sequence enables the UNIPHY AHB and SYS clocks before
+resetting devices connected to the MDIO bus.  QCA8386 needs those clocks
+running while GPIO51 is asserted and released; otherwise the first MHT
+access can return an invalid switch ID.  Keep the clocks optional so the
+generic IPQ4019 MDIO binding remains compatible with existing boards.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/mdio/mdio-ipq4019.c
++++ b/drivers/net/mdio/mdio-ipq4019.c
+@@ -47,6 +47,8 @@
+ 
+ /* MDIO clock source frequency is fixed to 100M */
+ #define IPQ_MDIO_CLK_RATE	100000000
++#define IPQ_UNIPHY_AHB_CLK_RATE	100000000
++#define IPQ_UNIPHY_SYS_CLK_RATE	24000000
+ 
+ #define IPQ_PHY_SET_DELAY_US	100000
+ 
+@@ -69,10 +71,18 @@
+ 	struct clk *mdio_clk;
+ 	unsigned int mdc_rate;
+ 	bool mdc_rate_logged;
++	bool uniphy_clks_enabled;
++	bool preinit_logged;
++	struct clk *uniphy_clk[4];
+ 	struct gpio_descs *reset_gpios;
+ 	void (*preinit)(struct mii_bus *bus);
+ };
+ 
++static const char * const ipq5332_uniphy_clk_names[] = {
++	"uniphy0_ahb_clk", "uniphy0_sys_clk",
++	"uniphy1_ahb_clk", "uniphy1_sys_clk",
++};
++
+ static u32 ipq_mii_read(struct mii_bus *bus, u32 reg);
+ static void ipq_mii_write(struct mii_bus *bus, u32 reg, u32 val);
+ static void ipq_mii_preinit(struct mii_bus *bus);
+@@ -408,6 +418,42 @@
+ 	return 0;
+ }
+ 
++static int ipq_mdio_prepare_uniphy(struct mii_bus *bus)
++{
++	struct ipq4019_mdio_data *priv = bus->priv;
++	struct device *dev = bus->parent;
++	unsigned long rate;
++	int i, ret;
++
++	if (!of_property_read_bool(dev->of_node, "mdio_clk_fixup") ||
++	    priv->uniphy_clks_enabled)
++		return 0;
++
++	for (i = 0; i < ARRAY_SIZE(priv->uniphy_clk); i++) {
++		if (!priv->uniphy_clk[i])
++			continue;
++
++		rate = (i & 1) ? IPQ_UNIPHY_SYS_CLK_RATE :
++			IPQ_UNIPHY_AHB_CLK_RATE;
++		ret = clk_set_rate(priv->uniphy_clk[i], rate);
++		if (ret)
++			return dev_err_probe(dev, ret,
++					     "failed to set %s to %luHz\n",
++					     ipq5332_uniphy_clk_names[i], rate);
++
++		ret = clk_prepare_enable(priv->uniphy_clk[i]);
++		if (ret)
++			return dev_err_probe(dev, ret,
++					     "failed to enable %s\n",
++					     ipq5332_uniphy_clk_names[i]);
++	}
++
++	priv->uniphy_clks_enabled = true;
++	dev_info(dev, "IPQ5332 UNIPHY clocks prepared before MDIO reset\n");
++
++	return 0;
++}
++
+ static int ipq_mdio_reset(struct mii_bus *bus)
+ {
+ 	struct ipq4019_mdio_data *priv = bus->priv;
+@@ -417,6 +463,10 @@
+ 	u32 val;
+ 	int ret;
+ 
++	ret = ipq_mdio_prepare_uniphy(bus);
++	if (ret)
++		return ret;
++
+ 	/* To indicate CMN_PLL that ethernet_ldo has been ready if platform resource 1
+ 	 * is specified in the device tree.
+ 	 */
+@@ -458,6 +508,11 @@
+ 	if (priv->preinit)
+ 		priv->preinit(bus);
+ 
++	if (priv->preinit && !priv->preinit_logged) {
++		dev_info(bus->parent, "MDIO QCA8386 preinit completed before child scan\n");
++		priv->preinit_logged = true;
++	}
++
+ 	if (!priv->mdc_rate_logged) {
+ 		dev_info(bus->parent,
+ 			 "MDC configured: requested=%uHz reported-source=%luHz source=%luHz divider=%u effective=%luHz mode=0x%08x\n",
+@@ -532,6 +587,16 @@
+ 	if (IS_ERR(priv->mdio_clk))
+ 		return PTR_ERR(priv->mdio_clk);
+ 
++	for (ret = 0; ret < ARRAY_SIZE(priv->uniphy_clk); ret++) {
++		priv->uniphy_clk[ret] = devm_clk_get_optional(&pdev->dev,
++								ipq5332_uniphy_clk_names[ret]);
++		if (IS_ERR(priv->uniphy_clk[ret]))
++			return dev_err_probe(&pdev->dev,
++					     PTR_ERR(priv->uniphy_clk[ret]),
++					     "failed to get %s\n",
++					     ipq5332_uniphy_clk_names[ret]);
++	}
++
+ 	priv->reset_gpios = devm_gpiod_get_array_optional(&pdev->dev,
+ 							 "phy-reset", GPIOD_OUT_LOW);

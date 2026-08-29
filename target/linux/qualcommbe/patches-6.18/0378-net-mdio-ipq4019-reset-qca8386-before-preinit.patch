@@ -1,0 +1,94 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 27 Aug 2026 09:10:00 +0800
+Subject: [PATCH] net: mdio: ipq4019: reset QCA8386 before preinit
+
+QCA8386 boards expose the switch reset on the MDIO device. Resetting it
+from the NSSCC child races the MDIO bus scan, so an invalid switch ID can be
+read even when the QCA8386 clock sequence is otherwise correct. Follow the
+QSDK ordering: enable the MDIO clock, assert all optional phy-reset-gpios,
+release them after 100 ms, then run the QCA8386 preinit before child probing.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/mdio/mdio-ipq4019.c
++++ b/drivers/net/mdio/mdio-ipq4019.c
+@@ -2,7 +2,9 @@
+ /* Copyright (c) 2015, The Linux Foundation. All rights reserved. */
+ /* Copyright (c) 2020 Sartura Ltd. */
+ 
++#include <linux/bitmap.h>
+ #include <linux/delay.h>
++#include <linux/gpio/consumer.h>
+ #include <linux/io.h>
+ #include <linux/iopoll.h>
+ #include <linux/kernel.h>
+@@ -67,6 +69,7 @@
+ 	struct clk *mdio_clk;
+ 	unsigned int mdc_rate;
+ 	bool mdc_rate_logged;
++	struct gpio_descs *reset_gpios;
+ 	void (*preinit)(struct mii_bus *bus);
+ };
+ 
+@@ -377,6 +380,34 @@
+ 		qca8386_clock_init(bus);
+ }
+ 
++static int ipq_mdio_reset_devices(struct mii_bus *bus)
++{
++	struct ipq4019_mdio_data *priv = bus->priv;
++	unsigned long *values;
++
++	if (!priv->reset_gpios)
++		return 0;
++
++	values = bitmap_zalloc(priv->reset_gpios->ndescs, GFP_KERNEL);
++	if (!values)
++		return -ENOMEM;
++
++	bitmap_fill(values, priv->reset_gpios->ndescs);
++	gpiod_set_array_value_cansleep(priv->reset_gpios->ndescs,
++					priv->reset_gpios->desc,
++					priv->reset_gpios->info, values);
++	msleep(100);
++
++	bitmap_zero(values, priv->reset_gpios->ndescs);
++	gpiod_set_array_value_cansleep(priv->reset_gpios->ndescs,
++					priv->reset_gpios->desc,
++					priv->reset_gpios->info, values);
++	bitmap_free(values);
++	msleep(100);
++
++	return 0;
++}
++
+ static int ipq_mdio_reset(struct mii_bus *bus)
+ {
+ 	struct ipq4019_mdio_data *priv = bus->priv;
+@@ -405,6 +436,10 @@
+ 	if (ret)
+ 		return ret;
+ 
++	ret = ipq_mdio_reset_devices(bus);
++	if (ret)
++		return ret;
++
+ 	mdelay(10);
+ 
+ 	ret = ipq4019_mdio_set_div(priv);
+@@ -497,6 +532,12 @@
+ 	if (IS_ERR(priv->mdio_clk))
+ 		return PTR_ERR(priv->mdio_clk);
+ 
++	priv->reset_gpios = devm_gpiod_get_array_optional(&pdev->dev,
++							 "phy-reset", GPIOD_OUT_LOW);
++	if (IS_ERR(priv->reset_gpios))
++		return dev_err_probe(&pdev->dev, PTR_ERR(priv->reset_gpios),
++					     "failed to get phy-reset-gpios\n");
++
+ 	ipq4019_mdio_select_mdc_rate(pdev, priv);
+ 	/* The platform resource is provided on the chipset IPQ5018 */
+ 	/* This resource is optional */
+-- 
+2.45.2

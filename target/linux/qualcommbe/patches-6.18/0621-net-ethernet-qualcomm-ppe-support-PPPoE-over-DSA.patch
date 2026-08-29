@@ -13,6 +13,10 @@ MAC used by the PPPoE session.  Continue rejecting a user VLAN on top
 of DSA because this flowtable implementation can represent only one
 ingress VLAN layer.
 
+The DSA helper returns the positive standalone VID on success.  Clear
+that value after storing it instead of returning it as a lifecycle
+failure.
+
 Signed-off-by: VKing <noreply@openwrt.local>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
@@ -25,7 +29,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  
  static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
  			     struct ppe_ft_pppoe_topo *topo)
-@@ -733,6 +734,19 @@
+@@ -733,6 +734,20 @@
  			topo->vid = path->encap.id;
  			topo->vlan_mtu = path->dev->mtu;
  			break;
@@ -39,13 +43,14 @@ Signed-off-by: VKing <noreply@openwrt.local>
 +			if (ret < 0)
 +				goto out_unlock;
 +			topo->vid = ret;
++			ret = 0;
 +			topo->vlan_mtu = path->dev->mtu;
 +			ether_addr_copy(topo->local, path->dev->dev_addr);
 +			break;
  		case DEV_PATH_ETHERNET: {
  			struct edma_port_priv *port_priv;
  
-@@ -742,7 +756,8 @@
+@@ -742,7 +757,8 @@
  			}
  			port_priv = netdev_priv(path->dev);
  			topo->port = port_priv->ppe_port->port_id;

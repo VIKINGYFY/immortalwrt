@@ -1,0 +1,166 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] clk: qcom: nsscc-qca8k: keep QCA8386 access clocks on
+
+The QCA8386 NSS clock controller is exposed as an MDIO child.  Its clock
+consumers can probe after the kernel's unused-clock pass, while the switch
+MHT window must remain clocked for the first DSA ID read.  Mark the access
+and integrated-PHY clock chain critical so clk_disable_unused cannot shut it
+down between NSSCC registration and the MDIO/DSA children.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/clk/qcom/nsscc-qca8k.c
++++ b/drivers/clk/qcom/nsscc-qca8k.c
+@@ -75,6 +75,7 @@
+ 		.name = "nss_cc_switch_core_clk_src",
+ 		.parent_data = nss_cc_uniphy1_tx312p5m_data,
+ 		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_data),
++		.flags = CLK_IS_CRITICAL,
+ 		.ops = &clk_rcg2_mux_closest_ops,
+ 	},
+ };
+@@ -91,7 +92,7 @@
+ 				&nss_cc_switch_core_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -109,7 +110,7 @@
+ 				&nss_cc_switch_core_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1575,6 +1576,7 @@
+ 		.name = "nss_cc_ahb_clk_src",
+ 		.parent_data = nss_cc_uniphy1_tx312p5m_data,
+ 		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_data),
++		.flags = CLK_IS_CRITICAL,
+ 		.ops = &clk_rcg2_ops,
+ 	},
+ };
+@@ -1591,7 +1593,7 @@
+ 				&nss_cc_ahb_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1609,7 +1611,7 @@
+ 				&nss_cc_ahb_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1627,7 +1629,7 @@
+ 				&nss_cc_ahb_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1645,7 +1647,7 @@
+ 				&nss_cc_ahb_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1663,7 +1665,7 @@
+ 				&nss_cc_ahb_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1681,7 +1683,7 @@
+ 				&nss_cc_ahb_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1699,7 +1701,7 @@
+ 				&nss_cc_ahb_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1727,6 +1729,7 @@
+ 		.name = "nss_cc_sys_clk_src",
+ 		.parent_data = nss_cc_xo_data,
+ 		.num_parents = ARRAY_SIZE(nss_cc_xo_data),
++		.flags = CLK_IS_CRITICAL,
+ 		.ops = &clk_rcg2_ops,
+ 	},
+ };
+@@ -1743,6 +1746,7 @@
+ 				&nss_cc_sys_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1760,6 +1764,7 @@
+ 				&nss_cc_sys_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1777,6 +1782,7 @@
+ 				&nss_cc_sys_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1794,6 +1800,7 @@
+ 				&nss_cc_sys_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1811,6 +1818,7 @@
+ 				&nss_cc_sys_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},
+@@ -1828,6 +1836,7 @@
+ 				&nss_cc_sys_clk_src.clkr.hw,
+ 			},
+ 			.num_parents = 1,
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_prepare_ops,
+ 		},
+ 	},

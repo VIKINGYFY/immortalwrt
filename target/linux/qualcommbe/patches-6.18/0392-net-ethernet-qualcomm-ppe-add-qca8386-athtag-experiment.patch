@@ -1,0 +1,163 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 28 Aug 2026 18:14:56 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: expose QCA8386 ATH tag state
+
+Expose read-only MPPE ATH tag register diagnostics for IPQ5332 boards.
+Use the MPPE EG_GEN_CTRL offset from QSDK 6.6 and retain the earlier,
+incorrect offset as a labelled readback to identify affected builds.
+
+Do not permit register writes: ATH tag setup must coordinate the PPE,
+QCA8386 header mode and Linux DSA tagger. A partial configuration can
+stop traffic or hang the system.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -12,6 +12,7 @@
+ #include <linux/netdevice.h>
+ #include <linux/regmap.h>
+ #include <linux/seq_file.h>
++#include <linux/string.h>
+ 
+ #include "edma.h"
+ #include "ppe.h"
+@@ -820,6 +821,94 @@
+ }
+ DEFINE_SHOW_STORE_ATTRIBUTE(ppe_packet_counter);
+ 
++/* QSDK's MPPE path carries QCA switch source/destination information in an
++ * Atheros header. Keep this interface read-only: configuring the PPE without
++ * coordinating the QCA8386 header mode and Linux DSA tagger can stop traffic
++ * or hang the system.
++ */
++static bool ppe_athtag_supported(struct ppe_device *ppe_dev)
++{
++	return ppe_dev->variant && !strcmp(ppe_dev->variant->name, "IPQ5332");
++}
++
++static int ppe_athtag_show(struct seq_file *seq, void *data)
++{
++	struct ppe_device *ppe_dev = seq->private;
++	bool rx_enabled = false;
++	u32 action, bitmap, old_value, port_type, row[3];
++	u32 type, value, version, vp;
++	int ret, port;
++
++	if (!ppe_athtag_supported(ppe_dev))
++		return -EOPNOTSUPP;
++
++	ret = regmap_read(ppe_dev->regmap, PPE_ATHTAG_EG_GEN_CTRL_ADDR,
++			  &value);
++	if (ret)
++		return ret;
++	type = FIELD_GET(PPE_ATHTAG_EG_GEN_CTRL_TYPE, value);
++
++	ret = regmap_read(ppe_dev->regmap, PPE_ATHTAG_UNSAFE_EG_GEN_CTRL_ADDR,
++			  &old_value);
++	if (ret)
++		return ret;
++
++	seq_puts(seq, "mode=observe-only\n");
++	seq_printf(seq, "eg_gen_ctrl[0x%x]=0x%08x ath_type=0x%04x\n",
++		   PPE_ATHTAG_EG_GEN_CTRL_ADDR, value, type);
++	seq_printf(seq, "unsafe_old_eg_gen_ctrl[0x%x]=0x%08x\n",
++		   PPE_ATHTAG_UNSAFE_EG_GEN_CTRL_ADDR, old_value);
++
++	for (port = 1; port <= 4; port++) {
++		ret = regmap_read(ppe_dev->regmap,
++				  PPE_ATHTAG_PRX_PORT_TO_VP_ADDR +
++				  port * PPE_ATHTAG_PRX_PORT_TO_VP_INC, &value);
++		if (ret)
++			return ret;
++		rx_enabled |= !!(value & PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE);
++		port_type = FIELD_GET(PPE_ATHTAG_PRX_PORT_TO_VP_TYPE, value);
++		vp = FIELD_GET(PPE_ATHTAG_PRX_PORT_TO_VP_PORT, value);
++		seq_printf(seq, "prx[%d]=0x%08x type=0x%04x vp=%u en=%u\n",
++			   port, value, port_type, vp,
++			   !!(value & PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE));
++	}
++
++	ret = regmap_bulk_read(ppe_dev->regmap, PPE_ATHTAG_EG_VP_TBL_ADDR +
++				       PPE_ATHTAG_EG_VP_TBL_INC, row, ARRAY_SIZE(row));
++	if (ret)
++		return ret;
++	bitmap = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_BITMAP, row[1]);
++	if (row[2] & PPE_ATHTAG_EG_VP_ATH_BITMAP_HI)
++		bitmap |= BIT(6);
++	version = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_VERSION, row[1]);
++	action = FIELD_GET(PPE_ATHTAG_EG_VP_ATH_DEFAULT, row[1]);
++	seq_printf(seq,
++		   "eg_vp[1]=%08x:%08x:%08x insert=%u ver=%u type=%u bitmap=%u disable=%u from_cpu=%u\n",
++		   row[2], row[1], row[0],
++		   !!(row[1] & PPE_ATHTAG_EG_VP_ATH_INSERT),
++		   version, action, bitmap,
++		   !!(row[2] & PPE_ATHTAG_EG_VP_ATH_DISABLE_BIT),
++		   !!(row[2] & PPE_ATHTAG_EG_VP_ATH_FROM_CPU));
++	seq_printf(seq, "ath_path_active=%u\n",
++		   type == PPE_ATHTAG_TYPE && rx_enabled &&
++		   !!(row[1] & PPE_ATHTAG_EG_VP_ATH_INSERT));
++
++	return 0;
++}
++
++static int ppe_athtag_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, ppe_athtag_show, inode->i_private);
++}
++
++static const struct file_operations ppe_athtag_fops = {
++	.owner = THIS_MODULE,
++	.open = ppe_athtag_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
++
+ void ppe_debugfs_setup(struct ppe_device *ppe_dev)
+ {
+ 	struct ppe_debugfs_entry *entry;
+@@ -847,6 +936,11 @@
+ 				    &ppe_packet_counter_fops);
+ 	}
+ 
++	if (ppe_athtag_supported(ppe_dev))
++		debugfs_create_file("qca8386_athtag", 0400,
++				    ppe_dev->debugfs_root, ppe_dev,
++				    &ppe_athtag_fops);
++
+ 	/* TODO: Do we have to be so agressive and remove __all__ debugfs entries? */
+ 	ret = edma_debugfs_setup(ppe_dev);
+ 	if (ret) {
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -487,6 +487,29 @@
+ #define PPE_L2_PORT_SET_DST_INFO(tbl_cfg, value)		\
+ 	FIELD_MODIFY(PPE_L2_VP_PORT_W0_DST_INFO, tbl_cfg, value)
+ 
++/* MPPE Atheros-header diagnostics. QSDK places these fields in the PRX/PTX
++ * blocks; the addresses below are offsets in the PPE MMIO window. The old
++ * global address is retained only to identify the unsafe experimental build.
++ */
++#define PPE_ATHTAG_TYPE				0xaaaa
++#define PPE_ATHTAG_EG_GEN_CTRL_ADDR		0x200d0
++#define PPE_ATHTAG_UNSAFE_EG_GEN_CTRL_ADDR	0x20110
++#define PPE_ATHTAG_EG_GEN_CTRL_TYPE		GENMASK(15, 0)
++#define PPE_ATHTAG_PRX_PORT_TO_VP_ADDR		0xb090
++#define PPE_ATHTAG_PRX_PORT_TO_VP_INC		0x4
++#define PPE_ATHTAG_PRX_PORT_TO_VP_TYPE		GENMASK(15, 0)
++#define PPE_ATHTAG_PRX_PORT_TO_VP_PORT		GENMASK(23, 16)
++#define PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE		BIT(24)
++#define PPE_ATHTAG_EG_VP_TBL_ADDR		0x25000
++#define PPE_ATHTAG_EG_VP_TBL_INC		0x10
++#define PPE_ATHTAG_EG_VP_ATH_INSERT		BIT(20)
++#define PPE_ATHTAG_EG_VP_ATH_VERSION		GENMASK(22, 21)
++#define PPE_ATHTAG_EG_VP_ATH_DEFAULT		GENMASK(25, 23)
++#define PPE_ATHTAG_EG_VP_ATH_BITMAP		GENMASK(31, 26)
++#define PPE_ATHTAG_EG_VP_ATH_BITMAP_HI		BIT(0)
++#define PPE_ATHTAG_EG_VP_ATH_DISABLE_BIT		BIT(1)
++#define PPE_ATHTAG_EG_VP_ATH_FROM_CPU		BIT(2)
++
+ /* Port RX and RX drop counters. */
+ #define PPE_PORT_RX_CNT_TBL_ADDR		0x150000
+ #define PPE_PORT_RX_CNT_TBL_ENTRIES		256

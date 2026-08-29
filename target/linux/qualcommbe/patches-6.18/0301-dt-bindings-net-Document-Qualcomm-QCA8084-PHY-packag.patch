@@ -20,15 +20,15 @@ Signed-off-by: Luo Jie <quic_luoj@quicinc.com>
 Alex G: Update to match the patches that will be upstream.
 Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 ---
- .../devicetree/bindings/net/qcom,qca8084.yaml | 488 ++++++++++++++++++
+ .../devicetree/bindings/net/qcom,qca8084.yaml | 536 ++++++++++++++++++
  include/dt-bindings/net/qcom,qca808x.h        |  14 +
- 2 files changed, 502 insertions(+)
+ 2 files changed, 550 insertions(+)
  create mode 100644 Documentation/devicetree/bindings/net/qcom,qca8084.yaml
  create mode 100644 include/dt-bindings/net/qcom,qca808x.h
 
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/qcom,qca8084.yaml
-@@ -0,0 +1,488 @@
+@@ -0,0 +1,536 @@
 +# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 +%YAML 1.2
 +---
@@ -130,6 +130,12 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +    enum: [0, 1, 2]
 +    default: 0
 +
++  qcom,pcs1-sgmii-plus:
++    description:
++      Configure PCS1 as a fixed 2500BASE-X MAC link for switch designs
++      such as QCA8386. The property is only valid with package mode 1.
++    type: boolean
++
 +  qcom,phy-addr-fixup:
 +    description:
 +      MDIO address for PHY0-PHY3, PCS0 and PCS1 including PCS and XPCS,
@@ -158,6 +164,26 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +        $ref: /schemas/types.yaml#/definitions/uint32
 +        enum: [0, 1, 2, 3]
 +
++      clocks:
++        minItems: 1
++        maxItems: 5
++        items:
++          - description: PHY system clock
++          - description: Switch MAC TX clock
++          - description: Switch MAC RX clock
++          - description: GEPHY TX clock
++          - description: GEPHY RX clock
++
++      clock-names:
++        minItems: 1
++        maxItems: 5
++        items:
++          - const: phy
++          - const: mac_tx
++          - const: mac_rx
++          - const: gephy_tx
++          - const: gephy_rx
++
 +    required:
 +      - compatible
 +      - reg
@@ -181,20 +207,42 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +          - description: PCS MDIO address.
 +
 +      clocks:
++        minItems: 3
++        maxItems: 7
 +        items:
 +          - description: PCS clock.
 +          - description: PCS RX root clock.
 +          - description: PCS TX root clock.
++          - description: Switch CPU MAC TX clock.
++          - description: Switch CPU MAC RX clock.
++          - description: Switch CPU MAC TX SerDes clock.
++          - description: Switch CPU MAC RX SerDes clock.
 +
 +      clock-names:
++        minItems: 3
++        maxItems: 7
 +        items:
 +          - const: pcs
 +          - const: pcs_rx_root
 +          - const: pcs_tx_root
++          - const: mac_tx
++          - const: mac_rx
++          - const: mac_tx_serdes
++          - const: mac_rx_serdes
 +
 +      resets:
++        minItems: 1
++        maxItems: 2
 +        items:
 +          - description: PCS reset.
++          - description: Optional XPCS reset held during SGMII operation.
++
++      reset-names:
++        minItems: 1
++        maxItems: 2
++        items:
++          - const: pcs
++          - const: xpcs
 +
 +    required:
 +      - compatible

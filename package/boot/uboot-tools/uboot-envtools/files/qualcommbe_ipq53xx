@@ -11,6 +11,10 @@ case "$board" in
 gl.inet,gl-be6500)
 	ubootenv_add_mtd "0:appsblenv" "0x0" "0x40000" "0x40000"
 	;;
+xiaomi,be3600-pro-wired-p5|\
+xiaomi,be3600-pro-wired-p8)
+	ubootenv_add_mtd "0:appsblenv" "0x0" "0x10000" "0x20000"
+	;;
 esac
 
 config_load ubootenv

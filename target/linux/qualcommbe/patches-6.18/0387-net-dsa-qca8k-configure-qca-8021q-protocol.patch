@@ -1,0 +1,288 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 27 Aug 2026 22:00:00 +0800
+Subject: [PATCH] net: dsa: qca8k: configure QCA 802.1Q service tags
+
+QCA8386 supports a VLAN based DSA transport in addition to its native
+2-byte QCA header. Program the service tag TPID, secure VLAN lookup, CPU
+core-port mode, and one standalone VLAN per user port when the new tag
+protocol is selected. The configuration is opt-in and leaves existing
+QCA8K devices on the native header path.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/dsa/qca/qca8k.h
++++ b/drivers/net/dsa/qca/qca8k.h
+@@ -90,6 +90,10 @@
+ #define   QCA8K_MDIO_MASTER_MAX_PORTS			5
+ #define   QCA8K_MDIO_MASTER_MAX_REG			32
+ 
++#define QCA8K_SERVICE_TAG_CTL				0x48
++#define QCA8K_SERVICE_TAG_MASK				GENMASK(15, 0)
++#define QCA8K_SERVICE_TAG_STAG				BIT(17)
++
+ /* LED control register */
+ #define QCA8K_LED_PORT_COUNT				3
+ #define QCA8K_LED_COUNT					((QCA8K_NUM_PORTS - QCA8K_NUM_CPU_PORTS) * QCA8K_LED_PORT_COUNT)
+@@ -151,6 +155,14 @@
+ #define   QCA8K_PORT_STATUS_LINK_AUTO			BIT(9)
+ #define   QCA8K_PORT_STATUS_LINK_PAUSE			BIT(10)
+ #define   QCA8K_PORT_STATUS_FLOW_AUTO			BIT(12)
++#define QCA8K_HEADER_CTL				0x098
++#define   QCA8K_HDR_TYPE_2B				0
++#define   QCA8K_HDR_TYPE_4B				1
++#define   QCA8K_HEADER_LENGTH_SEL_BIT			BIT(16)
++#define   QCA8K_HEADER_LENGTH_SEL_VAL(x)		FIELD_PREP(QCA8K_HEADER_LENGTH_SEL_BIT, x)
++#define   QCA8K_HEADER_TYPE_VAL_MASK			GENMASK(15, 0)
++#define   QCA8K_HEADER_TYPE_VAL_VAL(x)		FIELD_PREP(QCA8K_HEADER_TYPE_VAL_MASK, x)
++#define   QCA8K_HEADER_TYPE_DEFAULT			0xaaaa
+ #define QCA8K_REG_PORT_HDR_CTRL(_i)			(0x9c + (_i * 4))
+ #define   QCA8K_PORT_HDR_CTRL_RX_MASK			GENMASK(3, 2)
+ #define   QCA8K_PORT_HDR_CTRL_TX_MASK			GENMASK(1, 0)
+@@ -193,6 +205,9 @@
+ #define   QCA8K_PORT_VLAN_SVID_MASK			GENMASK(11, 0)
+ #define   QCA8K_PORT_VLAN_SVID(x)			FIELD_PREP(QCA8K_PORT_VLAN_SVID_MASK, x)
+ #define QCA8K_REG_PORT_VLAN_CTRL1(_i)			(0x424 + (_i * 8))
++#define   QCA8K_PORT_VLAN_CORE_PORT_EN			BIT(9)
++#define   QCA8K_PORT_VLAN_TLS_MODE			BIT(7)
++#define   QCA8K_PORT_VLAN_PROP_EN			BIT(6)
+ #define QCA8K_REG_IPV4_PRI_BASE_ADDR			0x470
+ #define QCA8K_REG_IPV4_PRI_ADDR_MASK			0x474
+ 
+@@ -327,6 +342,8 @@
+ #define QCA8K_EGREES_VLAN_PORT_MASK(_i)			(GENMASK(11, 0) << QCA8K_EGREES_VLAN_PORT_SHIFT(_i))
+ #define QCA8K_EGREES_VLAN_PORT(_i, x)			((x) << QCA8K_EGREES_VLAN_PORT_SHIFT(_i))
+ #define QCA8K_EGRESS_VLAN(x)				(0x0c70 + (4 * (x / 2)))
++#define QCA8K_PKT_EDIT_CTRL				0x0c00
++#define   QCA8K_PKT_EDIT_TO_CPU_VID_CHG_EN		BIT(1)
+ 
+ /* L3 registers */
+ #define QCA8K_HROUTER_CONTROL				0xe00
+@@ -470,6 +487,7 @@
+ 	struct qca8k_pcs pcs_port_0;
+ 	struct qca8k_pcs pcs_port_6;
+ 	const struct qca8k_match_data *info;
++	enum dsa_tag_protocol proto;
+ 	struct qca8k_led ports_led[QCA8K_LED_COUNT];
+ };
+ 
+@@ -511,6 +529,8 @@
+ int qca8k_read(struct qca8k_priv *priv, u32 reg, u32 *val);
+ int qca8k_write(struct qca8k_priv *priv, u32 reg, u32 val);
+ int qca8k_rmw(struct qca8k_priv *priv, u32 reg, u32 mask, u32 write_val);
++void qca8k_tag_8021q_setup(struct dsa_switch *ds);
++void qca8k_tag_8021q_teardown(struct dsa_switch *ds);
+ 
+ /* Common ops function */
+ void qca8k_fdb_flush(struct qca8k_priv *priv);
+--- a/drivers/net/dsa/qca/qca8k-common.c
++++ b/drivers/net/dsa/qca/qca8k-common.c
+@@ -9,6 +9,7 @@
+ #include <linux/netdevice.h>
+ #include <net/dsa.h>
+ #include <linux/if_bridge.h>
++#include <linux/dsa/8021q.h>
+ 
+ #include "qca8k.h"
+ 
+@@ -436,6 +437,123 @@
+ 	return ret;
+ }
+ 
++static int qca8k_8021q_vlan_add(struct qca8k_priv *priv, int port,
++				u16 vid, u16 flags)
++{
++	bool untagged = flags & BRIDGE_VLAN_INFO_UNTAGGED;
++	bool pvid = flags & BRIDGE_VLAN_INFO_PVID;
++	int ret;
++
++	ret = qca8k_vlan_add(priv, port, vid, untagged);
++	if (ret) {
++		dev_err(priv->dev, "Failed to add VLAN to port %d (%d)", port, ret);
++		return ret;
++	}
++
++	if (pvid) {
++		qca8k_rmw(priv, QCA8K_EGRESS_VLAN(port),
++			  QCA8K_EGREES_VLAN_PORT_MASK(port),
++				QCA8K_EGREES_VLAN_PORT(port, vid));
++		qca8k_write(priv, QCA8K_REG_PORT_VLAN_CTRL0(port),
++			    QCA8K_PORT_VLAN_CVID(vid) |
++				QCA8K_PORT_VLAN_SVID(vid));
++	}
++
++	return 0;
++}
++
++static void qca8k_8021q_vlan_del(struct qca8k_priv *priv, int port, u16 vid)
++{
++	int ret;
++
++	ret = qca8k_vlan_del(priv, port, vid);
++	if (ret)
++		dev_err(priv->dev, "Failed to delete VLAN from port %d (%d)", port, ret);
++
++	ret = qca8k_rmw(priv, QCA8K_EGRESS_VLAN(port),
++			QCA8K_EGREES_VLAN_PORT_MASK(port),
++			QCA8K_EGREES_VLAN_PORT(port, QCA8K_PORT_VID_DEF));
++	ret |= qca8k_write(priv, QCA8K_REG_PORT_VLAN_CTRL0(port),
++			QCA8K_PORT_VLAN_CVID(QCA8K_PORT_VID_DEF) |
++			QCA8K_PORT_VLAN_SVID(QCA8K_PORT_VID_DEF));
++	if (ret)
++		dev_err(priv->dev, "Failed to recover PVID on port %d (%d)", port, ret);
++}
++
++void qca8k_tag_8021q_setup(struct dsa_switch *ds)
++{
++	struct qca8k_priv *priv = ds->priv;
++	struct dsa_port *dp, *dpcpu;
++	u16 vid;
++
++	dev_info(priv->dev, "QCA8K debug: configuring 802.1Q DSA port VIDs\\n");
++	qca8k_rmw(priv, QCA8K_SERVICE_TAG_CTL,
++		  QCA8K_SERVICE_TAG_MASK | QCA8K_SERVICE_TAG_STAG,
++			DSA_TAG_8021Q_VLAN_PROTO | QCA8K_SERVICE_TAG_STAG);
++	qca8k_rmw(priv, QCA8K_PKT_EDIT_CTRL,
++		  QCA8K_PKT_EDIT_TO_CPU_VID_CHG_EN,
++			QCA8K_PKT_EDIT_TO_CPU_VID_CHG_EN);
++
++	dsa_switch_for_each_port(dp, ds) {
++		if (dsa_port_is_user(dp) || dsa_port_is_cpu(dp))
++			qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(dp->index),
++				  QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
++				QCA8K_PORT_LOOKUP_VLAN_MODE_SECURE);
++
++		if (dsa_port_is_cpu(dp))
++			qca8k_rmw(priv, QCA8K_REG_PORT_VLAN_CTRL1(dp->index),
++				  QCA8K_PORT_VLAN_CORE_PORT_EN,
++				QCA8K_PORT_VLAN_CORE_PORT_EN);
++
++		if (!dsa_port_is_user(dp))
++			continue;
++
++		vid = dsa_tag_8021q_standalone_vid(dp);
++		qca8k_8021q_vlan_add(priv, dp->index, vid,
++				     BRIDGE_VLAN_INFO_UNTAGGED | BRIDGE_VLAN_INFO_PVID);
++		dsa_switch_for_each_cpu_port(dpcpu, ds)
++			qca8k_8021q_vlan_add(priv, dpcpu->index, vid, 0);
++		qca8k_rmw(priv, QCA8K_REG_PORT_VLAN_CTRL1(dp->index),
++			  QCA8K_PORT_VLAN_TLS_MODE | QCA8K_PORT_VLAN_PROP_EN,
++				QCA8K_PORT_VLAN_TLS_MODE);
++	}
++}
++
++void qca8k_tag_8021q_teardown(struct dsa_switch *ds)
++{
++	struct qca8k_priv *priv = ds->priv;
++	struct dsa_port *dp, *dpcpu;
++	u16 vid;
++
++	qca8k_rmw(priv, QCA8K_SERVICE_TAG_CTL,
++		  QCA8K_SERVICE_TAG_MASK | QCA8K_SERVICE_TAG_STAG,
++			ETH_P_8021AD);
++	qca8k_rmw(priv, QCA8K_PKT_EDIT_CTRL,
++		  QCA8K_PKT_EDIT_TO_CPU_VID_CHG_EN, 0);
++
++	dsa_switch_for_each_port(dp, ds) {
++		if (dsa_port_is_user(dp) || dsa_port_is_cpu(dp))
++			qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(dp->index),
++				  QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
++				QCA8K_PORT_LOOKUP_VLAN_MODE_NONE);
++
++		if (dsa_port_is_cpu(dp))
++			qca8k_rmw(priv, QCA8K_REG_PORT_VLAN_CTRL1(dp->index),
++				  QCA8K_PORT_VLAN_CORE_PORT_EN, 0);
++
++		if (!dsa_port_is_user(dp))
++			continue;
++
++		vid = dsa_tag_8021q_standalone_vid(dp);
++		qca8k_8021q_vlan_del(priv, dp->index, vid);
++		dsa_switch_for_each_cpu_port(dpcpu, ds)
++			qca8k_8021q_vlan_del(priv, dpcpu->index, vid);
++		qca8k_rmw(priv, QCA8K_REG_PORT_VLAN_CTRL1(dp->index),
++			  QCA8K_PORT_VLAN_TLS_MODE | QCA8K_PORT_VLAN_PROP_EN,
++				QCA8K_PORT_VLAN_PROP_EN);
++	}
++}
++
+ int qca8k_mib_init(struct qca8k_priv *priv)
+ {
+ 	int ret;
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -1892,6 +1892,55 @@
+ 	return DSA_TAG_PROTO_QCA;
+ }
+ 
++static int qca8k_change_tag_protocol(struct dsa_switch *ds,
++				     enum dsa_tag_protocol proto)
++{
++	struct qca8k_priv *priv = ds->priv;
++	u32 hdr_type = QCA8K_HDR_TYPE_4B;
++	u32 hdr_val = QCA8K_HEADER_TYPE_DEFAULT;
++	u32 rx_mode = QCA8K_PORT_HDR_CTRL_MGMT;
++	u32 tx_mode = QCA8K_PORT_HDR_CTRL_NONE;
++	struct dsa_port *dp;
++	int ret;
++
++	if (proto == DSA_TAG_PROTO_QCA) {
++		hdr_type = QCA8K_HDR_TYPE_2B;
++		hdr_val = 0;
++		rx_mode = QCA8K_PORT_HDR_CTRL_ALL;
++		tx_mode = QCA8K_PORT_HDR_CTRL_ALL;
++	} else if (proto != DSA_TAG_PROTO_QCA_8021Q) {
++		return -EOPNOTSUPP;
++	}
++
++	ret = qca8k_write(priv, QCA8K_HEADER_CTL,
++			  QCA8K_HEADER_LENGTH_SEL_VAL(hdr_type) |
++			QCA8K_HEADER_TYPE_VAL_VAL(hdr_val));
++	if (ret)
++		return ret;
++
++	dsa_switch_for_each_cpu_port(dp, ds) {
++		ret = qca8k_write(priv, QCA8K_REG_PORT_HDR_CTRL(dp->index),
++				  FIELD_PREP(QCA8K_PORT_HDR_CTRL_TX_MASK, tx_mode) |
++				FIELD_PREP(QCA8K_PORT_HDR_CTRL_RX_MASK, rx_mode));
++		if (ret)
++			return ret;
++	}
++
++	if (priv->proto != DSA_TAG_PROTO_QCA_8021Q &&
++	    proto == DSA_TAG_PROTO_QCA_8021Q)
++		qca8k_tag_8021q_setup(ds);
++	else if (priv->proto == DSA_TAG_PROTO_QCA_8021Q &&
++		 proto != DSA_TAG_PROTO_QCA_8021Q)
++		qca8k_tag_8021q_teardown(ds);
++
++	priv->proto = proto;
++	dev_info(priv->dev,
++		 "QCA8K debug: tag protocol %u, header %u, CPU RX/TX %u/%u\\n",
++		 proto, hdr_type, rx_mode, tx_mode);
++
++	return 0;
++}
++
+ static struct dsa_port *
+ qca8k_preferred_default_local_cpu_port(struct dsa_switch *ds)
+ {
+@@ -2048,6 +2094,8 @@
+ 		tagger_data->mib_autocast_handler = qca8k_mib_autocast_handler;
+ 
+ 		break;
++	case DSA_TAG_PROTO_QCA_8021Q:
++		break;
+ 	default:
+ 		return -EOPNOTSUPP;
+ 	}
+@@ -2308,6 +2356,7 @@
+ 	.port_change_conduit	= qca8k_port_change_master,
+ 	.conduit_state_change	= qca8k_conduit_change,
+ 	.connect_tag_protocol	= qca8k_connect_tag_protocol,
++	.change_tag_protocol	= qca8k_change_tag_protocol,
+ };
+ 
+ static int
+-- 
+2.39.5

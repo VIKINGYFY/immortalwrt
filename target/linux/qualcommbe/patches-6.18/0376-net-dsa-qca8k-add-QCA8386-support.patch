@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: OpenWrt porting team <openwrt@example.invalid>
+From: ViKing <viking.yfy@qq.com>
 Date: Wed, 26 Aug 2026 09:35:00 +0800
 Subject: [PATCH] net: dsa: qca8k: add QCA8386 support
 
@@ -8,7 +8,7 @@ Its switch registers use the MHT MDIO window and its CPU link is
 2500BASE-X. Add the device match, register access format, and phylink
 capabilities needed by the standard DSA driver.
 
-Signed-off-by: OpenWrt porting team <openwrt@example.invalid>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/dsa/qca/qca8k.h
 +++ b/drivers/net/dsa/qca/qca8k.h
@@ -34,7 +34,7 @@ Signed-off-by: OpenWrt porting team <openwrt@example.invalid>
 +
 +static void
 +qca8k_mht_split_addr(u32 regaddr, u16 *r1, u16 *r2, u16 *page,
-+			     u16 *switch_phy_id)
++		     u16 *switch_phy_id)
 +{
 +	*r1 = regaddr & 0x1c;
 +
@@ -262,7 +262,7 @@ Signed-off-by: OpenWrt porting team <openwrt@example.invalid>
  			reg = QCA8K_PORT_STATUS_SPEED_1000;
  			break;
  		default:
-@@ -2316,11 +2456,18 @@
+@@ -2316,10 +2456,17 @@
  	.ops = &qca8xxx_ops,
  };
  
@@ -280,7 +280,7 @@ Signed-off-by: OpenWrt porting team <openwrt@example.invalid>
 +	{ .compatible = "qca,qca8386", .data = &qca838x },
  	{ /* sentinel */ },
  };
- 
+
 --- a/Documentation/devicetree/bindings/net/dsa/qca8k.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/qca8k.yaml
 @@ -29,11 +29,13 @@
@@ -297,4 +297,3 @@ Signed-off-by: OpenWrt porting team <openwrt@example.invalid>
  
    reg:
      maxItems: 1
-

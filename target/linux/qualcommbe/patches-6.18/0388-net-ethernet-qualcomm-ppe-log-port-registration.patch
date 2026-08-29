@@ -1,0 +1,22 @@
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+@@ -1493,6 +1493,10 @@
+ 		ppe_ports->port[i].interface = phy_mode;
+ 		ppe_ports->port[i].mac_type = PPE_MAC_TYPE_GMAC;
+ 
++		dev_info(ppe_dev->dev,
++			 "PPE debug: preparing port id=%d node=%s mode=%s\n",
++			 port, port_node->name, phy_modes(phy_mode));
++
+ 		ret = ppe_port_clock_init(&ppe_ports->port[i]);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to initialize port clocks\n");
+@@ -1511,6 +1515,8 @@
+ 			goto err_port_clk;
+ 		}
+ 
++		dev_info(ppe_dev->dev, "PPE debug: registered port id=%d\n", port);
++
+ 		i++;
+ 	}
+ 

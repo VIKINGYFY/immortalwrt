@@ -84,7 +84,7 @@ define Device/xiaomi_be3600-pro-wired-common
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq5332
-	DEVICE_PACKAGES := -kmod-leds-gpio kmod-rtl837x-dsa
+	DEVICE_PACKAGES := -kmod-ath12k -kmod-leds-gpio kmod-rtl837x-dsa
 endef
 
 define Device/xiaomi_be3600-pro-wired-p5
@@ -113,7 +113,7 @@ define Device/jdcloud_re-cs-08
 	KERNEL_SIZE := 7168k
 	SOC := ipq5332
 	SUPPORTED_DEVICES += jdcloud,re-cs-08
-	DEVICE_PACKAGES := -wpad-openssl e2fsprogs f2fsck kmod-leds-gpio kmod-sfp
+	DEVICE_PACKAGES :=  -kmod-ath12k -wpad-openssl kmod-sfp
 	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
 endef
 TARGET_DEVICES += jdcloud_re-cs-08
