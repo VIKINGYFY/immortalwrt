@@ -14,16 +14,14 @@ readback diagnostics for hardware bring-up.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- drivers/net/dsa/qca/qca8k-8xxx.c   |  4 +-
+ drivers/net/dsa/qca/qca8k-8xxx.c   |  2 +-
  drivers/net/dsa/qca/qca8k-common.c | 90 +++++++++++++++++++++++++++++-
  drivers/net/dsa/qca/qca8k.h        |  5 ++
- 3 files changed, 96 insertions(+), 3 deletions(-)
+ 3 files changed, 95 insertions(+), 2 deletions(-)
 
-diff --git a/drivers/net/dsa/qca/qca8k-8xxx.c b/drivers/net/dsa/qca/qca8k-8xxx.c
-index 99899e3..f7ce8eb 100644
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -1935,7 +1935,7 @@ static int qca8k_change_tag_protocol(struct dsa_switch *ds,
+@@ -1935,7 +1935,7 @@ static int qca8k_change_tag_protocol(str
  
  	priv->proto = proto;
  	dev_info(priv->dev,
@@ -32,20 +30,9 @@ index 99899e3..f7ce8eb 100644
  		 proto, hdr_type, rx_mode, tx_mode);
  
  	return 0;
-@@ -2380,7 +2380,7 @@ qca8k_sw_probe(struct mdio_device *mdiodev)
- 	priv->info = of_device_get_match_data(priv->dev);
- 	if (qca8k_is_qca8386(priv))
- 		dev_info_once(priv->dev,
--			      "RE-CS-08 firmware debug tag: 20260828-010643\n");
-+			      "RE-CS-08 firmware debug tag: 20260828-112511\n");
- 
- 	priv->reset_gpio = devm_gpiod_get_optional(priv->dev, "reset",
- 						   GPIOD_OUT_HIGH);
-diff --git a/drivers/net/dsa/qca/qca8k-common.c b/drivers/net/dsa/qca/qca8k-common.c
-index 87afcd0..120e42a 100644
 --- a/drivers/net/dsa/qca/qca8k-common.c
 +++ b/drivers/net/dsa/qca/qca8k-common.c
-@@ -480,13 +480,56 @@ static void qca8k_8021q_vlan_del(struct qca8k_priv *priv, int port, u16 vid)
+@@ -480,13 +480,56 @@ static void qca8k_8021q_vlan_del(struct
  		dev_err(priv->dev, "Failed to recover PVID on port %d (%d)", port, ret);
  }
  
@@ -103,7 +90,7 @@ index 87afcd0..120e42a 100644
  	qca8k_rmw(priv, QCA8K_SERVICE_TAG_CTL,
  		  QCA8K_SERVICE_TAG_MASK | QCA8K_SERVICE_TAG_STAG,
  			DSA_TAG_8021Q_VLAN_PROTO | QCA8K_SERVICE_TAG_STAG);
-@@ -495,6 +538,25 @@ void qca8k_tag_8021q_setup(struct dsa_switch *ds)
+@@ -495,6 +538,25 @@ void qca8k_tag_8021q_setup(struct dsa_sw
  			QCA8K_PKT_EDIT_TO_CPU_VID_CHG_EN);
  
  	dsa_switch_for_each_port(dp, ds) {
@@ -129,7 +116,7 @@ index 87afcd0..120e42a 100644
  		if (dsa_port_is_user(dp) || dsa_port_is_cpu(dp))
  			qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(dp->index),
  				  QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
-@@ -517,6 +579,8 @@ void qca8k_tag_8021q_setup(struct dsa_switch *ds)
+@@ -517,6 +579,8 @@ void qca8k_tag_8021q_setup(struct dsa_sw
  			  QCA8K_PORT_VLAN_TLS_MODE | QCA8K_PORT_VLAN_PROP_EN,
  				QCA8K_PORT_VLAN_TLS_MODE);
  	}
@@ -138,7 +125,7 @@ index 87afcd0..120e42a 100644
  }
  
  void qca8k_tag_8021q_teardown(struct dsa_switch *ds)
-@@ -680,6 +744,9 @@ static int qca8k_port_configure_learning(struct dsa_switch *ds, int port,
+@@ -680,6 +744,9 @@ static int qca8k_port_configure_learning
  {
  	struct qca8k_priv *priv = ds->priv;
  
@@ -148,7 +135,7 @@ index 87afcd0..120e42a 100644
  	if (learning)
  		return regmap_set_bits(priv->regmap,
  				       QCA8K_PORT_LOOKUP_CTRL(port),
-@@ -794,6 +861,8 @@ int qca8k_port_bridge_flags(struct dsa_switch *ds, int port,
+@@ -794,6 +861,8 @@ int qca8k_port_bridge_flags(struct dsa_s
  		if (ret)
  			return ret;
  	}
@@ -157,7 +144,7 @@ index 87afcd0..120e42a 100644
  
  	if (flags.mask & BR_ISOLATED) {
  		struct dsa_port *dp = dsa_to_port(ds, port);
-@@ -819,6 +888,13 @@ int qca8k_port_bridge_join(struct dsa_switch *ds, int port,
+@@ -819,6 +888,13 @@ int qca8k_port_bridge_join(struct dsa_sw
  {
  	struct qca8k_priv *priv = ds->priv;
  
@@ -171,7 +158,7 @@ index 87afcd0..120e42a 100644
  	return qca8k_update_port_member(priv, port, bridge.dev, true);
  }
  
-@@ -828,6 +904,9 @@ void qca8k_port_bridge_leave(struct dsa_switch *ds, int port,
+@@ -828,6 +904,9 @@ void qca8k_port_bridge_leave(struct dsa_
  	struct qca8k_priv *priv = ds->priv;
  	int err;
  
@@ -181,7 +168,7 @@ index 87afcd0..120e42a 100644
  	err = qca8k_update_port_member(priv, port, bridge.dev, false);
  	if (err)
  		dev_err(priv->dev,
-@@ -1127,6 +1206,15 @@ int qca8k_port_vlan_filtering(struct dsa_switch *ds, int port,
+@@ -1127,6 +1206,15 @@ int qca8k_port_vlan_filtering(struct dsa
  	struct qca8k_priv *priv = ds->priv;
  	int ret;
  
@@ -197,8 +184,6 @@ index 87afcd0..120e42a 100644
  	if (vlan_filtering) {
  		ret = qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(port),
  				QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
-diff --git a/drivers/net/dsa/qca/qca8k.h b/drivers/net/dsa/qca/qca8k.h
-index 1b47347..40eaa25 100644
 --- a/drivers/net/dsa/qca/qca8k.h
 +++ b/drivers/net/dsa/qca/qca8k.h
 @@ -205,6 +205,8 @@
@@ -220,5 +205,3 @@ index 1b47347..40eaa25 100644
  
  /* L3 registers */
  #define QCA8K_HROUTER_CONTROL				0xe00
--- 
-2.53.0

@@ -13,7 +13,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -1931,7 +1931,8 @@
+@@ -1802,7 +1802,8 @@ static int ppe_ft_dsa_port(struct net_de
  	if (IS_ERR(dp))
  		return PTR_ERR(dp);
  
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EOPNOTSUPP;
  
  	if (!edma_port_dev_check(dsa_port_to_conduit(dp)))
-@@ -1943,7 +1944,8 @@
+@@ -1814,7 +1815,8 @@ static int ppe_ft_dsa_port(struct net_de
  	if (dpp)
  		*dpp = dp;
  
@@ -33,5 +33,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
  
  	return dsa_tag_8021q_standalone_vid(dp);
--- 
-2.39.5

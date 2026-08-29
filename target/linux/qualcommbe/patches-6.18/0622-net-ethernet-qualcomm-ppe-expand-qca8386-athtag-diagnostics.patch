@@ -14,7 +14,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c | 52 ++++++++++++++++++------
  1 file changed, 40 insertions(+), 12 deletions(-)
 
-diff --git a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 @@ -20,6 +20,7 @@
@@ -25,7 +24,7 @@ diff --git a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c b/drivers/net/ether
  
  #define PPE_PKT_CNT_TBL_SIZE				3
  #define PPE_DROP_PKT_CNT_TBL_SIZE			5
-@@ -831,12 +832,45 @@
+@@ -831,12 +832,45 @@ static bool ppe_athtag_supported(struct
  	return ppe_dev->variant && !strcmp(ppe_dev->variant->name, "IPQ5332");
  }
  
@@ -73,7 +72,7 @@ diff --git a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c b/drivers/net/ether
  	int ret, port;
  
  	if (!ppe_athtag_supported(ppe_dev))
-@@ -873,25 +907,14 @@
+@@ -873,25 +907,14 @@ static int ppe_athtag_show(struct seq_fi
  			   !!(value & PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE));
  	}
  
@@ -107,5 +106,3 @@ diff --git a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c b/drivers/net/ether
  
  	return 0;
  }
--- 
-2.53.0

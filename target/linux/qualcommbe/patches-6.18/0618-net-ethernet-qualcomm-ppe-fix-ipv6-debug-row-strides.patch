@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-@@ -661,6 +661,7 @@
+@@ -684,6 +684,7 @@
  #define PPE_HOST_KEY_TYPE_IPV6			2
  #define PPE_HOST_V6_W0_IP_ADDR_0		GENMASK(31, 22)
  #define PPE_HOST_V6_W4_IP_ADDR_4		GENMASK(21, 0)
@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /* L3 flow table, keyed by the hardware-hashed 5-tuple. One IP address
   * of the tuple is inline, the other is referenced in the host table.
-@@ -714,6 +715,7 @@
+@@ -737,6 +738,7 @@
  #define PPE_FLOW_V6_W2_PMTU_CHECK_L3		BIT(20)
  #define PPE_FLOW_V6_W2_PMTU_LO			GENMASK(31, 21)
  #define PPE_FLOW_V6_W3_PMTU_HI			GENMASK(2, 0)
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define PPE_FLOW_FWD_TYPE_SNAT			1
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -3396,6 +3396,7 @@ static int ppe_ft_flow_rows_show(struct
+@@ -3255,6 +3255,7 @@ static int ppe_ft_flow_rows_show(struct
  		int flow_err, host_err, nh_err, in_err, eg_err;
  		int my_mac_err = 0, pub_ip_err = 0;
  		int flow_words, host_words;
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		bool key_match, source_match;
  		u8 l3_if;
  
-@@ -3408,11 +3409,15 @@ static int ppe_ft_flow_rows_show(struct
+@@ -3267,11 +3268,15 @@ static int ppe_ft_flow_rows_show(struct
  		flow_words = flow->entry.is_ipv6 ? ARRAY_SIZE(f) :
  			PPE_FLOW_TBL_WORDS;
  		host_words = flow->entry.is_ipv6 ? ARRAY_SIZE(h) : 4;
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		host_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, h,
  					    host_words);
  		hw_nh = FIELD_GET(PPE_FLOW_W1_NEXT_HOP, f[1]);
-@@ -3605,6 +3610,7 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3464,6 +3469,7 @@ static int ppe_ft_flows_show(struct seq_
  	rhashtable_walk_start(&iter);
  	while ((flow = rhashtable_walk_next(&iter))) {
  		u32 w0 = 0, packets = 0;
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		u64 bytes = 0;
  
  		if (IS_ERR(flow)) {
-@@ -3613,8 +3619,10 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3472,8 +3478,10 @@ static int ppe_ft_flows_show(struct seq_
  			break;
  		}
  

@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #include "edma.h"
  #include "ppe.h"
-@@ -820,6 +821,94 @@
+@@ -819,6 +820,94 @@ static ssize_t ppe_packet_counter_write(
  }
  DEFINE_SHOW_STORE_ATTRIBUTE(ppe_packet_counter);
  
@@ -117,7 +117,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ppe_debugfs_setup(struct ppe_device *ppe_dev)
  {
  	struct ppe_debugfs_entry *entry;
-@@ -847,6 +936,11 @@
+@@ -844,6 +933,11 @@ void ppe_debugfs_setup(struct ppe_device
  				    &ppe_packet_counter_fops);
  	}
  
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-@@ -487,6 +487,29 @@
+@@ -254,6 +254,29 @@
  #define PPE_L2_PORT_SET_DST_INFO(tbl_cfg, value)		\
  	FIELD_MODIFY(PPE_L2_VP_PORT_W0_DST_INFO, tbl_cfg, value)
  

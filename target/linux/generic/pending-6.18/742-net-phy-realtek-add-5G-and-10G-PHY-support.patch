@@ -50,7 +50,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  #endif /* REALTEK_H */
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -11,11 +11,13 @@
+@@ -13,11 +13,13 @@
  #include <linux/ethtool_netlink.h>
  #include <linux/of.h>
  #include <linux/phy.h>
@@ -64,14 +64,17 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  #include <linux/string_choices.h>
  #include <net/phy/realtek_phy.h>
  
-@@ -205,10 +207,27 @@
- #define RTL_8221B_VM_CG				0x001cc84a
+@@ -212,6 +214,9 @@
  #define RTL_8251B				0x001cc862
  #define RTL_8261C				0x001cc890
+ #define RTL_8261C_CG				0x001cc898
 +#define RTL_8261N				0x001ccaf3
 +#define RTL_8264				0x001ccaf2
 +#define RTL_8264B				0x001cc813
  
+ #define RTL8261C_CE_MODEL		0x00
+ #define RTL8261D_MODEL			0x81
+@@ -279,6 +284,20 @@ struct rtl8261x_fw_entry {
  /* RTL8211E and RTL8211F support up to three LEDs */
  #define RTL8211x_LED_COUNT			3
  
@@ -92,7 +95,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  MODULE_DESCRIPTION("Realtek PHY driver");
  MODULE_AUTHOR("Johnson Leung");
  MODULE_LICENSE("GPL");
-@@ -1994,6 +2013,125 @@ static int rtl8251b_c45_match_phy_device
+@@ -2392,6 +2411,125 @@ static int rtl8251b_c45_match_phy_device
  	return rtlgen_is_c45_match(phydev, RTL_8251B, true);
  }
  
@@ -218,7 +221,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  static int rtlgen_resume(struct phy_device *phydev)
  {
  	int ret = genphy_resume(phydev);
-@@ -2215,6 +2353,482 @@ static int rtlgen_sfp_config_aneg(struct
+@@ -2613,6 +2751,482 @@ static int rtlgen_sfp_config_aneg(struct
  	return 0;
  }
  
@@ -701,10 +704,10 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  static struct phy_driver realtek_drvs[] = {
  	{
  		PHY_ID_MATCH_EXACT(0x00008201),
-@@ -2521,6 +3135,108 @@ static struct phy_driver realtek_drvs[]
- 		.resume		= genphy_resume,
- 		.read_mmd	= genphy_read_mmd_unsupported,
- 		.write_mmd	= genphy_write_mmd_unsupported,
+@@ -2932,6 +3546,108 @@ static struct phy_driver realtek_drvs[]
+ 		.soft_reset		= genphy_c45_pma_soft_reset,
+ 		.suspend		= genphy_c45_pma_suspend,
+ 		.resume			= genphy_c45_pma_resume,
 +	}, {
 +		.name           = "RTL8251L 5Gbps PHY",
 +		.config_init    = rtl826x_config_init,

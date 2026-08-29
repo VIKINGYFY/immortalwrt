@@ -11,7 +11,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/mdio/mdio-ipq4019.c
 +++ b/drivers/net/mdio/mdio-ipq4019.c
-@@ -49,13 +49,31 @@
+@@ -48,14 +48,32 @@
+ 
  #define IPQ_PHY_SET_DELAY_US	100000
  
 +#define IPQ_HIGH_ADDR_PREFIX		0x18
@@ -43,8 +44,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static unsigned long
  ipq4019_mdio_get_clk_rate(struct ipq4019_mdio_data *priv)
  {
-@@ -226,6 +244,110 @@ static int ipq4019_mdio_write_c22(struct
- 	return 0;
+@@ -255,6 +273,110 @@ static int ipq4019_mdio_set_div(struct i
+ 	return -EINVAL;
  }
  
 +static inline void qca8386_split_addr(u32 regaddr, u16 *r1, u16 *r2,
@@ -154,8 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ipq_mdio_reset(struct mii_bus *bus)
  {
  	struct ipq4019_mdio_data *priv = bus->priv;
-@@ -296,6 +418,9 @@ static int ipq_mdio_reset(struct mii_bus
- 			DIV_ROUND_UP(ahb_rate, div), val, ret);
+@@ -298,6 +420,9 @@ static int ipq_mdio_reset(struct mii_bus
  		return ret;
  	}
  
@@ -164,10 +164,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
  	if (!priv->mdc_rate_logged) {
  		dev_info(bus->parent,
-@@ -390,5 +515,6 @@ static int ipq4019_mdio_probe(struct pla
+ 			 "MDC configured: requested=%uHz reported-source=%luHz source=%luHz divider=%u effective=%luHz mode=0x%08x\n",
+@@ -390,6 +515,7 @@ static int ipq4019_mdio_probe(struct pla
  	bus->reset = ipq_mdio_reset;
  	bus->parent = &pdev->dev;
  	snprintf(bus->id, MII_BUS_ID_SIZE, "%s%d", pdev->name, pdev->id);
 +	priv->preinit = ipq_mii_preinit;
  
  	ret = of_mdiobus_register(bus, pdev->dev.of_node);
+ 	if (ret) {

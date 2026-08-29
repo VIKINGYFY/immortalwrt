@@ -32,7 +32,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-@@ -17,6 +17,7 @@
+@@ -18,6 +18,7 @@
  #include "ppe.h"
  #include "ppe_config.h"
  #include "ppe_debugfs.h"
@@ -40,7 +40,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include "ppe_regs.h"
  
  #define PPE_PKT_CNT_TBL_SIZE				3
-@@ -831,6 +832,8 @@ void ppe_debugfs_setup(struct ppe_device
+@@ -920,6 +921,8 @@ void ppe_debugfs_setup(struct ppe_device
  		return;
  	}
  
@@ -606,7 +606,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #endif
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-@@ -533,19 +533,6 @@
+@@ -556,19 +556,6 @@
  #define PPE_MY_MAC_W1_MAC_ADDR_HI		GENMASK(15, 0)
  #define PPE_MY_MAC_W1_VALID			BIT(16)
  
@@ -626,7 +626,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /* Global control of the L3 flow engine. The aging timer applies to the
   * age field of the flow entries; it is left disabled, the flow table
   * users manage the entry lifetime themselves.
-@@ -566,6 +553,28 @@
+@@ -589,6 +576,28 @@
  						 BIT(17) | BIT(23) | \
  						 BIT(29))
  

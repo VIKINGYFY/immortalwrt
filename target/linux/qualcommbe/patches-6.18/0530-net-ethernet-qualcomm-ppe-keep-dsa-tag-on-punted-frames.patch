@@ -101,7 +101,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  			if (tunnel->vlan < 0) {
  				ret = tunnel->vlan;
  				tunnel->vlan = -1;
-@@ -1897,6 +1912,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1899,6 +1914,7 @@ static int ppe_ft_flow_replace(struct pp
  	nh.vid = -1;
  	data.pppoe_sid = -1;
  	data.ingress_vid = -1;
@@ -109,7 +109,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  
  	{
  		struct flow_match_basic match;
-@@ -2262,6 +2278,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2264,6 +2280,7 @@ static int ppe_ft_flow_replace(struct pp
  			ipriv = netdev_priv(conduit);
  			iport = ipriv->ppe_port->port_id;
  			data.ingress_vid = dsa_ivid;
@@ -117,7 +117,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
  			reject_reason = PPE_FT_REJECT_INGRESS_VP;
-@@ -2480,7 +2497,7 @@ put_idev:
+@@ -2482,7 +2499,7 @@ put_idev:
  
  	if (data.ingress_vid >= 0) {
  		flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_vid,

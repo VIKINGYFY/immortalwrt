@@ -12,9 +12,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -1538,3 +1538,9 @@ static void qca8k_phylink_get_caps(struct dsa_switch *ds, int port,
-		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
-			  config->supported_interfaces);
+@@ -1537,6 +1537,12 @@ static void qca8k_phylink_get_caps(struc
+ 			  config->supported_interfaces);
+ 		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
+ 			  config->supported_interfaces);
 +		if (qca8k_is_qca8386(priv)) {
 +			__set_bit(PHY_INTERFACE_MODE_SGMII,
 +				  config->supported_interfaces);
@@ -22,3 +23,5 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				  config->supported_interfaces);
 +		}
  		break;
+ 
+ 	case 6: /* 2nd CPU port / external PHY */

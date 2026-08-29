@@ -631,7 +631,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			   flow->entry.proto, flow->index,
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-@@ -644,6 +644,14 @@
+@@ -667,6 +667,14 @@
  #define PPE_HOST_W0_LAN_WAN			BIT(20)
  #define PPE_HOST_W1_IP_ADDR			GENMASK(31, 0)
  
@@ -646,7 +646,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /* L3 flow table, keyed by the hardware-hashed 5-tuple. One IP address
   * of the tuple is inline, the other is referenced in the host table.
   * The forward type selects the routing and NAT behavior; the next hop
-@@ -675,6 +683,14 @@
+@@ -698,6 +706,14 @@
  #define PPE_FLOW_W3_L4_DPORT_LO			GENMASK(31, 28)
  #define PPE_FLOW_W4_L4_DPORT_HI			GENMASK(11, 0)
  

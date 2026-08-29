@@ -21,7 +21,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -692,6 +692,7 @@
+@@ -692,6 +692,7 @@ struct ppe_ft_pppoe_topo {
  static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
  			   int mtu, bool keep_tag);
  static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index);
@@ -29,7 +29,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  
  static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
  			     struct ppe_ft_pppoe_topo *topo)
-@@ -733,6 +734,20 @@
+@@ -733,6 +734,20 @@ static int ppe_ft_pppoe_path(struct net_
  			topo->vid = path->encap.id;
  			topo->vlan_mtu = path->dev->mtu;
  			break;
@@ -50,7 +50,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		case DEV_PATH_ETHERNET: {
  			struct edma_port_priv *port_priv;
  
-@@ -742,7 +757,8 @@
+@@ -742,7 +757,8 @@ static int ppe_ft_pppoe_path(struct net_
  			}
  			port_priv = netdev_priv(path->dev);
  			topo->port = port_priv->ppe_port->port_id;

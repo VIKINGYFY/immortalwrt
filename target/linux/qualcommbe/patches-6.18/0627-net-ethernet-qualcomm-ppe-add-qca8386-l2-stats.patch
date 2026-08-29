@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "ppe.h"
  #include "ppe_config.h"
  #include "ppe_debugfs.h"
-@@ -932,6 +938,218 @@
+@@ -932,6 +938,218 @@ static const struct file_operations ppe_
  	.release = single_release,
  };
  
@@ -252,7 +252,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ppe_debugfs_setup(struct ppe_device *ppe_dev)
  {
  	struct ppe_debugfs_entry *entry;
-@@ -963,6 +1181,10 @@
+@@ -963,6 +1181,10 @@ void ppe_debugfs_setup(struct ppe_device
  		debugfs_create_file("qca8386_athtag", 0400,
  				    ppe_dev->debugfs_root, ppe_dev,
  				    &ppe_athtag_fops);

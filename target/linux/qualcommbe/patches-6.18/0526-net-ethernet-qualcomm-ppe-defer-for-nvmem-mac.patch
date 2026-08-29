@@ -41,7 +41,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		return dev_err_probe(dev, ret, "PPE clock config failed\n");
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -1388,6 +1388,40 @@ static int ppe_port_mac_hw_init(struct p
+@@ -1389,6 +1389,40 @@ static int ppe_port_mac_hw_init(struct p
  }
  
  /**
@@ -82,7 +82,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
   * ppe_port_mac_init() - Initialization of PPE ports for the PPE device
   * @ppe_dev: PPE device
   *
-@@ -1427,13 +1461,13 @@ int ppe_port_mac_init(struct ppe_device
+@@ -1428,13 +1462,13 @@ int ppe_port_mac_init(struct ppe_device
  		ret = of_property_read_u32(port_node, "reg", &port);
  		if (ret) {
  			dev_err(ppe_dev->dev, "Failed to get port id\n");
@@ -98,7 +98,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		}
  
  		ppe_ports->port[i].ppe_dev = ppe_dev;
-@@ -1445,20 +1479,19 @@ int ppe_port_mac_init(struct ppe_device
+@@ -1450,20 +1484,19 @@ int ppe_port_mac_init(struct ppe_device
  		ret = ppe_port_clock_init(&ppe_ports->port[i]);
  		if (ret) {
  			dev_err(ppe_dev->dev, "Failed to initialize port clocks\n");
@@ -121,8 +121,8 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +			goto err_port_clk;
  		}
  
- 		i++;
-@@ -1467,20 +1500,16 @@ int ppe_port_mac_init(struct ppe_device
+ 		dev_info(ppe_dev->dev, "PPE debug: registered port id=%d\n", port);
+@@ -1474,20 +1507,16 @@ int ppe_port_mac_init(struct ppe_device
  	of_node_put(ports_node);
  	return 0;
  

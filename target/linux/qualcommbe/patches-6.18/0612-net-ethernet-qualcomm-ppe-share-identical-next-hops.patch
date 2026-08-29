@@ -136,7 +136,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  /* Get a refcounted public IP slot for the address, programming the
   * hardware entry on first use. Must be called with the flowtable lock
   * held.
-@@ -2573,23 +2651,18 @@ put_idev:
+@@ -2575,23 +2653,18 @@ put_idev:
  			goto err_my_mac;
  	}
  
@@ -164,7 +164,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  
  	ret = ppe_flow_entry_add(ft->ppe_dev, &flow->entry);
  	if (ret < 0)
-@@ -2615,7 +2688,6 @@ put_idev:
+@@ -2617,7 +2690,6 @@ put_idev:
  		}
  	}
  
@@ -172,7 +172,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	mutex_unlock(&ft->lock);
  	if (tdev)
  		dev_put(tdev);
-@@ -2624,19 +2696,19 @@ put_idev:
+@@ -2626,19 +2698,19 @@ put_idev:
  
  err_hw_flow:
  	if (!ppe_ft_flow_hw_del(ft, flow)) {
@@ -197,7 +197,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  err_my_mac:
  	ppe_ft_my_mac_put(ft, flow->my_mac);
  err_pppoe:
-@@ -2692,7 +2764,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2694,7 +2766,7 @@ static int ppe_ft_flow_destroy(struct pp
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
  		ppe_ft_host_put(ft, &flow->entry);
@@ -206,7 +206,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		ppe_ft_my_mac_put(ft, flow->my_mac);
  		ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
  		ppe_ft_pppoe_put(ft, flow->pppoe);
-@@ -3412,15 +3484,30 @@ static int ppe_ft_active_flows_show(stru
+@@ -3414,15 +3486,30 @@ static int ppe_ft_active_flows_show(stru
  	struct ppe_flowtable *ft = seq->private;
  	unsigned int capacity;
  
@@ -240,7 +240,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  /**
   * ppe_flowtable_debugfs_init - Expose the flowtable state in debugfs
   * @ppe_dev: PPE device
-@@ -3452,6 +3539,9 @@ void ppe_flowtable_debugfs_init(struct p
+@@ -3454,6 +3541,9 @@ void ppe_flowtable_debugfs_init(struct p
  	ft->debugfs_reasons = debugfs_create_file("reason_counters", 0400,
  						  ppe_dev->debugfs_root, ft,
  						  &ppe_ft_reason_counters_fops);
@@ -250,7 +250,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  }
  
  static int ppe_ft_block_cb(enum tc_setup_type type, void *type_data,
-@@ -3581,13 +3671,20 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3583,13 +3673,20 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -272,7 +272,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		kfree(ft);
  		return -ERANGE;
  	}
-@@ -3598,6 +3695,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3600,6 +3697,7 @@ int ppe_flowtable_setup(struct ppe_devic
  
  	ret = rhashtable_init(&ft->flows, &ppe_ft_params);
  	if (ret) {
@@ -280,7 +280,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		kfree(ft);
  		return ret;
  	}
-@@ -3610,6 +3708,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3612,6 +3710,7 @@ int ppe_flowtable_setup(struct ppe_devic
  	if (ret) {
  		ppe_dev->flowtable = NULL;
  		rhashtable_destroy(&ft->flows);
@@ -288,7 +288,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		kfree(ft);
  		return ret;
  	}
-@@ -3667,6 +3766,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3669,6 +3768,7 @@ void ppe_flowtable_destroy(struct ppe_de
  	}
  	mutex_unlock(&ft->lock);
  
@@ -296,7 +296,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	debugfs_remove(ft->debugfs_reasons);
  	debugfs_remove(ft->debugfs_pipeline);
  	debugfs_remove(ft->debugfs_rows);
-@@ -3688,5 +3788,6 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3690,5 +3790,6 @@ void ppe_flowtable_destroy(struct ppe_de
  		if (ft->tunnels[i].dev)
  			dev_put(ft->tunnels[i].dev);
  

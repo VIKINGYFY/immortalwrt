@@ -13,8 +13,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  drivers/net/phy/sfp.c | 49 ++++++++++++++++++++++++++++++++++++++-----
  1 file changed, 44 insertions(+), 5 deletions(-)
 
-diff --git a/drivers/net/phy/sfp.c b/drivers/net/phy/sfp.c
-index 999f3f6..a7bcd26 100644
 --- a/drivers/net/phy/sfp.c
 +++ b/drivers/net/phy/sfp.c
 @@ -263,7 +263,11 @@ struct sfp {
@@ -29,7 +27,7 @@ index 999f3f6..a7bcd26 100644
  	unsigned long i2c_present_next;
  
  	/* Access rules:
-@@ -888,11 +892,9 @@ static int sfp_read(struct sfp *sfp, bool a2, u8 addr, void *buf, size_t len)
+@@ -888,11 +892,9 @@ static int sfp_read(struct sfp *sfp, boo
   * I2C read of the EEPROM identifier (an empty cage NAKs). Used as the presence
   * source on boards that do not wire MOD_DEF0 to a GPIO.
   */
@@ -43,7 +41,7 @@ index 999f3f6..a7bcd26 100644
  }
  
  /* get_state variant for boards without a MOD_DEF0 GPIO. Instead of assuming
-@@ -904,15 +906,43 @@ static bool sfp_module_present_i2c(struct sfp *sfp)
+@@ -904,15 +906,43 @@ static bool sfp_module_present_i2c(struc
  static unsigned int sfp_i2c_get_state(struct sfp *sfp)
  {
  	unsigned int state = sfp_gpio_get_state(sfp);
@@ -88,7 +86,7 @@ index 999f3f6..a7bcd26 100644
  		}
  		sfp->i2c_present_next = jiffies + T_PROBE_PRESENT;
  	}
-@@ -3241,10 +3271,19 @@ static int sfp_probe(struct platform_device *pdev)
+@@ -3241,10 +3271,19 @@ static int sfp_probe(struct platform_dev
  			sfp->i2c_block_size = sfp->i2c_max_block_size;
  			sfp->i2c_present_next = jiffies;
  			sfp->need_poll = true;
@@ -108,6 +106,3 @@ index 999f3f6..a7bcd26 100644
  
  	device_property_read_u32(&pdev->dev, "maximum-power-milliwatt",
  				 &sfp->max_power_mW);
--- 
-2.53.0
-

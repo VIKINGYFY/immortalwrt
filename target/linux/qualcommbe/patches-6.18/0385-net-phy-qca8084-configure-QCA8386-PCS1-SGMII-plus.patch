@@ -16,8 +16,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  drivers/net/phy/qcom/qca808x.c        |  84 +++++++++++++-
  3 files changed, 234 insertions(+), 11 deletions(-)
 
-diff --git a/drivers/net/phy/qcom/qca8084_serdes.c b/drivers/net/phy/qcom/qca8084_serdes.c
-index 46ba254..aaf307f 100644
 --- a/drivers/net/phy/qcom/qca8084_serdes.c
 +++ b/drivers/net/phy/qcom/qca8084_serdes.c
 @@ -57,6 +57,11 @@
@@ -57,7 +55,7 @@ index 46ba254..aaf307f 100644
  };
  
  struct qca8084_xpcs_data {
-@@ -173,6 +188,13 @@ static const char *const pcs_clock_names[PCS_CLK_MAX] = {
+@@ -173,6 +188,13 @@ static const char *const pcs_clock_names
  	[PCS_TX_ROOT_CLK] =	"pcs_tx_root",
  };
  
@@ -71,7 +69,7 @@ index 46ba254..aaf307f 100644
  static const int qca8084_xpcs_ch_mmd[QCA8084_CHANNEL_MAX] = { 31, 26, 27, 28 };
  
  struct mdio_device *qca8084_package_pcs_probe(struct device_node *pcs_np)
-@@ -203,6 +225,14 @@ struct mdio_device *qca8084_package_pcs_probe(struct device_node *pcs_np)
+@@ -203,6 +225,14 @@ struct mdio_device *qca8084_package_pcs_
  
  	pcs_data->rstc = rstc;
  
@@ -86,7 +84,7 @@ index 46ba254..aaf307f 100644
  	for (i = 0; i < ARRAY_SIZE(pcs_clock_names); i++) {
  		clk = devm_clk_get(dev, pcs_clock_names[i]);
  		if (IS_ERR(clk)) {
-@@ -213,6 +243,16 @@ struct mdio_device *qca8084_package_pcs_probe(struct device_node *pcs_np)
+@@ -213,6 +243,16 @@ struct mdio_device *qca8084_package_pcs_
  		pcs_data->clks[i] = clk;
  	}
  
@@ -134,7 +132,7 @@ index 46ba254..aaf307f 100644
  }
  
  static int qca8084_pcs_set_interface_mode(struct mdio_device *mdio_dev,
-@@ -649,6 +694,107 @@ static int qca8084_pcs_ipg_tune_reset(struct mdio_device *mdio_dev,
+@@ -649,6 +694,107 @@ static int qca8084_pcs_ipg_tune_reset(st
  				  reset_function, reset_function);
  }
  
@@ -242,11 +240,9 @@ index 46ba254..aaf307f 100644
  static int qca8084_xpcs_an_restart(struct mdio_device *xpcs_mdiodev,
  				   int channel)
  {
-diff --git a/drivers/net/phy/qcom/qca8084_serdes.h b/drivers/net/phy/qcom/qca8084_serdes.h
-index a346877..02afea0 100644
 --- a/drivers/net/phy/qcom/qca8084_serdes.h
 +++ b/drivers/net/phy/qcom/qca8084_serdes.h
-@@ -17,6 +17,7 @@ void qca8084_package_xpcs_and_pcs_remove(struct mdio_device *xpcs_mdiodev,
+@@ -17,6 +17,7 @@ void qca8084_package_xpcs_and_pcs_remove
  					 struct mdio_device *pcs_mdiodev);
  int qca8084_qxgmii_set_mode(struct mdio_device *xpcs_mdiodev,
  			    struct mdio_device *pcs_mdiodev);
@@ -254,8 +250,6 @@ index a346877..02afea0 100644
  void qca8084_qxgmii_set_speed(struct mdio_device *xpcs_mdiodev,
  			      struct mdio_device *pcs_mdiodev,
  			      int channel, int speed);
-diff --git a/drivers/net/phy/qcom/qca808x.c b/drivers/net/phy/qcom/qca808x.c
-index fd6f765..fb34a16 100644
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
 @@ -175,6 +175,10 @@ struct qca808x_priv {
@@ -269,7 +263,7 @@ index fd6f765..fb34a16 100644
  };
  
  struct qca808x_shared_priv {
-@@ -953,6 +957,16 @@ static int qca8084_phy_package_config_init_once(struct phy_device *phydev)
+@@ -953,6 +957,16 @@ static int qca8084_phy_package_config_in
  					      shared_priv->mdiodev[0]);
  		if (ret)
  			return ret;
@@ -286,7 +280,7 @@ index fd6f765..fb34a16 100644
  	}
  
  	/* Initialize the PHY package clock and reset, which is the
-@@ -997,8 +1011,51 @@ static int qca8084_config_init(struct phy_device *phydev)
+@@ -997,8 +1011,51 @@ static int qca8084_config_init(struct ph
  
  static void qca8084_link_change_notify(struct phy_device *phydev)
  {
@@ -339,7 +333,7 @@ index fd6f765..fb34a16 100644
  
  	/* Assert the FIFO between PHY and MAC. */
  	ret = phy_modify(phydev, QCA8084_FIFO_CONTROL,
-@@ -1166,6 +1223,7 @@ static void qca8084_phy_package_remove_once(struct phy_device *phydev)
+@@ -1166,6 +1223,7 @@ static void qca8084_phy_package_remove_o
  
  static int qca8084_probe(struct phy_device *phydev)
  {
@@ -347,7 +341,7 @@ index fd6f765..fb34a16 100644
  	struct qca808x_shared_priv *shared_priv;
  	struct device *dev = &phydev->mdio.dev;
  	struct reset_control *rstc;
-@@ -1185,6 +1243,7 @@ static int qca8084_probe(struct phy_device *phydev)
+@@ -1185,6 +1243,7 @@ static int qca8084_probe(struct phy_devi
  	ret = qca808x_probe(phydev);
  	if (ret)
  		return ret;
@@ -355,7 +349,7 @@ index fd6f765..fb34a16 100644
  
  	/* Enable clock of PHY device, so that the PHY register
  	 * can be accessed to get PHY features.
-@@ -1194,6 +1253,26 @@ static int qca8084_probe(struct phy_device *phydev)
+@@ -1194,6 +1253,26 @@ static int qca8084_probe(struct phy_devi
  		return dev_err_probe(dev, PTR_ERR(clk),
  				     "Enable PHY clock failed\n");
  
@@ -382,7 +376,7 @@ index fd6f765..fb34a16 100644
  	/* De-assert PHY reset after the clock of PHY enabled. */
  	rstc = devm_reset_control_get_exclusive(dev, NULL);
  	if (IS_ERR(rstc))
-@@ -1205,9 +1284,6 @@ static int qca8084_probe(struct phy_device *phydev)
+@@ -1205,9 +1284,6 @@ static int qca8084_probe(struct phy_devi
  
  static void qca8084_remove(struct phy_device *phydev)
  {
@@ -392,5 +386,3 @@ index fd6f765..fb34a16 100644
  	if (phy_package_remove_once(phydev))
  		qca8084_phy_package_remove_once(phydev);
  }
--- 
-2.53.0

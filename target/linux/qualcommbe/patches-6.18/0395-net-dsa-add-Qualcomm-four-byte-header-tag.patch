@@ -18,11 +18,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  net/dsa/user.c                   |  3 ++
  5 files changed, 88 insertions(+), 13 deletions(-)
 
-diff --git a/drivers/net/dsa/qca/qca8k-8xxx.c b/drivers/net/dsa/qca/qca8k-8xxx.c
-index 5afbb94..8d0db12 100644
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -1908,6 +1908,8 @@ static int qca8k_change_tag_protocol(struct dsa_switch *ds,
+@@ -1908,6 +1908,8 @@ static int qca8k_change_tag_protocol(str
  		hdr_val = 0;
  		rx_mode = QCA8K_PORT_HDR_CTRL_ALL;
  		tx_mode = QCA8K_PORT_HDR_CTRL_ALL;
@@ -31,7 +29,7 @@ index 5afbb94..8d0db12 100644
  	} else if (proto != DSA_TAG_PROTO_QCA_8021Q) {
  		return -EOPNOTSUPP;
  	}
-@@ -2097,6 +2099,7 @@ static int qca8k_connect_tag_protocol(struct dsa_switch *ds,
+@@ -2097,6 +2099,7 @@ static int qca8k_connect_tag_protocol(st
  		tagger_data->mib_autocast_handler = qca8k_mib_autocast_handler;
  
  		break;
@@ -39,8 +37,6 @@ index 5afbb94..8d0db12 100644
  	case DSA_TAG_PROTO_QCA_8021Q:
  		break;
  	default:
-diff --git a/include/linux/dsa/tag_qca.h b/include/linux/dsa/tag_qca.h
-index ee65745..dd09b08 100644
 --- a/include/linux/dsa/tag_qca.h
 +++ b/include/linux/dsa/tag_qca.h
 @@ -9,7 +9,10 @@ struct dsa_switch;
@@ -62,8 +58,6 @@ index ee65745..dd09b08 100644
  
  /* Packet type for xmit */
  #define QCA_HDR_XMIT_TYPE_NORMAL	0x0
-diff --git a/include/net/dsa.h b/include/net/dsa.h
-index cbcd159..4adc5e3 100644
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
 @@ -55,10 +55,11 @@ struct tc_action;
@@ -87,8 +81,6 @@ index cbcd159..4adc5e3 100644
  	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
-diff --git a/net/dsa/tag_qca.c b/net/dsa/tag_qca.c
-index 0cf6128..c24509c 100644
 --- a/net/dsa/tag_qca.c
 +++ b/net/dsa/tag_qca.c
 @@ -11,29 +11,54 @@
@@ -153,7 +145,7 @@ index 0cf6128..c24509c 100644
  {
  	struct qca_tagger_data *tagger_data;
  	struct dsa_port *dp = dev->dsa_ptr;
-@@ -43,14 +68,20 @@ static struct sk_buff *qca_tag_rcv(struct sk_buff *skb, struct net_device *dev)
+@@ -43,14 +68,20 @@ static struct sk_buff *qca_tag_rcv(struc
  	int port;
  	u16 hdr;
  
@@ -176,7 +168,7 @@ index 0cf6128..c24509c 100644
  	hdr = ntohs(*phdr);
  
  	/* Make sure the version is correct */
-@@ -83,12 +114,23 @@ static struct sk_buff *qca_tag_rcv(struct sk_buff *skb, struct net_device *dev)
+@@ -83,12 +114,23 @@ static struct sk_buff *qca_tag_rcv(struc
  		return NULL;
  
  	/* Remove QCA tag and recalculate checksum */
@@ -202,7 +194,7 @@ index 0cf6128..c24509c 100644
  static int qca_tag_connect(struct dsa_switch *ds)
  {
  	struct qca_tagger_data *tagger_data;
-@@ -123,4 +165,25 @@ MODULE_DESCRIPTION("DSA tag driver for Qualcomm Atheros QCA8K switches");
+@@ -123,4 +165,25 @@ MODULE_DESCRIPTION("DSA tag driver for Q
  MODULE_LICENSE("GPL");
  MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_QCA, QCA_NAME);
  
@@ -229,11 +221,9 @@ index 0cf6128..c24509c 100644
 +};
 +
 +module_dsa_tag_drivers(qca_tag_drivers);
-diff --git a/net/dsa/user.c b/net/dsa/user.c
-index 7dc3c9e..3156f1c 100644
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -2740,6 +2740,9 @@ void dsa_user_setup_tagger(struct net_device *user)
+@@ -2740,6 +2740,9 @@ void dsa_user_setup_tagger(struct net_de
  		user->features &= ~(NETIF_F_SG | NETIF_F_FRAGLIST);
  	if (ds->needs_standalone_vlan_filtering)
  		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
@@ -243,6 +233,3 @@ index 7dc3c9e..3156f1c 100644
  
  	user->lltx = true;
  }
--- 
-2.53.0
-

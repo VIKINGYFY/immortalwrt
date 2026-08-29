@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /* L3 registers */
  #define QCA8K_HROUTER_CONTROL				0xe00
-@@ -470,6 +487,7 @@
+@@ -470,6 +487,7 @@ struct qca8k_priv {
  	struct qca8k_pcs pcs_port_0;
  	struct qca8k_pcs pcs_port_6;
  	const struct qca8k_match_data *info;
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct qca8k_led ports_led[QCA8K_LED_COUNT];
  };
  
-@@ -511,6 +529,8 @@
+@@ -511,6 +529,8 @@ int qca8k_read_switch_id(struct qca8k_pr
  int qca8k_read(struct qca8k_priv *priv, u32 reg, u32 *val);
  int qca8k_write(struct qca8k_priv *priv, u32 reg, u32 val);
  int qca8k_rmw(struct qca8k_priv *priv, u32 reg, u32 mask, u32 write_val);
@@ -85,7 +85,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #include "qca8k.h"
  
-@@ -436,6 +437,123 @@
+@@ -436,6 +437,123 @@ out:
  	return ret;
  }
  
@@ -211,7 +211,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -1892,6 +1892,55 @@
+@@ -1892,6 +1892,55 @@ qca8k_get_tag_protocol(struct dsa_switch
  	return DSA_TAG_PROTO_QCA;
  }
  
@@ -267,7 +267,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct dsa_port *
  qca8k_preferred_default_local_cpu_port(struct dsa_switch *ds)
  {
-@@ -2048,6 +2094,8 @@
+@@ -2048,6 +2097,8 @@ static int qca8k_connect_tag_protocol(st
  		tagger_data->mib_autocast_handler = qca8k_mib_autocast_handler;
  
  		break;
@@ -276,7 +276,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -2308,6 +2356,7 @@
+@@ -2308,6 +2359,7 @@ static const struct dsa_switch_ops qca8k
  	.port_change_conduit	= qca8k_port_change_master,
  	.conduit_state_change	= qca8k_conduit_change,
  	.connect_tag_protocol	= qca8k_connect_tag_protocol,
@@ -284,5 +284,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  static int
--- 
-2.39.5

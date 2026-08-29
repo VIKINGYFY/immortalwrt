@@ -19,8 +19,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  5 files changed, 81 insertions(+)
  create mode 100644 net/dsa/tag_qca_8021q.c
 
-diff --git a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
-index 4801204..688a370 100644
 --- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 @@ -48,6 +48,7 @@ properties:
@@ -31,8 +29,6 @@ index 4801204..688a370 100644
        possible. Useful when a device supports multiple protocols and
        the default is incompatible with the Ethernet device.
      enum:
-diff --git a/include/linux/dsa/8021q.h b/include/linux/dsa/8021q.h
-index d13aabd..342413f 100644
 --- a/include/linux/dsa/8021q.h
 +++ b/include/linux/dsa/8021q.h
 @@ -7,6 +7,7 @@
@@ -43,8 +39,6 @@ index d13aabd..342413f 100644
  
  /* VBID is limited to three bits only and zero is reserved.
   * Only 7 bridges can be enumerated.
-diff --git a/include/net/dsa.h b/include/net/dsa.h
-index 47579d0..cbcd159 100644
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
 @@ -55,6 +55,7 @@ struct tc_action;
@@ -63,11 +57,9 @@ index 47579d0..cbcd159 100644
  	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
-diff --git a/net/dsa/Makefile b/net/dsa/Makefile
-index ad86a82..4f31b5a 100644
 --- a/net/dsa/Makefile
 +++ b/net/dsa/Makefile
-@@ -34,6 +34,7 @@ obj-$(CONFIG_NET_DSA_TAG_NONE) += tag_none.o
+@@ -34,6 +34,7 @@ obj-$(CONFIG_NET_DSA_TAG_NONE) += tag_no
  obj-$(CONFIG_NET_DSA_TAG_OCELOT) += tag_ocelot.o
  obj-$(CONFIG_NET_DSA_TAG_OCELOT_8021Q) += tag_ocelot_8021q.o
  obj-$(CONFIG_NET_DSA_TAG_QCA) += tag_qca.o
@@ -75,9 +67,6 @@ index ad86a82..4f31b5a 100644
  obj-$(CONFIG_NET_DSA_TAG_RTL4_A) += tag_rtl4_a.o
  obj-$(CONFIG_NET_DSA_TAG_RTL8_4) += tag_rtl8_4.o
  obj-$(CONFIG_NET_DSA_TAG_RZN1_A5PSW) += tag_rzn1_a5psw.o
-diff --git a/net/dsa/tag_qca_8021q.c b/net/dsa/tag_qca_8021q.c
-new file mode 100644
-index 0000000..9d9c519
 --- /dev/null
 +++ b/net/dsa/tag_qca_8021q.c
 @@ -0,0 +1,76 @@
@@ -157,6 +146,3 @@ index 0000000..9d9c519
 +MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_QCA_8021Q, QCA8021Q_NAME);
 +
 +module_dsa_tag_driver(qca_8021q_netdev_ops);
--- 
-2.53.0
-

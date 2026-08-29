@@ -25,7 +25,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  #include <linux/bitmap.h>
  #include <linux/bits.h>
  #include <linux/device.h>
-@@ -2128,11 +2129,14 @@
+@@ -2128,11 +2129,14 @@ static void ppe_fdb_entry_unpack(const u
  /* Issue a command to the FDB operation registers and wait for its result.
   * Must be called with the FDB lock held.
   */
@@ -43,7 +43,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  
  	cmd_id = ppe_dev->fdb_cmd_id;
  	ppe_dev->fdb_cmd_id = (cmd_id + 1) % 15;
-@@ -2147,16 +2151,31 @@
+@@ -2147,16 +2151,31 @@ static int ppe_fdb_op_issue(struct ppe_d
  	if (ret)
  		return ret;
  
@@ -84,7 +84,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  }
  
  /**
-@@ -2182,7 +2201,7 @@
+@@ -2182,7 +2201,7 @@ int ppe_fdb_entry_add(struct ppe_device
  		ret = ppe_fdb_op_issue(ppe_dev, PPE_FDB_TBL_OP_ADDR,
  				       PPE_FDB_TBL_OP_RSLT_ADDR,
  				       PPE_FDB_OP_TYPE_ADD,
@@ -93,7 +93,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	mutex_unlock(&ppe_dev->fdb_lock);
  
  	return ret;
-@@ -2211,7 +2230,7 @@
+@@ -2211,7 +2230,7 @@ int ppe_fdb_entry_del(struct ppe_device
  		ret = ppe_fdb_op_issue(ppe_dev, PPE_FDB_TBL_OP_ADDR,
  				       PPE_FDB_TBL_OP_RSLT_ADDR,
  				       PPE_FDB_OP_TYPE_DEL,
@@ -102,7 +102,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	mutex_unlock(&ppe_dev->fdb_lock);
  
  	return ret;
-@@ -2247,7 +2266,7 @@
+@@ -2247,7 +2266,7 @@ int ppe_fdb_entry_read(struct ppe_device
  	ret = ppe_fdb_op_issue(ppe_dev, PPE_FDB_TBL_RD_OP_ADDR,
  			       PPE_FDB_TBL_RD_OP_RSLT_ADDR,
  			       PPE_FDB_OP_TYPE_GET,
@@ -111,7 +111,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	if (ret) {
  		/* The read of an invalid entry fails the operation. */
  		if (ret == -ENOENT)
-@@ -2255,12 +2274,6 @@
+@@ -2255,12 +2274,6 @@ int ppe_fdb_entry_read(struct ppe_device
  		goto out;
  	}
  
