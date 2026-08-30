@@ -71,7 +71,7 @@ define Device/glinet_gl-be6500
 	IMAGES += factory.bin
 	IMAGE/factory.bin := append-ubi | gl-ipq-factory-nand
 	DEVICE_PACKAGES := ipq-wifi-glinet_gl-be6500 ath12k-firmware-qcn9274-ddwrt \
-		kmod-hwmon-pwmfan kmod-rtl837x-dsa
+		kmod-hwmon-pwmfan kmod-dsa-rtl837x
 endef
 TARGET_DEVICES += glinet_gl-be6500
 
@@ -84,7 +84,7 @@ define Device/xiaomi_be3600-pro-wired-common
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq5332
-	DEVICE_PACKAGES := -kmod-ath12k -kmod-leds-gpio kmod-rtl837x-dsa
+	DEVICE_PACKAGES := -kmod-ath12k -kmod-leds-gpio kmod-dsa-rtl837x
 endef
 
 define Device/xiaomi_be3600-pro-wired-p5

@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
-PKG_NAME:=rtl837x-dsa
+PKG_NAME:=dsa-rtl837x
 PKG_VERSION:=0.1
 PKG_RELEASE:=1
 PKG_MAINTAINER:=air jinkela (air_jinkela@163.com)
@@ -10,9 +10,9 @@ PKG_LICENSE_FILES:=LICENSE LICENSE.realtek
 
 include $(INCLUDE_DIR)/package.mk
 
-define KernelPackage/$(PKG_NAME)
-  SUBMENU:=Other modules
-  TITLE:=$(PKG_NAME)
+define KernelPackage/dsa-rtl837x
+  SUBMENU:=Network Devices
+  TITLE:=Realtek RTL8372N DSA switch driver
   KCONFIG:=CONFIG_NET_DSA_TAG_VSC73XX_8021Q
   FILES:= \
 	$(PKG_BUILD_DIR)/rtl837x_dsa.ko \
