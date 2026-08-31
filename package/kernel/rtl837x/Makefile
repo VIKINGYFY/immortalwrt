@@ -29,4 +29,4 @@ define Build/Compile
 		modules
 endef
 
-$(eval $(call KernelPackage,rtl837x-dsa))
+$(eval $(call KernelPackage,dsa-rtl837x))

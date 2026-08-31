@@ -1137,11 +1137,14 @@ int qca_ppe_cls_flower_del(struct dsa_switch *ds, int port,
  * separates acks, handshakes, DNS, VoIP and game traffic from full-size bulk
  * without any marking on the packet; the deep queue a shaper wants for
  * throughput then costs its latency only to the bulk traffic inside it.
+ * The default takes the 200-byte G.711 voice frame, the largest of the
+ * common voice codecs on the wire, with room for its tunnelled forms;
+ * every bulk protocol's data rides at the MTU.
  *
  * The priority is capped at 7: the slots above sit on the port's second SP
  * beside the multicast queues.
  */
-static ushort ppe_small_pkt_len = 128;
+static ushort ppe_small_pkt_len = 256;
 static ushort ppe_small_pkt_prio = 5;
 
 /* One PPE per SoC; the parameter store needs the instance back. */
@@ -1292,6 +1295,10 @@ static void ppe_acl_small_pkt_apply(struct qca_ppe_priv *priv)
 
 	/* Length 0 disarms by handing the rule an empty source bitmap, which
 	 * keeps its entry so the parameter can be turned back on.
+	 *
+	 * Priority 1, not the floor: a tc filter at the last preference
+	 * lands on priority 0, which is the one place a rule that has to
+	 * lose to this promotion for a small frame can stand.
 	 */
 	for (i = 0; i < ARRAY_SIZE(ppe_small_pkt_group); i++) {
 		struct ppe_acl_group *g = &ppe_small_pkt_group[i];
@@ -1301,7 +1308,7 @@ static void ppe_acl_small_pkt_apply(struct qca_ppe_priv *priv)
 
 		s.key[1] = i ? PPE_ACL_IS_IPV6 : 0;
 		ppe_acl_slice_write(priv, g->index[0], &s, act,
-				    ppe_small_pkt_len ? ports : 0, 0);
+				    ppe_small_pkt_len ? ports : 0, 1);
 	}
 }
 
