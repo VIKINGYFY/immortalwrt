@@ -121,7 +121,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	 * learns the real ID only from the MLO_RX_PEER_MAP HTT event, which is
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -6853,21 +6853,46 @@ ath12k_pull_vdev_install_key_compl_ev(st
+@@ -6856,21 +6856,46 @@ ath12k_pull_vdev_install_key_compl_ev(st
  	return 0;
  }
  
@@ -173,7 +173,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (!ev) {
  		ath12k_warn(ab, "failed to fetch peer assoc conf ev");
  		return -EPROTO;
-@@ -6875,6 +6900,13 @@ static int ath12k_pull_peer_assoc_conf_e
+@@ -6878,6 +6903,13 @@ static int ath12k_pull_peer_assoc_conf_e
  
  	peer_assoc_conf->vdev_id = le32_to_cpu(ev->vdev_id);
  	peer_assoc_conf->macaddr = ev->peer_macaddr.addr;
@@ -187,7 +187,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	return 0;
  }
-@@ -7898,6 +7930,8 @@ static int ath12k_service_available_even
+@@ -7901,6 +7933,8 @@ static int ath12k_service_available_even
  static void ath12k_peer_assoc_conf_event(struct ath12k_base *ab, struct sk_buff *skb)
  {
  	struct wmi_peer_assoc_conf_arg peer_assoc_conf = {};
@@ -196,7 +196,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct ath12k *ar;
  
  	if (ath12k_pull_peer_assoc_conf_ev(ab, skb, &peer_assoc_conf) != 0) {
-@@ -7906,8 +7940,9 @@ static void ath12k_peer_assoc_conf_event
+@@ -7909,8 +7943,9 @@ static void ath12k_peer_assoc_conf_event
  	}
  
  	ath12k_dbg(ab, ATH12K_DBG_WMI,
@@ -208,7 +208,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	rcu_read_lock();
  	ar = ath12k_mac_get_ar_by_vdev_id(ab, peer_assoc_conf.vdev_id);
-@@ -7919,6 +7954,14 @@ static void ath12k_peer_assoc_conf_event
+@@ -7922,6 +7957,14 @@ static void ath12k_peer_assoc_conf_event
  		return;
  	}
  
@@ -225,7 +225,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  }
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -4528,6 +4528,7 @@ struct wmi_peer_assoc_conf_event {
+@@ -4530,6 +4530,7 @@ struct wmi_peer_assoc_conf_event {
  struct wmi_peer_assoc_conf_arg {
  	u32 vdev_id;
  	const u8 *macaddr;

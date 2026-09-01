@@ -98,7 +98,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  void ath12k_peer_ml_free(struct ath12k_hw *ah, struct ath12k_sta *ahsta)
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -9600,24 +9600,51 @@ static void ath12k_wmi_gtk_offload_statu
+@@ -9603,24 +9603,51 @@ static void ath12k_wmi_gtk_offload_statu
  	rcu_read_unlock();
  }
  
@@ -155,7 +155,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (!ev) {
  		ath12k_warn(ab, "failed to fetch mlo setup complete event\n");
  		return;
-@@ -9642,6 +9669,28 @@ skip_lookup:
+@@ -9645,6 +9672,28 @@ skip_lookup:
  	}
  
  	ar->mlo_setup_status = le32_to_cpu(ev->status);
