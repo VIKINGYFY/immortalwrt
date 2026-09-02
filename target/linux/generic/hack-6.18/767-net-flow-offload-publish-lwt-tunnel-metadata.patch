@@ -15,7 +15,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 
 --- a/include/net/flow_offload.h
 +++ b/include/net/flow_offload.h
-@@ -240,6 +240,13 @@ struct flow_action_entry {
+@@ -255,6 +255,13 @@ struct flow_action_entry {
  	action_destr			destructor;
  	void				*destructor_priv;
  	union {
@@ -29,7 +29,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		u32			chain_index;	/* FLOW_ACTION_GOTO */
  		struct net_device	*dev;		/* FLOW_ACTION_REDIRECT */
  		struct {				/* FLOW_ACTION_VLAN */
-@@ -258,7 +265,6 @@ struct flow_action_entry {
+@@ -273,7 +280,6 @@ struct flow_action_entry {
  			u32		mask;
  			u32		val;
  		} mangle;

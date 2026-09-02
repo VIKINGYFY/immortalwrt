@@ -2,21 +2,23 @@ From: Julius Bairaktaris <julius@bairaktaris.de>
 Date: Fri, 21 Aug 2026 08:00:00 +0200
 Subject: [PATCH] netfilter: flowtable: carry a priority into the offload
 
-A flow rule the flowtable hands to a driver can describe NAT, VLAN and PPPoE
-encapsulation and where the packet leaves, but says nothing about how it should
-be treated on the way out. Hardware that has priority queues therefore has to
-fall back on whatever the packet itself carries - the DSCP a client chose - or
-put every offloaded flow in one queue.
+A flow rule handed to a driver describes NAT, encapsulation and the
+output device, but not how the flow should be treated on the way out,
+so hardware with priority queues can only fall back on the DSCP the
+packet carries.
 
-Carry the priority of the packet that created the flow, and emit it as
-FLOW_ACTION_PRIORITY. The action id and its value already exist and are already
-emitted on the tc path by act_skbedit; only the flowtable never spoke them.
+Carry skb->priority of the packet that created the flow. The hardware
+path emits it as FLOW_ACTION_PRIORITY, the action act_skbedit already
+emits on the tc path; the software fast path applies it to the packets
+it forwards, which bypass the rules that classified the flow. "meta
+priority set" before "flow add" then reaches the hardware and the
+software path alike. A flow without a priority emits no action; mtk
+and airoha, the two in-tree consumers of these rules, ignore the new
+one as they do FLOW_ACTION_CSUM.
 
-The value comes from the packet that hit the flow_offload expression, which is
-what the ruleset has already had a chance to classify - `meta priority set`
-before `flow add` now reaches the hardware instead of being lost with the
-software path. A flow whose packet had no priority emits no action, so existing
-drivers see an unchanged rule.
+The flowtable holds one flow for both directions and the expression
+runs once, so the priority applies to both; per-direction
+classification is not carried.
 
 Assisted-by: Claude:claude-opus-5
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
@@ -87,3 +89,25 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  		case FLOW_ACTION_CSUM:
  			break;
  		case FLOW_ACTION_VLAN_PUSH:
+--- a/net/netfilter/nf_flow_table_ip.c
++++ b/net/netfilter/nf_flow_table_ip.c
+@@ -408,6 +408,9 @@ static int nf_flow_offload_forward(struc
+ 	ip_decrease_ttl(iph);
+ 	skb_clear_tstamp(skb);
+ 
++	if (flow->priority)
++		skb->priority = flow->priority;
++
+ 	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
+ 		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
+ 
+@@ -686,6 +689,9 @@ static int nf_flow_offload_ipv6_forward(
+ 	ip6h->hop_limit--;
+ 	skb_clear_tstamp(skb);
+ 
++	if (flow->priority)
++		skb->priority = flow->priority;
++
+ 	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
+ 		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
+ 

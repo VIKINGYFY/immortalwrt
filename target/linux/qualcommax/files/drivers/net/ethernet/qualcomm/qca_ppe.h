@@ -1421,7 +1421,8 @@ int qca_ppe_port_mirror_add(struct dsa_switch *ds, int port,
 void qca_ppe_port_mirror_del(struct dsa_switch *ds, int port,
 			     struct dsa_mall_mirror_tc_entry *mirror);
 int qca_ppe_port_policer_add(struct dsa_switch *ds, int port,
-			     struct dsa_mall_policer_tc_entry *policer);
+			     const struct flow_action_police *policer,
+			     struct netlink_ext_ack *extack);
 void qca_ppe_port_policer_del(struct dsa_switch *ds, int port);
 int ppe_token_bucket(unsigned long clk, u32 slot, u64 rate_bps, u32 burst,
 		     u32 cir_max, u32 cbs_max, u32 *cir, u32 *cbs);

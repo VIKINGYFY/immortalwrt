@@ -1451,7 +1451,8 @@ static int ppe_port_policer_set(struct qca_ppe_priv *priv, int port,
 }
 
 int qca_ppe_port_policer_add(struct dsa_switch *ds, int port,
-			     struct dsa_mall_policer_tc_entry *policer)
+			     const struct flow_action_police *policer,
+			     struct netlink_ext_ack *extack)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 
@@ -1461,27 +1462,31 @@ int qca_ppe_port_policer_add(struct dsa_switch *ds, int port,
 	 * meter, or asked for pass on exceed and got drop, would report
 	 * offloaded and police something other than what it says.
 	 */
-	if (!policer->rate_bytes_per_sec ||
-	    policer->peakrate_bytes_per_sec || policer->rate_pkt_per_sec ||
+	if (!policer->rate_bytes_ps ||
+	    policer->peakrate_bytes_ps || policer->rate_pkt_ps ||
 	    policer->burst_pkt || policer->avrate ||
-	    policer->exceed_act_id != FLOW_ACTION_DROP ||
-	    (policer->notexceed_act_id != FLOW_ACTION_PIPE &&
-	     policer->notexceed_act_id != FLOW_ACTION_ACCEPT))
+	    policer->exceed.act_id != FLOW_ACTION_DROP ||
+	    (policer->notexceed.act_id != FLOW_ACTION_PIPE &&
+	     policer->notexceed.act_id != FLOW_ACTION_ACCEPT)) {
+		NL_SET_ERR_MSG_MOD(extack, "the meter is one byte rate, one burst and drop on red");
 		return -EOPNOTSUPP;
+	}
 
 	/* The meter counts the frame the port puts on the wire, so a link
 	 * layer the filter wants accounted on top of it goes in the port's
 	 * compensation length, which already carries the checksum.
 	 */
-	if (ETH_FCS_LEN + policer->overhead > FIELD_MAX(PPE_CMPST_LENGTH))
+	if (ETH_FCS_LEN + policer->overhead > FIELD_MAX(PPE_CMPST_LENGTH)) {
+		NL_SET_ERR_MSG_MOD(extack, "larger than the port's compensation length field");
 		return -EOPNOTSUPP;
+	}
 
 	regmap_write(priv->regmap, PPE_POLICER_CMPST_LEN(port),
 		     FIELD_PREP(PPE_CMPST_LENGTH,
 				ETH_FCS_LEN + policer->overhead));
 
 	return ppe_port_policer_set(priv, port,
-				    policer->rate_bytes_per_sec * BITS_PER_BYTE,
+				    policer->rate_bytes_ps * BITS_PER_BYTE,
 				    policer->burst);
 }
 
