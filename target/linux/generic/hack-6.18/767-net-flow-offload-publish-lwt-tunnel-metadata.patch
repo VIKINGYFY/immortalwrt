@@ -39,7 +39,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		u16                     ptype;          /* FLOW_ACTION_PTYPE */
 --- a/net/netfilter/nf_flow_table_offload.c
 +++ b/net/netfilter/nf_flow_table_offload.c
-@@ -643,6 +643,7 @@ static int flow_offload_encap_tunnel(con
+@@ -648,6 +648,7 @@ static int flow_offload_encap_tunnel(con
  				return -E2BIG;
  			entry->id = FLOW_ACTION_TUNNEL_ENCAP;
  			entry->tunnel = tun_info;
@@ -47,7 +47,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		}
  	}
  
-@@ -671,6 +672,8 @@ static int flow_offload_decap_tunnel(con
+@@ -676,6 +677,8 @@ static int flow_offload_decap_tunnel(con
  			if (!entry)
  				return -E2BIG;
  			entry->id = FLOW_ACTION_TUNNEL_DECAP;

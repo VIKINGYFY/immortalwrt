@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 31 Aug 2026 09:04:21 +0800
+Subject: [PATCH] netfilter: flowtable: publish VLAN match keys
+
+nf_flow_rule_match() fills the VLAN dissector offsets, keys and masks for
+encapsulated tuples. It does not publish FLOW_DISSECTOR_KEY_VLAN or
+FLOW_DISSECTOR_KEY_CVLAN in used_keys. Drivers cannot discover the
+populated match through flow_rule_match_key(). A VLAN_POP action then
+arrives without the corresponding ingress VID match.
+
+Publish each VLAN key when its match is created. This keeps the existing
+single- and double-tag representation while making the generated rule
+self-consistent for offload drivers.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ net/netfilter/nf_flow_table_offload.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/net/netfilter/nf_flow_table_offload.c
++++ b/net/netfilter/nf_flow_table_offload.c
+@@ -121,6 +121,7 @@ static int nf_flow_rule_match(struct nf_
+ 	if (tuple->encap_num > 0 && !(tuple->in_vlan_ingress & BIT(0)) &&
+ 	    tuple->encap[0].proto == htons(ETH_P_8021Q)) {
+ 		NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_VLAN, vlan);
++		match->dissector.used_keys |= BIT_ULL(FLOW_DISSECTOR_KEY_VLAN);
+ 		nf_flow_rule_vlan_match(&key->vlan, &mask->vlan,
+ 					tuple->encap[0].id,
+ 					tuple->encap[0].proto);
+@@ -132,12 +133,16 @@ static int nf_flow_rule_match(struct nf_
+ 		if (vlan_encap) {
+ 			NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_CVLAN,
+ 					  cvlan);
++			match->dissector.used_keys |=
++				BIT_ULL(FLOW_DISSECTOR_KEY_CVLAN);
+ 			nf_flow_rule_vlan_match(&key->cvlan, &mask->cvlan,
+ 						tuple->encap[1].id,
+ 						tuple->encap[1].proto);
+ 		} else {
+ 			NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_VLAN,
+ 					  vlan);
++			match->dissector.used_keys |=
++				BIT_ULL(FLOW_DISSECTOR_KEY_VLAN);
+ 			nf_flow_rule_vlan_match(&key->vlan, &mask->vlan,
+ 						tuple->encap[1].id,
+ 						tuple->encap[1].proto);

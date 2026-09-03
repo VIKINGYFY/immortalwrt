@@ -177,52 +177,100 @@ static ssize_t _sds_page_dump_read(struct file *filep, char __user *ubuf, size_t
 		return -ENOMEM;
 
 	rtl837x_sdk_lock(gsw);
-	rtk_rtl8373_getAsicReg(RTL8373_SDS_MODE_SEL_ADDR, &v3);
+	ret = rtk_rtl8373_getAsicReg(RTL8373_SDS_MODE_SEL_ADDR, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "reg 0x7b20: %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x21, 0x10, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x21, 0x10, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x21  reg 0x10; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x21, 0x13, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x21, 0x13, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x21  reg 0x13; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x21, 0x18, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x21, 0x18, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x21  reg 0x18; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x21, 0x1B, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x21, 0x1B, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x21  reg 0x1b; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x21, 0x1D, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x21, 0x1D, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x21  reg 0x1d; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x36, 0x1C, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x36, 0x1C, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x36  reg 0x1c; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x36, 0x14, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x36, 0x14, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x36  reg 0x14; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x36, 0x10, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x36, 0x10, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x36  reg 0x10; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 4, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 4, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x04; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 6, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 6, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x06; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 7, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 7, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x07; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 9, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 9, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x09; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 0xB, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 0xB, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x0b; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 0xC, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 0xC, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x0c; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 0xD, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 0xD, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x0d; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 0x15, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 0x15, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x15; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 0x16, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 0x16, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x16; data = %#x\n", v3);
-	rtk_rtl8373_sds_reg_read(0, 0x2E, 0x1D, &v3);
+	ret = rtk_rtl8373_sds_reg_read(0, 0x2E, 0x1D, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 0x2e  reg 0x1d; data = %#x\n", v3);
 
-	rtk_rtl8373_sds_regbits_read(0, 5, 0, 1, &v3);
+	ret = rtk_rtl8373_sds_regbits_read(0, 5, 0, 1, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 5  reg 0; bit0 = %#x\n", v3);
-	rtk_rtl8373_sds_regbits_read(0, 5, 1, 255, &v3);
+	ret = rtk_rtl8373_sds_regbits_read(0, 5, 1, 255, &v3);
+	if (ret)
+		goto out_unlock_error;
 	len += snprintf(buf + len, 4096 - len, "sds page 5  reg 1; bit7:0 = %#x\n", v3);
 	rtl837x_sdk_unlock(gsw);
 
 	ret = simple_read_from_buffer(ubuf, count, offp, buf, len);
+	goto out;
+
+out_unlock_error:
+	rtl837x_sdk_unlock(gsw);
+	ret = -EIO;
+out:
 	kfree(buf);
 
 	return ret;

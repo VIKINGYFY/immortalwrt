@@ -1,0 +1,134 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: qualcomm: ppe: reset TBF credit and report state
+
+Reset TBF credit and sign state when shaping changes or is removed.
+Expose queue credit and rollback diagnostics beside the state-management
+fix they validate.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -1862,6 +1862,21 @@ int ppe_port_bridge_learning_set(struct
+ 				  enable ? mask : 0);
+ }
+ 
++static int ppe_port_shaper_state_clear(struct ppe_device *ppe_dev, int port)
++{
++	int ret;
++
++	ret = regmap_write(ppe_dev->regmap,
++			   PPE_PSCH_SHP_CREDIT_TBL_ADDR +
++			   PPE_PSCH_SHP_RUNTIME_TBL_INC * port, 0);
++	if (ret)
++		return ret;
++
++	return regmap_write(ppe_dev->regmap,
++			    PPE_PSCH_SHP_SIGN_TBL_ADDR +
++			    PPE_PSCH_SHP_RUNTIME_TBL_INC * port, 0);
++}
++
+ /* One refresh credit per token unit, byte based metering. */
+ static const u32 ppe_shaper_token_units[] = {
+ 	2048 * 8, 512 * 8, 128 * 8, 32 * 8, 8 * 8, 2 * 8, 4, 1
+@@ -1895,9 +1910,14 @@ int ppe_port_shaper_set(struct ppe_devic
+ 	u32 val[2] = {}, slot, cycle_ns, token;
+ 	int i, ret;
+ 
+-	if (!rate)
+-		return regmap_bulk_write(ppe_dev->regmap, reg, val,
+-					 ARRAY_SIZE(val));
++	if (!rate) {
++		ret = regmap_bulk_write(ppe_dev->regmap, reg, val,
++					ARRAY_SIZE(val));
++		if (ret)
++			return ret;
++
++		return ppe_port_shaper_state_clear(ppe_dev, port);
++	}
+ 	if (rate > U64_MAX / 8)
+ 		return -ERANGE;
+ 
+@@ -2019,6 +2039,7 @@ static int ppe_tbf_shaper_read(struct pp
+ static int ppe_tbf_shaper_write(struct ppe_device *ppe_dev, int port,
+ 				const u32 *cfg)
+ {
++	int ret;
+ 	u32 reg;
+ 
+ 	if (port < 0 || port >= PPE_PSCH_SHP_CFG_TBL_ENTRIES)
+@@ -2026,8 +2047,12 @@ static int ppe_tbf_shaper_write(struct p
+ 
+ 	reg = PPE_PSCH_SHP_CFG_TBL_ADDR + PPE_PSCH_SHP_CFG_TBL_INC * port;
+ 
+-	return regmap_bulk_write(ppe_dev->regmap, reg, cfg,
+-				 PPE_TBF_SHAPER_CFG_WORDS);
++	ret = regmap_bulk_write(ppe_dev->regmap, reg, cfg,
++				PPE_TBF_SHAPER_CFG_WORDS);
++	if (ret || cfg[1] & PPE_PSCH_SHP_W1_SHAPER_ENABLE)
++		return ret;
++
++	return ppe_port_shaper_state_clear(ppe_dev, port);
+ }
+ 
+ static u32 ppe_tbf_queue_buffers(u64 rate, u32 limit, u32 mtu, u32 ceiling)
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -1078,12 +1078,14 @@ static int ppe_tbf_queues_show(struct se
+ 	struct ppe_device *ppe_dev = seq->private;
+ 	struct ppe_port_tbf *tbf;
+ 	struct ppe_port *port;
++	u32 credit = 0, credit_reg, sign = 0, sign_reg;
+ 	u32 cfg[PPE_TBF_QUEUE_CFG_WORDS];
+-	int bucket, i, queue, queue_end, ret;
++	int bucket, credit_ret, i, queue, queue_end, ret, sign_ret;
+ 
+ 	seq_puts(seq, "port active handle queue_base buckets requested_bytes total_buffers ");
+ 	seq_puts(seq, "rate_bytes_ps burst_bytes rollback_failures callbacks ");
+-	seq_puts(seq, "replace destroy stats last_command last_result\n");
++	seq_puts(seq, "replace destroy stats last_command last_result ");
++	seq_puts(seq, "shaper_credit shaper_sign\n");
+ 	if (!ppe_dev->ports)
+ 		return 0;
+ 
+@@ -1120,10 +1122,17 @@ static int ppe_tbf_queues_show(struct se
+ 			   tbf->handle, queue, PPE_TBF_QUEUE_COUNT,
+ 			   tbf->requested_limit, tbf->applied_buffers,
+ 			   tbf->rate, tbf->burst, tbf->rollback_failures);
+-		seq_printf(seq, "%u %u %u %u %u %d\n",
++		credit_reg = PPE_PSCH_SHP_CREDIT_TBL_ADDR +
++			     PPE_PSCH_SHP_RUNTIME_TBL_INC * port->port_id;
++		sign_reg = PPE_PSCH_SHP_SIGN_TBL_ADDR +
++			   PPE_PSCH_SHP_RUNTIME_TBL_INC * port->port_id;
++		credit_ret = regmap_read(ppe_dev->regmap, credit_reg, &credit);
++		sign_ret = regmap_read(ppe_dev->regmap, sign_reg, &sign);
++		seq_printf(seq, "%u %u %u %u %u %d credit:%08x/%d sign:%08x/%d\n",
+ 			   tbf->callback_calls, tbf->replace_calls,
+ 			   tbf->destroy_calls, tbf->stats_calls,
+-			   tbf->last_command, tbf->last_result);
++			   tbf->last_command, tbf->last_result,
++			   credit, credit_ret, sign, sign_ret);
+ 
+ 		for (bucket = 0; bucket < PPE_TBF_QUEUE_COUNT; bucket++) {
+ 			u32 reg = PPE_AC_UNICAST_QUEUE_CFG_TBL_ADDR +
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -927,6 +927,13 @@
+ #define PPE_PSCH_SHP_SLOT_CFG_PORT_ADDR		0x400018
+ #define PPE_PSCH_SHP_SLOT_CFG_PORT_TIME		GENMASK(11, 0)
+ 
++/* Per-port shaper runtime state. Disable clears both tables so a negative
++ * credit from the previous rate cannot hold the port after TBF teardown.
++ */
++#define PPE_PSCH_SHP_SIGN_TBL_ADDR		0x470000
++#define PPE_PSCH_SHP_CREDIT_TBL_ADDR		0x472000
++#define PPE_PSCH_SHP_RUNTIME_TBL_INC		0x10
++
+ /* Per-port egress token bucket shapers. The refresh credits (CIR) and
+  * the bucket size (CBS) are scaled by the token unit; the meter unit
+  * selects byte or frame based metering.

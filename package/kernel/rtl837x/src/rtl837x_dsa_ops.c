@@ -471,6 +471,7 @@ static int rtl837x_setup(struct dsa_switch *ds)
 static void rtl837x_teardown(struct dsa_switch *ds)
 {
 	struct rtk_gsw *gsw = ds->priv;
+	int ret;
 
 	rtnl_lock();
 	dsa_tag_8021q_unregister(ds);
@@ -478,8 +479,10 @@ static void rtl837x_teardown(struct dsa_switch *ds)
 
 	rtl837x_mdio_teardown(ds);
 	rtl837x_sdk_lock(gsw);
-	rtk_cpuTag_enable_set(EXTERNAL_CPU, DISABLED);
+	ret = rtk_cpuTag_enable_set(EXTERNAL_CPU, DISABLED);
 	rtl837x_sdk_unlock(gsw);
+	if (ret)
+		dev_err(gsw->dev, "failed to disable CPU tag during teardown: %d\n", ret);
 }
 
 static int __rtl837x_mdio_read_c45(struct mii_bus *bus, int port, int devad, int regnum)
@@ -849,12 +852,15 @@ static int rtl837x_port_enable(struct dsa_switch *ds, int port, struct phy_devic
 static void __rtl837x_port_disable(struct dsa_switch *ds, int port)
 {
 	struct rtk_gsw *gsw = ds->priv;
+	int ret;
 
 	if (!rtl837x_valid_port(gsw, port))
 		return;
 
 	gsw->port_disable_count++;
-	rtl837x_set_stp_state(gsw, port, BR_STATE_DISABLED);
+	ret = rtl837x_set_stp_state(gsw, port, BR_STATE_DISABLED);
+	if (ret)
+		dev_err(gsw->dev, "failed to disable port %d: %d\n", port, ret);
 }
 
 static void rtl837x_port_disable(struct dsa_switch *ds, int port)
@@ -869,8 +875,15 @@ static void rtl837x_port_disable(struct dsa_switch *ds, int port)
 static void __rtl837x_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
 {
 	struct rtk_gsw *gsw = ds->priv;
+	int ret;
 
-	rtl837x_set_stp_state(gsw, port, state);
+	if (!rtl837x_valid_port(gsw, port))
+		return;
+
+	ret = rtl837x_set_stp_state(gsw, port, state);
+	if (ret)
+		dev_err(gsw->dev, "failed to set STP state %u on port %d: %d\n",
+			state, port, ret);
 }
 
 static void rtl837x_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
@@ -886,6 +899,7 @@ static void __rtl837x_port_fast_age(struct dsa_switch *ds, int port)
 {
 	struct rtk_gsw *gsw = ds->priv;
 	rtk_l2_flushCfg_t cfg = { 0 };
+	int ret;
 
 	if (!rtl837x_user_port(gsw, port))
 		return;
@@ -895,7 +909,10 @@ static void __rtl837x_port_fast_age(struct dsa_switch *ds, int port)
 	cfg.flushStaticAddr = DISABLED;
 	cfg.flushAddrOnAllPorts = DISABLED;
 
-	rtk_l2_ucastAddr_flush(&cfg);
+	ret = rtk_l2_ucastAddr_flush(&cfg);
+	if (ret)
+		dev_err(gsw->dev, "failed to flush FDB for port %d: %d\n", port,
+			ret);
 }
 
 static void rtl837x_port_fast_age(struct dsa_switch *ds, int port)

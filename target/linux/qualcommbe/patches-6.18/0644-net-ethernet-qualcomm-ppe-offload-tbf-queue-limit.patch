@@ -1,0 +1,617 @@
+From: ViKing <vking@example.com>
+Date: Tue, 1 Sep 2026 00:55:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: offload TBF queue limit
+
+Size the default unicast queue behind an offloaded root TBF from the queue
+limit carried by the qdisc. Enforce a floor of eight complete frames and
+clamp the result to the queue's original hardware ceiling.
+
+Program only the default internal-priority queue in this single-band stage.
+Preserve its complete admission-control entry across replacements. Use
+FORCE_AC to enforce the static limit. Restore the entry on destroy and roll
+back failed changes. Ignore delayed destroy callbacks from superseded qdisc
+handles.
+
+Expose the handle, limits, live table words and rollback failure count.
+Also report callback counts and the last result in read-only debugfs for
+bounded hardware validation.
+
+Signed-off-by: ViKing <vking@example.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+@@ -352,26 +352,55 @@ static int edma_port_setup_tbf(struct ne
+ {
+ 	struct edma_port_priv *port_priv = netdev_priv(netdev);
+ 	struct ppe_port *port = port_priv->ppe_port;
++	int ret;
+ 
+-	if (qopt->parent != TC_H_ROOT)
+-		return -EOPNOTSUPP;
++	if (qopt->parent != TC_H_ROOT) {
++		ret = -EOPNOTSUPP;
++		goto record;
++	}
+ 
+ 	switch (qopt->command) {
+ 	case TC_TBF_REPLACE:
+-		return ppe_port_shaper_set(port->ppe_dev, port->port_id,
+-					   qopt->replace_params.rate.rate_bytes_ps,
+-					   qopt->replace_params.max_size);
++		ret = ppe_port_tbf_set(port, qopt->handle,
++				       qopt->replace_params.rate.rate_bytes_ps,
++				       qopt->replace_params.max_size,
++				       qopt->replace_params.limit, netdev->mtu);
++		break;
+ 	case TC_TBF_DESTROY:
+-		return ppe_port_shaper_set(port->ppe_dev, port->port_id,
+-					   0, 0);
++		ret = ppe_port_tbf_destroy(port, qopt->handle);
++		break;
+ 	case TC_TBF_STATS:
+ 		/* There are no per-qdisc hardware counters. Keep the offload
+ 		 * state while the qdisc core retains its software-visible stats.
+ 		 */
+-		return 0;
++		ret = ppe_port_tbf_stats(port, qopt->handle);
++		break;
+ 	default:
+-		return -EOPNOTSUPP;
++		ret = -EOPNOTSUPP;
++		break;
+ 	}
++
++record:
++	mutex_lock(&port->tbf_lock);
++	port->tbf.callback_calls++;
++	switch (qopt->command) {
++	case TC_TBF_REPLACE:
++		port->tbf.replace_calls++;
++		break;
++	case TC_TBF_DESTROY:
++		port->tbf.destroy_calls++;
++		break;
++	case TC_TBF_STATS:
++		port->tbf.stats_calls++;
++		break;
++	default:
++		break;
++	}
++	port->tbf.last_command = qopt->command;
++	port->tbf.last_result = ret;
++	mutex_unlock(&port->tbf_lock);
++
++	return ret;
+ }
+ 
+ static int edma_port_setup_tc(struct net_device *netdev,
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -16,9 +16,11 @@
+ #include <linux/math64.h>
+ #include <linux/of.h>
+ #include <linux/regmap.h>
++#include <linux/string.h>
+ 
+ #include "ppe.h"
+ #include "ppe_config.h"
++#include "ppe_port.h"
+ #include "ppe_regs.h"
+ 
+ #define PPE_QUEUE_SCH_PRI_NUM		8
+@@ -1939,6 +1941,298 @@ int ppe_port_shaper_set(struct ppe_devic
+ 	return regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+ }
+ 
++#define PPE_TBF_BUFFER_SIZE	256
++#define PPE_TBF_MIN_FRAMES	8
++#define PPE_TBF_FALLBACK_US	10000
++
++static int ppe_tbf_queue_read(struct ppe_device *ppe_dev, int queue,
++			      u32 *cfg)
++{
++	u32 reg;
++
++	if (queue < 0 || queue >= PPE_AC_UNICAST_QUEUE_CFG_TBL_ENTRIES)
++		return -EINVAL;
++
++	reg = PPE_AC_UNICAST_QUEUE_CFG_TBL_ADDR +
++	      PPE_AC_UNICAST_QUEUE_CFG_TBL_INC * queue;
++
++	return regmap_bulk_read(ppe_dev->regmap, reg, cfg,
++				PPE_TBF_QUEUE_CFG_WORDS);
++}
++
++static int ppe_tbf_queue_write(struct ppe_device *ppe_dev, int queue,
++			       const u32 *cfg)
++{
++	u32 reg;
++
++	if (queue < 0 || queue >= PPE_AC_UNICAST_QUEUE_CFG_TBL_ENTRIES)
++		return -EINVAL;
++
++	reg = PPE_AC_UNICAST_QUEUE_CFG_TBL_ADDR +
++	      PPE_AC_UNICAST_QUEUE_CFG_TBL_INC * queue;
++
++	return regmap_bulk_write(ppe_dev->regmap, reg, cfg,
++				 PPE_TBF_QUEUE_CFG_WORDS);
++}
++
++static int ppe_tbf_shaper_read(struct ppe_device *ppe_dev, int port, u32 *cfg)
++{
++	u32 reg;
++
++	if (port < 0 || port >= PPE_PSCH_SHP_CFG_TBL_ENTRIES)
++		return -EINVAL;
++
++	reg = PPE_PSCH_SHP_CFG_TBL_ADDR + PPE_PSCH_SHP_CFG_TBL_INC * port;
++
++	return regmap_bulk_read(ppe_dev->regmap, reg, cfg,
++				PPE_TBF_SHAPER_CFG_WORDS);
++}
++
++static int ppe_tbf_shaper_write(struct ppe_device *ppe_dev, int port,
++				const u32 *cfg)
++{
++	u32 reg;
++
++	if (port < 0 || port >= PPE_PSCH_SHP_CFG_TBL_ENTRIES)
++		return -EINVAL;
++
++	reg = PPE_PSCH_SHP_CFG_TBL_ADDR + PPE_PSCH_SHP_CFG_TBL_INC * port;
++
++	return regmap_bulk_write(ppe_dev->regmap, reg, cfg,
++				 PPE_TBF_SHAPER_CFG_WORDS);
++}
++
++static u32 ppe_tbf_queue_buffers(u64 rate, u32 limit, u32 mtu, u32 ceiling)
++{
++	u32 buffers, min_buffers;
++
++	min_buffers = DIV_ROUND_UP((mtu + ETH_HLEN + ETH_FCS_LEN) *
++				   PPE_TBF_MIN_FRAMES, PPE_TBF_BUFFER_SIZE);
++	min_buffers = min(min_buffers, ceiling);
++
++	if (limit)
++		buffers = limit / PPE_TBF_BUFFER_SIZE;
++	else
++		buffers = mul_u64_u32_div(rate, PPE_TBF_FALLBACK_US,
++					  PPE_TBF_BUFFER_SIZE * USEC_PER_SEC);
++
++	return clamp_t(u32, buffers, min_buffers, ceiling);
++}
++
++/**
++ * ppe_port_tbf_set - Configure a port shaper and its default queue limit
++ * @port: PPE port to shape
++ * @handle: Root TBF qdisc handle
++ * @rate: Committed rate in bytes per second
++ * @burst: Burst size in bytes
++ * @limit: Queue limit requested by TBF, in bytes
++ * @mtu: Port MTU used to keep at least eight complete frames queued
++ *
++ * The local classifier maps the default internal priority to the first
++ * unicast queue owned by the port. Limit only that queue in this single-band
++ * stage. The original four-word entry is retained across replacements and
++ * restored when the owning qdisc is destroyed.
++ *
++ * Return: 0 on success or a negative error code on failure.
++ */
++int ppe_port_tbf_set(struct ppe_port *port, u32 handle, u64 rate,
++		     u32 burst, u32 limit, u32 mtu)
++{
++	struct ppe_port_tbf *tbf = &port->tbf;
++	struct ppe_device *ppe_dev = port->ppe_dev;
++	u32 old_cfg[PPE_TBF_QUEUE_CFG_WORDS];
++	u32 new_cfg[PPE_TBF_QUEUE_CFG_WORDS];
++	u32 old_shaper[PPE_TBF_SHAPER_CFG_WORDS];
++	u32 ceiling, buffers;
++	int port_id = port->port_id;
++	int queue, queue_end;
++	int ret, queue_ret, shaper_ret;
++
++	if (!rate)
++		return -EINVAL;
++
++	mutex_lock(&port->tbf_lock);
++
++	ret = ppe_port_resource_get(ppe_dev, port->port_id, PPE_RES_UCAST,
++				    &queue, &queue_end);
++	if (ret)
++		goto out_unlock;
++	if (queue > queue_end ||
++	    queue >= PPE_AC_UNICAST_QUEUE_CFG_TBL_ENTRIES) {
++		ret = -EINVAL;
++		goto out_unlock;
++	}
++	if (tbf->active && tbf->queue != queue) {
++		ret = -EINVAL;
++		goto out_unlock;
++	}
++
++	ret = ppe_tbf_queue_read(ppe_dev, queue, old_cfg);
++	if (ret)
++		goto out_unlock;
++	ret = ppe_tbf_shaper_read(ppe_dev, port->port_id, old_shaper);
++	if (ret)
++		goto out_unlock;
++
++	ceiling = FIELD_GET(PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD,
++			    tbf->active ? tbf->saved_cfg[0] : old_cfg[0]);
++	if (!ceiling) {
++		ret = -EINVAL;
++		goto out_unlock;
++	}
++
++	buffers = ppe_tbf_queue_buffers(rate, limit, mtu, ceiling);
++	memcpy(new_cfg, old_cfg, sizeof(new_cfg));
++	new_cfg[0] &= ~(PPE_AC_UNICAST_QUEUE_CFG_W0_DYNAMIC |
++			PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD);
++	new_cfg[0] |= PPE_AC_UNICAST_QUEUE_CFG_W0_EN |
++		      PPE_AC_UNICAST_QUEUE_CFG_W0_FORCE_EN |
++		      FIELD_PREP(PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD,
++				 buffers);
++
++	ret = ppe_tbf_queue_write(ppe_dev, queue, new_cfg);
++	if (ret) {
++		queue_ret = ppe_tbf_queue_write(ppe_dev, queue, old_cfg);
++		if (queue_ret) {
++			tbf->rollback_failures++;
++			dev_err(ppe_dev->dev,
++				"port %d failed to roll back TBF queue %d: %d\n",
++				port->port_id, queue, queue_ret);
++		}
++		goto out_unlock;
++	}
++
++	ret = ppe_port_shaper_set(ppe_dev, port->port_id, rate, burst);
++	if (ret) {
++		shaper_ret = ppe_tbf_shaper_write(ppe_dev, port_id, old_shaper);
++		if (shaper_ret) {
++			tbf->rollback_failures++;
++			dev_err(ppe_dev->dev,
++				"port %d failed to roll back TBF shaper: %d\n",
++				port->port_id, shaper_ret);
++		}
++		queue_ret = ppe_tbf_queue_write(ppe_dev, queue, old_cfg);
++		if (queue_ret) {
++			tbf->rollback_failures++;
++			dev_err(ppe_dev->dev,
++				"port %d failed to roll back TBF queue %d: %d\n",
++				port->port_id, queue, queue_ret);
++		}
++		goto out_unlock;
++	}
++
++	if (!tbf->active) {
++		memcpy(tbf->saved_cfg, old_cfg, sizeof(tbf->saved_cfg));
++		memcpy(tbf->saved_shaper, old_shaper,
++		       sizeof(tbf->saved_shaper));
++	}
++	tbf->active = true;
++	tbf->handle = handle;
++	tbf->rate = rate;
++	tbf->burst = burst;
++	tbf->requested_limit = limit;
++	tbf->applied_buffers = buffers;
++	tbf->queue = queue;
++
++out_unlock:
++	mutex_unlock(&port->tbf_lock);
++	return ret;
++}
++
++/**
++ * ppe_port_tbf_destroy - Remove hardware state owned by a root TBF
++ * @port: PPE port
++ * @handle: Handle of the qdisc being destroyed
++ *
++ * Return: 0 on success or a negative error code on failure.
++ */
++int ppe_port_tbf_destroy(struct ppe_port *port, u32 handle)
++{
++	struct ppe_port_tbf *tbf = &port->tbf;
++	struct ppe_device *ppe_dev = port->ppe_dev;
++	u32 old_cfg[PPE_TBF_QUEUE_CFG_WORDS];
++	u32 old_shaper[PPE_TBF_SHAPER_CFG_WORDS];
++	int port_id = port->port_id;
++	int ret, queue_ret, shaper_ret;
++
++	mutex_lock(&port->tbf_lock);
++	if (!tbf->active || tbf->handle != handle) {
++		ret = 0;
++		goto out_unlock;
++	}
++
++	ret = ppe_tbf_queue_read(ppe_dev, tbf->queue, old_cfg);
++	if (ret)
++		goto out_unlock;
++	ret = ppe_tbf_shaper_read(ppe_dev, port->port_id, old_shaper);
++	if (ret)
++		goto out_unlock;
++
++	ret = ppe_tbf_shaper_write(ppe_dev, port->port_id,
++				   tbf->saved_shaper);
++	if (ret) {
++		shaper_ret = ppe_tbf_shaper_write(ppe_dev, port_id, old_shaper);
++		if (shaper_ret) {
++			tbf->rollback_failures++;
++			dev_err(ppe_dev->dev,
++				"port %d failed to roll back TBF shaper: %d\n",
++				port->port_id, shaper_ret);
++		}
++		goto out_unlock;
++	}
++
++	ret = ppe_tbf_queue_write(ppe_dev, tbf->queue, tbf->saved_cfg);
++	if (ret) {
++		queue_ret = ppe_tbf_queue_write(ppe_dev, tbf->queue, old_cfg);
++		if (queue_ret) {
++			tbf->rollback_failures++;
++			dev_err(ppe_dev->dev,
++				"port %d failed to roll back TBF queue %u: %d\n",
++				port->port_id, tbf->queue, queue_ret);
++		}
++		shaper_ret = ppe_tbf_shaper_write(ppe_dev, port_id, old_shaper);
++		if (shaper_ret) {
++			tbf->rollback_failures++;
++			dev_err(ppe_dev->dev,
++				"port %d failed to roll back TBF shaper: %d\n",
++				port->port_id, shaper_ret);
++		}
++		goto out_unlock;
++	}
++
++	tbf->active = false;
++	tbf->handle = 0;
++	tbf->rate = 0;
++	tbf->burst = 0;
++	tbf->requested_limit = 0;
++	tbf->applied_buffers = 0;
++	tbf->queue = 0;
++	memset(tbf->saved_cfg, 0, sizeof(tbf->saved_cfg));
++	memset(tbf->saved_shaper, 0, sizeof(tbf->saved_shaper));
++
++out_unlock:
++	mutex_unlock(&port->tbf_lock);
++	return ret;
++}
++
++/**
++ * ppe_port_tbf_stats - Validate ownership for a root TBF stats request
++ * @port: PPE port
++ * @handle: Handle of the qdisc requesting stats
++ *
++ * Return: 0 for the active owner or -EOPNOTSUPP otherwise.
++ */
++int ppe_port_tbf_stats(struct ppe_port *port, u32 handle)
++{
++	int ret;
++
++	mutex_lock(&port->tbf_lock);
++	ret = port->tbf.active && port->tbf.handle == handle ? 0 : -EOPNOTSUPP;
++	mutex_unlock(&port->tbf_lock);
++
++	return ret;
++}
++
+ /**
+  * ppe_port_stp_state_set - Set the spanning tree state of a PPE port
+  * @ppe_dev: PPE device
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+@@ -11,6 +11,8 @@
+ 
+ #include "ppe.h"
+ 
++struct ppe_port;
++
+ /* There are different table index ranges for configuring queue base ID of
+  * the destination port, CPU code and service code.
+  */
+@@ -355,6 +357,10 @@ int ppe_port_bridge_learning_set(struct
+ 				 bool enable);
+ int ppe_port_shaper_set(struct ppe_device *ppe_dev, int port, u64 rate,
+ 			u32 burst);
++int ppe_port_tbf_set(struct ppe_port *port, u32 handle, u64 rate,
++		     u32 burst, u32 limit, u32 mtu);
++int ppe_port_tbf_destroy(struct ppe_port *port, u32 handle);
++int ppe_port_tbf_stats(struct ppe_port *port, u32 handle);
+ int ppe_port_stp_state_set(struct ppe_device *ppe_dev, int port,
+ 			   enum ppe_stp_state state);
+ int ppe_fdb_entry_add(struct ppe_device *ppe_dev,
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -19,6 +19,7 @@
+ #include "ppe_config.h"
+ #include "ppe_debugfs.h"
+ #include "ppe_flowtable.h"
++#include "ppe_port.h"
+ #include "ppe_regs.h"
+ #include "ppe_vp.h"
+ 
+@@ -971,6 +972,78 @@ static const struct file_operations ppe_
+ 	.release = single_release,
+ };
+ 
++static int ppe_tbf_queues_show(struct seq_file *seq, void *v)
++{
++	struct ppe_device *ppe_dev = seq->private;
++	struct ppe_port_tbf *tbf;
++	struct ppe_port *port;
++	u32 cfg[PPE_TBF_QUEUE_CFG_WORDS];
++	u32 reg;
++	int i, queue, queue_end, ret;
++
++	seq_puts(seq, "port active handle queue requested_bytes applied_buffers ");
++	seq_puts(seq, "rate_bytes_ps burst_bytes rollback_failures callbacks ");
++	seq_puts(seq, "replace destroy stats last_command last_result saved_cfg ");
++	seq_puts(seq, "live_cfg\n");
++	if (!ppe_dev->ports)
++		return 0;
++
++	for (i = 0; i < ppe_dev->ports->num; i++) {
++		port = &ppe_dev->ports->port[i];
++		tbf = &port->tbf;
++
++		mutex_lock(&port->tbf_lock);
++		ret = ppe_port_resource_get(ppe_dev, port->port_id, PPE_RES_UCAST,
++					    &queue, &queue_end);
++		if (ret || queue < 0 || queue > queue_end ||
++		    queue >= PPE_AC_UNICAST_QUEUE_CFG_TBL_ENTRIES) {
++			if (!ret)
++				ret = -EINVAL;
++			seq_printf(seq, "%d %u 0x%x - %u %u %llu %u %u ",
++				   port->port_id, tbf->active ? 1 : 0,
++				   tbf->handle, tbf->requested_limit,
++				   tbf->applied_buffers, tbf->rate, tbf->burst,
++				   tbf->rollback_failures);
++			seq_printf(seq, "%u %u %u %u %u %d - ",
++				   tbf->callback_calls, tbf->replace_calls,
++				   tbf->destroy_calls, tbf->stats_calls,
++				   tbf->last_command, tbf->last_result);
++			seq_printf(seq, "resource-error:%d\n", ret);
++			mutex_unlock(&port->tbf_lock);
++			continue;
++		}
++
++		reg = PPE_AC_UNICAST_QUEUE_CFG_TBL_ADDR +
++		      PPE_AC_UNICAST_QUEUE_CFG_TBL_INC * queue;
++		ret = regmap_bulk_read(ppe_dev->regmap, reg, cfg,
++				       ARRAY_SIZE(cfg));
++		seq_printf(seq, "%d %u 0x%x %d %u %u %llu %u %u ",
++			   port->port_id, tbf->active ? 1 : 0,
++			   tbf->handle, queue,
++			   tbf->requested_limit, tbf->applied_buffers,
++			   tbf->rate, tbf->burst, tbf->rollback_failures);
++		seq_printf(seq, "%u %u %u %u %u %d ",
++			   tbf->callback_calls, tbf->replace_calls,
++			   tbf->destroy_calls, tbf->stats_calls,
++			   tbf->last_command, tbf->last_result);
++		if (tbf->active)
++			seq_printf(seq, "%08x:%08x:%08x:%08x ",
++				   tbf->saved_cfg[0], tbf->saved_cfg[1],
++				   tbf->saved_cfg[2], tbf->saved_cfg[3]);
++		else
++			seq_puts(seq, "- ");
++		if (ret)
++			seq_printf(seq, "read-error:%d\n", ret);
++		else
++			seq_printf(seq, "%08x:%08x:%08x:%08x\n",
++				   cfg[0], cfg[1], cfg[2], cfg[3]);
++		mutex_unlock(&port->tbf_lock);
++	}
++
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(ppe_tbf_queues);
++
+ void ppe_debugfs_setup(struct ppe_device *ppe_dev)
+ {
+ 	struct ppe_debugfs_entry *entry;
+@@ -1002,6 +1075,8 @@ void ppe_debugfs_setup(struct ppe_device
+ 		debugfs_create_file("qca8386_athtag", 0400,
+ 				    ppe_dev->debugfs_root, ppe_dev,
+ 				    &ppe_athtag_fops);
++	debugfs_create_file("tbf_queues", 0400, ppe_dev->debugfs_root,
++			    ppe_dev, &ppe_tbf_queues_fops);
+ 
+ 	/* TODO: Do we have to be so agressive and remove __all__ debugfs entries? */
+ 	ret = edma_debugfs_setup(ppe_dev);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+@@ -1495,6 +1495,7 @@ int ppe_port_mac_init(struct ppe_device
+ 		ppe_ports->port[i].np = port_node;
+ 		ppe_ports->port[i].interface = phy_mode;
+ 		ppe_ports->port[i].mac_type = PPE_MAC_TYPE_GMAC;
++		mutex_init(&ppe_ports->port[i].tbf_lock);
+ 
+ 		ret = ppe_port_clock_init(&ppe_ports->port[i]);
+ 		if (ret) {
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+@@ -7,6 +7,7 @@
+ #define __PPE_PORT_H__
+ 
+ #include <linux/compiler.h>
++#include <linux/mutex.h>
+ #include <linux/phy.h>
+ #include <linux/phylink.h>
+ 
+@@ -42,6 +43,47 @@ enum ppe_mac_type {
+ 	PPE_MAC_TYPE_XGMAC,
+ };
+ 
++#define PPE_TBF_QUEUE_CFG_WORDS	4
++#define PPE_TBF_SHAPER_CFG_WORDS	2
++
++/**
++ * struct ppe_port_tbf - State owned by a port's offloaded root TBF
++ * @active: The hardware shaper and queue limit are active
++ * @handle: Handle of the qdisc that owns the hardware state
++ * @rate: Configured byte rate
++ * @burst: Configured burst in bytes
++ * @requested_limit: Queue limit requested by the qdisc, in bytes
++ * @applied_buffers: Queue limit programmed in 256-byte buffers
++ * @queue: Default unicast queue controlled by this TBF
++ * @saved_cfg: Queue admission-control entry restored on destroy
++ * @saved_shaper: Port shaper entry restored on destroy
++ * @rollback_failures: Failed attempts to restore hardware state
++ * @callback_calls: TBF callbacks received through ndo_setup_tc
++ * @replace_calls: TBF replace callbacks received
++ * @destroy_calls: TBF destroy callbacks received
++ * @stats_calls: TBF statistics callbacks received
++ * @last_command: Most recent enum tc_tbf_command value
++ * @last_result: Return value from the most recent callback
++ */
++struct ppe_port_tbf {
++	bool active;
++	u32 handle;
++	u64 rate;
++	u32 burst;
++	u32 requested_limit;
++	u32 applied_buffers;
++	u16 queue;
++	u32 saved_cfg[PPE_TBF_QUEUE_CFG_WORDS];
++	u32 saved_shaper[PPE_TBF_SHAPER_CFG_WORDS];
++	u32 rollback_failures;
++	u32 callback_calls;
++	u32 replace_calls;
++	u32 destroy_calls;
++	u32 stats_calls;
++	u32 last_command;
++	s32 last_result;
++};
++
+ /**
+  * struct ppe_port - Private data for each PPE port
+  * @np: Port device tree node
+@@ -60,6 +102,8 @@ enum ppe_mac_type {
+  * @fifo_report_next: Earliest jiffies for the next FIFO error report
+  * @fifo_report_rx: RX FIFO counter at the previous report
+  * @fifo_report_tx: TX FIFO counter at the previous report
++ * @tbf_lock: Serializes TBF state and queue admission-control updates
++ * @tbf: Offloaded root TBF state
+  */
+ struct ppe_port {
+ 	struct device_node *np;
+@@ -78,6 +122,8 @@ struct ppe_port {
+ 	unsigned long fifo_report_next;
+ 	u64 fifo_report_rx;
+ 	u64 fifo_report_tx;
++	struct mutex tbf_lock; /* Protects TBF state and queue table updates */
++	struct ppe_port_tbf tbf;
+ };
+ 
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -1100,6 +1100,8 @@
+ #define PPE_AC_UNICAST_QUEUE_CFG_W0_EN		BIT(0)
+ #define PPE_AC_UNICAST_QUEUE_CFG_W0_WRED_EN	BIT(1)
+ #define PPE_AC_UNICAST_QUEUE_CFG_W0_FC_EN	BIT(2)
++#define PPE_AC_UNICAST_QUEUE_CFG_W0_FORCE_EN	\
++	PPE_AC_UNICAST_QUEUE_CFG_W0_FC_EN
+ #define PPE_AC_UNICAST_QUEUE_CFG_W0_CLR_AWARE	BIT(3)
+ #define PPE_AC_UNICAST_QUEUE_CFG_W0_GRP_ID	GENMASK(5, 4)
+ #define PPE_AC_UNICAST_QUEUE_CFG_W0_PRE_LIMIT	GENMASK(16, 6)

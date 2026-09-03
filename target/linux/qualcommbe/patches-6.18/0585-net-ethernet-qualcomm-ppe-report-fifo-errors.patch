@@ -1,9 +1,14 @@
 From: VKing <noreply@openwrt.local>
-Subject: [PATCH] net: ethernet: qualcomm: ppe: report FIFO errors
+Subject: [PATCH] net: ethernet: qualcomm: ppe: harden error statistics
 
 Report an XGMAC RX/TX FIFO counter change at most once per port every ten
 seconds. This keeps persistent hardware errors visible without turning
 normal statistics polling into a stream of informational messages.
+
+The XGMAC total and good TX frame counters use separate live registers.
+Traffic can advance the good counter between those reads and make it
+temporarily exceed the earlier total counter snapshot. Saturate their
+difference at zero so the transient skew cannot underflow tx_errors.
 
 Signed-off-by: VKing <noreply@openwrt.local>
 ---
@@ -17,7 +22,28 @@ Signed-off-by: VKing <noreply@openwrt.local>
  #include <linux/of.h>
  #include <linux/of_net.h>
  #include <linux/pcs/pcs-qcom-ipq9574.h>
-@@ -546,6 +547,21 @@ void ppe_port_get_stats64(struct ppe_por
+@@ -494,6 +495,8 @@ void ppe_port_get_ethtool_stats(struct p
+ void ppe_port_get_stats64(struct ppe_port *ppe_port,
+ 			  struct rtnl_link_stats64 *s)
+ {
++	u64 tx_frames_good;
++
+ 	s->multicast = ppe_port_xgmib_get(ppe_port, xgmib_rx_multicast_g);
+ 
+ 	s->rx_packets = s->multicast;
+@@ -515,8 +518,9 @@ void ppe_port_get_stats64(struct ppe_por
+ 
+ 	s->tx_fifo_errors = ppe_port_xgmib_get(ppe_port,
+ 					       xgmib_tx_underflow_err);
+-	s->tx_errors = s->tx_packets -
+-		ppe_port_xgmib_get(ppe_port, xgmib_tx_frames_g);
++	tx_frames_good = ppe_port_xgmib_get(ppe_port, xgmib_tx_frames_g);
++	s->tx_errors = s->tx_packets > tx_frames_good ?
++		s->tx_packets - tx_frames_good : 0;
+ 
+ 	if (ppe_port->gmib_stats) {
+ 		u64 *gsrc = ppe_port->gmib_stats;
+@@ -546,6 +550,21 @@ void ppe_port_get_stats64(struct ppe_por
  
  		spin_unlock(&ppe_port->gmib_stats_lock);
  	}

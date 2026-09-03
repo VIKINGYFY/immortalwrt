@@ -1,0 +1,171 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: qualcomm: ppe: add indexed flow readback
+
+Add indexed IPv4 and IPv6 flow readback and key comparison helpers.
+This provides the hardware identity primitive used by flow ownership
+checks without changing lifecycle policy on its own.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -18,6 +18,7 @@
+ #include <linux/etherdevice.h>
+ #include <linux/errno.h>
+ #include <linux/regmap.h>
++#include <linux/string.h>
+ 
+ #include "ppe.h"
+ #include "ppe_config.h"
+@@ -66,6 +67,43 @@ static int ppe_flow_op_issue(struct ppe_
+ 	return FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val);
+ }
+ 
++/* The read engine is separate from the add/delete result queue. */
++static int ppe_flow_read_op_issue(struct ppe_device *ppe_dev, int index)
++{
++	u32 val, cmd_id;
++	int ret;
++
++	cmd_id = ppe_dev->flow_cmd_id;
++	ppe_dev->flow_cmd_id = (cmd_id + 1) % 16;
++	val = FIELD_PREP(PPE_FLOW_OP_CMD_ID, cmd_id) |
++	      FIELD_PREP(PPE_FLOW_OP_TYPE, PPE_FDB_OP_TYPE_GET) |
++	      FIELD_PREP(PPE_FLOW_OP_HASH_BLOCK_BITMAP, 0x3) |
++	      PPE_FLOW_OP_MODE |
++	      FIELD_PREP(PPE_FLOW_OP_ENTRY_INDEX, index);
++
++	ret = regmap_write(ppe_dev->regmap, PPE_FLOW_TBL_RD_OP_ADDR, val);
++	if (ret)
++		return ret;
++
++	ret = regmap_read_poll_timeout(ppe_dev->regmap,
++				       PPE_FLOW_TBL_RD_OP_RSLT_ADDR, val,
++		FIELD_GET(PPE_FLOW_OP_RSLT_CMD_ID, val) == cmd_id &&
++		FIELD_GET(PPE_FLOW_OP_RSLT_VALID_CNT, val), 0, 50);
++	if (ret == -ETIMEDOUT)
++		ret = regmap_read_poll_timeout(ppe_dev->regmap,
++					       PPE_FLOW_TBL_RD_OP_RSLT_ADDR, val,
++			FIELD_GET(PPE_FLOW_OP_RSLT_CMD_ID, val) == cmd_id &&
++			FIELD_GET(PPE_FLOW_OP_RSLT_VALID_CNT, val), 10, 10000);
++	if (ret)
++		return ret;
++	if (val & PPE_FLOW_OP_RSLT_FAIL)
++		return -ENOENT;
++	if (FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val) != index)
++		return -EIO;
++
++	return 0;
++}
++
+ static int ppe_host_op_issue(struct ppe_device *ppe_dev, u32 op_type,
+ 			     bool by_index, int index)
+ {
+@@ -283,6 +321,72 @@ int ppe_flow_entry_enable(struct ppe_dev
+ 	return ret;
+ }
+ 
++/**
++ * ppe_flow_entry_read - Read an encoded flow through the operation engine
++ * @ppe_dev: PPE device
++ * @index: Hardware flow table index
++ * @words: Returned encoded words
++ * @nwords: Number of words to read
++ *
++ * IPv6 entries span two flat table slots. The indexed read engine returns
++ * the original packed layout for both address families.
++ *
++ * Return: 0 on success, negative error code on failure.
++ */
++int ppe_flow_entry_read(struct ppe_device *ppe_dev, int index, u32 *words,
++			int nwords)
++{
++	int ret;
++
++	if (index < 0 || index >= ppe_dev->variant->num_flow_entries ||
++	    nwords <= 0 || nwords > PPE_FLOW_TBL_RD_RSLT_DATA_WORDS)
++		return -EINVAL;
++
++	mutex_lock(&ppe_dev->flow_lock);
++	ret = ppe_flow_read_op_issue(ppe_dev, index);
++	if (!ret)
++		ret = regmap_bulk_read(ppe_dev->regmap,
++				       PPE_FLOW_TBL_RD_RSLT_DATA_ADDR,
++				       words, nwords);
++	mutex_unlock(&ppe_dev->flow_lock);
++
++	return ret;
++}
++
++/**
++ * ppe_flow_entry_matches - Verify that a hardware slot still owns a flow
++ * @ppe_dev: PPE device
++ * @index: Hardware flow table index
++ * @flow: Software flow image to compare
++ *
++ * AGE is the only mutable field in the encoded row. Every other word is part
++ * of the slot identity or action and must still match before counters are
++ * attributed or a delete-by-index is issued.
++ *
++ * Return: 0 for a match, -ESTALE for a different flow, or another error.
++ */
++int ppe_flow_entry_matches(struct ppe_device *ppe_dev, int index,
++			   const struct ppe_flow_entry *flow)
++{
++	u32 expected[PPE_FLOW_TBL_OP_DATA_WORDS] = {};
++	u32 actual[PPE_FLOW_TBL_OP_DATA_WORDS] = {};
++	int nwords = flow->is_ipv6 ? 9 : PPE_FLOW_TBL_WORDS;
++	int ret;
++
++	ppe_flow_entry_pack(flow, expected);
++	expected[0] |= PPE_FLOW_W0_VALID;
++
++	ret = ppe_flow_entry_read(ppe_dev, index, actual, nwords);
++	if (ret)
++		return ret;
++
++	expected[0] &= ~PPE_FLOW_W0_AGE;
++	actual[0] &= ~PPE_FLOW_W0_AGE;
++
++	return memcmp(actual, expected, nwords * sizeof(*actual)) ?
++		-ESTALE : 0;
++}
++
+ int ppe_flow_entry_del(struct ppe_device *ppe_dev, int index)
+ {
+ 	u32 qos[PPE_QOS_MAPPING_TBL_WORDS] = {};
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+@@ -95,6 +95,10 @@ int ppe_host_entry_del(struct ppe_device
+ int ppe_flow_entry_add(struct ppe_device *ppe_dev,
+ 		       const struct ppe_flow_entry *flow);
+ int ppe_flow_entry_enable(struct ppe_device *ppe_dev, int index, bool enable);
++int ppe_flow_entry_read(struct ppe_device *ppe_dev, int index, u32 *words,
++			int nwords);
++int ppe_flow_entry_matches(struct ppe_device *ppe_dev, int index,
++			   const struct ppe_flow_entry *flow);
+ int ppe_flow_entry_del(struct ppe_device *ppe_dev, int index);
+ int ppe_flow_stats_get(struct ppe_device *ppe_dev, int index, u32 *packets,
+ 		       u64 *bytes);
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -644,6 +644,14 @@
+ #define PPE_FLOW_OP_RSLT_ENTRY_INDEX		GENMASK(16, 5)
+ #define PPE_FLOW_OP_RSLT_VALID_CNT		GENMASK(20, 17)
+ 
++/* The IPQ95xx/IPQ53xx read engine has the same command and result
++ * bit layout as the flow write engine, but independent registers.
++ */
++#define PPE_FLOW_TBL_RD_OP_ADDR			0x2005ec
++#define PPE_FLOW_TBL_RD_OP_RSLT_ADDR		0x200688
++#define PPE_FLOW_TBL_RD_RSLT_DATA_ADDR		0x2006b0
++#define PPE_FLOW_TBL_RD_RSLT_DATA_WORDS	11
++
+ #define PPE_HOST_TBL_OP_ADDR			0x200724
+ #define PPE_HOST_OP_CMD_ID			GENMASK(3, 0)
+ #define PPE_HOST_OP_TYPE			GENMASK(7, 5)

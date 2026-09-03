@@ -11,13 +11,24 @@ Disable checksum offload while the four-byte header is present.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
+ Documentation/devicetree/bindings/net/dsa/dsa-port.yaml |  1 +
  drivers/net/dsa/qca/qca8k-8xxx.c |  3 ++
  include/linux/dsa/tag_qca.h      |  4 ++
  include/net/dsa.h                |  4 +-
  net/dsa/tag_qca.c                | 87 +++++++++++++++++++++++++++-----
  net/dsa/user.c                   |  3 ++
- 5 files changed, 88 insertions(+), 13 deletions(-)
+ 6 files changed, 89 insertions(+), 13 deletions(-)
 
+--- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
++++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
+@@ -55,6 +55,7 @@ properties:
+       - edsa
+       - ocelot
+       - ocelot-8021q
++      - qca_4b
+       - qca_8021q
+       - rtl8_4
+       - rtl8_4t
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
 @@ -1908,6 +1908,8 @@ static int qca8k_change_tag_protocol(str
@@ -29,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (proto != DSA_TAG_PROTO_QCA_8021Q) {
  		return -EOPNOTSUPP;
  	}
-@@ -2097,6 +2099,7 @@ static int qca8k_connect_tag_protocol(st
+@@ -2094,6 +2096,7 @@ static int qca8k_connect_tag_protocol(st
  		tagger_data->mib_autocast_handler = qca8k_mib_autocast_handler;
  
  		break;

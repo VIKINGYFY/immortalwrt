@@ -1,26 +1,26 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 29 Aug 2026 20:31:00 +0800
-Subject: [PATCH] net: dsa: qca8k: add RE-CS-08 firmware debug tag
+Date: Mon, 31 Aug 2026 14:56:21 +0800
+Subject: [PATCH] net: qualcomm: add PPE firmware marker
 
-Print a single temporary build tag when the QCA8386 match data is selected.
-This patch is the only RE-CS-08 firmware marker and is refreshed in place
-for later test images.
+Print one build marker after the generic qcom_ppe probe completes.
+This patch is the only firmware marker and is refreshed in place for later
+images.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- drivers/net/dsa/qca/qca8k-8xxx.c | 3 +++
- 1 file changed, 3 insertions(+)
+ drivers/net/ethernet/qualcomm/ppe/ppe.c | 1 +
+ 1 file changed, 1 insertion(+)
 
---- a/drivers/net/dsa/qca/qca8k-8xxx.c
-+++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -2323,6 +2323,9 @@ qca8k_sw_probe(struct mdio_device *mdiod
- 	priv->bus = mdiodev->bus;
- 	priv->dev = &mdiodev->dev;
- 	priv->info = of_device_get_match_data(priv->dev);
-+	if (qca8k_is_qca8386(priv))
-+		dev_info_once(priv->dev,
-+			      "RE-CS-08 firmware debug tag: 20260829-ppe-fusion-r1\n");
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe.c
+@@ -301,6 +301,7 @@
  
- 	priv->reset_gpio = devm_gpiod_get_optional(priv->dev, "reset",
- 						   GPIOD_OUT_HIGH);
+ 	ppe_debugfs_setup(ppe_dev);
+ 	platform_set_drvdata(pdev, ppe_dev);
++	dev_info_once(dev, "PPE OFFLOAD ViKing/r1 load successful\n");
+ 
+ 	return 0;
+ }

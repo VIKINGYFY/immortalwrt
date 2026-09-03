@@ -18,8 +18,9 @@ finest token unit whose maximums cover the requested rate and burst
 is selected. Rates beyond what the shaper can express are rejected,
 leaving the qdisc in software.
 
-The port net devices now advertise NETIF_F_HW_TC, which the qdisc
-offload path requires.
+The port net devices now advertise and request NETIF_F_HW_TC, which the
+qdisc offload path requires. Keeping the capability in wanted_features
+prevents later feature recalculation from disabling the active bit.
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
@@ -33,7 +34,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <linux/printk.h>
  
  #include "edma.h"
-@@ -106,8 +107,8 @@ static int edma_port_open(struct net_dev
+@@ -106,10 +107,10 @@ static int edma_port_open(struct net_dev
  	 * checksum offloading and other features. Each port is
  	 * responsible to maintain the feature set it supports.
  	 */
@@ -42,8 +43,11 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +	netdev->features |= EDMA_NETDEV_FEATURES | NETIF_F_HW_TC;
 +	netdev->hw_features |= EDMA_NETDEV_FEATURES | NETIF_F_HW_TC;
  	netdev->vlan_features |= EDMA_NETDEV_FEATURES;
- 	netdev->wanted_features |= EDMA_NETDEV_FEATURES;
+-	netdev->wanted_features |= EDMA_NETDEV_FEATURES;
++	netdev->wanted_features |= EDMA_NETDEV_FEATURES | NETIF_F_HW_TC;
  
+ 	ppe_port  = port_priv->ppe_port;
+ 	port_id = ppe_port->port_id;
 @@ -336,12 +337,44 @@ static int edma_port_set_mac_address(str
  	return 0;
  }

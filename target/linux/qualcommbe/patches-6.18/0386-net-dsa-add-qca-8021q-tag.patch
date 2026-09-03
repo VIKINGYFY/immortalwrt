@@ -21,14 +21,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
-@@ -48,6 +48,7 @@ properties:
-   dsa-tag-protocol:
-     description:
-       Instead of the default, the switch will use this tag protocol if
+@@ -55,6 +55,7 @@ properties:
+       - edsa
+       - ocelot
+       - ocelot-8021q
 +      - qca_8021q
-       possible. Useful when a device supports multiple protocols and
-       the default is incompatible with the Ethernet device.
-     enum:
+       - rtl8_4
+       - rtl8_4t
+       - seville
 --- a/include/linux/dsa/8021q.h
 +++ b/include/linux/dsa/8021q.h
 @@ -7,6 +7,7 @@

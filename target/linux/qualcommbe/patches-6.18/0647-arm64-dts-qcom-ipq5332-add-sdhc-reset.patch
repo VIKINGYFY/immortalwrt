@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 2 Sep 2026 15:22:05 +0800
+Subject: [PATCH] arm64: dts: qcom: ipq5332: add SDHC reset
+
+Reset the SDHC block before the driver enables its clocks. This matches
+the existing IPQ6018 and IPQ8074 SDHC descriptions and uses the IPQ5332
+GCC reset which is already exposed for this block.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ arch/arm64/boot/dts/qcom/ipq5332.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
+@@ -489,6 +489,7 @@
+ 				 <&gcc GCC_SDCC1_APPS_CLK>,
+ 				 <&xo_board>;
+ 			clock-names = "iface", "core", "xo";
++			resets = <&gcc GCC_SDCC_BCR>;
+ 			status = "disabled";
+ 		};
+ 

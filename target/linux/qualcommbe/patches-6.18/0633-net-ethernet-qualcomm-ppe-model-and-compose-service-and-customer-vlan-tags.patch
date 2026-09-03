@@ -1,0 +1,162 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: qualcomm: ppe: compose service and customer VLAN tags
+
+Track service and customer VLAN tags independently. Compose the DSA
+service tag with user VLAN actions on egress so ingress matching and
+egress programming stay consistent for VLAN-aware DSA ports.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -633,9 +633,13 @@ int ppe_nexthop_set(struct ppe_device *p
+ 	val[0] = PPE_NEXTHOP_W0_TYPE;
+ 	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_PORT, nh->port);
+ 	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_POST_L3_IF, nh->l3_if);
+-	if (nh->vid >= 0) {
++	if (nh->svid >= 0) {
++		val[0] |= PPE_NEXTHOP_W0_STAG_FMT;
++		val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_SVID, nh->svid);
++	}
++	if (nh->cvid >= 0) {
+ 		val[0] |= PPE_NEXTHOP_W0_CTAG_FMT;
+-		val[1] = FIELD_PREP(PPE_NEXTHOP_W1_CVID, nh->vid);
++		val[1] = FIELD_PREP(PPE_NEXTHOP_W1_CVID, nh->cvid);
+ 	}
+ 	val[1] |= FIELD_PREP(PPE_NEXTHOP_W1_PUB_IP_INDEX, nh->pub_ip_index);
+ 	val[1] |= FIELD_PREP(PPE_NEXTHOP_W1_MAC_ADDR_LO,
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+@@ -22,7 +22,8 @@ struct ppe_device;
+  * @port: Egress PPE port.
+  * @l3_if: Egress L3 interface, providing the source MAC rewrite.
+  * @mac: Destination MAC rewrite.
+- * @vid: Egress C-VLAN tag, negative for untagged egress.
++ * @svid: Egress service VLAN tag, negative when absent.
++ * @cvid: Egress customer VLAN tag, negative when absent.
+  * @pub_ip_index: Index of the translated source address of SNAT flows.
+  * @dnat_ip: Translated destination address of DNAT flows.
+  */
+@@ -30,7 +31,8 @@ struct ppe_flow_nexthop {
+ 	u8 port;
+ 	u8 l3_if;
+ 	u8 mac[ETH_ALEN];
+-	int vid;
++	int svid;
++	int cvid;
+ 	u8 pub_ip_index;
+ 	__be32 dnat_ip;
+ };
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -581,7 +581,7 @@ static bool ppe_ft_nexthop_match(const v
+ 
+ 	return slot->key.port == nh->port && slot->key.l3_if == nh->l3_if &&
+ 	       ether_addr_equal(slot->key.mac, nh->mac) &&
+-	       slot->key.vid == nh->vid &&
++	       slot->key.svid == nh->svid && slot->key.cvid == nh->cvid &&
+ 	       slot->key.pub_ip_index == nh->pub_ip_index &&
+ 	       slot->key.dnat_ip == nh->dnat_ip;
+ }
+@@ -2051,7 +2051,8 @@ static int ppe_ft_flow_replace(struct pp
+ 	flow->tunnel = -1;
+ 	flow->vp = -1;
+ 	flow->ivp = -1;
+-	nh.vid = -1;
++	nh.svid = -1;
++	nh.cvid = -1;
+ 	data.pppoe_sid = -1;
+ 	data.ingress_vid = -1;
+ 	data.ingress_dsa = false;
+@@ -2249,11 +2250,11 @@ static int ppe_ft_flow_replace(struct pp
+ 		case FLOW_ACTION_VLAN_PUSH:
+ 			if (vlan_pushes++ ||
+ 			    act->vlan.proto != htons(ETH_P_8021Q) ||
+-			    nh.vid >= 0) {
++			    nh.cvid >= 0) {
+ 				ret = -EOPNOTSUPP;
+ 				goto err_free;
+ 			}
+-			nh.vid = act->vlan.vid;
++			nh.cvid = act->vlan.vid;
+ 			break;
+ 		case FLOW_ACTION_VLAN_POP:
+ 			if (vlan_pops++) {
+@@ -2312,7 +2313,8 @@ static int ppe_ft_flow_replace(struct pp
+ 			ret = -EOPNOTSUPP;
+ 			goto err_free;
+ 		}
+-		if (flow->entry.is_ipv6 || data.pppoe_sid >= 0 || nh.vid >= 0 ||
++		if (flow->entry.is_ipv6 || data.pppoe_sid >= 0 ||
++		    nh.svid >= 0 || nh.cvid >= 0 ||
+ 		    data.ingress_vid >= 0) {
+ 			ret = -EOPNOTSUPP;
+ 			goto err_free;
+@@ -2461,14 +2463,10 @@ put_idev:
+ 			struct dsa_port *dp;
+ 			int dsa_ovid, dsa_mode;
+ 
+-			/* The next hop pushes one tag; a switch port
+-			 * with tagged bridge-vlan egress would need
+-			 * its 802.1Q tag inside the tag_8021q one.
++			/* QCA4B carries the switch identity in the VP ATH tag,
++			 * while QCA 802.1Q uses the S-tag slot. Both can keep
++			 * an ordinary user VLAN in the C-tag slot.
+ 			 */
+-			if (nh.vid >= 0) {
+-				ret = -EOPNOTSUPP;
+-				goto err_prelock_ivp;
+-			}
+ 			dsa_mode = ppe_ft_dsa_resolve(odev, &dp, &dsa_ovid);
+ 			if (dsa_mode < 0) {
+ 				ret = dsa_mode;
+@@ -2486,7 +2484,19 @@ put_idev:
+ 				port_priv = netdev_priv(dsa_port_to_conduit(dp));
+ 				nh.port = port_priv->ppe_port->port_id;
+ 				nh.l3_if = nh.port;
+-				nh.vid = dsa_ovid;
++				if (dp->cpu_dp->tag_ops->proto ==
++				    DSA_TAG_PROTO_QCA_8021Q) {
++					nh.svid = dsa_ovid;
++				} else {
++					/* VSC73XX also needs the C-tag slot for its
++					 * DSA identity, so an existing user tag conflicts.
++					 */
++					if (nh.cvid >= 0) {
++						ret = -EOPNOTSUPP;
++						goto err_prelock_ivp;
++					}
++					nh.cvid = dsa_ovid;
++				}
+ 			}
+ 			flow->egress_dev = odev;
+ 			flow->egress_vid = dsa_ovid;
+@@ -2692,7 +2702,8 @@ put_idev:
+ 
+ 		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
+ 					       data.eth.dst, data.eth.src,
+-					       pppoe_port, nh.vid);
++					       pppoe_port,
++					       nh.svid >= 0 ? nh.svid : nh.cvid);
+ 		if (flow->pppoe < 0) {
+ 			ret = flow->pppoe;
+ 			goto err_vlan;
+@@ -3468,10 +3479,12 @@ static int ppe_ft_flow_rows_show(struct
+ 		seq_printf(seq, " source_match:%u\n", source_match && !host_err);
+ 		ppe_ft_debug_words(seq, "nexthop_raw", nh, ARRAY_SIZE(nh));
+ 		seq_printf(seq,
+-			   "  nexthop_dec read:%d index:%u index_match:%u type:%u port:%lu l3_if:%u ctag:%u cvid:%lu pub_ip:%lu dmac:%pM dnat:%pI4\n",
++			   "  nexthop_dec read:%d index:%u index_match:%u type:%u port:%lu l3_if:%u stag:%u svid:%lu ctag:%u cvid:%lu pub_ip:%lu dmac:%pM dnat:%pI4\n",
+ 			   nh_err, hw_nh, hw_nh == flow->nexthop,
+ 			   !!(nh[0] & PPE_NEXTHOP_W0_TYPE),
+ 			   FIELD_GET(PPE_NEXTHOP_W0_PORT, nh[0]), l3_if,
++			   !!(nh[0] & PPE_NEXTHOP_W0_STAG_FMT),
++			   FIELD_GET(PPE_NEXTHOP_W0_SVID, nh[0]),
+ 			   !!(nh[0] & PPE_NEXTHOP_W0_CTAG_FMT),
+ 			   FIELD_GET(PPE_NEXTHOP_W1_CVID, nh[1]),
+ 			   FIELD_GET(PPE_NEXTHOP_W1_PUB_IP_INDEX, nh[1]),

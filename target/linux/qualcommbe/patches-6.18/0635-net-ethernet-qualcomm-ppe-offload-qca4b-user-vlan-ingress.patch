@@ -1,0 +1,284 @@
+From 0f4ae8e2a63733706de96029bb4f4cf1b5a30a77 Mon Sep 17 00:00:00 2001
+From: VIKINGYFY <vikingyfy@gmail.com>
+Date: Mon, 31 Aug 2026 00:32:29 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe offload QCA4B user VLAN ingress
+
+QCA4B user-VLAN flows currently offload only the direction egressing the
+DSA port. The reverse direction is rejected because the ingress combines a
+QCA4B virtual-port identity with a customer VLAN.
+
+The QCA4B receive path already classifies an installed flow in software
+before source-VP injection. Extend that exact-match key with the optional
+802.1Q VID. A tagged packet is injected only when its VP, VID and original
+five-tuple all match the installed rule. Clear the skb VLAN metadata before
+injection so the PPE receives the same untagged L3 frame that a VLAN
+translation action would produce; restore it if injection fails and the
+packet returns to the software path.
+
+Register the ingress hook on demand for tagged QCA4B rules and keep its
+priority aligned with the flowtable block. Skip untagged QCA4B frames
+before tuple parsing because every installed key is VLAN-qualified.
+
+This follows the QSDK VLAN-as-VP ingress semantics without aliasing other
+VLANs onto the persistent QCA4B VP. QCA 802.1Q DSA still rejects a second
+VLAN layer because its transport tag and user tag cannot be distinguished
+by the single VLAN dissector key.
+
+Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -1993,6 +1993,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	int vlan_pops = 0;
+ 	struct in6_addr lwt_local = {}, lwt_remote = {};
+ 	u8 lwt_hop_limit = 0;
++	bool ingress_vp_vlan = false;
+ 	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
+ 	int i, nexthop, ret, redirects = 0, vlan_pushes = 0;
+ 	int pppoe_pushes = 0, csums = 0;
+@@ -2411,17 +2412,23 @@ static int ppe_ft_flow_replace(struct pp
+ 				goto put_idev;
+ 			}
+ 
+-			/* The parser exposes one VLAN layer. A user VLAN inside
+-			 * either DSA transport cannot use this path.
++			/* QCA4B carries its DSA identity outside the ordinary VLAN
++			 * dissector key, so its VP ingress hook can exact-match and
++			 * strip one user C-tag before injection. An 802.1Q DSA
++			 * transport plus a user VLAN still exposes two VLAN layers.
+ 			 */
+-			if (data.ingress_vid >= 0) {
++			if (data.ingress_vid >= 0 &&
++			    dsa_mode != PPE_FT_DSA_QCA4B) {
+ 				vp_ret = -EOPNOTSUPP;
+ 				goto put_idev;
+ 			}
+ 
+ 			if (dsa_mode == PPE_FT_DSA_QCA4B) {
++				ingress_vp_vlan = data.ingress_vid >= 0;
+ 				reject_reason = PPE_FT_REJECT_INGRESS_VP;
+-				vp_ret = ppe_vp_get_qca4b(ft->ppe_dev, idev);
++				vp_ret = ppe_vp_get_qca4b(ft->ppe_dev, idev,
++							  f->common.prio,
++							ingress_vp_vlan);
+ 				if (vp_ret >= 0)
+ 					flow->ivp = vp_ret;
+ 			} else {
+@@ -2447,7 +2454,8 @@ put_idev:
+ 			goto err_prelock_ivp;
+ 		}
+ 
+-		if (data.ingress_vid >= 0 && iport < 0) {
++		if (data.ingress_vid >= 0 && iport < 0 &&
++		    !ingress_vp_vlan) {
+ 			ret = -EOPNOTSUPP;
+ 			goto err_prelock_ivp;
+ 		}
+@@ -2473,7 +2481,8 @@ put_idev:
+ 				goto err_prelock_ivp;
+ 			}
+ 			if (dsa_mode == PPE_FT_DSA_QCA4B) {
+-				ret = ppe_vp_get_qca4b(ft->ppe_dev, odev);
++				ret = ppe_vp_get_qca4b(ft->ppe_dev, odev,
++						       f->common.prio, false);
+ 				if (ret < 0)
+ 					goto err_prelock_ivp;
+ 				flow->vp = ret;
+@@ -2528,6 +2537,10 @@ put_idev:
+ 			flow->vp_flow.key.sip.ip4 = flow->entry.sip.ip4;
+ 			flow->vp_flow.key.dip.ip4 = flow->entry.dip.ip4;
+ 		}
++		if (ingress_vp_vlan) {
++			flow->vp_flow.key.vlan_proto = htons(ETH_P_8021Q);
++			flow->vp_flow.key.vlan_id = data.ingress_vid;
++		}
+ 	}
+ 
+ 	if (tunnel_flow && !lwt_tunnel) {
+@@ -2665,7 +2678,7 @@ put_idev:
+ 			goto err_ingress_my_mac;
+ 	}
+ 
+-	if (data.ingress_vid >= 0) {
++	if (data.ingress_vid >= 0 && !ingress_vp_vlan) {
+ 		flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_vid,
+ 					     imtu, data.ingress_dsa);
+ 		if (flow->vlan < 0) {
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
+@@ -30,6 +30,7 @@
+ #include <linux/bitfield.h>
+ #include <linux/etherdevice.h>
+ #include <linux/if_ether.h>
++#include <linux/if_vlan.h>
+ #include <linux/ip.h>
+ #include <linux/ipv6.h>
+ #include <linux/kernel.h>
+@@ -481,6 +482,8 @@ static unsigned int ppe_vp_ingress(void
+ 	const struct ethhdr *eth;
+ 	__be16 ports[2];
+ 	unsigned int offset;
++	u16 vlan_tci = 0;
++	bool tagged = false;
+ 	int mac_len;
+ 
+ 	/* A hardware miss trips this VP's persistent fail-open circuit
+@@ -494,6 +497,25 @@ static unsigned int ppe_vp_ingress(void
+ 	 */
+ 	if (!atomic_read(&slot->nflows))
+ 		return NF_ACCEPT;
++	/* QCA4B hook entries are always VLAN-qualified. An untagged frame
++	 * cannot match any installed key, so leave it on the native path
++	 * without parsing its network and transport headers.
++	 */
++	if (READ_ONCE(slot->type) == PPE_VP_SLOT_QCA4B &&
++	    !skb_vlan_tag_present(skb)) {
++		return NF_ACCEPT;
++	}
++
++	/* The receive core has moved an inline VLAN header into skb metadata
++	 * before the netdev ingress hook. Keep it in the exact-match key; QCA4B
++	 * may then strip the tag only for an installed flow of this VID.
++	 */
++	if (skb_vlan_tag_present(skb)) {
++		if (skb->vlan_proto != htons(ETH_P_8021Q))
++			return NF_ACCEPT;
++		vlan_tci = skb_vlan_tag_get(skb);
++		tagged = true;
++	}
+ 
+ 	if (skb->protocol != htons(ETH_P_IP) &&
+ 	    skb->protocol != htons(ETH_P_IPV6))
+@@ -544,6 +566,10 @@ static unsigned int ppe_vp_ingress(void
+ 		return NF_ACCEPT;
+ 	key.sport = ports[0];
+ 	key.dport = ports[1];
++	if (tagged) {
++		key.vlan_proto = skb->vlan_proto;
++		key.vlan_id = vlan_tci & VLAN_VID_MASK;
++	}
+ 
+ 	rcu_read_lock();
+ 	flow = rhashtable_lookup_fast(&slot->flows, &key,
+@@ -559,6 +585,8 @@ static unsigned int ppe_vp_ingress(void
+ 	 */
+ 	mac_len = skb->data - skb_mac_header(skb);
+ 	skb_push(skb, mac_len);
++	if (tagged)
++		__vlan_hwaccel_clear_tag(skb);
+ 
+ 	/* On success the transmit path owns the frame (freed at Tx
+ 	 * completion) and it must not continue up the stack. On any failure
+@@ -567,6 +595,9 @@ static unsigned int ppe_vp_ingress(void
+ 	if (edma_tx_vp_inject(slot->vp, skb) == 0)
+ 		return NF_STOLEN;
+ 
++	if (tagged)
++		__vlan_hwaccel_put_tag(skb, key.vlan_proto, vlan_tci);
++
+ 	skb_pull(skb, mac_len);
+ 
+ 	return NF_ACCEPT;
+@@ -833,7 +864,8 @@ int ppe_vp_get(struct ppe_device *ppe_de
+ 	return PPE_VP_PORT_BASE + free;
+ }
+ 
+-int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev)
++int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
++		     int priority, bool need_hook)
+ {
+ 	struct ppe_vp *vp = ppe_dev->vp;
+ 	int i, ret;
+@@ -853,6 +885,20 @@ int ppe_vp_get_qca4b(struct ppe_device *
+ 			ret = -EOPNOTSUPP;
+ 			goto out;
+ 		}
++		if (need_hook) {
++			if (vp->slots[i].hook_registered &&
++			    vp->slots[i].nf_ops.priority != priority) {
++				ret = -EOPNOTSUPP;
++				goto out;
++			}
++			if (!vp->slots[i].hook_registered) {
++				ret = ppe_vp_hook_register(&vp->slots[i], dev,
++							   vp->slots[i].vp,
++							   priority);
++				if (ret)
++					goto out;
++			}
++		}
+ 		vp->slots[i].refcnt++;
+ 		ret = vp->slots[i].vp;
+ 		goto out;
+@@ -863,6 +909,13 @@ int ppe_vp_get_qca4b(struct ppe_device *
+ 		goto out;
+ 	for (i = 0; i < PPE_VP_SLOTS; i++) {
+ 		if (rcu_access_pointer(vp->slots[i].dev) == dev) {
++			if (need_hook) {
++				ret = ppe_vp_hook_register(&vp->slots[i], dev,
++							   vp->slots[i].vp,
++							   priority);
++				if (ret)
++					goto out;
++			}
+ 			vp->slots[i].refcnt++;
+ 			ret = vp->slots[i].vp;
+ 			goto out;
+@@ -1002,8 +1055,12 @@ int ppe_vp_flow_add(struct ppe_device *p
+ 
+ 	if (!vpt || i < 0 || i >= PPE_VP_SLOTS)
+ 		return -EINVAL;
+-	if (READ_ONCE(vpt->slots[i].type) == PPE_VP_SLOT_QCA4B)
+-		return 0;
++	if (READ_ONCE(vpt->slots[i].type) == PPE_VP_SLOT_QCA4B) {
++		if (!flow->key.vlan_proto)
++			return 0;
++		if (!READ_ONCE(vpt->slots[i].hook_registered))
++			return -EOPNOTSUPP;
++	}
+ 
+ 	ret = rhashtable_insert_fast(&vpt->slots[i].flows, &flow->node,
+ 				     ppe_vp_flow_params);
+@@ -1112,6 +1169,11 @@ void ppe_vp_qca4b_debug_show(struct ppe_
+ 			   dev ? netif_carrier_ok(dev) : 0, slot->athtag_active,
+ 			   slot->poisoned, prx_ret, prx, eg_ret,
+ 			   eg_vp[2], eg_vp[1], eg_vp[0]);
++		seq_printf(seq,
++			   "  hook=%u priority=%d nflows=%d\n",
++			   slot->hook_registered,
++			   slot->hook_registered ? slot->nf_ops.priority : 0,
++			   atomic_read(&slot->nflows));
+ 	}
+ 	mutex_unlock(&vp->lock);
+ }
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
+@@ -16,7 +16,8 @@ struct seq_file;
+ 
+ /* An installed VP-uplink flow is the authority for source-tagged
+  * injection. The flowtable embeds this object in its flow lifetime; the
+- * receive hook performs an RCU lookup of the original, pre-NAT tuple.
++ * receive hook performs an RCU lookup of the original, pre-NAT tuple and
++ * optional VLAN identity.
+  */
+ struct ppe_vp_flow_key {
+ 	union {
+@@ -25,6 +26,8 @@ struct ppe_vp_flow_key {
+ 	} sip, dip;
+ 	__be16 sport;
+ 	__be16 dport;
++	__be16 vlan_proto;
++	u16 vlan_id;
+ 	u8 protocol;
+ 	bool is_ipv6;
+ };
+@@ -54,7 +57,8 @@ void ppe_vp_teardown(struct ppe_device *
+ 
+ int ppe_vp_get(struct ppe_device *ppe_dev, struct net_device *dev,
+ 	       int priority);
+-int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev);
++int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
++		     int priority, bool need_hook);
+ void ppe_vp_put(struct ppe_device *ppe_dev, int vp);
+ struct net_device *ppe_vp_dev(struct ppe_device *ppe_dev, int vp);
+ bool ppe_vp_is_qca4b(struct ppe_device *ppe_dev, int vp);

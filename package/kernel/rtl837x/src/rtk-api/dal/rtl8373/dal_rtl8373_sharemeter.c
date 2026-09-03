@@ -151,8 +151,6 @@ rtk_api_ret_t dal_rtl8373_rate_shareMeter_get(rtk_meter_id_t index, rtk_meter_ty
 	if ((retVal = rtl8373_getAsicRegBit(RTL8373_SHARED_METER_IPG_CTRL_ADDR(index), RTL8373_SHARED_METER_IPG_CTRL_IPG_CNTR_OFFSET(index), pIfg_include)) != RT_ERR_OK)
 		return retVal;
 
-	*pIfg_include = (regData == 1) ? ENABLED : DISABLED;
-
 	/* Type */
 	if ((retVal = rtl8373_getAsicRegBit(RTL8373_SHARED_METER_MODE_ADDR(index), RTL8373_SHARED_METER_MODE_LB_MODE_OFFSET(index), &regData)) != RT_ERR_OK)
 		return retVal;

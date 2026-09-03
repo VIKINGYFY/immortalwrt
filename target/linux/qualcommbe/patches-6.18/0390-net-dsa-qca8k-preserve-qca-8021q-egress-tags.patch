@@ -9,76 +9,32 @@ frames reach the CPU, so the DSA tagger interprets payload bytes as a VLAN
 TCI and drops traffic.
 
 Preserve secure lookup for VLAN-unaware bridges and keep QCA 802.1Q
-traffic on the CPU/PPE path as in QSDK. Add temporary register and VTU
-readback diagnostics for hardware bring-up.
+traffic on the CPU/PPE path as in QSDK. Remove the temporary protocol,
+register and bridge-state info logs now that the hardware path is stable;
+register programming failures remain visible as errors.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- drivers/net/dsa/qca/qca8k-8xxx.c   |  2 +-
- drivers/net/dsa/qca/qca8k-common.c | 90 +++++++++++++++++++++++++++++-
- drivers/net/dsa/qca/qca8k.h        |  5 ++
- 3 files changed, 95 insertions(+), 2 deletions(-)
+ drivers/net/dsa/qca/qca8k-8xxx.c   |  3 ---
+ drivers/net/dsa/qca/qca8k-common.c | 37 ++++++++++++++++++++++++++++++++++++-
+ drivers/net/dsa/qca/qca8k.h        |  5 +++++
+ 3 files changed, 41 insertions(+), 4 deletions(-)
 
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -1935,7 +1935,7 @@ static int qca8k_change_tag_protocol(str
+@@ -1934,9 +1934,6 @@ static int qca8k_change_tag_protocol(str
+ 		qca8k_tag_8021q_teardown(ds);
  
  	priv->proto = proto;
- 	dev_info(priv->dev,
+-	dev_info(priv->dev,
 -		 "QCA8K debug: tag protocol %u, header %u, CPU RX/TX %u/%u\\n",
-+		 "QCA8K debug: tag protocol %u, header %u, CPU RX/TX %u/%u\n",
- 		 proto, hdr_type, rx_mode, tx_mode);
+-		 proto, hdr_type, rx_mode, tx_mode);
  
  	return 0;
+ }
 --- a/drivers/net/dsa/qca/qca8k-common.c
 +++ b/drivers/net/dsa/qca/qca8k-common.c
-@@ -480,13 +480,56 @@ static void qca8k_8021q_vlan_del(struct
- 		dev_err(priv->dev, "Failed to recover PVID on port %d (%d)", port, ret);
- }
- 
-+static void qca8k_tag_8021q_dump(struct dsa_switch *ds)
-+{
-+	struct qca8k_priv *priv = ds->priv;
-+	struct dsa_port *dp;
-+	u32 service = 0, edit = 0, route = 0;
-+
-+	qca8k_read(priv, QCA8K_SERVICE_TAG_CTL, &service);
-+	qca8k_read(priv, QCA8K_PKT_EDIT_CTRL, &edit);
-+	qca8k_read(priv, QCA8K_ROUTE_EGRESS_VLAN, &route);
-+	dev_info(priv->dev,
-+		 "QCA8K debug: service=%#010x edit=%#010x route-egress=%#010x\n",
-+		 service, edit, route);
-+
-+	dsa_switch_for_each_port(dp, ds) {
-+		u32 lookup = 0, ctrl0 = 0, ctrl1 = 0, egress = 0, vtu = 0;
-+		u16 vid = 0;
-+		int ret = 0;
-+
-+		if (!dsa_port_is_user(dp) && !dsa_port_is_cpu(dp))
-+			continue;
-+
-+		qca8k_read(priv, QCA8K_PORT_LOOKUP_CTRL(dp->index), &lookup);
-+		qca8k_read(priv, QCA8K_REG_PORT_VLAN_CTRL0(dp->index), &ctrl0);
-+		qca8k_read(priv, QCA8K_REG_PORT_VLAN_CTRL1(dp->index), &ctrl1);
-+		qca8k_read(priv, QCA8K_EGRESS_VLAN(dp->index), &egress);
-+
-+		if (dsa_port_is_user(dp)) {
-+			vid = dsa_tag_8021q_standalone_vid(dp);
-+			mutex_lock(&priv->reg_mutex);
-+			ret = qca8k_vlan_access(priv, QCA8K_VLAN_READ, vid);
-+			if (!ret)
-+				ret = qca8k_read(priv, QCA8K_REG_VTU_FUNC0, &vtu);
-+			mutex_unlock(&priv->reg_mutex);
-+		}
-+
-+		dev_info(priv->dev,
-+			 "QCA8K debug: %s port=%d vid=%u lookup=%#010x ctrl0=%#010x ctrl1=%#010x egress=%#010x vtu=%#010x ret=%d\n",
-+			 dsa_port_is_cpu(dp) ? "cpu" : "user", dp->index, vid,
-+			 lookup, ctrl0, ctrl1, egress, vtu, ret);
-+	}
-+}
-+
- void qca8k_tag_8021q_setup(struct dsa_switch *ds)
+@@ -484,9 +484,9 @@ void qca8k_tag_8021q_setup(struct dsa_sw
  {
  	struct qca8k_priv *priv = ds->priv;
  	struct dsa_port *dp, *dpcpu;
@@ -86,11 +42,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u16 vid;
  
 -	dev_info(priv->dev, "QCA8K debug: configuring 802.1Q DSA port VIDs\\n");
-+	dev_info(priv->dev, "QCA8K debug: configuring 802.1Q DSA port VIDs\n");
  	qca8k_rmw(priv, QCA8K_SERVICE_TAG_CTL,
  		  QCA8K_SERVICE_TAG_MASK | QCA8K_SERVICE_TAG_STAG,
  			DSA_TAG_8021Q_VLAN_PROTO | QCA8K_SERVICE_TAG_STAG);
-@@ -495,6 +538,25 @@ void qca8k_tag_8021q_setup(struct dsa_sw
+@@ -495,6 +495,25 @@ void qca8k_tag_8021q_setup(struct dsa_sw
  			QCA8K_PKT_EDIT_TO_CPU_VID_CHG_EN);
  
  	dsa_switch_for_each_port(dp, ds) {
@@ -116,16 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (dsa_port_is_user(dp) || dsa_port_is_cpu(dp))
  			qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(dp->index),
  				  QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
-@@ -517,6 +579,8 @@ void qca8k_tag_8021q_setup(struct dsa_sw
- 			  QCA8K_PORT_VLAN_TLS_MODE | QCA8K_PORT_VLAN_PROP_EN,
- 				QCA8K_PORT_VLAN_TLS_MODE);
- 	}
-+
-+	qca8k_tag_8021q_dump(ds);
- }
- 
- void qca8k_tag_8021q_teardown(struct dsa_switch *ds)
-@@ -680,6 +744,9 @@ static int qca8k_port_configure_learning
+@@ -680,6 +699,9 @@ static int qca8k_port_configure_learning
  {
  	struct qca8k_priv *priv = ds->priv;
  
@@ -135,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (learning)
  		return regmap_set_bits(priv->regmap,
  				       QCA8K_PORT_LOOKUP_CTRL(port),
-@@ -794,6 +861,8 @@ int qca8k_port_bridge_flags(struct dsa_s
+@@ -794,6 +816,8 @@ int qca8k_port_bridge_flags(struct dsa_s
  		if (ret)
  			return ret;
  	}
@@ -144,21 +90,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (flags.mask & BR_ISOLATED) {
  		struct dsa_port *dp = dsa_to_port(ds, port);
-@@ -819,6 +888,13 @@ int qca8k_port_bridge_join(struct dsa_sw
+@@ -819,6 +843,9 @@ int qca8k_port_bridge_join(struct dsa_sw
  {
  	struct qca8k_priv *priv = ds->priv;
  
-+	if (priv->proto == DSA_TAG_PROTO_QCA_8021Q) {
-+		dev_info(priv->dev,
-+			 "QCA8K debug: port %d bridge forwarding remains on CPU/PPE path\n",
-+			 port);
++	if (priv->proto == DSA_TAG_PROTO_QCA_8021Q)
 +		return 0;
-+	}
 +
  	return qca8k_update_port_member(priv, port, bridge.dev, true);
  }
  
-@@ -828,6 +904,9 @@ void qca8k_port_bridge_leave(struct dsa_
+@@ -828,6 +855,9 @@ void qca8k_port_bridge_leave(struct dsa_
  	struct qca8k_priv *priv = ds->priv;
  	int err;
  
@@ -168,18 +110,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	err = qca8k_update_port_member(priv, port, bridge.dev, false);
  	if (err)
  		dev_err(priv->dev,
-@@ -1127,6 +1206,15 @@ int qca8k_port_vlan_filtering(struct dsa
+@@ -1127,6 +1157,11 @@ int qca8k_port_vlan_filtering(struct dsa
  	struct qca8k_priv *priv = ds->priv;
  	int ret;
  
-+	if (priv->proto == DSA_TAG_PROTO_QCA_8021Q && !vlan_filtering) {
-+		dev_info(priv->dev,
-+			 "QCA8K debug: port %d keeps secure VLAN mode for service tags\n",
-+			 port);
++	if (priv->proto == DSA_TAG_PROTO_QCA_8021Q && !vlan_filtering)
 +		return qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(port),
 +				   QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
 +				   QCA8K_PORT_LOOKUP_VLAN_MODE_SECURE);
-+	}
 +
  	if (vlan_filtering) {
  		ret = qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(port),

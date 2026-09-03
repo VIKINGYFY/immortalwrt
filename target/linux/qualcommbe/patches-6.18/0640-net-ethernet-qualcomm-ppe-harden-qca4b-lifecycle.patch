@@ -1,0 +1,203 @@
+From 2f1b8d7d2a2a4f6a2c1e9d0f8a8e5c7b6d4f3a21 Mon Sep 17 00:00:00 2001
+From: ViKing <vking@example.com>
+Date: Mon, 31 Aug 2026 13:18:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: harden QCA4B lifecycle
+
+Quarantine a QCA4B VP when ATH or hardware rollback cannot restore the
+previous state. Invalidate flows referencing a QCA4B VP when its MAC, MTU,
+or bridge topology changes so stale hardware rows cannot survive
+reconfigure.
+
+Signed-off-by: ViKing <vking@example.com>
+
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
+@@ -256,7 +256,7 @@ static int ppe_vp_athtag_add(struct ppe_
+ 	u32 value, verify[3];
+ 	u32 eg_vp_reg, physical_reg, switch_reg;
+ 	bool first_eg, first_rx;
+-	int ret;
++	int ret, rollback_ret, err;
+ 
+ 	first_eg = !vp->athtag_users;
+ 	first_rx = !vp->athtag_rx_users[slot->physical_port];
+@@ -380,14 +380,29 @@ static int ppe_vp_athtag_add(struct ppe_
+ 	return 0;
+ 
+ rollback:
+-	regmap_bulk_write(ppe_dev->regmap, eg_vp_reg,
+-			  slot->athtag_orig_eg_vp,
+-			  ARRAY_SIZE(slot->athtag_orig_eg_vp));
+-	if (switch_reg != physical_reg)
+-		regmap_write(ppe_dev->regmap, switch_reg, switch_old);
+-	regmap_write(ppe_dev->regmap, physical_reg, physical_old);
+-	regmap_write(ppe_dev->regmap, PPE_ATHTAG_EG_GEN_CTRL_ADDR,
+-		     eg_gen_old);
++	rollback_ret = regmap_bulk_write(ppe_dev->regmap, eg_vp_reg,
++					 slot->athtag_orig_eg_vp,
++					 ARRAY_SIZE(slot->athtag_orig_eg_vp));
++	if (switch_reg != physical_reg) {
++		err = regmap_write(ppe_dev->regmap, switch_reg, switch_old);
++		if (!rollback_ret)
++			rollback_ret = err;
++	}
++	err = regmap_write(ppe_dev->regmap, physical_reg, physical_old);
++	if (!rollback_ret)
++		rollback_ret = err;
++	err = regmap_write(ppe_dev->regmap, PPE_ATHTAG_EG_GEN_CTRL_ADDR,
++			   eg_gen_old);
++	if (!rollback_ret)
++		rollback_ret = err;
++	if (rollback_ret) {
++		slot->poisoned = true;
++		dev_err(ppe_dev->dev,
++			"failed to roll back QCA4B ATH mapping for VP %d, quarantining slot: %d\n",
++			slot->vp, rollback_ret);
++		if (!ret)
++			ret = rollback_ret;
++	}
+ 	return ret;
+ }
+ 
+@@ -725,7 +740,7 @@ static int ppe_vp_qca4b_create_locked(st
+ 	struct dsa_port *dp;
+ 	int physical_port;
+ 	int free = -1;
+-	int i, ret;
++	int i, ret, rollback_ret;
+ 
+ 	ret = ppe_vp_qca4b_info(ppe_dev, dev, &dp, &physical_port);
+ 	if (ret)
+@@ -771,7 +786,16 @@ static int ppe_vp_qca4b_create_locked(st
+ 	return 0;
+ 
+ err_hw:
+-	ppe_vp_hw_set(ppe_dev, slot->vp, physical_port, 0, false);
++	rollback_ret = ppe_vp_hw_set(ppe_dev, slot->vp, physical_port, 0,
++				     false);
++	if (rollback_ret) {
++		slot->poisoned = true;
++		dev_err(ppe_dev->dev,
++			"failed to disable QCA4B VP %d after ATH setup error, quarantining slot: %d\n",
++			slot->vp, rollback_ret);
++		if (!ret)
++			ret = rollback_ret;
++	}
+ err_reset:
+ 	slot->refcnt = 0;
+ 	ppe_vp_slot_reset(slot);
+@@ -1184,6 +1208,7 @@ static int ppe_vp_netdev_event(struct no
+ 	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
+ 	struct ppe_vp *vp = container_of(nb, struct ppe_vp, notifier);
+ 	bool cleared = false, carrier_up = false;
++	unsigned long invalidate_mask = 0;
+ 	int carrier = -1, i;
+ 
+ 	switch (event) {
+@@ -1223,9 +1248,12 @@ static int ppe_vp_netdev_event(struct no
+ 		/* A bridge MAC change affects every VAP below that master. */
+ 		if (bound != dev) {
+ 			if (event == NETDEV_CHANGEADDR &&
+-			    ppe_vp_master_is(bound, dev))
++			    ppe_vp_master_is(bound, dev)) {
+ 				WRITE_ONCE(vp->slots[i].host_mac,
+ 					   ppe_vp_host_mac(bound));
++				if (vp->slots[i].type == PPE_VP_SLOT_QCA4B)
++					invalidate_mask |= BIT(i);
++			}
+ 			continue;
+ 		}
+ 
+@@ -1241,6 +1269,11 @@ static int ppe_vp_netdev_event(struct no
+ 			if (event == NETDEV_CHANGEUPPER)
+ 				WRITE_ONCE(vp->slots[i].host_mac,
+ 					   ppe_vp_host_mac(bound));
++			if ((event == NETDEV_CHANGEADDR ||
++			     event == NETDEV_CHANGEMTU ||
++			     event == NETDEV_CHANGEUPPER) &&
++			    vp->slots[i].type == PPE_VP_SLOT_QCA4B)
++				invalidate_mask |= BIT(i);
+ 			if (event == NETDEV_CHANGEMTU) {
+ 				int ret;
+ 
+@@ -1259,6 +1292,15 @@ static int ppe_vp_netdev_event(struct no
+ 	}
+ 	mutex_unlock(&vp->lock);
+ 
++	/* MAC/MTU/topology changes cannot leave stale PPE rows behind. The
++	 * invalidation walks the flow table outside vp->lock to preserve lock
++	 * ordering with the flowtable transaction.
++	 */
++	for (i = 0; i < PPE_VP_SLOTS; i++)
++		if (invalidate_mask & BIT(i))
++			ppe_flowtable_vp_invalidate(vp->ppe_dev,
++						    PPE_VP_PORT_BASE + i);
++
+ 	if (carrier >= 0)
+ 		ppe_flowtable_port_carrier(vp->ppe_dev, carrier, carrier_up);
+ 	if (cleared)
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -2940,6 +2940,53 @@ static void ppe_ft_flow_drain(struct ppe
+ 	rhashtable_walk_exit(&iter);
+ }
+ 
++/* Invalidate every flow which references a virtual port after its MAC,
++ * MTU or bridge topology changes. Reuse the ordinary destroy transaction so
++ * hardware rows and all dependent PPE references are released together.
++ */
++void ppe_flowtable_vp_invalidate(struct ppe_device *ppe_dev, int vp)
++{
++	struct ppe_flowtable *ft = ppe_dev->flowtable;
++	struct rhashtable_iter iter;
++	struct ppe_ft_flow *flow;
++	unsigned long cookie;
++	bool found;
++
++	if (!ft || vp < 0)
++		return;
++
++	/* Restart after each removal: mutating a rhashtable during a walk can
++	 * otherwise skip the entry following the deleted node.
++	 */
++	do {
++		found = false;
++		rhashtable_walk_enter(&ft->flows, &iter);
++		rhashtable_walk_start(&iter);
++		while ((flow = rhashtable_walk_next(&iter))) {
++			if (IS_ERR(flow)) {
++				if (PTR_ERR(flow) == -EAGAIN)
++					continue;
++				break;
++			}
++			if (flow->vp != vp && flow->ivp != vp)
++				continue;
++			cookie = flow->cookie;
++			found = true;
++			break;
++		}
++		rhashtable_walk_stop(&iter);
++		rhashtable_walk_exit(&iter);
++
++		if (found) {
++			struct flow_cls_offload f = {
++				.cookie = cookie,
++			};
++
++			ppe_ft_flow_destroy(ft, &f);
++		}
++	} while (found);
++}
++
+ static int ppe_ft_flow_stats(struct ppe_flowtable *ft,
+ 			     struct flow_cls_offload *f)
+ {
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.h
+@@ -14,4 +14,5 @@ void ppe_flowtable_destroy(struct ppe_de
+ int ppe_flowtable_setup_tc(struct net_device *dev, void *type_data);
+ void ppe_flowtable_debugfs_init(struct ppe_device *ppe_dev);
+ void ppe_flowtable_port_carrier(struct ppe_device *ppe_dev, int port, bool up);
++void ppe_flowtable_vp_invalidate(struct ppe_device *ppe_dev, int vp);
+ #endif

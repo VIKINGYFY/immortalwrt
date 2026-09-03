@@ -1,0 +1,1080 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: qualcomm: ppe: program flow priority across QoS bands
+
+Accept flow priority actions and program them into PPE flow entries.
+Map the eight Linux priorities across the three available hardware QoS
+bands, keeping action acceptance and its hardware effect together.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -133,6 +133,7 @@ struct ppe_scheduler_qm_config {
+  * @pri_max: Max priority configured.
+  * @flow_id: Strict priority ID.
+  * @drr_node_id: Node ID for scheduler.
++ * @qos_bands: Group the first twelve queues into four-bucket QoS bands.
+  *
+  * PPE port scheduler configuration which decides the priority in the
+  * packet scheduler for the egress port.
+@@ -145,6 +146,7 @@ struct ppe_scheduler_port_config {
+ 	unsigned int pri_max;
+ 	unsigned int flow_id;
+ 	unsigned int drr_node_id;
++	bool qos_bands;
+ };
+ 
+ /**
+@@ -660,7 +662,7 @@ static const struct ppe_scheduler_port_c
+ 		.flow_level	= true,
+ 		.node_id	= 36,
+ 		.loop_num	= 2,
+-		.pri_max	= 0,
++		.pri_max	= 2,
+ 		.flow_id	= 1,
+ 		.drr_node_id	= 8,
+ 	},
+@@ -672,6 +674,7 @@ static const struct ppe_scheduler_port_c
+ 		.pri_max	= 8,
+ 		.flow_id	= 36,
+ 		.drr_node_id	= 48,
++		.qos_bands	= true,
+ 	},
+ 	{
+ 		.port		= 1,
+@@ -687,7 +690,7 @@ static const struct ppe_scheduler_port_c
+ 		.flow_level	= true,
+ 		.node_id	= 40,
+ 		.loop_num	= 2,
+-		.pri_max	= 0,
++		.pri_max	= 2,
+ 		.flow_id	= 2,
+ 		.drr_node_id	= 12,
+ 	},
+@@ -699,6 +702,7 @@ static const struct ppe_scheduler_port_c
+ 		.pri_max	= 8,
+ 		.flow_id	= 40,
+ 		.drr_node_id	= 64,
++		.qos_bands	= true,
+ 	},
+ 	{
+ 		.port		= 2,
+@@ -714,7 +718,7 @@ static const struct ppe_scheduler_port_c
+ 		.flow_level	= true,
+ 		.node_id	= 44,
+ 		.loop_num	= 2,
+-		.pri_max	= 0,
++		.pri_max	= 2,
+ 		.flow_id	= 3,
+ 		.drr_node_id	= 16,
+ 	},
+@@ -726,6 +730,7 @@ static const struct ppe_scheduler_port_c
+ 		.pri_max	= 8,
+ 		.flow_id	= 44,
+ 		.drr_node_id	= 80,
++		.qos_bands	= true,
+ 	},
+ 	{
+ 		.port		= 3,
+@@ -741,7 +746,7 @@ static const struct ppe_scheduler_port_c
+ 		.flow_level	= true,
+ 		.node_id	= 48,
+ 		.loop_num	= 2,
+-		.pri_max	= 0,
++		.pri_max	= 2,
+ 		.flow_id	= 4,
+ 		.drr_node_id	= 20,
+ 	},
+@@ -753,6 +758,7 @@ static const struct ppe_scheduler_port_c
+ 		.pri_max	= 8,
+ 		.flow_id	= 48,
+ 		.drr_node_id	= 96,
++		.qos_bands	= true,
+ 	},
+ 	{
+ 		.port		= 4,
+@@ -768,7 +774,7 @@ static const struct ppe_scheduler_port_c
+ 		.flow_level	= true,
+ 		.node_id	= 52,
+ 		.loop_num	= 2,
+-		.pri_max	= 0,
++		.pri_max	= 2,
+ 		.flow_id	= 5,
+ 		.drr_node_id	= 24,
+ 	},
+@@ -780,6 +786,7 @@ static const struct ppe_scheduler_port_c
+ 		.pri_max	= 8,
+ 		.flow_id	= 52,
+ 		.drr_node_id	= 112,
++		.qos_bands	= true,
+ 	},
+ 	{
+ 		.port		= 5,
+@@ -795,7 +802,7 @@ static const struct ppe_scheduler_port_c
+ 		.flow_level	= true,
+ 		.node_id	= 56,
+ 		.loop_num	= 2,
+-		.pri_max	= 0,
++		.pri_max	= 2,
+ 		.flow_id	= 6,
+ 		.drr_node_id	= 28,
+ 	},
+@@ -807,6 +814,7 @@ static const struct ppe_scheduler_port_c
+ 		.pri_max	= 8,
+ 		.flow_id	= 56,
+ 		.drr_node_id	= 128,
++		.qos_bands	= true,
+ 	},
+ 	{
+ 		.port		= 6,
+@@ -822,7 +830,7 @@ static const struct ppe_scheduler_port_c
+ 		.flow_level	= true,
+ 		.node_id	= 60,
+ 		.loop_num	= 2,
+-		.pri_max	= 0,
++		.pri_max	= 2,
+ 		.flow_id	= 7,
+ 		.drr_node_id	= 32,
+ 	},
+@@ -834,6 +842,7 @@ static const struct ppe_scheduler_port_c
+ 		.pri_max	= 8,
+ 		.flow_id	= 60,
+ 		.drr_node_id	= 144,
++		.qos_bands	= true,
+ 	},
+ 	{
+ 		.port		= 7,
+@@ -1975,6 +1984,25 @@ static int ppe_tbf_queue_write(struct pp
+ 				 PPE_TBF_QUEUE_CFG_WORDS);
+ }
+ 
++static void ppe_tbf_queues_rollback(struct ppe_port *port, int queue_base,
++				    const u32 (*cfg)[PPE_TBF_QUEUE_CFG_WORDS],
++				    int count)
++{
++	struct ppe_device *ppe_dev = port->ppe_dev;
++	int i, ret;
++
++	for (i = 0; i < count; i++) {
++		ret = ppe_tbf_queue_write(ppe_dev, queue_base + i, cfg[i]);
++		if (!ret)
++			continue;
++
++		port->tbf.rollback_failures++;
++		dev_err(ppe_dev->dev,
++			"port %d failed to roll back TBF queue %d: %d\n",
++			port->port_id, queue_base + i, ret);
++	}
++}
++
+ static int ppe_tbf_shaper_read(struct ppe_device *ppe_dev, int port, u32 *cfg)
+ {
+ 	u32 reg;
+@@ -2020,18 +2048,18 @@ static u32 ppe_tbf_queue_buffers(u64 rat
+ }
+ 
+ /**
+- * ppe_port_tbf_set - Configure a port shaper and its default queue limit
++ * ppe_port_tbf_set - Configure a port shaper and its default QoS-band limit
+  * @port: PPE port to shape
+  * @handle: Root TBF qdisc handle
+  * @rate: Committed rate in bytes per second
+  * @burst: Burst size in bytes
+  * @limit: Queue limit requested by TBF, in bytes
+- * @mtu: Port MTU used to keep at least eight complete frames queued
++ * @mtu: Port MTU used to keep at least eight complete frames per bucket
+  *
+- * The local classifier maps the default internal priority to the first
+- * unicast queue owned by the port. Limit only that queue in this single-band
+- * stage. The original four-word entry is retained across replacements and
+- * restored when the owning qdisc is destroyed.
++ * The default band is four queues selected by the flow RSS hash. Divide the
++ * requested depth between them and retain every original four-word entry
++ * across replacements. Queue and shaper changes are one transaction: a
++ * partial failure restores the live state that preceded the callback.
+  *
+  * Return: 0 on success or a negative error code on failure.
+  */
+@@ -2040,13 +2068,15 @@ int ppe_port_tbf_set(struct ppe_port *po
+ {
+ 	struct ppe_port_tbf *tbf = &port->tbf;
+ 	struct ppe_device *ppe_dev = port->ppe_dev;
+-	u32 old_cfg[PPE_TBF_QUEUE_CFG_WORDS];
+-	u32 new_cfg[PPE_TBF_QUEUE_CFG_WORDS];
++	u32 old_cfg[PPE_TBF_QUEUE_COUNT][PPE_TBF_QUEUE_CFG_WORDS];
++	u32 new_cfg[PPE_TBF_QUEUE_COUNT][PPE_TBF_QUEUE_CFG_WORDS];
++	u32 bucket_buffers[PPE_TBF_QUEUE_COUNT];
+ 	u32 old_shaper[PPE_TBF_SHAPER_CFG_WORDS];
+-	u32 ceiling, buffers;
++	u32 bucket_limit, ceiling, total_buffers = 0;
++	u64 bucket_rate;
+ 	int port_id = port->port_id;
+-	int queue, queue_end;
+-	int ret, queue_ret, shaper_ret;
++	int queue, queue_end, i;
++	int ret, shaper_ret;
+ 
+ 	if (!rate)
+ 		return -EINVAL;
+@@ -2057,49 +2087,57 @@ int ppe_port_tbf_set(struct ppe_port *po
+ 				    &queue, &queue_end);
+ 	if (ret)
+ 		goto out_unlock;
+-	if (queue > queue_end ||
+-	    queue >= PPE_AC_UNICAST_QUEUE_CFG_TBL_ENTRIES) {
++	if (queue > queue_end || queue + PPE_TBF_QUEUE_COUNT - 1 > queue_end ||
++	    queue + PPE_TBF_QUEUE_COUNT - 1 >=
++	    PPE_AC_UNICAST_QUEUE_CFG_TBL_ENTRIES) {
+ 		ret = -EINVAL;
+ 		goto out_unlock;
+ 	}
+-	if (tbf->active && tbf->queue != queue) {
++	if (tbf->active && tbf->queue_base != queue) {
+ 		ret = -EINVAL;
+ 		goto out_unlock;
+ 	}
+ 
+-	ret = ppe_tbf_queue_read(ppe_dev, queue, old_cfg);
+-	if (ret)
+-		goto out_unlock;
++	for (i = 0; i < PPE_TBF_QUEUE_COUNT; i++) {
++		ret = ppe_tbf_queue_read(ppe_dev, queue + i, old_cfg[i]);
++		if (ret)
++			goto out_unlock;
++	}
+ 	ret = ppe_tbf_shaper_read(ppe_dev, port->port_id, old_shaper);
+ 	if (ret)
+ 		goto out_unlock;
+ 
+-	ceiling = FIELD_GET(PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD,
+-			    tbf->active ? tbf->saved_cfg[0] : old_cfg[0]);
+-	if (!ceiling) {
+-		ret = -EINVAL;
+-		goto out_unlock;
+-	}
+-
+-	buffers = ppe_tbf_queue_buffers(rate, limit, mtu, ceiling);
+-	memcpy(new_cfg, old_cfg, sizeof(new_cfg));
+-	new_cfg[0] &= ~(PPE_AC_UNICAST_QUEUE_CFG_W0_DYNAMIC |
+-			PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD);
+-	new_cfg[0] |= PPE_AC_UNICAST_QUEUE_CFG_W0_EN |
+-		      PPE_AC_UNICAST_QUEUE_CFG_W0_FORCE_EN |
+-		      FIELD_PREP(PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD,
+-				 buffers);
++	bucket_limit = limit ? DIV_ROUND_UP(limit, PPE_TBF_QUEUE_COUNT) : 0;
++	bucket_rate = div_u64(rate + PPE_TBF_QUEUE_COUNT - 1,
++			      PPE_TBF_QUEUE_COUNT);
++	for (i = 0; i < PPE_TBF_QUEUE_COUNT; i++) {
++		ceiling = FIELD_GET(PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD,
++				    tbf->active ? tbf->saved_cfg[i][0] :
++				    old_cfg[i][0]);
++		if (!ceiling) {
++			ret = -EINVAL;
++			goto out_unlock;
++		}
+ 
+-	ret = ppe_tbf_queue_write(ppe_dev, queue, new_cfg);
+-	if (ret) {
+-		queue_ret = ppe_tbf_queue_write(ppe_dev, queue, old_cfg);
+-		if (queue_ret) {
+-			tbf->rollback_failures++;
+-			dev_err(ppe_dev->dev,
+-				"port %d failed to roll back TBF queue %d: %d\n",
+-				port->port_id, queue, queue_ret);
++		bucket_buffers[i] =
++			ppe_tbf_queue_buffers(bucket_rate, bucket_limit, mtu,
++					      ceiling);
++		total_buffers += bucket_buffers[i];
++		memcpy(new_cfg[i], old_cfg[i], sizeof(new_cfg[i]));
++		new_cfg[i][0] &= ~(PPE_AC_UNICAST_QUEUE_CFG_W0_DYNAMIC |
++				     PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD);
++		new_cfg[i][0] |= PPE_AC_UNICAST_QUEUE_CFG_W0_EN |
++				 PPE_AC_UNICAST_QUEUE_CFG_W0_FORCE_EN |
++				 FIELD_PREP(PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD,
++					    bucket_buffers[i]);
++	}
++
++	for (i = 0; i < PPE_TBF_QUEUE_COUNT; i++) {
++		ret = ppe_tbf_queue_write(ppe_dev, queue + i, new_cfg[i]);
++		if (ret) {
++			ppe_tbf_queues_rollback(port, queue, old_cfg, i + 1);
++			goto out_unlock;
+ 		}
+-		goto out_unlock;
+ 	}
+ 
+ 	ret = ppe_port_shaper_set(ppe_dev, port->port_id, rate, burst);
+@@ -2111,13 +2149,8 @@ int ppe_port_tbf_set(struct ppe_port *po
+ 				"port %d failed to roll back TBF shaper: %d\n",
+ 				port->port_id, shaper_ret);
+ 		}
+-		queue_ret = ppe_tbf_queue_write(ppe_dev, queue, old_cfg);
+-		if (queue_ret) {
+-			tbf->rollback_failures++;
+-			dev_err(ppe_dev->dev,
+-				"port %d failed to roll back TBF queue %d: %d\n",
+-				port->port_id, queue, queue_ret);
+-		}
++		ppe_tbf_queues_rollback(port, queue, old_cfg,
++					PPE_TBF_QUEUE_COUNT);
+ 		goto out_unlock;
+ 	}
+ 
+@@ -2131,8 +2164,10 @@ int ppe_port_tbf_set(struct ppe_port *po
+ 	tbf->rate = rate;
+ 	tbf->burst = burst;
+ 	tbf->requested_limit = limit;
+-	tbf->applied_buffers = buffers;
+-	tbf->queue = queue;
++	tbf->applied_buffers = total_buffers;
++	memcpy(tbf->bucket_buffers, bucket_buffers,
++	       sizeof(tbf->bucket_buffers));
++	tbf->queue_base = queue;
+ 
+ out_unlock:
+ 	mutex_unlock(&port->tbf_lock);
+@@ -2150,10 +2185,10 @@ int ppe_port_tbf_destroy(struct ppe_port
+ {
+ 	struct ppe_port_tbf *tbf = &port->tbf;
+ 	struct ppe_device *ppe_dev = port->ppe_dev;
+-	u32 old_cfg[PPE_TBF_QUEUE_CFG_WORDS];
++	u32 old_cfg[PPE_TBF_QUEUE_COUNT][PPE_TBF_QUEUE_CFG_WORDS];
+ 	u32 old_shaper[PPE_TBF_SHAPER_CFG_WORDS];
+ 	int port_id = port->port_id;
+-	int ret, queue_ret, shaper_ret;
++	int i, ret, shaper_ret;
+ 
+ 	mutex_lock(&port->tbf_lock);
+ 	if (!tbf->active || tbf->handle != handle) {
+@@ -2161,9 +2196,12 @@ int ppe_port_tbf_destroy(struct ppe_port
+ 		goto out_unlock;
+ 	}
+ 
+-	ret = ppe_tbf_queue_read(ppe_dev, tbf->queue, old_cfg);
+-	if (ret)
+-		goto out_unlock;
++	for (i = 0; i < PPE_TBF_QUEUE_COUNT; i++) {
++		ret = ppe_tbf_queue_read(ppe_dev, tbf->queue_base + i,
++					 old_cfg[i]);
++		if (ret)
++			goto out_unlock;
++	}
+ 	ret = ppe_tbf_shaper_read(ppe_dev, port->port_id, old_shaper);
+ 	if (ret)
+ 		goto out_unlock;
+@@ -2181,23 +2219,22 @@ int ppe_port_tbf_destroy(struct ppe_port
+ 		goto out_unlock;
+ 	}
+ 
+-	ret = ppe_tbf_queue_write(ppe_dev, tbf->queue, tbf->saved_cfg);
+-	if (ret) {
+-		queue_ret = ppe_tbf_queue_write(ppe_dev, tbf->queue, old_cfg);
+-		if (queue_ret) {
+-			tbf->rollback_failures++;
+-			dev_err(ppe_dev->dev,
+-				"port %d failed to roll back TBF queue %u: %d\n",
+-				port->port_id, tbf->queue, queue_ret);
+-		}
+-		shaper_ret = ppe_tbf_shaper_write(ppe_dev, port_id, old_shaper);
+-		if (shaper_ret) {
+-			tbf->rollback_failures++;
+-			dev_err(ppe_dev->dev,
+-				"port %d failed to roll back TBF shaper: %d\n",
+-				port->port_id, shaper_ret);
++	for (i = 0; i < PPE_TBF_QUEUE_COUNT; i++) {
++		ret = ppe_tbf_queue_write(ppe_dev, tbf->queue_base + i,
++					  tbf->saved_cfg[i]);
++		if (ret) {
++			ppe_tbf_queues_rollback(port, tbf->queue_base, old_cfg,
++						i + 1);
++			shaper_ret =
++				ppe_tbf_shaper_write(ppe_dev, port_id, old_shaper);
++			if (shaper_ret) {
++				tbf->rollback_failures++;
++				dev_err(ppe_dev->dev,
++					"port %d failed to roll back TBF shaper: %d\n",
++					port->port_id, shaper_ret);
++			}
++			goto out_unlock;
+ 		}
+-		goto out_unlock;
+ 	}
+ 
+ 	tbf->active = false;
+@@ -2206,7 +2243,8 @@ int ppe_port_tbf_destroy(struct ppe_port
+ 	tbf->burst = 0;
+ 	tbf->requested_limit = 0;
+ 	tbf->applied_buffers = 0;
+-	tbf->queue = 0;
++	memset(tbf->bucket_buffers, 0, sizeof(tbf->bucket_buffers));
++	tbf->queue_base = 0;
+ 	memset(tbf->saved_cfg, 0, sizeof(tbf->saved_cfg));
+ 	memset(tbf->saved_shaper, 0, sizeof(tbf->saved_shaper));
+ 
+@@ -2916,7 +2954,17 @@ static int ppe_node_scheduler_config(str
+ 	int ret, i;
+ 
+ 	for (i = 0; i < config.loop_num; i++) {
+-		if (!config.pri_max) {
++		if (config.qos_bands && i < 3 * PPE_FLOW_SPREAD_QUEUES) {
++			int band = i / PPE_FLOW_SPREAD_QUEUES;
++
++			/* Each band is one DRR list of four equal RSS buckets.
++			 * Band one is a higher L0 priority on the first flow;
++			 * band two uses the second, higher-priority L1 flow.
++			 */
++			sch_cfg.flow_id = config.flow_id + (band == 2);
++			sch_cfg.pri = band == 1 ? PPE_FLOW_SPREAD_QUEUES : 0;
++			sch_cfg.drr_node_id = config.drr_node_id + i;
++		} else if (!config.pri_max) {
+ 			/* Round robin scheduler without priority. */
+ 			sch_cfg.flow_id = config.flow_id;
+ 			sch_cfg.pri = 0;
+@@ -3100,9 +3148,18 @@ static int ppe_queue_dest_init(struct pp
+ 				return ret;
+ 		}
+ 
+-		/* Initialize the queue offset of internal priority. */
++		/* A user port has three four-bucket bands. The CPU port keeps
++		 * its existing one-queue-per-priority mapping.
++		 */
+ 		for (index = 0; index < PPE_QUEUE_INTER_PRI_NUM; index++) {
+-			q_offset = index > pri_max ? pri_max : index;
++			if (!port_id)
++				q_offset = index > pri_max ? pri_max : index;
++			else if (index < PPE_FLOW_SPREAD_QUEUES)
++				q_offset = 0;
++			else if (index < 2 * PPE_FLOW_SPREAD_QUEUES)
++				q_offset = PPE_FLOW_SPREAD_QUEUES;
++			else
++				q_offset = 2 * PPE_FLOW_SPREAD_QUEUES;
+ 
+ 			ret = ppe_queue_ucast_offset_pri_set(ppe_dev, port_id,
+ 							     index, q_offset);
+@@ -3110,13 +3167,14 @@ static int ppe_queue_dest_init(struct pp
+ 				return ret;
+ 		}
+ 
+-		/* Initialize the queue offset of RSS hash as 0 to avoid the
+-		 * random hardware value that will lead to the unexpected
+-		 * destination queue generated.
++		/* Spread each user-port band over four stable queue offsets. The
++		 * CPU port remains collapsed because its queue topology differs.
+ 		 */
+ 		for (index = 0; index < PPE_QUEUE_HASH_NUM; index++) {
+ 			ret = ppe_queue_ucast_offset_hash_set(ppe_dev, port_id,
+-							      index, 0);
++							      index,
++							      port_id ?
++							      index % PPE_FLOW_SPREAD_QUEUES : 0);
+ 			if (ret)
+ 				return ret;
+ 		}
+@@ -3125,6 +3183,45 @@ static int ppe_queue_dest_init(struct pp
+ 	return 0;
+ }
+ 
++static int ppe_flow_qos_init(struct ppe_device *ppe_dev)
++{
++	u32 mru_mtu[3], reg;
++	int i, ret;
++
++	/* APPE/MPPE keeps classifier precedence in words 1 and 2 of each
++	 * MRU/MTU port row. A flow rule is the most explicit classifier; keep
++	 * preheader, pre-ACL, DSCP and PCP as progressively weaker fallbacks.
++	 */
++	for (i = 0; i < ppe_dev->num_ports; i++) {
++		reg = PPE_MRU_MTU_CTRL_TBL_ADDR +
++		      PPE_MRU_MTU_CTRL_TBL_INC * i;
++		ret = regmap_bulk_read(ppe_dev->regmap, reg, mru_mtu,
++				       ARRAY_SIZE(mru_mtu));
++		if (ret)
++			return ret;
++
++		mru_mtu[1] &= ~(PPE_MRU_MTU_CTRL_W1_PCP_PREC_FORCE |
++				  PPE_MRU_MTU_CTRL_W1_DSCP_PREC_FORCE |
++				  PPE_MRU_MTU_CTRL_W1_PREHEADER_PREC |
++				  PPE_MRU_MTU_CTRL_W1_PCP_PREC |
++				  PPE_MRU_MTU_CTRL_W1_DSCP_PREC |
++				  PPE_MRU_MTU_CTRL_W1_FLOW_PREC |
++				  PPE_MRU_MTU_CTRL_W1_PRE_ACL_PREC |
++				  PPE_MRU_MTU_CTRL_W1_POST_ACL_PREC);
++		mru_mtu[1] |= FIELD_PREP(PPE_MRU_MTU_CTRL_W1_FLOW_PREC, 4) |
++				  FIELD_PREP(PPE_MRU_MTU_CTRL_W1_PREHEADER_PREC, 3) |
++				  FIELD_PREP(PPE_MRU_MTU_CTRL_W1_PRE_ACL_PREC, 2) |
++				  FIELD_PREP(PPE_MRU_MTU_CTRL_W1_DSCP_PREC, 1);
++
++		ret = regmap_bulk_write(ppe_dev->regmap, reg, mru_mtu,
++					ARRAY_SIZE(mru_mtu));
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
+ /* Initialize the service code 1 used by CPU port. */
+ static int ppe_servcode_init(struct ppe_device *ppe_dev)
+ {
+@@ -3383,6 +3480,10 @@ int ppe_hw_config(struct ppe_device *ppe
+ 	if (ret)
+ 		return ret;
+ 
++	ret = ppe_flow_qos_init(ppe_dev);
++	if (ret)
++		return ret;
++
+ 	ret = ppe_servcode_init(ppe_dev);
+ 	if (ret)
+ 		return ret;
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+@@ -23,6 +23,9 @@ struct ppe_port;
+ #define PPE_QUEUE_INTER_PRI_NUM			16
+ #define PPE_QUEUE_HASH_NUM			256
+ 
++/* Four RSS buckets make up each user-port QoS band. */
++#define PPE_FLOW_SPREAD_QUEUES			4
++
+ /* The service code is used by EDMA port to transmit packet to PPE. */
+ #define PPE_EDMA_SC_BYPASS_ID			1
+ 
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -972,19 +972,118 @@ static const struct file_operations ppe_
+ 	.release = single_release,
+ };
+ 
++static int ppe_qos_bands_show(struct seq_file *seq, void *v)
++{
++	struct ppe_device *ppe_dev = seq->private;
++	struct ppe_scheduler_cfg scheduler;
++	u32 mru_mtu[3], reg, val;
++	int band, bucket, flow, flow_end, hw_port;
++	int port, pri, queue, queue_end, ret;
++
++	seq_puts(seq, "flow_qos_mapping=per-flow-index\n");
++
++	for (port = 1; port < ppe_dev->num_ports; port++) {
++		ret = ppe_port_resource_get(ppe_dev, port, PPE_RES_UCAST,
++					    &queue, &queue_end);
++		if (ret)
++			return ret;
++		ret = ppe_port_resource_get(ppe_dev, port, PPE_RES_FLOW_ID,
++					    &flow, &flow_end);
++		if (ret || flow + 1 > flow_end)
++			return ret ? ret : -EINVAL;
++
++		reg = PPE_MRU_MTU_CTRL_TBL_ADDR +
++		      PPE_MRU_MTU_CTRL_TBL_INC * port;
++		ret = regmap_bulk_read(ppe_dev->regmap, reg, mru_mtu,
++				       ARRAY_SIZE(mru_mtu));
++		if (ret)
++			return ret;
++		seq_printf(seq,
++			   "port %d queues %d-%d precedence flow:%lu preheader:%lu pre_acl:%lu post_acl:%lu dscp:%lu pcp:%lu pri",
++			   port, queue, queue_end,
++			   FIELD_GET(PPE_MRU_MTU_CTRL_W1_FLOW_PREC, mru_mtu[1]),
++			   FIELD_GET(PPE_MRU_MTU_CTRL_W1_PREHEADER_PREC,
++				     mru_mtu[1]),
++			   FIELD_GET(PPE_MRU_MTU_CTRL_W1_PRE_ACL_PREC,
++				     mru_mtu[1]),
++			   FIELD_GET(PPE_MRU_MTU_CTRL_W1_POST_ACL_PREC,
++				     mru_mtu[1]),
++			   FIELD_GET(PPE_MRU_MTU_CTRL_W1_DSCP_PREC, mru_mtu[1]),
++			   FIELD_GET(PPE_MRU_MTU_CTRL_W1_PCP_PREC, mru_mtu[1]));
++
++		for (pri = 0; pri < PPE_QUEUE_INTER_PRI_NUM; pri += 4) {
++			reg = PPE_UCAST_PRIORITY_MAP_TBL_ADDR +
++			      PPE_UCAST_PRIORITY_MAP_TBL_INC *
++			      (port * PPE_QUEUE_INTER_PRI_NUM + pri);
++			ret = regmap_read(ppe_dev->regmap, reg, &val);
++			if (ret)
++				return ret;
++			seq_printf(seq, " %d:%lu", pri,
++				   FIELD_GET(PPE_UCAST_PRIORITY_MAP_TBL_CLASS,
++					     val));
++		}
++
++		seq_puts(seq, " hash");
++		for (bucket = 0; bucket < 2 * PPE_FLOW_SPREAD_QUEUES;
++		     bucket++) {
++			reg = PPE_UCAST_HASH_MAP_TBL_ADDR +
++			      PPE_UCAST_HASH_MAP_TBL_INC *
++			      (port * PPE_QUEUE_HASH_NUM + bucket);
++			ret = regmap_read(ppe_dev->regmap, reg, &val);
++			if (ret)
++				return ret;
++			seq_printf(seq, " %d:%lu", bucket,
++				   FIELD_GET(PPE_UCAST_HASH_MAP_TBL_HASH, val));
++		}
++		seq_putc(seq, '\n');
++
++		for (bucket = 0; bucket < 2; bucket++) {
++			ret = ppe_queue_scheduler_get(ppe_dev, flow + bucket, true,
++						      &hw_port, &scheduler);
++			if (ret)
++				return ret;
++			seq_printf(seq,
++				   "  l1 flow %d port %d parent %d pri %d drr %d weight %d\n",
++				   flow + bucket, hw_port, scheduler.flow_id,
++				   scheduler.pri, scheduler.drr_node_id,
++				   scheduler.drr_node_wt);
++		}
++
++		for (band = 0; band < 3; band++) {
++			for (bucket = 0; bucket < PPE_FLOW_SPREAD_QUEUES;
++			     bucket++) {
++				pri = queue + band * PPE_FLOW_SPREAD_QUEUES +
++				      bucket;
++				ret = ppe_queue_scheduler_get(ppe_dev, pri, false,
++							      &hw_port,
++							      &scheduler);
++				if (ret)
++					return ret;
++				seq_printf(seq,
++					   "  band %d bucket %d queue %d port %d flow %d pri %d drr %d weight %d\n",
++					   band, bucket, pri, hw_port,
++					   scheduler.flow_id, scheduler.pri,
++					   scheduler.drr_node_id,
++					   scheduler.drr_node_wt);
++			}
++		}
++	}
++
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(ppe_qos_bands);
++
+ static int ppe_tbf_queues_show(struct seq_file *seq, void *v)
+ {
+ 	struct ppe_device *ppe_dev = seq->private;
+ 	struct ppe_port_tbf *tbf;
+ 	struct ppe_port *port;
+ 	u32 cfg[PPE_TBF_QUEUE_CFG_WORDS];
+-	u32 reg;
+-	int i, queue, queue_end, ret;
++	int bucket, i, queue, queue_end, ret;
+ 
+-	seq_puts(seq, "port active handle queue requested_bytes applied_buffers ");
++	seq_puts(seq, "port active handle queue_base buckets requested_bytes total_buffers ");
+ 	seq_puts(seq, "rate_bytes_ps burst_bytes rollback_failures callbacks ");
+-	seq_puts(seq, "replace destroy stats last_command last_result saved_cfg ");
+-	seq_puts(seq, "live_cfg\n");
++	seq_puts(seq, "replace destroy stats last_command last_result\n");
+ 	if (!ppe_dev->ports)
+ 		return 0;
+ 
+@@ -996,47 +1095,60 @@ static int ppe_tbf_queues_show(struct se
+ 		ret = ppe_port_resource_get(ppe_dev, port->port_id, PPE_RES_UCAST,
+ 					    &queue, &queue_end);
+ 		if (ret || queue < 0 || queue > queue_end ||
+-		    queue >= PPE_AC_UNICAST_QUEUE_CFG_TBL_ENTRIES) {
++		    queue + PPE_TBF_QUEUE_COUNT - 1 > queue_end ||
++		    queue + PPE_TBF_QUEUE_COUNT - 1 >=
++		    PPE_AC_UNICAST_QUEUE_CFG_TBL_ENTRIES) {
+ 			if (!ret)
+ 				ret = -EINVAL;
+-			seq_printf(seq, "%d %u 0x%x - %u %u %llu %u %u ",
++			seq_printf(seq, "%d %u 0x%x - %u %u %u %llu %u %u ",
+ 				   port->port_id, tbf->active ? 1 : 0,
+-				   tbf->handle, tbf->requested_limit,
++				   tbf->handle, PPE_TBF_QUEUE_COUNT,
++				   tbf->requested_limit,
+ 				   tbf->applied_buffers, tbf->rate, tbf->burst,
+ 				   tbf->rollback_failures);
+ 			seq_printf(seq, "%u %u %u %u %u %d - ",
+ 				   tbf->callback_calls, tbf->replace_calls,
+ 				   tbf->destroy_calls, tbf->stats_calls,
+ 				   tbf->last_command, tbf->last_result);
+-			seq_printf(seq, "resource-error:%d\n", ret);
++			seq_printf(seq, " resource-error:%d\n", ret);
+ 			mutex_unlock(&port->tbf_lock);
+ 			continue;
+ 		}
+ 
+-		reg = PPE_AC_UNICAST_QUEUE_CFG_TBL_ADDR +
+-		      PPE_AC_UNICAST_QUEUE_CFG_TBL_INC * queue;
+-		ret = regmap_bulk_read(ppe_dev->regmap, reg, cfg,
+-				       ARRAY_SIZE(cfg));
+-		seq_printf(seq, "%d %u 0x%x %d %u %u %llu %u %u ",
++		seq_printf(seq, "%d %u 0x%x %d %u %u %u %llu %u %u ",
+ 			   port->port_id, tbf->active ? 1 : 0,
+-			   tbf->handle, queue,
++			   tbf->handle, queue, PPE_TBF_QUEUE_COUNT,
+ 			   tbf->requested_limit, tbf->applied_buffers,
+ 			   tbf->rate, tbf->burst, tbf->rollback_failures);
+-		seq_printf(seq, "%u %u %u %u %u %d ",
++		seq_printf(seq, "%u %u %u %u %u %d\n",
+ 			   tbf->callback_calls, tbf->replace_calls,
+ 			   tbf->destroy_calls, tbf->stats_calls,
+ 			   tbf->last_command, tbf->last_result);
+-		if (tbf->active)
+-			seq_printf(seq, "%08x:%08x:%08x:%08x ",
+-				   tbf->saved_cfg[0], tbf->saved_cfg[1],
+-				   tbf->saved_cfg[2], tbf->saved_cfg[3]);
+-		else
+-			seq_puts(seq, "- ");
+-		if (ret)
+-			seq_printf(seq, "read-error:%d\n", ret);
+-		else
+-			seq_printf(seq, "%08x:%08x:%08x:%08x\n",
+-				   cfg[0], cfg[1], cfg[2], cfg[3]);
++
++		for (bucket = 0; bucket < PPE_TBF_QUEUE_COUNT; bucket++) {
++			u32 reg = PPE_AC_UNICAST_QUEUE_CFG_TBL_ADDR +
++				  PPE_AC_UNICAST_QUEUE_CFG_TBL_INC *
++				  (queue + bucket);
++
++			ret = regmap_bulk_read(ppe_dev->regmap, reg, cfg,
++					       ARRAY_SIZE(cfg));
++			seq_printf(seq, "  bucket %d queue %d buffers %u saved ",
++				   bucket, queue + bucket,
++				   tbf->bucket_buffers[bucket]);
++			if (tbf->active)
++				seq_printf(seq, "%08x:%08x:%08x:%08x ",
++					   tbf->saved_cfg[bucket][0],
++					   tbf->saved_cfg[bucket][1],
++					   tbf->saved_cfg[bucket][2],
++					   tbf->saved_cfg[bucket][3]);
++			else
++				seq_puts(seq, "- ");
++			if (ret)
++				seq_printf(seq, "live read-error:%d\n", ret);
++			else
++				seq_printf(seq, "live %08x:%08x:%08x:%08x\n",
++					   cfg[0], cfg[1], cfg[2], cfg[3]);
++		}
+ 		mutex_unlock(&port->tbf_lock);
+ 	}
+ 
+@@ -1077,6 +1189,8 @@ void ppe_debugfs_setup(struct ppe_device
+ 				    &ppe_athtag_fops);
+ 	debugfs_create_file("tbf_queues", 0400, ppe_dev->debugfs_root,
+ 			    ppe_dev, &ppe_tbf_queues_fops);
++	debugfs_create_file("qos_bands", 0400, ppe_dev->debugfs_root,
++			    ppe_dev, &ppe_qos_bands_fops);
+ 
+ 	/* TODO: Do we have to be so agressive and remove __all__ debugfs entries? */
+ 	ret = edma_debugfs_setup(ppe_dev);
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -167,7 +167,7 @@ static void ppe_flow_entry_pack(const st
+ 	} else {
+ 		u32 ip = be32_to_cpu(flow->dip.ip4);
+ 
+-		val[2] = FIELD_PREP(PPE_FLOW_W2_IP_ADDR_LO,
++		val[2] |= FIELD_PREP(PPE_FLOW_W2_IP_ADDR_LO,
+ 				    ip & GENMASK(19, 0));
+ 		val[3] |= FIELD_PREP(PPE_FLOW_W3_IP_ADDR_HI, ip >> 20);
+ 	}
+@@ -220,8 +220,10 @@ int ppe_host_entry_del(struct ppe_device
+ int ppe_flow_entry_add(struct ppe_device *ppe_dev,
+ 		       const struct ppe_flow_entry *flow)
+ {
++	u32 qos[PPE_QOS_MAPPING_TBL_WORDS] = {};
+ 	u32 val[PPE_FLOW_TBL_OP_DATA_WORDS] = {};
+-	int ret;
++	u32 reg;
++	int del_ret, qos_ret, ret;
+ 
+ 	ppe_flow_entry_pack(flow, val);
+ 	mutex_lock(&ppe_dev->flow_lock);
+@@ -229,6 +231,25 @@ int ppe_flow_entry_add(struct ppe_device
+ 				val, ARRAY_SIZE(val));
+ 	if (!ret)
+ 		ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_ADD, false, 0);
++	if (ret >= 0 && ret < ppe_dev->variant->num_flow_entries) {
++		reg = PPE_QOS_MAPPING_TBL_ADDR +
++		      PPE_QOS_MAPPING_TBL_INC * ret;
++		if (flow->priority_valid)
++			qos[0] = PPE_QOS_MAPPING_W0_INT_PRI_EN |
++				 FIELD_PREP(PPE_QOS_MAPPING_W0_INT_PRI,
++					    flow->priority);
++		qos_ret = regmap_bulk_write(ppe_dev->regmap, reg, qos,
++					    ARRAY_SIZE(qos));
++		if (qos_ret) {
++			del_ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_DEL,
++						    true, ret);
++			if (del_ret < 0 && del_ret != -ENOENT)
++				dev_err(ppe_dev->dev,
++					"failed to remove flow %d after QoS write error: %d\n",
++					ret, del_ret);
++			ret = qos_ret;
++		}
++	}
+ 	mutex_unlock(&ppe_dev->flow_lock);
+ 	if (ret >= ppe_dev->variant->num_flow_entries)
+ 		return -ERANGE;
+@@ -264,6 +285,8 @@ int ppe_flow_entry_enable(struct ppe_dev
+ 
+ int ppe_flow_entry_del(struct ppe_device *ppe_dev, int index)
+ {
++	u32 qos[PPE_QOS_MAPPING_TBL_WORDS] = {};
++	u32 reg;
+ 	int ret;
+ 
+ 	if (index < 0 || index >= ppe_dev->variant->num_flow_entries)
+@@ -271,6 +294,13 @@ int ppe_flow_entry_del(struct ppe_device
+ 
+ 	mutex_lock(&ppe_dev->flow_lock);
+ 	ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_DEL, true, index);
++	if (ret >= 0 || ret == -ENOENT) {
++		reg = PPE_QOS_MAPPING_TBL_ADDR +
++		      PPE_QOS_MAPPING_TBL_INC * index;
++		if (regmap_bulk_write(ppe_dev->regmap, reg, qos, ARRAY_SIZE(qos)))
++			dev_err(ppe_dev->dev,
++				"failed to clear QoS mapping for flow %d\n", index);
++	}
+ 	mutex_unlock(&ppe_dev->flow_lock);
+ 	return ret < 0 ? ret : 0;
+ }
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+@@ -53,6 +53,8 @@ struct ppe_flow_nexthop {
+  * @nat_port: Translated source port of SNAT flows, translated
+  * destination port of DNAT flows.
+  * @pmtu: Path MTU of the egress device of the flow.
++ * @priority: Internal priority selected by the flow QoS result.
++ * @priority_valid: Whether the rule carries an explicit priority action.
+  */
+ struct ppe_flow_entry {
+ 	union {
+@@ -68,6 +70,8 @@ struct ppe_flow_entry {
+ 	u16 host_index;
+ 	__be16 nat_port;
+ 	u16 pmtu;
++	u8 priority;
++	bool priority_valid;
+ };
+ 
+ int ppe_flow_hw_init(struct ppe_device *ppe_dev);
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -2302,6 +2302,14 @@ static int ppe_ft_flow_replace(struct pp
+ 			}
+ 			lwt_tunnel = true;
+ 			break;
++		case FLOW_ACTION_PRIORITY:
++			if (act->priority >= PPE_QUEUE_INTER_PRI_NUM) {
++				ret = -EOPNOTSUPP;
++				goto err_free;
++			}
++			flow->entry.priority = act->priority;
++			flow->entry.priority_valid = true;
++			break;
+ 		default:
+ 			ret = -EOPNOTSUPP;
+ 			goto err_free;
+@@ -3391,7 +3399,7 @@ static int ppe_ft_flow_rows_show(struct
+ 	rhashtable_walk_enter(&ft->flows, &iter);
+ 	rhashtable_walk_start(&iter);
+ 	while ((flow = rhashtable_walk_next(&iter))) {
+-		u32 f[9] = {}, h[5] = {}, nh[4] = {};
++		u32 f[9] = {}, h[5] = {}, nh[4] = {}, qos[2] = {};
+ 		u32 in_l3[3] = {}, eg_l3[3] = {}, my_mac[2] = {};
+ 		u32 pub_ip = 0, packets = 0;
+ 		u32 reg;
+@@ -3403,11 +3411,11 @@ static int ppe_ft_flow_rows_show(struct
+ 		} host_ip = {}, inline_ip = {};
+ 		__be32 dnat_ip, pub_ip_addr;
+ 		u8 dmac[ETH_ALEN];
+-		int flow_err, host_err, nh_err, in_err, eg_err;
++		int flow_err, host_err, nh_err, in_err, eg_err, qos_err;
+ 		int my_mac_err = 0, pub_ip_err = 0;
+ 		int flow_words, host_words;
+ 		bool key_match, source_match;
+-		u8 l3_if;
++		u8 hw_priority, hw_profile, l3_if;
+ 
+ 		if (IS_ERR(flow)) {
+ 			if (PTR_ERR(flow) == -EAGAIN)
+@@ -3421,6 +3429,13 @@ static int ppe_ft_flow_rows_show(struct
+ 		reg = PPE_FLOW_TBL_ADDR + PPE_FLOW_TBL_INC * flow->index;
+ 		flow_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, f,
+ 					    flow_words);
++		hw_profile = FIELD_GET(PPE_FLOW_W1_PRI_PROFILE_LO, f[1]) |
++			     FIELD_GET(PPE_FLOW_W2_PRI_PROFILE_HI, f[2]) << 1;
++		reg = PPE_QOS_MAPPING_TBL_ADDR +
++		      PPE_QOS_MAPPING_TBL_INC * flow->index;
++		qos_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, qos,
++					   ARRAY_SIZE(qos));
++		hw_priority = FIELD_GET(PPE_QOS_MAPPING_W0_INT_PRI, qos[0]);
+ 		hw_host = FIELD_GET(PPE_FLOW_W0_HOST_INDEX, f[0]);
+ 		reg = PPE_HOST_TBL_ADDR + PPE_HOST_TBL_INC * hw_host;
+ 		host_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, h,
+@@ -3500,15 +3515,20 @@ static int ppe_ft_flow_rows_show(struct
+ 				   &flow->entry.dip.ip4,
+ 				   be16_to_cpu(flow->entry.dport));
+ 		seq_printf(seq,
+-			   " proto:%u fwd:%u index:%d host:%u nexthop:%u my_mac:%d pub_ip:%d packets:%u bytes:%llu\n",
+-			   flow->entry.proto, flow->entry.fwd_type, flow->index,
+-			   flow->entry.host_index, flow->nexthop,
++			   " proto:%u fwd:%u priority:%u priority_valid:%u hw_priority:%u hw_priority_valid:%u hw_profile:%u index:%d host:%u nexthop:%u my_mac:%d pub_ip:%d packets:%u bytes:%llu\n",
++			   flow->entry.proto, flow->entry.fwd_type,
++			   flow->entry.priority, flow->entry.priority_valid,
++			   hw_priority,
++			   !!(qos[0] & PPE_QOS_MAPPING_W0_INT_PRI_EN),
++			   hw_profile, flow->index,
++			   flow->entry.host_index,
++			   flow->nexthop,
+ 			   flow->my_mac, flow->pub_ip, packets,
+ 			   (unsigned long long)bytes);
+ 		ppe_ft_debug_words(seq, "flow_raw", f, flow_words);
+ 		seq_printf(seq,
+-			   "  flow_dec read:%d valid:%u type:%u host_dst:%u host:%u proto:%lu age:%lu src_l3_valid:%u src_l3:%lu fwd:%lu nexthop:%u nat_l4:%lu service:%lu",
+-			   flow_err, !!(f[0] & PPE_FLOW_W0_VALID),
++			   "  flow_dec read:%d qos_read:%d valid:%u type:%u host_dst:%u host:%u proto:%lu age:%lu src_l3_valid:%u src_l3:%lu fwd:%lu nexthop:%u nat_l4:%lu profile:%u service:%lu",
++			   flow_err, qos_err, !!(f[0] & PPE_FLOW_W0_VALID),
+ 			   !!(f[0] & PPE_FLOW_W0_ENTRY_TYPE),
+ 			   !!(f[0] & PPE_FLOW_W0_HOST_INDEX_TYPE), hw_host,
+ 			   FIELD_GET(PPE_FLOW_W0_PROTOCOL_TYPE, f[0]),
+@@ -3517,6 +3537,7 @@ static int ppe_ft_flow_rows_show(struct
+ 			   FIELD_GET(PPE_FLOW_W0_SRC_L3_IF, f[0]),
+ 			   FIELD_GET(PPE_FLOW_W0_FWD_TYPE, f[0]), hw_nh,
+ 			   FIELD_GET(PPE_FLOW_W1_L4_PORT, f[1]),
++			   hw_profile,
+ 			   FIELD_GET(PPE_FLOW_W2_SERVICE_CODE, f[2]));
+ 		if (flow->entry.is_ipv6)
+ 			seq_printf(seq, " inline:%pI6c", &inline_ip.ip6);
+@@ -3616,8 +3637,9 @@ static int ppe_ft_flows_show(struct seq_
+ 	rhashtable_walk_enter(&ft->flows, &iter);
+ 	rhashtable_walk_start(&iter);
+ 	while ((flow = rhashtable_walk_next(&iter))) {
+-		u32 w0 = 0, packets = 0;
++		u32 f[3] = {}, packets = 0, qos[2] = {};
+ 		u64 bytes = 0;
++		u8 hw_priority, hw_profile;
+ 
+ 		if (IS_ERR(flow)) {
+ 			if (PTR_ERR(flow) == -EAGAIN)
+@@ -3625,9 +3647,17 @@ static int ppe_ft_flows_show(struct seq_
+ 			break;
+ 		}
+ 
+-		regmap_read(ft->ppe_dev->regmap,
+-			    PPE_FLOW_TBL_ADDR + PPE_FLOW_TBL_INC * flow->index,
+-			    &w0);
++		regmap_bulk_read(ft->ppe_dev->regmap,
++				 PPE_FLOW_TBL_ADDR +
++				 PPE_FLOW_TBL_INC * flow->index,
++				 f, ARRAY_SIZE(f));
++		hw_profile = FIELD_GET(PPE_FLOW_W1_PRI_PROFILE_LO, f[1]) |
++			     FIELD_GET(PPE_FLOW_W2_PRI_PROFILE_HI, f[2]) << 1;
++		regmap_bulk_read(ft->ppe_dev->regmap,
++				 PPE_QOS_MAPPING_TBL_ADDR +
++				 PPE_QOS_MAPPING_TBL_INC * flow->index,
++				 qos, ARRAY_SIZE(qos));
++		hw_priority = FIELD_GET(PPE_QOS_MAPPING_W0_INT_PRI, qos[0]);
+ 		ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
+ 
+ 		if (flow->entry.is_ipv6)
+@@ -3643,10 +3673,13 @@ static int ppe_ft_flows_show(struct seq_
+ 				   &flow->entry.dip.ip4,
+ 				   be16_to_cpu(flow->entry.dport));
+ 		seq_printf(seq,
+-			   " proto:%u index:%d valid:%u host:%u host_dst:%u nexthop:%u ivp:%d vp:%d packets:%u bytes:%llu\n",
+-			   flow->entry.proto, flow->index,
+-			   !!(w0 & PPE_FLOW_W0_VALID), flow->entry.host_index,
+-			   !!(w0 & PPE_FLOW_W0_HOST_INDEX_TYPE), flow->nexthop,
++			   " proto:%u priority:%u priority_valid:%u hw_priority:%u hw_priority_valid:%u hw_profile:%u index:%d valid:%u host:%u host_dst:%u nexthop:%u ivp:%d vp:%d packets:%u bytes:%llu\n",
++			   flow->entry.proto, flow->entry.priority,
++			   flow->entry.priority_valid, hw_priority,
++			   !!(qos[0] & PPE_QOS_MAPPING_W0_INT_PRI_EN), hw_profile,
++			   flow->index, !!(f[0] & PPE_FLOW_W0_VALID),
++			   flow->entry.host_index,
++			   !!(f[0] & PPE_FLOW_W0_HOST_INDEX_TYPE), flow->nexthop,
+ 			   flow->ivp, flow->vp,
+ 			   packets, (unsigned long long)bytes);
+ 	}
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+@@ -44,6 +44,7 @@ enum ppe_mac_type {
+ };
+ 
+ #define PPE_TBF_QUEUE_CFG_WORDS	4
++#define PPE_TBF_QUEUE_COUNT	4
+ #define PPE_TBF_SHAPER_CFG_WORDS	2
+ 
+ /**
+@@ -53,9 +54,10 @@ enum ppe_mac_type {
+  * @rate: Configured byte rate
+  * @burst: Configured burst in bytes
+  * @requested_limit: Queue limit requested by the qdisc, in bytes
+- * @applied_buffers: Queue limit programmed in 256-byte buffers
+- * @queue: Default unicast queue controlled by this TBF
+- * @saved_cfg: Queue admission-control entry restored on destroy
++ * @applied_buffers: Total limit programmed across the four RSS buckets
++ * @bucket_buffers: Per-bucket limits programmed in 256-byte buffers
++ * @queue_base: First unicast queue controlled by this TBF
++ * @saved_cfg: Queue admission-control entries restored on destroy
+  * @saved_shaper: Port shaper entry restored on destroy
+  * @rollback_failures: Failed attempts to restore hardware state
+  * @callback_calls: TBF callbacks received through ndo_setup_tc
+@@ -72,8 +74,9 @@ struct ppe_port_tbf {
+ 	u32 burst;
+ 	u32 requested_limit;
+ 	u32 applied_buffers;
+-	u16 queue;
+-	u32 saved_cfg[PPE_TBF_QUEUE_CFG_WORDS];
++	u32 bucket_buffers[PPE_TBF_QUEUE_COUNT];
++	u16 queue_base;
++	u32 saved_cfg[PPE_TBF_QUEUE_COUNT][PPE_TBF_QUEUE_CFG_WORDS];
+ 	u32 saved_shaper[PPE_TBF_SHAPER_CFG_WORDS];
+ 	u32 rollback_failures;
+ 	u32 callback_calls;
+Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+===================================================================
+--- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -397,6 +397,14 @@
+ #define PPE_MRU_MTU_CTRL_W1_RX_CNT_EN		BIT(0)
+ #define PPE_MRU_MTU_CTRL_W1_TX_CNT_EN		BIT(1)
+ #define PPE_MRU_MTU_CTRL_W1_SRC_PROFILE		GENMASK(3, 2)
++#define PPE_MRU_MTU_CTRL_W1_PCP_PREC_FORCE	BIT(6)
++#define PPE_MRU_MTU_CTRL_W1_DSCP_PREC_FORCE	BIT(7)
++#define PPE_MRU_MTU_CTRL_W1_PREHEADER_PREC	GENMASK(10, 8)
++#define PPE_MRU_MTU_CTRL_W1_PCP_PREC		GENMASK(13, 11)
++#define PPE_MRU_MTU_CTRL_W1_DSCP_PREC		GENMASK(16, 14)
++#define PPE_MRU_MTU_CTRL_W1_FLOW_PREC		GENMASK(19, 17)
++#define PPE_MRU_MTU_CTRL_W1_PRE_ACL_PREC	GENMASK(22, 20)
++#define PPE_MRU_MTU_CTRL_W1_POST_ACL_PREC	GENMASK(25, 23)
+ #define PPE_MRU_MTU_CTRL_W1_INNER_PREC_LOW	BIT(31)
+ #define PPE_MRU_MTU_CTRL_W2_INNER_PREC_HIGH	GENMASK(1, 0)
+ 
+@@ -413,6 +421,13 @@
+ #define PPE_MRU_MTU_CTRL_SET_TX_CNT_EN(tbl_cfg, value)	\
+ 	FIELD_MODIFY(PPE_MRU_MTU_CTRL_W1_TX_CNT_EN, (tbl_cfg) + 0x1, value)
+ 
++/* APPE/MPPE keeps one QoS result alongside each hardware flow row. */
++#define PPE_QOS_MAPPING_TBL_ADDR			0x80000
++#define PPE_QOS_MAPPING_TBL_INC			0x10
++#define PPE_QOS_MAPPING_TBL_WORDS		2
++#define PPE_QOS_MAPPING_W0_INT_PRI_EN		BIT(23)
++#define PPE_QOS_MAPPING_W0_INT_PRI		GENMASK(27, 24)
++
+ /* PPE service code configuration for destination port and counter. */
+ #define PPE_IN_L2_SERVICE_TBL_ADDR		0x66000
+ #define PPE_IN_L2_SERVICE_TBL_ENTRIES		256
+@@ -709,6 +724,8 @@
+ #define PPE_FLOW_W1_L4_PORT			GENMASK(27, 12)
+ #define PPE_FLOW_W1_DE_ACCE			BIT(28)
+ #define PPE_FLOW_W1_COPY_TO_CPU			BIT(29)
++#define PPE_FLOW_W1_PRI_PROFILE_LO		BIT(31)
++#define PPE_FLOW_W2_PRI_PROFILE_HI		GENMASK(3, 0)
+ #define PPE_FLOW_W2_SERVICE_CODE		GENMASK(11, 4)
+ #define PPE_FLOW_W2_IP_ADDR_LO			GENMASK(31, 12)
+ #define PPE_FLOW_W3_IP_ADDR_HI			GENMASK(11, 0)

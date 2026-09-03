@@ -792,6 +792,8 @@ static int rtl837x_sfp_module_insert(void *upstream, const struct sfp_eeprom_id 
 {
 	struct rtk_gsw *gsw = upstream;
 	phy_interface_t iface;
+	rtk_sds_mode_t old_mode = gsw->sds1mode;
+	rtk_sds_mode_t new_mode;
 	int ret;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
@@ -830,11 +832,14 @@ static int rtl837x_sfp_module_insert(void *upstream, const struct sfp_eeprom_id 
 		return -EINVAL;
 	}
 
+	new_mode = gsw->sds1mode;
 	rtl837x_sdk_lock(gsw);
-	ret = rtk_sdsMode_set(1, gsw->sds1mode);
+	ret = rtk_sdsMode_set(1, new_mode);
+	if (ret)
+		gsw->sds1mode = old_mode;
 	rtl837x_sdk_unlock(gsw);
 	if (ret) {
-		dev_err(gsw->dev, "failed to configure SFP SerDes mode %d: %d\n", gsw->sds1mode, ret);
+		dev_err(gsw->dev, "failed to configure SFP SerDes mode %d: %d\n", new_mode, ret);
 		return -EIO;
 	}
 
@@ -844,6 +849,7 @@ static int rtl837x_sfp_module_insert(void *upstream, const struct sfp_eeprom_id 
 static void rtl837x_sfp_module_remove(void *upstream)
 {
 	struct rtk_gsw *gsw = upstream;
+	rtk_sds_mode_t old_mode = gsw->sds1mode;
 	int ret;
 
 	dev_info(gsw->dev, "SFP module remove\n");
@@ -851,6 +857,8 @@ static void rtl837x_sfp_module_remove(void *upstream)
 	USE_SERDESMODE(1, SERDES_OFF);
 	rtl837x_sdk_lock(gsw);
 	ret = rtk_sdsMode_set(1, gsw->sds1mode);
+	if (ret)
+		gsw->sds1mode = old_mode;
 	rtl837x_sdk_unlock(gsw);
 	if (ret)
 		dev_warn(gsw->dev, "failed to disable SFP SerDes: %d\n", ret);

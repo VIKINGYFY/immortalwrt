@@ -108,9 +108,7 @@ define Device/jdcloud_re-cs-08
 	DEVICE_MODEL := RE-CS-08
 	DEVICE_DTS := ipq5332-re-cs-08
 	DEVICE_DTS_CONFIG := config@mi01.6
-	# RE-CS-08 stock GPT reserves a 7 MiB HLOS/factory slot.  The vendor
-	# factory parser uses this boundary when extracting rootfs.
-	KERNEL_SIZE := 7168k
+	KERNEL_SIZE := 6144k
 	SOC := ipq5332
 	SUPPORTED_DEVICES += jdcloud,re-cs-08
 	DEVICE_PACKAGES :=  -kmod-ath12k -wpad-openssl kmod-sfp
