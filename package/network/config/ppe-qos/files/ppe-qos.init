@@ -15,12 +15,14 @@ START=25
 PARAM_DIR=/sys/module/qca_ppe/parameters
 
 # Our own filter priorities, so that a reload removes what this script put on a
-# shared ingress block and leaves anything else (sqm's meter) alone. The switch
-# ranks a rule by the preference it was given and holds nine bits of it, so the
-# range sits inside that and high, where a rule this script installs by default
-# yields to anything the user placed deliberately.
+# shared ingress block and leaves anything else alone. The switch ranks a rule
+# by the preference it was given and holds nine bits of it, so the range sits
+# inside that and high, where a rule this script installs by default yields to
+# anything the user placed deliberately. It stops one short of the last
+# preference the switch holds, so a rule placed there - a download mark from
+# whatever owns the shaper - outranks every rule here.
 PREF_BASE=256
-PREF_MAX=511
+PREF_MAX=510
 
 # The classifier holds 512 entries for the whole switch. A rule's address and
 # port lists become a filter per combination, so the product of four lists can

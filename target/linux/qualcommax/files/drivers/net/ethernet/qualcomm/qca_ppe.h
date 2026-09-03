@@ -1270,10 +1270,6 @@ struct qca_ppe_priv {
 	struct ppe_res *my_mac;
 	u16 *host_ref;
 	u16 l3_if_ref[PPE_VSI_MAX];
-	/* A tagged PPPoE WAN port routes on its own VSI, separate from the L2
-	 * bridge, so its download direction reaches the flow lookup. Allocated
-	 * with the first offloaded flow on the port and shared by the rest.
-	 */
 	/* Free entries of every ACL hardware list. Guarded by its own lock
 	 * because the small-packet module parameters reach the table from a
 	 * writer that holds no rtnl.
@@ -1282,6 +1278,10 @@ struct qca_ppe_priv {
 	DECLARE_BITMAP(acl_meter_used, PPE_ACL_METER_ENTRIES);
 	struct list_head acl_rules;
 	struct mutex acl_lock;
+	/* A tagged PPPoE WAN port routes on its own VSI, separate from the L2
+	 * bridge, so its download direction reaches the flow lookup. Allocated
+	 * with the first offloaded flow on the port and shared by the rest.
+	 */
 	s8 wan_vsi[QCA_PPE_MAX_PORTS];
 	s8 wan_mymac[QCA_PPE_MAX_PORTS];
 	u16 wan_ref[QCA_PPE_MAX_PORTS];

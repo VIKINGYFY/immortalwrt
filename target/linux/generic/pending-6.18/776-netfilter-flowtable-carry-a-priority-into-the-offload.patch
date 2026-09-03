@@ -55,14 +55,12 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	for (i = 0; i < tuple->encap_num; i++) {
 --- a/net/netfilter/nft_flow_offload.c
 +++ b/net/netfilter/nft_flow_offload.c
-@@ -116,6 +116,13 @@ static void nft_flow_offload_eval(const
+@@ -116,6 +116,11 @@ static void nft_flow_offload_eval(const
  	if (tcph)
  		flow_offload_ct_tcp(ct);
  
-+	/* Whatever classified this packet before it reached the flowtable also
-+	 * describes every packet the hardware will forward in its place, so
-+	 * carry it into the offload rather than losing it with the software
-+	 * path.
++	/* The packets the flow forwards in its place bypass the rules that
++	 * classified this one; carry the result with the flow.
 +	 */
 +	flow->priority = pkt->skb->priority;
 +
@@ -111,3 +109,16 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
  		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
  
+--- a/Documentation/networking/nf_flowtable.rst
++++ b/Documentation/networking/nf_flowtable.rst
+@@ -71,7 +71,9 @@ forwarding path including the Netfilter
+ 
+ The flowtable entry also stores the NAT configuration, so all packets are
+ mangled according to the NAT policy that is specified from the classic IP
+-forwarding path. The TTL is decremented before calling neigh_xmit(). Fragmented
++forwarding path. The TTL is decremented before calling neigh_xmit(). The flow
++also stores the priority of the packet that created it, so a priority set before
++``flow add`` applies to the packets that the flowtable forwards. Fragmented
+ traffic is passed up to follow the classic IP forwarding path given that the
+ transport header is missing, in this case, flowtable lookups are not possible.
+ TCP RST and FIN packets are also passed up to the classic IP forwarding path to

@@ -455,6 +455,12 @@ static int ppe_acl_parse_key(struct flow_rule *rule,
 			return -EOPNOTSUPP;
 		}
 
+		/* The slice compares the id and the priority; the tag's
+		 * drop-eligible bit has no compare of its own. Only ethtool
+		 * presents a mask for it, and it does so by masking the whole
+		 * tci rather than by naming the bit, so a filter is not
+		 * refused for one.
+		 */
 		s = ppe_acl_slice_get(slice, &n, PPE_ACL_TYPE_VLAN);
 		if (match.mask->vlan_id) {
 			s->key[0] |= FIELD_PREP(PPE_ACL_CVID,
