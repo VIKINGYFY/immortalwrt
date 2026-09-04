@@ -401,7 +401,6 @@ define Device/airpi_ap3000m
   KERNEL_INITRAMFS := kernel-bin | lzma | \
         fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 64k
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
-  DEFAULT := n
 endef
 TARGET_DEVICES += airpi_ap3000m
 
