@@ -136,7 +136,18 @@
 		reset-deassert-us = <100000>;
 		reset-gpios = <&pio 13 GPIO_ACTIVE_LOW>;
 		realtek,aldps-enable;
-		realtek,led-link-select = <0xa7 0x0 0x0>;
+
+		leds {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			led@0 {
+				reg = <0>;
+				color = <LED_COLOR_ID_GREEN>;
+				function = LED_FUNCTION_LAN;
+				default-state = "keep";
+			};
+		};
 	};
 
 	phy7: ethernet-phy@7 {
@@ -146,7 +157,18 @@
 		reset-deassert-us = <100000>;
 		reset-gpios = <&pio 17 GPIO_ACTIVE_LOW>;
 		realtek,aldps-enable;
-		realtek,led-link-select = <0xa7 0x0 0x0>;
+
+		leds {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			led@0 {
+				reg = <0>;
+				color = <LED_COLOR_ID_GREEN>;
+				function = LED_FUNCTION_WAN;
+				default-state = "keep";
+			};
+		};
 	};
 
 	switch: switch@1f {

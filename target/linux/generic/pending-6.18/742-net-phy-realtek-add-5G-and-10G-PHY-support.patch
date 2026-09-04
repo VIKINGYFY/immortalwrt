@@ -50,21 +50,15 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  #endif /* REALTEK_H */
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -13,11 +13,13 @@
- #include <linux/ethtool_netlink.h>
+@@ -13,6 +13,7 @@
+ #include <linux/firmware.h>
  #include <linux/of.h>
  #include <linux/phy.h>
 +#include <linux/phy/phy-common-props.h>
  #include <linux/pm_wakeirq.h>
  #include <linux/netdevice.h>
  #include <linux/module.h>
- #include <linux/delay.h>
- #include <linux/clk.h>
-+#include <linux/crc32.h>
- #include <linux/string_choices.h>
- #include <net/phy/realtek_phy.h>
- 
-@@ -212,6 +214,9 @@
+@@ -224,6 +225,9 @@
  #define RTL_8251B				0x001cc862
  #define RTL_8261C				0x001cc890
  #define RTL_8261C_CG				0x001cc898
@@ -74,9 +68,9 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  
  #define RTL8261C_CE_MODEL		0x00
  #define RTL8261D_MODEL			0x81
-@@ -279,6 +284,20 @@ struct rtl8261x_fw_entry {
- /* RTL8211E and RTL8211F support up to three LEDs */
- #define RTL8211x_LED_COUNT			3
+@@ -288,6 +292,20 @@ struct rtl8261x_fw_entry {
+ #define FW_HEADER_SIZE		sizeof(struct rtl8261x_fw_header)
+ #define FW_ENTRY_SIZE		sizeof(struct rtl8261x_fw_entry)
  
 +#define RTL826X_VEND1_SERDES_GLOBAL_CFG		0xc1
 +#define   RTL826X_VEND1_SERDES_GLOBAL_CFG_HSI_INV	BIT(6)
@@ -92,10 +86,10 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
 +
 +#define RTL826X_VND2_INSR			0xA43A
 +
- MODULE_DESCRIPTION("Realtek PHY driver");
- MODULE_AUTHOR("Johnson Leung");
- MODULE_LICENSE("GPL");
-@@ -2392,6 +2411,125 @@ static int rtl8251b_c45_match_phy_device
+ /* RTL8211E and RTL8211F support up to three LEDs */
+ #define RTL8211x_LED_COUNT			3
+ 
+@@ -2549,6 +2567,125 @@ static int rtl8251b_c45_match_phy_device
  	return rtlgen_is_c45_match(phydev, RTL_8251B, true);
  }
  
@@ -221,7 +215,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  static int rtlgen_resume(struct phy_device *phydev)
  {
  	int ret = genphy_resume(phydev);
-@@ -2613,6 +2751,482 @@ static int rtlgen_sfp_config_aneg(struct
+@@ -2770,6 +2907,482 @@ static int rtlgen_sfp_config_aneg(struct
  	return 0;
  }
  
@@ -704,7 +698,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  static struct phy_driver realtek_drvs[] = {
  	{
  		PHY_ID_MATCH_EXACT(0x00008201),
-@@ -2932,6 +3546,108 @@ static struct phy_driver realtek_drvs[]
+@@ -3097,6 +3710,108 @@ static struct phy_driver realtek_drvs[]
  		.soft_reset		= genphy_c45_pma_soft_reset,
  		.suspend		= genphy_c45_pma_suspend,
  		.resume			= genphy_c45_pma_resume,

@@ -146,7 +146,7 @@ define Device/nicgiga_s100-0800s-m
   DEVICE_VENDOR := NicGiga
   DEVICE_MODEL := S100-0800S-M
   DEVICE_PACKAGES := kmod-gpio-pca953x
-  IMAGE_SIZE := 29696k
+  IMAGE_SIZE := 13312k
   $(Device/kernel-lzma)
 endef
 TARGET_DEVICES += nicgiga_s100-0800s-m
@@ -191,7 +191,7 @@ define Device/tplink_tl-st1008f-v2
   DEVICE_VARIANT := v2.0
   DEVICE_PACKAGES := kmod-gpio-pca953x
   SUPPORTED_DEVICES += tplink,tl-st1008f,v2
-  IMAGE_SIZE := 31808k
+  IMAGE_SIZE := 29696k
   $(Device/kernel-lzma)
 endef
 TARGET_DEVICES += tplink_tl-st1008f-v2

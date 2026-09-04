@@ -14,7 +14,7 @@ Signed-off-by: Chad Monroe <chad@monroe.io>
 
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -243,6 +243,21 @@
+@@ -254,6 +254,21 @@
  					 RTL8261X_INT_ALDPS_CHG | \
  					 RTL8261X_INT_JABBER)
  
@@ -36,7 +36,7 @@ Signed-off-by: Chad Monroe <chad@monroe.io>
  #define FW_MAIN_MAGIC			0x52544C38
  #define FW_SUB_MAGIC_8261C		0x32363143
  #define RTL8261X_POLL_TIMEOUT_MS	100
-@@ -313,6 +328,7 @@ struct rtl821x_priv {
+@@ -335,6 +350,7 @@ struct rtl821x_priv {
  struct rtl8261x_priv {
  	const char *fw_name;
  	bool fw_loaded;
@@ -44,7 +44,7 @@ Signed-off-by: Chad Monroe <chad@monroe.io>
  };
  
  struct rtl822x_priv {
-@@ -1631,6 +1647,213 @@ static int rtlgen_write_mmd(struct phy_d
+@@ -1653,6 +1669,213 @@ static int rtlgen_write_mmd(struct phy_d
  	return ret;
  }
  
@@ -258,7 +258,7 @@ Signed-off-by: Chad Monroe <chad@monroe.io>
  static int rtl822x_read_mmd(struct phy_device *phydev, int devnum, u16 regnum)
  {
  	int ret = rtlgen_read_mmd(phydev, devnum, regnum);
-@@ -3546,6 +3769,11 @@ static struct phy_driver realtek_drvs[]
+@@ -3791,6 +4014,11 @@ static struct phy_driver realtek_drvs[]
  		.soft_reset		= genphy_c45_pma_soft_reset,
  		.suspend		= genphy_c45_pma_suspend,
  		.resume			= genphy_c45_pma_resume,

@@ -50,14 +50,14 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
 
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -10,6 +10,7 @@
+@@ -9,6 +9,7 @@
+  */
  #include <linux/bitops.h>
  #include <linux/crc32.h>
- #include <linux/firmware.h>
 +#include <linux/ethtool_netlink.h>
+ #include <linux/firmware.h>
  #include <linux/of.h>
  #include <linux/phy.h>
- #include <linux/pm_wakeirq.h>
 @@ -141,6 +142,27 @@
   */
  #define RTL822X_VND2_C22_REG(reg)		(0xa400 + 2 * (reg))

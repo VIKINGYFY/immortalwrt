@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tianling Shen <cnsztl@immortalwrt.org>
+Date: Thu, 3 Sep 2026 00:00:00 +0800
+Subject: [PATCH] net: phy: realtek: support RTL8221B LED polarity
+
+RTL8221B provides one polarity bit for each LED pin. A cleared bit makes
+the corresponding LED active low, while a set bit makes it active high.
+Implement the PHY LED polarity callback so boards can describe their LED
+wiring with the standard active-low and active-high properties.
+
+The existing brightness callback uses the same polarity bits to emulate
+constant on and off states. Drop brightness control and stop resetting
+polarity when configuring hardware triggers, leaving the LEDs exclusively
+under PHY hardware control.
+
+Signed-off-by: Tianling Shen <cnsztl@immortalwrt.org>
+---
+ drivers/net/phy/realtek/realtek_main.c | 48 +++++++++-----------------
+ 1 file changed, 16 insertions(+), 32 deletions(-)
+
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -2372,34 +2372,24 @@ static int rtl822xb_c45_read_status(stru
+ 	return 0;
+ }
+ 
+-static int rtl822xb_led_brightness_set(struct phy_device *phydev, u8 index,
+-				       enum led_brightness value)
++static int rtl822xb_led_polarity_set(struct phy_device *phydev, int index,
++				     unsigned long modes)
+ {
+-	int ret;
+-
+ 	if (index >= RTL8211x_LED_COUNT)
+ 		return -EINVAL;
+ 
+-	/* clear HW LED setup */
+-	ret = phy_write_mmd(phydev, MDIO_MMD_VEND2,
+-			    RTL822X_VND2_LED(index), 0);
+-	if (ret < 0)
+-		return ret;
+-
+-	/* clear HW LED blink */
+-	ret = phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, RTL822X_VND2_LCR6,
+-				 RTL822X_VND2_LED_ACT(index));
+-	if (ret < 0)
+-		return ret;
+-
+-	if (value != LED_OFF)
+-		return phy_set_bits_mmd(phydev, MDIO_MMD_VEND2,
+-					RTL822X_VND2_LCR7,
+-					RTL822X_VND2_LED_POLAR(index));
+-	else
++	switch (modes) {
++	case BIT(PHY_LED_ACTIVE_LOW):
+ 		return phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2,
+ 					  RTL822X_VND2_LCR7,
+ 					  RTL822X_VND2_LED_POLAR(index));
++	case BIT(PHY_LED_ACTIVE_HIGH):
++		return phy_set_bits_mmd(phydev, MDIO_MMD_VEND2,
++					RTL822X_VND2_LCR7,
++					RTL822X_VND2_LED_POLAR(index));
++	default:
++		return -EOPNOTSUPP;
++	}
+ }
+ 
+ static int rtl822xb_led_hw_is_supported(struct phy_device *phydev, u8 index,
+@@ -2506,15 +2496,9 @@ static int rtl822xb_led_hw_control_set(s
+ 	act = test_bit(TRIGGER_NETDEV_RX, &rules) ||
+ 	      test_bit(TRIGGER_NETDEV_TX, &rules);
+ 
+-	ret = phy_modify_mmd(phydev, MDIO_MMD_VEND2, RTL822X_VND2_LCR6,
+-			     RTL822X_VND2_LED_ACT(index), act ?
+-			     RTL822X_VND2_LED_ACT(index) : 0);
+-	if (ret < 0)
+-		return ret;
+-
+-	/* Reset polarity to default */
+-	return phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, RTL822X_VND2_LCR7,
+-				  RTL822X_VND2_LED_POLAR(index));
++	return phy_modify_mmd(phydev, MDIO_MMD_VEND2, RTL822X_VND2_LCR6,
++			      RTL822X_VND2_LED_ACT(index), act ?
++			      RTL822X_VND2_LED_ACT(index) : 0);
+ }
+ 
+ static int rtl8224_cable_test_start(struct phy_device *phydev)
+@@ -3882,10 +3866,10 @@ static struct phy_driver realtek_drvs[]
+ 		.write_page	= rtl821x_write_page,
+ 		.read_mmd	= rtl822xb_read_mmd,
+ 		.write_mmd	= rtl822xb_write_mmd,
+-		.led_brightness_set = rtl822xb_led_brightness_set,
+ 		.led_hw_is_supported = rtl822xb_led_hw_is_supported,
+ 		.led_hw_control_get = rtl822xb_led_hw_control_get,
+ 		.led_hw_control_set = rtl822xb_led_hw_control_set,
++		.led_polarity_set = rtl822xb_led_polarity_set,
+ 	}, {
+ 		.match_phy_device = rtl8221b_vm_cg_match_phy_device,
+ 		.name		= "RTL8221B-VM-CG 2.5Gbps PHY",
+@@ -3906,10 +3890,10 @@ static struct phy_driver realtek_drvs[]
+ 		.write_page	= rtl821x_write_page,
+ 		.read_mmd	= rtl822xb_read_mmd,
+ 		.write_mmd	= rtl822xb_write_mmd,
+-		.led_brightness_set = rtl822xb_led_brightness_set,
+ 		.led_hw_is_supported = rtl822xb_led_hw_is_supported,
+ 		.led_hw_control_get = rtl822xb_led_hw_control_get,
+ 		.led_hw_control_set = rtl822xb_led_hw_control_set,
++		.led_polarity_set = rtl822xb_led_polarity_set,
+ 	}, {
+ 		.match_phy_device = rtl8251b_c45_match_phy_device,
+ 		.name		= "RTL8251B 5Gbps PHY",

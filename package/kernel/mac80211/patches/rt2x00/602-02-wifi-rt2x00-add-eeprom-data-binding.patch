@@ -5,10 +5,6 @@ Subject: [PATCH] wifi: rt2x00: add eeprom-data binding
 Useful for embedding eeprom data in dts instead of relying on an
 external file.
 
-Keep the property byte-exact for compatibility with existing OpenWrt DTS
-data encoded as 32-bit cells. Reading it as a u16 array swaps every pair
-of bytes on little-endian targets.
-
 Signed-off-by: Rosen Penev <rosenp@gmail.com>
 ---
 
@@ -20,11 +16,11 @@ Signed-off-by: Rosen Penev <rosenp@gmail.com>
  
 +int rt2800_read_eeprom_data(struct rt2x00_dev *rt2x00dev)
 +{
-+	size_t len = rt2x00dev->ops->eeprom_size;
++	size_t len = rt2x00dev->ops->eeprom_size / sizeof(u16);
 +	struct device *dev = rt2x00dev->dev;
 +
-+	return device_property_read_u8_array(dev, "ralink,eeprom-data",
-+			(u8 *)rt2x00dev->eeprom, len);
++	return device_property_read_u16_array(dev, "ralink,eeprom-data",
++			rt2x00dev->eeprom, len);
 +}
 +EXPORT_SYMBOL_GPL(rt2800_read_eeprom_data);
 +
