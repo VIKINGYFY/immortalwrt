@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -365,7 +365,8 @@ static int ppe_bridge_vsi_xlt_update(str
+@@ -365,7 +365,8 @@
  		}
  
  		ret = ppe_ing_xlt_rule_set(pb->ppe_dev, idx, rules[i].bitmap,
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1430,6 +1430,36 @@ int ppe_counter_enable_set(struct ppe_de
+@@ -1430,6 +1430,36 @@
  	return regmap_set_bits(ppe_dev->regmap, reg, PPE_PORT_EG_VLAN_TBL_TX_COUNTING_EN);
  }
  
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_rss_hash_ipv4_config(struct ppe_device *ppe_dev, int index,
  				    struct ppe_rss_hash_cfg cfg)
  {
-@@ -1745,32 +1775,35 @@ int ppe_port_vlan_ingress_filter_set(str
+@@ -1745,32 +1775,35 @@
   * @ppe_dev: PPE device
   * @index: Rule index to program
   * @port_bitmap: Bitmap of the ingress ports the rule matches
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_CVID_CMD,
  					PPE_XLT_VID_CMD_DELETE);
  
-@@ -1783,19 +1816,25 @@ int ppe_ing_xlt_rule_set(struct ppe_devi
+@@ -1783,19 +1816,25 @@
  	rule[0] = PPE_XLT_RULE_W0_VALID;
  	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_PORT_BITMAP, port_bitmap);
  
@@ -144,9 +144,137 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	reg = PPE_XLT_RULE_TBL_ADDR + PPE_XLT_RULE_TBL_INC * index;
  
+@@ -1820,6 +1859,127 @@
+ }
+ 
+ /**
++ * ppe_eg_xlt_rule_set - Program a BE egress VLAN translation rule
++ * @ppe_dev: PPE device
++ * @index: Rule index shared with the ingress VLAN translation table
++ * @port_bitmap: Bitmap of the egress ports the rule matches
++ * @svid: S-VLAN ID to add when @strip_svid is true
++ * @cvid: C-VLAN ID to add when @strip_cvid is true
++ * @vsi: VSI matched by the rule
++ * @strip_svid: Add the S-VLAN tag to packets without an S-tag
++ * @strip_cvid: Add the C-VLAN tag to packets without a C-tag
++ *
++ * Ingress VLAN translation removes tags before the PPE L3 and PPPoE stages.
++ * The corresponding egress rule restores the on-wire DSA tag on packets
++ * punted back to the CPU, including control packets which miss a flow entry.
++ * The BE table layout is two words for the rule and three for the action.
++ * The third action word is reserved today, but is written and cleared so a
++ * reused slot cannot inherit state from a previous owner.
++ *
++ * Return: 0 on success, negative error code on failure.
++ */
++int ppe_eg_xlt_rule_set(struct ppe_device *ppe_dev, int index,
++			unsigned int port_bitmap, int svid, int cvid,
++			int vsi, bool strip_svid, bool strip_cvid)
++{
++	u32 rule[2] = {}, action[3] = {};
++	unsigned int sfmt, cfmt;
++	u32 reg;
++	int ret;
++
++	if (index < 0 || index >= PPE_EG_XLT_RULE_TBL_ENTRIES ||
++	    index >= PPE_EG_XLT_ACTION_TBL_ENTRIES || !port_bitmap ||
++	    vsi < 0 || vsi >= 64 ||
++	    (strip_svid && svid < 0) || (strip_cvid && cvid < 0) ||
++	    (!strip_svid && !strip_cvid))
++		return -EINVAL;
++
++	if (strip_svid)
++		action[0] |= FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_SVID_CMD,
++					PPE_EG_XLT_VID_CMD_ADD) |
++			     FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_SVID, svid);
++	if (strip_cvid)
++		action[0] |= FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_CVID_CMD,
++					PPE_EG_XLT_VID_CMD_ADD) |
++			     FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_CVID, cvid);
++
++	/* The action must be valid before the rule is made visible. */
++	reg = PPE_EG_XLT_ACTION_TBL_ADDR + PPE_EG_XLT_ACTION_TBL_INC * index;
++	ret = regmap_write(ppe_dev->regmap, reg, action[0]);
++	if (ret)
++		return ret;
++	ret = regmap_write(ppe_dev->regmap, reg + 4, action[1]);
++	if (ret)
++		return ret;
++	ret = regmap_write(ppe_dev->regmap, reg + 8, action[2]);
++	if (ret)
++		return ret;
++
++	rule[0] = PPE_EG_XLT_RULE_W0_VALID |
++		  FIELD_PREP(PPE_EG_XLT_RULE_W0_PORT_BITMAP, port_bitmap) |
++		  PPE_EG_XLT_RULE_W0_VSI_INCL |
++		  FIELD_PREP(PPE_EG_XLT_RULE_W0_VSI, vsi) |
++		  PPE_EG_XLT_RULE_W0_VSI_VALID;
++	if (svid >= 0)
++		sfmt = strip_svid ? PPE_XLT_FMT_UNTAGGED : PPE_XLT_FMT_TAGGED;
++	else
++		sfmt = PPE_XLT_FMT_UNTAGGED;
++	if (cvid >= 0)
++		cfmt = strip_cvid ? PPE_XLT_FMT_UNTAGGED : PPE_XLT_FMT_TAGGED;
++	else
++		cfmt = PPE_XLT_FMT_UNTAGGED;
++	rule[0] |= FIELD_PREP(PPE_EG_XLT_RULE_W0_SKEY_FMT, sfmt);
++	rule[1] = FIELD_PREP(PPE_EG_XLT_RULE_W1_CKEY_FMT, cfmt);
++
++	reg = PPE_EG_XLT_RULE_TBL_ADDR + PPE_EG_XLT_RULE_TBL_INC * index;
++	/* Publish the complete key by writing VALID last. */
++	ret = regmap_write(ppe_dev->regmap, reg + 4, rule[1]);
++	if (ret)
++		return ret;
++
++	return regmap_write(ppe_dev->regmap, reg, rule[0]);
++}
++
++/**
++ * ppe_eg_xlt_rule_clear - Invalidate a BE egress VLAN translation rule
++ * @ppe_dev: PPE device
++ * @index: Rule index shared with the ingress VLAN translation table
++ *
++ * The key is invalidated before its action is cleared so a teardown cannot
++ * briefly route packets through an incomplete translation entry.
++ *
++ * Return: 0 on success, negative error code on failure.
++ */
++int ppe_eg_xlt_rule_clear(struct ppe_device *ppe_dev, int index)
++{
++	u32 rule_reg, action_reg;
++	int ret, err;
++
++	if (index < 0 || index >= PPE_EG_XLT_RULE_TBL_ENTRIES ||
++	    index >= PPE_EG_XLT_ACTION_TBL_ENTRIES)
++		return -EINVAL;
++
++	rule_reg = PPE_EG_XLT_RULE_TBL_ADDR + PPE_EG_XLT_RULE_TBL_INC * index;
++	action_reg = PPE_EG_XLT_ACTION_TBL_ADDR +
++		     PPE_EG_XLT_ACTION_TBL_INC * index;
++	ret = regmap_write(ppe_dev->regmap, rule_reg, 0);
++	err = regmap_write(ppe_dev->regmap, rule_reg + 4, 0);
++	if (!ret)
++		ret = err;
++	err = regmap_write(ppe_dev->regmap, action_reg, 0);
++	if (!ret)
++		ret = err;
++	err = regmap_write(ppe_dev->regmap, action_reg + 4, 0);
++	if (!ret)
++		ret = err;
++	err = regmap_write(ppe_dev->regmap, action_reg + 8, 0);
++	if (!ret)
++		ret = err;
++
++	return ret;
++}
++
++/**
+  * ppe_port_bridge_txmac_set - Enable or disable the bridge TX MAC of a port
+  * @ppe_dev: PPE device
+  * @port: PPE port to configure
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -350,9 +350,10 @@ int ppe_vsi_eg_mode_set(struct ppe_devic
+@@ -350,10 +350,15 @@
  int ppe_port_default_cvid_set(struct ppe_device *ppe_dev, int port, int vid);
  int ppe_port_vlan_ingress_filter_set(struct ppe_device *ppe_dev, int port,
  				     bool enable);
@@ -157,8 +285,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			 unsigned int port_bitmap, int svid, int cvid,
 +			 int vsi, bool strip_svid, bool strip_cvid);
  int ppe_ing_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
++int ppe_eg_xlt_rule_set(struct ppe_device *ppe_dev, int index,
++			unsigned int port_bitmap, int svid, int cvid,
++			int vsi, bool strip_svid, bool strip_cvid);
++int ppe_eg_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
  int ppe_port_bridge_txmac_set(struct ppe_device *ppe_dev, int port,
  			      bool enable);
+ int ppe_port_bridge_learning_set(struct ppe_device *ppe_dev, int port,
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -176,6 +176,12 @@
@@ -166,7 +299,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	FIELD_MODIFY(PPE_SERVICE_W1_RX_CNT_EN, (tbl_cfg) + 0x1, value)
  
 +/* PPE physical-port ingress VLAN parsing roles. */
-+#define PPE_PORT_PARSING_REG_ADDR		0x20000
++#define PPE_PORT_PARSING_REG_ADDR		0x1e0000
 +#define PPE_PORT_PARSING_REG_ENTRIES		8
 +#define PPE_PORT_PARSING_REG_INC		4
 +#define PPE_PORT_PARSING_REG_PORT_ROLE		BIT(0)
@@ -174,9 +307,39 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* PPE port egress VLAN configurations. */
  #define PPE_PORT_EG_VLAN_TBL_ADDR		0x20020
  #define PPE_PORT_EG_VLAN_TBL_ENTRIES		8
+@@ -188,6 +194,29 @@
+ #define PPE_PORT_EG_VLAN_TBL_DEI_PROP_CMD	BIT(7)
+ #define PPE_PORT_EG_VLAN_TBL_TX_COUNTING_EN	BIT(8)
+ 
++/* BE egress VLAN translation rules and actions. The hardware uses the
++ * same index as the ingress table, but stores the egress tables in PTX.
++ */
++#define PPE_EG_XLT_RULE_TBL_ADDR		0x27000
++#define PPE_EG_XLT_RULE_TBL_ENTRIES		128
++#define PPE_EG_XLT_RULE_TBL_INC		0x10
++#define PPE_EG_XLT_RULE_W0_VALID		BIT(0)
++#define PPE_EG_XLT_RULE_W0_PORT_BITMAP		GENMASK(8, 1)
++#define PPE_EG_XLT_RULE_W0_VSI_INCL		BIT(9)
++#define PPE_EG_XLT_RULE_W0_VSI		GENMASK(15, 10)
++#define PPE_EG_XLT_RULE_W0_VSI_VALID		BIT(16)
++#define PPE_EG_XLT_RULE_W0_SKEY_FMT		GENMASK(19, 17)
++#define PPE_EG_XLT_RULE_W1_CKEY_FMT		GENMASK(9, 7)
++
++#define PPE_EG_XLT_ACTION_TBL_ADDR		0x21000
++#define PPE_EG_XLT_ACTION_TBL_ENTRIES		128
++#define PPE_EG_XLT_ACTION_TBL_INC		0x10
++#define PPE_EG_XLT_ACTION_W0_XLT_SVID_CMD	GENMASK(2, 1)
++#define PPE_EG_XLT_ACTION_W0_XLT_SVID		GENMASK(14, 3)
++#define PPE_EG_XLT_ACTION_W0_XLT_CVID_CMD	GENMASK(16, 15)
++#define PPE_EG_XLT_ACTION_W0_XLT_CVID		GENMASK(28, 17)
++#define PPE_EG_XLT_VID_CMD_ADD			1
++
+ /* PPE queue counters enable/disable control. */
+ #define PPE_EG_BRIDGE_CONFIG_ADDR		0x20044
+ #define PPE_EG_BRIDGE_CONFIG_QUEUE_CNT_EN	BIT(2)
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -140,8 +140,11 @@ static_assert(offsetof(struct ppe_ft_ppp
+@@ -140,8 +140,11 @@
  /**
   * struct ppe_ft_vlan - A refcounted VLAN uplink of an ingress port.
   * @ref: Reference count of the uplink.
@@ -189,7 +352,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @poisoned: Cleanup failed and the slot must not be reused.
   *
   * A VLAN uplink owns one of the reserved top ingress translation
-@@ -153,8 +156,11 @@ static_assert(offsetof(struct ppe_ft_ppp
+@@ -153,8 +156,11 @@
   */
  struct ppe_ft_vlan {
  	struct ppe_ft_ref ref;
@@ -202,7 +365,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool poisoned;
  };
  
-@@ -380,6 +386,7 @@ struct ppe_ft_data {
+@@ -380,6 +386,7 @@
  	__be16 sport;
  	__be16 dport;
  	int pppoe_sid;
@@ -210,7 +373,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ingress_vid;
  	bool ingress_dsa;
  	int ingress_ifindex;
-@@ -693,15 +700,20 @@ struct ppe_ft_pppoe_topo {
+@@ -693,15 +700,20 @@
  	int mtu;
  	int vlan_mtu;
  	int port;
@@ -234,7 +397,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	PPE_FT_DSA_QCA4B,
  };
  
-@@ -717,7 +729,8 @@ static int ppe_ft_pppoe_path(struct net_
+@@ -717,7 +729,8 @@
  	int i, ret;
  
  	topo->port = -1;
@@ -244,7 +407,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	topo->mtu = ppp_dev->mtu;
  	topo->vlan_mtu = ppp_dev->mtu;
  
-@@ -740,30 +753,39 @@ static int ppe_ft_pppoe_path(struct net_
+@@ -740,30 +753,43 @@
  			ether_addr_copy(topo->peer, path->encap.h_dest);
  			break;
  		case DEV_PATH_VLAN:
@@ -287,12 +450,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +					goto out_unlock;
 +				}
 +				topo->svid = vid;
-+				topo->keep_svid = true;
++				/* Strip the private S-tag for PPE parsing. The egress
++				 * translation rule restores it on packets punted to the
++				 * CPU, including PPPoE control frames.
++				 */
++				topo->keep_svid = false;
 +			}
  			topo->vlan_mtu = path->dev->mtu;
  			ether_addr_copy(topo->local, path->dev->dev_addr);
  			break;
-@@ -797,6 +819,18 @@ out_unlock:
+@@ -797,6 +822,18 @@
  	return ret;
  }
  
@@ -311,7 +478,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static bool ppe_ft_pppoe_match(const void *entry, const void *key)
  {
  	const struct ppe_ft_pppoe *session = entry, *want = key;
-@@ -808,7 +842,7 @@ static bool ppe_ft_pppoe_match(const voi
+@@ -808,7 +845,7 @@
  /* Flow rules only reference a session already published by PPP connect. */
  static int ppe_ft_pppoe_get(struct ppe_flowtable *ft, u16 sid,
  			    const u8 *peer, const u8 *local,
@@ -320,7 +487,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	int i;
  
-@@ -823,8 +857,7 @@ static int ppe_ft_pppoe_get(struct ppe_f
+@@ -823,8 +860,7 @@
  		if (!session->connected)
  			return -ENOTCONN;
  		if (session->port != port ||
@@ -330,7 +497,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !ether_addr_equal(session->local, local))
  			return -EEXIST;
  
-@@ -851,9 +884,7 @@ static int ppe_ft_pppoe_dev_get(struct p
+@@ -851,9 +887,7 @@
  			return -EIO;
  		if (!session->connected || session->ppp_dev != ppp_dev ||
  		    session->port != port ||
@@ -341,7 +508,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			continue;
  		session->ref.refcnt++;
  		return i;
-@@ -891,9 +922,10 @@ static int ppe_ft_pppoe_connect(struct p
+@@ -891,9 +925,10 @@
  		return ret;
  
  	mutex_lock(&ft->lock);
@@ -355,7 +522,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (vlan < 0) {
  			ret = vlan;
  			goto out_unlock;
-@@ -1079,7 +1111,7 @@ static int ppe_ft_vp_l3_if(struct ppe_fl
+@@ -1079,7 +1114,7 @@
  	       (vp - PPE_VP_PORT_BASE);
  }
  
@@ -364,7 +531,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * L3 interface, VSI binding and translation rule on first use. Must
   * be called with the flowtable lock held.
   */
-@@ -1087,14 +1119,23 @@ static bool ppe_ft_vlan_match(const void
+@@ -1087,14 +1122,23 @@
  {
  	const struct ppe_ft_vlan *uplink = entry, *want = key;
  
@@ -396,7 +563,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const u8 no_mac[ETH_ALEN] = {};
  	u32 eg_modes;
  	bool is_new;
-@@ -1105,6 +1146,11 @@ static int ppe_ft_vlan_get(struct ppe_fl
+@@ -1105,6 +1149,11 @@
  			   &want, &is_new);
  	if (i < 0 || !is_new)
  		return i;
@@ -408,7 +575,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* The L3 interface only terminates ingress, no next hop points
  	 * at it: it carries no egress MAC.
-@@ -1119,20 +1165,20 @@ static int ppe_ft_vlan_get(struct ppe_fl
+@@ -1119,20 +1168,20 @@
  	if (ret)
  		return ret;
  
@@ -438,7 +605,51 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		err = ppe_ing_xlt_rule_clear(ft->ppe_dev,
  					     ppe_ft_vlan_xlt(i));
-@@ -1581,8 +1627,9 @@ out_unlock:
+@@ -1147,6 +1196,30 @@
+ 		return ret;
+ 	}
+ 
++	if (svid >= 0 && !keep_svid) {
++		/* Ingress parsing strips the RTL S-tag. Re-add it on the
++		 * PPE CPU port so EDMA and DSA can deliver punted frames.
++		 */
++		ret = ppe_eg_xlt_rule_set(ft->ppe_dev, ppe_ft_vlan_xlt(i),
++					  BIT(0), svid, cvid, ppe_ft_vlan_vsi(i),
++					  !keep_svid, !keep_cvid);
++		if (ret) {
++			err = ppe_ing_xlt_rule_clear(ft->ppe_dev,
++						     ppe_ft_vlan_xlt(i));
++			err |= ppe_eg_xlt_rule_clear(ft->ppe_dev,
++						      ppe_ft_vlan_xlt(i));
++			err |= ppe_vsi_l3_if_set(ft->ppe_dev, ppe_ft_vlan_vsi(i), -1);
++			if (err) {
++				want.ref.refcnt = 1;
++				want.poisoned = true;
++				ft->vlans[i] = want;
++				dev_err(ft->ppe_dev->dev,
++					"quarantining partial VLAN slot %d\n", i);
++			}
++			return ret;
++		}
++	}
++
+ 	want.ref.refcnt = 1;
+ 	ft->vlans[i] = want;
+ 
+@@ -1166,6 +1236,12 @@
+ 	err = ppe_vsi_l3_if_set(ft->ppe_dev, ppe_ft_vlan_vsi(index), -1);
+ 	if (!ret)
+ 		ret = err;
++	if (slot->svid >= 0 && !slot->keep_svid) {
++		err = ppe_eg_xlt_rule_clear(ft->ppe_dev,
++					    ppe_ft_vlan_xlt(index));
++		if (!ret)
++			ret = err;
++	}
+ 
+ 	/* The hardware learned the source MACs of the uplink segment
+ 	 * into the VSI; nothing ages them (the FDB synchronization
+@@ -1581,8 +1657,9 @@
  
  		if (vid >= 0) {
  			tunnel->vlan = ppe_ft_vlan_get(ft,
@@ -450,7 +661,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (tunnel->vlan < 0) {
  				ret = tunnel->vlan;
  				tunnel->vlan = -1;
-@@ -2032,7 +2079,8 @@ static int ppe_ft_dsa_resolve(struct net
+@@ -2032,7 +2109,8 @@
  	if (!edma_port_dev_check(dsa_port_to_conduit(dp)))
  		return -EOPNOTSUPP;
  
@@ -460,7 +671,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EOPNOTSUPP;
  
  	if (dpp)
-@@ -2043,6 +2091,11 @@ static int ppe_ft_dsa_resolve(struct net
+@@ -2043,6 +2121,11 @@
  			*vid = -1;
  		return PPE_FT_DSA_QCA4B;
  	}
@@ -472,7 +683,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_VSC73XX_8021Q &&
  	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_QCA_8021Q)
  		return -EOPNOTSUPP;
-@@ -2151,6 +2204,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2151,6 +2234,7 @@
  	nh.svid = -1;
  	nh.cvid = -1;
  	data.pppoe_sid = -1;
@@ -480,7 +691,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	data.ingress_vid = -1;
  	data.ingress_dsa = false;
  
-@@ -2516,13 +2570,14 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2516,13 +2600,14 @@
  				goto put_idev;
  			}
  
@@ -500,7 +711,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				vp_ret = -EOPNOTSUPP;
  				goto put_idev;
  			}
-@@ -2539,7 +2594,12 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2539,7 +2624,12 @@
  				conduit = dsa_port_to_conduit(dp);
  				ipriv = netdev_priv(conduit);
  				iport = ipriv->ppe_port->port_id;
@@ -514,7 +725,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				data.ingress_dsa = true;
  			}
  		} else if (ft->ppe_dev->variant->has_vports &&
-@@ -2558,7 +2618,8 @@ put_idev:
+@@ -2558,7 +2648,8 @@
  			goto err_prelock_ivp;
  		}
  
@@ -524,7 +735,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !ingress_vp_vlan) {
  			ret = -EOPNOTSUPP;
  			goto err_prelock_ivp;
-@@ -2597,7 +2658,8 @@ put_idev:
+@@ -2597,7 +2688,8 @@
  				port_priv = netdev_priv(dsa_port_to_conduit(dp));
  				nh.port = port_priv->ppe_port->port_id;
  				nh.l3_if = nh.port;
@@ -534,7 +745,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				    DSA_TAG_PROTO_QCA_8021Q) {
  					nh.svid = dsa_ovid;
  				} else {
-@@ -2611,6 +2673,11 @@ put_idev:
+@@ -2611,6 +2703,11 @@
  					nh.cvid = dsa_ovid;
  				}
  			}
@@ -546,7 +757,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			flow->egress_dev = odev;
  			flow->egress_vid = dsa_ovid;
  			dev_hold(flow->egress_dev);
-@@ -2782,9 +2849,14 @@ put_idev:
+@@ -2782,9 +2879,13 @@
  			goto err_ingress_my_mac;
  	}
  
@@ -557,14 +768,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	    !ingress_vp_vlan) {
 +		flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_svid,
 +					     data.ingress_vid, imtu,
-+					     data.ingress_dsa &&
-+					     data.ingress_svid >= 0,
++					     false,
 +					     data.ingress_dsa &&
 +					     data.ingress_svid < 0);
  		if (flow->vlan < 0) {
  			ret = flow->vlan;
  			goto err_ingress_my_mac;
-@@ -2819,8 +2891,7 @@ put_idev:
+@@ -2819,8 +2920,7 @@
  
  		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
  					       data.eth.dst, data.eth.src,
@@ -574,7 +784,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (flow->pppoe < 0) {
  			ret = flow->pppoe;
  			goto err_vlan;
-@@ -3144,7 +3215,8 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -3144,7 +3244,8 @@
  					      &dsa_vid);
  	if (flow->egress_dev &&
  	    (!netif_carrier_ok(flow->egress_dev) || dsa_mode < 0 ||
