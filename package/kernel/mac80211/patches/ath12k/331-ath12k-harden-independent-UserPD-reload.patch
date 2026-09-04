@@ -1,0 +1,111 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Mon, 24 Aug 2026 13:30:00 +0800
+Subject: [PATCH] wifi: ath12k: harden independent UserPD reload
+
+The IPQ5332 1.6 firmware uses the QSDK configuration with multi-PD
+remoteproc disabled. Its q6_fw1.mdt is a standalone UserPD image and does
+not contain the ASID-tagged writable segments required by the legacy BDMA
+loader, so that loader must not be used for this firmware.
+
+Harden the active standalone loader instead. Resolve its RootPD memory by
+name, retain one device-managed mapping across recoveries, and release a
+partially prepared or authenticated PAS image whenever a later load,
+authentication, spawn or ready step fails. This prevents repeated recovery
+from accumulating mappings or leaving stale secure-PIL state behind.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/ahb.c | 43 ++++++++++++++++++++++-----
+ drivers/net/wireless/ath/ath12k/ahb.h |  3 ++
+ 2 files changed, 38 insertions(+), 8 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/ahb.c
+@@ -363,6 +363,7 @@ static int ath12k_ahb_power_up(struct at
+ 	char fw_name[ATH12K_USERPD_FW_NAME_LEN];
+ 	char fw2_name[ATH12K_USERPD_FW_NAME_LEN];
+ 	bool spawn_requested = false;
++	bool scm_prepared = false;
+ 	struct device *dev = ab->dev;
+ 	const struct firmware *fw, *fw2;
+ 	struct reserved_mem *rmem = NULL;
+@@ -373,18 +374,26 @@ static int ath12k_ahb_power_up(struct at
+ 	u32 pasid;
+ 	int ret;
+ 
+-	rmem = ath12k_core_get_reserved_mem(ab, 0);
++	rmem = ath12k_core_get_rmem_by_name(ab, "q6-region");
+ 	if (!rmem)
+ 		return -ENODEV;
+ 
+-	mem_phys = rmem->base;
+-	mem_size = rmem->size;
+-	mem_region = devm_memremap(dev, mem_phys, mem_size, MEMREMAP_WC);
+-	if (IS_ERR(mem_region)) {
+-		ath12k_err(ab, "unable to map memory region: %pa+%pa\n",
+-			   &rmem->base, &rmem->size);
+-		return PTR_ERR(mem_region);
++	if (!ab_ahb->userpd_mem_region) {
++		ab_ahb->userpd_mem_phys = rmem->base;
++		ab_ahb->userpd_mem_size = rmem->size;
++		ab_ahb->userpd_mem_region =
++			devm_memremap(dev, rmem->base, rmem->size, MEMREMAP_WC);
++		if (IS_ERR(ab_ahb->userpd_mem_region)) {
++			ret = PTR_ERR(ab_ahb->userpd_mem_region);
++			ab_ahb->userpd_mem_region = NULL;
++			ath12k_err(ab, "unable to map UserPD memory: %pa+%pa: %d\n",
++				   &rmem->base, &rmem->size, ret);
++			return ret;
++		}
+ 	}
++	mem_phys = ab_ahb->userpd_mem_phys;
++	mem_size = ab_ahb->userpd_mem_size;
++	mem_region = ab_ahb->userpd_mem_region;
+ 
+ 	ret = ath12k_ahb_get_firmware_name(ab, 0, fw_name, sizeof(fw_name));
+ 	if (ret) {
+@@ -411,12 +420,14 @@ static int ath12k_ahb_power_up(struct at
+ 		ATH12K_AHB_UPD_SWID;
+ 
+ 	/* Load FW image to a reserved memory location */
+-	if (ab_ahb->scm_auth_enabled)
++	if (ab_ahb->scm_auth_enabled) {
++		scm_prepared = true;
+ 		ret = qcom_mdt_load(dev, fw, fw_name, pasid, mem_region,
+ 				    mem_phys, mem_size, &mem_phys);
+-	else
++	} else {
+ 		ret = qcom_mdt_load_no_init(dev, fw, fw_name, mem_region,
+ 					    mem_phys, mem_size, &mem_phys);
++	}
+ 	if (ret) {
+ 		ath12k_err(ab, "Failed to load MDT segments: %d\n", ret);
+ 		goto err_fw;
+@@ -498,6 +509,15 @@ err_fw2:
+ 	release_firmware(fw2);
+ err_fw:
+ 	release_firmware(fw);
++	if (ret && scm_prepared) {
++		int shutdown_ret;
++
++		shutdown_ret = qcom_scm_pas_shutdown(pasid);
++		if (shutdown_ret)
++			ath12k_warn(ab,
++				    "failed to release UserPD%u after boot error %d: %d\n",
++				    ab_ahb->userpd_id, ret, shutdown_ret);
++	}
+ 	return ret;
+ }
+ 
+--- a/drivers/net/wireless/ath/ath12k/ahb.h
++++ b/drivers/net/wireless/ath/ath12k/ahb.h
+@@ -55,6 +55,9 @@ struct ath12k_ahb {
+ 	struct ath12k_base *ab;
+ 	struct rproc *tgt_rproc;
+ 	struct clk *xo_clk;
++	phys_addr_t userpd_mem_phys;
++	size_t userpd_mem_size;
++	void *userpd_mem_region;
+ 	struct completion rootpd_ready;
+ 	struct notifier_block root_pd_nb;
+ 	void *root_pd_notifier;

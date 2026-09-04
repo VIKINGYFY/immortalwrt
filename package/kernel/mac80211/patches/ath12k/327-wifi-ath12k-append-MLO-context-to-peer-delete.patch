@@ -1,0 +1,89 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Tue, 18 Aug 2026 03:25:00 +0800
+Subject: [PATCH] wifi: ath12k: append MLO context to peer delete commands
+
+Qualcomm's Wi-Fi 7 firmware ABI expects WMI peer delete commands to carry
+an array containing WMI_TAG_MLO_PARAMS_PEER_DELETE.  The current driver
+sends only the fixed peer delete command even for an MLO peer, unlike the
+TIP driver matched to this firmware generation.
+
+Append the MLO peer delete parameter to every command.  Keep the hardware
+link bitmap zero because this driver uses full hardware-group recovery and
+does not implement TIP's Mode 2 partner-preservation semantics.  This keeps
+the firmware command layout correct without weakening the existing per-link
+delete completion and recovery barriers.
+
+Based on Qualcomm's TIP ath12k peer deletion implementation.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/wmi.c | 24 +++++++++++++++++++++---
+ drivers/net/wireless/ath/ath12k/wmi.h |  6 ++++++
+ 2 files changed, 27 insertions(+), 3 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -1399,20 +1399,38 @@ int ath12k_wmi_send_peer_delete_cmd(stru
+ {
+ 	struct ath12k_wmi_pdev *wmi = ar->wmi;
+ 	struct wmi_peer_delete_cmd *cmd;
++	struct ath12k_wmi_peer_delete_mlo_params *mlo_params;
++	struct wmi_tlv *tlv;
+ 	struct sk_buff *skb;
+-	int ret;
++	u8 *ptr;
++	int len, ret;
+ 
+-	skb = ath12k_wmi_alloc_skb(wmi->wmi_ab, sizeof(*cmd));
++	len = sizeof(*cmd) + TLV_HDR_SIZE + sizeof(*mlo_params);
++	skb = ath12k_wmi_alloc_skb(wmi->wmi_ab, len);
+ 	if (!skb)
+ 		return -ENOMEM;
+ 
+-	cmd = (struct wmi_peer_delete_cmd *)skb->data;
++	ptr = skb->data;
++	cmd = (struct wmi_peer_delete_cmd *)ptr;
+ 	cmd->tlv_header = ath12k_wmi_tlv_cmd_hdr(WMI_TAG_PEER_DELETE_CMD,
+ 						 sizeof(*cmd));
+ 
+ 	ether_addr_copy(cmd->peer_macaddr.addr, peer_addr);
+ 	cmd->vdev_id = cpu_to_le32(vdev_id);
+ 
++	ptr += sizeof(*cmd);
++	tlv = (struct wmi_tlv *)ptr;
++	tlv->header = ath12k_wmi_tlv_hdr(WMI_TAG_ARRAY_STRUCT,
++					 sizeof(*mlo_params));
++
++	ptr += TLV_HDR_SIZE;
++	mlo_params = (struct ath12k_wmi_peer_delete_mlo_params *)ptr;
++	mlo_params->tlv_header =
++		ath12k_wmi_tlv_cmd_hdr(WMI_TAG_MLO_PARAMS_PEER_DELETE,
++				       sizeof(*mlo_params));
++	/* This driver tears down the complete hardware group during recovery. */
++	mlo_params->mlo_hw_link_id_bitmap = cpu_to_le32(0);
++
+ 	ath12k_dbg(ar->ab, ATH12K_DBG_WMI,
+ 		   "WMI peer delete vdev_id %d peer_addr %pM\n",
+ 		   vdev_id,  peer_addr);
+--- a/drivers/net/wireless/ath/ath12k/wmi.h
++++ b/drivers/net/wireless/ath/ath12k/wmi.h
+@@ -2035,6 +2035,7 @@ enum wmi_tlv_tag {
+ 	WMI_TAG_RSSI_DBM_CONVERSION_PARAMS_INFO_FIXED_PARAM = 0x427,
+ 	WMI_TAG_RSSI_DBM_CONVERSION_PARAMS_INFO,
+ 	WMI_TAG_RSSI_DBM_CONVERSION_TEMP_OFFSET_INFO,
++	WMI_TAG_MLO_PARAMS_PEER_DELETE = 0x43E,
+ 	WMI_TAG_HALPHY_CTRL_PATH_CMD_FIXED_PARAM = 0x442,
+ 	WMI_TAG_HALPHY_CTRL_PATH_EVENT_FIXED_PARAM,
+ 	WMI_TAG_MAX
+@@ -3311,6 +3312,11 @@ struct wmi_peer_delete_cmd {
+ 	struct ath12k_wmi_mac_addr_params peer_macaddr;
+ } __packed;
+ 
++struct ath12k_wmi_peer_delete_mlo_params {
++	__le32 tlv_header;
++	__le32 mlo_hw_link_id_bitmap;
++} __packed;
++
+ struct wmi_peer_reorder_queue_setup_cmd {
+ 	__le32 tlv_header;
+ 	__le32 vdev_id;

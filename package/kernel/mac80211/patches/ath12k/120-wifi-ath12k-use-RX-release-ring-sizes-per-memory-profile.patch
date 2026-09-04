@@ -1,0 +1,101 @@
+From 534459ac562b207ba1a9bb2c95dba77b5939e2da Mon Sep 17 00:00:00 2001
+From: Pavankumar Nandeshwar <pavankumar.nandeshwar@oss.qualcomm.com>
+Date: Tue, 21 Jul 2026 16:34:59 +0530
+Subject: [PATCH] wifi: ath12k: Use different RX release ring sizes as per
+ memory profiles
+
+Currently, the RX release ring size is hardcoded to 1024 entries via
+DP_RX_RELEASE_RING_SIZE. This value was sufficient for older generations,
+but is not adequate for Wi-Fi 7 scenarios with higher aggregation,
+parallel processing, and increased likelihood of error bursts.
+
+In Wi-Fi 7, a PPDU can carry up to 1024 MPDUs and each MPDU may contain
+multiple MSDUs. In error scenarios such as REO out-of-order (OOR) events,
+a large number of MSDUs can be pushed to the RX release ring in a short
+duration. With multiple PPDUs being processed in parallel (e.g. multi-core
+or MLO scenarios), this can lead to significant bursts of descriptors.
+
+Field observations have shown frequent OOR conditions and back-pressure
+issues with smaller ring sizes. Increasing the RX release ring size helps
+absorb these bursts and avoids back-pressure in the RXDMA/REO pipeline.
+Without sufficient ring capacity (e.g. 16K), back-pressure was observed
+under stress conditions.
+
+To address this, make the RX release ring size configurable per memory
+profile by adding rx_release_ring_size to ath12k_dp_profile_params:
+
+- Default memory profile: 16384 entries
+- Low memory profile (512M): 8192 entries
+
+The larger size in the default profile improves robustness under high
+traffic and error conditions by reducing the probability of ring overflow
+and pipeline stalls. The reduced size in the low memory profile balances
+memory usage while still providing sufficient headroom compared to the
+previous fixed value.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.0.1-00029-QCAHKSWPL_SILICONZ-1
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.0.c5-00481-QCAHMTSWPL_V1.0_V2.0_SILICONZ-3
+
+Signed-off-by: Pavankumar Nandeshwar <pavankumar.nandeshwar@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260721110459.2203038-1-pavankumar.nandeshwar@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/core.c | 2 ++
+ drivers/net/wireless/ath/ath12k/core.h | 1 +
+ drivers/net/wireless/ath/ath12k/dp.c   | 2 +-
+ drivers/net/wireless/ath/ath12k/dp.h   | 3 ++-
+ 4 files changed, 6 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -52,6 +52,7 @@ ath12k_mem_profile_based_param ath12k_me
+ 			.rxdma_monitor_dst_ring_size = 8092,
+ 			.num_pool_tx_desc = 32768,
+ 			.rx_desc_count = 12288,
++			.rx_release_ring_size = 16384,
+ 		},
+ 	},
+ [ATH12K_QMI_MEMORY_MODE_LOW_512_M] = {
+@@ -65,6 +66,7 @@ ath12k_mem_profile_based_param ath12k_me
+ 			.rxdma_monitor_dst_ring_size = 512,
+ 			.num_pool_tx_desc = 16384,
+ 			.rx_desc_count = 6144,
++			.rx_release_ring_size = 8192,
+ 		},
+ 	},
+ };
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -938,6 +938,7 @@ struct ath12k_dp_profile_params {
+ 	u32 rxdma_monitor_dst_ring_size;
+ 	u32 num_pool_tx_desc;
+ 	u32 rx_desc_count;
++	u32 rx_release_ring_size;
+ };
+ 
+ struct ath12k_mem_profile_based_param {
+--- a/drivers/net/wireless/ath/ath12k/dp.c
++++ b/drivers/net/wireless/ath/ath12k/dp.c
+@@ -487,7 +487,7 @@ static int ath12k_dp_srng_common_setup(s
+ 
+ 	ret = ath12k_dp_srng_setup(ab, &dp->rx_rel_ring, HAL_WBM2SW_RELEASE,
+ 				   HAL_WBM2SW_REL_ERR_RING_NUM, 0,
+-				   DP_RX_RELEASE_RING_SIZE);
++				   DP_RX_RELEASE_RING_SIZE(ab));
+ 	if (ret) {
+ 		ath12k_warn(ab, "failed to set up rx_rel ring :%d\n", ret);
+ 		goto err;
+--- a/drivers/net/wireless/ath/ath12k/dp.h
++++ b/drivers/net/wireless/ath/ath12k/dp.h
+@@ -200,7 +200,8 @@ struct ath12k_pdev_dp {
+ #define DP_REO_DST_RING_MAX		8
+ #define DP_REO_DST_RING_SIZE		2048
+ #define DP_REO_REINJECT_RING_SIZE	32
+-#define DP_RX_RELEASE_RING_SIZE		1024
++#define DP_RX_RELEASE_RING_SIZE(ab) \
++	((ab)->profile_param->dp_params.rx_release_ring_size)
+ #define DP_REO_EXCEPTION_RING_SIZE	128
+ #define DP_REO_CMD_RING_SIZE		256
+ #define DP_REO_STATUS_RING_SIZE		2048

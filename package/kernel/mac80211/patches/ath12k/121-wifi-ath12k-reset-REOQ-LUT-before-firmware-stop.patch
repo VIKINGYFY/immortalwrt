@@ -1,0 +1,121 @@
+From fe2b006c15f6b1f81524b4c1af8013bc32fa0abc Mon Sep 17 00:00:00 2001
+From: Aishwarya R <aishwarya.r@oss.qualcomm.com>
+Date: Fri, 19 Jun 2026 17:37:51 +0530
+Subject: [PATCH] wifi: ath12k: reset REOQ LUT addresses before firmware stop
+
+During module removal, REOQ LUT cleanup writes 0 to the REOQ/ML-REOQ
+LUT address registers. That cleanup runs from ath12k_core_stop(),
+after ath12k_qmi_firmware_stop() has already stopped the
+firmware (mode OFF), so the register writes can hit an invalid target
+access.
+
+Move the REOQ LUT register reset before ath12k_qmi_firmware_stop(),
+so the registers are cleared before stopping the firmware,
+while register access is still valid.
+
+Additionally, handle the error path where firmware-ready setup fails
+after LUT programming but before core_stop() is reached, ensuring the
+registers are properly reset in that case as well.
+
+On the crash-recovery path, ath12k_core_reconfigure_on_crash() calls
+ath12k_core_qmi_firmware_ready(), which re-enters ath12k_dp_setup()
+and ath12k_dp_reoq_lut_setup(), so the LUT registers are reprogrammed
+before use and stale values do not persist across recovery.
+
+There is a brief window between the crash and when the LUT registers
+are reprogrammed during recovery, during which the registers still hold
+the freed DMA memory addresses. This is safe because the device is
+non-functional in that window and will not initiate any DMA access
+until firmware is restarted and the registers are reprogrammed.
+
+No functional issue has been observed so far due to this sequence.
+However, this change proactively avoids potential issues such as
+invalid register accesses after firmware stop during module
+removal and error handling.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01243-QCAHKSWPL_SILICONZ-1
+
+Co-developed-by: P Praneesh <praneesh.p@oss.qualcomm.com>
+Signed-off-by: P Praneesh <praneesh.p@oss.qualcomm.com>
+Signed-off-by: Aishwarya R <aishwarya.r@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Tamizh Chelvam Raja <tamizh.raja@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260619120751.363340-1-aishwarya.r@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/core.c |  5 ++++-
+ drivers/net/wireless/ath/ath12k/dp.c   | 14 ++++++++++++--
+ drivers/net/wireless/ath/ath12k/dp.h   |  1 +
+ 3 files changed, 17 insertions(+), 3 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -710,8 +710,10 @@ static void ath12k_core_stop(struct ath1
+ 
+ 	ath12k_core_to_group_ref_put(ab);
+ 
+-	if (!test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
++	if (!test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags)) {
++		ath12k_dp_reoq_lut_addr_reset(ath12k_ab_to_dp(ab));
+ 		ath12k_qmi_firmware_stop(ab);
++	}
+ 
+ 	ath12k_acpi_stop(ab);
+ 
+@@ -1373,6 +1375,7 @@ err_core_stop:
+ 	goto exit;
+ 
+ err_deinit:
++	ath12k_dp_reoq_lut_addr_reset(ath12k_ab_to_dp(ab));
+ 	ath12k_dp_cmn_device_deinit(ath12k_ab_to_dp(ab));
+ 	mutex_unlock(&ab->core_lock);
+ 	mutex_unlock(&ag->mutex);
+--- a/drivers/net/wireless/ath/ath12k/dp.c
++++ b/drivers/net/wireless/ath/ath12k/dp.c
+@@ -1097,7 +1097,6 @@ static void ath12k_dp_reoq_lut_cleanup(s
+ 		return;
+ 
+ 	if (dp->reoq_lut.vaddr_unaligned) {
+-		ath12k_hal_write_reoq_lut_addr(ab, 0);
+ 		dma_free_coherent(ab->dev, dp->reoq_lut.size,
+ 				  dp->reoq_lut.vaddr_unaligned,
+ 				  dp->reoq_lut.paddr_unaligned);
+@@ -1105,7 +1104,6 @@ static void ath12k_dp_reoq_lut_cleanup(s
+ 	}
+ 
+ 	if (dp->ml_reoq_lut.vaddr_unaligned) {
+-		ath12k_hal_write_ml_reoq_lut_addr(ab, 0);
+ 		dma_free_coherent(ab->dev, dp->ml_reoq_lut.size,
+ 				  dp->ml_reoq_lut.vaddr_unaligned,
+ 				  dp->ml_reoq_lut.paddr_unaligned);
+@@ -1568,6 +1566,7 @@ fail_dp_rx_free:
+ 	ath12k_dp_rx_free(ab);
+ 
+ fail_cmn_reoq_cleanup:
++	ath12k_dp_reoq_lut_addr_reset(dp);
+ 	ath12k_dp_reoq_lut_cleanup(ab);
+ 
+ fail_cmn_srng_cleanup:
+@@ -1627,3 +1626,14 @@ void ath12k_dp_cmn_hw_group_assign(struc
+ 	dp->device_id = ab->device_id;
+ 	dp_hw_grp->dp[dp->device_id] = dp;
+ }
++
++void ath12k_dp_reoq_lut_addr_reset(struct ath12k_dp *dp)
++{
++	struct ath12k_base *ab = dp->ab;
++
++	if (dp->reoq_lut.vaddr_unaligned)
++		ath12k_hal_write_reoq_lut_addr(ab, 0);
++
++	if (dp->ml_reoq_lut.vaddr_unaligned)
++		ath12k_hal_write_ml_reoq_lut_addr(ab, 0);
++}
+--- a/drivers/net/wireless/ath/ath12k/dp.h
++++ b/drivers/net/wireless/ath/ath12k/dp.h
+@@ -702,4 +702,5 @@ struct ath12k_rx_desc_info *ath12k_dp_ge
+ 						  u32 cookie);
+ struct ath12k_tx_desc_info *ath12k_dp_get_tx_desc(struct ath12k_dp *dp,
+ 						  u32 desc_id);
++void ath12k_dp_reoq_lut_addr_reset(struct ath12k_dp *dp);
+ #endif

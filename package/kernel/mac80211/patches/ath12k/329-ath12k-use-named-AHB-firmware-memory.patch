@@ -1,0 +1,127 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Mon, 24 Aug 2026 12:00:00 +0800
+Subject: [PATCH] wifi: ath12k: use named AHB firmware memory regions
+
+IPQ5332 WLAN.WBE.1.6 firmware uses a fixed memory contract which is not
+described by the ordinal upstream reserved-memory layout. In particular,
+the UserPD host DDR begins at 0x4b500000 rather than at the start of the
+RootPD image region. Looking regions up by index can therefore make the
+firmware access RootPD code or stale memory after a recovery.
+
+Resolve HOST DDR, BDF, CALDB and M3 regions by their DT names. This also
+makes the ABI independent of memory-region ordering and matches the QSDK
+6.6 IPQ5332 layout used by the 1.6 firmware. Log the final QMI assignment
+once per firmware start so a crash report contains the actual contract.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/qmi.c | 55 ++++++++++++++++++++++++++--------
+ 1 file changed, 43 insertions(+), 12 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -2971,9 +2971,11 @@ static int ath12k_qmi_assign_target_mem_
+ 	}
+ 
+ 	for (i = 0, idx = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
++		int assigned_idx = idx;
++
+ 		switch (ab->qmi.target_mem[i].type) {
+ 		case HOST_DDR_REGION_TYPE:
+-			rmem = ath12k_core_get_reserved_mem(ab, 0);
++			rmem = ath12k_core_get_rmem_by_name(ab, "host-ddr-mem");
+ 			if (!rmem) {
+ 				ret = -ENODEV;
+ 				goto out;
+@@ -3003,13 +3005,13 @@ static int ath12k_qmi_assign_target_mem_
+ 			idx++;
+ 			break;
+ 		case BDF_MEM_REGION_TYPE:
+-			rmem = ath12k_core_get_reserved_mem(ab, 0);
++			rmem = ath12k_core_get_rmem_by_name(ab, "host-ddr-mem");
+ 			if (!rmem) {
+ 				ret = -ENODEV;
+ 				goto out;
+ 			}
+ 
+-			avail_rmem_size = rmem->size - ab->hw_params->bdf_addr_offset;
++			avail_rmem_size = rmem->size;
+ 			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
+ 				ath12k_dbg(ab, ATH12K_DBG_QMI,
+ 					   "failed to assign mem type %u req size %u avail size %zu\n",
+@@ -3019,8 +3021,7 @@ static int ath12k_qmi_assign_target_mem_
+ 				ret = -EINVAL;
+ 				goto out;
+ 			}
+-			ab->qmi.target_mem[idx].paddr =
+-				rmem->base + ab->hw_params->bdf_addr_offset;
++			ab->qmi.target_mem[idx].paddr = rmem->base;
+ 			ab->qmi.target_mem[idx].v.ioaddr =
+ 				ioremap(ab->qmi.target_mem[idx].paddr,
+ 					ab->qmi.target_mem[i].size);
+@@ -3033,13 +3034,36 @@ static int ath12k_qmi_assign_target_mem_
+ 			idx++;
+ 			break;
+ 		case CALDB_MEM_REGION_TYPE:
+-			/* Cold boot calibration is not enabled in Ath12k. Hence,
+-			 * assign paddr = 0.
+-			 * Once cold boot calibration is enabled add support to
+-			 * assign reserved memory from DT.
++			/* The named CALDB region is optional. Keep the upstream
++			 * zero-address contract when the firmware does not use it.
+ 			 */
+-			ab->qmi.target_mem[idx].paddr = 0;
+-			ab->qmi.target_mem[idx].v.ioaddr = NULL;
++			rmem = ath12k_core_get_rmem_by_name(ab, "q6-caldb");
++			if (!rmem) {
++				ab->qmi.target_mem[idx].paddr = 0;
++				ab->qmi.target_mem[idx].v.ioaddr = NULL;
++				goto caldb_done;
++			}
++
++			avail_rmem_size = rmem->size;
++			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
++				ath12k_dbg(ab, ATH12K_DBG_QMI,
++					   "failed to assign mem type %u req size %u avail size %zu\n",
++					   ab->qmi.target_mem[i].type,
++					   ab->qmi.target_mem[i].size,
++					   avail_rmem_size);
++				ret = -EINVAL;
++				goto out;
++			}
++
++			ab->qmi.target_mem[idx].paddr = rmem->base;
++			ab->qmi.target_mem[idx].v.ioaddr =
++				ioremap(ab->qmi.target_mem[idx].paddr,
++					ab->qmi.target_mem[i].size);
++			if (!ab->qmi.target_mem[idx].v.ioaddr) {
++				ret = -EIO;
++				goto out;
++			}
++caldb_done:
+ 			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
+ 			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
+ 			idx++;
+@@ -3067,7 +3091,7 @@ static int ath12k_qmi_assign_target_mem_
+ 			mlo_idx++;
+ 			break;
+ 		case M3_DUMP_REGION_TYPE:
+-			rmem = ath12k_core_get_reserved_mem(ab, 1);
++			rmem = ath12k_core_get_rmem_by_name(ab, "m3-dump");
+ 			if (!rmem) {
+ 				ret = -EINVAL;
+ 				goto out;
+@@ -3101,6 +3125,13 @@ static int ath12k_qmi_assign_target_mem_
+ 				    ab->qmi.target_mem[i].type);
+ 			break;
+ 		}
++
++		if (idx > assigned_idx)
++			ath12k_info(ab,
++				    "QMI fixed memory type %u addr %pa size %u\n",
++				    ab->qmi.target_mem[idx - 1].type,
++				    &ab->qmi.target_mem[idx - 1].paddr,
++				    ab->qmi.target_mem[idx - 1].size);
+ 	}
+ 	ab->qmi.mem_seg_count = idx;
+ 

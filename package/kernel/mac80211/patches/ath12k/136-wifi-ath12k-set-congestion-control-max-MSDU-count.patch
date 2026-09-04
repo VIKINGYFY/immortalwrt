@@ -1,0 +1,125 @@
+From e23d90cfcbe2ed9bf0662e478ab3985a852aefc4 Mon Sep 17 00:00:00 2001
+From: Thiraviyam Mariyappan <thiraviyam.mariyappan@oss.qualcomm.com>
+Date: Mon, 22 Jun 2026 11:56:14 +0530
+Subject: [PATCH] wifi: ath12k: Set congestion control max MSDU count
+
+Currently when running 128 clients UDP DL test in 5 GHz HE80 (NSS 2x2),
+firmware uses the default max MSDU count (16K MSDUs). This lower limit
+causes the firmware to compute a smaller TQM drop threshold, aggregate
+packets at a reduced rate, and results in increased packet drops with
+TQM drop threshold as the completion reason.
+
+To fix this issue, set WMI_PDEV_PARAM_SET_CONG_CTRL_MAX_MSDUS to the TX
+descriptor count using ath12k_wmi_pdev_set_param(). This increases the
+TQM drop threshold, reduces drop events, and improves throughput from
+~722 Mbps to ~1060 Mbps with 1200 Mbps ingress.
+
+Add a new HW capability flag (supports_cong_ctrl_max_msdus) and enable
+the WMI parameter only on supported platforms.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01181-QCAHKSWPL_SILICONZ-1
+
+Signed-off-by: Thiraviyam Mariyappan <thiraviyam.mariyappan@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260622062614.760166-1-thiraviyam.mariyappan@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/hw.h       |  1 +
+ drivers/net/wireless/ath/ath12k/mac.c      | 13 +++++++++++++
+ drivers/net/wireless/ath/ath12k/wifi7/hw.c |  6 ++++++
+ drivers/net/wireless/ath/ath12k/wmi.h      |  1 +
+ 4 files changed, 21 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/hw.h
++++ b/drivers/net/wireless/ath/ath12k/hw.h
+@@ -196,6 +196,7 @@ struct ath12k_hw_params {
+ 	bool supports_shadow_regs:1;
+ 	bool supports_aspm:1;
+ 	bool current_cc_support:1;
++	bool supports_cong_ctrl_max_msdus:1;
+ 
+ 	u32 num_tcl_banks;
+ 	u32 max_tx_ring;
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -9772,6 +9772,19 @@ static int ath12k_mac_start(struct ath12
+ 		goto err;
+ 	}
+ 
++	if (ab->hw_params->supports_cong_ctrl_max_msdus) {
++		ret = ath12k_wmi_pdev_set_param(ar,
++						WMI_PDEV_PARAM_SET_CONG_CTRL_MAX_MSDUS,
++						ATH12K_NUM_POOL_TX_DESC(ab),
++						pdev->pdev_id);
++		if (ret) {
++			ath12k_err(ab,
++				   "failed to set congestion control MAX MSDUS: %d\n",
++				   ret);
++			goto err;
++		}
++	}
++
+ 	__ath12k_set_antenna(ar, ar->cfg_tx_chainmask, ar->cfg_rx_chainmask);
+ 
+ 	/* TODO: Do we need to enable ANI? */
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -393,6 +393,7 @@ static const struct ath12k_hw_params ath
+ 					BIT(NL80211_IFTYPE_MESH_POINT) |
+ 					BIT(NL80211_IFTYPE_AP_VLAN),
+ 		.supports_monitor = false,
++		.supports_cong_ctrl_max_msdus = true,
+ 
+ 		.idle_ps = false,
+ 		.download_calib = true,
+@@ -485,6 +486,7 @@ static const struct ath12k_hw_params ath
+ 				   BIT(NL80211_IFTYPE_P2P_CLIENT) |
+ 				   BIT(NL80211_IFTYPE_P2P_GO),
+ 		.supports_monitor = true,
++		.supports_cong_ctrl_max_msdus = false,
+ 
+ 		.idle_ps = true,
+ 		.download_calib = false,
+@@ -575,6 +577,7 @@ static const struct ath12k_hw_params ath
+ 					BIT(NL80211_IFTYPE_MESH_POINT) |
+ 					BIT(NL80211_IFTYPE_AP_VLAN),
+ 		.supports_monitor = true,
++		.supports_cong_ctrl_max_msdus = true,
+ 
+ 		.idle_ps = false,
+ 		.download_calib = true,
+@@ -663,6 +666,7 @@ static const struct ath12k_hw_params ath
+ 				   BIT(NL80211_IFTYPE_AP) |
+ 				   BIT(NL80211_IFTYPE_MESH_POINT),
+ 		.supports_monitor = true,
++		.supports_cong_ctrl_max_msdus = true,
+ 
+ 		.idle_ps = false,
+ 		.download_calib = true,
+@@ -749,6 +753,7 @@ static const struct ath12k_hw_params ath
+ 				   BIT(NL80211_IFTYPE_P2P_CLIENT) |
+ 				   BIT(NL80211_IFTYPE_P2P_GO),
+ 		.supports_monitor = true,
++		.supports_cong_ctrl_max_msdus = false,
+ 
+ 		.idle_ps = true,
+ 		.download_calib = false,
+@@ -839,6 +844,7 @@ static const struct ath12k_hw_params ath
+ 				   BIT(NL80211_IFTYPE_AP) |
+ 				   BIT(NL80211_IFTYPE_MESH_POINT),
+ 		.supports_monitor = true,
++		.supports_cong_ctrl_max_msdus = true,
+ 
+ 		.idle_ps = false,
+ 		.download_calib = true,
+--- a/drivers/net/wireless/ath/ath12k/wmi.h
++++ b/drivers/net/wireless/ath/ath12k/wmi.h
+@@ -1083,6 +1083,7 @@ enum wmi_tlv_pdev_param {
+ 	WMI_PDEV_PARAM_RADIO_CHAN_STATS_ENABLE,
+ 	WMI_PDEV_PARAM_RADIO_DIAGNOSIS_ENABLE,
+ 	WMI_PDEV_PARAM_MESH_MCAST_ENABLE,
++	WMI_PDEV_PARAM_SET_CONG_CTRL_MAX_MSDUS = 0xa6,
+ 	WMI_PDEV_PARAM_SET_CMD_OBSS_PD_THRESHOLD = 0xbc,
+ 	WMI_PDEV_PARAM_SET_CMD_OBSS_PD_PER_AC = 0xbe,
+ 	WMI_PDEV_PARAM_ENABLE_SR_PROHIBIT = 0xc6,

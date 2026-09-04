@@ -1,0 +1,43 @@
+From 7698656a2f7b045af5a6859766238cefea1b1945 Mon Sep 17 00:00:00 2001
+From: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+Date: Thu, 16 Jul 2026 13:01:11 -0700
+Subject: [PATCH] wifi: ath12k: Avoid buffer overread in ath12k_wmi_op_rx()
+
+Currently, in ath12k_wmi_op_rx(), the firmware buffer is read without
+first verifying that the buffer has enough data to hold a header. This
+could result in a buffer overread.
+
+Update the logic to verify the buffer contains at least enough data to
+hold a wmi_cmd_hdr before reading from the buffer.
+
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c7-00108-QCAHMTSWPL_V1.0_V2.0_SILICONZ_UPSTREAM-3
+
+Fixes: d889913205cf ("wifi: ath12k: driver for Qualcomm Wi-Fi 7 devices")
+Assisted-by: Claude:claude-sonnet-4-6
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260716-ath12k_wmi_op_rx-overread-v1-1-327a4b1c2372@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/wmi.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -10266,12 +10266,12 @@ static void ath12k_wmi_op_rx(struct ath1
+ 	struct wmi_cmd_hdr *cmd_hdr;
+ 	enum wmi_tlv_event_id id;
+ 
+-	cmd_hdr = (struct wmi_cmd_hdr *)skb->data;
+-	id = le32_get_bits(cmd_hdr->cmd_id, WMI_CMD_HDR_CMD_ID);
+-
+-	if (!skb_pull(skb, sizeof(struct wmi_cmd_hdr)))
++	cmd_hdr = skb_pull_data(skb, sizeof(*cmd_hdr));
++	if (!cmd_hdr)
+ 		goto out;
+ 
++	id = le32_get_bits(cmd_hdr->cmd_id, WMI_CMD_HDR_CMD_ID);
++
+ 	switch (id) {
+ 		/* Process all the WMI events here */
+ 	case WMI_SERVICE_READY_EVENTID:

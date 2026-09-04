@@ -1,0 +1,108 @@
+From 5a2b5d6a5a4a19b86d1c0698a3eb3d21f0b06401 Mon Sep 17 00:00:00 2001
+From: Sushant Butta <sushant.butta@oss.qualcomm.com>
+Date: Tue, 9 Jun 2026 12:18:55 +0530
+Subject: [PATCH] wifi: ath12k: Skip setting RX_FLAG_8023 for Ethernet-II (DIX)
+ frames in monitor mode
+
+Monitor mode delivers raw 802.11 frames, not 802.3/Ethernet frames. Setting
+RX_FLAG_8023 for monitor RX is incorrect and can break userspace capture and
+analysis. Do not update this flag in the monitor path to ensure correct
+handling of captured frames.
+
+In the monitor path, RX_FLAG_ONLY_MONITOR is always set before decap
+is evaluated, which forces decap to remain DP_RX_DECAP_TYPE_RAW.
+As a result, the condition to set RX_FLAG_8023 can never be satisfied.
+Hence, drop this unreachable code.
+
+Also remove the unused hal_rx_mon_ppdu_info parameter from
+ath12k_dp_mon_rx_deliver_msdu(), as it was passed but never used.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01243-QCAHKSWPL_SILICONZ-1
+
+Signed-off-by: Sushant Butta <sushant.butta@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260609064856.547032-2-sushant.butta@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/dp_mon.c       | 16 +---------------
+ drivers/net/wireless/ath/ath12k/dp_mon.h       |  4 +---
+ drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c |  7 +------
+ 3 files changed, 3 insertions(+), 24 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/dp_mon.c
++++ b/drivers/net/wireless/ath/ath12k/dp_mon.c
+@@ -493,9 +493,7 @@ EXPORT_SYMBOL(ath12k_dp_mon_update_radio
+ void ath12k_dp_mon_rx_deliver_msdu(struct ath12k_pdev_dp *dp_pdev,
+ 				   struct napi_struct *napi,
+ 				   struct sk_buff *msdu,
+-				   const struct hal_rx_mon_ppdu_info *ppduinfo,
+-				   struct ieee80211_rx_status *status,
+-				   u8 decap)
++				   struct ieee80211_rx_status *status)
+ {
+ 	struct ath12k_dp *dp = dp_pdev->dp;
+ 	struct ath12k_base *ab = dp->ab;
+@@ -511,7 +509,6 @@ void ath12k_dp_mon_rx_deliver_msdu(struc
+ 	struct ath12k_skb_rxcb *rxcb = ATH12K_SKB_RXCB(msdu);
+ 	struct hal_rx_desc_data rx_info;
+ 	bool is_mcbc = rxcb->is_mcbc;
+-	bool is_eapol_tkip = rxcb->is_eapol;
+ 	struct hal_rx_desc *rx_desc = (struct hal_rx_desc *)msdu->data;
+ 	u8 addr[ETH_ALEN] = {};
+ 
+@@ -570,17 +567,6 @@ void ath12k_dp_mon_rx_deliver_msdu(struc
+ 	rx_status = IEEE80211_SKB_RXCB(msdu);
+ 	*rx_status = *status;
+ 
+-	/* TODO: trace rx packet */
+-
+-	/* PN for multicast packets are not validate in HW,
+-	 * so skip 802.3 rx path
+-	 * Also, fast_rx expects the STA to be authorized, hence
+-	 * eapol packets are sent in slow path.
+-	 */
+-	if (decap == DP_RX_DECAP_TYPE_ETHERNET2_DIX && !is_eapol_tkip &&
+-	    !(is_mcbc && rx_status->flag & RX_FLAG_DECRYPTED))
+-		rx_status->flag |= RX_FLAG_8023;
+-
+ 	ieee80211_rx_napi(ath12k_pdev_dp_to_hw(dp_pdev), pubsta, msdu, napi);
+ }
+ EXPORT_SYMBOL(ath12k_dp_mon_rx_deliver_msdu);
+--- a/drivers/net/wireless/ath/ath12k/dp_mon.h
++++ b/drivers/net/wireless/ath/ath12k/dp_mon.h
+@@ -112,9 +112,7 @@ void ath12k_dp_mon_update_radiotap(struc
+ void ath12k_dp_mon_rx_deliver_msdu(struct ath12k_pdev_dp *dp_pdev,
+ 				   struct napi_struct *napi,
+ 				   struct sk_buff *msdu,
+-				   const struct hal_rx_mon_ppdu_info *ppduinfo,
+-				   struct ieee80211_rx_status *status,
+-				   u8 decap);
++				   struct ieee80211_rx_status *status);
+ struct sk_buff *
+ ath12k_dp_mon_rx_merg_msdus(struct ath12k_pdev_dp *dp_pdev,
+ 			    struct dp_mon_mpdu *mon_mpdu,
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
+@@ -2481,7 +2481,6 @@ ath12k_wifi7_dp_mon_rx_deliver(struct at
+ {
+ 	struct sk_buff *mon_skb, *skb_next, *header;
+ 	struct ieee80211_rx_status *rxs = &dp_pdev->rx_status;
+-	u8 decap = DP_RX_DECAP_TYPE_RAW;
+ 
+ 	mon_skb = ath12k_dp_mon_rx_merg_msdus(dp_pdev, mon_mpdu, ppduinfo, rxs);
+ 	if (!mon_skb)
+@@ -2508,12 +2507,8 @@ ath12k_wifi7_dp_mon_rx_deliver(struct at
+ 		}
+ 		rxs->flag |= RX_FLAG_ONLY_MONITOR;
+ 
+-		if (!(rxs->flag & RX_FLAG_ONLY_MONITOR))
+-			decap = mon_mpdu->decap_format;
+-
+ 		ath12k_dp_mon_update_radiotap(dp_pdev, ppduinfo, mon_skb, rxs);
+-		ath12k_dp_mon_rx_deliver_msdu(dp_pdev, napi, mon_skb, ppduinfo,
+-					      rxs, decap);
++		ath12k_dp_mon_rx_deliver_msdu(dp_pdev, napi, mon_skb, rxs);
+ 		mon_skb = skb_next;
+ 	} while (mon_skb);
+ 	rxs->flag = 0;

@@ -1,0 +1,45 @@
+From 43c521c11ce8fe904e14d1ae0566ffea931cf2e9 Mon Sep 17 00:00:00 2001
+From: Pavankumar Nandeshwar <pavankumar.nandeshwar@oss.qualcomm.com>
+Date: Thu, 23 Jul 2026 11:16:53 +0530
+Subject: [PATCH] wifi: ath12k: skip MLO multicast links during crash recovery
+ in Tx path
+
+In ath12k_wifi7_mac_op_tx(), the MLO multicast broadcast path iterates
+over all active links and copies the original skb for transmission on
+each link. When firmware crash recovery is underway (ATH12K_FLAG_CRASH_FLUSH
+set), the per-link copy is allocated and partially processed before
+ath12k_wifi7_dp_tx() eventually rejects it with -ESHUTDOWN.
+
+This wastes GFP_ATOMIC memory and produces spurious "failed to transmit
+frame" warnings for every active MLO link during the recovery window.
+The unicast and non-MLO paths are unaffected: they call ath12k_wifi7_dp_tx()
+directly, which already guards against the flag at its entry.
+
+Skip any link whose associated ath12k_base has ATH12K_FLAG_CRASH_FLUSH set
+before performing the skb_copy(), matching the behaviour of
+ath12k_wifi7_dp_tx() but avoiding the unnecessary allocation entirely.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01243-QCAHKSWPL_SILICONZ-1
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c5-00302-QCAHMTSWPL_V1.0_V2.0_SILICONZ-1.115823.3
+
+Signed-off-by: Pavankumar Nandeshwar <pavankumar.nandeshwar@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260723054653.2794550-1-pavankumar.nandeshwar@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/wifi7/hw.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -1043,6 +1043,9 @@ static void ath12k_wifi7_mac_op_tx(struc
+ 				continue;
+ 
+ 			tmp_ar = tmp_arvif->ar;
++			if (unlikely(test_bit(ATH12K_FLAG_CRASH_FLUSH, &tmp_ar->ab->dev_flags)))
++				continue;
++
+ 			tmp_dp = ath12k_ab_to_dp(tmp_ar->ab);
+ 			tmp_dp_pdev = ath12k_dp_to_pdev_dp(tmp_dp,
+ 							   tmp_ar->pdev_idx);

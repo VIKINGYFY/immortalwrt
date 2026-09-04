@@ -1,0 +1,55 @@
+From 6b31c3451b12cfc5e86a41898014cb62d2a377b1 Mon Sep 17 00:00:00 2001
+From: Thiraviyam Mariyappan <thiraviyam.mariyappan@oss.qualcomm.com>
+Date: Mon, 22 Jun 2026 11:53:24 +0530
+Subject: [PATCH] wifi: ath12k: Reduce RX SRNG interrupt timer threshold to
+ 200us
+
+Currently when RX traffic is low or intermittent, the RX SRNG interrupt
+mitigation logic defers packet processing for up to 500us via
+HAL_SRNG_INT_TIMER_THRESHOLD_RX.
+
+This causes excessive RX servicing delay, leading to increased end-to-end
+latency and degraded TCP performance in low-concurrency scenarios.
+
+In single-client single-stream TCP tests using 5G EHT160 (NSS 2x2) mode,
+throughput drops to ~400 Mbps DL and UL instead of the expected ~600 Mbps.
+
+In addition, UDP UL end-to-end latency measured in 5G VHT80 (NSS 4x4) mode
+increases by up to ~48% (~570us versus ~270us) across frame sizes from
+76 to 1518 bytes in uplink and bidirectional traffic, indicating delayed
+RX servicing under sparse traffic conditions.
+
+To address this issue, reduce the RX SRNG interrupt timer threshold from
+500us to 200us so that received packets are serviced more promptly under
+low-rate and intermittent RX traffic.
+
+With this change, single-client single-stream TCP throughput in EHT160 is
+restored to expected levels ~600 Mbps TCP DL/UL and UDP UL end-to-end
+latency in VHT80 returns to baseline values ~270us across all tested frame
+sizes. Under high RX load, no throughput regression is observed, as RX
+rings are already serviced frequently. The primary implication is a modest
+increase in RX interrupt frequency under low traffic, with no observed
+functional, stability, or performance regressions on tested platforms.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01181-QCAHKSWPL_SILICONZ-1
+
+Signed-off-by: Thiraviyam Mariyappan <thiraviyam.mariyappan@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260622062324.758533-1-thiraviyam.mariyappan@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/hal.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath12k/hal.h
++++ b/drivers/net/wireless/ath/ath12k/hal.h
+@@ -1024,7 +1024,7 @@ enum hal_wbm_rel_desc_type {
+ 
+ /* Interrupt mitigation - timer threshold in us */
+ #define HAL_SRNG_INT_TIMER_THRESHOLD_TX 1000
+-#define HAL_SRNG_INT_TIMER_THRESHOLD_RX 500
++#define HAL_SRNG_INT_TIMER_THRESHOLD_RX 200
+ #define HAL_SRNG_INT_TIMER_THRESHOLD_OTHER 256
+ 
+ enum hal_srng_mac_type {

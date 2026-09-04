@@ -41,7 +41,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  			ath12k_dbg(ab, ATH12K_DBG_BOOT,
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2856,7 +2856,8 @@ int ath12k_qmi_request_target_cap(struct
+@@ -2859,7 +2859,8 @@ int ath12k_qmi_request_target_cap(struct
  	struct qmi_wlanfw_cap_req_msg_v01 req = {};
  	struct qmi_wlanfw_cap_resp_msg_v01 resp = {};
  	struct qmi_txn txn;
@@ -51,7 +51,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  	int ret = 0;
  	int r;
  	int i;
-@@ -2895,10 +2896,12 @@ int ath12k_qmi_request_target_cap(struct
+@@ -2898,10 +2899,12 @@ int ath12k_qmi_request_target_cap(struct
  		ab->qmi.target.chip_family = resp.chip_info.chip_family;
  	}
  

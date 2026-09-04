@@ -1,0 +1,66 @@
+From af50baccaa5fab96b045700a8dc378f73c77822c Mon Sep 17 00:00:00 2001
+From: Daizhuang Bai <daizhuang.bai@oss.qualcomm.com>
+Date: Fri, 17 Jul 2026 07:13:02 +0530
+Subject: [PATCH] wifi: ath12k: Set DTIM policy to stick mode for station
+ interface
+
+Currently, the station always follows the listen interval regardless of
+the DTIM value. The DTIM function does not work as expected. The default
+value of the listen interval is 5 so that the STA wakes up every 500ms
+when power save is on. This can cause a data transmission delay.
+
+Set the DTIM policy to DTIM stick mode so that the station follows the AP
+DTIM interval rather than the listen interval, which is set in the peer
+assoc command. DTIM stick mode is preferable per the firmware team's request.
+
+Apply this only for STA vdevs and only when STA power save is supported, to
+avoid affecting unsupported targets and P2P client vdevs.
+
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c7-00108-QCAHMTSWPL_V1.0_V2.0_SILICONZ_UPSTREAM-3
+
+Signed-off-by: Daizhuang Bai <daizhuang.bai@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260717014302.284034-1-daizhuang.bai@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 11 +++++++++++
+ drivers/net/wireless/ath/ath12k/wmi.h |  7 +++++++
+ 2 files changed, 18 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -4047,6 +4047,17 @@ static void ath12k_bss_assoc(struct ath1
+ 		ath12k_warn(ar->ab, "failed to set vdev %i OBSS PD parameters: %d\n",
+ 			    arvif->vdev_id, ret);
+ 
++	if (ar->ab->hw_params->supports_sta_ps &&
++	    ahvif->vdev_type == WMI_VDEV_TYPE_STA &&
++	    ahvif->vdev_subtype == WMI_VDEV_SUBTYPE_NONE) {
++		ret = ath12k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
++						    WMI_VDEV_PARAM_DTIM_POLICY,
++						    WMI_DTIM_POLICY_STICK);
++		if (ret)
++			ath12k_warn(ar->ab, "failed to set vdev %d stick DTIM policy: %d\n",
++				    arvif->vdev_id, ret);
++	}
++
+ 	if (test_bit(WMI_TLV_SERVICE_11D_OFFLOAD, ar->ab->wmi_ab.svc_map) &&
+ 	    ahvif->vdev_type == WMI_VDEV_TYPE_STA &&
+ 	    ahvif->vdev_subtype == WMI_VDEV_SUBTYPE_NONE)
+--- a/drivers/net/wireless/ath/ath12k/wmi.h
++++ b/drivers/net/wireless/ath/ath12k/wmi.h
+@@ -2331,6 +2331,13 @@ enum wmi_slot_time {
+ 	WMI_VDEV_SLOT_TIME_SHORT = 2,
+ };
+ 
++enum wmi_dtim_policy {
++	WMI_DTIM_POLICY_IGNORE = 1,
++	WMI_DTIM_POLICY_NORMAL = 2,
++	WMI_DTIM_POLICY_STICK  = 3,
++	WMI_DTIM_POLICY_AUTO   = 4,
++};
++
+ enum wmi_preamble {
+ 	WMI_VDEV_PREAMBLE_LONG = 1,
+ 	WMI_VDEV_PREAMBLE_SHORT = 2,

@@ -1,0 +1,256 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 27 Aug 2026 11:20:00 +0800
+Subject: [PATCH] wifi: ath12k: handle complete MLO peer map events
+
+The MLO peer map event is firmware's confirmation that the aggregate
+peer was installed.  Besides the ML peer ID and MLD address, current
+firmware supplies the AST index and cache set used by the data path.
+The driver currently consumes only the first two values and entirely
+ignores the matching MLO peer unmap event.
+
+Match the event layout used by the Qualcomm TIP driver, update the
+per-device MLO link peer with its aggregate AST metadata, and recognize
+the unmap notification.  Validate the event against the live aggregate
+peer before publishing a firmware-allocated ID or changing metadata.
+This prevents a delayed map from a deleted station from replacing a
+new peer which happens to use the same MLD address or ML peer ID.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/dp_htt.c  | 53 ++++++++++++++------
+ drivers/net/wireless/ath/ath12k/dp_htt.h  | 10 +++-
+ drivers/net/wireless/ath/ath12k/dp_peer.c | 62 ++++++++++++++++++++---
+ drivers/net/wireless/ath/ath12k/dp_peer.h |  6 +++---
+ 4 files changed, 107 insertions(+), 26 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/dp_htt.h
++++ b/drivers/net/wireless/ath/ath12k/dp_htt.h
+@@ -931,6 +931,7 @@ enum htt_t2h_msg_type {
+ 	HTT_T2H_MSG_TYPE_BKPRESSURE_EVENT_IND = 0x24,
+ 	HTT_T2H_MSG_TYPE_MLO_TIMESTAMP_OFFSET_IND = 0x28,
+ 	HTT_T2H_MSG_TYPE_MLO_RX_PEER_MAP = 0x29,
++	HTT_T2H_MSG_TYPE_MLO_RX_PEER_UNMAP = 0x2a,
+ 	HTT_T2H_MSG_TYPE_PEER_MAP3	= 0x2b,
+ 	HTT_T2H_MSG_TYPE_VDEV_TXRX_STATS_PERIODIC_IND = 0x2c,
+ };
+@@ -977,12 +978,18 @@ struct htt_t2h_peer_unmap_event {
+ 
+ #define HTT_T2H_MLO_PEER_MAP_INFO0_MLO_PEER_ID		GENMASK(23, 8)
+ #define HTT_T2H_MLO_PEER_MAP_INFO1_MAC_ADDR_H16		GENMASK(15, 0)
++#define HTT_T2H_MLO_PEER_MAP_AST_IDX			GENMASK(15, 0)
++#define HTT_T2H_MLO_PEER_MAP_CACHE_SET_NUM		GENMASK(31, 28)
++#define HTT_T2H_MLO_PEER_UNMAP_INFO0_MLO_PEER_ID	GENMASK(23, 8)
+ 
+ struct htt_t2h_mlo_peer_map_event {
+ 	__le32 info0;
+ 	__le32 mac_addr_l32;
+ 	__le32 info1;
+-	__le32 reserved[5];
++	__le32 ast_info;
++	__le32 info2;
++	__le32 info3;
++	__le32 reserved[2];
+ } __packed;
+ 
+ struct htt_resp_msg {
+--- a/drivers/net/wireless/ath/ath12k/dp_peer.h
++++ b/drivers/net/wireless/ath/ath12k/dp_peer.h
+@@ -183,6 +183,8 @@ struct ath12k_dp_peer *ath12k_dp_peer_fi
+ struct ath12k_dp_link_peer *
+ ath12k_dp_link_peer_find_by_peerid(struct ath12k_pdev_dp *dp_pdev, u16 peer_id);
+ void ath12k_dp_link_peer_free(struct ath12k_dp_link_peer *peer);
+-int ath12k_dp_peer_fixup_peer_id(struct ath12k_base *ab, const u8 *peer_addr,
+-				 u16 peer_id);
++int ath12k_dp_peer_mlo_map_event(struct ath12k_base *ab,
++				 const u8 *peer_addr, u16 peer_id,
++				 u16 ast_hash, u16 hw_peer_id);
++void ath12k_dp_peer_mlo_unmap_event(struct ath12k_base *ab, u16 peer_id);
+ #endif
+--- a/drivers/net/wireless/ath/ath12k/dp_peer.c
++++ b/drivers/net/wireless/ath/ath12k/dp_peer.c
+@@ -703,18 +703,27 @@ void ath12k_dp_link_peer_reset_rx_stats(
+ 		memset(rx_stats, 0, sizeof(*rx_stats));
+ }
+ 
+-int ath12k_dp_peer_fixup_peer_id(struct ath12k_base *ab,
+-				 const u8 *peer_addr, u16 peer_id)
++int ath12k_dp_peer_mlo_map_event(struct ath12k_base *ab,
++				 const u8 *peer_addr, u16 peer_id,
++				 u16 ast_hash, u16 hw_peer_id)
+ {
+-	struct ath12k_dp_link_peer *link_peer;
++	struct ath12k_dp_link_peer *link_peer, *mlo_link_peer;
+ 	struct ath12k_dp_peer *dp_peer = NULL;
+ 	struct ath12k_hw_group *ag = ab->ag;
+ 	struct ath12k_dp_hw *dp_hw = NULL;
+-	struct ath12k_hw *ah;
++	struct ath12k_dp_peer *slot;
++	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
++	struct ath12k_hw *ah = NULL;
++	struct ath12k_sta *ahsta;
++	u16 raw_peer_id;
++	bool id_changed = false;
+ 	int i;
+ 
+-	if (peer_id >= (ATH12K_PEER_ML_ID_VALID | ATH12K_MAX_MLO_PEERS))
++	if (!(peer_id & ATH12K_PEER_ML_ID_VALID))
+ 		return -EINVAL;
++	raw_peer_id = peer_id & ~ATH12K_PEER_ML_ID_VALID;
++	if (!raw_peer_id || raw_peer_id >= ATH12K_MAX_MLO_PEERS)
++		return -ERANGE;
+ 
+ 	for (i = 0; i < ag->num_hw; i++) {
+ 		ah = ag->ah[i];
+@@ -736,8 +745,34 @@ int ath12k_dp_peer_fixup_peer_id(struct
+ 
+ 	/* dp_hw->peer_lock is held */
+ 
+-	dp_peer->peer_id = peer_id;
+-	rcu_assign_pointer(dp_hw->dp_peers[peer_id], dp_peer);
++	if (!dp_peer->is_mlo || !dp_peer->sta) {
++		spin_unlock_bh(&dp_hw->peer_lock);
++		return -EINVAL;
++	}
++
++	if (raw_peer_id >= ah->max_ml_peer_ids) {
++		spin_unlock_bh(&dp_hw->peer_lock);
++		return -ERANGE;
++	}
++
++	if (dp_peer->peer_id != ATH12K_MLO_PEER_ID_PENDING &&
++	    dp_peer->peer_id != peer_id) {
++		spin_unlock_bh(&dp_hw->peer_lock);
++		return -ESTALE;
++	}
++
++	slot = rcu_dereference_protected(dp_hw->dp_peers[peer_id],
++					 lockdep_is_held(&dp_hw->peer_lock));
++	if (slot && slot != dp_peer) {
++		spin_unlock_bh(&dp_hw->peer_lock);
++		return -EEXIST;
++	}
++
++	if (dp_peer->peer_id == ATH12K_MLO_PEER_ID_PENDING) {
++		dp_peer->peer_id = peer_id;
++		rcu_assign_pointer(dp_hw->dp_peers[peer_id], dp_peer);
++		id_changed = true;
++	}
+ 
+ 	for (i = 0; i < ATH12K_NUM_MAX_LINKS; i++) {
+ 		link_peer = rcu_dereference_protected(dp_peer->link_peers[i],
+@@ -746,11 +781,39 @@ int ath12k_dp_peer_fixup_peer_id(struct
+ 			link_peer->ml_id = peer_id;
+ 	}
+ 
+-	ath12k_sta_to_ahsta(dp_peer->sta)->ml_peer_id = peer_id;
++	ahsta = ath12k_sta_to_ahsta(dp_peer->sta);
++	if (id_changed)
++		ahsta->ml_peer_id = peer_id;
+ 
+ 	spin_unlock_bh(&dp_hw->peer_lock);
+ 
+-	complete(&ah->peer_ml_id_done);
++	/* The peer ID confirmation is independent of the per-link AST update. */
++	if (id_changed)
++		complete(&ah->peer_ml_id_done);
++
++	spin_lock_bh(&dp->dp_lock);
++	mlo_link_peer = ath12k_dp_link_peer_find_by_ml_id(dp, peer_id);
++	if (!mlo_link_peer ||
++	    !ether_addr_equal(mlo_link_peer->ml_addr, peer_addr)) {
++		spin_unlock_bh(&dp->dp_lock);
++		return -ENOENT;
++	}
++	mlo_link_peer->ast_hash = ast_hash;
++	mlo_link_peer->hw_peer_id = hw_peer_id;
++	spin_unlock_bh(&dp->dp_lock);
+ 
+ 	return 0;
+ }
++
++void ath12k_dp_peer_mlo_unmap_event(struct ath12k_base *ab, u16 peer_id)
++{
++	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
++	struct ath12k_dp_link_peer *peer;
++
++	guard(spinlock_bh)(&dp->dp_lock);
++	peer = ath12k_dp_link_peer_find_by_ml_id(dp, peer_id);
++	if (peer)
++		ath12k_dbg(ab, ATH12K_DBG_DP_HTT,
++			   "htt mlo peer unmap peer %pM id %u\n",
++			   peer->ml_addr, peer_id);
++}
+--- a/drivers/net/wireless/ath/ath12k/dp_htt.c
++++ b/drivers/net/wireless/ath/ath12k/dp_htt.c
+@@ -582,6 +582,7 @@ static void ath12k_dp_htt_mlo_peer_map_h
+ 	struct htt_resp_msg *resp = (struct htt_resp_msg *)skb->data;
+ 	struct htt_t2h_mlo_peer_map_event *ev = &resp->mlo_peer_map_ev;
+ 	u16 raw_peer_id, peer_id, addr_h16;
++	u16 ast_hash, hw_peer_id;
+ 	u8 peer_addr[ETH_ALEN];
+ 	int ret;
+ 
+@@ -600,25 +601,36 @@ static void ath12k_dp_htt_mlo_peer_map_h
+ 	ath12k_dp_get_mac_addr(le32_to_cpu(ev->mac_addr_l32), addr_h16,
+ 			       peer_addr);
+ 
+-	ath12k_dbg(ab, ATH12K_DBG_DP_HTT, "htt mlo peer map peer %pM id %u\n",
+-		   peer_addr, peer_id);
++	hw_peer_id = le32_get_bits(ev->ast_info,
++				   HTT_T2H_MLO_PEER_MAP_AST_IDX);
++	ast_hash = le32_get_bits(ev->ast_info,
++				 HTT_T2H_MLO_PEER_MAP_CACHE_SET_NUM);
++
++	ret = ath12k_dp_peer_mlo_map_event(ab, peer_addr, peer_id,
++					  ast_hash, hw_peer_id);
++	if (ret)
++		ath12k_warn(ab,
++			    "failed to map mlo peer %pM id %u ast %u/%u: %d\n",
++			    peer_addr, peer_id, hw_peer_id, ast_hash, ret);
++}
+ 
+-	/*
+-	 * Fix up the dp_peer entry created with ATH12K_MLO_PEER_ID_PENDING
+-	 * earlier; on chips with host_alloc_ml_id == false this is the only
+-	 * point at which the host learns the firmware-assigned ID. Chips
+-	 * that allocate the ID on the host also receive this event but the
+-	 * firmware-reported ID matches the host-allocated one, so there is
+-	 * nothing to fix up.
+-	 */
+-	if (!ab->hw_params->host_alloc_ml_id) {
+-		ret = ath12k_dp_peer_fixup_peer_id(ab, peer_addr,
+-						   peer_id);
+-		if (ret)
+-			ath12k_warn(ab,
+-				    "failed to fix up peer id %u for dp peer %pM: %d\n",
+-				    peer_id, peer_addr, ret);
++static void ath12k_dp_htt_mlo_peer_unmap_handler(struct ath12k_base *ab,
++						 struct sk_buff *skb)
++{
++	const __le32 *info0 = (const __le32 *)skb->data;
++	u16 peer_id;
++
++	if (skb->len < sizeof(*info0)) {
++		ath12k_warn(ab, "unexpected htt mlo peer unmap event len %u\n",
++			    skb->len);
++		return;
+ 	}
++
++	peer_id = le32_get_bits(*info0,
++				HTT_T2H_MLO_PEER_UNMAP_INFO0_MLO_PEER_ID);
++	peer_id |= ATH12K_PEER_ML_ID_VALID;
++
++	ath12k_dp_peer_mlo_unmap_event(ab, peer_id);
+ }
+ 
+ void ath12k_dp_htt_htc_t2h_msg_handler(struct ath12k_base *ab,
+@@ -708,6 +720,9 @@ void ath12k_dp_htt_htc_t2h_msg_handler(s
+ 	case HTT_T2H_MSG_TYPE_MLO_RX_PEER_MAP:
+ 		ath12k_dp_htt_mlo_peer_map_handler(ab, skb);
+ 		break;
++	case HTT_T2H_MSG_TYPE_MLO_RX_PEER_UNMAP:
++		ath12k_dp_htt_mlo_peer_unmap_handler(ab, skb);
++		break;
+ 	default:
+ 		ath12k_dbg(ab, ATH12K_DBG_DP_HTT, "dp_htt event %d not handled\n",
+ 			   type);

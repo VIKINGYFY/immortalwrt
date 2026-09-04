@@ -1,0 +1,166 @@
+From 784f7dabf5d3bce23c69c48a0441ff2b1536f069 Mon Sep 17 00:00:00 2001
+From: Manish Dharanenthiran <manish.dharanenthiran@oss.qualcomm.com>
+Date: Tue, 23 Jun 2026 11:16:21 +0530
+Subject: [PATCH] wifi: ath12k: advertise ieee_link_id in vdev start MLO params
+
+Firmware builds the AP MLD partner profile from the hw_link_id passed in
+the vdev start parameters. However, hw_link_id is not always the same as
+the logical per-MLD ieee_link_id, since ieee_link_id is assigned per MLD
+and not per pdev.
+
+This matters in mixed MLO and SLO setups. For example:
+
+  MLD 1 - 5 GHz + 6 GHz (2-link MLO): ieee_link_id 0 and 1
+  MLD 2 - 6 GHz only    (1-link SLO): ieee_link_id 0
+  MLD 3 - 5 GHz only    (1-link SLO): ieee_link_id 0
+
+The same physical 6 GHz radio can use ieee_link_id 1 for one
+MLD and ieee_link_id 0 for another. Pass the correct ieee_link_id to
+firmware so it can build accurate per-STA profile elements.
+
+Add ieee_link_id to wmi_vdev_start_mlo_params for the self link and to
+wmi_partner_link_info for each partner link. Populate these fields in
+ath12k_mac_mlo_get_vdev_args() from the corresponding vdev link_id
+before encoding the WMI command.
+
+Introduce two new flags in ML params to indicate to firmware when
+the new fields are valid:
+
+  ATH12K_WMI_FLAG_MLO_IEEE_LINK_IDX_VALID         BIT(18) for the self link
+  ATH12K_WMI_FLAG_MLO_IEEE_LINK_IDX_VALID_PARTNER BIT(19) for partner links
+
+Firmware parses ieee_link_id only when the matching flag is set.
+
+Also fix the debug message by using correct format specifiers and host-endian
+values instead of __le32 values.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01243-QCAHKSWPL_SILICONZ-1
+
+Co-developed-by: Hari Naraayana Desikan Kannan <hari.kannan@oss.qualcomm.com>
+Signed-off-by: Hari Naraayana Desikan Kannan <hari.kannan@oss.qualcomm.com>
+Co-developed-by: Karthik M <karthik.m@oss.qualcomm.com>
+Signed-off-by: Karthik M <karthik.m@oss.qualcomm.com>
+Signed-off-by: Manish Dharanenthiran <manish.dharanenthiran@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260623-ieee_link_id-v2-1-8a89d71baf58@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c |  3 +++
+ drivers/net/wireless/ath/ath12k/wmi.c | 32 +++++++++++++++++----------
+ drivers/net/wireless/ath/ath12k/wmi.h |  7 ++++++
+ 3 files changed, 30 insertions(+), 12 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -11289,6 +11289,8 @@ ath12k_mac_mlo_get_vdev_args(struct ath1
+ 
+ 	ml_arg->assoc_link = arvif->is_sta_assoc_link;
+ 
++	ml_arg->ieee_link_id = arvif->link_id;
++
+ 	partner_info = ml_arg->partner_info;
+ 
+ 	links = ahvif->links_map;
+@@ -11312,6 +11314,7 @@ ath12k_mac_mlo_get_vdev_args(struct ath1
+ 
+ 		partner_info->vdev_id = arvif_p->vdev_id;
+ 		partner_info->hw_link_id = arvif_p->ar->pdev->hw_link_id;
++		partner_info->ieee_link_id = arvif_p->link_id;
+ 		ether_addr_copy(partner_info->addr, link_conf->addr);
+ 		ml_arg->num_partner_links++;
+ 		partner_info++;
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -1237,10 +1237,14 @@ int ath12k_wmi_vdev_start(struct ath12k
+ 				   le32_encode_bits(arg->ml.mcast_link,
+ 						    ATH12K_WMI_FLAG_MLO_MCAST_VDEV) |
+ 				   le32_encode_bits(arg->ml.link_add,
+-						    ATH12K_WMI_FLAG_MLO_LINK_ADD);
++						    ATH12K_WMI_FLAG_MLO_LINK_ADD) |
++				   cpu_to_le32(ATH12K_WMI_FLAG_MLO_IEEE_LINK_IDX_VALID);
+ 
+-		ath12k_dbg(ar->ab, ATH12K_DBG_WMI, "vdev %d start ml flags 0x%x\n",
+-			   arg->vdev_id, ml_params->flags);
++		ml_params->ieee_link_id = cpu_to_le32(arg->ml.ieee_link_id);
++
++		ath12k_dbg(ar->ab, ATH12K_DBG_WMI, "vdev %u start link_id %u ml flags 0x%x\n",
++			   arg->vdev_id, arg->ml.ieee_link_id,
++			   le32_to_cpu(ml_params->flags));
+ 
+ 		ptr += sizeof(*ml_params);
+ 
+@@ -1253,19 +1257,23 @@ int ath12k_wmi_vdev_start(struct ath12k
+ 		partner_info = ptr;
+ 
+ 		for (i = 0; i < arg->ml.num_partner_links; i++) {
++			struct wmi_ml_partner_info *pinfo = &arg->ml.partner_info[i];
++
+ 			partner_info->tlv_header =
+ 				ath12k_wmi_tlv_cmd_hdr(WMI_TAG_MLO_PARTNER_LINK_PARAMS,
+ 						       sizeof(*partner_info));
+-			partner_info->vdev_id =
+-				cpu_to_le32(arg->ml.partner_info[i].vdev_id);
+-			partner_info->hw_link_id =
+-				cpu_to_le32(arg->ml.partner_info[i].hw_link_id);
++			partner_info->vdev_id = cpu_to_le32(pinfo->vdev_id);
++			partner_info->hw_link_id = cpu_to_le32(pinfo->hw_link_id);
+ 			ether_addr_copy(partner_info->vdev_addr.addr,
+-					arg->ml.partner_info[i].addr);
+-
+-			ath12k_dbg(ar->ab, ATH12K_DBG_WMI, "partner vdev %d hw_link_id %d macaddr%pM\n",
+-				   partner_info->vdev_id, partner_info->hw_link_id,
+-				   partner_info->vdev_addr.addr);
++					pinfo->addr);
++			partner_info->flags =
++				cpu_to_le32(ATH12K_WMI_FLAG_MLO_IEEE_LINK_IDX_VALID_PARTNER);
++			partner_info->ieee_link_id = cpu_to_le32(pinfo->ieee_link_id);
++
++			ath12k_dbg(ar->ab, ATH12K_DBG_WMI, "partner vdev %u hw_link_id %u macaddr %pM link_id %u ml flags 0x%x\n",
++				   pinfo->vdev_id, pinfo->hw_link_id,
++				   pinfo->addr, pinfo->ieee_link_id,
++				   le32_to_cpu(partner_info->flags));
+ 
+ 			partner_info++;
+ 		}
+--- a/drivers/net/wireless/ath/ath12k/wmi.h
++++ b/drivers/net/wireless/ath/ath12k/wmi.h
+@@ -2954,10 +2954,13 @@ struct wmi_vdev_create_mlo_params {
+ #define ATH12K_WMI_FLAG_MLO_EMLSR_SUPPORT		BIT(6)
+ #define ATH12K_WMI_FLAG_MLO_FORCED_INACTIVE		BIT(7)
+ #define ATH12K_WMI_FLAG_MLO_LINK_ADD			BIT(8)
++#define ATH12K_WMI_FLAG_MLO_IEEE_LINK_IDX_VALID		BIT(18)
++#define ATH12K_WMI_FLAG_MLO_IEEE_LINK_IDX_VALID_PARTNER	BIT(19)
+ 
+ struct wmi_vdev_start_mlo_params {
+ 	__le32 tlv_header;
+ 	__le32 flags;
++	__le32 ieee_link_id;
+ } __packed;
+ 
+ struct wmi_partner_link_info {
+@@ -2965,6 +2968,8 @@ struct wmi_partner_link_info {
+ 	__le32 vdev_id;
+ 	__le32 hw_link_id;
+ 	struct ath12k_wmi_mac_addr_params vdev_addr;
++	__le32 flags;
++	__le32 ieee_link_id;
+ } __packed;
+ 
+ struct wmi_vdev_delete_cmd {
+@@ -3120,6 +3125,7 @@ struct wmi_ml_partner_info {
+ 	bool primary_umac;
+ 	bool logical_link_idx_valid;
+ 	u32 logical_link_idx;
++	u32 ieee_link_id;
+ };
+ 
+ struct wmi_ml_arg {
+@@ -3127,6 +3133,7 @@ struct wmi_ml_arg {
+ 	bool assoc_link;
+ 	bool mcast_link;
+ 	bool link_add;
++	u32 ieee_link_id;
+ 	u8 num_partner_links;
+ 	struct wmi_ml_partner_info partner_info[ATH12K_WMI_MLO_MAX_LINKS];
+ };

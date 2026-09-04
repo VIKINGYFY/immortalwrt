@@ -1,0 +1,198 @@
+From 1e33f8acd837420160ea088160d8648a3db54c3b Mon Sep 17 00:00:00 2001
+From: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
+Date: Wed, 29 Jul 2026 22:47:32 +0530
+Subject: [PATCH] wifi: ath12k: fix encrypted EAPOL TX in encap offload mode
+
+When a vif operates with IEEE80211_OFFLOAD_ENCAP_ENABLED,
+mac80211 delivers EAPOL frames to ath12k in native-WiFi format.
+
+Unencrypted EAPOL frames used during the initial 4-way
+handshake are already handled through the existing
+is_diff_encap path. However, EAPOL frames transmitted during
+GTK rekeying carry ATH12K_SKB_CIPHER_SET and continue through
+the normal native-WiFi transmit path.
+
+Firmware encryption requires RAW frames with cipher-specific IV and ICV
+fields correctly provisioned in the skb. Passing encrypted EAPOL frames
+in native-WiFi format results in incorrect IV provisioning, leading to
+an invalid ICV and frame drop.
+
+Fix this by detecting the EAPOL frames that need HW encryption and
+converting them to firmware-encrypted RAW frames before transmission.
+Reserve IV space after the MAC header, append ICV space at the tail,
+select the appropriate firmware encryption type and request
+firmware-side encryption.
+
+Introduce ath12k_dp_tx_crypto_iv_len() and ath12k_dp_tx_crypto_icv_len()
+helpers in the TX path to obtain cipher-specific IV and ICV lengths.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01270-QCAHKSWPL_SILICONZ-1
+
+Fixes: d29591d5b52e ("wifi: ath12k: Advertise encapsulation/decapsulation offload support to mac80211")
+Signed-off-by: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
+Reviewed-by: Aishwarya R <aishwarya.r@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260729171732.668367-1-reshma.rajkumar@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/dp_tx.c       | 46 +++++++++++++
+ drivers/net/wireless/ath/ath12k/dp_tx.h       |  2 +
+ drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c | 64 ++++++++++++++++++-
+ 3 files changed, 111 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath12k/dp_tx.c
++++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
+@@ -82,6 +82,52 @@ enum hal_encrypt_type ath12k_dp_tx_get_e
+ }
+ EXPORT_SYMBOL(ath12k_dp_tx_get_encrypt_type);
+ 
++u8 ath12k_dp_tx_crypto_iv_len(enum hal_encrypt_type enc_type)
++{
++	switch (enc_type) {
++	case HAL_ENCRYPT_TYPE_TKIP_NO_MIC:
++	case HAL_ENCRYPT_TYPE_TKIP_MIC:
++		return IEEE80211_TKIP_IV_LEN;
++	case HAL_ENCRYPT_TYPE_CCMP_128:
++		return IEEE80211_CCMP_HDR_LEN;
++	case HAL_ENCRYPT_TYPE_CCMP_256:
++		return IEEE80211_CCMP_256_HDR_LEN;
++	case HAL_ENCRYPT_TYPE_GCMP_128:
++	case HAL_ENCRYPT_TYPE_AES_GCMP_256:
++		return IEEE80211_GCMP_HDR_LEN;
++	case HAL_ENCRYPT_TYPE_WEP_40:
++	case HAL_ENCRYPT_TYPE_WEP_104:
++	case HAL_ENCRYPT_TYPE_WEP_128:
++		return IEEE80211_WEP_IV_LEN;
++	default:
++		return 0;
++	}
++}
++EXPORT_SYMBOL(ath12k_dp_tx_crypto_iv_len);
++
++u8 ath12k_dp_tx_crypto_icv_len(enum hal_encrypt_type enc_type)
++{
++	switch (enc_type) {
++	case HAL_ENCRYPT_TYPE_CCMP_128:
++		return IEEE80211_CCMP_MIC_LEN;
++	case HAL_ENCRYPT_TYPE_CCMP_256:
++		return IEEE80211_CCMP_256_MIC_LEN;
++	case HAL_ENCRYPT_TYPE_GCMP_128:
++	case HAL_ENCRYPT_TYPE_AES_GCMP_256:
++		return IEEE80211_GCMP_MIC_LEN;
++	case HAL_ENCRYPT_TYPE_TKIP_NO_MIC:
++	case HAL_ENCRYPT_TYPE_TKIP_MIC:
++		return IEEE80211_TKIP_ICV_LEN;
++	case HAL_ENCRYPT_TYPE_WEP_40:
++	case HAL_ENCRYPT_TYPE_WEP_104:
++	case HAL_ENCRYPT_TYPE_WEP_128:
++		return IEEE80211_WEP_ICV_LEN;
++	default:
++		return 0;
++	}
++}
++EXPORT_SYMBOL(ath12k_dp_tx_crypto_icv_len);
++
+ void ath12k_dp_tx_release_txbuf(struct ath12k_dp *dp,
+ 				struct ath12k_tx_desc_info *tx_desc,
+ 				u8 pool_id)
+--- a/drivers/net/wireless/ath/ath12k/dp_tx.h
++++ b/drivers/net/wireless/ath/ath12k/dp_tx.h
+@@ -19,6 +19,8 @@ enum hal_tcl_encap_type
+ ath12k_dp_tx_get_encap_type(struct ath12k_base *ab, struct sk_buff *skb);
+ void ath12k_dp_tx_encap_nwifi(struct sk_buff *skb);
+ u8 ath12k_dp_tx_get_tid(struct sk_buff *skb);
++u8 ath12k_dp_tx_crypto_iv_len(enum hal_encrypt_type enc_type);
++u8 ath12k_dp_tx_crypto_icv_len(enum hal_encrypt_type enc_type);
+ void *ath12k_dp_metadata_align_skb(struct sk_buff *skb, u8 tail_len);
+ int ath12k_dp_tx_align_payload(struct ath12k_dp *dp, struct sk_buff **pskb);
+ void ath12k_dp_tx_release_txbuf(struct ath12k_dp *dp,
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
+@@ -13,6 +13,49 @@
+ #include "hal.h"
+ #include "hal_tx.h"
+ 
++/*
++ * Convert an encrypted EAPOL frame from native-WiFi format to
++ * the layout expected by the firmware RAW encrypt pipeline:
++ *
++ *   [802.11 hdr][IV (zeroed)][LLC/SNAP][EAPOL payload][ICV (zeroed)]
++ *
++ * mac80211 delivers the frame as [802.11 hdr][LLC/SNAP][EAPOL payload].
++ * The MAC header length is read from the unmodified skb and is safe because
++ * ieee80211_hdrlen() only inspects the 2-byte frame_control field.
++ * pskb_expand_head() is used to grow both head (for the IV) and tail
++ * (for the ICV) in a single call and allocation.
++ */
++static int
++ath12k_wifi7_dp_tx_encap_eapol(struct sk_buff *skb,
++			       struct hal_tx_info *ti,
++			       struct ath12k_skb_cb *skb_cb)
++{
++	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
++	enum hal_encrypt_type enc_type =
++				ath12k_dp_tx_get_encrypt_type(skb_cb->cipher);
++	u16 mac_hdr_len = ieee80211_hdrlen(hdr->frame_control);
++	u8 iv_len = ath12k_dp_tx_crypto_iv_len(enc_type);
++	u8 icv_len = ath12k_dp_tx_crypto_icv_len(enc_type);
++
++	if (pskb_expand_head(skb, iv_len, icv_len, GFP_ATOMIC))
++		return -ENOMEM;
++
++	if (iv_len) {
++		skb_push(skb, iv_len);
++		memmove(skb->data, skb->data + iv_len, mac_hdr_len);
++		memset(skb->data + mac_hdr_len, 0, iv_len);
++	}
++
++	if (icv_len)
++		memset(skb_put(skb, icv_len), 0, icv_len);
++
++	ti->flags0 |= u32_encode_bits(1, HAL_TCL_DATA_CMD_INFO2_TO_FW);
++	ti->encap_type = HAL_TCL_ENCAP_TYPE_RAW;
++	ti->encrypt_type = enc_type;
++
++	return 0;
++}
++
+ static void
+ ath12k_wifi7_hal_tx_cmd_ext_desc_setup(struct ath12k_base *ab,
+ 				       struct hal_tx_msdu_ext_desc *tcl_ext_cmd,
+@@ -91,6 +134,7 @@ int ath12k_wifi7_dp_tx(struct ath12k_pde
+ 	u32 iova_mask = dp->hw_params->iova_mask;
+ 	bool is_diff_encap = false;
+ 	bool is_null_frame = false;
++	bool eapol_encap_done = false;
+ 
+ 	if (test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
+ 		return -ESHUTDOWN;
+@@ -211,9 +255,27 @@ tcl_ring_sel:
+ 	case HAL_TCL_ENCAP_TYPE_NATIVE_WIFI:
+ 		is_null_frame = ieee80211_is_nullfunc(hdr->frame_control);
+ 		if (ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {
+-			if (skb->protocol == cpu_to_be16(ETH_P_PAE) || is_null_frame)
++			if ((skb->protocol == cpu_to_be16(ETH_P_PAE) &&
++			     !(skb_cb->flags & ATH12K_SKB_CIPHER_SET)) || is_null_frame)
+ 				is_diff_encap = true;
+ 
++			if (skb->protocol == cpu_to_be16(ETH_P_PAE) &&
++			    (skb_cb->flags & ATH12K_SKB_CIPHER_SET)) {
++				if (!eapol_encap_done) {
++					ret = ath12k_wifi7_dp_tx_encap_eapol(skb, &ti,
++									     skb_cb);
++					if (ret)
++						goto fail_remove_tx_buf;
++					hdr = (void *)skb->data;
++					eapol_encap_done = true;
++				} else {
++					ti.flags0 |= u32_encode_bits(1,
++							HAL_TCL_DATA_CMD_INFO2_TO_FW);
++					ti.encap_type = HAL_TCL_ENCAP_TYPE_RAW;
++					ti.encrypt_type =
++						ath12k_dp_tx_get_encrypt_type(skb_cb->cipher);
++				}
++			}
+ 			/* Firmware expects msdu ext descriptor for nwifi/raw packets
+ 			 * received in ETH mode. Without this, observed tx fail for
+ 			 * Multicast packets in ETH mode.

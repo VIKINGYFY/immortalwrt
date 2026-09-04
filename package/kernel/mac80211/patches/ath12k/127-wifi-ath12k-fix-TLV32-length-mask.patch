@@ -1,0 +1,76 @@
+From d762bbc08ca70a1985c9f9420c4bf67e0ba0e9be Mon Sep 17 00:00:00 2001
+From: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
+Date: Sat, 9 May 2026 10:58:15 +0800
+Subject: [PATCH] wifi: ath12k: fix TLV32 length mask
+
+HAL_TLV_HDR_LEN was using the wrong bitmask; fix it to cover
+bits [21:10]. Also drop HAL_SRNG_TLV_HDR_{TAG,LEN} and use the
+generic TLV header bit definitions for TLV32/TLV64 encode/decode
+to avoid redundant macros.
+
+Tested-on: QCC2072 hw1.0 PCI WLAN.COL.1.0.c2-00068-QCACOLSWPL_V1_TO_SILICONZ-1
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c5-00302-QCAHMTSWPL_V1.0_V2.0_SILICONZ-1.115823.3
+
+Fixes: d889913205cf ("wifi: ath12k: driver for Qualcomm Wi-Fi 7 devices")
+Signed-off-by: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
+Reviewed-by: Vasanthakumar Thiagarajan <vasanthakumar.thiagarajan@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260509025819.1641630-2-miaoqing.pan@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/hal.c | 8 ++++----
+ drivers/net/wireless/ath/ath12k/hal.h | 5 +----
+ 2 files changed, 5 insertions(+), 8 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/hal.c
++++ b/drivers/net/wireless/ath/ath12k/hal.c
+@@ -828,8 +828,8 @@ void *ath12k_hal_encode_tlv64_hdr(void *
+ {
+ 	struct hal_tlv_64_hdr *tlv64 = tlv;
+ 
+-	tlv64->tl = le64_encode_bits(tag, HAL_TLV_HDR_TAG) |
+-		    le64_encode_bits(len, HAL_TLV_HDR_LEN);
++	tlv64->tl = le64_encode_bits(tag, HAL_TLV_64_HDR_TAG) |
++		    le64_encode_bits(len, HAL_TLV_64_HDR_LEN);
+ 
+ 	return tlv64->value;
+ }
+@@ -851,7 +851,7 @@ u16 ath12k_hal_decode_tlv64_hdr(void *tl
+ 	struct hal_tlv_64_hdr *tlv64 = tlv;
+ 	u16 tag;
+ 
+-	tag = le64_get_bits(tlv64->tl, HAL_SRNG_TLV_HDR_TAG);
++	tag = le64_get_bits(tlv64->tl, HAL_TLV_64_HDR_TAG);
+ 	*desc = tlv64->value;
+ 
+ 	return tag;
+@@ -863,7 +863,7 @@ u16 ath12k_hal_decode_tlv32_hdr(void *tl
+ 	struct hal_tlv_hdr *tlv32 = tlv;
+ 	u16 tag;
+ 
+-	tag = le32_get_bits(tlv32->tl, HAL_SRNG_TLV_HDR_TAG);
++	tag = le32_get_bits(tlv32->tl, HAL_TLV_HDR_TAG);
+ 	*desc = tlv32->value;
+ 
+ 	return tag;
+--- a/drivers/net/wireless/ath/ath12k/hal.h
++++ b/drivers/net/wireless/ath/ath12k/hal.h
+@@ -1444,7 +1444,7 @@ struct hal_ops {
+ };
+ 
+ #define HAL_TLV_HDR_TAG		GENMASK(9, 1)
+-#define HAL_TLV_HDR_LEN		GENMASK(25, 10)
++#define HAL_TLV_HDR_LEN		GENMASK(21, 10)
+ #define HAL_TLV_USR_ID		GENMASK(31, 26)
+ 
+ #define HAL_TLV_ALIGN	4
+@@ -1464,9 +1464,6 @@ struct hal_tlv_64_hdr {
+ 	u8 value[];
+ } __packed;
+ 
+-#define HAL_SRNG_TLV_HDR_TAG		GENMASK(9, 1)
+-#define HAL_SRNG_TLV_HDR_LEN		GENMASK(25, 10)
+-
+ dma_addr_t ath12k_hal_srng_get_tp_addr(struct ath12k_base *ab,
+ 				       struct hal_srng *srng);
+ dma_addr_t ath12k_hal_srng_get_hp_addr(struct ath12k_base *ab,

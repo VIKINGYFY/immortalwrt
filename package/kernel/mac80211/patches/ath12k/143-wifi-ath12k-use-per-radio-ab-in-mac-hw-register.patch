@@ -1,0 +1,66 @@
+From 6dc17a164d3fc0eec85918c18436bad3954e7c8b Mon Sep 17 00:00:00 2001
+From: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Date: Wed, 29 Jul 2026 15:18:12 +0800
+Subject: [PATCH] wifi: ath12k: use per-radio ab in ath12k_mac_hw_register()
+
+In ath12k_mac_hw_register() the local 'ab' is fetched once from the first
+radio, i.e. ath12k_ah_to_ar(ah, 0)->ab. When an ath12k_hw spans more than
+one ath12k_base, the radios walked by for_each_ar() may belong to
+different ath12k_base instances. Using the function-scope 'ab' inside
+that loop then refers to the first radio's device, which is stale with
+respect to the ar being processed.
+
+This is not a functional problem currently: the loop only dereferences the
+stale 'ab' under hw_params->current_cc_support, which is set only for
+WCN7850 and QCC2072. Both devices expose a single radio per ath12k_hw, so
+'ab' and ar->ab always point to the same ath12k_base.
+
+Still, relying on that is fragile. Cache ar->ab into a per-iteration
+'this_ab' and use it for the country code programming and the log messages
+so that each radio is handled against its own ath12k_base regardless of how
+many radios an ath12k_hw spans.
+
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c7-00108-QCAHMTSWPL_V1.0_V2.0_SILICONZ_UPSTREAM-3
+
+Signed-off-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260729-ath12k-regd-wait-timeout-v1-2-504aa6e7e93c@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -15080,24 +15080,26 @@ static int ath12k_mac_hw_register(struct
+ 		wiphy->interface_modes &= ~BIT(NL80211_IFTYPE_MONITOR);
+ 
+ 	for_each_ar(ah, ar, i) {
++		struct ath12k_base *this_ab = ar->ab;
++
+ 		/* Apply the regd received during initialization */
+ 		ret = ath12k_regd_update(ar, true);
+ 		if (ret) {
+-			ath12k_err(ar->ab, "ath12k regd update failed: %d\n", ret);
++			ath12k_err(this_ab, "ath12k regd update failed: %d\n", ret);
+ 			goto err_unregister_hw;
+ 		}
+ 
+-		if (ar->ab->hw_params->current_cc_support && ab->new_alpha2[0]) {
++		if (this_ab->hw_params->current_cc_support && this_ab->new_alpha2[0]) {
+ 			struct wmi_set_current_country_arg current_cc = {};
+ 
+-			memcpy(&current_cc.alpha2, ab->new_alpha2, 2);
+-			memcpy(&ar->alpha2, ab->new_alpha2, 2);
++			memcpy(&current_cc.alpha2, this_ab->new_alpha2, 2);
++			memcpy(&ar->alpha2, this_ab->new_alpha2, 2);
+ 
+ 			reinit_completion(&ar->regd_update_completed);
+ 
+ 			ret = ath12k_wmi_send_set_current_country_cmd(ar, &current_cc);
+ 			if (ret)
+-				ath12k_warn(ar->ab,
++				ath12k_warn(this_ab,
+ 					    "failed set cc code for mac register: %d\n",
+ 					    ret);
+ 		}

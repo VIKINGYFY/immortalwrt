@@ -1,0 +1,163 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Fri, 14 Aug 2026 11:00:00 +0800
+Subject: [PATCH] fs: diagnose stale shmem superblocks during unmount
+
+An IPQ5332 router hit a NULL pointer dereference in shmem_evict_inode()
+while the private mount namespace of a jailed dnsmasq process was being
+destroyed.  The preceding timestamp_truncate() warning showed a zero time
+granularity and the faulting instruction showed that sb->s_fs_info was
+already NULL.
+
+Neither value is valid for a live tmpfs superblock.  Keep a small, silent
+ring of shmem superblock fill and put events so a subsequent failure can
+distinguish an early or repeated shutdown from an external overwrite of a
+still-live superblock.  Record the expected private pointer, reference
+state, task and call site.  Emit the matching history only after detecting
+the invalid state, so normal jail creation and teardown do not flood the
+kernel log.
+
+Panic after preserving the diagnostic record.  Continuing with partial
+inode cleanup would leave tmpfs accounting and shrink/swap lists in an
+unsafe state and the unmodified path immediately dereferences the missing
+private pointer anyway.
+
+This is a diagnostic patch and is not intended as an upstream fix.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ mm/shmem.c | 103 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 103 insertions(+)
+
+--- a/mm/shmem.c
++++ b/mm/shmem.c
+@@ -97,6 +97,86 @@ static struct vfsmount *shm_mnt __ro_aft
+ /* Symlink up to this size is kmalloc'ed instead of using a swappable page */
+ #define SHORT_SYMLINK_LEN 128
+ 
++#define SHMEM_DIAG_EVENT_COUNT 64
++
++enum shmem_diag_action {
++	SHMEM_DIAG_FILL,
++	SHMEM_DIAG_PUT,
++};
++
++struct shmem_diag_event {
++	u64 sequence;
++	u64 jiffies;
++	struct super_block *sb;
++	void *sbinfo;
++	unsigned long caller;
++	unsigned long flags;
++	int active;
++	int count;
++	pid_t pid;
++	u32 time_gran;
++	u8 action;
++	char comm[TASK_COMM_LEN];
++};
++
++static DEFINE_SPINLOCK(shmem_diag_lock);
++static struct shmem_diag_event shmem_diag_events[SHMEM_DIAG_EVENT_COUNT];
++static u64 shmem_diag_sequence;
++static unsigned int shmem_diag_cursor;
++
++static void shmem_diag_record(struct super_block *sb, void *sbinfo,
++			      enum shmem_diag_action action,
++			      unsigned long caller)
++{
++	struct shmem_diag_event *event;
++	unsigned long irq_flags;
++	char comm[TASK_COMM_LEN];
++
++	get_task_comm(comm, current);
++
++	spin_lock_irqsave(&shmem_diag_lock, irq_flags);
++	event = &shmem_diag_events[shmem_diag_cursor++ %
++					  SHMEM_DIAG_EVENT_COUNT];
++	memset(event, 0, sizeof(*event));
++	event->sequence = ++shmem_diag_sequence;
++	event->jiffies = get_jiffies_64();
++	event->sb = sb;
++	event->sbinfo = sbinfo;
++	event->caller = caller;
++	event->flags = READ_ONCE(sb->s_flags);
++	event->active = atomic_read(&sb->s_active);
++	event->count = READ_ONCE(sb->s_count);
++	event->pid = current->pid;
++	event->time_gran = READ_ONCE(sb->s_time_gran);
++	event->action = action;
++	strscpy(event->comm, comm, sizeof(event->comm));
++	spin_unlock_irqrestore(&shmem_diag_lock, irq_flags);
++}
++
++static void shmem_diag_dump_history(struct super_block *sb)
++{
++	struct shmem_diag_event event;
++	unsigned long irq_flags;
++	unsigned int i;
++
++	for (i = 0; i < SHMEM_DIAG_EVENT_COUNT; i++) {
++		spin_lock_irqsave(&shmem_diag_lock, irq_flags);
++		event = shmem_diag_events[i];
++		spin_unlock_irqrestore(&shmem_diag_lock, irq_flags);
++
++		if (!event.sequence || event.sb != sb)
++			continue;
++
++		pr_emerg("shmem-diag: history seq=%llu action=%s sb=%px expected-fs-info=%px flags=%lx active=%d count=%d time-gran=%u jiffies=%llu pid=%d comm=%s caller=%pS\n",
++			(unsigned long long)event.sequence,
++			event.action == SHMEM_DIAG_FILL ? "fill" : "put",
++			event.sb, event.sbinfo, event.flags, event.active,
++			event.count, event.time_gran,
++			(unsigned long long)event.jiffies, event.pid,
++			event.comm, (void *)event.caller);
++	}
++}
++
+ /*
+  * shmem_fallocate communicates with shmem_fault or shmem_writeout via
+  * inode->i_private (with i_rwsem making sure that it has only one user at
+@@ -1380,6 +1460,23 @@ static void shmem_evict_inode(struct ino
+ 	struct shmem_sb_info *sbinfo = SHMEM_SB(inode->i_sb);
+ 	size_t freed = 0;
+ 
++	if (unlikely(!sbinfo || READ_ONCE(inode->i_sb->s_time_gran) != 1)) {
++		struct super_block *sb = inode->i_sb;
++
++		pr_emerg("shmem-diag: invalid superblock state inode=%px sb=%px mapping=%px root=%px fs_info=%px flags=%lx active=%d count=%d time_gran=%u state=%x pid=%d comm=%s\n",
++			inode, sb, inode->i_mapping, READ_ONCE(sb->s_root),
++			READ_ONCE(sb->s_fs_info), READ_ONCE(sb->s_flags),
++			atomic_read(&sb->s_active), READ_ONCE(sb->s_count),
++			READ_ONCE(sb->s_time_gran), READ_ONCE(inode->i_state),
++			current->pid, current->comm);
++		print_hex_dump(KERN_EMERG, "shmem-diag: sb fields: ",
++			       DUMP_PREFIX_OFFSET, 16, 8,
++			       (const u8 *)&sb->s_fs_info - 32, 96, false);
++		shmem_diag_dump_history(sb);
++		dump_stack();
++		panic("shmem-diag: refusing eviction with invalid superblock state");
++	}
++
+ 	if (shmem_mapping(inode->i_mapping)) {
+ 		shmem_unacct_size(info->flags, inode->i_size);
+ 		inode->i_size = 0;
+@@ -5012,6 +5109,9 @@ static void shmem_put_super(struct super
+ {
+ 	struct shmem_sb_info *sbinfo = SHMEM_SB(sb);
+ 
++	shmem_diag_record(sb, sbinfo, SHMEM_DIAG_PUT,
++			  (unsigned long)_RET_IP_);
++
+ #if IS_ENABLED(CONFIG_UNICODE)
+ 	if (sb->s_encoding)
+ 		utf8_unload(sb->s_encoding);
+@@ -5157,6 +5257,9 @@ static int shmem_fill_super(struct super
+ 	sb->s_root = d_make_root(inode);
+ 	if (!sb->s_root)
+ 		goto failed;
++	shmem_diag_record(sb, sbinfo, SHMEM_DIAG_FILL,
++			  (unsigned long)_RET_IP_);
++
+ 	return 0;
+ 
+ failed:

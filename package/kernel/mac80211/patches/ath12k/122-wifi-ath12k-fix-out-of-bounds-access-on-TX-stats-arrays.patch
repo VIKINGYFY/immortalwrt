@@ -1,0 +1,57 @@
+From: Pardeep Kaur <pardeep.kaur@oss.qualcomm.com>
+Date: Thu, 6 Aug 2026 17:39:20 +0530
+Subject: [PATCH ath-next v2 1/8] wifi: ath12k: fix out-of-bounds access on
+ TX stats arrays
+
+The fw_tx_status[], tx_wbm_rel_source[], and tqm_rel_reason[] arrays
+are indexed directly by values read from hardware without bounds checks.
+Values at or beyond MAX_FW_TX_STATUS, HAL_WBM_REL_SRC_MODULE_MAX, or
+MAX_TQM_RELEASE_REASON respectively would write past the end of the
+arrays causing memory corruption.
+
+Add bounds checks using likely() and WARN_ON_ONCE() before incrementing
+each counter, consistent with the existing pattern used elsewhere in
+the ath12k codebase.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6.r1-00402-QCAHKSWPL_SILICONZ-1
+
+Fixes: c5c62287e690 ("wifi: ath12k: Add device dp stats support")
+Signed-off-by: Pardeep Kaur <pardeep.kaur@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
+@@ -582,7 +582,10 @@ ath12k_dp_tx_process_htt_tx_complete(str
+ 
+ 	wbm_status = le32_get_bits(status_desc->info0,
+ 				   HTT_TX_WBM_COMP_INFO0_STATUS);
+-	dp->device_stats.fw_tx_status[wbm_status]++;
++	if (likely(wbm_status < MAX_FW_TX_STATUS))
++		dp->device_stats.fw_tx_status[wbm_status]++;
++	else
++		WARN_ON_ONCE(1);
+ 
+ 	switch (wbm_status) {
+ 	case HAL_WBM_REL_HTT_TX_COMP_STATUS_OK:
+@@ -984,11 +987,17 @@ void ath12k_wifi7_dp_tx_completion_handl
+ 		/* Find the HAL_WBM_RELEASE_INFO0_REL_SRC_MODULE value */
+ 		buf_rel_source = le32_get_bits(tx_status->info0,
+ 					       HAL_WBM_RELEASE_INFO0_REL_SRC_MODULE);
+-		dp->device_stats.tx_wbm_rel_source[buf_rel_source]++;
++		if (likely(buf_rel_source < HAL_WBM_REL_SRC_MODULE_MAX))
++			dp->device_stats.tx_wbm_rel_source[buf_rel_source]++;
++		else
++			WARN_ON_ONCE(1);
+ 
+ 		rel_status = le32_get_bits(tx_status->info0,
+ 					   HAL_WBM_COMPL_TX_INFO0_TQM_RELEASE_REASON);
+-		dp->device_stats.tqm_rel_reason[rel_status]++;
++		if (likely(rel_status < MAX_TQM_RELEASE_REASON))
++			dp->device_stats.tqm_rel_reason[rel_status]++;
++		else
++			WARN_ON_ONCE(1);
+ 
+ 		/* Release descriptor as soon as extracting necessary info
+ 		 * to reduce contention

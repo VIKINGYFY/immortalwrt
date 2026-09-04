@@ -1,0 +1,145 @@
+From e264a3dbe866870ed21ef83c67ad956a45391859 Mon Sep 17 00:00:00 2001
+From: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
+Date: Sat, 9 May 2026 10:58:16 +0800
+Subject: [PATCH] wifi: ath12k: refactor HAL TLV32/64 decode helpers
+
+Change TLV decode helpers to return the TLV value pointer and optionally
+decode tag/len/usrid via out parameters. This allows reusing the helpers
+for DP monitor RX status header TLV parsing and avoids duplicated header
+decoding in callers.
+
+No functional change intended.
+
+Tested-on: QCC2072 hw1.0 PCI WLAN.COL.1.0.c2-00068-QCACOLSWPL_V1_TO_SILICONZ-1
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c5-00302-QCAHMTSWPL_V1.0_V2.0_SILICONZ-1.115823.3
+
+Signed-off-by: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
+Reviewed-by: Vasanthakumar Thiagarajan <vasanthakumar.thiagarajan@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260509025819.1641630-3-miaoqing.pan@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/hal.c         | 26 ++++++++++++-------
+ drivers/net/wireless/ath/ath12k/hal.h         |  4 +--
+ .../wireless/ath/ath12k/wifi7/hal_qcc2072.c   |  2 +-
+ .../wireless/ath/ath12k/wifi7/hal_qcn9274.c   | 11 +++++++-
+ .../wireless/ath/ath12k/wifi7/hal_wcn7850.c   | 11 +++++++-
+ 5 files changed, 39 insertions(+), 15 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/hal.c
++++ b/drivers/net/wireless/ath/ath12k/hal.c
+@@ -846,26 +846,32 @@ void *ath12k_hal_encode_tlv32_hdr(void *
+ }
+ EXPORT_SYMBOL(ath12k_hal_encode_tlv32_hdr);
+ 
+-u16 ath12k_hal_decode_tlv64_hdr(void *tlv, void **desc)
++void *ath12k_hal_decode_tlv64_hdr(void *tlv, u16 *tag, u16 *len, u16 *usrid)
+ {
+ 	struct hal_tlv_64_hdr *tlv64 = tlv;
+-	u16 tag;
+ 
+-	tag = le64_get_bits(tlv64->tl, HAL_TLV_64_HDR_TAG);
+-	*desc = tlv64->value;
++	if (tag)
++		*tag = le64_get_bits(tlv64->tl, HAL_TLV_64_HDR_TAG);
++	if (len)
++		*len = le64_get_bits(tlv64->tl, HAL_TLV_64_HDR_LEN);
++	if (usrid)
++		*usrid = le64_get_bits(tlv64->tl, HAL_TLV_64_USR_ID);
+ 
+-	return tag;
++	return tlv64->value;
+ }
+ EXPORT_SYMBOL(ath12k_hal_decode_tlv64_hdr);
+ 
+-u16 ath12k_hal_decode_tlv32_hdr(void *tlv, void **desc)
++void *ath12k_hal_decode_tlv32_hdr(void *tlv, u16 *tag, u16 *len, u16 *usrid)
+ {
+ 	struct hal_tlv_hdr *tlv32 = tlv;
+-	u16 tag;
+ 
+-	tag = le32_get_bits(tlv32->tl, HAL_TLV_HDR_TAG);
+-	*desc = tlv32->value;
++	if (tag)
++		*tag = le32_get_bits(tlv32->tl, HAL_TLV_HDR_TAG);
++	if (len)
++		*len = le32_get_bits(tlv32->tl, HAL_TLV_HDR_LEN);
++	if (usrid)
++		*usrid = le32_get_bits(tlv32->tl, HAL_TLV_USR_ID);
+ 
+-	return tag;
++	return tlv32->value;
+ }
+ EXPORT_SYMBOL(ath12k_hal_decode_tlv32_hdr);
+--- a/drivers/net/wireless/ath/ath12k/hal.h
++++ b/drivers/net/wireless/ath/ath12k/hal.h
+@@ -1553,6 +1553,6 @@ void ath12k_hal_rx_reo_ent_buf_paddr_get
+ 					 u8 *rbm, u32 *msdu_cnt);
+ void *ath12k_hal_encode_tlv64_hdr(void *tlv, u64 tag, u64 len);
+ void *ath12k_hal_encode_tlv32_hdr(void *tlv, u64 tag, u64 len);
+-u16 ath12k_hal_decode_tlv64_hdr(void *tlv, void **desc);
+-u16 ath12k_hal_decode_tlv32_hdr(void *tlv, void **desc);
++void *ath12k_hal_decode_tlv64_hdr(void *tlv, u16 *tag, u16 *len, u16 *usrid);
++void *ath12k_hal_decode_tlv32_hdr(void *tlv, u16 *tag, u16 *len, u16 *usrid);
+ #endif
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c
+@@ -455,7 +455,7 @@ static u16 ath12k_hal_reo_status_dec_tlv
+ 	struct hal_reo_get_queue_stats_status_qcc2072 *status_tlv;
+ 	u16 tag;
+ 
+-	tag = ath12k_hal_decode_tlv32_hdr(tlv, (void **)&status_tlv);
++	status_tlv = ath12k_hal_decode_tlv32_hdr(tlv, &tag, NULL, NULL);
+ 	/*
+ 	 * actual desc of REO status entry starts after tlv32_padding,
+ 	 * see hal_reo_get_queue_stats_status_qcc2072
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
+@@ -950,6 +950,15 @@ void ath12k_hal_extract_rx_desc_data_qcn
+ 	rx_desc_data->err_bitmap = ath12k_hal_rx_h_mpdu_err_qcn9274(rx_desc);
+ }
+ 
++static u16 ath12k_hal_reo_status_dec_tlv_hdr_qcn9274(void *tlv, void **desc)
++{
++	u16 tag;
++
++	*desc = ath12k_hal_decode_tlv64_hdr(tlv, &tag, NULL, NULL);
++
++	return tag;
++}
++
+ const struct ath12k_hw_hal_params ath12k_hw_hal_params_qcn9274 = {
+ 	.rx_buf_rbm = HAL_RX_BUF_RBM_SW3_BM,
+ 	.wbm2sw_cc_enable = HAL_WBM_SW_COOKIE_CONV_CFG_WBM2SW0_EN |
+@@ -1138,5 +1147,5 @@ const struct hal_ops hal_qcn9274_ops = {
+ 	.rx_msdu_list_get = ath12k_wifi7_hal_rx_msdu_list_get,
+ 	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
+ 	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv64_hdr,
+-	.reo_status_dec_tlv_hdr = ath12k_hal_decode_tlv64_hdr,
++	.reo_status_dec_tlv_hdr = ath12k_hal_reo_status_dec_tlv_hdr_qcn9274,
+ };
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c
+@@ -756,6 +756,15 @@ int ath12k_hal_srng_create_config_wcn785
+ 	return 0;
+ }
+ 
++static u16 ath12k_hal_reo_status_dec_tlv_hdr_wcn7850(void *tlv, void **desc)
++{
++	u16 tag;
++
++	*desc = ath12k_hal_decode_tlv64_hdr(tlv, &tag, NULL, NULL);
++
++	return tag;
++}
++
+ const struct ath12k_hal_tcl_to_wbm_rbm_map
+ ath12k_hal_tcl_to_wbm_rbm_map_wcn7850[DP_TCL_NUM_RING_MAX] = {
+ 	{
+@@ -821,5 +830,5 @@ const struct hal_ops hal_wcn7850_ops = {
+ 	.rx_msdu_list_get = ath12k_wifi7_hal_rx_msdu_list_get,
+ 	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
+ 	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv64_hdr,
+-	.reo_status_dec_tlv_hdr = ath12k_hal_decode_tlv64_hdr,
++	.reo_status_dec_tlv_hdr = ath12k_hal_reo_status_dec_tlv_hdr_wcn7850,
+ };

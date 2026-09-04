@@ -1,0 +1,98 @@
+From 9d1d61121b05c0a854e6da227e37b99b3740dae9 Mon Sep 17 00:00:00 2001
+From: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
+Date: Sat, 9 May 2026 10:58:17 +0800
+Subject: [PATCH] wifi: ath12k: add HAL ops for monitor TLV header decode and
+ alignment
+
+Wi-Fi 7 monitor RX status TLV parsing needs to decode TLV headers and
+advance the pointer with the correct header alignment. Different targets
+use different TLV header layouts (32-bit vs 64-bit), but the HAL ops for
+dp_mon RX status header decode and header alignment were not populated
+for all wifi7 targets.
+
+Add dp_mon RX status TLV header decode callbacks and TLV header alignment
+helpers to the wifi7 HAL ops for QCC2072, QCN9274 and WCN7850. Export
+helpers to query the required TLV header alignment for 32-bit and 64-bit
+TLV headers so the caller can align the TLV walk correctly across targets.
+
+Tested-on: QCC2072 hw1.0 PCI WLAN.COL.1.0.c2-00068-QCACOLSWPL_V1_TO_SILICONZ-1
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c5-00302-QCAHMTSWPL_V1.0_V2.0_SILICONZ-1.115823.3
+
+Signed-off-by: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
+Reviewed-by: Vasanthakumar Thiagarajan <vasanthakumar.thiagarajan@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260509025819.1641630-4-miaoqing.pan@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/hal.c               | 12 ++++++++++++
+ drivers/net/wireless/ath/ath12k/hal.h               |  4 ++++
+ drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c |  2 ++
+ drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c |  2 ++
+ drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c |  2 ++
+ 5 files changed, 22 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/hal.c
++++ b/drivers/net/wireless/ath/ath12k/hal.c
+@@ -875,3 +875,15 @@ void *ath12k_hal_decode_tlv32_hdr(void *
+ 	return tlv32->value;
+ }
+ EXPORT_SYMBOL(ath12k_hal_decode_tlv32_hdr);
++
++u32 ath12k_hal_get_tlv64_hdr_align(void)
++{
++	return HAL_TLV_64_ALIGN;
++}
++EXPORT_SYMBOL(ath12k_hal_get_tlv64_hdr_align);
++
++u32 ath12k_hal_get_tlv32_hdr_align(void)
++{
++	return HAL_TLV_ALIGN;
++}
++EXPORT_SYMBOL(ath12k_hal_get_tlv32_hdr_align);
+--- a/drivers/net/wireless/ath/ath12k/hal.h
++++ b/drivers/net/wireless/ath/ath12k/hal.h
+@@ -1441,6 +1441,8 @@ struct hal_ops {
+ 					 u8 *rbm, u32 *msdu_cnt);
+ 	void *(*reo_cmd_enc_tlv_hdr)(void *tlv, u64 tag, u64 len);
+ 	u16 (*reo_status_dec_tlv_hdr)(void *tlv, void **desc);
++	void *(*mon_rx_status_dec_tlv_hdr)(void *tlv, u16 *tag, u16 *len, u16 *usrid);
++	u32 (*get_tlv_hdr_align)(void);
+ };
+ 
+ #define HAL_TLV_HDR_TAG		GENMASK(9, 1)
+@@ -1555,4 +1557,6 @@ void *ath12k_hal_encode_tlv64_hdr(void *
+ void *ath12k_hal_encode_tlv32_hdr(void *tlv, u64 tag, u64 len);
+ void *ath12k_hal_decode_tlv64_hdr(void *tlv, u16 *tag, u16 *len, u16 *usrid);
+ void *ath12k_hal_decode_tlv32_hdr(void *tlv, u16 *tag, u16 *len, u16 *usrid);
++u32 ath12k_hal_get_tlv64_hdr_align(void);
++u32 ath12k_hal_get_tlv32_hdr_align(void);
+ #endif
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c
+@@ -506,6 +506,8 @@ const struct hal_ops hal_qcc2072_ops = {
+ 	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
+ 	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv32_hdr,
+ 	.reo_status_dec_tlv_hdr = ath12k_hal_reo_status_dec_tlv_hdr_qcc2072,
++	.mon_rx_status_dec_tlv_hdr = ath12k_hal_decode_tlv32_hdr,
++	.get_tlv_hdr_align = ath12k_hal_get_tlv32_hdr_align,
+ };
+ 
+ u32 ath12k_hal_rx_desc_get_mpdu_start_offset_qcc2072(void)
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
+@@ -1148,4 +1148,6 @@ const struct hal_ops hal_qcn9274_ops = {
+ 	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
+ 	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv64_hdr,
+ 	.reo_status_dec_tlv_hdr = ath12k_hal_reo_status_dec_tlv_hdr_qcn9274,
++	.mon_rx_status_dec_tlv_hdr = ath12k_hal_decode_tlv64_hdr,
++	.get_tlv_hdr_align = ath12k_hal_get_tlv64_hdr_align,
+ };
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c
+@@ -831,4 +831,6 @@ const struct hal_ops hal_wcn7850_ops = {
+ 	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
+ 	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv64_hdr,
+ 	.reo_status_dec_tlv_hdr = ath12k_hal_reo_status_dec_tlv_hdr_wcn7850,
++	.mon_rx_status_dec_tlv_hdr = ath12k_hal_decode_tlv64_hdr,
++	.get_tlv_hdr_align = ath12k_hal_get_tlv64_hdr_align,
+ };

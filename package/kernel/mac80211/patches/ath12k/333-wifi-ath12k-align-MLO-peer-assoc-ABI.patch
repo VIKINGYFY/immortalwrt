@@ -1,0 +1,39 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 27 Aug 2026 11:00:00 +0800
+Subject: [PATCH] wifi: ath12k: align MLO peer assoc ABI with current firmware
+
+WLAN.WBE.1.6 firmware is paired with the extended
+WMI_MLO_PEER_ASSOC_PARAMS layout used by Qualcomm's current TIP driver.
+The extension was introduced together with station link reconfiguration,
+but the structure size itself is part of the firmware ABI even when none
+of the optional reconfiguration fields are used.
+
+Append the missing fields so the TLV has the layout expected by this
+firmware generation.  ath12k_wmi_alloc_skb() zeroes the command buffer,
+therefore the newly added optional capabilities remain disabled and this
+does not advertise link reconfiguration support.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/wmi.h | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/wmi.h
++++ b/drivers/net/wireless/ath/ath12k/wmi.h
+@@ -4005,6 +4005,16 @@ struct wmi_peer_assoc_mlo_params {
+ 	__le32 emlsr_trans_timeout_us;
+ 	__le32 emlsr_trans_delay_us;
+ 	__le32 emlsr_padding_delay_us;
++	__le32 msd_dur_subfield;
++	__le32 msd_ofdm_ed_thr;
++	__le32 msd_max_num_txops;
++	__le32 max_num_simultaneous_links;
++	__le32 nstr_indication_bitmap;
++	__le32 recommended_max_num_simultaneous_links;
++	struct {
++		__le32 ml_reconfig: 1,
++		       unused: 31;
++	};
+ } __packed;
+ 
+ struct wmi_peer_assoc_complete_cmd {

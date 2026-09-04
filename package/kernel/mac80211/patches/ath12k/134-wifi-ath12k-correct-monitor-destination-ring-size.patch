@@ -1,0 +1,34 @@
+From 913998f903fb1432c0046c33003db38a9e8bedb1 Mon Sep 17 00:00:00 2001
+From: Aaradhana Sahu <aaradhana.sahu@oss.qualcomm.com>
+Date: Tue, 16 Jun 2026 11:53:42 +0530
+Subject: [PATCH] wifi: ath12k: correct monitor destination ring size
+
+The default memory profile configures rxdma_monitor_dst_ring_size as 8092,
+which is a typo. The intended value is 8192, consistent with all other ring
+sizes in the table being powers of two.
+
+Correct the monitor destination ring size to 8192.
+
+Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01243-QCAHKSWPL_SILICONZ-1
+
+Fixes: defae535dd63 ("wifi: ath12k: Add a table of parameters entries impacting memory consumption")
+Signed-off-by: Aaradhana Sahu <aaradhana.sahu@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260616062342.4079796-1-aaradhana.sahu@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -49,7 +49,7 @@ ath12k_mem_profile_based_param ath12k_me
+ 		.dp_params = {
+ 			.tx_comp_ring_size = 32768,
+ 			.rxdma_monitor_buf_ring_size = 4096,
+-			.rxdma_monitor_dst_ring_size = 8092,
++			.rxdma_monitor_dst_ring_size = 8192,
+ 			.num_pool_tx_desc = 32768,
+ 			.rx_desc_count = 12288,
+ 			.rx_release_ring_size = 16384,

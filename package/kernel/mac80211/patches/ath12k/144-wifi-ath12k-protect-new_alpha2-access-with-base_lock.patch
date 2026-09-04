@@ -1,0 +1,54 @@
+From e9e53baf1c0eb4d03c83b7e431f8095530167811 Mon Sep 17 00:00:00 2001
+From: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Date: Wed, 29 Jul 2026 15:18:13 +0800
+Subject: [PATCH] wifi: ath12k: protect new_alpha2 access with base_lock
+
+ab->new_alpha2 is written under ab->base_lock by the 11d new country
+code event handler ath12k_reg_11d_new_cc_event() and by the SMBIOS
+BDF parser, and read under the same lock by ath12k_update_11d().
+
+ath12k_mac_hw_register() however read ab->new_alpha2 without holding
+base_lock, racing with those writers. Take base_lock and copy the
+value into a local wmi_set_current_country_arg, mirroring what
+ath12k_update_11d() already does, and use the local copy afterwards.
+
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c7-00108-QCAHMTSWPL_V1.0_V2.0_SILICONZ_UPSTREAM-3
+
+Signed-off-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260729-ath12k-regd-wait-timeout-v1-3-504aa6e7e93c@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -15089,11 +15089,17 @@ static int ath12k_mac_hw_register(struct
+ 			goto err_unregister_hw;
+ 		}
+ 
+-		if (this_ab->hw_params->current_cc_support && this_ab->new_alpha2[0]) {
++		if (this_ab->hw_params->current_cc_support) {
+ 			struct wmi_set_current_country_arg current_cc = {};
+ 
++			spin_lock_bh(&this_ab->base_lock);
+ 			memcpy(&current_cc.alpha2, this_ab->new_alpha2, 2);
+-			memcpy(&ar->alpha2, this_ab->new_alpha2, 2);
++			spin_unlock_bh(&this_ab->base_lock);
++
++			if (!current_cc.alpha2[0])
++				goto fw_stats_init;
++
++			memcpy(&ar->alpha2, current_cc.alpha2, 2);
+ 
+ 			reinit_completion(&ar->regd_update_completed);
+ 
+@@ -15104,6 +15110,7 @@ static int ath12k_mac_hw_register(struct
+ 					    ret);
+ 		}
+ 
++fw_stats_init:
+ 		ath12k_fw_stats_init(ar);
+ 		ath12k_debugfs_register(ar);
+ 	}

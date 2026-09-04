@@ -1,0 +1,38 @@
+From fffa54aeaeb2e9ac923254b39e89bf07799615aa Mon Sep 17 00:00:00 2001
+From: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
+Date: Sat, 9 May 2026 10:58:19 +0800
+Subject: [PATCH] wifi: ath12k: tighten RX monitor TLV bounds check
+
+Validate the pointer to the next RX monitor TLV more strictly by
+ensuring that at least a full TLV header is available within the
+status buffer before continuing TLV parsing.
+
+Prevent potential out-of-bounds access when handling malformed
+or truncated RX monitor status data.
+
+Tested-on: QCC2072 hw1.0 PCI WLAN.COL.1.0.c2-00068-QCACOLSWPL_V1_TO_SILICONZ-1
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c5-00302-QCAHMTSWPL_V1.0_V2.0_SILICONZ-1.115823.3
+
+Signed-off-by: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
+Reviewed-by: Vasanthakumar Thiagarajan <vasanthakumar.thiagarajan@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260509025819.1641630-6-miaoqing.pan@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
+@@ -3005,9 +3005,9 @@ ath12k_wifi7_dp_mon_parse_rx_dest(struct
+ 
+ 		tlv = PTR_ALIGN(tlv + tlv_len + tlv_hdr_len, tlv_hdr_len);
+ 
+-		if ((tlv - skb->data) > skb->len)
++		if (unlikely(tlv - skb->data > skb->len ||
++			     skb->len - (tlv - skb->data) < tlv_hdr_len))
+ 			break;
+-
+ 	} while ((hal_status == HAL_RX_MON_STATUS_PPDU_NOT_DONE) ||
+ 		 (hal_status == HAL_RX_MON_STATUS_BUF_ADDR) ||
+ 		 (hal_status == HAL_RX_MON_STATUS_MPDU_START) ||

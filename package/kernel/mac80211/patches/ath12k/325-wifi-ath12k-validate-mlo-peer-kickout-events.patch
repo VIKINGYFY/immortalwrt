@@ -1,0 +1,165 @@
+From: JiaY-shi <shi05275@163.com>
+Subject: [PATCH] wifi: ath12k: validate MLO link before reporting peer kickout
+
+The peer address carried by WMI_PEER_STA_KICKOUT_EVENTID is a link
+address for an MLO station.  Looking up ath12k_link_sta by that address is
+not sufficient to prove that a delayed event still refers to a currently
+valid mac80211 link.  Reporting such an event through
+ieee80211_report_low_ack() disconnects the complete MLD.
+
+Restore the cross-check performed by the Qualcomm driver before reporting
+the event: validate both driver link maps and verify that mac80211 still
+maps the reported address to the same link ID.  Keep non-MLO address
+validation as well.
+
+Keep detailed accepted-event diagnostics at WMI debug level with their
+firmware reason, link identity and the datapath peer statistics captured
+before mac80211 removes the station.  Cross-check a datapath peer, when
+present, against the control-plane station, vdev and MLO link before
+accepting the event.  This retains the useful validation from the Qualcomm
+driver without making a datapath peer mandatory after mainline deliberately
+moved WMI control-path lookups to the link-station hash table.
+
+Firmware has reported an unusable RSSI value for XRETRY events in
+practice, so preserve the last datapath RSSI and rate together with the
+cumulative retry, failure and TX airtime counters.  Use the same HW
+DB2DBM/noise-floor conversion as station statistics so debug output reports
+an actual dBm value rather than the encoded combined RSSI.  Warning level
+is reserved for rejected stale or mismatched events.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -7614,9 +7614,24 @@ static void ath12k_peer_sta_kickout_even
+ 	struct wmi_peer_sta_kickout_arg arg = {};
+ 	struct ath12k_link_vif *arvif;
+ 	struct ieee80211_sta *sta;
++	struct ieee80211_link_sta *link_sta;
++	struct ieee80211_sta *dp_sta = NULL;
++	struct ath12k_dp_link_peer *dp_peer;
++	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
++	struct rate_info txrate = {};
+ 	struct ath12k_sta *ahsta;
+ 	struct ath12k_link_sta *arsta;
+-	struct ath12k *ar;
++	struct ath12k *ar, *dp_ar;
++	u32 tx_retries = 0, tx_failed = 0, dp_assoc_status = 0;
++	s32 signal = 0, signal_avg_dbm = 0, noise_floor = 0;
++	int dp_vdev_id = -1, dp_peer_id = -1;
++	u16 dp_ml_id = 0;
++	u64 tx_duration = 0;
++	s8 signal_avg = 0;
++	u8 rssi_comb = 0, dp_pdev_idx = 0, dp_hw_link_id = 0;
++	u8 dp_link_id = ATH12K_INVALID_LINK_ID;
++	bool db2dbm = false, dp_mlo = false, dp_primary = false;
++	bool dp_authorized = false, dp_stats_valid = false;
+ 
+ 	if (ath12k_pull_peer_sta_kickout_ev(ab, skb, &arg) != 0) {
+ 		ath12k_warn(ab, "failed to extract peer sta kickout event");
+@@ -7625,6 +7640,51 @@ static void ath12k_peer_sta_kickout_even
+ 
+ 	rcu_read_lock();
+ 
++	spin_lock_bh(&dp->dp_lock);
++	dp_peer = ath12k_dp_link_peer_find_by_addr(dp, arg.mac_addr);
++	if (dp_peer) {
++		dp_sta = dp_peer->sta;
++		dp_vdev_id = dp_peer->vdev_id;
++		dp_peer_id = dp_peer->peer_id;
++		dp_ml_id = dp_peer->ml_id;
++		dp_pdev_idx = dp_peer->pdev_idx;
++		dp_hw_link_id = dp_peer->hw_link_id;
++		dp_link_id = dp_peer->link_id;
++		dp_mlo = dp_peer->mlo;
++		dp_primary = dp_peer->primary_link;
++		dp_authorized = dp_peer->is_authorized;
++		dp_assoc_status = dp_peer->assoc_status;
++		tx_retries = dp_peer->tx_retry_count;
++		tx_failed = dp_peer->tx_retry_failed;
++		tx_duration = dp_peer->tx_duration;
++		rssi_comb = dp_peer->rssi_comb;
++		signal_avg = ewma_avg_rssi_read(&dp_peer->avg_rssi);
++		txrate = dp_peer->txrate;
++		dp_stats_valid = true;
++	}
++	spin_unlock_bh(&dp->dp_lock);
++
++	if (dp_stats_valid) {
++		dp_ar = ath12k_mac_get_ar_by_vdev_id(ab, dp_vdev_id);
++		if (dp_ar) {
++			spin_lock_bh(&dp_ar->data_lock);
++			noise_floor = ath12k_pdev_get_noise_floor(dp_ar);
++			spin_unlock_bh(&dp_ar->data_lock);
++			db2dbm = test_bit(WMI_TLV_SERVICE_HW_DB2DBM_CONVERSION_SUPPORT,
++					  ab->wmi_ab.svc_map);
++		}
++
++		if (rssi_comb) {
++			signal = (s8)rssi_comb;
++			if (!db2dbm)
++				signal += noise_floor;
++		}
++
++		signal_avg_dbm = signal_avg;
++		if (signal_avg && !db2dbm)
++			signal_avg_dbm += noise_floor;
++	}
++
+ 	spin_lock_bh(&ab->base_lock);
+ 
+ 	arsta = ath12k_link_sta_find_by_addr(ab, arg.mac_addr);
+@@ -7646,9 +7706,51 @@ static void ath12k_peer_sta_kickout_even
+ 	ahsta = arsta->ahsta;
+ 	sta = ath12k_ahsta_to_sta(ahsta);
+ 
++	if (sta->mlo) {
++		if (arsta->link_id >= IEEE80211_MLD_MAX_NUM_LINKS ||
++		    !(sta->valid_links & BIT(arsta->link_id)) ||
++		    !(ahsta->links_map & BIT(arsta->link_id))) {
++			ath12k_warn(ab,
++				    "ignore stale peer sta kickout %pM for invalid MLO link %u (sta links 0x%x driver links 0x%x)\n",
++				    arg.mac_addr, arsta->link_id, sta->valid_links,
++				    ahsta->links_map);
++			goto exit;
++		}
++
++		link_sta = rcu_dereference(sta->link[arsta->link_id]);
++		if (!link_sta ||
++		    !ether_addr_equal(link_sta->addr, arg.mac_addr)) {
++			ath12k_warn(ab,
++				    "ignore stale peer sta kickout %pM for mismatched MLO link %u\n",
++				    arg.mac_addr, arsta->link_id);
++			goto exit;
++		}
++	} else if (!ether_addr_equal(sta->addr, arg.mac_addr)) {
++		ath12k_warn(ab, "ignore stale peer sta kickout %pM for STA %pM\n",
++			    arg.mac_addr, sta->addr);
++		goto exit;
++	}
++
++	if (dp_stats_valid &&
++	    (dp_sta != sta || dp_vdev_id != arvif->vdev_id ||
++	     dp_mlo != sta->mlo ||
++	     (sta->mlo && dp_link_id != arsta->link_id))) {
++		ath12k_warn(ab,
++			    "ignore stale peer sta kickout %pM for mismatched datapath peer %d vdev %d link %u mlo %d\n",
++			    arg.mac_addr, dp_peer_id, dp_vdev_id, dp_link_id,
++			    dp_mlo);
++		goto exit;
++	}
++
+ 	ath12k_dbg(ab, ATH12K_DBG_WMI,
+-		   "peer sta kickout event %pM reason: %d rssi: %d\n",
+-		   arg.mac_addr, arg.reason, arg.rssi);
++		    "accepted peer sta kickout %pM mlo %d link %u assoc-link %d reason %d fw rssi %d dp valid %d peer %d ml %u vdev %d pdev %u hw-link %u link %u mlo %d primary %d authorized %d assoc-status %u rssi-raw %u signal %d avg %d retries-total %u failed-total %u tx-duration-us %llu rate flags 0x%x mcs %u nss %u bw %u\n",
++		    arg.mac_addr, sta->mlo, arsta->link_id,
++		    arsta->is_assoc_link, arg.reason, (s32)arg.rssi,
++		    dp_stats_valid, dp_peer_id, dp_ml_id, dp_vdev_id, dp_pdev_idx,
++		    dp_hw_link_id, dp_link_id, dp_mlo, dp_primary, dp_authorized,
++		    dp_assoc_status, rssi_comb, signal, signal_avg_dbm,
++		    tx_retries, tx_failed, tx_duration, txrate.flags, txrate.mcs, txrate.nss,
++		    txrate.bw);
+ 
+ 	switch (arg.reason) {
+ 	case WMI_PEER_STA_KICKOUT_REASON_INACTIVITY:

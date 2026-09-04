@@ -1,0 +1,49 @@
+From e15cfef60d907f6687fa75cb5e9807de225cd1b3 Mon Sep 17 00:00:00 2001
+From: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Date: Wed, 29 Jul 2026 15:18:14 +0800
+Subject: [PATCH] wifi: ath12k: skip setting country code during registration
+ when unchanged
+
+Currently ath12k_mac_hw_register() unconditionally sets ab->new_alpha2 to
+firmware. But when ab->new_alpha2 is the same as the country already
+applied at boot time (stored in ab->default_regd), setting it again is
+meaningless. So skip it in that case.
+
+Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c7-00108-QCAHMTSWPL_V1.0_V2.0_SILICONZ_UPSTREAM-3
+
+Signed-off-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260729-ath12k-regd-wait-timeout-v1-4-504aa6e7e93c@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -15091,6 +15091,8 @@ static int ath12k_mac_hw_register(struct
+ 
+ 		if (this_ab->hw_params->current_cc_support) {
+ 			struct wmi_set_current_country_arg current_cc = {};
++			struct ieee80211_regdomain *default_regd;
++			bool same_cc = false;
+ 
+ 			spin_lock_bh(&this_ab->base_lock);
+ 			memcpy(&current_cc.alpha2, this_ab->new_alpha2, 2);
+@@ -15101,6 +15103,16 @@ static int ath12k_mac_hw_register(struct
+ 
+ 			memcpy(&ar->alpha2, current_cc.alpha2, 2);
+ 
++			spin_lock_bh(&this_ab->base_lock);
++			default_regd = this_ab->default_regd[ar->pdev_idx];
++			if (default_regd)
++				same_cc = !memcmp(default_regd->alpha2,
++						  current_cc.alpha2, 2);
++			spin_unlock_bh(&this_ab->base_lock);
++
++			if (same_cc)
++				goto fw_stats_init;
++
+ 			reinit_completion(&ar->regd_update_completed);
+ 
+ 			ret = ath12k_wmi_send_set_current_country_cmd(ar, &current_cc);

@@ -45,7 +45,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -1426,6 +1426,7 @@ static int ath12k_core_reconfigure_on_cr
+@@ -1431,6 +1431,7 @@ static int ath12k_core_reconfigure_on_cr
  	ath12k_hal_srng_deinit(ab);
  	total_vdev = ab->num_radios * TARGET_NUM_VDEVS(ab);
  	ab->free_vdev_map = (1LL << total_vdev) - 1;
@@ -53,7 +53,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	ret = ath12k_hal_srng_init(ab);
  	if (ret)
-@@ -1437,8 +1438,6 @@ static int ath12k_core_reconfigure_on_cr
+@@ -1442,8 +1443,6 @@ static int ath12k_core_reconfigure_on_cr
  	if (ret)
  		goto err_hal_srng_deinit;
  
@@ -62,7 +62,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	return 0;
  
  err_hal_srng_deinit:
-@@ -1678,9 +1677,10 @@ static void ath12k_core_restart(struct w
+@@ -1683,9 +1682,10 @@ static void ath12k_core_restart(struct w
  	if (ab->is_reset) {
  		if (!test_bit(ATH12K_FLAG_REGISTERED, &ab->dev_flags)) {
  			atomic_dec(&ab->reset_count);
@@ -87,7 +87,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	ret = ath12k_wmi_vdev_stop(ar, arvif->vdev_id);
  	if (ret) {
  		ath12k_warn(ar->ab, "failed to stop WMI vdev %i: %d\n",
-@@ -4270,7 +4274,10 @@ static void ath12k_mac_remove_link_inter
+@@ -4281,7 +4285,10 @@ static void ath12k_mac_remove_link_inter
  		ath12k_mac_11d_scan_stop(ar);
  
  	if (ahvif->vdev_type == WMI_VDEV_TYPE_AP) {
@@ -99,7 +99,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		if (ret)
  			ath12k_warn(ar->ab, "failed to submit AP self-peer removal on vdev %d link id %d: %d",
  				    arvif->vdev_id, arvif->link_id, ret);
-@@ -7114,7 +7121,10 @@ static int ath12k_mac_station_remove(str
+@@ -7125,7 +7132,10 @@ static int ath12k_mac_station_remove(str
  
  	ath12k_dp_peer_cleanup(ar, arvif->vdev_id, arsta->addr);
  
@@ -111,7 +111,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (ret)
  		ath12k_warn(ar->ab, "Failed to delete peer: %pM for VDEV: %d\n",
  			    arsta->addr, arvif->vdev_id);
-@@ -7226,7 +7236,7 @@ static int ath12k_mac_station_add(struct
+@@ -7237,7 +7247,7 @@ static int ath12k_mac_station_add(struct
  	return 0;
  
  free_peer:
@@ -120,7 +120,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	spin_lock_bh(&ab->base_lock);
  	ath12k_link_sta_rhash_delete(ab, arsta);
  	spin_unlock_bh(&ab->base_lock);
-@@ -7422,6 +7432,18 @@ static int ath12k_mac_handle_link_sta_st
+@@ -7433,6 +7443,18 @@ static int ath12k_mac_handle_link_sta_st
  	}
  
  exit:
@@ -139,7 +139,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	return ret;
  }
  
-@@ -10632,7 +10654,7 @@ int ath12k_mac_vdev_create(struct ath12k
+@@ -10655,7 +10677,7 @@ int ath12k_mac_vdev_create(struct ath12k
  err_peer_del:
  	if (ahvif->vdev_type == WMI_VDEV_TYPE_AP) {
  		/* ignore return value: propagate the original error */
@@ -148,7 +148,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	}
  
  err_dp_peer_del:
-@@ -10914,12 +10936,16 @@ static int ath12k_mac_vdev_delete(struct
+@@ -10937,12 +10959,16 @@ static int ath12k_mac_vdev_delete(struct
  	struct ath12k_dp_link_vif *dp_link_vif;
  	struct ath12k_base *ab = ar->ab;
  	unsigned long time_left;
@@ -166,7 +166,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	ret = ath12k_wmi_vdev_delete(ar, arvif->vdev_id);
  	if (ret) {
  		ath12k_warn(ab, "failed to delete WMI vdev %d: %d\n",
-@@ -10948,7 +10974,8 @@ static int ath12k_mac_vdev_delete(struct
+@@ -10971,7 +10997,8 @@ static int ath12k_mac_vdev_delete(struct
  
  err_vdev_del:
  	spin_lock_bh(&ar->data_lock);
@@ -176,7 +176,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	spin_unlock_bh(&ar->data_lock);
  
  	ath12k_peer_cleanup(ar, arvif->vdev_id);
-@@ -13558,6 +13585,7 @@ ath12k_mac_op_reconfig_complete(struct i
+@@ -13584,6 +13611,7 @@ ath12k_mac_op_reconfig_complete(struct i
  	struct ath12k_base *ab;
  	struct ath12k_vif *ahvif;
  	struct ath12k_link_vif *arvif;
@@ -184,7 +184,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	int recovery_count, i;
  
  	lockdep_assert_wiphy(hw->wiphy);
-@@ -13567,19 +13595,31 @@ ath12k_mac_op_reconfig_complete(struct i
+@@ -13593,19 +13621,31 @@ ath12k_mac_op_reconfig_complete(struct i
  
  	guard(mutex)(&ah->hw_mutex);
  
@@ -223,7 +223,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		    ar->alpha2[0] != 0 && ar->alpha2[1] != 0) {
  			struct wmi_set_current_country_arg arg = {};
  
-@@ -13599,13 +13639,17 @@ ath12k_mac_op_reconfig_complete(struct i
+@@ -13625,13 +13665,17 @@ ath12k_mac_op_reconfig_complete(struct i
  			 */
  			if (recovery_count == ab->num_radios) {
  				atomic_dec(&ab->reset_count);

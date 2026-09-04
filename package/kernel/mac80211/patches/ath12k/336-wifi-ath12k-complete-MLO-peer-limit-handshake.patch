@@ -1,0 +1,155 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 27 Aug 2026 15:10:00 +0800
+Subject: [PATCH] wifi: ath12k: complete MLO peer limit handshake
+
+Recent firmware reports its per-device ML peer capacity in the WMI ready
+event and expects the host to return the minimum capacity shared by all
+devices in WMI_MLO_SETUP_CMD.  The field is part of the extended fixed
+parameter TLV used by Qualcomm's current ath12k implementation.
+
+Decode the extended ready event, retain the hardware capability as a
+fallback, calculate the group-wide minimum, and return it when every
+participating device advertised the extended ABI.  If any device sent the
+legacy ready layout, keep the original 12-byte MLO setup fixed TLV instead
+of appending a field that old firmware does not know about.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -1178,6 +1178,10 @@ struct ath12k_base {
+ 	struct rhashtable *rhead_sta_addr;
+ 	struct rhashtable_params rhash_sta_addr_param;
+ 
++	/* ML peer capacity and ABI revision advertised by WMI ready. */
++	u32 max_ml_peer_supported;
++	bool max_ml_peer_supported_valid;
++
+ 	/* must be last */
+ 	u8 drv_priv[] __aligned(sizeof(void *));
+ };
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -15371,6 +15371,8 @@ static int __ath12k_mac_mlo_setup(struct
+ 	struct ath12k_base *partner_ab, *ab = ar->ab;
+ 	struct ath12k_hw_group *ag = ab->ag;
+ 	struct wmi_mlo_setup_arg mlo = {};
++	u32 max_ml_peers = ab->max_ml_peer_supported;
++	bool max_ml_peers_valid = ab->max_ml_peer_supported_valid;
+ 	struct ath12k_pdev *pdev;
+ 	unsigned long time_left;
+ 	int i, j, ret;
+@@ -15382,6 +15384,10 @@ static int __ath12k_mac_mlo_setup(struct
+ 	for (i = 0; i < ag->num_devices; i++) {
+ 		partner_ab = ag->ab[i];
+ 
++		max_ml_peers = min(max_ml_peers,
++				   partner_ab->max_ml_peer_supported);
++		max_ml_peers_valid &= partner_ab->max_ml_peer_supported_valid;
++
+ 		for (j = 0; j < partner_ab->num_radios; j++) {
+ 			pdev = &partner_ab->pdevs[j];
+ 
+@@ -15403,9 +15409,13 @@ static int __ath12k_mac_mlo_setup(struct
+ 	mlo.group_id = cpu_to_le32(ag->id);
+ 	mlo.partner_link_id = partner_link_id;
+ 	mlo.num_partner_links = num_link;
++	mlo.max_ml_peer_supported = max_ml_peers;
++	mlo.max_ml_peer_supported_valid = max_ml_peers_valid;
+ 	ar->mlo_setup_status = 0;
+ 
+-	ath12k_dbg(ab, ATH12K_DBG_MAC, "group id %d num_link %d\n", ag->id, num_link);
++	ath12k_dbg(ab, ATH12K_DBG_MAC,
++		   "group id %d num_link %d max_ml_peers %u valid %d\n",
++		   ag->id, num_link, max_ml_peers, max_ml_peers_valid);
+ 
+ 	ret = ath12k_wmi_mlo_setup(ar, &mlo);
+ 	if (ret) {
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -7137,6 +7137,20 @@ static int ath12k_wmi_rdy_parse(struct a
+ 				fixed_param.ready_event_min.mac_addr.addr);
+ 		ab->pktlog_defs_checksum = le32_to_cpu(fixed_param.pktlog_defs_checksum);
+ 		ab->wmi_ready = true;
++		ab->max_ml_peer_supported = ab->hw_params->max_mlo_peer;
++		ab->max_ml_peer_supported_valid = false;
++		if (len >= sizeof(fixed_param)) {
++			u32 fw_max_ml_peers;
++
++			ab->max_ml_peer_supported_valid = true;
++			fw_max_ml_peers = le32_to_cpu(fixed_param.max_num_ml_peers);
++			if (fw_max_ml_peers)
++				ab->max_ml_peer_supported = fw_max_ml_peers;
++		}
++		ath12k_dbg(ab, ATH12K_DBG_WMI,
++			   "firmware supports %u ML peers (extended ready %d)\n",
++			   ab->max_ml_peer_supported,
++			   ab->max_ml_peer_supported_valid);
+ 		break;
+ 	case WMI_TAG_ARRAY_FIXED_STRUCT:
+ 		addr_list = (struct ath12k_wmi_mac_addr_params *)ptr;
+@@ -11706,14 +11720,17 @@ int ath12k_wmi_mlo_setup(struct ath12k *
+ 	struct wmi_mlo_setup_cmd *cmd;
+ 	struct ath12k_wmi_pdev *wmi = ar->wmi;
+ 	u32 *partner_links, num_links;
+-	int i, ret, buf_len, arg_len;
++	int i, ret, buf_len, arg_len, cmd_len;
+ 	struct sk_buff *skb;
+ 	struct wmi_tlv *tlv;
+ 	void *ptr;
+ 
+ 	num_links = mlo_params->num_partner_links;
+ 	arg_len = num_links * sizeof(u32);
+-	buf_len = sizeof(*cmd) + TLV_HDR_SIZE + arg_len;
++	cmd_len = mlo_params->max_ml_peer_supported_valid ?
++		  sizeof(*cmd) : offsetof(struct wmi_mlo_setup_cmd,
++					     max_num_ml_peers);
++	buf_len = cmd_len + TLV_HDR_SIZE + arg_len;
+ 
+ 	skb = ath12k_wmi_alloc_skb(wmi->wmi_ab, buf_len);
+ 	if (!skb)
+@@ -11721,10 +11738,13 @@ int ath12k_wmi_mlo_setup(struct ath12k *
+ 
+ 	cmd = (struct wmi_mlo_setup_cmd *)skb->data;
+ 	cmd->tlv_header = ath12k_wmi_tlv_cmd_hdr(WMI_TAG_MLO_SETUP_CMD,
+-						 sizeof(*cmd));
++						 cmd_len);
+ 	cmd->mld_group_id = mlo_params->group_id;
+ 	cmd->pdev_id = cpu_to_le32(ar->pdev->pdev_id);
+-	ptr = skb->data + sizeof(*cmd);
++	if (mlo_params->max_ml_peer_supported_valid)
++		cmd->max_num_ml_peers =
++			cpu_to_le32(mlo_params->max_ml_peer_supported);
++	ptr = skb->data + cmd_len;
+ 
+ 	tlv = ptr;
+ 	tlv->header = ath12k_wmi_tlv_hdr(WMI_TAG_ARRAY_UINT32, arg_len);
+--- a/drivers/net/wireless/ath/ath12k/wmi.h
++++ b/drivers/net/wireless/ath/ath12k/wmi.h
+@@ -2903,6 +2903,10 @@ struct wmi_ready_event {
+ 	struct ath12k_wmi_ready_event_min_params ready_event_min;
+ 	__le32 max_ast_index;
+ 	__le32 pktlog_defs_checksum;
++	__le32 max_onchip_ast_index;
++	__le32 num_of_linkview_peers;
++	__le32 num_max_active_vdevs;
++	__le32 max_num_ml_peers;
+ } __packed;
+ 
+ struct wmi_service_available_event {
+@@ -5502,12 +5506,15 @@ struct wmi_mlo_setup_cmd {
+ 	__le32 tlv_header;
+ 	__le32 mld_group_id;
+ 	__le32 pdev_id;
++	__le32 max_num_ml_peers;
+ } __packed;
+ 
+ struct wmi_mlo_setup_arg {
+ 	__le32 group_id;
+ 	u8 num_partner_links;
+ 	u8 *partner_link_id;
++	u32 max_ml_peer_supported;
++	bool max_ml_peer_supported_valid;
+ };
+ 
+ struct wmi_mlo_ready_cmd {

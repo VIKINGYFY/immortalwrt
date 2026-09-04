@@ -1,0 +1,24 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Mon, 10 Aug 2026 16:00:00 +0800
+Subject: [PATCH] irq: export irq_can_set_affinity to GPL modules
+
+Wireless drivers built through backports are modules and need to query
+whether an IRQ supports affinity before selecting threaded NAPI. Export the
+existing helper so GPL modules can use it.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+
+---
+ kernel/irq/manage.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/kernel/irq/manage.c
++++ b/kernel/irq/manage.c
+@@ -171,6 +171,7 @@ int irq_can_set_affinity(unsigned int ir
+ {
+ 	return __irq_can_set_affinity(irq_to_desc(irq));
+ }
++EXPORT_SYMBOL_GPL(irq_can_set_affinity);
+ 
+ /**
+  * irq_can_set_affinity_usr - Check if affinity of a irq can be set from user space

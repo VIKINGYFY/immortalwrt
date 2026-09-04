@@ -40,7 +40,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  #define ATH12K_MLO_PEER_ID_INVALID      0xFFFF
  #define ATH12K_MLO_PEER_ID_PENDING      0xFFFE
  
-@@ -801,6 +802,8 @@ struct ath12k_hw {
+@@ -805,6 +806,8 @@ struct ath12k_hw {
  	u8 num_radio;
  
  	DECLARE_BITMAP(free_ml_peer_id_map, ATH12K_MAX_MLO_PEERS);
@@ -51,7 +51,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -15434,6 +15434,7 @@ static struct ath12k_hw *ath12k_mac_hw_a
+@@ -15483,6 +15483,7 @@ static struct ath12k_hw *ath12k_mac_hw_a
  	ah = ath12k_hw_to_ah(hw);
  	ah->hw = hw;
  	ah->num_radio = num_pdev_map;
@@ -98,7 +98,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  void ath12k_peer_ml_free(struct ath12k_hw *ah, struct ath12k_sta *ahsta)
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -9603,24 +9603,51 @@ static void ath12k_wmi_gtk_offload_statu
+@@ -9659,24 +9659,51 @@ static void ath12k_wmi_gtk_offload_statu
  	rcu_read_unlock();
  }
  
@@ -155,7 +155,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (!ev) {
  		ath12k_warn(ab, "failed to fetch mlo setup complete event\n");
  		return;
-@@ -9645,6 +9672,28 @@ skip_lookup:
+@@ -9701,6 +9728,28 @@ skip_lookup:
  	}
  
  	ar->mlo_setup_status = le32_to_cpu(ev->status);

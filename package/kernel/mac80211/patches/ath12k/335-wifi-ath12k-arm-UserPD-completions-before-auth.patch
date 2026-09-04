@@ -1,0 +1,204 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 27 Aug 2026 11:40:00 +0800
+Subject: [PATCH] wifi: ath12k: harden AHB UserPD lifecycle handshakes
+
+The standalone AHB UserPD loader currently authenticates and resets the
+image before reinitializing the spawn and ready completions.  An IRQ that
+arrives between those operations is discarded by reinit_completion(),
+which can turn a successful UserPD transition into a timeout.
+
+There is also no way to distinguish a real spawn, ready, or stop ACK from
+complete_all() used by the fatal path to unblock an in-flight operation.
+Consequently a UserPD or RootPD crash during power up can be reported as a
+successful boot and clear the crash state.  This is the same problem fixed
+for Qualcomm's multi-PD remoteproc implementation by tracking an ACK beside
+each completion.
+
+Arm the completions before PAS authentication, track the three UserPD ACKs,
+and reject completions caused by either crash path.  Always clear a raised
+stop request and continue with PAS shutdown after a missing stop ACK so a
+failed shutdown cannot poison the next recovery attempt.  RootPD crashes
+also wake all UserPD waiters even when the per-UserPD fatal IRQ is absent.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/ahb.c
+@@ -461,6 +461,17 @@ static int ath12k_ahb_power_up(struct at
+ 		goto err_fw2;
+ 	}
+ 
++	reinit_completion(&ab_ahb->userpd_spawned);
++	reinit_completion(&ab_ahb->userpd_ready);
++	reinit_completion(&ab_ahb->userpd_stopped);
++	WRITE_ONCE(ab_ahb->userpd_spawn_acked, false);
++	WRITE_ONCE(ab_ahb->userpd_ready_acked, false);
++	WRITE_ONCE(ab_ahb->userpd_stop_acked, false);
++
++	/* Start a new UserPD boot epoch after all stale completions are gone. */
++	WRITE_ONCE(ab_ahb->rootpd_crashed, false);
++	atomic_set(&ab_ahb->userpd_crashed, 0);
++
+ 	if (ab_ahb->scm_auth_enabled) {
+ 		/* Authenticate FW image using peripheral ID */
+ 		ret = qcom_scm_pas_auth_and_reset(pasid);
+@@ -470,9 +481,6 @@ static int ath12k_ahb_power_up(struct at
+ 		}
+ 	}
+ 
+-	reinit_completion(&ab_ahb->userpd_spawned);
+-	reinit_completion(&ab_ahb->userpd_ready);
+-
+ 	/* Instruct Q6 to spawn userPD thread */
+ 	ret = qcom_smem_state_update_bits(ab_ahb->spawn_state, BIT(ab_ahb->spawn_bit),
+ 					  BIT(ab_ahb->spawn_bit));
+@@ -489,6 +497,13 @@ static int ath12k_ahb_power_up(struct at
+ 		ret = -ETIMEDOUT;
+ 		goto err_fw2;
+ 	}
++	if (!READ_ONCE(ab_ahb->userpd_spawn_acked) ||
++	    atomic_read(&ab_ahb->userpd_crashed) ||
++	    READ_ONCE(ab_ahb->rootpd_crashed)) {
++		ath12k_err(ab, "UserPD spawn interrupted by remoteproc crash\n");
++		ret = -EIO;
++		goto err_fw2;
++	}
+ 
+ 	time_left = wait_for_completion_timeout(&ab_ahb->userpd_ready,
+ 						ATH12K_USERPD_READY_TIMEOUT);
+@@ -497,9 +512,14 @@ static int ath12k_ahb_power_up(struct at
+ 		ret = -ETIMEDOUT;
+ 		goto err_fw2;
+ 	}
++	if (!READ_ONCE(ab_ahb->userpd_ready_acked) ||
++	    atomic_read(&ab_ahb->userpd_crashed) ||
++	    READ_ONCE(ab_ahb->rootpd_crashed)) {
++		ath12k_err(ab, "UserPD ready interrupted by remoteproc crash\n");
++		ret = -EIO;
++		goto err_fw2;
++	}
+ 
+-	ab_ahb->rootpd_crashed = false;
+-	atomic_set(&ab_ahb->userpd_crashed, 0);
+ 	ath12k_dbg(ab, ATH12K_DBG_AHB, "UserPD%d is now UP\n", ab_ahb->userpd_id);
+ 
+ err_fw2:
+@@ -528,24 +548,37 @@ static void ath12k_ahb_power_down(struct
+ 	u32 pasid;
+ 	int ret;
+ 
+-	if (ab_ahb->rootpd_crashed)
++	if (READ_ONCE(ab_ahb->rootpd_crashed))
+ 		return;
+ 
+ 	if (!atomic_read(&ab_ahb->userpd_crashed)) {
+ 		reinit_completion(&ab_ahb->userpd_stopped);
+-		qcom_smem_state_update_bits(ab_ahb->stop_state,
+-					    BIT(ab_ahb->stop_bit),
+-					    BIT(ab_ahb->stop_bit));
+-
+-		time_left = wait_for_completion_timeout(&ab_ahb->userpd_stopped,
+-							ATH12K_USERPD_STOP_TIMEOUT);
+-		if (!time_left) {
+-			ath12k_err(ab, "UserPD stop wait timed out\n");
+-			return;
++		WRITE_ONCE(ab_ahb->userpd_stop_acked, false);
++		ret = qcom_smem_state_update_bits(ab_ahb->stop_state,
++						  BIT(ab_ahb->stop_bit),
++						  BIT(ab_ahb->stop_bit));
++		if (ret) {
++			ath12k_err(ab, "failed to request UserPD stop: %d\n", ret);
++		} else {
++			time_left = wait_for_completion_timeout(
++				&ab_ahb->userpd_stopped,
++				ATH12K_USERPD_STOP_TIMEOUT);
++			if (!time_left)
++				ath12k_err(ab, "UserPD stop wait timed out\n");
++			else if (!READ_ONCE(ab_ahb->userpd_stop_acked))
++				ath12k_err(ab,
++					   "UserPD stop interrupted by remoteproc crash\n");
+ 		}
+ 	}
+ 
+-	qcom_smem_state_update_bits(ab_ahb->stop_state, BIT(ab_ahb->stop_bit), 0);
++	ret = qcom_smem_state_update_bits(ab_ahb->stop_state,
++					  BIT(ab_ahb->stop_bit), 0);
++	if (ret)
++		ath12k_warn(ab, "failed to clear UserPD stop request: %d\n", ret);
++
++	/* The RootPD crash notifier has already released this UserPD. */
++	if (READ_ONCE(ab_ahb->rootpd_crashed))
++		return;
+ 
+ 	if (ab_ahb->scm_auth_enabled) {
+ 		pasid = (u32_encode_bits(ab_ahb->userpd_id, ATH12K_USERPD_ID_MASK)) |
+@@ -801,10 +834,6 @@ static void ath12k_ahb_handle_userpd_cra
+ {
+ 	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
+ 
+-	if (!test_bit(ATH12K_FLAG_REGISTERED, &ab->dev_flags) ||
+-	    test_bit(ATH12K_FLAG_UNREGISTERING, &ab->dev_flags))
+-		return;
+-
+ 	if (atomic_cmpxchg(&ab_ahb->userpd_crashed, 0, 1))
+ 		return;
+ 
+@@ -812,7 +841,9 @@ static void ath12k_ahb_handle_userpd_cra
+ 	complete_all(&ab_ahb->userpd_ready);
+ 	complete_all(&ab_ahb->userpd_stopped);
+ 	ath12k_ahb_log_userpd_crash_reason(ab);
+-	ath12k_ahb_queue_group_recovery(ab);
++	if (test_bit(ATH12K_FLAG_REGISTERED, &ab->dev_flags) &&
++	    !test_bit(ATH12K_FLAG_UNREGISTERING, &ab->dev_flags))
++		ath12k_ahb_queue_group_recovery(ab);
+ }
+ 
+ static irqreturn_t ath12k_userpd_irq_handler(int irq, void *data)
+@@ -821,10 +852,13 @@ static irqreturn_t ath12k_userpd_irq_han
+ 	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
+ 
+ 	if (irq == ab_ahb->userpd_irq_num[ATH12K_USERPD_SPAWN_IRQ]) {
++		WRITE_ONCE(ab_ahb->userpd_spawn_acked, true);
+ 		complete(&ab_ahb->userpd_spawned);
+ 	} else if (irq == ab_ahb->userpd_irq_num[ATH12K_USERPD_READY_IRQ]) {
++		WRITE_ONCE(ab_ahb->userpd_ready_acked, true);
+ 		complete(&ab_ahb->userpd_ready);
+ 	} else if (irq == ab_ahb->userpd_irq_num[ATH12K_USERPD_STOP_ACK_IRQ])	{
++		WRITE_ONCE(ab_ahb->userpd_stop_acked, true);
+ 		complete(&ab_ahb->userpd_stopped);
+ 	} else if (irq == ab_ahb->userpd_irq_num[ATH12K_USERPD_FATAL_IRQ]) {
+ 		ath12k_ahb_handle_userpd_crash(ab);
+@@ -940,15 +974,19 @@ static int ath12k_ahb_root_pd_state_noti
+ 	case QCOM_SSR_AFTER_POWERUP:
+ 		ath12k_dbg(ab, ATH12K_DBG_AHB, "Root PD is UP\n");
+ 		complete(&ab_ahb->rootpd_ready);
+-		if (ab_ahb->rootpd_crashed)
++		if (READ_ONCE(ab_ahb->rootpd_crashed))
+ 			ath12k_ahb_queue_group_recovery(ab);
+ 		return NOTIFY_OK;
+ 	case QCOM_SSR_BEFORE_SHUTDOWN:
+ 		if (!notify_data || !notify_data->crashed)
+ 			return NOTIFY_DONE;
+ 
++		atomic_set(&ab_ahb->userpd_crashed, 1);
++		complete_all(&ab_ahb->userpd_spawned);
++		complete_all(&ab_ahb->userpd_ready);
++		complete_all(&ab_ahb->userpd_stopped);
+ 		reinit_completion(&ab_ahb->rootpd_ready);
+-		ab_ahb->rootpd_crashed = true;
++		WRITE_ONCE(ab_ahb->rootpd_crashed, true);
+ 
+ 		if (test_bit(ATH12K_FLAG_REGISTERED, &ab->dev_flags) &&
+ 		    !test_bit(ATH12K_FLAG_UNREGISTERING, &ab->dev_flags)) {
+--- a/drivers/net/wireless/ath/ath12k/ahb.h
++++ b/drivers/net/wireless/ath/ath12k/ahb.h
+@@ -74,6 +74,9 @@ struct ath12k_ahb {
+ 	const struct ath12k_ahb_device_family_ops *device_family_ops;
+ 	bool scm_auth_enabled;
+ 	bool rootpd_crashed;
++	bool userpd_spawn_acked;
++	bool userpd_ready_acked;
++	bool userpd_stop_acked;
+ 	atomic_t userpd_crashed;
+ };
+ 

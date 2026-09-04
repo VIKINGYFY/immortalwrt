@@ -1,0 +1,77 @@
+From 878654eb78c6aa0ff585baf1376567c775ca28ec Mon Sep 17 00:00:00 2001
+From: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+Date: Fri, 24 Jul 2026 08:56:13 -0700
+Subject: [PATCH] wifi: ath12k: fix overreads in
+ ath12k_wmi_process_csa_switch_count_event()
+
+There is no policy entry for WMI_TAG_PDEV_CSA_SWITCH_COUNT_STATUS_EVENT, so
+the parse infrastructure does not enforce a minimum length for the event
+struct. Additionally, the num_vdevs field is taken directly from firmware
+and used as a loop bound over the vdev_ids array without checking that it
+fits within the TLV payload. Either condition can cause an out-of-bounds
+read.
+
+Add a TLV policy entry for WMI_TAG_PDEV_CSA_SWITCH_COUNT_STATUS_EVENT so
+the parse infrastructure enforces a minimum length for the fixed-size event
+struct. Add a helper ath12k_wmi_tlv_data_len() to recover the payload
+length of a parsed TLV from the header preceding its data pointer. Use it
+in ath12k_wmi_process_csa_switch_count_event() to bound num_vdevs before
+the loop.
+
+Compile tested only.
+
+Fixes: d889913205cf ("wifi: ath12k: driver for Qualcomm Wi-Fi 7 devices")
+Assisted-by: Claude:claude-sonnet-4-6
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260724-ath12k_wmi_process_csa_switch_count_event-cleanup-v2-1-02a45d7246c0@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/wmi.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -207,6 +207,8 @@ static const struct ath12k_wmi_tlv_polic
+ 		.min_len = sizeof(struct wmi_per_chain_rssi_stat_params) },
+ 	[WMI_TAG_OBSS_COLOR_COLLISION_EVT] = {
+ 		.min_len = sizeof(struct wmi_obss_color_collision_event) },
++	[WMI_TAG_PDEV_CSA_SWITCH_COUNT_STATUS_EVENT] = {
++		.min_len = sizeof(struct ath12k_wmi_pdev_csa_event) },
+ };
+ 
+ __le32 ath12k_wmi_tlv_hdr(u32 cmd, u32 len)
+@@ -374,6 +376,13 @@ ath12k_wmi_tlv_parse(struct ath12k_base
+ 	return tb;
+ }
+ 
++static u32 ath12k_wmi_tlv_data_len(const void *data)
++{
++	const struct wmi_tlv *tlv = (const struct wmi_tlv *)data - 1;
++
++	return le32_get_bits(tlv->header, WMI_TLV_LEN);
++}
++
+ static int ath12k_wmi_cmd_send_nowait(struct ath12k_wmi_pdev *wmi, struct sk_buff *skb,
+ 				      u32 cmd_id)
+ {
+@@ -9043,12 +9052,19 @@ ath12k_wmi_process_csa_switch_count_even
+ 					  const u32 *vdev_ids)
+ {
+ 	u32 current_switch_count = le32_to_cpu(ev->current_switch_count);
++	u32 vdev_ids_len = ath12k_wmi_tlv_data_len(vdev_ids);
+ 	u32 num_vdevs = le32_to_cpu(ev->num_vdevs);
+ 	struct ieee80211_bss_conf *conf;
+ 	struct ath12k_link_vif *arvif;
+ 	struct ath12k_vif *ahvif;
+ 	int i;
+ 
++	if (num_vdevs > vdev_ids_len / sizeof(*vdev_ids)) {
++		ath12k_warn(ab, "csa switch count num_vdevs %u exceeds tlv array length %u\n",
++			    num_vdevs, vdev_ids_len);
++		return;
++	}
++
+ 	rcu_read_lock();
+ 	for (i = 0; i < num_vdevs; i++) {
+ 		arvif = ath12k_mac_get_arvif_by_vdev_id(ab, vdev_ids[i]);

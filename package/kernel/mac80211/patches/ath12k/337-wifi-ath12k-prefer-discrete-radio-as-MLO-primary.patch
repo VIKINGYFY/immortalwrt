@@ -1,0 +1,321 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Thu, 27 Aug 2026 18:20:00 +0800
+Subject: [PATCH] wifi: ath12k: prefer discrete radio as MLO primary
+
+Qualcomm's driver marks IPQ5332 as unsuitable for automatic primary-link
+selection and marks QCN9274 as preferable.  Selecting the association link
+unconditionally can make the IPQ5332 UserPD the primary UMAC when a client
+first associates on 2.4 GHz, even though an active QCN9274 partner exists.
+
+Primary-link selection in TIP also depends on delaying data-path setup until
+all partner peers have been created.  Keep MLO peers without a primary data
+path at creation time, select the first preferable created link, and perform
+REO/TID setup during the AUTH-to-ASSOC transition only on that link.  This
+avoids moving shared MLD reorder queues after they have already been created
+on the association link.  Non-MLO peer setup remains unchanged.
+
+Use the selected link consistently for the WMI primary-UMAC flags and data
+transmission.  Keep the association link as a fallback, and do not change the
+primary after association because this backport does not include TIP's live
+UMAC migration machinery.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -514,7 +514,7 @@ struct ath12k_link_sta {
+ 	s8 rssi_beacon;
+ 	s8 chain_signal[IEEE80211_MAX_CHAINS];
+ 
+-	/* For now the assoc link will be considered primary */
++	/* Whether this link was used for association. */
+ 	bool is_assoc_link;
+ 
+ 	 /* for firmware use only */
+@@ -532,6 +532,8 @@ struct ath12k_sta {
+ 	/* indicates bitmap of link sta created in FW */
+ 	u16 links_map;
+ 	u8 assoc_link_id;
++	/* protected by wiphy lock */
++	u8 primary_link_id;
+ 	u16 ml_peer_id;
+ 	u16 free_logical_link_idx_map;
+ 
+--- a/drivers/net/wireless/ath/ath12k/dp.c
++++ b/drivers/net/wireless/ath/ath12k/dp.c
+@@ -48,6 +48,7 @@ int ath12k_dp_peer_setup(struct ath12k *
+ {
+ 	struct ath12k_base *ab = ar->ab;
+ 	struct ath12k_dp_link_peer *peer;
++	struct ath12k_sta *ahsta;
+ 	u32 reo_dest;
+ 	int ret = 0, tid;
+ 	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
+@@ -64,6 +65,34 @@ int ath12k_dp_peer_setup(struct ath12k *
+ 		return ret;
+ 	}
+ 
++	spin_lock_bh(&dp->dp_lock);
++	peer = ath12k_dp_link_peer_find_by_vdev_and_addr(dp, vdev_id, addr);
++	if (!peer || !peer->dp_peer) {
++		ath12k_warn(ab, "failed to find peer %pM on vdev %d for dp setup\n",
++			    addr, vdev_id);
++		spin_unlock_bh(&dp->dp_lock);
++		return -ENOENT;
++	}
++
++	if (peer->mlo) {
++		if (!peer->sta) {
++			ath12k_warn(ab, "MLO peer %pM on vdev %d has no station\n",
++				    addr, vdev_id);
++			spin_unlock_bh(&dp->dp_lock);
++			return -EINVAL;
++		}
++
++		ahsta = ath12k_sta_to_ahsta(peer->sta);
++		if (peer->link_id != ahsta->primary_link_id) {
++			peer->primary_link = false;
++			spin_unlock_bh(&dp->dp_lock);
++			return 0;
++		}
++	}
++
++	peer->primary_link = true;
++	spin_unlock_bh(&dp->dp_lock);
++
+ 	for (tid = 0; tid <= IEEE80211_NUM_TIDS; tid++) {
+ 		ret = ath12k_dp_rx_peer_tid_setup(ar, addr, vdev_id, tid, 1, 0,
+ 						  HAL_PN_TYPE_NONE);
+--- a/drivers/net/wireless/ath/ath12k/hw.h
++++ b/drivers/net/wireless/ath/ath12k/hw.h
+@@ -231,6 +231,7 @@ struct ath12k_hw_params {
+ 	u32 bdf_addr_offset;
+ 
+ 	/* setup REO queue, frag etc only for primary link peer */
++	bool is_plink_preferable:1;
+ 	bool dp_primary_link_only:1;
+ 	struct {
+ 		u32 max_client_single;
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -3568,8 +3568,7 @@ static void ath12k_peer_assoc_h_mlo(stru
+ 	ml->enabled = true;
+ 	ml->assoc_link = arsta->is_assoc_link;
+ 
+-	/* For now considering the primary umac based on assoc link */
+-	ml->primary_umac = arsta->is_assoc_link;
++	ml->primary_umac = arsta->link_id == ahsta->primary_link_id;
+ 	/*
+ 	 * Only chips that allocate the MLD peer ID on the host send a valid
+ 	 * ml_peer_id in WMI_PEER_ASSOC_CMDID. For chips where the firmware
+@@ -3614,7 +3613,8 @@ static void ath12k_peer_assoc_h_mlo(stru
+ 		ml->partner_info[i].vdev_id = arvif->vdev_id;
+ 		ml->partner_info[i].hw_link_id = arvif->ar->pdev->hw_link_id;
+ 		ml->partner_info[i].assoc_link = arsta_p->is_assoc_link;
+-		ml->partner_info[i].primary_umac = arsta_p->is_assoc_link;
++		ml->partner_info[i].primary_umac =
++			arsta_p->link_id == ahsta->primary_link_id;
+ 		ml->partner_info[i].logical_link_idx_valid = true;
+ 		ml->partner_info[i].logical_link_idx = arsta_p->link_idx;
+ 		ml->num_partner_links++;
+@@ -7294,11 +7294,13 @@ static int ath12k_mac_station_add(struct
+ 		}
+ 	}
+ 
+-	ret = ath12k_dp_peer_setup(ar, arvif->vdev_id, arsta->addr);
+-	if (ret) {
+-		ath12k_warn(ab, "failed to setup dp for peer %pM on vdev %i (%d)\n",
+-			    arsta->addr, arvif->vdev_id, ret);
+-		goto free_peer;
++	if (!sta->mlo) {
++		ret = ath12k_dp_peer_setup(ar, arvif->vdev_id, arsta->addr);
++		if (ret) {
++			ath12k_warn(ab, "failed to setup dp for peer %pM on vdev %i (%d)\n",
++				    arsta->addr, arvif->vdev_id, ret);
++			goto free_peer;
++		}
+ 	}
+ 
+ 	if (ab->hw_params->vdev_start_delay &&
+@@ -7442,6 +7444,7 @@ static int ath12k_mac_handle_link_sta_st
+ 					    enum ieee80211_sta_state new_state)
+ {
+ 	struct ieee80211_vif *vif = ath12k_ahvif_to_vif(arvif->ahvif);
++	struct ieee80211_sta *sta = ath12k_ahsta_to_sta(arsta->ahsta);
+ 	struct ieee80211_bss_conf *link_conf;
+ 	struct ath12k *ar = arvif->ar;
+ 	struct ath12k_reg_info *reg_info;
+@@ -7478,14 +7481,25 @@ static int ath12k_mac_handle_link_sta_st
+ 	 * peer associated to AP/Mesh/ADHOC vif type.
+ 	 */
+ 	} else if (old_state == IEEE80211_STA_AUTH &&
+-		   new_state == IEEE80211_STA_ASSOC &&
+-		   (vif->type == NL80211_IFTYPE_AP ||
++		   new_state == IEEE80211_STA_ASSOC) {
++		if (sta->mlo) {
++			ret = ath12k_dp_peer_setup(ar, arvif->vdev_id, arsta->addr);
++			if (ret) {
++				ath12k_warn(ab,
++					    "failed to setup dp for peer %pM on vdev %i (%d)\n",
++					    arsta->addr, arvif->vdev_id, ret);
++				goto exit;
++			}
++		}
++
++		if (vif->type == NL80211_IFTYPE_AP ||
+ 		    vif->type == NL80211_IFTYPE_MESH_POINT ||
+-		    vif->type == NL80211_IFTYPE_ADHOC)) {
+-		ret = ath12k_mac_station_assoc(ar, arvif, arsta, false);
+-		if (ret)
+-			ath12k_warn(ab, "Failed to associate station: %pM\n",
+-				    arsta->addr);
++		    vif->type == NL80211_IFTYPE_ADHOC) {
++			ret = ath12k_mac_station_assoc(ar, arvif, arsta, false);
++			if (ret)
++				ath12k_warn(ab, "Failed to associate station: %pM\n",
++					    arsta->addr);
++		}
+ 
+ 	/* IEEE80211_STA_ASSOC -> IEEE80211_STA_AUTHORIZED: set peer status as
+ 	 * authorized
+@@ -7965,6 +7979,7 @@ int ath12k_mac_op_sta_state(struct ieee8
+ 
+ 			arsta->is_assoc_link = true;
+ 			ahsta->assoc_link_id = link_id;
++			ahsta->primary_link_id = link_id;
+ 		}
+ 	}
+ 
+@@ -8287,6 +8302,35 @@ static struct ath12k_link_sta *ath12k_ma
+ 	return arsta;
+ }
+ 
++static u8 ath12k_mac_mlo_select_primary_link(struct ath12k_hw *ah,
++					      struct ath12k_vif *ahvif,
++					      struct ath12k_sta *ahsta,
++					      unsigned long links)
++{
++	struct ath12k_link_vif *arvif;
++	u8 link_id;
++
++	lockdep_assert_wiphy(ah->hw->wiphy);
++
++	if (WARN_ON(!links))
++		return ahsta->assoc_link_id;
++
++	for_each_set_bit(link_id, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
++		arvif = wiphy_dereference(ah->hw->wiphy,
++					 ahvif->link[link_id]);
++		if (!arvif || !arvif->ar)
++			continue;
++
++		if (arvif->ar->ab->hw_params->is_plink_preferable)
++			return link_id;
++	}
++
++	if (links & BIT(ahsta->assoc_link_id))
++		return ahsta->assoc_link_id;
++
++	return __ffs(links);
++}
++
+ int ath12k_mac_op_change_sta_links(struct ieee80211_hw *hw,
+ 				   struct ieee80211_vif *vif,
+ 				   struct ieee80211_sta *sta,
+@@ -8299,6 +8343,7 @@ int ath12k_mac_op_change_sta_links(struc
+ 	struct ath12k_link_sta *arsta;
+ 	unsigned long valid_links;
+ 	struct ath12k *ar;
++	u8 primary_link_id;
+ 	u8 link_id;
+ 	int ret;
+ 
+@@ -8349,6 +8394,16 @@ int ath12k_mac_op_change_sta_links(struc
+ 		}
+ 	}
+ 
++	/* This path does not implement live primary-link migration. */
++	if (ahsta->state < IEEE80211_STA_ASSOC) {
++		primary_link_id = ath12k_mac_mlo_select_primary_link(
++			ah, ahvif, ahsta, ahsta->links_map);
++		ahsta->primary_link_id = primary_link_id;
++		ath12k_dbg(NULL, ATH12K_DBG_MAC,
++			   "mac ML STA %pM primary link set to %u\n",
++			   sta->addr, primary_link_id);
++	}
++
+ 	return 0;
+ }
+ EXPORT_SYMBOL(ath12k_mac_op_change_sta_links);
+@@ -9747,7 +9802,7 @@ u8 ath12k_mac_get_tx_link(struct ieee802
+ 	 */
+ 	if (info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP ||
+ 	    ieee80211_is_data(hdr->frame_control))
+-		return ahsta->assoc_link_id;
++		return ahsta->primary_link_id;
+ 
+ 	/* 802.11 frame cases */
+ 	if (link == IEEE80211_LINK_UNSPECIFIED)
+--- a/drivers/net/wireless/ath/ath12k/peer.c
++++ b/drivers/net/wireless/ath/ath12k/peer.c
+@@ -331,8 +331,8 @@ int ath12k_peer_create(struct ath12k *ar
+ 				peer->ml_id = ml_peer_id;
+ 			ether_addr_copy(peer->ml_addr, sta->addr);
+ 
+-			/* the assoc link is considered primary for now */
+-			peer->primary_link = arsta->is_assoc_link;
++			/* Set after all partner peers exist and primary is selected. */
++			peer->primary_link = false;
+ 			peer->mlo = true;
+ 		} else {
+ 			peer->ml_id = ATH12K_MLO_PEER_ID_INVALID;
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -437,6 +437,7 @@ static const struct ath12k_hw_params ath
+ 
+ 		.current_cc_support = false,
+ 
++		.is_plink_preferable = true,
+ 		.dp_primary_link_only = true,
+ 		.client = {
+ 			.max_client_single = 512,
+@@ -531,6 +532,7 @@ static const struct ath12k_hw_params ath
+ 
+ 		.current_cc_support = true,
+ 
++		.is_plink_preferable = true,
+ 		.dp_primary_link_only = false,
+ 		.client = {
+ 			.max_client_single = 512,
+@@ -621,6 +623,7 @@ static const struct ath12k_hw_params ath
+ 
+ 		.current_cc_support = false,
+ 
++		.is_plink_preferable = true,
+ 		.dp_primary_link_only = true,
+ 		.client = {
+ 			.max_client_single = 512,
+@@ -704,6 +707,7 @@ static const struct ath12k_hw_params ath
+ 		.ce_remap = &ath12k_wifi7_ce_remap_ipq5332,
+ 		.bdf_addr_offset = 0x1A00000,
+ 
++		.is_plink_preferable = false,
+ 		.dp_primary_link_only = true,
+ 		.client = {
+ 			.max_client_single = 256,
+@@ -799,6 +803,7 @@ static const struct ath12k_hw_params ath
+ 
+ 		.current_cc_support = true,
+ 
++		.is_plink_preferable = true,
+ 		.dp_primary_link_only = false,
+ 		.client = {
+ 			.max_client_single = 512,
+@@ -886,6 +891,7 @@ static const struct ath12k_hw_params ath
+ 
+ 		.current_cc_support = false,
+ 
++		.is_plink_preferable = true,
+ 		.dp_primary_link_only = true,
+ 		.client = {
+ 			.max_client_single = 512,

@@ -1,0 +1,160 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Fri, 14 Aug 2026 22:11:00 +0800
+Subject: [PATCH] wifi: ath12k: block control path access during recovery
+
+A RootPD crash can race with cfg80211 survey requests from hostapd.  During
+recovery ath12k deinitializes the HAL SRNG state and then clears
+ATH12K_FLAG_CRASH_FLUSH before ath12k_ce_init_pipes() has rebuilt the CE
+rings.  A survey request in that window reaches ath12k_ce_send() and
+dereferences the stale source-ring tail pointer in
+ath12k_hal_srng_access_begin(), causing a host kernel panic.
+
+Keep crash-flush asserted until CE and DP initialization has completed and
+clear it only immediately before the internal core startup needs to send
+WMI commands.  Restore the flag if core startup fails.
+
+Also reject WMI commands before they alter the skb while crash-flush is
+set, validate the CE pipe and source ring before each use, and skip live
+survey requests unless the hardware is fully on and outside crash
+recovery.  The checks at the WMI and CE layers close races where recovery
+starts after the survey state check.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/ce.c   | 30 ++++++++++++++++++++++++++++--
+ drivers/net/wireless/ath/ath12k/core.c |  7 +++++--
+ drivers/net/wireless/ath/ath12k/mac.c  |  6 ++++++
+ drivers/net/wireless/ath/ath12k/wmi.c  |  3 +++
+ 4 files changed, 42 insertions(+), 4 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1365,9 +1365,14 @@ int ath12k_core_qmi_firmware_ready(struc
+ 	mutex_lock(&ag->mutex);
+ 	mutex_lock(&ab->core_lock);
+ 
++	if (ab->is_reset)
++		clear_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags);
++
+ 	ret = ath12k_core_start(ab);
+ 	if (ret) {
+ 		ath12k_err(ab, "failed to start core: %d\n", ret);
++		if (ab->is_reset)
++			set_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags);
+ 		goto err_deinit;
+ 	}
+ 
+@@ -1437,8 +1442,6 @@ static int ath12k_core_reconfigure_on_cr
+ 	if (ret)
+ 		return ret;
+ 
+-	clear_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags);
+-
+ 	ret = ath12k_core_qmi_firmware_ready(ab);
+ 	if (ret)
+ 		goto err_hal_srng_deinit;
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -391,6 +391,9 @@ static int ath12k_wmi_cmd_send_nowait(st
+ 	struct wmi_cmd_hdr *cmd_hdr;
+ 	int ret;
+ 
++	if (test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
++		return -ESHUTDOWN;
++
+ 	if (!skb_push(skb, sizeof(struct wmi_cmd_hdr)))
+ 		return -ENOMEM;
+ 
+--- a/drivers/net/wireless/ath/ath12k/ce.c
++++ b/drivers/net/wireless/ath/ath12k/ce.c
+@@ -416,7 +416,13 @@ void ath12k_ce_per_engine_service(struct
+ 
+ void ath12k_ce_poll_send_completed(struct ath12k_base *ab, u8 pipe_id)
+ {
+-	struct ath12k_ce_pipe *pipe = &ab->ce.ce_pipe[pipe_id];
++	struct ath12k_ce_pipe *pipe;
++
++	if (unlikely(pipe_id >= ab->hw_params->ce_count) ||
++	    test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
++		return;
++
++	pipe = &ab->ce.ce_pipe[pipe_id];
+ 
+ 	if ((pipe->attr_flags & CE_ATTR_DIS_INTR) && pipe->send_cb)
+ 		pipe->send_cb(pipe);
+@@ -425,7 +431,7 @@ void ath12k_ce_poll_send_completed(struc
+ int ath12k_ce_send(struct ath12k_base *ab, struct sk_buff *skb, u8 pipe_id,
+ 		   u16 transfer_id)
+ {
+-	struct ath12k_ce_pipe *pipe = &ab->ce.ce_pipe[pipe_id];
++	struct ath12k_ce_pipe *pipe;
+ 	struct hal_ce_srng_src_desc *desc;
+ 	struct hal_srng *srng;
+ 	unsigned int write_index, sw_index;
+@@ -434,12 +440,25 @@ int ath12k_ce_send(struct ath12k_base *a
+ 	u8 byte_swap_data = 0;
+ 	int num_used;
+ 
++	if (unlikely(pipe_id >= ab->hw_params->ce_count))
++		return -EINVAL;
++
++	if (test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
++		return -ESHUTDOWN;
++
++	pipe = &ab->ce.ce_pipe[pipe_id];
++
+ 	/* Check if some entries could be regained by handling tx completion if
+ 	 * the CE has interrupts disabled and the used entries is more than the
+ 	 * defined usage threshold.
+ 	 */
+ 	if (pipe->attr_flags & CE_ATTR_DIS_INTR) {
+ 		spin_lock_bh(&ab->ce.ce_lock);
++		if (unlikely(test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags) ||
++			     !pipe->src_ring)) {
++			ret = -ESHUTDOWN;
++			goto unlock_ce;
++		}
+ 		write_index = pipe->src_ring->write_index;
+ 
+ 		sw_index = pipe->src_ring->sw_index;
+@@ -461,6 +480,12 @@ int ath12k_ce_send(struct ath12k_base *a
+ 
+ 	spin_lock_bh(&ab->ce.ce_lock);
+ 
++	if (unlikely(test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags) ||
++		     !pipe->src_ring)) {
++		ret = -ESHUTDOWN;
++		goto unlock_ce;
++	}
++
+ 	write_index = pipe->src_ring->write_index;
+ 	nentries_mask = pipe->src_ring->nentries_mask;
+ 
+@@ -498,6 +523,7 @@ int ath12k_ce_send(struct ath12k_base *a
+ unlock:
+ 	spin_unlock_bh(&srng->lock);
+ 
++unlock_ce:
+ 	spin_unlock_bh(&ab->ce.ce_lock);
+ 
+ 	return ret;
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -13794,11 +13794,17 @@ static void
+ ath12k_mac_update_bss_chan_survey(struct ath12k *ar,
+ 				  struct ieee80211_channel *channel)
+ {
++	struct ath12k_hw *ah = ath12k_ar_to_ah(ar);
+ 	int ret;
+ 	enum wmi_bss_chan_info_req_type type = WMI_BSS_SURVEY_REQ_TYPE_READ;
+ 
+ 	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
+ 
++	if (ah->state != ATH12K_HW_STATE_ON ||
++	    test_bit(ATH12K_FLAG_CRASH_FLUSH, &ar->ab->dev_flags) ||
++	    test_bit(ATH12K_FLAG_RECOVERY, &ar->ab->dev_flags))
++		return;
++
+ 	if (!test_bit(WMI_TLV_SERVICE_BSS_CHANNEL_INFO_64, ar->ab->wmi_ab.svc_map) ||
+ 	    ar->rx_channel != channel)
+ 		return;

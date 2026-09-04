@@ -1,0 +1,73 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Fri, 14 Aug 2026 22:10:00 +0800
+Subject: [PATCH] wifi: ath12k: allocate AFC memory from fixed PCI host DDR
+
+Recent QCN9274 firmware requests target memory type 0xa even on hardware
+where the radio is only used in the 5 GHz band.  Qualcomm defines this as
+the AFC region and limits it to two 4 KiB slots.  Treating it as an unknown
+optional region leaves address zero in the QMI memory response.
+
+The firmware later performs an 8 KiB access through that response and
+IPQ5332 WCSS reports a NoC address decode error at 0x2000.  Allocate the
+AFC chunk from the same reserved PCI host DDR used for the other fixed
+target memory regions, and reject requests larger than Qualcomm's defined
+limit.
+
+Include the chunk in the existing remote-memory coredump TLV so the data
+remains available without changing the version 2 dump format.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+---
+ drivers/net/wireless/ath/ath12k/coredump.c | 1 +
+ drivers/net/wireless/ath/ath12k/qmi.c      | 9 +++++++++
+ drivers/net/wireless/ath/ath12k/qmi.h      | 4 ++++
+ 3 files changed, 14 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/qmi.h
++++ b/drivers/net/wireless/ath/ath12k/qmi.h
+@@ -29,6 +29,9 @@
+ #define ATH12K_QMI_FW_MEM_REQ_SEGMENT_CNT	3
+ #define ATH12K_QMI_WLFW_MAX_DEV_MEM_NUM_V01 4
+ #define ATH12K_QMI_DEVMEM_CMEM_INDEX	0
++#define AFC_SLOT_SIZE			0x1000
++#define AFC_MAX_SLOT			2
++#define AFC_MEM_SIZE			(AFC_SLOT_SIZE * AFC_MAX_SLOT)
+ 
+ #define QMI_WLFW_REQUEST_MEM_IND_V01		0x0035
+ #define QMI_WLFW_FW_MEM_READY_IND_V01		0x0037
+@@ -178,6 +181,7 @@ enum ath12k_qmi_target_mem {
+ 	CALDB_MEM_REGION_TYPE = 0x4,
+ 	MLO_GLOBAL_MEM_REGION_TYPE = 0x8,
+ 	PAGEABLE_MEM_REGION_TYPE = 0x9,
++	AFC_REGION_TYPE = 0xa,
+ 	LPASS_SHARED_V01_REGION_TYPE = 0xb,
+ };
+ 
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -2868,6 +2868,15 @@ static int ath12k_qmi_assign_pci_target_
+ 		chunk = &ab->qmi.target_mem[i];
+ 
+ 		switch (chunk->type) {
++		case AFC_REGION_TYPE:
++			if (chunk->size > AFC_MEM_SIZE) {
++				ath12k_err(ab,
++					   "AFC memory request size %u exceeds limit %u\n",
++					   chunk->size, AFC_MEM_SIZE);
++				ret = -EINVAL;
++				goto out;
++			}
++			fallthrough;
+ 		case HOST_DDR_REGION_TYPE:
+ 		case CALDB_MEM_REGION_TYPE:
+ 		case PAGEABLE_MEM_REGION_TYPE:
+--- a/drivers/net/wireless/ath/ath12k/coredump.c
++++ b/drivers/net/wireless/ath/ath12k/coredump.c
+@@ -15,6 +15,7 @@ ath12k_fw_crash_dump_type ath12k_coredum
+ 
+ 	switch (type) {
+ 	case HOST_DDR_REGION_TYPE:
++	case AFC_REGION_TYPE:
+ 		dump_type = FW_CRASH_DUMP_REMOTE_MEM_DATA;
+ 		break;
+ 	case M3_DUMP_REGION_TYPE:

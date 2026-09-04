@@ -1,0 +1,30 @@
+From 1d432d14045771fd5f92dade3bf2b7dc2d1085ad Mon Sep 17 00:00:00 2001
+From: Ramya Gnanasekar <rgnanase@qti.qualcomm.com>
+Date: Wed, 21 May 2025 10:53:39 +0530
+Subject: [PATCH] wifi: ath12k: keep link map in sync with arvif
+
+The ahvif link pointer array is protected by RCU whereas links_map is not.
+During link removal, clearing a link pointer before links_map leaves a
+window where readers see the old bitmap but dereference a NULL arvif.
+
+Update the bitmap first and then publish the NULL link pointer so readers
+cannot select a link after its arvif has been removed.
+
+Signed-off-by: Ramya Gnanasekar <rgnanase@qti.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -4311,9 +4311,9 @@ static void ath12k_mac_unassign_link_vif
+ 
+ 	lockdep_assert_wiphy(ah->hw->wiphy);
+ 
++	ahvif->links_map &= ~BIT(arvif->link_id);
+ 	rcu_assign_pointer(ahvif->link[arvif->link_id], NULL);
+ 	synchronize_rcu();
+-	ahvif->links_map &= ~BIT(arvif->link_id);
+ 
+ 	if (arvif != &ahvif->deflink)
+ 		kfree(arvif);

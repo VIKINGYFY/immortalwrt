@@ -1,0 +1,50 @@
+From c29d1550e166598b9ee6d48c488eec0e79f98d52 Mon Sep 17 00:00:00 2001
+From: Raj Kumar Bhagat <raj.bhagat@oss.qualcomm.com>
+Date: Tue, 23 Jun 2026 09:43:09 +0530
+Subject: [PATCH] wifi: ath12k: fix QMI element info terminators
+
+Fix incorrect and missing terminating records in the following
+qmi_elem_info initializers:
+- qmi_wlanfw_shadow_reg_cfg_s_v01_ei[]
+- qmi_wlanfw_mem_ready_ind_msg_v01_ei[]
+- qmi_wlanfw_fw_ready_ind_msg_v01_ei[]
+
+Tested-on: Compile tested only.
+
+Signed-off-by: Raj Kumar Bhagat <raj.bhagat@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260623-qmi-inconsistencies-v1-1-0fc17f2b8338@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath12k/qmi.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -1772,7 +1772,8 @@ static const struct qmi_elem_info qmi_wl
+ 	},
+ 	{
+ 		.data_type	= QMI_EOTI,
+-		.array_type	= QMI_COMMON_TLV_TYPE,
++		.array_type	= NO_ARRAY,
++		.tlv_type	= QMI_COMMON_TLV_TYPE,
+ 	},
+ };
+ 
+@@ -2005,6 +2006,7 @@ static const struct qmi_elem_info qmi_wl
+ 	{
+ 		.data_type = QMI_EOTI,
+ 		.array_type = NO_ARRAY,
++		.tlv_type = QMI_COMMON_TLV_TYPE,
+ 	},
+ };
+ 
+@@ -2012,6 +2014,7 @@ static const struct qmi_elem_info qmi_wl
+ 	{
+ 		.data_type = QMI_EOTI,
+ 		.array_type = NO_ARRAY,
++		.tlv_type = QMI_COMMON_TLV_TYPE,
+ 	},
+ };
+ 

@@ -44,7 +44,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -802,6 +802,7 @@ struct ath12k_hw {
+@@ -806,6 +806,7 @@ struct ath12k_hw {
  	u8 num_radio;
  
  	DECLARE_BITMAP(free_ml_peer_id_map, ATH12K_MAX_MLO_PEERS);
@@ -347,7 +347,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		return -EINVAL;
  	}
  
-@@ -7214,7 +7225,7 @@ static int ath12k_mac_station_add(struct
+@@ -7225,7 +7236,7 @@ static int ath12k_mac_station_add(struct
  	struct ieee80211_vif *vif = ath12k_ahvif_to_vif(arvif->ahvif);
  	struct ieee80211_sta *sta = ath12k_ahsta_to_sta(arsta->ahsta);
  	struct ath12k_wmi_peer_create_arg peer_param = {};
@@ -356,7 +356,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct ath12k_link_sta *temp_arsta;
  
  	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
-@@ -7255,7 +7266,7 @@ static int ath12k_mac_station_add(struct
+@@ -7266,7 +7277,7 @@ static int ath12k_mac_station_add(struct
  	if (ret) {
  		ath12k_warn(ab, "Failed to add peer: %pM for VDEV: %d\n",
  			    arsta->addr, arvif->vdev_id);
@@ -365,7 +365,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	}
  
  	ath12k_dbg(ab, ATH12K_DBG_MAC, "Added peer: %pM for VDEV: %d\n",
-@@ -7292,7 +7303,13 @@ static int ath12k_mac_station_add(struct
+@@ -7303,7 +7314,13 @@ static int ath12k_mac_station_add(struct
  	return 0;
  
  free_peer:
@@ -380,7 +380,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	spin_lock_bh(&ab->base_lock);
  	ath12k_link_sta_rhash_delete(ab, arsta);
  	spin_unlock_bh(&ab->base_lock);
-@@ -7357,17 +7374,30 @@ static int ath12k_mac_assign_link_sta(st
+@@ -7368,17 +7385,30 @@ static int ath12k_mac_assign_link_sta(st
  static void ath12k_mac_ml_station_remove(struct ath12k_vif *ahvif,
  					 struct ath12k_sta *ahsta)
  {
@@ -413,7 +413,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	/* validate link station removal and clear arsta links */
  	links = ahsta->links_map;
-@@ -7388,8 +7418,10 @@ static void ath12k_mac_ml_station_remove
+@@ -7399,8 +7429,10 @@ static void ath12k_mac_ml_station_remove
  		ath12k_mac_free_unassign_link_sta(ah, ahsta, link_id);
  	}
  
