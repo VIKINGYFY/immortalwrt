@@ -6,10 +6,8 @@ Expose queue credit and rollback diagnostics beside the state-management
 fix they validate.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 @@ -1862,6 +1862,21 @@ int ppe_port_bridge_learning_set(struct
  				  enable ? mask : 0);
  }
@@ -73,10 +71,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
  }
  
  static u32 ppe_tbf_queue_buffers(u64 rate, u32 limit, u32 mtu, u32 ceiling)
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 @@ -1078,12 +1078,14 @@ static int ppe_tbf_queues_show(struct se
  	struct ppe_device *ppe_dev = seq->private;
  	struct ppe_port_tbf *tbf;
@@ -114,10 +110,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
  
  		for (bucket = 0; bucket < PPE_TBF_QUEUE_COUNT; bucket++) {
  			u32 reg = PPE_AC_UNICAST_QUEUE_CFG_TBL_ADDR +
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -927,6 +927,13 @@
  #define PPE_PSCH_SHP_SLOT_CFG_PORT_ADDR		0x400018
  #define PPE_PSCH_SHP_SLOT_CFG_PORT_TIME		GENMASK(11, 0)

@@ -71,27 +71,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define QCA_HDR_XMIT_TYPE_NORMAL	0x0
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -55,10 +55,11 @@ struct tc_action;
- #define DSA_TAG_PROTO_RZN1_A5PSW_VALUE		26
- #define DSA_TAG_PROTO_LAN937X_VALUE		27
- #define DSA_TAG_PROTO_VSC73XX_8021Q_VALUE	28
--#define DSA_TAG_PROTO_QCA_8021Q_VALUE		32
- #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
+@@ -58,6 +58,7 @@ struct tc_action;
  #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
-+#define DSA_TAG_PROTO_QCA_8021Q_VALUE		32
+ #define DSA_TAG_PROTO_QCA_8021Q_VALUE		32
 +#define DSA_TAG_PROTO_QCA_4B_VALUE		33
+ #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
  
  enum dsa_tag_protocol {
- 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -91,6 +92,7 @@ enum dsa_tag_protocol {
- 	DSA_TAG_PROTO_RZN1_A5PSW	= DSA_TAG_PROTO_RZN1_A5PSW_VALUE,
- 	DSA_TAG_PROTO_LAN937X		= DSA_TAG_PROTO_LAN937X_VALUE,
- 	DSA_TAG_PROTO_QCA_8021Q		= DSA_TAG_PROTO_QCA_8021Q_VALUE,
-+	DSA_TAG_PROTO_QCA_4B		= DSA_TAG_PROTO_QCA_4B_VALUE,
- 	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
+@@ -94,6 +95,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
+ 	DSA_TAG_PROTO_QCA_8021Q		= DSA_TAG_PROTO_QCA_8021Q_VALUE,
++	DSA_TAG_PROTO_QCA_4B		= DSA_TAG_PROTO_QCA_4B_VALUE,
+ 	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
+ };
+ 
 --- a/net/dsa/tag_qca.c
 +++ b/net/dsa/tag_qca.c
 @@ -11,29 +11,54 @@
@@ -234,7 +229,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +module_dsa_tag_drivers(qca_tag_drivers);
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -2740,6 +2740,9 @@ void dsa_user_setup_tagger(struct net_de
+@@ -2731,6 +2731,9 @@ void dsa_user_setup_tagger(struct net_de
  		user->features &= ~(NETIF_F_SG | NETIF_F_FRAGLIST);
  	if (ds->needs_standalone_vlan_filtering)
  		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;

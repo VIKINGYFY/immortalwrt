@@ -1,0 +1,107 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 3 Sep 2026 20:00:03 +0800
+Subject: [PATCH] net: phy: realtek: add RTL8221B LED selectors
+
+RTL8221B family PHYs default their three LED outputs to different link
+speeds. Boards which wire only one output can therefore lose link
+indication at most negotiated speeds unless firmware programs the vendor
+LED selectors.
+
+Apply optional, validated firmware values after the normal RTL8221B
+SerDes setup. Boards can now describe their LED wiring without opting into
+unrelated vendor initialization sequences.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -183,6 +183,12 @@
+ #define RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN	BIT(12)
+ #define RTL8221B_PHYCR1_PHYAD_0_EN		BIT(13)
+ 
++#define RTL8221B_NR_LEDS				3
++#define RTL8221B_LED_LINK_SELECT			0xd032
++#define RTL8221B_LED_LINK_SELECT_OFFSET		2
++#define RTL8221B_LED_ACT_SELECT			0xd040
++#define RTL8221B_LED_POLARITY_SELECT		0xd044
++
+ #define RTL8366RB_POWER_SAVE			0x15
+ #define RTL8366RB_POWER_SAVE_ON			BIT(12)
+ 
+@@ -2082,9 +2088,75 @@ static int rtl822x_config_init(struct ph
+ 	return rtl822x_set_serdes_option_mode(phydev, true);
+ }
+ 
++static int rtl8221b_config_leds(struct phy_device *phydev)
++{
++	struct device *dev = &phydev->mdio.dev;
++	u32 link_select[RTL8221B_NR_LEDS];
++	u32 value;
++	int i, ret;
++
++	if (device_property_present(dev, "realtek,led-link-select")) {
++		ret = device_property_read_u32_array(dev,
++						     "realtek,led-link-select",
++						     link_select,
++						     RTL8221B_NR_LEDS);
++		if (ret)
++			return ret;
++
++		for (i = 0; i < RTL8221B_NR_LEDS; i++) {
++			if (link_select[i] > U16_MAX)
++				return -EINVAL;
++
++			ret = phy_write_mmd(phydev, MDIO_MMD_VEND2,
++					    RTL8221B_LED_LINK_SELECT +
++					    i * RTL8221B_LED_LINK_SELECT_OFFSET,
++					    link_select[i]);
++			if (ret < 0)
++				return ret;
++		}
++	}
++
++	if (device_property_present(dev, "realtek,led-act-select")) {
++		ret = device_property_read_u32(dev, "realtek,led-act-select",
++					       &value);
++		if (ret)
++			return ret;
++		if (value > U16_MAX)
++			return -EINVAL;
++
++		ret = phy_write_mmd(phydev, MDIO_MMD_VEND2,
++				    RTL8221B_LED_ACT_SELECT, value);
++		if (ret < 0)
++			return ret;
++	}
++
++	if (device_property_present(dev, "realtek,led-polarity-select")) {
++		ret = device_property_read_u32(dev,
++					       "realtek,led-polarity-select",
++					       &value);
++		if (ret)
++			return ret;
++		if (value > U16_MAX)
++			return -EINVAL;
++
++		ret = phy_write_mmd(phydev, MDIO_MMD_VEND2,
++				    RTL8221B_LED_POLARITY_SELECT, value);
++		if (ret < 0)
++			return ret;
++	}
++
++	return 0;
++}
++
+ static int rtl822xb_config_init(struct phy_device *phydev)
+ {
+-	return rtl822x_set_serdes_option_mode(phydev, false);
++	int ret;
++
++	ret = rtl822x_set_serdes_option_mode(phydev, false);
++	if (ret)
++		return ret;
++
++	return rtl8221b_config_leds(phydev);
+ }
+ 
+ static int rtl822x_serdes_write(struct phy_device *phydev, u16 reg, u16 val)

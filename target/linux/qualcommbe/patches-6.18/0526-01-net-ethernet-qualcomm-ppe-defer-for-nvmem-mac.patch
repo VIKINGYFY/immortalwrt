@@ -98,7 +98,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		}
  
  		ppe_ports->port[i].ppe_dev = ppe_dev;
-@@ -1450,20 +1484,19 @@ int ppe_port_mac_init(struct ppe_device
+@@ -1446,20 +1480,19 @@ int ppe_port_mac_init(struct ppe_device
  		ret = ppe_port_clock_init(&ppe_ports->port[i]);
  		if (ret) {
  			dev_err(ppe_dev->dev, "Failed to initialize port clocks\n");
@@ -121,8 +121,8 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +			goto err_port_clk;
  		}
  
- 		dev_info(ppe_dev->dev, "PPE debug: registered port id=%d\n", port);
-@@ -1474,20 +1507,16 @@ int ppe_port_mac_init(struct ppe_device
+ 		i++;
+@@ -1468,20 +1501,16 @@ int ppe_port_mac_init(struct ppe_device
  	of_node_put(ports_node);
  	return 0;
  

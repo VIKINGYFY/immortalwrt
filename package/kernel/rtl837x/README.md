@@ -28,7 +28,7 @@ it consumes; it does not relicense the bundled Realtek SDK sources.
 The package name is:
 
 ```text
-kmod-rtl837x-dsa
+kmod-dsa-rtl837x
 ```
 
 It builds the switch driver module:
@@ -37,7 +37,7 @@ It builds the switch driver module:
 rtl837x_dsa.ko
 ```
 
-Package version `0.1` includes serialized SDK context selection for multiple
+Package version `1.0` includes serialized SDK context selection for multiple
 RTL8372N instances sharing the RTL8373 mapper family, an indirect-MDIO path
 aligned with the validated native `mii_bus` transaction sequence, and an optional
 bootloader configuration handoff mode. Ordered RTL8372N initialization and selective
@@ -80,9 +80,10 @@ tag_vsc73xx_8021q.ko
 
 The driver uses standard VLAN headers so host MAC checksum engines can parse
 the encapsulated Ethernet frame. The proprietary `0x8899` CPU tag is disabled.
-Port identity is encoded by the Linux tag_8021q core using standalone and
-bridge VIDs derived from DSA topology; no board-specific register sequence is
-used.
+By default, port identity is encoded by the Linux tag_8021q core using
+standalone and bridge VIDs. Boards which enable `realtek,dsa-svlan` instead use
+an outer 802.1ad S-tag for the standalone source-port VID and retain the inner
+802.1Q C-tag for an ordinary user VLAN.
 
 The driver implements `port_change_mtu` and `port_max_mtu`. DSA therefore raises
 the CPU conduit MTU by the tagger's 4-byte overhead while user ports retain the
@@ -113,6 +114,7 @@ Example:
 		reset-deassert-us = <50000>; /* optional, default 100000 */
 		realtek,preserve-boot-config; /* optional */
 		realtek,rtl8372n-led-init; /* optional, RTL8372N only */
+		realtek,dsa-svlan; /* optional, requires PPE S/C VLAN support */
 
 		rtl837x,sds0mode = "10g-kr";
 
@@ -272,6 +274,14 @@ mode change, and relies on the SDK mode routine for its normal post-reset. No
 board compatible, MDIO address, or fixed CPU-port value is used. The property
 requires `realtek,preserve-boot-config` and a non-`off` CPU SerDes mode.
 
+`realtek,dsa-svlan` selects the RTL837x 802.1ad DSA transport. The CPU port is
+configured as the SVLAN service port and each user port keeps a distinct
+standalone SVID independent of its customer PVID. This permits VLAN-aware
+bridges and routed VLAN interfaces without consuming the customer tag slot for
+DSA identity. The property is opt-in because the Ethernet conduit must classify
+and emit independent S-tags and C-tags; on Qualcomm PPE this requires the
+matching dual-slot flowtable support.
+
 ## Network Configuration
 
 DSA exposes switch ports as normal Linux netdevs, for example:
@@ -282,12 +292,12 @@ lan1 lan2 lan3 lan4
 
 OpenWrt board network setup should add these DSA user ports directly to
 `br-lan`. Do not configure this driver through swconfig or `switch_vlan`.
-The tag_8021q bridge callbacks replace a port's standalone VID with the bridge
-VID on join and restore it on leave. Ports in the same VLAN-unaware bridge can
-forward in hardware, while a standalone WAN remains in a different VLAN domain.
-This keeps WAN and LAN ports on the same switch from bypassing routing,
-firewall, and NAT processing. `tx_fwd_offload` is enabled only through the
-standard tag_8021q bridge contract.
+In the default mode, tag_8021q bridge callbacks replace a port's standalone VID
+with the bridge VID on join and restore it on leave. In SVLAN mode, the source
+SVID remains fixed and bridge membership is represented by the customer VLAN
+table plus the port isolation matrix. Both modes keep a standalone WAN outside
+the LAN forwarding domain so traffic cannot bypass routing, firewall, and NAT
+processing.
 
 ## Debugging
 

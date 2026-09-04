@@ -6,10 +6,8 @@ Map the eight Linux priorities across the three available hardware QoS
 bands, keeping action acceptance and its hardware effect together.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 @@ -133,6 +133,7 @@ struct ppe_scheduler_qm_config {
   * @pri_max: Max priority configured.
   * @flow_id: Strict priority ID.
@@ -528,10 +526,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
  	ret = ppe_servcode_init(ppe_dev);
  	if (ret)
  		return ret;
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 @@ -23,6 +23,9 @@ struct ppe_port;
  #define PPE_QUEUE_INTER_PRI_NUM			16
  #define PPE_QUEUE_HASH_NUM			256
@@ -542,10 +538,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
  /* The service code is used by EDMA port to transmit packet to PPE. */
  #define PPE_EDMA_SC_BYPASS_ID			1
  
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 @@ -972,19 +972,118 @@ static const struct file_operations ppe_
  	.release = single_release,
  };
@@ -762,10 +756,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
  
  	/* TODO: Do we have to be so agressive and remove __all__ debugfs entries? */
  	ret = edma_debugfs_setup(ppe_dev);
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 @@ -167,7 +167,7 @@ static void ppe_flow_entry_pack(const st
  	} else {
  		u32 ip = be32_to_cpu(flow->dip.ip4);
@@ -836,10 +828,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
  	mutex_unlock(&ppe_dev->flow_lock);
  	return ret < 0 ? ret : 0;
  }
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 @@ -53,6 +53,8 @@ struct ppe_flow_nexthop {
   * @nat_port: Translated source port of SNAT flows, translated
   * destination port of DNAT flows.
@@ -858,10 +848,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
  };
  
  int ppe_flow_hw_init(struct ppe_device *ppe_dev);
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -2302,6 +2302,14 @@ static int ppe_ft_flow_replace(struct pp
  			}
  			lwt_tunnel = true;
@@ -998,10 +986,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  			   flow->ivp, flow->vp,
  			   packets, (unsigned long long)bytes);
  	}
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
 @@ -44,6 +44,7 @@ enum ppe_mac_type {
  };
  
@@ -1036,10 +1022,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
  	u32 saved_shaper[PPE_TBF_SHAPER_CFG_WORDS];
  	u32 rollback_failures;
  	u32 callback_calls;
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -397,6 +397,14 @@
  #define PPE_MRU_MTU_CTRL_W1_RX_CNT_EN		BIT(0)
  #define PPE_MRU_MTU_CTRL_W1_TX_CNT_EN		BIT(1)

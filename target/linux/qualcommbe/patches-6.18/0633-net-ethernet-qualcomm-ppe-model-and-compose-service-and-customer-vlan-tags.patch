@@ -6,10 +6,8 @@ service tag with user VLAN actions on egress so ingress matching and
 egress programming stay consistent for VLAN-aware DSA ports.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 @@ -633,9 +633,13 @@ int ppe_nexthop_set(struct ppe_device *p
  	val[0] = PPE_NEXTHOP_W0_TYPE;
  	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_PORT, nh->port);
@@ -26,10 +24,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
  	}
  	val[1] |= FIELD_PREP(PPE_NEXTHOP_W1_PUB_IP_INDEX, nh->pub_ip_index);
  	val[1] |= FIELD_PREP(PPE_NEXTHOP_W1_MAC_ADDR_LO,
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 @@ -22,7 +22,8 @@ struct ppe_device;
   * @port: Egress PPE port.
   * @l3_if: Egress L3 interface, providing the source MAC rewrite.
@@ -50,10 +46,8 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
  	u8 pub_ip_index;
  	__be32 dnat_ip;
  };
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -581,7 +581,7 @@ static bool ppe_ft_nexthop_match(const v
  
  	return slot->key.port == nh->port && slot->key.l3_if == nh->l3_if &&

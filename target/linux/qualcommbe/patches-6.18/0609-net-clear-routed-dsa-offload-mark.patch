@@ -61,7 +61,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	skb->dev = outdev;
  	dev_hard_header(skb, skb->dev, type, tuplehash->tuple.out.h_dest,
  			tuplehash->tuple.out.h_source, skb->len);
-@@ -442,6 +463,8 @@ nf_flow_offload_ip_hook(void *priv, stru
+@@ -445,6 +466,8 @@ nf_flow_offload_ip_hook(void *priv, stru
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rtable(tuplehash->tuple.dst_cache);
@@ -70,7 +70,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		memset(skb->cb, 0, sizeof(struct inet_skb_parm));
  		IPCB(skb)->iif = skb->dev->ifindex;
  		IPCB(skb)->flags = IPSKB_FORWARDED;
-@@ -455,6 +478,8 @@ nf_flow_offload_ip_hook(void *priv, stru
+@@ -458,6 +481,8 @@ nf_flow_offload_ip_hook(void *priv, stru
  	case FLOW_OFFLOAD_XMIT_NEIGH:
  		rt = dst_rtable(tuplehash->tuple.dst_cache);
  		outdev = rt->dst.dev;
@@ -79,7 +79,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		skb->dev = outdev;
  		nexthop = rt_nexthop(rt, flow->tuplehash[!dir].tuple.src_v4.s_addr);
  		skb_dst_set_noref(skb, &rt->dst);
-@@ -737,6 +762,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
+@@ -743,6 +768,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rt6_info(tuplehash->tuple.dst_cache);
@@ -88,7 +88,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		memset(skb->cb, 0, sizeof(struct inet6_skb_parm));
  		IP6CB(skb)->iif = skb->dev->ifindex;
  		IP6CB(skb)->flags = IP6SKB_FORWARDED;
-@@ -750,6 +777,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
+@@ -756,6 +783,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
  	case FLOW_OFFLOAD_XMIT_NEIGH:
  		rt = dst_rt6_info(tuplehash->tuple.dst_cache);
  		outdev = rt->dst.dev;

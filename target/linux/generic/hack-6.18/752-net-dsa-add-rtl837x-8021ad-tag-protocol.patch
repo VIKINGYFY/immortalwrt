@@ -1,0 +1,116 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 3 Sep 2026 21:55:00 +0800
+Subject: [PATCH] net: dsa: add RTL837x 802.1ad tag protocol
+
+RTL837x switches can use an outer 802.1ad service VLAN to carry the
+tag_8021q standalone source-port identity while leaving an inner 802.1Q
+customer VLAN intact.
+
+Add a dedicated protocol identifier and share the existing VLAN tagger
+implementation. Unlike the VSC73XX mode, RTL837x always transmits the
+standalone VID: bridge membership is maintained by the switch driver and
+must not replace the source-port identity with a bridge VID.
+
+Keep this support in the generic kernel patch set because the external
+RTL837x DSA package is target-independent.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ include/net/dsa.h            |  2 ++
+ net/dsa/tag_vsc73xx_8021q.c | 40 ++++++++++++++++++++++++++++++++++++----
+ 2 files changed, 38 insertions(+), 4 deletions(-)
+
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -57,6 +57,7 @@ struct tc_action;
+ #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
+ #define DSA_TAG_PROTO_MXL862_VALUE		30
+ #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
++#define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
+ 
+ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
+@@ -91,6 +92,7 @@ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
+ 	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
+ 	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
++	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
+ };
+ 
+ struct dsa_switch;
+--- a/net/dsa/tag_vsc73xx_8021q.c
++++ b/net/dsa/tag_vsc73xx_8021q.c
+@@ -7,16 +7,18 @@
+ #include "tag_8021q.h"
+ 
+ #define VSC73XX_8021Q_NAME "vsc73xx-8021q"
++#define RTL837X_8021AD_NAME "rtl837x-8021ad"
+ 
+ static struct sk_buff *
+-vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
++vsc73xx_xmit_tpid(struct sk_buff *skb, struct net_device *netdev, u16 tpid,
++		  bool bridge_vid)
+ {
+ 	struct dsa_port *dp = dsa_user_to_port(netdev);
+ 	u16 queue_mapping = skb_get_queue_mapping(skb);
+ 	u16 tx_vid = dsa_tag_8021q_standalone_vid(dp);
+ 	u8 pcp;
+ 
+-	if (skb->offload_fwd_mark) {
++	if (bridge_vid && skb->offload_fwd_mark) {
+ 		unsigned int bridge_num = dsa_port_bridge_num_get(dp);
+ 		struct net_device *br = dsa_port_bridge_dev_get(dp);
+ 
+@@ -28,11 +30,23 @@ vsc73xx_xmit(struct sk_buff *skb, struct
+ 
+ 	pcp = netdev_txq_to_tc(netdev, queue_mapping);
+ 
+-	return dsa_8021q_xmit(skb, netdev, ETH_P_8021Q,
++	return dsa_8021q_xmit(skb, netdev, tpid,
+ 			      ((pcp << VLAN_PRIO_SHIFT) | tx_vid));
+ }
+ 
+ static struct sk_buff *
++vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
++{
++	return vsc73xx_xmit_tpid(skb, netdev, ETH_P_8021Q, true);
++}
++
++static struct sk_buff *
++rtl837x_xmit(struct sk_buff *skb, struct net_device *netdev)
++{
++	return vsc73xx_xmit_tpid(skb, netdev, ETH_P_8021AD, false);
++}
++
++static struct sk_buff *
+ vsc73xx_rcv(struct sk_buff *skb, struct net_device *netdev)
+ {
+ 	int src_port = -1, switch_id = -1, vbid = -1, vid = -1;
+@@ -61,8 +75,26 @@ static const struct dsa_device_ops vsc73
+ 	.promisc_on_conduit	= true,
+ };
+ 
++static const struct dsa_device_ops rtl837x_8021ad_netdev_ops = {
++	.name			= RTL837X_8021AD_NAME,
++	.proto			= DSA_TAG_PROTO_RTL837X_8021AD,
++	.xmit			= rtl837x_xmit,
++	.rcv			= vsc73xx_rcv,
++	.needed_headroom	= VLAN_HLEN,
++	.promisc_on_conduit	= true,
++};
++
+ MODULE_LICENSE("GPL");
+ MODULE_DESCRIPTION("DSA tag driver for VSC73XX family of switches, using VLAN");
+ MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_VSC73XX_8021Q, VSC73XX_8021Q_NAME);
++MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_RTL837X_8021AD, RTL837X_8021AD_NAME);
++
++DSA_TAG_DRIVER(vsc73xx_8021q_netdev_ops);
++DSA_TAG_DRIVER(rtl837x_8021ad_netdev_ops);
++
++static struct dsa_tag_driver *vsc73xx_tag_drivers[] = {
++	&DSA_TAG_DRIVER_NAME(vsc73xx_8021q_netdev_ops),
++	&DSA_TAG_DRIVER_NAME(rtl837x_8021ad_netdev_ops),
++};
+ 
+-module_dsa_tag_driver(vsc73xx_8021q_netdev_ops);
++module_dsa_tag_drivers(vsc73xx_tag_drivers);

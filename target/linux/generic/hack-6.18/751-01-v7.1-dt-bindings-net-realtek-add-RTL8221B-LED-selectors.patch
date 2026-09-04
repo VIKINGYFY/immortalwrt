@@ -1,0 +1,63 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 3 Sep 2026 20:00:03 +0800
+Subject: [PATCH] dt-bindings: net: realtek: add RTL8221B LED selectors
+
+Document the optional RTL8221B family LED link, activity and polarity
+selector values. Limit them to PHY IDs which use the RTL8221B register
+layout.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/Documentation/devicetree/bindings/net/realtek,rtl82xx.yaml
++++ b/Documentation/devicetree/bindings/net/realtek,rtl82xx.yaml
+@@ -50,6 +50,28 @@ properties:
+     description:
+       Enable ALDPS mode, ALDPS mode default is disabled after hardware reset.
+ 
++  realtek,led-link-select:
++    $ref: /schemas/types.yaml#/definitions/uint32-array
++    minItems: 3
++    maxItems: 3
++    items:
++      maximum: 65535
++    description:
++      Link-speed selection register values for LED0 through LED2 on RTL8221B
++      family PHYs.
++
++  realtek,led-act-select:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    maximum: 65535
++    description:
++      Activity selection register value for RTL8221B family PHY LEDs.
++
++  realtek,led-polarity-select:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    maximum: 65535
++    description:
++      Polarity selection register value for RTL8221B family PHY LEDs.
++
+   wakeup-source:
+     type: boolean
+     description:
+@@ -68,6 +90,21 @@ allOf:
+     then:
+       properties:
+         leds: false
++  - if:
++      not:
++        properties:
++          compatible:
++            contains:
++              enum:
++                - ethernet-phy-id001c.c840
++                - ethernet-phy-id001c.c848
++                - ethernet-phy-id001c.c849
++                - ethernet-phy-id001c.c84a
++    then:
++      properties:
++        realtek,led-link-select: false
++        realtek,led-act-select: false
++        realtek,led-polarity-select: false
+ 
+ examples:
+   - |

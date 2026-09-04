@@ -64,8 +64,8 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
- 
-@@ -301,6 +312,7 @@ static void qcom_ppe_remove(struct platf
+ 	dev_info_once(dev, "PPE OFFLOAD ViKing/r1 load successful\n");
+@@ -302,6 +313,7 @@ static void qcom_ppe_remove(struct platf
  	 * ports still exist.
  	 */
  	ppe_flowtable_destroy(ppe_dev);

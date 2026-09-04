@@ -20,6 +20,7 @@
 #include "./rtk-api/l2.h"
 #include "./rtk-api/dal/rtl8373/dal_rtl8373_port.h"
 #include "./rtk-api/dal/rtl8373/dal_rtl8373_stp.h"
+#include "./rtk-api/dal/rtl8373/dal_rtl8373_svlan.h"
 
 static int rtl837x_to_errno(int ret)
 {
@@ -47,21 +48,49 @@ static u32 rtl837x_user_ports(struct rtk_gsw *gsw)
 	return gsw->configured_port_mask & ~BIT(gsw->cpu_port);
 }
 
-/* tag_8021q assigns a distinct PVID to every standalone port and a shared PVID
- * to ports in the same VLAN-unaware bridge. Keep port isolation permissive in
- * the operational state so VLAN membership and egress filtering are the sole
- * forwarding gate. Early probe quarantine remains CPU-only until tag VLAN
- * setup has completed.
- */
-static int rtl837x_open_isolation(struct rtk_gsw *gsw)
+static u32 rtl837x_bridge_ports(struct rtk_gsw *gsw, int port)
 {
+	struct net_device *bridge;
+	struct dsa_port *dp;
+	u32 members = 0;
+	int other;
+
+	dp = dsa_to_port(&gsw->ds, port);
+	bridge = dsa_port_bridge_dev_get(dp);
+	if (!bridge)
+		return 0;
+
+	for (other = 0; other < RTK_MAX_NUM_OF_PORT; other++) {
+		if (other == port || !rtl837x_user_port(gsw, other))
+			continue;
+
+		dp = dsa_to_port(&gsw->ds, other);
+		if (dsa_port_bridge_dev_get(dp) == bridge)
+			members |= BIT(other);
+	}
+
+	return members;
+}
+
+static int rtl837x_update_isolation(struct rtk_gsw *gsw)
+{
+	u32 permit;
 	int port, ret;
 
 	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
 		if (!rtl837x_valid_port(gsw, port))
 			continue;
 
-		ret = rtk_port_isolation_set(port, gsw->configured_port_mask);
+		if (!gsw->dsa_svlan) {
+			permit = gsw->configured_port_mask;
+		} else if (port == gsw->cpu_port) {
+			permit = rtl837x_user_ports(gsw);
+		} else {
+			permit = BIT(gsw->cpu_port) |
+				 rtl837x_bridge_ports(gsw, port);
+		}
+
+		ret = rtk_port_isolation_set(port, permit);
 		if (ret)
 			return rtl837x_to_errno(ret);
 	}
@@ -76,9 +105,14 @@ static int rtl837x_commit_pvid(struct rtk_gsw *gsw, int port)
 	u16 vid = gsw->tag8021q_pvid[port];
 	int ret;
 
-	if (dsa_port_is_vlan_filtering(dp)) {
+	if (gsw->dsa_svlan) {
+		valid = true;
+		vid = 1;
+	}
+
+	if (dsa_port_is_vlan_filtering(dp) && gsw->bridge_pvid_valid[port]) {
 		vid = gsw->bridge_pvid[port];
-		valid = gsw->bridge_pvid_valid[port];
+		valid = true;
 	}
 
 	ret = rtk_vlan_portPvid_set(port, valid ? vid : 0);
@@ -149,13 +183,24 @@ static bool rtl837x_vlan_has_user(struct rtk_gsw *gsw, u16 mbr)
 	return mbr & rtl837x_user_ports(gsw);
 }
 
-static void rtl837x_rollback_vlan_pvid(struct rtk_gsw *gsw, int port, u16 vid, const struct rtl837x_vlan_entry *old_vlan, u16 *pvid_state, bool *pvid_valid, u16 old_pvid, bool old_pvid_valid)
+static void rtl837x_rollback_vlan_pvid(struct rtk_gsw *gsw, int port, u16 vid,
+				       const struct rtl837x_vlan_entry *old_vlan,
+				       u16 *pvid_state, bool *pvid_valid,
+				       u16 old_pvid, bool old_pvid_valid,
+				       bool service)
 {
 	int ret;
 
 	*pvid_state = old_pvid;
 	*pvid_valid = old_pvid_valid;
-	ret = rtl837x_commit_pvid(gsw, port);
+	if (service && gsw->dsa_svlan) {
+		u16 restore_vid = old_pvid_valid ? old_pvid : 0;
+
+		ret = dal_rtl8373_svlanDfltSvlan_set(port, restore_vid);
+		ret = rtl837x_to_errno(ret);
+	} else {
+		ret = rtl837x_commit_pvid(gsw, port);
+	}
 	if (ret)
 		dev_err(gsw->dev, "failed to roll back port %d PVID state: %d\n", port, ret);
 
@@ -202,6 +247,11 @@ static int rtl837x_seed_vlan_table(struct rtk_gsw *gsw)
 
 static enum dsa_tag_protocol rtl837x_get_tag_protocol(struct dsa_switch *ds, int port, enum dsa_tag_protocol mprot)
 {
+	struct rtk_gsw *gsw = ds->priv;
+
+	if (gsw->dsa_svlan)
+		return DSA_TAG_PROTO_RTL837X_8021AD;
+
 	/* A standard VLAN header remains parseable by host checksum engines. */
 	return DSA_TAG_PROTO_VSC73XX_8021Q;
 }
@@ -237,13 +287,20 @@ static int __rtl837x_tag_8021q_vlan_add(struct dsa_switch *ds, int port, u16 vid
 	if (pvid) {
 		gsw->tag8021q_pvid[port] = vid;
 		gsw->tag8021q_pvid_valid[port] = true;
-		ret = rtl837x_commit_pvid(gsw, port);
+		if (gsw->dsa_svlan)
+			ret = rtl837x_to_errno(dal_rtl8373_svlanDfltSvlan_set(port, vid));
+		else
+			ret = rtl837x_commit_pvid(gsw, port);
 		if (ret) {
-			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan, &gsw->tag8021q_pvid[port], &gsw->tag8021q_pvid_valid[port], old_pvid, old_pvid_valid);
+			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan,
+						   &gsw->tag8021q_pvid[port],
+						   &gsw->tag8021q_pvid_valid[port],
+						   old_pvid, old_pvid_valid, true);
 			return ret;
 		}
 
-		dev_dbg(gsw->dev, "tag_8021q PVID add: port=%d vid=%u mbr=0x%03x untag=0x%03x\n", port, vid, new_vlan.mbr, new_vlan.untag);
+		dev_dbg(gsw->dev, "tag_8021q identity add: port=%d vid=%u svlan=%u mbr=0x%03x untag=0x%03x\n",
+			port, vid, gsw->dsa_svlan, new_vlan.mbr, new_vlan.untag);
 	}
 	gsw->vlan_table[vid] = new_vlan;
 
@@ -289,13 +346,20 @@ static int __rtl837x_tag_8021q_vlan_del(struct dsa_switch *ds, int port, u16 vid
 
 	if (gsw->tag8021q_pvid_valid[port] && gsw->tag8021q_pvid[port] == vid) {
 		gsw->tag8021q_pvid_valid[port] = false;
-		ret = rtl837x_commit_pvid(gsw, port);
+		if (gsw->dsa_svlan)
+			ret = rtl837x_to_errno(dal_rtl8373_svlanDfltSvlan_set(port, 0));
+		else
+			ret = rtl837x_commit_pvid(gsw, port);
 		if (ret) {
-			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan, &gsw->tag8021q_pvid[port], &gsw->tag8021q_pvid_valid[port], old_pvid, old_pvid_valid);
+			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan,
+						   &gsw->tag8021q_pvid[port],
+						   &gsw->tag8021q_pvid_valid[port],
+						   old_pvid, old_pvid_valid, true);
 			return ret;
 		}
 
-		dev_info(gsw->dev, "tag_8021q PVID del: port=%d vid=%u replacement=%u\n", port, vid, gsw->port_pvid[port]);
+		dev_info(gsw->dev, "tag_8021q identity del: port=%d vid=%u svlan=%u\n",
+			 port, vid, gsw->dsa_svlan);
 	}
 	gsw->vlan_table[vid] = new_vlan;
 
@@ -359,6 +423,20 @@ static int rtl837x_setup_hardware(struct rtk_gsw *gsw)
 	if (ret)
 		return ret;
 
+	if (gsw->dsa_svlan) {
+		ret = dal_rtl8373_svlanInit();
+		if (ret)
+			return rtl837x_to_errno(ret);
+
+		ret = dal_rtl8373_svlanServicePort_add(gsw->cpu_port);
+		if (ret)
+			return rtl837x_to_errno(ret);
+
+		ret = dal_rtl8373_svlanUnassignAction_set(UNASSIGN_PBSVID);
+		if (ret)
+			return rtl837x_to_errno(ret);
+	}
+
 	memset(gsw->tag8021q_pvid, 0, sizeof(gsw->tag8021q_pvid));
 	memset(gsw->tag8021q_pvid_valid, 0, sizeof(gsw->tag8021q_pvid_valid));
 	memset(gsw->bridge_pvid, 0, sizeof(gsw->bridge_pvid));
@@ -391,6 +469,7 @@ static void rtl837x_log_forwarding_state(struct rtk_gsw *gsw)
 	u32 isolation[RTK_MAX_NUM_OF_PORT];
 	u32 ext_cpu = U32_MAX;
 	u32 tpid = U32_MAX;
+	u32 svlan_tpid = U32_MAX;
 	int port;
 
 	memset(pvid, 0xff, sizeof(pvid));
@@ -405,6 +484,8 @@ static void rtl837x_log_forwarding_state(struct rtk_gsw *gsw)
 	rtk_cpuTag_awarePort_get(&aware);
 	rtk_vlan_egrFilterEnable_get(&egr_filter);
 	rtk_vlan_get(1, &vlan1);
+	if (gsw->dsa_svlan)
+		dal_rtl8373_svlanTpid_get(&svlan_tpid);
 
 	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
 		if (!rtl837x_valid_port(gsw, port))
@@ -416,8 +497,9 @@ static void rtl837x_log_forwarding_state(struct rtk_gsw *gsw)
 	}
 	rtl837x_sdk_unlock(gsw);
 
-	dev_info(gsw->dev, "tag_8021q ready: ext-cpu=%u private-tag=%u insert=%u tpid=0x%04x aware=0x%03x egr-filter=%u vlan1=0x%03x/0x%03x\n", ext_cpu, cpu_tag, insert_mode, tpid, aware.bits[0], egr_filter, vlan1.mbr.bits[0],
-		 vlan1.untag.bits[0]);
+	dev_info(gsw->dev, "tag_8021q ready: ext-cpu=%u private-tag=%u insert=%u tpid=0x%04x dsa-svlan=%u svlan-tpid=0x%04x aware=0x%03x egr-filter=%u vlan1=0x%03x/0x%03x\n",
+		 ext_cpu, cpu_tag, insert_mode, tpid, gsw->dsa_svlan, svlan_tpid,
+		 aware.bits[0], egr_filter, vlan1.mbr.bits[0], vlan1.untag.bits[0]);
 
 	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
 		if (!rtl837x_valid_port(gsw, port))
@@ -444,7 +526,8 @@ static int rtl837x_setup(struct dsa_switch *ds)
 		return ret;
 
 	rtnl_lock();
-	ret = dsa_tag_8021q_register(ds, htons(ETH_P_8021Q));
+	ret = dsa_tag_8021q_register(ds, htons(gsw->dsa_svlan ?
+						      ETH_P_8021AD : ETH_P_8021Q));
 	rtnl_unlock();
 	if (ret) {
 		rtl837x_mdio_teardown(ds);
@@ -452,7 +535,7 @@ static int rtl837x_setup(struct dsa_switch *ds)
 	}
 
 	rtl837x_sdk_lock(gsw);
-	ret = rtl837x_open_isolation(gsw);
+	ret = rtl837x_update_isolation(gsw);
 	rtl837x_sdk_unlock(gsw);
 	if (ret) {
 		rtnl_lock();
@@ -461,7 +544,9 @@ static int rtl837x_setup(struct dsa_switch *ds)
 		rtl837x_mdio_teardown(ds);
 		return ret;
 	}
-	dev_info(gsw->dev, "DSA VLAN isolation initialized after tag setup: operational-permit=0x%03x\n", gsw->configured_port_mask);
+	dev_info(gsw->dev, "DSA VLAN isolation initialized after tag setup: mode=%s configured=0x%03x\n",
+		 gsw->dsa_svlan ? "bridge-matrix" : "vlan-membership",
+		 gsw->configured_port_mask);
 
 	rtl837x_log_forwarding_state(gsw);
 
@@ -480,6 +565,8 @@ static void rtl837x_teardown(struct dsa_switch *ds)
 	rtl837x_mdio_teardown(ds);
 	rtl837x_sdk_lock(gsw);
 	ret = rtk_cpuTag_enable_set(EXTERNAL_CPU, DISABLED);
+	if (!ret && gsw->dsa_svlan)
+		ret = dal_rtl8373_svlanServicePort_del(gsw->cpu_port);
 	rtl837x_sdk_unlock(gsw);
 	if (ret)
 		dev_err(gsw->dev, "failed to disable CPU tag during teardown: %d\n", ret);
@@ -927,7 +1014,8 @@ static void rtl837x_port_fast_age(struct dsa_switch *ds, int port)
 static int __rtl837x_port_change_mtu(struct dsa_switch *ds, int port, int new_mtu)
 {
 	struct rtk_gsw *gsw = ds->priv;
-	int frame_size = new_mtu + VLAN_ETH_HLEN + ETH_FCS_LEN;
+	int tag_overhead = gsw->dsa_svlan ? 2 * VLAN_HLEN : VLAN_HLEN;
+	int frame_size = new_mtu + ETH_HLEN + tag_overhead + ETH_FCS_LEN;
 	int ret;
 
 	if (!rtl837x_valid_port(gsw, port))
@@ -949,7 +1037,10 @@ static int __rtl837x_port_change_mtu(struct dsa_switch *ds, int port, int new_mt
 		return rtl837x_to_errno(ret);
 
 	if (port == gsw->cpu_port)
-		dev_info(gsw->dev, "DSA MTU configured: cpu-port=%d user-mtu=%d conduit-mtu=%d frame=%d tag-overhead=%d\n", port, new_mtu, gsw->ethernet_master ? gsw->ethernet_master->mtu : -1, frame_size, VLAN_HLEN);
+		dev_info(gsw->dev, "DSA MTU configured: cpu-port=%d user-mtu=%d conduit-mtu=%d frame=%d tag-overhead=%d\n",
+			 port, new_mtu,
+			 gsw->ethernet_master ? gsw->ethernet_master->mtu : -1,
+			 frame_size, tag_overhead);
 
 	return 0;
 }
@@ -968,7 +1059,10 @@ static int rtl837x_port_change_mtu(struct dsa_switch *ds, int port, int new_mtu)
 
 static int rtl837x_port_max_mtu(struct dsa_switch *ds, int port)
 {
-	return RTK_SWITCH_MAX_PKTLEN - VLAN_ETH_HLEN - ETH_FCS_LEN;
+	struct rtk_gsw *gsw = ds->priv;
+	int tag_overhead = gsw->dsa_svlan ? 2 * VLAN_HLEN : VLAN_HLEN;
+
+	return RTK_SWITCH_MAX_PKTLEN - ETH_HLEN - tag_overhead - ETH_FCS_LEN;
 }
 
 static int rtl837x_port_bridge_join(struct dsa_switch *ds, int port, struct dsa_bridge bridge, bool *tx_fwd_offload, struct netlink_ext_ack *extack)
@@ -978,6 +1072,19 @@ static int rtl837x_port_bridge_join(struct dsa_switch *ds, int port, struct dsa_
 
 	if (!rtl837x_user_port(gsw, port))
 		return -EINVAL;
+	if (gsw->dsa_svlan) {
+		rtl837x_sdk_lock(gsw);
+		ret = rtl837x_update_isolation(gsw);
+		rtl837x_sdk_unlock(gsw);
+		if (ret)
+			return ret;
+
+		*tx_fwd_offload = true;
+		dev_info(gsw->dev,
+			 "SVLAN bridge join: port=%d bridge=%s source-svid=%u\n",
+			 port, bridge.dev->name, gsw->tag8021q_pvid[port]);
+		return 0;
+	}
 
 	ret = dsa_tag_8021q_bridge_join(ds, port, bridge, tx_fwd_offload, extack);
 	if (ret)
@@ -994,6 +1101,18 @@ static void rtl837x_port_bridge_leave(struct dsa_switch *ds, int port, struct ds
 
 	if (!rtl837x_user_port(gsw, port))
 		return;
+	if (gsw->dsa_svlan) {
+		int ret;
+
+		rtl837x_sdk_lock(gsw);
+		ret = rtl837x_update_isolation(gsw);
+		rtl837x_sdk_unlock(gsw);
+		if (ret)
+			dev_err(gsw->dev,
+				"failed to update isolation after bridge leave on port %d: %d\n",
+				port, ret);
+		return;
+	}
 
 	dsa_tag_8021q_bridge_leave(ds, port, bridge);
 
@@ -1076,7 +1195,10 @@ static int __rtl837x_port_vlan_add(struct dsa_switch *ds, int port, const struct
 		ret = rtl837x_commit_pvid(gsw, port);
 		if (ret) {
 			NL_SET_ERR_MSG_MOD(extack, "failed to program VLAN PVID");
-			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan, &gsw->bridge_pvid[port], &gsw->bridge_pvid_valid[port], old_pvid, old_pvid_valid);
+			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan,
+						   &gsw->bridge_pvid[port],
+						   &gsw->bridge_pvid_valid[port],
+						   old_pvid, old_pvid_valid, false);
 			return ret;
 		}
 	}
@@ -1134,7 +1256,10 @@ static int __rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct
 		gsw->bridge_pvid_valid[port] = false;
 		ret = rtl837x_commit_pvid(gsw, port);
 		if (ret) {
-			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan, &gsw->bridge_pvid[port], &gsw->bridge_pvid_valid[port], old_pvid, old_pvid_valid);
+			rtl837x_rollback_vlan_pvid(gsw, port, vid, &old_vlan,
+						   &gsw->bridge_pvid[port],
+						   &gsw->bridge_pvid_valid[port],
+						   old_pvid, old_pvid_valid, false);
 			return ret;
 		}
 	}
@@ -1155,10 +1280,15 @@ static int rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct s
 	return ret;
 }
 
-static int rtl837x_fdb_isolation_vid(u16 *vid, struct dsa_db db)
+static int rtl837x_fdb_isolation_vid(struct rtk_gsw *gsw, u16 *vid,
+				     struct dsa_db db)
 {
 	if (*vid)
 		return 0;
+	if (gsw->dsa_svlan) {
+		*vid = 1;
+		return 0;
+	}
 
 	switch (db.type) {
 	case DSA_DB_PORT:
@@ -1187,7 +1317,7 @@ static int __rtl837x_port_fdb_add(struct dsa_switch *ds, int port, const unsigne
 	/* Host-bound unknown unicast is already flooded to the CPU port. */
 	if (gsw->chip_id == CHIP_RTL8372N && port == gsw->cpu_port)
 		return 0;
-	ret = rtl837x_fdb_isolation_vid(&vid, db);
+	ret = rtl837x_fdb_isolation_vid(gsw, &vid, db);
 	if (ret)
 		return ret;
 
@@ -1227,7 +1357,7 @@ static int __rtl837x_port_fdb_del(struct dsa_switch *ds, int port, const unsigne
 
 	if (gsw->chip_id == CHIP_RTL8372N && port == gsw->cpu_port)
 		return 0;
-	ret = rtl837x_fdb_isolation_vid(&vid, db);
+	ret = rtl837x_fdb_isolation_vid(gsw, &vid, db);
 	if (ret)
 		return ret;
 

@@ -6,11 +6,9 @@ identity before replace, statistics, and destroy operations. Reject
 conflicts and stale lifecycle operations and expose diagnostic counters.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
-Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-===================================================================
---- linux-6.18.44.orig/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-+++ linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -288,6 +288,7 @@
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -288,6 +288,7 @@ struct ppe_ft_host {
   * @ppe_dev: Back pointer to the PPE device.
   * @lock: Serializes rule installation, removal and the allocators.
   * @flows: Offloaded flows, keyed by flow cookie.
@@ -18,7 +16,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
   * @nexthops: Refcounted next-hop entries shared by identical flows.
   * @my_macs: Refcounted router MAC slots.
   * @pub_ips: Refcounted public IP slots.
-@@ -303,6 +304,7 @@
+@@ -303,6 +304,7 @@ struct ppe_flowtable {
  	struct mutex lock;
  	struct rhashtable flows;
  	struct list_head zombies;
@@ -26,7 +24,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  	struct dentry *debugfs;
  	struct dentry *debugfs_active;
  	struct dentry *debugfs_rows;
-@@ -315,6 +317,11 @@
+@@ -315,6 +317,11 @@ struct ppe_flowtable {
  	atomic_long_t replace_unsupported;
  	atomic_long_t replace_failed;
  	atomic_long_t destroy_calls;
@@ -38,7 +36,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  	atomic_long_t rejects[PPE_FT_REJECT_MAX];
  	DECLARE_HASHTABLE(hosts, PPE_FT_HOST_HASH_BITS);
  	struct ppe_ft_nexthop *nexthops;
-@@ -1895,14 +1902,86 @@
+@@ -1895,14 +1902,86 @@ static void ppe_ft_host_put(struct ppe_f
  		}
  }
  
@@ -128,7 +126,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  	WARN_ONCE(1, "leaking the resources of an undeletable PPE flow\n");
  	return false;
  }
-@@ -1917,8 +1996,10 @@
+@@ -1917,8 +1996,10 @@ static void ppe_ft_flow_quarantine(struc
  {
  	int ret;
  
@@ -141,7 +139,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  		dev_err(ft->ppe_dev->dev,
  			"failed to disable quarantined flow %d: %d\n",
  			flow->index, ret);
-@@ -1988,26 +2069,39 @@
+@@ -1988,26 +2069,39 @@ static int ppe_ft_flow_replace(struct pp
  	struct ip6_tnl_flow_offload_info tnl_info;
  	struct ppe_flow_nexthop nh = {};
  	struct ppe_ft_data data = {};
@@ -191,7 +189,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  
  	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC) ||
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS))
-@@ -2044,6 +2138,8 @@
+@@ -2044,6 +2138,8 @@ static int ppe_ft_flow_replace(struct pp
  		return -ENOMEM;
  
  	flow->cookie = f->cookie;
@@ -200,7 +198,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  	flow->ingress_my_mac = -1;
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
-@@ -2795,7 +2891,32 @@
+@@ -2795,7 +2891,32 @@ put_idev:
  
  	ret = ppe_flow_entry_enable(ft->ppe_dev, flow->index, true);
  	if (ret)
@@ -234,7 +232,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  
  	ret = rhashtable_lookup_insert_fast(&ft->flows, &flow->node,
  					    ppe_ft_params);
-@@ -2820,6 +2941,20 @@
+@@ -2820,6 +2941,20 @@ put_idev:
  
  	return 0;
  
@@ -255,7 +253,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  err_hw_flow:
  	if (!ppe_ft_flow_hw_del(ft, flow)) {
  		/* The quarantined flow retains its next-hop reference so the
-@@ -2892,18 +3027,7 @@
+@@ -2892,18 +3027,7 @@ static int ppe_ft_flow_destroy(struct pp
  	ppe_vp_flow_del(ft->ppe_dev, flow->ivp, &flow->vp_flow);
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
@@ -275,7 +273,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -3004,17 +3128,14 @@
+@@ -3004,17 +3128,14 @@ static int ppe_ft_flow_stats(struct ppe_
  	u64 bytes;
  	int ret;
  
@@ -297,7 +295,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  		return -ENOENT;
  	}
  
-@@ -3026,7 +3147,7 @@
+@@ -3026,7 +3147,7 @@ static int ppe_ft_flow_stats(struct ppe_
  	     (dsa_mode == PPE_FT_DSA_TAG_8021Q &&
  	      dsa_vid != flow->egress_vid) ||
  	     (dsa_mode == PPE_FT_DSA_QCA4B && flow->egress_vid >= 0))) {
@@ -306,7 +304,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  		return 0;
  	}
  
-@@ -3039,9 +3160,27 @@
+@@ -3039,9 +3160,27 @@ static int ppe_ft_flow_stats(struct ppe_
  	 * and re-offload it.
  	 */
  	if (!test_bit(flow->eport, ft->ppe_dev->carrier_ok)) {
@@ -335,7 +333,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  
  	ret = ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  	if (!ret && (packets != flow->packets || bytes != flow->bytes)) {
-@@ -3054,7 +3193,7 @@
+@@ -3054,7 +3193,7 @@ static int ppe_ft_flow_stats(struct ppe_
  		flow->bytes = bytes;
  	}
  
@@ -344,7 +342,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  
  	return ret;
  }
-@@ -3622,12 +3761,17 @@
+@@ -3622,12 +3761,17 @@ static int ppe_ft_flows_show(struct seq_
  	mutex_unlock(&ft->lock);
  
  	seq_printf(seq,
@@ -364,7 +362,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  	seq_puts(seq, "reject");
  	for (i = 0; i < PPE_FT_REJECT_MAX; i++)
  		seq_printf(seq, " %s:%ld", ppe_ft_reject_names[i],
-@@ -3892,6 +4036,13 @@
+@@ -3892,6 +4036,13 @@ int ppe_flowtable_setup(struct ppe_devic
  		kfree(ft);
  		return -ENOMEM;
  	}
@@ -378,7 +376,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  
  	/* The reserved L3 interface regions have compile-time sizes on
  	 * a runtime base (the port count); refuse a layout that would
-@@ -3899,6 +4050,7 @@
+@@ -3899,6 +4050,7 @@ int ppe_flowtable_setup(struct ppe_devic
  	 */
  	if (WARN_ON(ppe_ft_vp_l3_if(ft, PPE_VP_PORT_BASE + PPE_VP_SLOTS) >
  			    PPE_IN_L3_IF_TBL_ENTRIES)) {
@@ -386,7 +384,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  		kfree(ft->nexthops);
  		kfree(ft);
  		return -ERANGE;
-@@ -3912,6 +4064,7 @@
+@@ -3912,6 +4064,7 @@ int ppe_flowtable_setup(struct ppe_devic
  
  	ret = rhashtable_init(&ft->flows, &ppe_ft_params);
  	if (ret) {
@@ -394,7 +392,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  		kfree(ft->nexthops);
  		kfree(ft);
  		return ret;
-@@ -3925,6 +4078,7 @@
+@@ -3925,6 +4078,7 @@ int ppe_flowtable_setup(struct ppe_devic
  	if (ret) {
  		ppe_dev->flowtable = NULL;
  		rhashtable_destroy(&ft->flows);
@@ -402,7 +400,7 @@ Index: linux-6.18.44/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
  		kfree(ft->nexthops);
  		kfree(ft);
  		return ret;
-@@ -4005,6 +4159,7 @@
+@@ -4005,6 +4159,7 @@ void ppe_flowtable_destroy(struct ppe_de
  		if (ft->tunnels[i].dev)
  			dev_put(ft->tunnels[i].dev);
  

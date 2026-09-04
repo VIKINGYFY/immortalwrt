@@ -1,0 +1,586 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 3 Sep 2026 21:55:00 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: add dual-VLAN DSA offload
+
+Extend the Qualcomm PPE ingress translation and flow topology paths to
+match and modify SVID and CVID independently. Preserve the DSA service
+tag on CPU-punted traffic and allow one inner customer VLAN to coexist
+with the RTL837x 802.1ad source-port tag.
+
+Allow VLAN-aware DSA routed-flow offload only for the dedicated RTL837x
+protocol. The legacy VSC73XX-compatible 802.1Q, QCA4B and direct-PHY
+paths retain their existing behavior.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
+@@ -365,7 +365,8 @@ static int ppe_bridge_vsi_xlt_update(str
+ 		}
+ 
+ 		ret = ppe_ing_xlt_rule_set(pb->ppe_dev, idx, rules[i].bitmap,
+-					   rules[i].vid, vsi, false);
++					   -1, rules[i].vid, vsi,
++					   false, false);
+ 		if (ret)
+ 			return ret;
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -1430,6 +1430,36 @@ int ppe_counter_enable_set(struct ppe_de
+ 	return regmap_set_bits(ppe_dev->regmap, reg, PPE_PORT_EG_VLAN_TBL_TX_COUNTING_EN);
+ }
+ 
++/**
++ * ppe_port_vlan_type_set - Select the ingress and egress QinQ role of a port
++ * @ppe_dev: PPE device
++ * @port: PPE port
++ * @core: Treat the outer provider tag as an S-tag in both directions
++ *
++ * Return: 0 on success, negative error code on failure.
++ */
++int ppe_port_vlan_type_set(struct ppe_device *ppe_dev, int port, bool core)
++{
++	u32 reg, role = core ? PPE_PORT_PARSING_REG_PORT_ROLE : 0;
++	int ret;
++
++	if (port < 0 || port >= PPE_PORT_PARSING_REG_ENTRIES ||
++	    port >= PPE_PORT_EG_VLAN_TBL_ENTRIES)
++		return -EINVAL;
++
++	reg = PPE_PORT_PARSING_REG_ADDR + PPE_PORT_PARSING_REG_INC * port;
++	ret = regmap_update_bits(ppe_dev->regmap, reg,
++				 PPE_PORT_PARSING_REG_PORT_ROLE, role);
++	if (ret)
++		return ret;
++
++	reg = PPE_PORT_EG_VLAN_TBL_ADDR + PPE_PORT_EG_VLAN_TBL_INC * port;
++
++	return regmap_update_bits(ppe_dev->regmap, reg,
++				  PPE_PORT_EG_VLAN_TBL_VLAN_TYPE,
++				  core ? PPE_PORT_EG_VLAN_TBL_VLAN_TYPE : 0);
++}
++
+ static int ppe_rss_hash_ipv4_config(struct ppe_device *ppe_dev, int index,
+ 				    struct ppe_rss_hash_cfg cfg)
+ {
+@@ -1745,32 +1775,35 @@ int ppe_port_vlan_ingress_filter_set(str
+  * @ppe_dev: PPE device
+  * @index: Rule index to program
+  * @port_bitmap: Bitmap of the ingress ports the rule matches
+- * @vid: C-VLAN ID matched by the rule, or a negative value to match
++ * @svid: S-VLAN ID matched by the rule, or a negative value for untagged
++ * @cvid: C-VLAN ID matched by the rule, or a negative value to match
+  * untagged and priority-tagged packets instead
+  * @vsi: VSI assigned to the matching packets
++ * @strip_svid: Delete the matched S-VLAN tag after classification
+  * @strip_cvid: Delete the matched C-VLAN tag after classification
+  *
+- * The rule matches single-tagged packets with the given C-VLAN ID, or
+- * untagged and priority-tagged packets when @vid is negative, received
+- * on the ports of the bitmap, and assigns them to the VSI. Routed VLAN
+- * interfaces strip the classified C-tag before L3 processing; bridge
+- * rules retain it for the VSI egress tag policy.
++ * The rule independently matches the provider and customer VLAN slots.
++ * This permits an 802.1ad DSA source tag to coexist with one ordinary
++ * customer VLAN while retaining the existing untagged and single-tag paths.
+  *
+  * Return: 0 on success, negative error code on failure.
+  */
+ int ppe_ing_xlt_rule_set(struct ppe_device *ppe_dev, int index,
+-			 unsigned int port_bitmap, int vid, int vsi,
+-			 bool strip_cvid)
++			 unsigned int port_bitmap, int svid, int cvid,
++			 int vsi, bool strip_svid, bool strip_cvid)
+ {
+ 	u32 rule[4] = {}, action[4] = {};
+-	unsigned int fmt;
++	unsigned int cfmt, sfmt;
+ 	u32 reg;
+ 	int ret;
+ 
+ 	/* Program the action before validating the rule. */
+ 	action[1] = PPE_XLT_ACTION_W1_VSI_CMD;
+ 	action[1] |= FIELD_PREP(PPE_XLT_ACTION_W1_VSI, vsi);
+-	if (strip_cvid && vid >= 0)
++	if (strip_svid && svid >= 0)
++		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_SVID_CMD,
++					PPE_XLT_VID_CMD_DELETE);
++	if (strip_cvid && cvid >= 0)
+ 		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_CVID_CMD,
+ 					PPE_XLT_VID_CMD_DELETE);
+ 
+@@ -1783,19 +1816,25 @@ int ppe_ing_xlt_rule_set(struct ppe_devi
+ 	rule[0] = PPE_XLT_RULE_W0_VALID;
+ 	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_PORT_BITMAP, port_bitmap);
+ 
+-	/* Match packets without an S-tag. */
+-	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_FMT, PPE_XLT_FMT_UNTAGGED);
++	if (svid >= 0) {
++		sfmt = svid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
++		rule[0] |= PPE_XLT_RULE_W0_SKEY_VID_INCL;
++		rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_VID, svid);
++	} else {
++		sfmt = PPE_XLT_FMT_UNTAGGED;
++	}
++	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_FMT, sfmt);
+ 
+-	if (vid >= 0) {
+-		fmt = vid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
++	if (cvid >= 0) {
++		cfmt = cvid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
+ 		rule[1] |= PPE_XLT_RULE_W1_CKEY_VID_INCL;
+-		rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_VID, vid);
++		rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_VID, cvid);
+ 	} else {
+-		fmt = PPE_XLT_FMT_UNTAGGED | PPE_XLT_FMT_PRIO_TAGGED;
++		cfmt = PPE_XLT_FMT_UNTAGGED | PPE_XLT_FMT_PRIO_TAGGED;
+ 	}
+ 
+-	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_CKEY_FMT_LO, fmt & 0x1);
+-	rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_FMT_HI, fmt >> 1);
++	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_CKEY_FMT_LO, cfmt & 0x1);
++	rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_FMT_HI, cfmt >> 1);
+ 
+ 	reg = PPE_XLT_RULE_TBL_ADDR + PPE_XLT_RULE_TBL_INC * index;
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+@@ -350,9 +350,10 @@ int ppe_vsi_eg_mode_set(struct ppe_devic
+ int ppe_port_default_cvid_set(struct ppe_device *ppe_dev, int port, int vid);
+ int ppe_port_vlan_ingress_filter_set(struct ppe_device *ppe_dev, int port,
+ 				     bool enable);
++int ppe_port_vlan_type_set(struct ppe_device *ppe_dev, int port, bool core);
+ int ppe_ing_xlt_rule_set(struct ppe_device *ppe_dev, int index,
+-			 unsigned int port_bitmap, int vid, int vsi,
+-			 bool strip_cvid);
++			 unsigned int port_bitmap, int svid, int cvid,
++			 int vsi, bool strip_svid, bool strip_cvid);
+ int ppe_ing_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
+ int ppe_port_bridge_txmac_set(struct ppe_device *ppe_dev, int port,
+ 			      bool enable);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -176,6 +176,12 @@
+ #define PPE_SERVICE_SET_RX_CNT_EN(tbl_cfg, value)	\
+ 	FIELD_MODIFY(PPE_SERVICE_W1_RX_CNT_EN, (tbl_cfg) + 0x1, value)
+ 
++/* PPE physical-port ingress VLAN parsing roles. */
++#define PPE_PORT_PARSING_REG_ADDR		0x20000
++#define PPE_PORT_PARSING_REG_ENTRIES		8
++#define PPE_PORT_PARSING_REG_INC		4
++#define PPE_PORT_PARSING_REG_PORT_ROLE		BIT(0)
++
+ /* PPE port egress VLAN configurations. */
+ #define PPE_PORT_EG_VLAN_TBL_ADDR		0x20020
+ #define PPE_PORT_EG_VLAN_TBL_ENTRIES		8
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -140,8 +140,11 @@ static_assert(offsetof(struct ppe_ft_ppp
+ /**
+  * struct ppe_ft_vlan - A refcounted VLAN uplink of an ingress port.
+  * @ref: Reference count of the uplink.
+- * @vid: VLAN ID of the uplink.
++ * @svid: Service VLAN ID of the uplink, negative when absent.
++ * @cvid: Customer VLAN ID of the uplink, negative when absent.
+  * @port: PPE port the tagged packets ingress on.
++ * @keep_svid: Preserve the S-tag on packets punted to the CPU.
++ * @keep_cvid: Preserve the C-tag on packets punted to the CPU.
+  * @poisoned: Cleanup failed and the slot must not be reused.
+  *
+  * A VLAN uplink owns one of the reserved top ingress translation
+@@ -153,8 +156,11 @@ static_assert(offsetof(struct ppe_ft_ppp
+  */
+ struct ppe_ft_vlan {
+ 	struct ppe_ft_ref ref;
+-	u16 vid;
++	s16 svid;
++	s16 cvid;
+ 	u8 port;
++	bool keep_svid;
++	bool keep_cvid;
+ 	bool poisoned;
+ };
+ 
+@@ -380,6 +386,7 @@ struct ppe_ft_data {
+ 	__be16 sport;
+ 	__be16 dport;
+ 	int pppoe_sid;
++	int ingress_svid;
+ 	int ingress_vid;
+ 	bool ingress_dsa;
+ 	int ingress_ifindex;
+@@ -693,15 +700,20 @@ struct ppe_ft_pppoe_topo {
+ 	int mtu;
+ 	int vlan_mtu;
+ 	int port;
+-	int vid;
++	int svid;
++	int cvid;
++	bool keep_svid;
++	bool keep_cvid;
+ };
+ 
+-static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
+-			   int mtu, bool keep_tag);
++static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, int svid,
++			   int cvid, int mtu, bool keep_svid,
++			   bool keep_cvid);
+ static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index);
+ 
+ enum ppe_ft_dsa_mode {
+ 	PPE_FT_DSA_TAG_8021Q,
++	PPE_FT_DSA_TAG_8021AD,
+ 	PPE_FT_DSA_QCA4B,
+ };
+ 
+@@ -717,7 +729,8 @@ static int ppe_ft_pppoe_path(struct net_
+ 	int i, ret;
+ 
+ 	topo->port = -1;
+-	topo->vid = -1;
++	topo->svid = -1;
++	topo->cvid = -1;
+ 	topo->mtu = ppp_dev->mtu;
+ 	topo->vlan_mtu = ppp_dev->mtu;
+ 
+@@ -740,30 +753,39 @@ static int ppe_ft_pppoe_path(struct net_
+ 			ether_addr_copy(topo->peer, path->encap.h_dest);
+ 			break;
+ 		case DEV_PATH_VLAN:
+-			if (topo->vid >= 0 ||
++			if (topo->cvid >= 0 ||
+ 			    path->encap.proto != htons(ETH_P_8021Q)) {
+ 				ret = -EOPNOTSUPP;
+ 				goto out_unlock;
+ 			}
+-			topo->vid = path->encap.id;
++			topo->cvid = path->encap.id;
+ 			topo->vlan_mtu = path->dev->mtu;
+ 			break;
+ 		case DEV_PATH_DSA:
+ 		{
+ 			int dsa_mode, vid;
+ 
+-			if (topo->vid >= 0) {
+-				ret = -EOPNOTSUPP;
+-				goto out_unlock;
+-			}
+ 			dsa_mode = ppe_ft_dsa_resolve((struct net_device *)path->dev,
+ 						      NULL, &vid);
+ 			if (dsa_mode < 0) {
+ 				ret = dsa_mode;
+ 				goto out_unlock;
+ 			}
+-			if (dsa_mode == PPE_FT_DSA_TAG_8021Q)
+-				topo->vid = vid;
++			if (dsa_mode == PPE_FT_DSA_TAG_8021Q) {
++				if (topo->cvid >= 0) {
++					ret = -EOPNOTSUPP;
++					goto out_unlock;
++				}
++				topo->cvid = vid;
++				topo->keep_cvid = true;
++			} else if (dsa_mode == PPE_FT_DSA_TAG_8021AD) {
++				if (topo->svid >= 0) {
++					ret = -EOPNOTSUPP;
++					goto out_unlock;
++				}
++				topo->svid = vid;
++				topo->keep_svid = true;
++			}
+ 			topo->vlan_mtu = path->dev->mtu;
+ 			ether_addr_copy(topo->local, path->dev->dev_addr);
+ 			break;
+@@ -797,6 +819,18 @@ out_unlock:
+ 	return ret;
+ }
+ 
++static bool ppe_ft_vlan_tags_match(struct ppe_flowtable *ft, int index,
++				   int svid, int cvid)
++{
++	const struct ppe_ft_vlan *vlan;
++
++	if (index < 0)
++		return svid < 0 && cvid < 0;
++
++	vlan = &ft->vlans[index];
++	return vlan->svid == svid && vlan->cvid == cvid;
++}
++
+ static bool ppe_ft_pppoe_match(const void *entry, const void *key)
+ {
+ 	const struct ppe_ft_pppoe *session = entry, *want = key;
+@@ -808,7 +842,7 @@ static bool ppe_ft_pppoe_match(const voi
+ /* Flow rules only reference a session already published by PPP connect. */
+ static int ppe_ft_pppoe_get(struct ppe_flowtable *ft, u16 sid,
+ 			    const u8 *peer, const u8 *local,
+-			    int port, int vid)
++			    int port, int svid, int cvid)
+ {
+ 	int i;
+ 
+@@ -823,8 +857,7 @@ static int ppe_ft_pppoe_get(struct ppe_f
+ 		if (!session->connected)
+ 			return -ENOTCONN;
+ 		if (session->port != port ||
+-		    (session->vlan < 0) != (vid < 0) ||
+-		    (vid >= 0 && ft->vlans[session->vlan].vid != vid) ||
++		    !ppe_ft_vlan_tags_match(ft, session->vlan, svid, cvid) ||
+ 		    !ether_addr_equal(session->local, local))
+ 			return -EEXIST;
+ 
+@@ -851,9 +884,7 @@ static int ppe_ft_pppoe_dev_get(struct p
+ 			return -EIO;
+ 		if (!session->connected || session->ppp_dev != ppp_dev ||
+ 		    session->port != port ||
+-		    (session->vlan < 0 && vid >= 0) ||
+-		    (session->vlan >= 0 && vid < 0) ||
+-		    (vid >= 0 && ft->vlans[session->vlan].vid != vid))
++		    !ppe_ft_vlan_tags_match(ft, session->vlan, -1, vid))
+ 			continue;
+ 		session->ref.refcnt++;
+ 		return i;
+@@ -891,9 +922,10 @@ static int ppe_ft_pppoe_connect(struct p
+ 		return ret;
+ 
+ 	mutex_lock(&ft->lock);
+-	if (topo.vid >= 0) {
+-		vlan = ppe_ft_vlan_get(ft, topo.port, topo.vid, topo.vlan_mtu,
+-				       false);
++	if (topo.svid >= 0 || topo.cvid >= 0) {
++		vlan = ppe_ft_vlan_get(ft, topo.port, topo.svid, topo.cvid,
++				       topo.vlan_mtu, topo.keep_svid,
++				       topo.keep_cvid);
+ 		if (vlan < 0) {
+ 			ret = vlan;
+ 			goto out_unlock;
+@@ -1079,7 +1111,7 @@ static int ppe_ft_vp_l3_if(struct ppe_fl
+ 	       (vp - PPE_VP_PORT_BASE);
+ }
+ 
+-/* Get a refcounted VLAN uplink slot of (port, VID), programming its
++/* Get a refcounted VLAN uplink slot of (port, SVID, CVID), programming its
+  * L3 interface, VSI binding and translation rule on first use. Must
+  * be called with the flowtable lock held.
+  */
+@@ -1087,14 +1119,23 @@ static bool ppe_ft_vlan_match(const void
+ {
+ 	const struct ppe_ft_vlan *uplink = entry, *want = key;
+ 
+-	return !uplink->poisoned && uplink->vid == want->vid &&
+-	       uplink->port == want->port;
+-}
+-
+-static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
+-			   int mtu, bool keep_tag)
+-{
+-	struct ppe_ft_vlan want = { .vid = vid, .port = port };
++	return !uplink->poisoned && uplink->svid == want->svid &&
++	       uplink->cvid == want->cvid && uplink->port == want->port &&
++	       uplink->keep_svid == want->keep_svid &&
++	       uplink->keep_cvid == want->keep_cvid;
++}
++
++static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, int svid,
++			   int cvid, int mtu, bool keep_svid,
++			   bool keep_cvid)
++{
++	struct ppe_ft_vlan want = {
++		.svid = svid,
++		.cvid = cvid,
++		.port = port,
++		.keep_svid = keep_svid,
++		.keep_cvid = keep_cvid,
++	};
+ 	const u8 no_mac[ETH_ALEN] = {};
+ 	u32 eg_modes;
+ 	bool is_new;
+@@ -1105,6 +1146,11 @@ static int ppe_ft_vlan_get(struct ppe_fl
+ 			   &want, &is_new);
+ 	if (i < 0 || !is_new)
+ 		return i;
++	if (svid >= 0) {
++		ret = ppe_port_vlan_type_set(ft->ppe_dev, port, true);
++		if (ret)
++			return ret;
++	}
+ 
+ 	/* The L3 interface only terminates ingress, no next hop points
+ 	 * at it: it carries no egress MAC.
+@@ -1119,20 +1165,20 @@ static int ppe_ft_vlan_get(struct ppe_fl
+ 	if (ret)
+ 		return ret;
+ 
+-	if (keep_tag) {
+-		eg_modes = 0;
++	eg_modes = 0;
++	if (keep_svid || keep_cvid)
+ 		for (p = 0; p < ft->ppe_dev->num_ports; p++)
+ 			eg_modes |= PPE_EG_VLAN_MODE_UNMODIFIED << (p * 2);
+ 
+-		ret = ppe_vsi_eg_mode_set(ft->ppe_dev, ppe_ft_vlan_vsi(i),
+-					  eg_modes);
+-		if (ret)
+-			return ret;
+-	}
++	ret = ppe_vsi_eg_mode_set(ft->ppe_dev, ppe_ft_vlan_vsi(i),
++				  eg_modes);
++	if (ret)
++		return ret;
+ 
+ 	ret = ppe_ing_xlt_rule_set(ft->ppe_dev, ppe_ft_vlan_xlt(i),
+-				   BIT(port), vid, ppe_ft_vlan_vsi(i),
+-				   !keep_tag);
++				   BIT(port), svid, cvid,
++				   ppe_ft_vlan_vsi(i),
++				   !keep_svid, !keep_cvid);
+ 	if (ret) {
+ 		err = ppe_ing_xlt_rule_clear(ft->ppe_dev,
+ 					     ppe_ft_vlan_xlt(i));
+@@ -1581,8 +1627,9 @@ out_unlock:
+ 
+ 		if (vid >= 0) {
+ 			tunnel->vlan = ppe_ft_vlan_get(ft,
+-						       tunnel->underlay_port, vid,
+-						 dst->dev->mtu, false);
++						       tunnel->underlay_port,
++						       -1, vid, dst->dev->mtu,
++						       false, false);
+ 			if (tunnel->vlan < 0) {
+ 				ret = tunnel->vlan;
+ 				tunnel->vlan = -1;
+@@ -2032,7 +2079,8 @@ static int ppe_ft_dsa_resolve(struct net
+ 	if (!edma_port_dev_check(dsa_port_to_conduit(dp)))
+ 		return -EOPNOTSUPP;
+ 
+-	if (dsa_port_is_vlan_filtering(dp))
++	if (dsa_port_is_vlan_filtering(dp) &&
++	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_RTL837X_8021AD)
+ 		return -EOPNOTSUPP;
+ 
+ 	if (dpp)
+@@ -2043,6 +2091,11 @@ static int ppe_ft_dsa_resolve(struct net
+ 			*vid = -1;
+ 		return PPE_FT_DSA_QCA4B;
+ 	}
++	if (dp->cpu_dp->tag_ops->proto == DSA_TAG_PROTO_RTL837X_8021AD) {
++		if (vid)
++			*vid = dsa_tag_8021q_standalone_vid(dp);
++		return PPE_FT_DSA_TAG_8021AD;
++	}
+ 	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_VSC73XX_8021Q &&
+ 	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_QCA_8021Q)
+ 		return -EOPNOTSUPP;
+@@ -2151,6 +2204,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	nh.svid = -1;
+ 	nh.cvid = -1;
+ 	data.pppoe_sid = -1;
++	data.ingress_svid = -1;
+ 	data.ingress_vid = -1;
+ 	data.ingress_dsa = false;
+ 
+@@ -2516,13 +2570,14 @@ static int ppe_ft_flow_replace(struct pp
+ 				goto put_idev;
+ 			}
+ 
+-			/* QCA4B carries its DSA identity outside the ordinary VLAN
+-			 * dissector key, so its VP ingress hook can exact-match and
+-			 * strip one user C-tag before injection. An 802.1Q DSA
+-			 * transport plus a user VLAN still exposes two VLAN layers.
++			/* QCA4B carries its DSA identity outside the VLAN keys. RTL837x
++			 * 802.1ad carries it in the S-tag slot, leaving the C-tag slot
++			 * available for one user VLAN. Legacy 802.1Q transports still
++			 * have only the C-tag slot.
+ 			 */
+ 			if (data.ingress_vid >= 0 &&
+-			    dsa_mode != PPE_FT_DSA_QCA4B) {
++			    dsa_mode != PPE_FT_DSA_QCA4B &&
++			    dsa_mode != PPE_FT_DSA_TAG_8021AD) {
+ 				vp_ret = -EOPNOTSUPP;
+ 				goto put_idev;
+ 			}
+@@ -2539,7 +2594,12 @@ static int ppe_ft_flow_replace(struct pp
+ 				conduit = dsa_port_to_conduit(dp);
+ 				ipriv = netdev_priv(conduit);
+ 				iport = ipriv->ppe_port->port_id;
+-				data.ingress_vid = dsa_ivid;
++				if (dsa_mode == PPE_FT_DSA_TAG_8021AD) {
++					data.ingress_svid = dsa_ivid;
++					vp_ret = ppe_port_vlan_type_set(ft->ppe_dev, iport, true);
++				} else {
++					data.ingress_vid = dsa_ivid;
++				}
+ 				data.ingress_dsa = true;
+ 			}
+ 		} else if (ft->ppe_dev->variant->has_vports &&
+@@ -2558,7 +2618,8 @@ put_idev:
+ 			goto err_prelock_ivp;
+ 		}
+ 
+-		if (data.ingress_vid >= 0 && iport < 0 &&
++		if ((data.ingress_svid >= 0 || data.ingress_vid >= 0) &&
++		    iport < 0 &&
+ 		    !ingress_vp_vlan) {
+ 			ret = -EOPNOTSUPP;
+ 			goto err_prelock_ivp;
+@@ -2597,7 +2658,8 @@ put_idev:
+ 				port_priv = netdev_priv(dsa_port_to_conduit(dp));
+ 				nh.port = port_priv->ppe_port->port_id;
+ 				nh.l3_if = nh.port;
+-				if (dp->cpu_dp->tag_ops->proto ==
++				if (dsa_mode == PPE_FT_DSA_TAG_8021AD ||
++				    dp->cpu_dp->tag_ops->proto ==
+ 				    DSA_TAG_PROTO_QCA_8021Q) {
+ 					nh.svid = dsa_ovid;
+ 				} else {
+@@ -2611,6 +2673,11 @@ put_idev:
+ 					nh.cvid = dsa_ovid;
+ 				}
+ 			}
++			if (dsa_mode == PPE_FT_DSA_TAG_8021AD) {
++				ret = ppe_port_vlan_type_set(ft->ppe_dev, nh.port, true);
++				if (ret)
++					goto err_prelock_ivp;
++			}
+ 			flow->egress_dev = odev;
+ 			flow->egress_vid = dsa_ovid;
+ 			dev_hold(flow->egress_dev);
+@@ -2782,9 +2849,14 @@ put_idev:
+ 			goto err_ingress_my_mac;
+ 	}
+ 
+-	if (data.ingress_vid >= 0 && !ingress_vp_vlan) {
+-		flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_vid,
+-					     imtu, data.ingress_dsa);
++	if ((data.ingress_svid >= 0 || data.ingress_vid >= 0) &&
++	    !ingress_vp_vlan) {
++		flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_svid,
++					     data.ingress_vid, imtu,
++					     data.ingress_dsa &&
++					     data.ingress_svid >= 0,
++					     data.ingress_dsa &&
++					     data.ingress_svid < 0);
+ 		if (flow->vlan < 0) {
+ 			ret = flow->vlan;
+ 			goto err_ingress_my_mac;
+@@ -2819,8 +2891,7 @@ put_idev:
+ 
+ 		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
+ 					       data.eth.dst, data.eth.src,
+-					       pppoe_port,
+-					       nh.svid >= 0 ? nh.svid : nh.cvid);
++					       pppoe_port, nh.svid, nh.cvid);
+ 		if (flow->pppoe < 0) {
+ 			ret = flow->pppoe;
+ 			goto err_vlan;
+@@ -3144,7 +3215,8 @@ static int ppe_ft_flow_stats(struct ppe_
+ 					      &dsa_vid);
+ 	if (flow->egress_dev &&
+ 	    (!netif_carrier_ok(flow->egress_dev) || dsa_mode < 0 ||
+-	     (dsa_mode == PPE_FT_DSA_TAG_8021Q &&
++	     ((dsa_mode == PPE_FT_DSA_TAG_8021Q ||
++	       dsa_mode == PPE_FT_DSA_TAG_8021AD) &&
+ 	      dsa_vid != flow->egress_vid) ||
+ 	     (dsa_mode == PPE_FT_DSA_QCA4B && flow->egress_vid >= 0))) {
+ 		mutex_unlock(&ft->lock);

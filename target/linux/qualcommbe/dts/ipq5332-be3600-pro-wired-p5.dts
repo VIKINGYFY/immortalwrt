@@ -13,6 +13,7 @@
 	wan_phy: ethernet-phy@1 {
 		compatible = "ethernet-phy-id001c.c849";
 		reg = <1>;
+		realtek,led-link-select = <0x27 0 0>;
 	};
 
 	rtl837x: rtl837x-dsa@29 {
@@ -20,6 +21,7 @@
 		reg = <29>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		realtek,dsa-svlan;
 		realtek,preserve-boot-config;
 		realtek,rtl8372n-led-init;
 		rtl837x,sds1mode = "10g-usxg";

@@ -1159,6 +1159,7 @@ static int rtl837x_dsa_probe(struct mdio_device *mdiodev)
 	gsw->init_rtl8372n_leds = of_property_read_bool(np, "realtek,rtl8372n-led-init");
 	gsw->quarantine_before_conduit = of_property_read_bool(np, "realtek,quarantine-before-conduit");
 	gsw->reinit_cpu_serdes = of_property_read_bool(np, "realtek,reinit-cpu-serdes");
+	gsw->dsa_svlan = of_property_read_bool(np, "realtek,dsa-svlan");
 	if (gsw->reinit_cpu_serdes && !gsw->preserve_boot_config) {
 		dev_err(dev, "realtek,reinit-cpu-serdes requires realtek,preserve-boot-config\n");
 		if (master)
@@ -1205,8 +1206,13 @@ static int rtl837x_dsa_probe(struct mdio_device *mdiodev)
 	if (mdiodev->bus->parent && mdiodev->bus->parent->of_node)
 		of_property_read_u32(mdiodev->bus->parent->of_node, "clock-frequency", &mdc_rate);
 
-	dev_info(gsw->dev, "rtl837x dev info:smi-addr:%d requested-mdc:%u configured-cpu-port:%u sds0:%d sds1:%d swap_cfg:0x%x preserve-boot:%u led-init:%u quarantine:%u reinit-cpu-serdes:%u\n", gsw->mdio_addr, mdc_rate, gsw->cpu_port,
-		 gsw->sds0mode, gsw->sds1mode, *(uint8_t *)&gsw->swap_cfg, gsw->preserve_boot_config, gsw->init_rtl8372n_leds, gsw->quarantine_before_conduit, gsw->reinit_cpu_serdes);
+	dev_info(gsw->dev,
+		 "rtl837x dev info:smi-addr:%d requested-mdc:%u configured-cpu-port:%u sds0:%d sds1:%d swap_cfg:0x%x preserve-boot:%u led-init:%u quarantine:%u reinit-cpu-serdes:%u dsa-svlan:%u\n",
+		 gsw->mdio_addr, mdc_rate, gsw->cpu_port, gsw->sds0mode,
+		 gsw->sds1mode, *(uint8_t *)&gsw->swap_cfg,
+		 gsw->preserve_boot_config, gsw->init_rtl8372n_leds,
+		 gsw->quarantine_before_conduit, gsw->reinit_cpu_serdes,
+		 gsw->dsa_svlan);
 
 	rtl837x_sdk_lock(gsw);
 	ret = rtl8372n_hw_init(gsw, gsw->swap_cfg);

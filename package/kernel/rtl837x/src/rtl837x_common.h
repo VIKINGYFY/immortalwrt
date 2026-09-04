@@ -100,6 +100,7 @@ struct rtk_gsw {
 	bool init_rtl8372n_leds;
 	bool quarantine_before_conduit;
 	bool reinit_cpu_serdes;
+	bool dsa_svlan;
 	bool conduit_ready;
 	char conduit_name[IFNAMSIZ];
 	u32 probe_attempts;
