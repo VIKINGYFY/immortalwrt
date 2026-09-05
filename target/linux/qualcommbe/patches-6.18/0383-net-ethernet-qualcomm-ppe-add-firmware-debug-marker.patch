@@ -1,11 +1,10 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
 Date: Mon, 31 Aug 2026 14:56:21 +0800
-Subject: [PATCH] net: qualcomm: add PPE firmware marker
+Subject: [PATCH] net: ethernet: qualcomm: ppe: add firmware debug marker
 
 Print one build marker after the generic qcom_ppe probe completes.
-This patch is the only firmware marker and is refreshed in place for later
-images.
+The numeric suffix identifies the validation firmware revision.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
@@ -18,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
-+	dev_info_once(dev, "PPE OFFLOAD ViKing/r1 load successful\n");
++	dev_info_once(dev, "PPE OFFLOAD ViKing/r2 load successful\n");
  
  	return 0;
  }
