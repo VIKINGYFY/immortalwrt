@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -217,11 +217,24 @@
+@@ -217,11 +217,24 @@ static void ipq_pcs_get_state_sgmii(stru
  }
  
  static void ipq_pcs_get_state_2500basex(struct ipq_pcs *qpcs,
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = regmap_read(qpcs->regmap, PCS_MII_STS(0), &val);
  	if (ret) {
  		state->link = 0;
-@@ -825,7 +838,7 @@
+@@ -825,7 +838,7 @@ static void ipq_pcs_get_state(struct phy
  		ipq_pcs_get_state_sgmii(qpcs, index, state);
  		break;
  	case PHY_INTERFACE_MODE_2500BASEX:
