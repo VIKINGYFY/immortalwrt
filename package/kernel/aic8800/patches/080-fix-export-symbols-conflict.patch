@@ -60,7 +60,7 @@
      if (testmode == 0) {
 --- a/src/USB/driver_fw/drivers/aic8800/aic8800_fdrv/rwnx_main.c
 +++ b/src/USB/driver_fw/drivers/aic8800/aic8800_fdrv/rwnx_main.c
-@@ -8800,9 +8800,9 @@ void aic_ipc_setting(struct rwnx_vif *rw
+@@ -8885,9 +8885,9 @@ void aic_ipc_setting(struct rwnx_vif *rw
  	rwnx_send_vendor_hwconfig_req(rwnx_hw, hw_edca, param, NULL);
  	rwnx_send_vendor_hwconfig_req(rwnx_hw, hw_cca, cca, NULL);
  }
@@ -72,7 +72,7 @@
  extern char default_ccode[];
  int rwnx_cfg80211_init(struct rwnx_plat *rwnx_plat, void **platform_data)
  {
-@@ -8925,7 +8925,7 @@ if((g_rwnx_plat->usbdev->chipid == PRODU
+@@ -9010,7 +9010,7 @@ if((g_rwnx_plat->usbdev->chipid == PRODU
      rwnx_hwq_init(rwnx_hw);
  
  #ifdef CONFIG_PREALLOC_TXQ
@@ -81,7 +81,7 @@
  #endif
  
      for (i = 0; i < NX_NB_TXQ; i++) {
-@@ -9279,7 +9279,7 @@ if((g_rwnx_plat->usbdev->chipid == PRODU
+@@ -9364,7 +9364,7 @@ if((g_rwnx_plat->usbdev->chipid == PRODU
  #endif
  
  #ifdef CONFIG_FOR_IPCAM

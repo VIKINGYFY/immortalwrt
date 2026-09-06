@@ -1262,7 +1262,7 @@ struct pie_rule {
 	u16 otag_m;
 	u8 smac_m[ETH_ALEN];
 	u8 dmac_m[ETH_ALEN];
-	u8 ethertype_m;
+	u16 ethertype_m;
 	u16 itag_m;
 	u16 field_range_check_m;
 	u32 sip_m;
@@ -1416,6 +1416,11 @@ struct rtldsa_config {
 	u32 mac_force_mode_mask;
 	int  (*mac_force_mode_ctrl)(int port);
 	int  (*mac_port_ctrl)(int port);
+
+	/**
+	 * @mac_capabilities: supported MAC capabilities
+	 */
+	unsigned long mac_capabilities;
 
 	/**
 	 * @mac_max_len_reg: Return the switch register holding the MAC maximum
