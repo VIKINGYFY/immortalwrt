@@ -127,8 +127,6 @@ struct rtk_gsw {
 	unsigned int dsa_num_ports;
 	bool dsa_registered;
 	unsigned long sdk_select_count;
-	u32 port_enable_count;
-	u32 port_disable_count;
 	u32 phy_status_count;
 	char debug_reply[3][128];
 	struct dsa_switch ds;

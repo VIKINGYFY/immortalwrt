@@ -1,28 +1,20 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Thu, 3 Sep 2026 21:55:00 +0800
-Subject: [PATCH] net: dsa: add RTL837x 802.1ad tag protocol
+Date: Tue, 8 Sep 2026 12:00:00 +0800
+Subject: [PATCH] net: dsa: add RTL837x private tag protocol and PPPoE trace
 
-RTL837x switches can use an outer 802.1ad service VLAN to carry the
-tag_8021q standalone source-port identity while leaving an inner 802.1Q
-customer VLAN intact.
+RTL837x switches use an outer service VLAN to carry the tag_8021q
+standalone source-port identity while preserving an inner customer VLAN.
+Keep bounded PPPoE discovery/session diagnostics at the DSA boundary for
+P8 troubleshooting.
 
 Add a dedicated protocol identifier and share the existing VLAN tagger
-implementation. Unlike the VSC73XX mode, RTL837x always transmits the
-standalone VID: bridge membership is maintained by the switch driver and
-must not replace the source-port identity with a bridge VID.
-
-Keep this support in the generic kernel patch set because the external
-RTL837x DSA package is target-independent.
+implementation.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- include/net/dsa.h            |  2 ++
- net/dsa/tag_vsc73xx_8021q.c | 40 ++++++++++++++++++++++++++++++++++++----
- 2 files changed, 38 insertions(+), 4 deletions(-)
-
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -57,6 +57,7 @@ struct tc_action;
+@@ -57,6 +57,7 @@
  #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
  #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
@@ -30,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -91,6 +92,7 @@ enum dsa_tag_protocol {
+@@ -91,6 +92,7 @@
  	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
@@ -40,11 +32,27 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct dsa_switch;
 --- a/net/dsa/tag_vsc73xx_8021q.c
 +++ b/net/dsa/tag_vsc73xx_8021q.c
-@@ -7,16 +7,18 @@
+@@ -1,22 +1,34 @@
+ // SPDX-License-Identifier: GPL-2.0 OR MIT
+ /* Copyright (C) 2024 Pawel Dembicki <paweldembicki@gmail.com>
+  */
++#include <linux/atomic.h>
++#include <linux/if_ether.h>
++#include <linux/if_vlan.h>
+ #include <linux/dsa/8021q.h>
+ 
+ #include "tag.h"
  #include "tag_8021q.h"
  
  #define VSC73XX_8021Q_NAME "vsc73xx-8021q"
 +#define RTL837X_8021AD_NAME "rtl837x-8021ad"
++
++/* PPPoE discovery/control frames are the useful boundary for the P8 failure:
++ * retain a bounded trace of their DSA tag before the PPE or EDMA path can
++ * consume it, while keeping normal traffic out of the log.
++ */
++static atomic_t rtl837x_pppoe_tx_trace = ATOMIC_INIT(64);
++static atomic_t rtl837x_pppoe_rx_trace = ATOMIC_INIT(64);
  
  static struct sk_buff *
 -vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
@@ -61,9 +69,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		unsigned int bridge_num = dsa_port_bridge_num_get(dp);
  		struct net_device *br = dsa_port_bridge_dev_get(dp);
  
-@@ -28,11 +30,23 @@ vsc73xx_xmit(struct sk_buff *skb, struct
+@@ -28,26 +40,73 @@
+ 	}
  
  	pcp = netdev_txq_to_tc(netdev, queue_mapping);
++	if ((skb->protocol == htons(ETH_P_PPP_DISC) ||
++	     skb->protocol == htons(ETH_P_PPP_SES)) &&
++	    atomic_dec_if_positive(&rtl837x_pppoe_tx_trace) >= 0)
++		netdev_info(netdev,
++			"rtl837x-pppoe-tx: tree=%d switch=%d port=%d tpid=0x%04x vid=%u pcp=%u proto=0x%04x len=%u offload=%u\n",
++			dp->ds->dst->index, dp->ds->index, dp->index, ntohs(tpid),
++			tx_vid, pcp, ntohs(skb->protocol), skb->len,
++			skb->offload_fwd_mark);
  
 -	return dsa_8021q_xmit(skb, netdev, ETH_P_8021Q,
 +	return dsa_8021q_xmit(skb, netdev, tpid,
@@ -85,8 +102,50 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +static struct sk_buff *
  vsc73xx_rcv(struct sk_buff *skb, struct net_device *netdev)
  {
++	bool hw_vlan = skb_vlan_tag_present(skb);
++	u16 raw_proto = hw_vlan ? ntohs(skb->vlan_proto) : 0;
++	u16 raw_tci = hw_vlan ? skb_vlan_tag_get(skb) : 0;
++	u16 inner_proto = ntohs(skb->protocol);
  	int src_port = -1, switch_id = -1, vbid = -1, vid = -1;
-@@ -61,8 +75,26 @@ static const struct dsa_device_ops vsc73
+ 
++	if (!hw_vlan && pskb_may_pull(skb, ETH_HLEN)) {
++		const struct ethhdr *eth = eth_hdr(skb);
++
++		raw_proto = ntohs(eth->h_proto);
++		if ((raw_proto == ETH_P_8021Q || raw_proto == ETH_P_8021AD) &&
++		    pskb_may_pull(skb, ETH_HLEN + VLAN_HLEN)) {
++			const struct vlan_ethhdr *veth = vlan_eth_hdr(skb);
++
++			raw_tci = ntohs(veth->h_vlan_TCI);
++			inner_proto = ntohs(veth->h_vlan_encapsulated_proto);
++		}
++	}
++
+ 	dsa_8021q_rcv(skb, &src_port, &switch_id, &vbid, &vid);
+ 
+ 	skb->dev = dsa_tag_8021q_find_user(netdev, src_port, switch_id,
+ 					   vid, vbid);
+ 	if (!skb->dev) {
+ 		dev_warn_ratelimited(&netdev->dev,
+-				     "Couldn't decode source port\n");
++				     "Couldn't decode source port: raw_tpid=0x%04x raw_tci=0x%04x inner_proto=0x%04x hw_vlan=%u decoded=%d/%d/%d/%d len=%u\n",
++				     raw_proto, raw_tci, inner_proto, hw_vlan,
++				     src_port, switch_id, vbid, vid, skb->len);
+ 		return NULL;
+ 	}
+ 
++	if ((inner_proto == ETH_P_PPP_DISC || inner_proto == ETH_P_PPP_SES ||
++	     raw_proto == ETH_P_8021AD) &&
++	    atomic_dec_if_positive(&rtl837x_pppoe_rx_trace) >= 0)
++		netdev_info(netdev,
++			"rtl837x-pppoe-rx: raw_tpid=0x%04x raw_tci=0x%04x inner_proto=0x%04x hw_vlan=%u decoded=%d/%d/%d/%d user=%s len=%u\n",
++			raw_proto, raw_tci, inner_proto, hw_vlan, src_port,
++			switch_id, vbid, vid, skb->dev->name, skb->len);
++
+ 	dsa_default_offload_fwd_mark(skb);
+ 
+ 	return skb;
+@@ -62,8 +121,26 @@
  	.promisc_on_conduit	= true,
  };
  

@@ -16,12 +16,13 @@
 #include "./rtk-api/rtk_error.h"
 #include "./rtk-api/rtk_switch.h"
 #include "./rtk-api/dal/rtl8373/rtl8373_asicdrv.h"
+#include "./rtk-api/dal/rtl8373/dal_rtl8373_svlan.h"
 
 #define TO_FOPS(name) _##name##_rw_fops
 #define RTL837X_DEBUG_REG 0
 #define RTL837X_DEBUG_PHY 1
 #define RTL837X_DEBUG_SDS 2
-#define RTL837X_CONTEXT_BUFSIZE 2048
+#define RTL837X_CONTEXT_BUFSIZE 8192
 
 #define REGRWFUNC(name, slot)                                                                                              \
 	static ssize_t _##name##_rw_read(struct file *filep, char __user *ubuf, size_t count, loff_t *offp)                \
@@ -288,6 +289,12 @@ static ssize_t rtl837x_context_read(struct file *filep, char __user *ubuf, size_
 	rtk_enable_t igr_filter;
 	rtk_vlan_entry_t vlan1 = { 0 };
 	rtk_portmask_t aware = { 0 };
+	rtk_portmask_t service = { 0 };
+	rtk_svlan_pri_ref_t svlan_pri = REF_PRI_END;
+	rtk_svlan_untag_action_t svlan_untag = UNTAG_END;
+	rtk_svlan_unassign_action_t svlan_unassign = UNASSIGN_END;
+	rtk_vlan_t svlan_untag_svid = U16_MAX;
+	u32 svlan_tpid = U32_MAX;
 	rtk_vlan_t pvid;
 	u32 chip_id = 0;
 	u32 ext_cpu = U32_MAX;
@@ -312,6 +319,14 @@ static ssize_t rtl837x_context_read(struct file *filep, char __user *ubuf, size_
 	rtk_cpuTag_awarePort_get(&aware);
 	rtk_vlan_egrFilterEnable_get(&egr_filter);
 	rtk_vlan_get(1, &vlan1);
+	if (gsw->dsa_svlan) {
+		dal_rtl8373_svlanServicePort_get(&service);
+		dal_rtl8373_svlanTpid_get(&svlan_tpid);
+		dal_rtl8373_svlanPriRef_get(&svlan_pri);
+		dal_rtl8373_svlanUntagAction_get(&svlan_untag,
+						 &svlan_untag_svid);
+		dal_rtl8373_svlanUnassignAction_get(&svlan_unassign);
+	}
 	rtl837x_sdk_unlock(gsw);
 
 	len = scnprintf(buf, RTL837X_CONTEXT_BUFSIZE,
@@ -321,15 +336,20 @@ static ssize_t rtl837x_context_read(struct file *filep, char __user *ubuf, size_
 			"ctrl-before=0x%04x ctrl-after=0x%04x data-hi=0x%04x data-lo=0x%04x "
 			"last-error=%d reset-gpio=%s reset-us=%u/%u preserve-boot=%u rtl8372n-led-init=%u quarantine=%u reinit-cpu-serdes=%u\n"
 			"conduit=%s ready=%u dsa-registered=%u probe-attempts=%u last-probe-error=%d last-probe-id=0x%08x "
-			"port-enable=%u port-disable=%u phy-status=%u\n",
+			"phy-status=%u\n",
 			dev_name(gsw->dev), gsw->mdio_addr, gsw->chip_name ? gsw->chip_name : "unknown", chip_id, gsw->cpu_port, gsw->cpu_sds, gsw->valid_port_mask, gsw->configured_port_mask, gsw->sds0mode, gsw->sds1mode, sds_mode,
 			gsw->sdk_select_count, (unsigned long long)gsw->mdio_reads, (unsigned long long)gsw->mdio_writes, (unsigned long long)gsw->mdio_timeouts, gsw->mdio_last_write ? "write" : "read", gsw->mdio_last_reg,
 			gsw->mdio_last_value, gsw->mdio_last_ctrl_before, gsw->mdio_last_ctrl_after, gsw->mdio_last_data_high, gsw->mdio_last_data_low, gsw->mdio_last_error, gsw->reset_pin ? "yes" : "no", gsw->reset_assert_us,
 			gsw->reset_deassert_us, gsw->preserve_boot_config, gsw->init_rtl8372n_leds, gsw->quarantine_before_conduit, gsw->reinit_cpu_serdes, gsw->conduit_name[0] ? gsw->conduit_name : "none", gsw->conduit_ready,
-			gsw->dsa_registered, gsw->probe_attempts, gsw->last_probe_error, gsw->last_probe_id, gsw->port_enable_count, gsw->port_disable_count, gsw->phy_status_count);
+			gsw->dsa_registered, gsw->probe_attempts, gsw->last_probe_error, gsw->last_probe_id, gsw->phy_status_count);
 
 	len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len, "tagger=8021q ext-cpu=%u private-tag=%u insert=%u tpid=0x%04x\n", ext_cpu, cpu_tag, insert_mode, tpid);
 	len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len, "tagger-state aware=0x%03x egr-filter=%u vlan1=0x%03x/0x%03x\n", aware.bits[0], egr_filter, vlan1.mbr.bits[0], vlan1.untag.bits[0]);
+	if (gsw->dsa_svlan)
+		len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len,
+				 "svlan service=0x%03x tpid=0x%04x pri=%u untag=%u/%u unassign=%u\n",
+				 service.bits[0], svlan_tpid, svlan_pri, svlan_untag,
+				 svlan_untag_svid, svlan_unassign);
 
 	len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len, "ports:");
 	rtl837x_sdk_lock(gsw);
@@ -347,8 +367,32 @@ static ssize_t rtl837x_context_read(struct file *filep, char __user *ubuf, size_
 		rtk_vlan_portPvid_get(port, &pvid);
 		rtk_vlan_portIgrFilterEnable_get(port, &igr_filter);
 
-		len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len, " p%d=%s,iso:0x%03x,pvid:%u,tag:%u/%u,bridge:%u/%u,igr:%u", port, port == gsw->cpu_port ? "cpu" : "user", isolation, pvid, gsw->tag8021q_pvid[port],
-				 gsw->tag8021q_pvid_valid[port], gsw->bridge_pvid[port], gsw->bridge_pvid_valid[port], igr_filter);
+		len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len,
+				 " p%d=%s,iso:0x%03x,pvid:%u,tag:%u/%u,bridge:%u/%u,igr:%u",
+				 port, port == gsw->cpu_port ? "cpu" : "user", isolation,
+				 pvid, gsw->tag8021q_pvid[port],
+				 gsw->tag8021q_pvid_valid[port], gsw->bridge_pvid[port],
+				 gsw->bridge_pvid_valid[port], igr_filter);
+		if (gsw->dsa_svlan) {
+			rtk_svlan_memberCfg_t member = { 0 };
+			rtk_vlan_t svid = 0;
+			rtk_stat_counter_t in_bcast = 0, out_bcast = 0, out_drop = 0;
+			int mret = 0;
+
+			mret |= dal_rtl8373_svlanDfltSvlan_get(port, &svid);
+			if (svid)
+				mret |= dal_rtl8373_svlanMbrPortEntry_get(svid, &member);
+			rtk_stat_port_get(port, ifInBroadcastPkts_L, &in_bcast);
+			rtk_stat_port_get(port, ifOutBroadcastPkts_L, &out_bcast);
+			rtk_stat_port_get(port, ifOutDiscards, &out_drop);
+			len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len,
+					 " svlan:%u mbr=0x%03x/0x%03x ivl=%u/%u ret=%d mib:bcast=%llu/%llu outdrop=%llu",
+					 svid, member.memberport.bits[0], member.untagport.bits[0],
+					 member.chk_ivl_svl, member.ivl_svl, mret,
+					 (unsigned long long)in_bcast,
+					 (unsigned long long)out_bcast,
+					 (unsigned long long)out_drop);
+		}
 	}
 	rtl837x_sdk_unlock(gsw);
 	len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len, "\n");

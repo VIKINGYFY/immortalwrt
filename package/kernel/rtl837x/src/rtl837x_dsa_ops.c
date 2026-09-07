@@ -9,6 +9,7 @@
 #include <linux/if_ether.h>
 #include <linux/if_vlan.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/phylink.h>
 #include <linux/phy.h>
 #include <linux/string.h>
@@ -98,9 +99,9 @@ static int rtl837x_update_isolation(struct rtk_gsw *gsw)
 	return 0;
 }
 
-static int rtl837x_commit_pvid(struct rtk_gsw *gsw, int port)
+static int rtl837x_commit_pvid_for_mode(struct rtk_gsw *gsw, int port,
+					bool vlan_filtering)
 {
-	struct dsa_port *dp = dsa_to_port(&gsw->ds, port);
 	bool valid = gsw->tag8021q_pvid_valid[port];
 	u16 vid = gsw->tag8021q_pvid[port];
 	int ret;
@@ -110,7 +111,7 @@ static int rtl837x_commit_pvid(struct rtk_gsw *gsw, int port)
 		vid = 1;
 	}
 
-	if (dsa_port_is_vlan_filtering(dp) && gsw->bridge_pvid_valid[port]) {
+	if (vlan_filtering && gsw->bridge_pvid_valid[port]) {
 		vid = gsw->bridge_pvid[port];
 		valid = true;
 	}
@@ -121,6 +122,14 @@ static int rtl837x_commit_pvid(struct rtk_gsw *gsw, int port)
 
 	gsw->port_pvid[port] = valid ? vid : 0;
 	return 0;
+}
+
+static int rtl837x_commit_pvid(struct rtk_gsw *gsw, int port)
+{
+	struct dsa_port *dp = dsa_to_port(&gsw->ds, port);
+
+	return rtl837x_commit_pvid_for_mode(gsw, port,
+					   dsa_port_is_vlan_filtering(dp));
 }
 
 static int rtl837x_set_stp_state(struct rtk_gsw *gsw, int port, u8 state)
@@ -194,6 +203,62 @@ static int rtl837x_write_svlan(u16 svid, u16 mbr, u16 untag)
 
 	ret = dal_rtl8373_svlanMbrPortEntry_set(svid, &svlan);
 	return rtl837x_to_errno(ret);
+}
+
+static int rtl837x_update_svlan_bridge_membership(struct rtk_gsw *gsw)
+{
+	struct rtl837x_vlan_entry old[RTK_MAX_NUM_OF_PORT];
+	bool updated[RTK_MAX_NUM_OF_PORT] = { 0 };
+	int port, ret;
+
+	if (!gsw->dsa_svlan)
+		return 0;
+
+	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
+		struct rtl837x_vlan_entry next;
+		u16 vid;
+
+		if (!rtl837x_user_port(gsw, port) ||
+		    !gsw->tag8021q_pvid_valid[port])
+			continue;
+
+		vid = gsw->tag8021q_pvid[port];
+		old[port] = gsw->vlan_table[vid];
+		next.mbr = BIT(gsw->cpu_port) | BIT(port) |
+			   rtl837x_bridge_ports(gsw, port);
+		next.untag = next.mbr & rtl837x_user_ports(gsw);
+
+		if (next.mbr == old[port].mbr &&
+		    next.untag == old[port].untag)
+			continue;
+
+		ret = rtl837x_write_svlan(vid, next.mbr, next.untag);
+		if (ret)
+			goto rollback;
+
+		gsw->vlan_table[vid] = next;
+		updated[port] = true;
+	}
+
+	return 0;
+
+rollback:
+	while (--port >= 0) {
+		u16 vid;
+
+		if (!updated[port])
+			continue;
+
+		vid = gsw->tag8021q_pvid[port];
+		if (rtl837x_write_svlan(vid, old[port].mbr,
+					 old[port].untag))
+			dev_err(gsw->dev,
+				"failed to roll back SVLAN %u bridge membership\n",
+				vid);
+		gsw->vlan_table[vid] = old[port];
+	}
+
+	return ret;
 }
 
 static bool rtl837x_vlan_has_user(struct rtk_gsw *gsw, u16 mbr)
@@ -939,53 +1004,6 @@ static int rtl837x_set_ageing_time(struct dsa_switch *ds, unsigned int msecs)
 	return ret;
 }
 
-static int __rtl837x_port_enable(struct dsa_switch *ds, int port, struct phy_device *phy)
-{
-	struct rtk_gsw *gsw = ds->priv;
-
-	if (!rtl837x_valid_port(gsw, port))
-		return -EINVAL;
-
-	gsw->port_enable_count++;
-
-	return rtl837x_set_stp_state(gsw, port, BR_STATE_FORWARDING);
-}
-
-static int rtl837x_port_enable(struct dsa_switch *ds, int port, struct phy_device *phy)
-{
-	struct rtk_gsw *gsw = ds->priv;
-	int ret;
-
-	rtl837x_sdk_lock(gsw);
-	ret = __rtl837x_port_enable(ds, port, phy);
-	rtl837x_sdk_unlock(gsw);
-
-	return ret;
-}
-
-static void __rtl837x_port_disable(struct dsa_switch *ds, int port)
-{
-	struct rtk_gsw *gsw = ds->priv;
-	int ret;
-
-	if (!rtl837x_valid_port(gsw, port))
-		return;
-
-	gsw->port_disable_count++;
-	ret = rtl837x_set_stp_state(gsw, port, BR_STATE_DISABLED);
-	if (ret)
-		dev_err(gsw->dev, "failed to disable port %d: %d\n", port, ret);
-}
-
-static void rtl837x_port_disable(struct dsa_switch *ds, int port)
-{
-	struct rtk_gsw *gsw = ds->priv;
-
-	rtl837x_sdk_lock(gsw);
-	__rtl837x_port_disable(ds, port);
-	rtl837x_sdk_unlock(gsw);
-}
-
 static void __rtl837x_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
 {
 	struct rtk_gsw *gsw = ds->priv;
@@ -1102,6 +1120,8 @@ static int rtl837x_port_bridge_join(struct dsa_switch *ds, int port, struct dsa_
 	if (gsw->dsa_svlan) {
 		rtl837x_sdk_lock(gsw);
 		ret = rtl837x_update_isolation(gsw);
+		if (!ret)
+			ret = rtl837x_update_svlan_bridge_membership(gsw);
 		rtl837x_sdk_unlock(gsw);
 		if (ret)
 			return ret;
@@ -1133,10 +1153,12 @@ static void rtl837x_port_bridge_leave(struct dsa_switch *ds, int port, struct ds
 
 		rtl837x_sdk_lock(gsw);
 		ret = rtl837x_update_isolation(gsw);
+		if (!ret)
+			ret = rtl837x_update_svlan_bridge_membership(gsw);
 		rtl837x_sdk_unlock(gsw);
 		if (ret)
 			dev_err(gsw->dev,
-				"failed to update isolation after bridge leave on port %d: %d\n",
+				"failed to update SVLAN bridge state after leave on port %d: %d\n",
 				port, ret);
 		return;
 	}
@@ -1149,16 +1171,31 @@ static void rtl837x_port_bridge_leave(struct dsa_switch *ds, int port, struct ds
 static int __rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
 {
 	struct rtk_gsw *gsw = ds->priv;
-	int ret;
+	struct dsa_port *dp;
+	bool old_vlan_filtering;
+	int ret, rollback_ret;
 
 	if (!rtl837x_user_port(gsw, port))
 		return 0;
+
+	dp = dsa_to_port(ds, port);
+	old_vlan_filtering = dsa_port_is_vlan_filtering(dp);
 
 	ret = rtk_vlan_portIgrFilterEnable_set(port, vlan_filtering ? ENABLED : DISABLED);
 	if (ret)
 		return rtl837x_to_errno(ret);
 
-	return rtl837x_commit_pvid(gsw, port);
+	ret = rtl837x_commit_pvid_for_mode(gsw, port, vlan_filtering);
+	if (ret) {
+		rollback_ret = rtk_vlan_portIgrFilterEnable_set(
+			port, old_vlan_filtering ? ENABLED : DISABLED);
+		if (rollback_ret)
+			dev_err(gsw->dev,
+				"failed to restore VLAN ingress filtering on port %d: %d\n",
+				port, rtl837x_to_errno(rollback_ret));
+	}
+
+	return ret;
 }
 
 static int rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
@@ -1424,8 +1461,6 @@ static const struct dsa_switch_ops rtl837x_dsa_ops = {
 	.get_sset_count = rtl837x_get_sset_count,
 	.get_pause_stats = rtl837x_get_pause_stats,
 	.set_ageing_time = rtl837x_set_ageing_time,
-	.port_enable = rtl837x_port_enable,
-	.port_disable = rtl837x_port_disable,
 	.port_bridge_join = rtl837x_port_bridge_join,
 	.port_bridge_leave = rtl837x_port_bridge_leave,
 	.port_stp_state_set = rtl837x_port_stp_state_set,
@@ -1483,3 +1518,8 @@ void rtl837x_dsa_shutdown(struct rtk_gsw *gsw)
 	dsa_switch_shutdown(&gsw->ds);
 	gsw->dsa_registered = false;
 }
+
+MODULE_DESCRIPTION("RTL837x DSA switch driver");
+#ifdef CONFIG_MODULE_STRIPPED
+MODULE_INFO(description, "RTL837x DSA switch driver");
+#endif
