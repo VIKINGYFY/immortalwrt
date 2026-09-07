@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 6 Sep 2026 17:36:00 +0800
+Subject: [PATCH] net: pcs: qcom-ipq9574: handle 2500BASE-X out-of-band status
+
+The TP-LINK TL-SM410U has no PHY accessible over I2C and its SFP quirk
+disables in-band autonegotiation. In that mode phylink passes
+PHYLINK_PCS_NEG_INBAND_DISABLED, while the SFP state machine already
+gates the link using its LOS-driven link-up and link-down callbacks.
+
+Do not require the PCS in-band link bit in this mode. It remains clear
+on IPQ5332 even when the module state is link_up, leaving the netdevice
+without carrier. Report the fixed 2500BASE-X state and retain the PCS
+status read for modes which do provide in-band status.
+
+The source hunks were generated with diff -u from the prepared kernel
+source before this patch.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ drivers/net/pcs/pcs-qcom-ipq9574.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/pcs/pcs-qcom-ipq9574.c
++++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
+@@ -217,11 +217,24 @@ static void ipq_pcs_get_state_sgmii(stru
+ }
+ 
+ static void ipq_pcs_get_state_2500basex(struct ipq_pcs *qpcs,
++					unsigned int neg_mode,
+ 					struct phylink_link_state *state)
+ {
+ 	unsigned int val;
+ 	int ret;
+ 
++	/* A copper SFP without PHY I2C access cannot provide 2500BASE-X
++	 * in-band status. In that mode the SFP state machine already gates
++	 * phylink through its LOS-driven link_up and link_down callbacks.
++	 */
++	if (neg_mode == PHYLINK_PCS_NEG_INBAND_DISABLED) {
++		state->link = true;
++		state->speed = SPEED_2500;
++		state->duplex = DUPLEX_FULL;
++		state->pause |= MLO_PAUSE_TXRX_MASK;
++		return;
++	}
++
+ 	ret = regmap_read(qpcs->regmap, PCS_MII_STS(0), &val);
+ 	if (ret) {
+ 		state->link = 0;
+@@ -825,7 +838,7 @@ static void ipq_pcs_get_state(struct phy
+ 		ipq_pcs_get_state_sgmii(qpcs, index, state);
+ 		break;
+ 	case PHY_INTERFACE_MODE_2500BASEX:
+-		ipq_pcs_get_state_2500basex(qpcs, state);
++		ipq_pcs_get_state_2500basex(qpcs, neg_mode, state);
+ 		break;
+ 	case PHY_INTERFACE_MODE_USXGMII:
+ 	case PHY_INTERFACE_MODE_10G_QXGMII:

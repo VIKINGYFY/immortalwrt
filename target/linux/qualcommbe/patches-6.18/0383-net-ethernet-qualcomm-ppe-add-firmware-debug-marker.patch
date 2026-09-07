@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 31 Aug 2026 14:56:21 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: add firmware debug marker
+
+Print one build marker after the generic qcom_ppe probe completes.
+The numeric suffix identifies the validation firmware revision.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ drivers/net/ethernet/qualcomm/ppe/ppe.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
+@@ -22,6 +22,7 @@
+ 
+ #define PPE_PORT_MAX		8
+ #define PPE_CLK_RATE		353000000
++#define PPE_FIRMWARE_DEBUG_ID	"r5"
+ 
+ /* ICC clocks for enabling PPE device. The avg_bw and peak_bw with value 0
+  * will be updated by the clock rate of PPE.
+@@ -253,6 +254,8 @@ static int qcom_ppe_probe(struct platfor
+ 
+ 	ppe_debugfs_setup(ppe_dev);
+ 	platform_set_drvdata(pdev, ppe_dev);
++	dev_info_once(dev, "PPE OFFLOAD ViKing/%s load successful\n",
++		      PPE_FIRMWARE_DEBUG_ID);
+ 
+ 	return 0;
+ }

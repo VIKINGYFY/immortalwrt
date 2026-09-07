@@ -48,7 +48,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include "ppe_port.h"
  
  #define PPE_PORT_MAX		8
-@@ -283,6 +284,16 @@ static int qcom_ppe_probe(struct platfor
+@@ -284,6 +285,16 @@ static int qcom_ppe_probe(struct platfor
  				     "PPE flowtable offload setup failed\n");
  	}
  
@@ -64,8 +64,8 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
- 	dev_info_once(dev, "PPE OFFLOAD ViKing/r1 load successful\n");
-@@ -302,6 +313,7 @@ static void qcom_ppe_remove(struct platf
+ 	dev_info_once(dev, "PPE OFFLOAD ViKing/%s load successful\n",
+@@ -304,6 +315,7 @@ static void qcom_ppe_remove(struct platf
  	 * ports still exist.
  	 */
  	ppe_flowtable_destroy(ppe_dev);

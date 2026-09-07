@@ -113,7 +113,7 @@ TARGET_DEVICES += pine64_sopine-baseboard
 define Device/radxa_cubie-a5e
   DEVICE_VENDOR := Radxa
   DEVICE_MODEL := Cubie A5E
-  DEVICE_PACKAGES := kmod-aic8800-sdio wpad-openssl
+  DEVICE_PACKAGES := kmod-aic8800-sdio kmod-nvme wpad-openssl
   $(Device/sun55i-a527)
 endef
 TARGET_DEVICES += radxa_cubie-a5e

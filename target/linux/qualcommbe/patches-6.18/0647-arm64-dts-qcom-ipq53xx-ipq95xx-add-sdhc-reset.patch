@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 2 Sep 2026 15:22:05 +0800
+Subject: [PATCH] arm64: dts: qcom: ipq53xx/ipq95xx: add SDHC reset
+
+Reset the SDHC block before the driver enables its clocks. This matches
+the existing IPQ6018 and IPQ8074 SDHC descriptions and uses the GCC
+reset which is already exposed for this block on both SoCs.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+ arch/arm64/boot/dts/qcom/ipq5332.dtsi | 1 +
+ arch/arm64/boot/dts/qcom/ipq9574.dtsi | 1 +
+ 2 files changed, 2 insertions(+)
+
+--- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
+@@ -433,6 +433,7 @@
+ 				 <&gcc GCC_SDCC1_APPS_CLK>,
+ 				 <&xo_board>;
+ 			clock-names = "iface", "core", "xo";
++			resets = <&gcc GCC_SDCC_BCR>;
+ 			status = "disabled";
+ 		};
+ 
+--- a/arch/arm64/boot/dts/qcom/ipq9574.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq9574.dtsi
+@@ -495,6 +495,7 @@
+ 				 <&xo_board_clk>,
+ 				 <&gcc GCC_SDCC1_ICE_CORE_CLK>;
+ 			clock-names = "iface", "core", "xo", "ice";
++			resets = <&gcc GCC_SDCC_BCR>;
+ 			non-removable;
+ 			supports-cqe;
+ 			status = "disabled";

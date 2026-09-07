@@ -178,6 +178,24 @@ static int rtl837x_write_vlan(u16 vid, u16 mbr, u16 untag)
 	return rtl837x_to_errno(ret);
 }
 
+/* tag_8021q standalone VIDs are service VLANs in private-tag mode.  Keep
+ * their CPU-tagged/user-untagged membership in the RTL SVLAN member table so
+ * the CPU service port accepts the S-tag. */
+static int rtl837x_write_svlan(u16 svid, u16 mbr, u16 untag)
+{
+	rtk_svlan_memberCfg_t svlan = { 0 };
+	int ret;
+
+	svlan.memberport.bits[0] = mbr;
+	svlan.untagport.bits[0] = untag;
+	svlan.fid = 0;
+	svlan.chk_ivl_svl = 0;
+	svlan.ivl_svl = 1;
+
+	ret = dal_rtl8373_svlanMbrPortEntry_set(svid, &svlan);
+	return rtl837x_to_errno(ret);
+}
+
 static bool rtl837x_vlan_has_user(struct rtk_gsw *gsw, u16 mbr)
 {
 	return mbr & rtl837x_user_ports(gsw);
@@ -204,7 +222,10 @@ static void rtl837x_rollback_vlan_pvid(struct rtk_gsw *gsw, int port, u16 vid,
 	if (ret)
 		dev_err(gsw->dev, "failed to roll back port %d PVID state: %d\n", port, ret);
 
-	ret = rtl837x_write_vlan(vid, old_vlan->mbr, old_vlan->untag);
+	if (service && gsw->dsa_svlan)
+		ret = rtl837x_write_svlan(vid, old_vlan->mbr, old_vlan->untag);
+	else
+		ret = rtl837x_write_vlan(vid, old_vlan->mbr, old_vlan->untag);
 	if (ret)
 		dev_err(gsw->dev, "failed to roll back VLAN %u state: %d\n", vid, ret);
 }
@@ -280,7 +301,10 @@ static int __rtl837x_tag_8021q_vlan_add(struct dsa_switch *ds, int port, u16 vid
 	else
 		new_vlan.untag &= ~BIT(port);
 
-	ret = rtl837x_write_vlan(vid, new_vlan.mbr, new_vlan.untag);
+	if (gsw->dsa_svlan)
+		ret = rtl837x_write_svlan(vid, new_vlan.mbr, new_vlan.untag);
+	else
+		ret = rtl837x_write_vlan(vid, new_vlan.mbr, new_vlan.untag);
 	if (ret)
 		return ret;
 
@@ -340,7 +364,10 @@ static int __rtl837x_tag_8021q_vlan_del(struct dsa_switch *ds, int port, u16 vid
 	new_vlan.mbr &= ~BIT(port);
 	new_vlan.untag &= ~BIT(port);
 
-	ret = rtl837x_write_vlan(vid, new_vlan.mbr, new_vlan.untag);
+	if (gsw->dsa_svlan)
+		ret = rtl837x_write_svlan(vid, new_vlan.mbr, new_vlan.untag);
+	else
+		ret = rtl837x_write_vlan(vid, new_vlan.mbr, new_vlan.untag);
 	if (ret)
 		return ret;
 

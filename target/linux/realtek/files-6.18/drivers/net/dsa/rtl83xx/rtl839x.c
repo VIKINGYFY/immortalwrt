@@ -1383,6 +1383,15 @@ static int rtl839x_pie_verify_template(struct rtl838x_switch_priv *priv,
 	if (ether_addr_to_u64(pr->dmac) && !rtl839x_pie_templ_has(t, TEMPLATE_FIELD_DMAC0))
 		return -1;
 
+	if (pr->itag_m && !rtl839x_pie_templ_has(t, TEMPLATE_FIELD_ITAG))
+		return -1;
+
+	if (pr->sport_m && !rtl839x_pie_templ_has(t, TEMPLATE_FIELD_L4_SPORT))
+		return -1;
+
+	if (pr->dport_m && !rtl839x_pie_templ_has(t, TEMPLATE_FIELD_L4_DPORT))
+		return -1;
+
 	/* TODO: Check more */
 
 	i = find_first_zero_bit(&priv->pie_use_bm[block * 4], PIE_BLOCK_SIZE);
@@ -1417,7 +1426,7 @@ static int rtl839x_pie_rule_add(struct rtl838x_switch_priv *priv, struct pie_rul
 			break;
 	}
 
-	if (block >= priv->r->n_pie_blocks) {
+	if (block >= max_block) {
 		mutex_unlock(&priv->pie_mutex);
 		return -EOPNOTSUPP;
 	}
@@ -1522,6 +1531,13 @@ static void rtl839x_packet_cntr_clear(int counter)
 	struct table_reg *r = rtl_table_get(RTL8390_TBL_0, 4);
 
 	pr_debug("In %s, id %d\n", __func__, counter);
+
+	/*
+	 * Two counters share one LOG table entry. Read the current entry
+	 * first so clearing one half preserves the adjacent counter.
+	 */
+	rtl_table_read(r, counter / 2);
+
 	/* The table has a size of 2 registers */
 	if (counter % 2)
 		sw_w32(0, rtl_table_data(r, 0));
@@ -1707,6 +1723,7 @@ const struct rtldsa_config rtldsa_839x_cfg = {
 	.mac_force_mode_ctrl = rtl839x_mac_force_mode_ctrl,
 	.mac_link_sts = RTL839X_MAC_LINK_STS,
 	.mac_port_ctrl = rtl839x_mac_port_ctrl,
+	.mac_capabilities = MAC_ASYM_PAUSE | MAC_SYM_PAUSE | MAC_10 | MAC_100 | MAC_1000FD,
 	.mac_max_len_ctrl = RTL839X_MAC_MAX_LEN_CTRL,
 	.max_frame = RTL839X_MAX_FRAME,
 	.l2_port_new_salrn = rtl839x_l2_port_new_salrn,

@@ -1487,6 +1487,15 @@ static int rtl838x_pie_verify_template(struct rtl838x_switch_priv *priv,
 	if (ether_addr_to_u64(pr->dmac) && !rtl838x_pie_templ_has(t, TEMPLATE_FIELD_DMAC0))
 		return -1;
 
+	if (pr->itag_m && !rtl838x_pie_templ_has(t, TEMPLATE_FIELD_ITAG))
+		return -1;
+
+	if (pr->sport_m && !rtl838x_pie_templ_has(t, TEMPLATE_FIELD_L4_SPORT))
+		return -1;
+
+	if (pr->dport_m && !rtl838x_pie_templ_has(t, TEMPLATE_FIELD_L4_DPORT))
+		return -1;
+
 	/* TODO: Check more */
 
 	i = find_first_zero_bit(&priv->pie_use_bm[block * 4], PIE_BLOCK_SIZE);
@@ -1617,6 +1626,13 @@ static void rtl838x_packet_cntr_clear(int counter)
 	struct table_reg *r = rtl_table_get(RTL8380_TBL_0, 3);
 
 	pr_debug("In %s, id %d\n", __func__, counter);
+
+	/*
+	 * Two counters share one LOG table entry. Read the current entry
+	 * first so clearing one half preserves the adjacent counter.
+	 */
+	rtl_table_read(r, counter / 2);
+
 	/* The table has a size of 2 registers */
 	if (counter % 2)
 		sw_w32(0, rtl_table_data(r, 0));
@@ -1821,6 +1837,7 @@ const struct rtldsa_config rtldsa_838x_cfg = {
 	.stp_get = rtldsa_838x_stp_get,
 	.stp_set = rtl838x_stp_set,
 	.mac_port_ctrl = rtl838x_mac_port_ctrl,
+	.mac_capabilities = MAC_ASYM_PAUSE | MAC_SYM_PAUSE | MAC_10 | MAC_100 | MAC_1000FD,
 	.mac_max_len_ctrl = RTL838X_MAC_MAX_LEN_CTRL,
 	.mac_max_len_ctrl_dup = RTL838X_MAC_MAX_LEN_CTRL_DUP,
 	.max_frame = RTL838X_MAX_FRAME,
