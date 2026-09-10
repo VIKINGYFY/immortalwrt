@@ -1,0 +1,339 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: qualcomm: ppe: account offloaded bridge and VLAN traffic
+
+Attribute each validated hardware flow-counter delta to the software bridge
+and VLAN interfaces bypassed on its input and output paths. Keep physical
+port MIB accounting separate. Release upper references on unregister,
+flow teardown and quarantine, including unregister during rule creation.
+Seed the counter baseline before enabling a reused hardware index and
+expose upper counts beside the existing flow diagnostics.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- /dev/null
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow_account.h
+@@ -0,0 +1,104 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/* Copyright (c) 2026 ViKing */
++
++#ifndef _PPE_FLOW_ACCOUNT_H_
++#define _PPE_FLOW_ACCOUNT_H_
++
++#include <linux/if_vlan.h>
++#include <linux/netdevice.h>
++
++/* Only software uppers bypassed by this flow are held. Physical and DSA
++ * ports already have hardware MIBs; adding the same delta would double it.
++ */
++struct ppe_flow_account {
++	struct net_device *upper[3];
++	u8 count;
++};
++
++static void ppe_flow_account_bind(struct ppe_flow_account *account,
++				  struct net_device *dev, int svid, int cvid)
++{
++	struct net_device *master;
++	const __be16 proto[] = { htons(ETH_P_8021AD), htons(ETH_P_8021Q) };
++	const int vid[] = { svid, cvid };
++	int i;
++
++	rcu_read_lock();
++	master = netdev_master_upper_dev_get_rcu(dev);
++	if (master && netif_is_bridge_master(master)) {
++		dev = master;
++		dev_hold(dev);
++		account->upper[account->count++] = dev;
++	}
++	for (i = 0; i < ARRAY_SIZE(vid); i++) {
++		if (vid[i] < 0)
++			continue;
++		dev = __vlan_find_dev_deep_rcu(dev, proto[i], vid[i]);
++		if (!dev)
++			break;
++		dev_hold(dev);
++		account->upper[account->count++] = dev;
++	}
++	rcu_read_unlock();
++}
++
++static void ppe_flow_account_put(struct ppe_flow_account *account)
++{
++	while (account->count)
++		dev_put(account->upper[--account->count]);
++}
++
++/* With no explicit device, close the race between path lookup and the
++ * flow lock: an unregister notifier can run before the flow is published.
++ */
++static void ppe_flow_account_prune(struct ppe_flow_account *account,
++				   const struct net_device *dev)
++{
++	int i = 0;
++
++	while (i < account->count) {
++		struct net_device *upper = account->upper[i];
++
++		if (dev ? upper == dev :
++		    READ_ONCE(upper->reg_state) != NETREG_REGISTERED) {
++			dev_put(upper);
++			account->upper[i] = account->upper[--account->count];
++		} else {
++			i++;
++		}
++	}
++}
++
++static void ppe_flow_account_update(const struct ppe_flow_account *account,
++				    bool rx, u32 packets, u64 bytes)
++{
++	int i;
++
++	local_bh_disable();
++	for (i = 0; i < account->count; i++) {
++		struct net_device *dev = account->upper[i];
++
++		if (READ_ONCE(dev->reg_state) != NETREG_REGISTERED ||
++		    !netif_running(dev))
++			continue;
++		if (is_vlan_dev(dev)) {
++			struct vlan_pcpu_stats *s;
++
++			s = this_cpu_ptr(vlan_dev_priv(dev)->vlan_pcpu_stats);
++			u64_stats_update_begin(&s->syncp);
++			u64_stats_add(rx ? &s->rx_packets : &s->tx_packets, packets);
++			u64_stats_add(rx ? &s->rx_bytes : &s->tx_bytes, bytes);
++			u64_stats_update_end(&s->syncp);
++		} else if (netif_is_bridge_master(dev) && dev->tstats) {
++			struct pcpu_sw_netstats *s = this_cpu_ptr(dev->tstats);
++
++			u64_stats_update_begin(&s->syncp);
++			u64_stats_add(rx ? &s->rx_packets : &s->tx_packets, packets);
++			u64_stats_add(rx ? &s->rx_bytes : &s->tx_bytes, bytes);
++			u64_stats_update_end(&s->syncp);
++		}
++	}
++	local_bh_enable();
++}
++
++#endif /* _PPE_FLOW_ACCOUNT_H_ */
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -44,6 +44,7 @@
+ #include "ppe.h"
+ #include "ppe_config.h"
+ #include "ppe_flow.h"
++#include "ppe_flow_account.h"
+ #include "ppe_flowtable.h"
+ #include "ppe_vp.h"
+ #include "ppe_regs.h"
+@@ -198,6 +199,8 @@
+  * @egress_vid: tag_8021q VID programmed for DSA egress.
+  * @packets: Hit packet count at the last stats read.
+  * @bytes: Hit byte count at the last stats read.
++ * @rx_account: Software uppers bypassed on ingress.
++ * @tx_account: Software uppers bypassed on egress.
+  */
+ struct ppe_ft_flow {
+ 	struct rhash_head node;
+@@ -223,6 +226,8 @@
+ 	u16 egress_vid;
+ 	u32 packets;
+ 	u64 bytes;
++	struct ppe_flow_account rx_account;
++	struct ppe_flow_account tx_account;
+ };
+ 
+ #define PPE_FT_TUNNELS	PPE_TUNNEL_ENTRIES
+@@ -322,6 +327,7 @@
+  * @core_ingress_refs: Users requiring core-role ingress parsing per port.
+  * @core_egress_refs: Users requiring core-role egress formatting per port.
+  * @ppp_nb: PPP channel lifecycle notifier.
++ * @account_nb: Release statistics references when uppers unregister.
+  * @block_cb_list: Flow block callbacks bound to the PPE ports.
+  * @hosts: Refcount of the flows sharing a source host entry.
+  */
+@@ -366,6 +372,7 @@
+ 	struct ppe_ft_tunnel_underlay tunnel_underlays[PPE_FT_TUNNEL_UNDERLAYS];
+ 	struct ppe_ft_tunnel_pppoe_port tunnel_pppoe_ports[PPE_PORT_ID_COUNT];
+ 	struct notifier_block ppp_nb;
++	struct notifier_block account_nb;
+ 	struct list_head block_cb_list;
+ };
+ 
+@@ -2252,6 +2259,8 @@
+ 	ppe_ft_tunnel_put(ft, flow->tunnel);
+ 	ppe_vp_put(ft->ppe_dev, flow->vp);
+ 	ppe_vp_put(ft->ppe_dev, flow->ivp);
++	ppe_flow_account_put(&flow->rx_account);
++	ppe_flow_account_put(&flow->tx_account);
+ 	if (flow->egress_dev) {
+ 		dev_put(flow->egress_dev);
+ 		flow->egress_dev = NULL;
+@@ -2323,6 +2332,12 @@
+ {
+ 	int ret;
+ 
++	/* Statistics are not hardware dependencies and must not pin an upper
++	 * behind a quarantined row that has no further stats callbacks.
++	 */
++	ppe_flow_account_put(&flow->rx_account);
++	ppe_flow_account_put(&flow->tx_account);
++
+ 	ret = ppe_flow_entry_matches(ft->ppe_dev, flow->index, &flow->entry);
+ 	if (!ret)
+ 		ret = ppe_flow_entry_enable(ft->ppe_dev, flow->index, false);
+@@ -2336,6 +2351,8 @@
+ 
+ static void ppe_ft_flow_release(struct ppe_ft_flow *flow)
+ {
++	ppe_flow_account_put(&flow->rx_account);
++	ppe_flow_account_put(&flow->tx_account);
+ 	if (flow->egress_dev)
+ 		dev_put(flow->egress_dev);
+ 	kfree(flow);
+@@ -2875,6 +2892,9 @@
+ 				master ? master->dev_addr : idev->dev_addr);
+ 		rcu_read_unlock();
+ 		imtu = idev->mtu;
++		if (!tunnel_flow)
++			ppe_flow_account_bind(&flow->rx_account, idev,
++					      data.ingress_svid, data.ingress_vid);
+ 
+ 		if (edma_port_dev_check(idev)) {
+ 			struct edma_port_priv *ipriv = netdev_priv(idev);
+@@ -2954,6 +2974,8 @@
+ 	}
+ 
+ 	reject_reason = PPE_FT_REJECT_EGRESS_VP;
++	if (!tunnel_flow)
++		ppe_flow_account_bind(&flow->tx_account, odev, nh.svid, nh.cvid);
+ 	if (!tunnel_encap) {
+ 		if (edma_port_dev_check(odev)) {
+ 			port_priv = netdev_priv(odev);
+@@ -3069,6 +3091,8 @@
+ 	 * port from the flow entry itself.
+ 	 */
+ 	mutex_lock(&ft->lock);
++	ppe_flow_account_prune(&flow->rx_account, NULL);
++	ppe_flow_account_prune(&flow->tx_account, NULL);
+ 	if (tunnel_flow) {
+ 		struct in6_addr local, remote;
+ 		int link, mtu;
+@@ -3364,6 +3388,14 @@
+ 		goto err_host;
+ 	flow->index = ret;
+ 
++	/* A recycled table index can retain counters from its previous owner.
++	 * Seed before enabling so neither upper stats nor conntrack inherit it.
++	 */
++	ret = ppe_flow_stats_get(ft->ppe_dev, flow->index,
++				 &flow->packets, &flow->bytes);
++	if (ret)
++		goto err_added_flow;
++
+ 	ret = ppe_flow_entry_enable(ft->ppe_dev, flow->index, true);
+ 	if (ret)
+ 		goto err_added_flow;
+@@ -3480,6 +3512,10 @@
+ err_free:
+ 	if (ret)
+ 		atomic_long_inc(&ft->rejects[reject_reason]);
++	if (flow) {
++		ppe_flow_account_put(&flow->rx_account);
++		ppe_flow_account_put(&flow->tx_account);
++	}
+ 	if (flow && flow->egress_dev)
+ 		dev_put(flow->egress_dev);
+ 	kfree_rcu(flow, rcu);
+@@ -3663,10 +3699,16 @@
+ 
+ 	ret = ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
+ 	if (!ret && (packets != flow->packets || bytes != flow->bytes)) {
++		u64 delta_bytes = (bytes - flow->bytes) & GENMASK_ULL(39, 0);
++		u32 delta_packets = packets - flow->packets;
++
+ 		/* The hardware byte counter is 40 bits wide and wraps. */
++		ppe_flow_account_update(&flow->rx_account, true,
++					delta_packets, delta_bytes);
++		ppe_flow_account_update(&flow->tx_account, false,
++					delta_packets, delta_bytes);
+ 		flow_stats_update(&f->stats,
+-				  (bytes - flow->bytes) & GENMASK_ULL(39, 0),
+-				  packets - flow->packets, 0, jiffies,
++				  delta_bytes, delta_packets, 0, jiffies,
+ 				  FLOW_ACTION_HW_STATS_DELAYED);
+ 		flow->packets = packets;
+ 		flow->bytes = bytes;
+@@ -4202,6 +4244,8 @@
+ 		seq_printf(seq, "  input_l3 expected:%u valid:%u pppoe_slot:%d\n",
+ 			   flow->entry.src_l3_if, flow->entry.src_l3_if_valid,
+ 			   flow->ingress_pppoe);
++		seq_printf(seq, "  account_uppers rx:%u tx:%u\n",
++			   flow->rx_account.count, flow->tx_account.count);
+ 		ppe_ft_debug_words(seq, "flow_raw", f, flow_words);
+ 		seq_printf(seq,
+ 			   "  flow_dec read:%d qos_read:%d valid:%u type:%u host_dst:%u host:%u proto:%lu age:%lu src_l3_valid:%u src_l3:%lu fwd:%lu nexthop:%u nat_l4:%lu profile:%u service:%lu",
+@@ -4571,6 +4615,37 @@
+ 	}
+ }
+ 
++static int ppe_ft_account_event(struct notifier_block *nb,
++				unsigned long event, void *ptr)
++{
++	struct ppe_flowtable *ft = container_of(nb, struct ppe_flowtable,
++						 account_nb);
++	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
++	struct rhashtable_iter iter;
++	struct ppe_ft_flow *flow;
++
++	if (event != NETDEV_UNREGISTER)
++		return NOTIFY_DONE;
++
++	mutex_lock(&ft->lock);
++	rhashtable_walk_enter(&ft->flows, &iter);
++	rhashtable_walk_start(&iter);
++	while ((flow = rhashtable_walk_next(&iter))) {
++		if (IS_ERR(flow)) {
++			if (PTR_ERR(flow) == -EAGAIN)
++				continue;
++			break;
++		}
++		ppe_flow_account_prune(&flow->rx_account, dev);
++		ppe_flow_account_prune(&flow->tx_account, dev);
++	}
++	rhashtable_walk_stop(&iter);
++	rhashtable_walk_exit(&iter);
++	mutex_unlock(&ft->lock);
++
++	return NOTIFY_DONE;
++}
++
+ /**
+  * ppe_flowtable_setup - Set up the flowtable offload state
+  * @ppe_dev: PPE device
+@@ -4630,9 +4705,15 @@
+ 
+ 	hash_init(ft->hosts);
+ 	ft->ppp_nb.notifier_call = ppe_ft_ppp_event;
++	ft->account_nb.notifier_call = ppe_ft_account_event;
+ 	ppe_dev->flowtable = ft;
+ 
+-	ret = ppp_register_channel_notifier(&ft->ppp_nb);
++	ret = register_netdevice_notifier(&ft->account_nb);
++	if (!ret) {
++		ret = ppp_register_channel_notifier(&ft->ppp_nb);
++		if (ret)
++			unregister_netdevice_notifier(&ft->account_nb);
++	}
+ 	if (ret) {
+ 		ppe_dev->flowtable = NULL;
+ 		rhashtable_destroy(&ft->flows);
+@@ -4682,6 +4763,7 @@
+ 		return;
+ 
+ 	WARN_ON(!list_empty(&ft->block_cb_list));
++	unregister_netdevice_notifier(&ft->account_nb);
+ 	ppp_unregister_channel_notifier(&ft->ppp_nb);
+ 	ppe_ft_flow_drain(ft);
+ 	mutex_lock(&ft->lock);

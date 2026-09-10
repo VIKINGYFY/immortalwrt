@@ -4,8 +4,12 @@ Subject: [PATCH] net: dsa: add RTL837x private tag protocol and PPPoE trace
 
 RTL837x switches use an outer service VLAN to carry the tag_8021q
 standalone source-port identity while preserving an inner customer VLAN.
-Keep bounded PPPoE discovery/session diagnostics at the DSA boundary for
-P8 troubleshooting.
+Keep PPPoE discovery/control diagnostics at the DSA boundary for P8
+troubleshooting. Use independent per-switch limits (8 TX and 8 RX records
+per 30 seconds), exclude ordinary PPP data and combine RX tag/payload
+details. Report source-decode errors once per 30 seconds with a cumulative
+count, without repeated suppression notices. Reject missing transport tags
+before the VLAN decoder can interpret PPPoE or IP payload as a VLAN header.
 
 Add a dedicated protocol identifier and share the existing VLAN tagger
 implementation.
@@ -14,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -57,6 +57,7 @@ struct tc_action;
+@@ -57,6 +57,7 @@
  #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
  #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
@@ -22,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -91,6 +92,7 @@ enum dsa_tag_protocol {
+@@ -91,6 +92,7 @@
  	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
@@ -32,13 +36,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct dsa_switch;
 --- a/net/dsa/tag_vsc73xx_8021q.c
 +++ b/net/dsa/tag_vsc73xx_8021q.c
-@@ -1,22 +1,35 @@
+@@ -1,22 +1,99 @@
  // SPDX-License-Identifier: GPL-2.0 OR MIT
  /* Copyright (C) 2024 Pawel Dembicki <paweldembicki@gmail.com>
   */
 +#include <linux/atomic.h>
 +#include <linux/if_ether.h>
 +#include <linux/if_vlan.h>
++#include <linux/ratelimit.h>
++#include <linux/slab.h>
++#include <linux/unaligned.h>
  #include <linux/dsa/8021q.h>
  
  #include "tag.h"
@@ -47,13 +54,72 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define VSC73XX_8021Q_NAME "vsc73xx-8021q"
 +#define RTL837X_8021AD_NAME "rtl837x-8021ad"
 +
-+/* PPPoE discovery/control frames are the useful boundary for the P8 failure:
-+ * retain a bounded trace of their DSA tag before the PPE or EDMA path can
-+ * consume it, while keeping normal traffic out of the log.
++struct vsc73xx_tagger_data {
++	struct ratelimit_state errors;
++	struct ratelimit_state tx;
++	struct ratelimit_state rx;
++	atomic_t decode_errors;
++};
++
++struct vsc73xx_pppoe_trace {
++	u16 sid;
++	u16 protocol;
++	u8 code;
++};
++
++/* Inspect only headers, including non-linear skbs. PPP data (IPv4/IPv6)
++ * must not consume the diagnostic budget for discovery, LCP or auth.
 + */
-+static atomic_t rtl837x_pppoe_tx_trace = ATOMIC_INIT(64);
-+static atomic_t rtl837x_pppoe_rx_trace = ATOMIC_INIT(64);
-+static atomic_t rtl837x_pppoe_payload_trace = ATOMIC_INIT(64);
++static bool vsc73xx_pppoe_control(const struct sk_buff *skb, u16 protocol,
++				  int offset, struct vsc73xx_pppoe_trace *trace)
++{
++	u8 buffer[9];
++	const u8 *hdr;
++	int len;
++
++	if (protocol != ETH_P_PPP_DISC && protocol != ETH_P_PPP_SES)
++		return false;
++	len = protocol == ETH_P_PPP_DISC ? 6 : 9;
++	hdr = skb_header_pointer(skb, offset, len, buffer);
++	if (!hdr || hdr[0] != 0x11)
++		return false;
++	trace->sid = get_unaligned_be16(hdr + 2);
++	trace->protocol = 0;
++	trace->code = hdr[1];
++	if (protocol == ETH_P_PPP_DISC)
++		return true;
++	trace->protocol = get_unaligned_be16(hdr + 6);
++	trace->code = hdr[8];
++	return trace->protocol >= 0x8000 && !(hdr[6] & 1);
++}
++
++static int vsc73xx_connect(struct dsa_switch *ds)
++{
++	struct vsc73xx_tagger_data *data;
++
++	data = kzalloc(sizeof(*data), GFP_KERNEL);
++	if (!data)
++		return -ENOMEM;
++
++	/* Each switch has independent budgets; LAN broadcasts cannot hide
++	 * WAN failures. Report total errors instead of suppression notices.
++	 */
++	ratelimit_state_init(&data->errors, 30 * HZ, 1);
++	ratelimit_state_init(&data->tx, 30 * HZ, 8);
++	ratelimit_state_init(&data->rx, 30 * HZ, 8);
++	ratelimit_set_flags(&data->errors, RATELIMIT_MSG_ON_RELEASE);
++	ratelimit_set_flags(&data->tx, RATELIMIT_MSG_ON_RELEASE);
++	ratelimit_set_flags(&data->rx, RATELIMIT_MSG_ON_RELEASE);
++	atomic_set(&data->decode_errors, 0);
++	ds->tagger_data = data;
++	return 0;
++}
++
++static void vsc73xx_disconnect(struct dsa_switch *ds)
++{
++	kfree(ds->tagger_data);
++	ds->tagger_data = NULL;
++}
  
  static struct sk_buff *
 -vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
@@ -61,6 +127,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		  bool bridge_vid)
  {
  	struct dsa_port *dp = dsa_user_to_port(netdev);
++	struct vsc73xx_tagger_data *data = dp->ds->tagger_data;
++	struct vsc73xx_pppoe_trace trace;
  	u16 queue_mapping = skb_get_queue_mapping(skb);
  	u16 tx_vid = dsa_tag_8021q_standalone_vid(dp);
  	u8 pcp;
@@ -70,17 +138,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		unsigned int bridge_num = dsa_port_bridge_num_get(dp);
  		struct net_device *br = dsa_port_bridge_dev_get(dp);
  
-@@ -27,26 +40,103 @@ vsc73xx_xmit(struct sk_buff *skb, struct
+@@ -27,42 +104,151 @@
  	}
  
  	pcp = netdev_txq_to_tc(netdev, queue_mapping);
-+	if ((skb->protocol == htons(ETH_P_PPP_DISC) ||
-+	     skb->protocol == htons(ETH_P_PPP_SES)) &&
-+	    atomic_dec_if_positive(&rtl837x_pppoe_tx_trace) >= 0)
++	if (vsc73xx_pppoe_control(skb, ntohs(skb->protocol), ETH_HLEN,
++				  &trace) && __ratelimit(&data->tx))
 +		netdev_info(netdev,
-+			    "rtl837x-pppoe-tx: tree=%d switch=%d port=%d tpid=0x%04x vid=%u pcp=%u proto=0x%04x len=%u offload=%u\n",
++			    "rtl837x-pppoe-tx: tree=%d switch=%d port=%d tpid=0x%04x vid=%u pcp=%u proto=0x%04x sid=%u ppp=0x%04x code=%u len=%u offload=%u\n",
 +			    dp->ds->dst->index, dp->ds->index, dp->index, tpid,
-+			    tx_vid, pcp, ntohs(skb->protocol), skb->len,
++			    tx_vid, pcp, ntohs(skb->protocol), trace.sid,
++			    trace.protocol, trace.code, skb->len,
 +			    skb->offload_fwd_mark);
  
 -	return dsa_8021q_xmit(skb, netdev, ETH_P_8021Q,
@@ -103,26 +171,40 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +static struct sk_buff *
  vsc73xx_rcv(struct sk_buff *skb, struct net_device *netdev)
  {
++	struct dsa_port *cpu_dp = netdev->dsa_ptr;
++	struct vsc73xx_tagger_data *data = cpu_dp->ds->tagger_data;
++	struct vsc73xx_pppoe_trace trace;
 +	bool hw_vlan = skb_vlan_tag_present(skb);
 +	u16 raw_proto = hw_vlan ? ntohs(skb->vlan_proto) : 0;
 +	u16 raw_tci = hw_vlan ? skb_vlan_tag_get(skb) : 0;
 +	u16 inner_proto = ntohs(skb->protocol);
 +	u16 payload_proto;
++	bool control;
++	u32 errors;
++	int payload_offset = hw_vlan ? 0 : VLAN_HLEN;
 +	int customer_tci = -1;
  	int src_port = -1, switch_id = -1, vbid = -1, vid = -1;
  
-+	if (!hw_vlan && pskb_may_pull(skb, ETH_HLEN)) {
++	if (!hw_vlan) {
 +		const struct ethhdr *eth = eth_hdr(skb);
 +
 +		raw_proto = ntohs(eth->h_proto);
++		inner_proto = raw_proto;
 +		if ((raw_proto == ETH_P_8021Q || raw_proto == ETH_P_8021AD) &&
-+		    pskb_may_pull(skb, ETH_HLEN + VLAN_HLEN)) {
++		    pskb_may_pull(skb, VLAN_HLEN)) {
 +			const struct vlan_ethhdr *veth = vlan_eth_hdr(skb);
 +
 +			raw_tci = ntohs(veth->h_vlan_TCI);
 +			inner_proto = ntohs(veth->h_vlan_encapsulated_proto);
 +		}
 +	}
++
++	/* A missing transport tag is a drop, never a candidate VLAN TCI
++	 * decoded from PPPoE/IP payload. Leave the packet intact for logging.
++	 */
++	if (!eth_type_vlan(htons(raw_proto)) ||
++	    (!hw_vlan && !pskb_may_pull(skb, VLAN_HLEN)))
++		goto decode_error;
 +
 +	payload_proto = inner_proto;
 +	if (eth_type_vlan(htons(inner_proto))) {
@@ -137,52 +219,63 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		if (vh) {
 +			customer_tci = ntohs(vh->h_vlan_TCI);
 +			payload_proto = ntohs(vh->h_vlan_encapsulated_proto);
++			payload_offset += VLAN_HLEN;
 +		}
 +	}
++	control = vsc73xx_pppoe_control(skb, payload_proto, payload_offset,
++					&trace);
 +
  	dsa_8021q_rcv(skb, &src_port, &switch_id, &vbid, &vid);
  
  	skb->dev = dsa_tag_8021q_find_user(netdev, src_port, switch_id,
  					   vid, vbid);
- 	if (!skb->dev) {
- 		dev_warn_ratelimited(&netdev->dev,
+-	if (!skb->dev) {
+-		dev_warn_ratelimited(&netdev->dev,
 -				     "Couldn't decode source port\n");
-+				     "Couldn't decode source port: raw_tpid=0x%04x raw_tci=0x%04x inner_proto=0x%04x hw_vlan=%u decoded=%d/%d/%d/%d len=%u\n",
-+				     raw_proto, raw_tci, inner_proto, hw_vlan,
-+				     src_port, switch_id, vbid, vid, skb->len);
- 		return NULL;
- 	}
- 
-+	if ((inner_proto == ETH_P_PPP_DISC || inner_proto == ETH_P_PPP_SES ||
-+	     raw_proto == ETH_P_8021AD) &&
-+	    atomic_dec_if_positive(&rtl837x_pppoe_rx_trace) >= 0)
+-		return NULL;
+-	}
++	if (!skb->dev)
++		goto decode_error;
++
++	if (control && __ratelimit(&data->rx))
 +		netdev_info(netdev,
-+			    "rtl837x-pppoe-rx: raw_tpid=0x%04x raw_tci=0x%04x inner_proto=0x%04x hw_vlan=%u decoded=%d/%d/%d/%d user=%s len=%u\n",
++			    "rtl837x-pppoe-rx: raw_tpid=0x%04x raw_tci=0x%04x inner_proto=0x%04x hw_vlan=%u decoded=%d/%d/%d/%d user=%s customer-tci=%d proto=0x%04x sid=%u ppp=0x%04x code=%u source=%pM dest=%pM len=%u\n",
 +			    raw_proto, raw_tci, inner_proto, hw_vlan, src_port,
-+			    switch_id, vbid, vid, skb->dev->name, skb->len);
-+
-+	/* An independent PPPoE budget survives boot-time LAN broadcasts.
-+	 * Decode through the customer tag so a leaked CVLAN cannot hide
-+	 * the failing session frames from this diagnostic.
-+	 */
-+	if ((payload_proto == ETH_P_PPP_DISC || payload_proto == ETH_P_PPP_SES) &&
-+	    atomic_dec_if_positive(&rtl837x_pppoe_payload_trace) >= 0)
-+		netdev_info(skb->dev,
-+			    "rtl837x-pppoe-payload: source=%pM dest=%pM s-tpid=0x%04x s-tci=0x%04x customer-tci=%d proto=0x%04x len=%u\n",
++			    switch_id, vbid, vid, skb->dev->name, customer_tci,
++			    payload_proto, trace.sid, trace.protocol, trace.code,
 +			    eth_hdr(skb)->h_source, eth_hdr(skb)->h_dest,
-+			    raw_proto, raw_tci, customer_tci, payload_proto,
 +			    skb->len);
-+
+ 
  	dsa_default_offload_fwd_mark(skb);
  
  	return skb;
-@@ -61,8 +151,26 @@ static const struct dsa_device_ops vsc73
++
++decode_error:
++	errors = atomic_inc_return(&data->decode_errors);
++	if (__ratelimit(&data->errors))
++		netdev_warn(netdev,
++			    "Couldn't decode source port: total=%u raw_tpid=0x%04x raw_tci=0x%04x inner_proto=0x%04x hw_vlan=%u decoded=%d/%d/%d/%d len=%u\n",
++			    errors, raw_proto, raw_tci, inner_proto, hw_vlan,
++			    src_port, switch_id, vbid, vid, skb->len);
++	return NULL;
+ }
+ 
+ static const struct dsa_device_ops vsc73xx_8021q_netdev_ops = {
+ 	.name			= VSC73XX_8021Q_NAME,
+ 	.proto			= DSA_TAG_PROTO_VSC73XX_8021Q,
++	.connect		= vsc73xx_connect,
++	.disconnect		= vsc73xx_disconnect,
+ 	.xmit			= vsc73xx_xmit,
+ 	.rcv			= vsc73xx_rcv,
+ 	.needed_headroom	= VLAN_HLEN,
  	.promisc_on_conduit	= true,
  };
  
 +static const struct dsa_device_ops rtl837x_8021ad_netdev_ops = {
 +	.name			= RTL837X_8021AD_NAME,
 +	.proto			= DSA_TAG_PROTO_RTL837X_8021AD,
++	.connect		= vsc73xx_connect,
++	.disconnect		= vsc73xx_disconnect,
 +	.xmit			= rtl837x_xmit,
 +	.rcv			= vsc73xx_rcv,
 +	.needed_headroom	= VLAN_HLEN,
