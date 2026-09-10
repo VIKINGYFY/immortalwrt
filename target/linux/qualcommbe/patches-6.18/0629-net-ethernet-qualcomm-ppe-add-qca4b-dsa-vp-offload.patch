@@ -12,6 +12,10 @@ manager state plus per-VP packet counters in debugfs. Keep the generic
 tag_8021q path unchanged. Release an egress VP acquired before the
 flowtable lock when setup fails through the pre-lock cleanup path.
 
+Keep QCA/QCA4B metadata RX consistent with the software tagger: packets
+sent only to the CPU still require Linux bridge flooding, so do not set
+the default hardware-forwarded mark on header-stripped exception frames.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
@@ -1248,3 +1252,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			     struct seq_file *seq);
  
  #endif
+--- a/net/dsa/tag.c
++++ b/net/dsa/tag.c
+@@ -77,7 +77,15 @@
+ 
+ 		skb->dev = dsa_conduit_find_user(dev, 0, port);
+ 		if (likely(skb->dev)) {
+-			dsa_default_offload_fwd_mark(skb);
++			/* QCA floods unknown/broadcast traffic only to the CPU.
++			 * Match tag_qca.c when hardware has removed its header:
++			 * the bridge must still forward these packets to peers.
++			 */
++			if (cpu_dp->tag_ops->proto == DSA_TAG_PROTO_QCA ||
++			    cpu_dp->tag_ops->proto == DSA_TAG_PROTO_QCA_4B)
++				skb->offload_fwd_mark = 0;
++			else
++				dsa_default_offload_fwd_mark(skb);
+ 			nskb = skb;
+ 		}
+ 	} else {

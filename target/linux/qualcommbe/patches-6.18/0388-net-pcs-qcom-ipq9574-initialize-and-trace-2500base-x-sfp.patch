@@ -1,0 +1,106 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: pcs: qcom: initialize and trace 2500BASE-X SFP status
+
+Gate modules without in-band negotiation through the SFP LOS callbacks.
+Select the SGMII+ MAC personality explicitly as QSDK does for SFP ports,
+rather than inheriting the previous interface configuration.
+
+Record a bounded initial/change trace of the normal channel status
+register to distinguish the raw PCS state from the reported link. LOS
+and a reported 2500BASE-X link do not prove copper-side traffic.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/pcs/pcs-qcom-ipq9574.c
++++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
+@@ -144,6 +144,8 @@
+ 	struct ipq_pcs *qpcs;
+ 	struct phylink_pcs pcs;
+ 	int index;
++	u32 debug_last_status;
++	u8 debug_status_count;
+ 
+ 	/* RX clock from NSSCC to PCS MII */
+ 	struct clk *rx_clk;
+@@ -217,11 +219,24 @@
+ }
+ 
+ static void ipq_pcs_get_state_2500basex(struct ipq_pcs *qpcs,
++					unsigned int neg_mode,
+ 					struct phylink_link_state *state)
+ {
+ 	unsigned int val;
+ 	int ret;
+ 
++	/* A copper SFP without PHY I2C access cannot provide 2500BASE-X
++	 * in-band status. In that mode the SFP state machine already gates
++	 * phylink through its LOS-driven link_up and link_down callbacks.
++	 */
++	if (neg_mode == PHYLINK_PCS_NEG_INBAND_DISABLED) {
++		state->link = true;
++		state->speed = SPEED_2500;
++		state->duplex = DUPLEX_FULL;
++		state->pause |= MLO_PAUSE_TXRX_MASK;
++		return;
++	}
++
+ 	ret = regmap_read(qpcs->regmap, PCS_MII_STS(0), &val);
+ 	if (ret) {
+ 		state->link = 0;
+@@ -360,7 +375,12 @@
+ 		misc2 = PCS_MISC2_MODE_SGMII;
+ 		break;
+ 	case PHY_INTERFACE_MODE_2500BASEX:
+-		val = PCS_MODE_2500BASEX;
++		/* SSDK explicitly selects MAC mode for SGMII+ SFP ports.
++		 * Do not inherit the 1000BASE-X/SGMII personality from a
++		 * previously configured interface or from the bootloader.
++		 */
++		mask |= PCS_MODE_SGMII_MODE_MASK;
++		val = PCS_MODE_2500BASEX | PCS_MODE_SGMII_MODE_MAC;
+ 		misc2 = PCS_MISC2_MODE_SGMII_PLUS;
+ 		rate = 312500000;
+ 		break;
+@@ -813,6 +833,7 @@
+ 	struct ipq_pcs_mii *qpcs_mii = phylink_pcs_to_qpcs_mii(pcs);
+ 	struct ipq_pcs *qpcs = qpcs_mii->qpcs;
+ 	int index = qpcs_mii->index;
++	unsigned int status;
+ 
+ 	switch (state->interface) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+@@ -825,7 +846,7 @@
+ 		ipq_pcs_get_state_sgmii(qpcs, index, state);
+ 		break;
+ 	case PHY_INTERFACE_MODE_2500BASEX:
+-		ipq_pcs_get_state_2500basex(qpcs, state);
++		ipq_pcs_get_state_2500basex(qpcs, neg_mode, state);
+ 		break;
+ 	case PHY_INTERFACE_MODE_USXGMII:
+ 	case PHY_INTERFACE_MODE_10G_QXGMII:
+@@ -838,6 +859,25 @@
+ 		break;
+ 	}
+ 
++	/* Use only the normal channel status register, with a bounded
++	 * initial/change trace. LOS gating alone does not prove PCS sync
++	 * or copper traffic for modules with no accessible PHY.
++	 */
++	if ((state->interface == PHY_INTERFACE_MODE_SGMII ||
++	     state->interface == PHY_INTERFACE_MODE_1000BASEX ||
++	     state->interface == PHY_INTERFACE_MODE_2500BASEX) &&
++	    qpcs_mii->debug_status_count < 16 &&
++	    !regmap_read(qpcs->regmap, PCS_MII_STS(index), &status) &&
++	    (!qpcs_mii->debug_status_count ||
++	     qpcs_mii->debug_last_status != status)) {
++		qpcs_mii->debug_last_status = status;
++		qpcs_mii->debug_status_count++;
++		dev_info(qpcs->dev,
++			 "PCS status: channel=%d interface=%s neg=%u raw=0x%08x pcs-link=%u reported-link=%u speed=%d\n",
++			 index, phy_modes(state->interface), neg_mode, status,
++			 !!(status & PCS_MII_LINK_STS), state->link, state->speed);
++	}
++
+ 	dev_dbg_ratelimited(qpcs->dev,
+ 			    "mode=%s/%s/%s link=%u\n",
+ 			    phy_modes(state->interface),

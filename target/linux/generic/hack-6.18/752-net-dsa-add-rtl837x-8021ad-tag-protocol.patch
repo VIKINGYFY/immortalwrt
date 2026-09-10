@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct dsa_switch;
 --- a/net/dsa/tag_vsc73xx_8021q.c
 +++ b/net/dsa/tag_vsc73xx_8021q.c
-@@ -1,22 +1,34 @@
+@@ -1,22 +1,35 @@
  // SPDX-License-Identifier: GPL-2.0 OR MIT
  /* Copyright (C) 2024 Pawel Dembicki <paweldembicki@gmail.com>
   */
@@ -53,6 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 + */
 +static atomic_t rtl837x_pppoe_tx_trace = ATOMIC_INIT(64);
 +static atomic_t rtl837x_pppoe_rx_trace = ATOMIC_INIT(64);
++static atomic_t rtl837x_pppoe_payload_trace = ATOMIC_INIT(64);
  
  static struct sk_buff *
 -vsc73xx_xmit(struct sk_buff *skb, struct net_device *netdev)
@@ -69,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		unsigned int bridge_num = dsa_port_bridge_num_get(dp);
  		struct net_device *br = dsa_port_bridge_dev_get(dp);
  
-@@ -28,26 +40,73 @@
+@@ -27,26 +40,103 @@
  	}
  
  	pcp = netdev_txq_to_tc(netdev, queue_mapping);
@@ -77,10 +78,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	     skb->protocol == htons(ETH_P_PPP_SES)) &&
 +	    atomic_dec_if_positive(&rtl837x_pppoe_tx_trace) >= 0)
 +		netdev_info(netdev,
-+			"rtl837x-pppoe-tx: tree=%d switch=%d port=%d tpid=0x%04x vid=%u pcp=%u proto=0x%04x len=%u offload=%u\n",
-+			dp->ds->dst->index, dp->ds->index, dp->index, ntohs(tpid),
-+			tx_vid, pcp, ntohs(skb->protocol), skb->len,
-+			skb->offload_fwd_mark);
++			    "rtl837x-pppoe-tx: tree=%d switch=%d port=%d tpid=0x%04x vid=%u pcp=%u proto=0x%04x len=%u offload=%u\n",
++			    dp->ds->dst->index, dp->ds->index, dp->index, tpid,
++			    tx_vid, pcp, ntohs(skb->protocol), skb->len,
++			    skb->offload_fwd_mark);
  
 -	return dsa_8021q_xmit(skb, netdev, ETH_P_8021Q,
 +	return dsa_8021q_xmit(skb, netdev, tpid,
@@ -106,6 +107,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	u16 raw_proto = hw_vlan ? ntohs(skb->vlan_proto) : 0;
 +	u16 raw_tci = hw_vlan ? skb_vlan_tag_get(skb) : 0;
 +	u16 inner_proto = ntohs(skb->protocol);
++	u16 payload_proto;
++	int customer_tci = -1;
  	int src_port = -1, switch_id = -1, vbid = -1, vid = -1;
  
 +	if (!hw_vlan && pskb_may_pull(skb, ETH_HLEN)) {
@@ -118,6 +121,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +			raw_tci = ntohs(veth->h_vlan_TCI);
 +			inner_proto = ntohs(veth->h_vlan_encapsulated_proto);
++		}
++	}
++
++	payload_proto = inner_proto;
++	if (eth_type_vlan(htons(inner_proto))) {
++		struct vlan_hdr hdr;
++		const struct vlan_hdr *vh;
++
++		/* skb->data follows the Ethernet header. A software S-tag
++		 * occupies the first four bytes; a stripped S-tag does not.
++		 */
++		vh = skb_header_pointer(skb, hw_vlan ? 0 : VLAN_HLEN,
++					sizeof(hdr), &hdr);
++		if (vh) {
++			customer_tci = ntohs(vh->h_vlan_TCI);
++			payload_proto = ntohs(vh->h_vlan_encapsulated_proto);
 +		}
 +	}
 +
@@ -138,14 +157,26 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	     raw_proto == ETH_P_8021AD) &&
 +	    atomic_dec_if_positive(&rtl837x_pppoe_rx_trace) >= 0)
 +		netdev_info(netdev,
-+			"rtl837x-pppoe-rx: raw_tpid=0x%04x raw_tci=0x%04x inner_proto=0x%04x hw_vlan=%u decoded=%d/%d/%d/%d user=%s len=%u\n",
-+			raw_proto, raw_tci, inner_proto, hw_vlan, src_port,
-+			switch_id, vbid, vid, skb->dev->name, skb->len);
++			    "rtl837x-pppoe-rx: raw_tpid=0x%04x raw_tci=0x%04x inner_proto=0x%04x hw_vlan=%u decoded=%d/%d/%d/%d user=%s len=%u\n",
++			    raw_proto, raw_tci, inner_proto, hw_vlan, src_port,
++			    switch_id, vbid, vid, skb->dev->name, skb->len);
++
++	/* An independent PPPoE budget survives boot-time LAN broadcasts.
++	 * Decode through the customer tag so a leaked CVLAN cannot hide
++	 * the failing session frames from this diagnostic.
++	 */
++	if ((payload_proto == ETH_P_PPP_DISC || payload_proto == ETH_P_PPP_SES) &&
++	    atomic_dec_if_positive(&rtl837x_pppoe_payload_trace) >= 0)
++		netdev_info(skb->dev,
++			    "rtl837x-pppoe-payload: source=%pM dest=%pM s-tpid=0x%04x s-tci=0x%04x customer-tci=%d proto=0x%04x len=%u\n",
++			    eth_hdr(skb)->h_source, eth_hdr(skb)->h_dest,
++			    raw_proto, raw_tci, customer_tci, payload_proto,
++			    skb->len);
 +
  	dsa_default_offload_fwd_mark(skb);
  
  	return skb;
-@@ -62,8 +121,26 @@
+@@ -61,8 +151,26 @@
  	.promisc_on_conduit	= true,
  };
  

@@ -75,6 +75,7 @@ static u32 rtl837x_bridge_ports(struct rtk_gsw *gsw, int port)
 
 static int rtl837x_update_isolation(struct rtk_gsw *gsw)
 {
+	rtk_portmask_t cpu_keep = { 0 };
 	u32 permit;
 	int port, ret;
 
@@ -94,6 +95,24 @@ static int rtl837x_update_isolation(struct rtk_gsw *gsw)
 		ret = rtk_port_isolation_set(port, permit);
 		if (ret)
 			return rtl837x_to_errno(ret);
+
+		if (gsw->dsa_svlan && rtl837x_user_port(gsw, port) &&
+		    !dsa_port_bridge_dev_get(dsa_to_port(&gsw->ds, port)))
+			cpu_keep.bits[0] |= BIT(port);
+	}
+
+	if (gsw->dsa_svlan) {
+		/* A bridge VLAN can make the shared CVLAN 1 CPU member tagged.
+		 * Standalone ports have no bridge PVID untagging on RX, so keep
+		 * their original customer-tag format on CPU egress. The outer
+		 * service tag still carries the source port. In particular, do
+		 * not turn an untagged WAN session frame into customer VLAN 1.
+		 */
+		ret = rtk_vlan_keep_set(gsw->cpu_port, &cpu_keep);
+		if (ret)
+			return rtl837x_to_errno(ret);
+		dev_info(gsw->dev, "SVLAN CPU customer-tag keep: ingress=0x%03x\n",
+			 cpu_keep.bits[0]);
 	}
 
 	return 0;
