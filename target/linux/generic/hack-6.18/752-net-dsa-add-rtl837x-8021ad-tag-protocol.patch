@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -57,6 +57,7 @@
+@@ -57,6 +57,7 @@ struct tc_action;
  #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
  #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -91,6 +92,7 @@
+@@ -91,6 +92,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		unsigned int bridge_num = dsa_port_bridge_num_get(dp);
  		struct net_device *br = dsa_port_bridge_dev_get(dp);
  
-@@ -27,26 +40,103 @@
+@@ -27,26 +40,103 @@ vsc73xx_xmit(struct sk_buff *skb, struct
  	}
  
  	pcp = netdev_txq_to_tc(netdev, queue_mapping);
@@ -176,7 +176,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dsa_default_offload_fwd_mark(skb);
  
  	return skb;
-@@ -61,8 +151,26 @@
+@@ -61,8 +151,26 @@ static const struct dsa_device_ops vsc73
  	.promisc_on_conduit	= true,
  };
  

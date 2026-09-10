@@ -13,7 +13,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -144,6 +144,8 @@
+@@ -144,6 +144,8 @@ struct ipq_pcs_mii {
  	struct ipq_pcs *qpcs;
  	struct phylink_pcs pcs;
  	int index;
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* RX clock from NSSCC to PCS MII */
  	struct clk *rx_clk;
-@@ -217,11 +219,24 @@
+@@ -217,11 +219,24 @@ static void ipq_pcs_get_state_sgmii(stru
  }
  
  static void ipq_pcs_get_state_2500basex(struct ipq_pcs *qpcs,
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = regmap_read(qpcs->regmap, PCS_MII_STS(0), &val);
  	if (ret) {
  		state->link = 0;
-@@ -360,7 +375,12 @@
+@@ -360,7 +375,12 @@ static int ipq_pcs_config_mode(struct ip
  		misc2 = PCS_MISC2_MODE_SGMII;
  		break;
  	case PHY_INTERFACE_MODE_2500BASEX:
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		misc2 = PCS_MISC2_MODE_SGMII_PLUS;
  		rate = 312500000;
  		break;
-@@ -813,6 +833,7 @@
+@@ -813,6 +833,7 @@ static void ipq_pcs_get_state(struct phy
  	struct ipq_pcs_mii *qpcs_mii = phylink_pcs_to_qpcs_mii(pcs);
  	struct ipq_pcs *qpcs = qpcs_mii->qpcs;
  	int index = qpcs_mii->index;
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	switch (state->interface) {
  	case PHY_INTERFACE_MODE_SGMII:
-@@ -825,7 +846,7 @@
+@@ -825,7 +846,7 @@ static void ipq_pcs_get_state(struct phy
  		ipq_pcs_get_state_sgmii(qpcs, index, state);
  		break;
  	case PHY_INTERFACE_MODE_2500BASEX:
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
  	case PHY_INTERFACE_MODE_USXGMII:
  	case PHY_INTERFACE_MODE_10G_QXGMII:
-@@ -838,6 +859,25 @@
+@@ -838,6 +859,25 @@ static void ipq_pcs_get_state(struct phy
  		break;
  	}
  
