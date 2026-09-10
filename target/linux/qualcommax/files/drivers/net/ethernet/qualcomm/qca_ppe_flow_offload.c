@@ -39,10 +39,14 @@ struct ppe_flow_data {
 
 	u16 vlan_id;
 	bool vlan_valid;
+	u16 ivid;
 	u16 pppoe_sid;
 	bool pppoe_valid;
 
 	struct net_device *odev;
+	/* The profile the entry is given; filled only where the flowtable
+	 * reports a priority, and zero means DSCP still decides.
+	 */
 	u8 priority;
 };
 
@@ -57,7 +61,6 @@ struct ppe_flow_entry {
 	u32 hwords[PPE_HOST_ENTRY_WORDS_V6];
 	u8 nhwords;
 	u8 profile;
-	u32 pkts_seen;
 	u8 quiet;
 	bool sparse;
 	u8 src_if;
@@ -71,8 +74,12 @@ struct ppe_flow_entry {
 	int wan_iport;
 	u8 iport;
 	u8 oport;
+	u16 ivid;
+	u16 ovid;
 	u64 packets;
 	u64 bytes;
+	u64 unread_packets;
+	u64 unread_bytes;
 	unsigned long last_used;
 };
 
@@ -404,6 +411,7 @@ static int ppe_wan_ingress_get(struct qca_ppe_priv *priv, int port, u16 sid,
 		goto err_xlt;
 	}
 	priv->wan_vsi[port] = vsi;
+	priv->wan_vid[port] = vlan_valid ? vlan_id : 0;
 	ppe_vsi_member_set(priv, vsi, BIT(port) | BIT(QCA_PPE_CPU_PORT));
 
 	ppe_entry_set(words, PPE_MY_MAC_ADDR_OFF, PPE_MY_MAC_ADDR_LEN,
@@ -542,7 +550,15 @@ static void ppe_wan_ingress_put(struct qca_ppe_priv *priv, int port)
  * can carry. A domain that cannot be named is declined rather than encoded as
  * the bare tuple, which would let the flow forward traffic from another VLAN.
  */
-static int ppe_flow_ingress_vsi(struct qca_ppe_priv *priv, int iport)
+/* A port's PVID only classifies while the bridge enforces its VLANs; until
+ * then the bridge VLANs are recorded and name no port.
+ */
+static u16 ppe_port_pvid(struct qca_ppe_priv *priv, int port)
+{
+	return priv->vlan_filtering & BIT(port) ? priv->port_pvid[port] : 0;
+}
+
+static int ppe_flow_ingress_vsi(struct qca_ppe_priv *priv, int iport, u16 vid)
 {
 	struct qca_ppe_vlan_entry *vlan;
 
@@ -552,18 +568,22 @@ static int ppe_flow_ingress_vsi(struct qca_ppe_priv *priv, int iport)
 	 * VLAN and session id that classification names reach it.
 	 */
 	if (priv->wan_ref[iport])
-		return priv->wan_vsi[iport];
+		return vid && vid != priv->wan_vid[iport] ? -EOPNOTSUPP :
+							    priv->wan_vsi[iport];
 
-	/* A VLAN-filtering bridge reclassifies an untagged frame into the VSI
-	 * of the port's PVID, so the port's own VSI answers only without one.
+	/* A VLAN-filtering bridge classifies a tagged frame into its VLAN's
+	 * VSI and an untagged one into the PVID's, so the port's own VSI
+	 * answers only without either.
 	 */
-	if (!priv->port_pvid[iport])
+	if (!vid)
+		vid = ppe_port_pvid(priv, iport);
+	if (!vid)
 		return ppe_port_l3_vsi(priv, iport);
 
-	vlan = ppe_vlan_find(priv, priv->port_br_dev[iport],
-			     priv->port_pvid[iport]);
+	vlan = ppe_vlan_find(priv, priv->port_br_dev[iport], vid);
 
-	return vlan ? (int)vlan->vsi : -EOPNOTSUPP;
+	return vlan && (vlan->ports & priv->vlan_filtering & BIT(iport)) ?
+	       (int)vlan->vsi : -EOPNOTSUPP;
 }
 
 /* The flow lookup only runs on packets the L3 stage accepted, and nothing in
@@ -576,7 +596,7 @@ static int ppe_flow_ingress_vsi(struct qca_ppe_priv *priv, int iport)
  * index keeps the two in step without a second allocator.
  */
 static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
-				  struct ppe_flow_entry *entry)
+				  u16 vid, struct ppe_flow_entry *entry)
 {
 	struct dsa_port *dp = dsa_to_port(&priv->ds, iport);
 	u32 words[PPE_NEXTHOP_WORDS] = {};
@@ -586,11 +606,13 @@ static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
 
 	lockdep_assert_held(&priv->vlan_lock);
 
-	vsi = ppe_flow_ingress_vsi(priv, iport);
+	vsi = ppe_flow_ingress_vsi(priv, iport, vid);
 	if (vsi < 0)
 		return vsi;
 
 	entry->src_if = vsi;
+	entry->ivid = priv->wan_ref[iport] ? priv->wan_vid[iport] :
+		      vid ? vid : ppe_port_pvid(priv, iport);
 
 	/* A PPPoE uplink's ingress interface belongs to the uplink, so take a
 	 * reference rather than programming anything: a sibling flow going away
@@ -850,6 +872,11 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 		return -EBUSY;
 
 	entry->oport = port;
+	/* An untagged egress is credited to the port's PVID VLAN, the one an
+	 * untagged frame on that port belongs to.
+	 */
+	entry->ovid = data->vlan_valid ? data->vlan_id :
+		      ppe_port_pvid(priv, port);
 
 	mac = ether_addr_to_u64(data->eth.h_source);
 	ppe_entry_set(words, PPE_EG_L3_IF_MAC_OFF, PPE_EG_L3_IF_MAC_LEN, mac);
@@ -995,6 +1022,96 @@ static void ppe_flow_free_egress(struct qca_ppe_priv *priv,
 		ppe_wan_ingress_put(priv, entry->wan_port);
 }
 
+/* The counters are cumulative and narrower than u64 - 32-bit packets, 40-bit
+ * bytes - so the deltas are computed in the counters' own widths to survive
+ * wraparound.
+ */
+static u32 ppe_flow_counter_delta(struct qca_ppe_priv *priv,
+				  struct ppe_flow_entry *entry, u64 *bytes)
+{
+	u64 packets, total;
+	u32 pkts;
+
+	ppe_flow_counter_read(priv, entry->index, &packets, &total);
+	pkts = (u32)(packets - entry->packets);
+	*bytes = (total - entry->bytes) & PPE_FLOW_CNT_BYTES;
+	entry->packets = packets;
+	entry->bytes = total;
+
+	return pkts;
+}
+
+static void ppe_flow_dev_add(struct net_device *dev, bool rx, u32 pkts,
+			     u64 bytes)
+{
+	local_bh_disable();
+	if (is_vlan_dev(dev)) {
+		struct vlan_pcpu_stats *s;
+
+		s = this_cpu_ptr(vlan_dev_priv(dev)->vlan_pcpu_stats);
+		u64_stats_update_begin(&s->syncp);
+		u64_stats_add(rx ? &s->rx_packets : &s->tx_packets, pkts);
+		u64_stats_add(rx ? &s->rx_bytes : &s->tx_bytes, bytes);
+		u64_stats_update_end(&s->syncp);
+	} else if (netif_is_bridge_master(dev)) {
+		struct pcpu_sw_netstats *s = this_cpu_ptr(dev->tstats);
+
+		u64_stats_update_begin(&s->syncp);
+		u64_stats_add(rx ? &s->rx_packets : &s->tx_packets, pkts);
+		u64_stats_add(rx ? &s->rx_bytes : &s->tx_bytes, bytes);
+		u64_stats_update_end(&s->syncp);
+	}
+	local_bh_enable();
+}
+
+static void ppe_flow_account_side(struct qca_ppe_priv *priv, int port,
+				  u16 vid, bool rx, u32 pkts, u64 bytes)
+{
+	struct net_device *dev = priv->port_br_dev[port];
+
+	if (dev)
+		ppe_flow_dev_add(dev, rx, pkts, bytes);
+	else
+		dev = dsa_to_port(&priv->ds, port)->user;
+
+	if (dev && vid) {
+		dev = __vlan_find_dev_deep_rcu(dev, htons(ETH_P_8021Q), vid);
+		if (dev)
+			ppe_flow_dev_add(dev, rx, pkts, bytes);
+	}
+}
+
+/* What the hardware forwarded never crossed the software interfaces on the
+ * way: the bridge a port is in and the VLAN interface of the VLAN the frame
+ * carries, received on the ingress side and sent on the egress side. Their
+ * counters get the flow's deltas so they read as without offload. The port
+ * itself is left alone; its MIB already counts the frames.
+ *
+ * A delta can be read only once, because the read moves the baseline, so the
+ * flowtable is answered from what this banks rather than from the counter.
+ *
+ * The bridge pointer is written under the flow lock by the bridge join and
+ * leave ops, and a VLAN interface is found under RCU rather than held.
+ */
+static void ppe_flow_account(struct qca_ppe_priv *priv,
+			     struct ppe_flow_entry *entry, u32 pkts, u64 bytes)
+{
+	lockdep_assert_held(&priv->flow_lock);
+
+	if (!pkts)
+		return;
+
+	entry->unread_packets += pkts;
+	entry->unread_bytes += bytes;
+
+	rcu_read_lock();
+	ppe_flow_account_side(priv, entry->iport, entry->ivid, true, pkts,
+			      bytes);
+	ppe_flow_account_side(priv, entry->oport, entry->ovid, false, pkts,
+			      bytes);
+	rcu_read_unlock();
+}
+
 /* Both locks: the release below reaches the VLAN side, and a routing domain
  * going away destroys flows with that lock already held, so taking it here
  * would be the same task asking for it twice.
@@ -1002,6 +1119,9 @@ static void ppe_flow_free_egress(struct qca_ppe_priv *priv,
 static void ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
 				   struct ppe_flow_entry *entry)
 {
+	u64 bytes;
+	int age;
+
 	lockdep_assert_held(&priv->flow_lock);
 	lockdep_assert_held(&priv->vlan_lock);
 
@@ -1012,7 +1132,13 @@ static void ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
 	 * entry pointing at side tables about to be reused is the worse half of
 	 * that trade.
 	 */
-	if (ppe_flow_entry_age(priv, entry) != -ENOENT)
+	age = ppe_flow_entry_age(priv, entry);
+	if (age >= 0) {
+		u32 pkts = ppe_flow_counter_delta(priv, entry, &bytes);
+
+		ppe_flow_account(priv, entry, pkts, bytes);
+	}
+	if (age != -ENOENT)
 		ppe_flow_entry_delete(priv, entry->index);
 	ppe_host_ref_put(priv, entry->host_index);
 	ppe_flow_free_egress(priv, entry);
@@ -1151,16 +1277,22 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 			return ppe_flow_reject(priv, PPE_REJECT_INGRESS_PORT);
 	}
 
-	/* An ingress VLAN cannot be part of the hardware key. Where a bridge
-	 * classifies the tag in hardware the kernel marks it as such and does
-	 * not offer it as a match at all, so a tag that does arrive here is one
-	 * this driver has no classification for and no L3 interface to stand in
-	 * for it; the flow stays in software. A second tag has no expression
-	 * either.
+	/* An ingress tag is matched by the VSI it is classified into - the
+	 * uplink's tag on a PPPoE port, a bridge VLAN the port is a member
+	 * of - never by the tag itself, which the hardware key cannot hold.
+	 * A tag this driver has no classification for, and a second tag,
+	 * stay in software.
 	 */
-	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN) ||
-	    flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN))
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN))
 		return ppe_flow_reject(priv, PPE_REJECT_INGRESS_VLAN);
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
+		struct flow_match_vlan match;
+
+		flow_rule_match_vlan(rule, &match);
+		if (match.key->vlan_tpid != htons(ETH_P_8021Q))
+			return ppe_flow_reject(priv, PPE_REJECT_INGRESS_VLAN);
+		data.ivid = match.key->vlan_id;
+	}
 
 	{
 		struct flow_match_control match;
@@ -1322,7 +1454,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	entry->wan_iport = -1;
 	entry->iport = iport;
 
-	ret = ppe_flow_alloc_ingress(priv, iport, entry);
+	ret = ppe_flow_alloc_ingress(priv, iport, data.ivid, entry);
 	if (ret) {
 		priv->flow_reject[ret == -EOPNOTSUPP ? PPE_REJECT_INGRESS_VLAN :
 				  PPE_REJECT_RESOURCE]++;
@@ -1421,7 +1553,6 @@ static int ppe_flow_offload_stats(struct qca_ppe_priv *priv,
 				  struct flow_cls_offload *f)
 {
 	struct ppe_flow_entry *entry;
-	u64 packets, bytes, pkts;
 	int age;
 
 	guard(mutex)(&priv->flow_lock);
@@ -1439,34 +1570,13 @@ static int ppe_flow_offload_stats(struct qca_ppe_priv *priv,
 	 * the hardware has aged out and handed to another flow.
 	 */
 	age = ppe_flow_entry_age(priv, entry);
-	if (age < 0) {
-		flow_stats_update(&f->stats, 0, 0, 0, entry->last_used,
-				  FLOW_ACTION_HW_STATS_DELAYED);
-		return 0;
-	}
-
-	if (age == PPE_FLOW_AGE_MAX)
+	if (age >= 0 && (entry->unread_packets || age == PPE_FLOW_AGE_MAX))
 		entry->last_used = jiffies;
 
-	ppe_flow_counter_read(priv, entry->index, &packets, &bytes);
-
-	/* The counters are cumulative and narrower than u64 - 32-bit packets,
-	 * 40-bit bytes - so the deltas are computed in the counters' own
-	 * widths to survive wraparound.
-	 */
-	pkts = (u32)(packets - entry->packets);
-	if (pkts) {
-		entry->last_used = jiffies;
-		flow_stats_update(&f->stats,
-				  (bytes - entry->bytes) & PPE_FLOW_CNT_BYTES,
-				  pkts, 0, entry->last_used,
-				  FLOW_ACTION_HW_STATS_DELAYED);
-		entry->packets = packets;
-		entry->bytes = bytes;
-	} else {
-		flow_stats_update(&f->stats, 0, 0, 0, entry->last_used,
-				  FLOW_ACTION_HW_STATS_DELAYED);
-	}
+	flow_stats_update(&f->stats, entry->unread_bytes, entry->unread_packets,
+			  0, entry->last_used, FLOW_ACTION_HW_STATS_DELAYED);
+	entry->unread_packets = 0;
+	entry->unread_bytes = 0;
 
 	return 0;
 }
@@ -1522,8 +1632,8 @@ static void ppe_flow_block_release(void *cb_priv)
 /* Every user port of the switch binds the same flowtable block, so it is shared
  * and reference counted rather than refused as busy.
  */
-static int ppe_setup_ft_block(struct qca_ppe_priv *priv,
-			      struct flow_block_offload *f)
+int ppe_setup_ft_block(struct qca_ppe_priv *priv,
+		       struct flow_block_offload *f)
 {
 	struct flow_block_cb *block_cb;
 	struct ppe_flow_block *fb;
@@ -1575,29 +1685,6 @@ static int ppe_setup_ft_block(struct qca_ppe_priv *priv,
 	}
 }
 
-int qca_ppe_setup_tc(struct dsa_switch *ds, int port, enum tc_setup_type type,
-		     void *type_data)
-{
-	struct qca_ppe_priv *priv = ds_to_priv(ds);
-
-	switch (type) {
-	case TC_SETUP_FT:
-		return ppe_setup_ft_block(priv, type_data);
-	case TC_SETUP_QDISC_TBF:
-		return qca_ppe_setup_tc_tbf(priv, port, type_data);
-	case TC_SETUP_QDISC_ETS:
-		return qca_ppe_setup_tc_ets(priv, port, type_data);
-	case TC_SETUP_QDISC_PRIO:
-		return qca_ppe_setup_tc_prio(priv, port, type_data);
-	case TC_SETUP_QDISC_MQPRIO:
-		return qca_ppe_setup_tc_mqprio(priv, port, type_data);
-	case TC_QUERY_CAPS:
-		return qca_ppe_tc_query_caps(type_data);
-	default:
-		return -EOPNOTSUPP;
-	}
-}
-
 /* A shared queue gives a sparse flow the loss rate the bulk imposes on it,
  * and a flow that sends a few packets a second recovers a lost one by a
  * retransmission timer, not by the next packet: a speed test's latency
@@ -1628,7 +1715,8 @@ static int ppe_flow_profile_set(struct qca_ppe_priv *priv,
 				struct ppe_flow_entry *entry, u8 profile)
 {
 	u32 w[PPE_FLOW_ENTRY_WORDS_V6];
-	u32 index, host_index;
+	u32 index, host_index, pkts;
+	u64 bytes;
 	int ret;
 
 	lockdep_assert_held(&priv->flow_lock);
@@ -1640,6 +1728,9 @@ static int ppe_flow_profile_set(struct qca_ppe_priv *priv,
 	ret = ppe_flow_entry_age(priv, entry);
 	if (ret < 0)
 		return ret;
+
+	pkts = ppe_flow_counter_delta(priv, entry, &bytes);
+	ppe_flow_account(priv, entry, pkts, bytes);
 
 	/* The stored image carries the host index and no age; an add is
 	 * staged the way the encoder stages it, at full age and with no host
@@ -1674,7 +1765,6 @@ static int ppe_flow_profile_set(struct qca_ppe_priv *priv,
 	ppe_flow_counter_clear(priv, index);
 	entry->packets = 0;
 	entry->bytes = 0;
-	entry->pkts_seen = 0;
 
 	return 0;
 }
@@ -1688,10 +1778,21 @@ static void ppe_sparse_work(struct work_struct *work)
 
 	mutex_lock(&priv->flow_lock);
 	list_for_each_entry(entry, &priv->flow_list, list) {
+		u64 bytes;
+
 		regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(entry->index),
 			    &pkts);
-		delta = pkts - entry->pkts_seen;
-		entry->pkts_seen = pkts;
+		delta = pkts - (u32)entry->packets;
+
+		/* The age read costs the entry's words and only a flow that
+		 * moved has anything to attribute, so it is taken on the
+		 * delta rather than every period.
+		 */
+		if (delta && ppe_flow_entry_age(priv, entry) >= 0) {
+			u32 acct = ppe_flow_counter_delta(priv, entry, &bytes);
+
+			ppe_flow_account(priv, entry, acct, bytes);
+		}
 
 		if (delta > PPE_SPARSE_PKTS || !ppe_sparse_flows) {
 			entry->quiet = 0;

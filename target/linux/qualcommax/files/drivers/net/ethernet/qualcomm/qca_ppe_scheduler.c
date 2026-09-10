@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 
+#include <linux/clk.h>
 #include <linux/math64.h>
+#include <linux/string.h>
 #include <net/dcbnl.h>
 #include <net/flow_offload.h>
 #include <net/pkt_cls.h>
@@ -142,7 +144,7 @@ const struct psch_tdm_entry hppe_psch_tdm[] = {
 	{ TDM_PORT_FAB_0, TDM_PORT_PHY_4 },
 };
 
-/* CPPE buffer manager TDM -- 98 entries */
+/* CPPE buffer manager TDM -- 96 entries */
 const struct bm_tdm_entry cppe_bm_tdm[] = {
 	{ TDM_PORT_CPU, TDM_DIR_INGRESS },
 	{ TDM_PORT_CPU, TDM_DIR_EGRESS },
@@ -240,8 +242,6 @@ const struct bm_tdm_entry cppe_bm_tdm[] = {
 	{ TDM_PORT_FAB_1, TDM_DIR_EGRESS },
 	{ TDM_PORT_PHY_7, TDM_DIR_INGRESS },
 	{ TDM_PORT_PHY_7, TDM_DIR_EGRESS },
-	{ TDM_PORT_CPU, TDM_DIR_INGRESS },
-	{ TDM_PORT_CPU, TDM_DIR_EGRESS },
 };
 
 /* HPPE buffer manager TDM -- 96 entries
@@ -1017,6 +1017,39 @@ static void ppe_edma_ring_map_init(struct qca_ppe_priv *priv)
 	regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(2) + 4 * 4, 0xffff);
 }
 
+/* The precedence fields live in a register of their own on IPQ8074 and in the
+ * second word of the port's MRU/MTU entry on IPQ6018, in a different order.
+ * One lookup names the register and every field so that no caller has to know
+ * which generation it is on.
+ */
+struct ppe_qos_prec {
+	u32 reg;
+	u32 dscp, pcp, preheader, flow, acl;
+};
+
+static struct ppe_qos_prec ppe_qos_prec(struct qca_ppe_priv *priv, int port)
+{
+	if (priv->data->type == PPE_TYPE_IPQ6018)
+		return (struct ppe_qos_prec){
+			.reg = PPE_MRU_MTU_CTRL(port,
+					priv->data->mru_mtu_ctrl_stride) + 4,
+			.dscp = PPE_MRU_QOS_DSCP_PREC,
+			.pcp = PPE_MRU_QOS_PCP_PREC,
+			.preheader = PPE_MRU_QOS_PREHEADER_PREC,
+			.flow = PPE_MRU_QOS_FLOW_PREC,
+			.acl = PPE_MRU_QOS_ACL_PREC,
+		};
+
+	return (struct ppe_qos_prec){
+		.reg = PPE_PORT_QOS_CTRL(port),
+		.dscp = PPE_QOS_DSCP_PREC,
+		.pcp = PPE_QOS_PCP_PREC,
+		.preheader = PPE_QOS_PREHEADER_PREC,
+		.flow = PPE_QOS_FLOW_PREC,
+		.acl = PPE_QOS_ACL_PREC,
+	};
+}
+
 /* Which classifier's internal priority wins when several offer one: the flow
  * table first, then the CPU preheader, ACL, DSCP and last a VLAN's PCP.
  */
@@ -1032,11 +1065,11 @@ static const u8 ppe_apptrust_sel[] = { DCB_APP_SEL_PCP, IEEE_8021QAZ_APP_SEL_DSC
 
 static int ppe_apptrust_prec(struct qca_ppe_priv *priv, int port, u8 sel)
 {
+	struct ppe_qos_prec p = ppe_qos_prec(priv, port);
 	u32 val, mask;
 
-	regmap_read(priv->regmap, PPE_PORT_QOS_CTRL(port), &val);
-	mask = sel == IEEE_8021QAZ_APP_SEL_DSCP ? PPE_QOS_DSCP_PREC :
-						  PPE_QOS_PCP_PREC;
+	regmap_read(priv->regmap, p.reg, &val);
+	mask = sel == IEEE_8021QAZ_APP_SEL_DSCP ? p.dscp : p.pcp;
 
 	return field_get(mask, val);
 }
@@ -1061,6 +1094,7 @@ int qca_ppe_port_set_apptrust(struct dsa_switch *ds, int port, const u8 *sel,
 			      int nsel)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct ppe_qos_prec p = ppe_qos_prec(priv, port);
 	u32 dscp = 0, pcp = 0;
 	int i, j;
 
@@ -1094,10 +1128,8 @@ int qca_ppe_port_set_apptrust(struct dsa_switch *ds, int port, const u8 *sel,
 			pcp = i ? 0 : 1;
 	}
 
-	regmap_update_bits(priv->regmap, PPE_PORT_QOS_CTRL(port),
-			   PPE_QOS_DSCP_PREC | PPE_QOS_PCP_PREC,
-			   FIELD_PREP(PPE_QOS_DSCP_PREC, dscp) |
-			   FIELD_PREP(PPE_QOS_PCP_PREC, pcp));
+	regmap_update_bits(priv->regmap, p.reg, p.dscp | p.pcp,
+			   field_prep(p.dscp, dscp) | field_prep(p.pcp, pcp));
 
 	return 0;
 }
@@ -1155,20 +1187,20 @@ int qca_ppe_port_del_dscp_prio(struct dsa_switch *ds, int port, u8 dscp,
 
 static void ppe_qos_init(struct qca_ppe_priv *priv)
 {
-	u32 prec;
 	int i;
 
-	prec = FIELD_PREP(PPE_QOS_FLOW_PREC, 4) |
-	       FIELD_PREP(PPE_QOS_PREHEADER_PREC, 3) |
-	       FIELD_PREP(PPE_QOS_ACL_PREC, 2) |
-	       FIELD_PREP(PPE_QOS_DSCP_PREC, 1) |
-	       FIELD_PREP(PPE_QOS_PCP_PREC, 0);
+	for (i = 0; i < PPE_NUM_PORTS; i++) {
+		struct ppe_qos_prec p = ppe_qos_prec(priv, i);
 
-	for (i = 0; i < PPE_NUM_PORTS; i++)
-		regmap_update_bits(priv->regmap, PPE_PORT_QOS_CTRL(i),
-				   PPE_QOS_DSCP_PREC | PPE_QOS_PCP_PREC |
-				   PPE_QOS_PREHEADER_PREC | PPE_QOS_FLOW_PREC |
-				   PPE_QOS_ACL_PREC, prec);
+		regmap_update_bits(priv->regmap, p.reg,
+				   p.dscp | p.pcp | p.preheader | p.flow |
+				   p.acl,
+				   field_prep(p.flow, 4) |
+				   field_prep(p.preheader, 3) |
+				   field_prep(p.acl, 2) |
+				   field_prep(p.dscp, 1) |
+				   field_prep(p.pcp, 0));
+	}
 
 	/* Trusting PCP is only meaningful if the map behind it says something:
 	 * it resets to zero, which would resolve every tagged frame to priority
@@ -1183,7 +1215,7 @@ static void ppe_qos_init(struct qca_ppe_priv *priv)
 	 * the identity mapping and let the entry carry the number itself.
 	 * Profile 0 is left at priority 0: it is what an entry given no
 	 * priority holds, and leaving it there is what lets DSCP still decide
-	 * those.
+	 * those. The sparse list sits above the bands and takes its own.
 	 */
 	for (i = 1; i <= PPE_QOS_MAX_PRI; i++)
 		regmap_write(priv->regmap, PPE_FLOW_QOS_GROUP(0, i),
@@ -1230,6 +1262,15 @@ const struct bm_tdm_data hppe_bm_tdm_data = {
  * the wire costs per frame that the shaper is not otherwise shown.
  */
 #define PPE_IPG_PREAMBLE_LEN	20
+
+/* Every period the PPE derives from its own clock - the shaper and policer
+ * refresh below - is wrong by whatever the board clocks the block at, so read
+ * the rate rather than assuming one.
+ */
+unsigned long ppe_clk_rate(struct qca_ppe_priv *priv)
+{
+	return clk_get_rate(priv->ppe_clk);
+}
 
 int ppe_token_bucket(unsigned long clk, u32 slot, u64 rate_bps, u32 burst,
 		     u32 cir_max, u32 cbs_max, u32 *cir, u32 *cbs)
@@ -2015,6 +2056,29 @@ int qca_ppe_setup_tc_tbf(struct qca_ppe_priv *priv, int port,
 			return -EOPNOTSUPP;
 		ppe_port_shaper_stats(priv, port, &qopt->stats);
 		return 0;
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+int qca_ppe_setup_tc(struct dsa_switch *ds, int port, enum tc_setup_type type,
+		     void *type_data)
+{
+	struct qca_ppe_priv *priv = ds_to_priv(ds);
+
+	switch (type) {
+	case TC_SETUP_FT:
+		return ppe_setup_ft_block(priv, type_data);
+	case TC_SETUP_QDISC_TBF:
+		return qca_ppe_setup_tc_tbf(priv, port, type_data);
+	case TC_SETUP_QDISC_ETS:
+		return qca_ppe_setup_tc_ets(priv, port, type_data);
+	case TC_SETUP_QDISC_PRIO:
+		return qca_ppe_setup_tc_prio(priv, port, type_data);
+	case TC_SETUP_QDISC_MQPRIO:
+		return qca_ppe_setup_tc_mqprio(priv, port, type_data);
+	case TC_QUERY_CAPS:
+		return qca_ppe_tc_query_caps(type_data);
 	default:
 		return -EOPNOTSUPP;
 	}

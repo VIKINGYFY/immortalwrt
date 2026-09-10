@@ -434,8 +434,10 @@ static int ppe_acl_show(struct seq_file *s, void *data)
 }
 DEFINE_SHOW_ATTRIBUTE(ppe_acl);
 
-void ppe_counters_debugfs_init(struct qca_ppe_priv *priv)
+void ppe_debugfs_init(struct qca_ppe_priv *priv)
 {
+	priv->debugfs = debugfs_create_dir(dev_name(priv->ds.dev), NULL);
+
 	debugfs_create_file("l3_interface", 0400, priv->debugfs, priv,
 			    &ppe_l3_interface_fops);
 	debugfs_create_file("policer", 0400, priv->debugfs, priv,
@@ -452,4 +454,9 @@ void ppe_counters_debugfs_init(struct qca_ppe_priv *priv)
 	debugfs_create_file("egress", 0400, priv->debugfs, priv,
 			    &ppe_egress_fops);
 	debugfs_create_file("acl", 0400, priv->debugfs, priv, &ppe_acl_fops);
+}
+
+void ppe_debugfs_exit(struct qca_ppe_priv *priv)
+{
+	debugfs_remove_recursive(priv->debugfs);
 }

@@ -319,37 +319,16 @@ DEFINE_SHOW_ATTRIBUTE(ppe_offload);
 
 void ppe_flow_debugfs_init(struct qca_ppe_priv *priv)
 {
-	priv->debugfs = debugfs_create_dir(dev_name(priv->ds.dev), NULL);
 	debugfs_create_file("flows", 0400, priv->debugfs, priv,
 			    &ppe_flows_fops);
 	debugfs_create_file("offload", 0400, priv->debugfs, priv,
 			    &ppe_offload_fops);
-	ppe_counters_debugfs_init(priv);
-}
-
-void ppe_flow_debugfs_exit(struct qca_ppe_priv *priv)
-{
-	debugfs_remove_recursive(priv->debugfs);
-}
-
-/* Every period the PPE derives from its own clock - the flow age step below,
- * the shaper and policer refresh - is wrong by whatever the board clocks the
- * block at, so read the rate rather than assuming one.
- */
-unsigned long ppe_clk_rate(struct qca_ppe_priv *priv)
-{
-	int i;
-
-	for (i = 0; i < priv->num_clks; i++)
-		if (!strcmp(priv->clks[i].id, "nss_ppe_clk"))
-			return clk_get_rate(priv->clks[i].clk);
-
-	return 0;
 }
 
 /* The entry's two-bit age field counts down one step per age period, so an
  * untouched entry survives two to three periods. The hardware turns its own
- * clock into that period using the rate it is told about here.
+ * clock into that period using the rate it is told about here, so read the rate
+ * from the clock the board actually runs instead of assuming one.
  */
 static void ppe_flow_age_timer_set(struct qca_ppe_priv *priv, u32 *ctrl)
 {
@@ -368,8 +347,6 @@ void ppe_flow_init(struct qca_ppe_priv *priv)
 	u32 ctrl;
 	int type, dir;
 
-	mutex_init(&priv->flow_lock);
-	mutex_init(&priv->vlan_lock);
 
 	/* A miss has to forward: with the lookup enabled and no entry matching,
 	 * any other action would black-hole traffic the driver never saw.
