@@ -130,10 +130,12 @@ void Pin_Reset_8224_via_8373(void)
 	delay_loop(500);
 }
 
-void uc1_sram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val)
+rtk_api_ret_t uc1_sram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val)
 {
-	dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, addr);
-	dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xff << 8, val);
+	RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, addr));
+	RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xff << 8, val));
+
+	return RT_ERR_OK;
 }
 
 rtk_uint32 uc1_sram_read_8b(rtk_uint32 port, rtk_uint32 addr)
@@ -146,10 +148,12 @@ rtk_uint32 uc1_sram_read_8b(rtk_uint32 port, rtk_uint32 addr)
 	return regdata;
 }
 
-void uc2_sram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val)
+rtk_api_ret_t uc2_sram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val)
 {
-	dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb87c, 0xffff, addr);
-	dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb87e, 0xff << 8, val);
+	RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb87c, 0xffff, addr));
+	RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb87e, 0xff << 8, val));
+
+	return RT_ERR_OK;
 }
 
 rtk_uint32 uc2_sram_read_8b(rtk_uint32 port, rtk_uint32 addr)
@@ -162,14 +166,16 @@ rtk_uint32 uc2_sram_read_8b(rtk_uint32 port, rtk_uint32 addr)
 	return regdata;
 }
 
-void data_ram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val)
+rtk_api_ret_t data_ram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val)
 {
-	dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb88e, 0xffff, addr);
+	RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb88e, 0xffff, addr));
 
 	if (addr % 2)
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xB890, 0xff, val);
+		RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xB890, 0xff, val));
 	else
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xB890, 0xff << 8, val);
+		RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xB890, 0xff << 8, val));
+
+	return RT_ERR_OK;
 }
 
 rtk_uint32 uc_sram_read_16b(rtk_uint32 port, rtk_uint32 addr)
@@ -205,7 +211,7 @@ rtk_uint16 n0_patch_6818B_230724_patch[][2] = {
 	{ 0xa436, 0xA014 }, { 0xa438, 0xc114 }, { 0xa438, 0xd04a }, { 0xa438, 0xd069 }, { 0xa438, 0xd71f }, { 0xa438, 0x40ff }, { 0xa436, 0xA152 }, { 0xa438, 0x0a20 }, { 0xa436, 0xA154 }, { 0xa438, 0x10f6 }, { 0xa436, 0xA156 },
 	{ 0xa438, 0x122c }, { 0xa436, 0xA158 }, { 0xa438, 0x09af }, { 0xa436, 0xA15a }, { 0xa438, 0x09b0 }, { 0xa436, 0xA150 }, { 0xa438, 0x001f }
 };
-void n0_patch_RL6818B_230724(rtk_uint32 phymask)
+rtk_api_ret_t n0_patch_RL6818B_230724(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, addr, val, len;
 
@@ -216,10 +222,12 @@ void n0_patch_RL6818B_230724(rtk_uint32 phymask)
 				addr = n0_patch_6818B_230724_patch[i][0];
 				val = n0_patch_6818B_230724_patch[i][1];
 
-				dal_rtl8373_phy_write(1 << port, 31, addr, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_write(1 << port, 31, addr, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 n2_tp3_patch_6818B_230724_patch[][2] = { { 0xa436, 0xA016 }, { 0xa438, 0x0020 }, { 0xa436, 0xA012 }, { 0xa438, 0x0000 }, { 0xa436, 0xA014 }, { 0xa438, 0x1800 }, { 0xa438, 0x8010 }, { 0xa438, 0x1800 }, { 0xa438, 0x8027 },
@@ -234,7 +242,7 @@ rtk_uint16 n2_tp3_patch_6818B_230724_patch[][2] = { { 0xa436, 0xA016 }, { 0xa438
 						    { 0xa436, 0xA106 }, { 0xa438, 0x065f }, { 0xa436, 0xA104 }, { 0xa438, 0x073b }, { 0xa436, 0xA102 }, { 0xa438, 0x0325 }, { 0xa436, 0xA100 }, { 0xa438, 0x04ff }, { 0xa436, 0xA110 },
 						    { 0xa438, 0x000f } };
 
-void n2_patch_6818B_230724(rtk_uint32 phymask)
+rtk_api_ret_t n2_patch_6818B_230724(rtk_uint32 phymask)
 {
 	rtk_uint32 port, i, addr, val, len;
 
@@ -245,10 +253,12 @@ void n2_patch_6818B_230724(rtk_uint32 phymask)
 				addr = n2_tp3_patch_6818B_230724_patch[i][0];
 				val = n2_tp3_patch_6818B_230724_patch[i][1];
 
-				dal_rtl8373_phy_write(1 << port, 31, addr, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_write(1 << port, 31, addr, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 uc2_patch_6818B_230815_patch[][2] = {
@@ -338,7 +348,7 @@ rtk_uint16 uc2_patch_6818B_230815_patch[][2] = {
 	{ 0xa436, 0xb888 }, { 0xa438, 0x2119 }, { 0xa436, 0xb88a }, { 0xa438, 0x4f1c }, { 0xa436, 0xb88c }, { 0xa438, 0xffff }, { 0xa436, 0xb838 }, { 0xa438, 0x007f }
 };
 
-void uc2_patch_6818B_230815(rtk_uint32 phymask)
+rtk_api_ret_t uc2_patch_6818B_230815(rtk_uint32 phymask)
 {
 	rtk_uint32 port, i, addr, val, len;
 
@@ -348,10 +358,12 @@ void uc2_patch_6818B_230815(rtk_uint32 phymask)
 			for (i = 0; i < len; i++) {
 				addr = uc2_patch_6818B_230815_patch[i][0];
 				val = uc2_patch_6818B_230815_patch[i][1];
-				dal_rtl8373_phy_write(1 << port, 31, addr, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_write(1 << port, 31, addr, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 uc_patch_6818B_20221211_patch[][2] = {
@@ -371,7 +383,7 @@ rtk_uint16 uc_patch_6818B_20221211_patch[][2] = {
 	{ 0xa438, 0x4053 }, { 0xa436, 0xb850 }, { 0xa438, 0x3af9 }, { 0xa436, 0xb852 }, { 0xa438, 0x0000 }, { 0xa436, 0xb878 }, { 0xa438, 0x0000 }, { 0xa436, 0xb884 }, { 0xa438, 0x0000 }, { 0xa436, 0xb832 }, { 0xa438, 0x001f }
 };
 
-void uc_patch_6818B_20221211(rtk_uint32 phymask)
+rtk_api_ret_t uc_patch_6818B_20221211(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, addr, val, len;
 
@@ -382,10 +394,12 @@ void uc_patch_6818B_20221211(rtk_uint32 phymask)
 				addr = uc_patch_6818B_20221211_patch[i][0];
 				val = uc_patch_6818B_20221211_patch[i][1];
 
-				dal_rtl8373_phy_write(1 << port, 31, addr, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_write(1 << port, 31, addr, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 data_ram_patch_6818B_220714_patch[][2] = { { 0xC202, 0xFA }, { 0xC203, 0x02 }, { 0xC204, 0x4D }, { 0xC205, 0x02 }, { 0xC206, 0xB1 }, { 0xC207, 0x03 }, { 0xC208, 0x30 }, { 0xC209, 0x03 }, { 0xC20A, 0xB5 }, { 0xC20B, 0x04 },
@@ -403,7 +417,7 @@ rtk_uint16 data_ram_patch_6818B_220714_patch[][2] = { { 0xC202, 0xFA }, { 0xC203
 
 						      { 0xC201, 0x01 }, { 0xC22E, 0xD7 }, { 0xC26F, 0x18 }, { 0xC28E, 0x52 } };
 
-void data_ram_patch_6818B_220714(rtk_uint32 phymask)
+rtk_api_ret_t data_ram_patch_6818B_220714(rtk_uint32 phymask)
 {
 	rtk_uint32 port, i, data_ram_addr, data_ram_val, len;
 
@@ -411,39 +425,43 @@ void data_ram_patch_6818B_220714(rtk_uint32 phymask)
 
 	for (port = 0; port < 8; port++) {
 		if ((1 << port) & phymask) {
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, 0);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb892, 0xff00, 0);
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, 0));
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb892, 0xff00, 0));
 			for (i = 0; i < len; i++) {
 				data_ram_addr = data_ram_patch_6818B_220714_patch[i][0];
 				data_ram_val = data_ram_patch_6818B_220714_patch[i][1];
-				data_ram_write_8b(port, data_ram_addr, data_ram_val);
+				RTK_ERR_CHK(data_ram_write_8b(port, data_ram_addr, data_ram_val));
 			}
 
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, 1);
-			uc2_sram_write_8b(port, 0x8217, 0x1e);
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, 1));
+			RTK_ERR_CHK(uc2_sram_write_8b(port, 0x8217, 0x1e));
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 alg_tune_2p5G_6818B_220701_patch[][2] = { { 0x8066, 0x10 }, { 0x8067, 0x40 }, { 0x8068, 0x0a }, { 0x8069, 0x40 }, { 0x806e, 0x02 }, { 0x806f, 0xa0 },
 
 						     { 0x8084, 0x10 }, { 0x8085, 0x40 }, { 0x8086, 0x0a }, { 0x8087, 0x40 }, { 0x808c, 0x02 }, { 0x808d, 0xa0 }, { 0x8029, 0x0e } };
 
-void alg_tune_2p5G_6818B_220701(rtk_uint32 phymask)
+rtk_api_ret_t alg_tune_2p5G_6818B_220701(rtk_uint32 phymask)
 {
 	rtk_uint32 port, i, uc2_sram_addr, uc2_sram_val, len;
 
 	len = sizeof(alg_tune_2p5G_6818B_220701_patch) / 4;
 	for (port = 0; port < 8; port++) {
 		if ((1 << port) & phymask) {
-			uc1_sram_write_8b(port, 0x8017, 0x7);
+			RTK_ERR_CHK(uc1_sram_write_8b(port, 0x8017, 0x7));
 			for (i = 0; i < len; i++) {
 				uc2_sram_addr = alg_tune_2p5G_6818B_220701_patch[i][0];
 				uc2_sram_val = alg_tune_2p5G_6818B_220701_patch[i][1];
-				uc2_sram_write_8b(port, uc2_sram_addr, uc2_sram_val);
+				RTK_ERR_CHK(uc2_sram_write_8b(port, uc2_sram_addr, uc2_sram_val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 alg_tune_giga_6818B_220617_patch[][2] = { { 0x80b5, 0x95 }, { 0x80b6, 0xcb }, { 0x80b7, 0xf6 }, { 0x80b8, 0x04 }, { 0x80b9, 0xd2 }, { 0x80ba, 0x06 },
@@ -453,7 +471,7 @@ rtk_uint16 alg_tune_giga_6818B_220617_patch[][2] = { { 0x80b5, 0x95 }, { 0x80b6,
 						     { 0x80cf, 0xf5 }, { 0x80d0, 0xc4 }, { 0x80d1, 0x4c }, { 0x80d2, 0x19 }, { 0x80d3, 0x2f },
 
 						     { 0x80c0, 0x0c }, { 0x80d4, 0x0c } };
-void alg_tune_giga_6818B_220617(rtk_uint32 phymask)
+rtk_api_ret_t alg_tune_giga_6818B_220617(rtk_uint32 phymask)
 {
 	rtk_uint32 port, i, uc1_sram_addr, uc1_sram_val, len;
 
@@ -464,28 +482,32 @@ void alg_tune_giga_6818B_220617(rtk_uint32 phymask)
 			for (i = 0; i < len; i++) {
 				uc1_sram_addr = alg_tune_giga_6818B_220617_patch[i][0];
 				uc1_sram_val = alg_tune_giga_6818B_220617_patch[i][1];
-				uc1_sram_write_8b(port, uc1_sram_addr, uc1_sram_val);
+				RTK_ERR_CHK(uc1_sram_write_8b(port, uc1_sram_addr, uc1_sram_val));
 			}
 
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa87e, 0x1f << 8, 0x6);
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa87e, 0x1f << 8, 0x6));
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
-void afe_patch_6818B_220607(rtk_uint32 phymask)
+rtk_api_ret_t afe_patch_6818B_220607(rtk_uint32 phymask)
 {
 	//   #cen port 在baseaddr+1 port: e.x. p1/p5
 	//   #adjust LDO to improve TM2 jitter
 	rtk_uint32 port;
 	for (port = 0; port < 8; port++) {
 		if ((1 << port) & phymask) {
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xbf84, 0x7 << 0, 0x4);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xbf8c, 0x1f << 6, 0x0);
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xbf84, 0x7 << 0, 0x4));
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xbf8c, 0x1f << 6, 0x0));
 
 			// setPhyMaskRegBits(1<<port,31,0xbf84,2,0,4);
 			// setPhyMaskRegBits(1<<port,31,0xbf8c,10,6,0);
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 rtct_para_6818B_220713_patch[][2] = { { 0x81a3, 0x2e }, { 0x81a4, 0xe0 }, { 0x81a5, 0x2e }, { 0x81a6, 0xe0 }, { 0x81a8, 0x1d }, { 0x81a9, 0x00 }, { 0x81af, 0x2d }, { 0x81b0, 0x05 }, { 0x81b2, 0x09 }, { 0x81b3, 0x1f },
@@ -537,7 +559,7 @@ rtk_uint16 rtct_para_6818B_221211_patch[][4] = {
 	{ 0xa436, 15, 0, 0x81b0 }, { 0xa438, 15, 8, 0x05 }, { 0xa436, 15, 0, 0x81b3 }, { 0xa438, 15, 8, 0x1c }, { 0xa436, 15, 0, 0x81fb }, { 0xa438, 15, 8, 0x6c }, { 0xa436, 15, 0, 0x8702 }, { 0xa438, 15, 8, 0x50 }
 };
 
-void rtct_para_6818B_221211(rtk_uint32 phymask)
+rtk_api_ret_t rtct_para_6818B_221211(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, addr, val, len, msb, lsb;
 	rtk_uint32 maskbits, j, masklen;
@@ -558,10 +580,12 @@ void rtct_para_6818B_221211(rtk_uint32 phymask)
 					maskbits = (maskbits << 1) | 1;
 				}
 				maskbits = maskbits << lsb;
-				dal_rtl8373_phy_regbits_write(1 << port, 31, addr, maskbits, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, addr, maskbits, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_api_ret_t SDS_MODE_SET_SW(rtk_uint32 CHIP_MODE, rtk_uint32 SDS_INDX, rtk_uint32 SDS_MODE)
@@ -717,28 +741,58 @@ rtk_api_ret_t SDS_MODE_SET_SW(rtk_uint32 CHIP_MODE, rtk_uint32 SDS_INDX, rtk_uin
 	return RT_ERR_OK;
 }
 
-void get_version_8373(void)
+rtk_api_ret_t get_version_8373(void)
 {
-	rtl8373_setAsicRegBits(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0xa);
-	rtl8373_getAsicRegBits(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8373_72);
-	rtl8373_getAsicRegBits(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8373N);
-	rtl8373_getAsicRegBits(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8372N);
-	rtl8373_setAsicRegBits(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0);
+	rtk_api_ret_t ret, cleanup;
+
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0xa));
+	ret = rtl8373_getAsicRegBits(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8373_72);
+	cleanup = rtl8373_setAsicRegBits(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0);
+	if (ret != RT_ERR_OK)
+		return ret;
+	if (cleanup != RT_ERR_OK)
+		return cleanup;
+	Ver8373N = Ver8373_72;
+	Ver8372N = Ver8373_72;
+	return RT_ERR_OK;
 }
 
-void get_version_8224(void)
+rtk_api_ret_t get_version_8224(void)
 {
-	dal_rtl8224_top_regbits_write(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0xa);
-	dal_rtl8224_top_regbits_read(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8224);
-	dal_rtl8224_top_regbits_read(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8224N);
-	dal_rtl8224_top_regbits_write(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0);
+	rtk_api_ret_t ret, cleanup;
+
+	RTK_ERR_CHK(dal_rtl8224_top_regbits_write(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0xa));
+	ret = dal_rtl8224_top_regbits_read(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8224);
+	cleanup = dal_rtl8224_top_regbits_write(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0);
+	if (ret != RT_ERR_OK)
+		return ret;
+	if (cleanup != RT_ERR_OK)
+		return cleanup;
+	Ver8224N = Ver8224;
+	return RT_ERR_OK;
 }
 
-void get_version_8366u(void)
+rtk_api_ret_t get_version_8366u(void)
 {
-	rtl8373_setAsicRegBits(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0xa);
-	rtl8373_getAsicRegBits(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8366U);
-	rtl8373_setAsicRegBits(RTL8373_CHIP_INFO_ADDR, RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0);
+	rtk_api_ret_t ret, cleanup;
+
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0xa));
+	ret = rtl8373_getAsicRegBits(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_RL_VID_MASK, &Ver8366U);
+	cleanup = rtl8373_setAsicRegBits(RTL8373_CHIP_INFO_ADDR,
+		RTL8373_CHIP_INFO_CHIP_INFO_EN_MASK, 0);
+	if (ret != RT_ERR_OK)
+		return ret;
+	if (cleanup != RT_ERR_OK)
+		return cleanup;
+	return RT_ERR_OK;
 }
 
 void fiber_fc_en(rtk_uint32 SDS_INDX, rtk_uint32 SDS_MODE, rtk_uint32 fc_en)
@@ -1163,7 +1217,7 @@ void afe_patch_6818_220325(void)
 	}
 }
 
-void alg_tune_fnet_6818_220628(rtk_uint32 phymask)
+rtk_api_ret_t alg_tune_fnet_6818_220628(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, data_ram_addr, data_ram_val, len;
 
@@ -1174,37 +1228,106 @@ void alg_tune_fnet_6818_220628(rtk_uint32 phymask)
 			for (i = 0; i < len; i++) {
 				data_ram_addr = alg_tune_fnet_6818_220628_patch[i][0];
 				data_ram_val = alg_tune_fnet_6818_220628_patch[i][1];
-				uc1_sram_write_8b(port, data_ram_addr, data_ram_val);
+				RTK_ERR_CHK(uc1_sram_write_8b(port, data_ram_addr, data_ram_val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
-void RL6818B_pwr_on_patch_phy_v009_rls_lockmain(rtk_uint32 phymask)
+/* Poll firmware handshakes without unsigned-counter wrap or lost MDIO errors. */
+static rtk_api_ret_t rtl8373_phy_patch_poll(rtk_uint32 port, rtk_uint32 reg,
+					 rtk_uint32 mask, rtk_uint32 expected,
+					 int equal, rtk_uint32 delay,
+					 const char *phase)
 {
-	rtk_uint32 port, pcs_state, counter, tmp;
+	rtk_uint32 value = 0, i;
+	rtk_api_ret_t ret;
+
+	for (i = 0; i < 30; i++) {
+		ret = dal_rtl8373_phy_regbits_read(port, 31, reg, mask, &value);
+		if (ret != RT_ERR_OK)
+			goto failed;
+		delay_loop(delay);
+		if ((value == expected) == equal)
+			return RT_ERR_OK;
+	}
+	ret = RT_ERR_BUSYWAIT_TIMEOUT;
+failed:
+	rtlglue_printf("PHY wait failed: phase=%s port=%u reg=0x%x value=0x%x ret=%d\n",
+		       phase, port, reg, value, ret);
+	return ret;
+}
+
+/* Best effort release of both patch locks and request on every affected PHY.
+ * Continue cleanup after an error, but preserve the original operation error.
+ */
+static rtk_api_ret_t rtl8373_phy_patch_abort(rtk_uint32 phymask)
+{
+	static const rtk_uint32 cleanup[][3] = {
+		{ 0xb820, 1 << 7, 0 },
+		{ 0xa436, 0xffff, 0xb82e },
+		{ 0xa438, 0xffff, 0 },
+		{ 0xb82e, 1, 0 },
+		{ 0xa436, 0xffff, 0x8023 },
+		{ 0xa438, 0xffff, 0 },
+		{ 0xb820, 1 << 4, 0 },
+		{ 0xa4a0, 1 << 10, 0 },
+	};
+	rtk_uint32 port, i;
+	rtk_api_ret_t ret, first = RT_ERR_OK;
+
+	for (port = 0; port < 8; port++) {
+		if (!(phymask & (1 << port)))
+			continue;
+		for (i = 0; i < ARRAY_SIZE(cleanup); i++) {
+			ret = dal_rtl8373_phy_regbits_write(1 << port, 31,
+				cleanup[i][0], cleanup[i][1], cleanup[i][2]);
+			if (ret != RT_ERR_OK && first == RT_ERR_OK)
+				first = ret;
+		}
+	}
+	return first;
+}
+
+#define RTL8373_PHY_PATCH_TRY(op) \
+	do { \
+		ret = (op); \
+		if (ret != RT_ERR_OK) \
+			goto failed; \
+	} while (0)
+
+rtk_api_ret_t RL6818B_pwr_on_patch_phy_v009_rls_lockmain(rtk_uint32 phymask)
+{
+	rtk_api_ret_t ret, cleanup_ret;
+	rtk_uint32 port, tmp;
 
 	for (port = 0; port < 8; port++) {
 		tmp = (1 << port) & phymask;
 		if (tmp == 0)
 			continue;
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa4a0, 1 << 10, 0);
-		counter = 30;
-		do {
-			dal_rtl8373_phy_regbits_read(port, 31, 0xa600, 0xff, &pcs_state);
-			counter--;
-		} while (!(pcs_state == 1 || counter == 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa4a0, 1 << 10, 0));
+		RTL8373_PHY_PATCH_TRY(rtl8373_phy_patch_poll(port, 0xa600, 0xff, 1, 1, 0, __func__));
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0x801e);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, currentVersion);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0x801e));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, currentVersion));
 	}
+
+	return RT_ERR_OK;
+
+failed:
+	cleanup_ret = rtl8373_phy_patch_abort(phymask);
+	rtlglue_printf("PHY patch failed: phase=%s port=%u ret=%d cleanup=%d\n",
+		       __func__, port, ret, cleanup_ret);
+	return ret;
 }
 
-void RL6818B_pwr_on_patch_phy_v009(rtk_uint32 phymask)
+rtk_api_ret_t RL6818B_pwr_on_patch_phy_v009(rtk_uint32 phymask)
 {
+	rtk_api_ret_t ret, cleanup_ret;
 	rtk_uint32 port, fnet_patch_en, giga_patch_en, xg_patch_en, patch_key_addr, patch_key;
-	rtk_uint32 patch_rdy, counter, pcs_state;
 	rtk_uint32 sel_patch_nc0, sel_patch_nc1, sel_patch_nc2, sel_patch_uc, sel_patch_uc2;
 	rtk_uint32 tmp, regdata;
 	rtk_uint32 ICVersion;
@@ -1216,13 +1339,14 @@ void RL6818B_pwr_on_patch_phy_v009(rtk_uint32 phymask)
 		if (tmp == 0)
 			continue;
 
-		ICVersion = uc1_sram_read_8b(port, 0x0005);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0x0005));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_read(port, 31, 0xa438, 0xff << 8, &ICVersion));
 		if (ICVersion != 1)
 			continue;
 
-		dal_rtl8373_phy_write(1 << port, 31, 0xa436, 0x801e);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_write(1 << port, 31, 0xa436, 0x801e));
 
-		dal_rtl8373_phy_read(port, 31, 0xa438, &regdata);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_read(port, 31, 0xa438, &regdata));
 		FWVersion = regdata;
 		if (FWVersion == currentVersion)
 			continue;
@@ -1241,141 +1365,137 @@ void RL6818B_pwr_on_patch_phy_v009(rtk_uint32 phymask)
 		sel_patch_uc2 = xg_patch_en;
 
 		if (sel_patch_nc0 | sel_patch_nc1 | sel_patch_nc2 | sel_patch_uc | sel_patch_uc2) {
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 4, 1);
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 4, 1));
 
-			counter = 30;
-			patch_rdy = 0;
-
-			do {
-				dal_rtl8373_phy_regbits_read(port, 31, 0xb800, 1 << 6, &patch_rdy);
-				delay_loop(10);
-				counter--;
-			} while (!(patch_rdy == 1 || counter == 0));
+			RTL8373_PHY_PATCH_TRY(rtl8373_phy_patch_poll(port, 0xb800, 1 << 6, 1, 1, 10, __func__));
 
 			// # Set patch_key & patch_lock
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, patch_key_addr);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, patch_key);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0xb82e);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 1);
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, patch_key_addr));
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, patch_key));
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0xb82e));
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 1));
 
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 7, 1);
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 7, 1));
 
 			if (sel_patch_nc0) {
-				n0_patch_RL6818B_230724(1 << port);
+				RTL8373_PHY_PATCH_TRY(n0_patch_RL6818B_230724(1 << port));
 			}
 			if (sel_patch_nc1) {
 			}
 			if (sel_patch_nc2) {
-				n2_patch_6818B_230724(1 << port);
+				RTL8373_PHY_PATCH_TRY(n2_patch_6818B_230724(1 << port));
 			}
 			if (sel_patch_uc2) {
-				uc2_patch_6818B_230815(1 << port);
+				RTL8373_PHY_PATCH_TRY(uc2_patch_6818B_230815(1 << port));
 			}
 		}
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 7, 0);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 7, 0));
 
 		if (sel_patch_uc) {
-			uc_patch_6818B_20221211(1 << port);
+			RTL8373_PHY_PATCH_TRY(uc_patch_6818B_20221211(1 << port));
 		}
 
 		// # ----------------------------- data_ram_patch START--------------------------------
 
-		data_ram_patch_6818B_220714(1 << port);
+		RTL8373_PHY_PATCH_TRY(data_ram_patch_6818B_220714(1 << port));
 
 		//  # Clear patch_key & patch_lock
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb82e, 1, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, patch_key_addr);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 0);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb82e, 1, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, patch_key_addr));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 0));
 
 		// # Release patch request & wait patch_rdy = 0
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 4, 0);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 4, 0));
 
-		counter = 30;
-		do {
-			delay_loop(10);
-			dal_rtl8373_phy_regbits_read(port, 31, 0xb800, 1 << 6, &patch_rdy);
-			counter--;
-		} while (!(patch_rdy == 0 || counter == 0));
+		RTL8373_PHY_PATCH_TRY(rtl8373_phy_patch_poll(port, 0xb800, 1 << 6, 0, 1, 10, __func__));
 
 		// ## Lock Main
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa4a0, 1 << 10, 1);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa4a0, 1 << 10, 1));
 
-		counter = 30;
-		do {
-			delay_loop(10);
-			dal_rtl8373_phy_regbits_read(port, 31, 0xa600, 0xff, &pcs_state);
-			counter--;
-		} while (!(pcs_state == 1 || counter == 0));
+		RTL8373_PHY_PATCH_TRY(rtl8373_phy_patch_poll(port, 0xa600, 0xff, 1, 1, 10, __func__));
 
 		if (xg_patch_en) {
-			alg_tune_2p5G_6818B_220701(1 << port);
+			RTL8373_PHY_PATCH_TRY(alg_tune_2p5G_6818B_220701(1 << port));
 		}
 		if (fnet_patch_en || giga_patch_en) {
-			alg_tune_giga_6818B_220617(1 << port);
-			alg_tune_fnet_6818_220628(1 << port);
+			RTL8373_PHY_PATCH_TRY(alg_tune_giga_6818B_220617(1 << port));
+			RTL8373_PHY_PATCH_TRY(alg_tune_fnet_6818_220628(1 << port));
 		}
 
-		rtct_para_6818B_221211(1 << port);
+		RTL8373_PHY_PATCH_TRY(rtct_para_6818B_221211(1 << port));
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa86a, 1, 0);
-		uc1_sram_write_8b(port, 0x8ffb, 0x1);
-		uc1_sram_write_8b(port, 0x80dc, 0xa);
-		uc1_sram_write_8b(port, 0x8378, 0x22);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa86a, 1, 0));
+		RTL8373_PHY_PATCH_TRY(uc1_sram_write_8b(port, 0x8ffb, 0x1));
+		RTL8373_PHY_PATCH_TRY(uc1_sram_write_8b(port, 0x80dc, 0xa));
+		RTL8373_PHY_PATCH_TRY(uc1_sram_write_8b(port, 0x8378, 0x22));
 
-		uc2_sram_write_8b(port, 0x8384, 0x04);
-		uc2_sram_write_8b(port, 0x8fd4, 0x00);
-		uc2_sram_write_8b(port, 0x8fd5, 0x00);
-		uc2_sram_write_8b(port, 0x8fd6, 0x0c);
-		uc2_sram_write_8b(port, 0x8fd7, 0x80);
-		uc2_sram_write_8b(port, 0x8fd8, 0x0a);
-		uc2_sram_write_8b(port, 0x8fd9, 0x19);
-		uc2_sram_write_8b(port, 0x8fda, 0x19);
-		uc2_sram_write_8b(port, 0x8fdb, 0x00);
-		uc2_sram_write_8b(port, 0x8fdc, 0x00);
-		uc2_sram_write_8b(port, 0x8fdd, 0x00);
-		uc2_sram_write_8b(port, 0x8fde, 0x00);
-		uc2_sram_write_8b(port, 0x8fdf, 0x20);
-		uc2_sram_write_8b(port, 0x8fe0, 0x0c);
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8384, 0x04));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd4, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd5, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd6, 0x0c));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd7, 0x80));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd8, 0x0a));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd9, 0x19));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fda, 0x19));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fdb, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fdc, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fdd, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fde, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fdf, 0x20));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fe0, 0x0c));
 
-		afe_patch_6818B_220607(1 << port);
+		RTL8373_PHY_PATCH_TRY(afe_patch_6818B_220607(1 << port));
 
-		dal_rtl8373_phy_write(1 << port, 31, 0xa5d0, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa428, 1 << 9, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa47e, 3 << 6, 1);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_write(1 << port, 31, 0xa5d0, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa428, 1 << 9, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa47e, 3 << 6, 1));
 	}
 
 	rtlglue_printf("%d, RL6818B_pwr_on_patch_phy_v009 , patch 0x%x finished!\n", __LINE__, phymask);
+
+	return RT_ERR_OK;
+
+failed:
+	cleanup_ret = rtl8373_phy_patch_abort(phymask);
+	rtlglue_printf("PHY patch failed: phase=%s port=%u ret=%d cleanup=%d\n",
+		       __func__, port, ret, cleanup_ret);
+	return ret;
 }
 
-void RL6818C_pwr_on_patch_phy_v008_rls_lockmain(rtk_uint32 phymask)
+rtk_api_ret_t RL6818C_pwr_on_patch_phy_v008_rls_lockmain(rtk_uint32 phymask)
 {
-	rtk_uint32 port, pcs_state, counter, tmp;
+	rtk_api_ret_t ret, cleanup_ret;
+	rtk_uint32 port, tmp;
 
 	for (port = 0; port < 8; port++) {
 		tmp = (1 << port) & phymask;
 		if (tmp == 0)
 			continue;
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa4a0, 1 << 10, 0);
-		counter = 30;
-		do {
-			dal_rtl8373_phy_regbits_read(port, 31, 0xa600, 0xff, &pcs_state);
-			counter--;
-		} while (pcs_state == 1 || counter == 0);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa4a0, 1 << 10, 0));
+		RTL8373_PHY_PATCH_TRY(rtl8373_phy_patch_poll(port, 0xa600, 0xff, 1, 0, 0, __func__));
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0x801e);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0x801e));
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, currentVersion);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, currentVersion));
 	}
+
+	return RT_ERR_OK;
+
+failed:
+	cleanup_ret = rtl8373_phy_patch_abort(phymask);
+	rtlglue_printf("PHY patch failed: phase=%s port=%u ret=%d cleanup=%d\n",
+		       __func__, port, ret, cleanup_ret);
+	return ret;
 }
 
-void RL6818C_pwr_on_patch_phy_v008(rtk_uint32 phymask)
+rtk_api_ret_t RL6818C_pwr_on_patch_phy_v008(rtk_uint32 phymask)
 {
+	rtk_api_ret_t ret, cleanup_ret;
 	rtk_uint32 port, xg_patch_en, patch_key_addr, patch_key;
-	rtk_uint32 patch_rdy, counter, pcs_state;
 	rtk_uint32 sel_patch_nc0, sel_patch_nc1, sel_patch_nc2, sel_patch_uc, sel_patch_uc2;
 	rtk_uint32 tmp, regdata;
 	rtk_uint32 ICVersion;
@@ -1387,13 +1507,14 @@ void RL6818C_pwr_on_patch_phy_v008(rtk_uint32 phymask)
 		if (tmp == 0)
 			continue;
 
-		ICVersion = uc1_sram_read_8b(port, 0x0005);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0x0005));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_read(port, 31, 0xa438, 0xff << 8, &ICVersion));
 		if (ICVersion != 2)
 			continue;
 
-		dal_rtl8373_phy_write(1 << port, 31, 0xa436, 0x801e);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_write(1 << port, 31, 0xa436, 0x801e));
 
-		dal_rtl8373_phy_read(port, 31, 0xa438, &regdata);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_read(port, 31, 0xa438, &regdata));
 		FWVersion = regdata;
 		if (FWVersion == currentVersion)
 			continue;
@@ -1410,112 +1531,103 @@ void RL6818C_pwr_on_patch_phy_v008(rtk_uint32 phymask)
 		sel_patch_uc2 = xg_patch_en;
 
 		if (sel_patch_nc0 | sel_patch_nc1 | sel_patch_nc2 | sel_patch_uc | sel_patch_uc2) {
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 4, 1);
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 4, 1));
 
-			counter = 30;
-			patch_rdy = 0;
-
-			do {
-				dal_rtl8373_phy_regbits_read(port, 31, 0xb800, 1 << 6, &patch_rdy);
-				delay_loop(10);
-				counter--;
-			} while (patch_rdy != 1 || counter == 0);
+			RTL8373_PHY_PATCH_TRY(rtl8373_phy_patch_poll(port, 0xb800, 1 << 6, 1, 1, 10, __func__));
 
 			// # Set patch_key & patch_lock
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, patch_key_addr);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, patch_key);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0xb82e);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 1);
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, patch_key_addr));
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, patch_key));
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0xb82e));
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 1));
 
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 7, 1);
+			RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 7, 1));
 
 			if (sel_patch_nc0) {
-				n0_patch_RL6818C_230703(1 << port);
+				RTL8373_PHY_PATCH_TRY(n0_patch_RL6818C_230703(1 << port));
 			}
 			if (sel_patch_nc1) {
 			}
 			if (sel_patch_nc2) {
-				n2_patch_6818C_231206(1 << port);
+				RTL8373_PHY_PATCH_TRY(n2_patch_6818C_231206(1 << port));
 			}
 			if (sel_patch_uc2) {
-				uc2_patch_6818C_231206(1 << port);
+				RTL8373_PHY_PATCH_TRY(uc2_patch_6818C_231206(1 << port));
 			}
 		}
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 7, 0);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 7, 0));
 
 		if (sel_patch_uc) {
-			uc_patch_6818C_221117(1 << port);
+			RTL8373_PHY_PATCH_TRY(uc_patch_6818C_221117(1 << port));
 		}
 
 		// # ----------------------------- data_ram_patch START--------------------------------
-		data_ram_patch_6818C_221026(1 << port);
+		RTL8373_PHY_PATCH_TRY(data_ram_patch_6818C_221026(1 << port));
 
 		//  # Clear patch_key & patch_lock
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb82e, 1, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, patch_key_addr);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 0);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb82e, 1, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa436, 0xffff, patch_key_addr));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa438, 0xffff, 0));
 
 		// # Release patch request & wait patch_rdy = 0
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 4, 0);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb820, 1 << 4, 0));
 
-		counter = 30;
-		do {
-			delay_loop(10);
-			dal_rtl8373_phy_regbits_read(port, 31, 0xb800, 1 << 6, &patch_rdy);
-			counter--;
-		} while (patch_rdy != 0 || counter == 0);
+		RTL8373_PHY_PATCH_TRY(rtl8373_phy_patch_poll(port, 0xb800, 1 << 6, 0, 1, 10, __func__));
 
 		// ## Lock Main
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa4a0, 1 << 10, 1);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa4a0, 1 << 10, 1));
 
-		counter = 30;
-		do {
-			delay_loop(10);
-			dal_rtl8373_phy_regbits_read(port, 31, 0xa600, 0xff, &pcs_state);
-			counter--;
-		} while (pcs_state != 1 || counter == 0);
+		RTL8373_PHY_PATCH_TRY(rtl8373_phy_patch_poll(port, 0xa600, 0xff, 1, 1, 10, __func__));
 
 		// RTCT patch
 
-		RTCT_para_6818C_231206(1 << port);
+		RTL8373_PHY_PATCH_TRY(RTCT_para_6818C_231206(1 << port));
 
-		uc1_sram_write_8b(port, 0x8ffb, 0x1);
-		uc1_sram_write_8b(port, 0x80dc, 0xa);
-		uc1_sram_write_8b(port, 0x8378, 0x22);
+		RTL8373_PHY_PATCH_TRY(uc1_sram_write_8b(port, 0x8ffb, 0x1));
+		RTL8373_PHY_PATCH_TRY(uc1_sram_write_8b(port, 0x80dc, 0xa));
+		RTL8373_PHY_PATCH_TRY(uc1_sram_write_8b(port, 0x8378, 0x22));
 
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa47e, 0x3 << 6, 0x1);
-		uc2_sram_write_8b(port, 0x8217, 0x1e);
-		uc2_sram_write_8b(port, 0x8384, 0x4);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa47e, 0x3 << 6, 0x1));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8217, 0x1e));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8384, 0x4));
 
 		// # add for sub_echo_chnest
-		uc2_sram_write_8b(port, 0x8fd6, 0x00);
-		uc2_sram_write_8b(port, 0x8fd7, 0x00);
-		uc2_sram_write_8b(port, 0x8fd8, 0x0c);
-		uc2_sram_write_8b(port, 0x8fd9, 0x80);
-		uc2_sram_write_8b(port, 0x8fda, 0x0a);
-		uc2_sram_write_8b(port, 0x8fdb, 0x19);
-		uc2_sram_write_8b(port, 0x8fdc, 0x19);
-		uc2_sram_write_8b(port, 0x8fdd, 0x00);
-		uc2_sram_write_8b(port, 0x8fde, 0x00);
-		uc2_sram_write_8b(port, 0x8fdf, 0x00);
-		uc2_sram_write_8b(port, 0x8fe0, 0x00);
-		uc2_sram_write_8b(port, 0x8fe1, 0x20);
-		uc2_sram_write_8b(port, 0x8fe2, 0x0c);
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd6, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd7, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd8, 0x0c));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd9, 0x80));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fda, 0x0a));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fdb, 0x19));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fdc, 0x19));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fdd, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fde, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fdf, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fe0, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fe1, 0x20));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fe2, 0x0c));
 
-		uc2_sram_write_8b(port, 0x8fd3, 0x00);
-		uc2_sram_write_8b(port, 0x8fd4, 0x15);
-		uc2_sram_write_8b(port, 0x8fd5, 0x15);
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd3, 0x00));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd4, 0x15));
+		RTL8373_PHY_PATCH_TRY(uc2_sram_write_8b(port, 0x8fd5, 0x15));
 
-		afe_patch_6818C_220607(1 << port);
+		RTL8373_PHY_PATCH_TRY(afe_patch_6818C_220607(1 << port));
 
-		dal_rtl8373_phy_write(1 << port, 31, 0xa5d0, 0);
-		dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa428, 1 << 9, 0);
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_write(1 << port, 31, 0xa5d0, 0));
+		RTL8373_PHY_PATCH_TRY(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xa428, 1 << 9, 0));
 	}
 
 	rtlglue_printf("%d, RL6818C_pwr_on_patch_phy_v008 , patch 0x%x finished!\n", __LINE__, phymask);
+
+	return RT_ERR_OK;
+
+failed:
+	cleanup_ret = rtl8373_phy_patch_abort(phymask);
+	rtlglue_printf("PHY patch failed: phase=%s port=%u ret=%d cleanup=%d\n",
+		       __func__, port, ret, cleanup_ret);
+	return ret;
 }
 
 rtk_uint16 rst_smtr_patch_6818C_230703_patch[][2] = {
@@ -1536,7 +1648,7 @@ rtk_uint16 rst_smtr_patch_6818C_230703_patch[][2] = {
 	{ 0xa438, 0x001f }
 };
 
-void n0_patch_RL6818C_230703(rtk_uint32 phymask)
+rtk_api_ret_t n0_patch_RL6818C_230703(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, addr, val, len;
 
@@ -1547,10 +1659,12 @@ void n0_patch_RL6818C_230703(rtk_uint32 phymask)
 				addr = rst_smtr_patch_6818C_230703_patch[i][0];
 				val = rst_smtr_patch_6818C_230703_patch[i][1];
 
-				dal_rtl8373_phy_write(1 << port, 31, addr, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_write(1 << port, 31, addr, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 uc2_patch_6818C_231206_patch[][2] = {
@@ -1604,7 +1718,7 @@ rtk_uint16 uc2_patch_6818C_231206_patch[][2] = {
 	{ 0xa436, 0xb864 }, { 0xa438, 0x4fdc }, { 0xa436, 0xb886 }, { 0xa438, 0xffff }, { 0xa436, 0xb888 }, { 0xa438, 0xffff }, { 0xa436, 0xb88a }, { 0xa438, 0xffff }, { 0xa436, 0xb88c }, { 0xa438, 0xffff }, { 0xa436, 0xb838 },
 	{ 0xa438, 0x000f }
 };
-void uc2_patch_6818C_231206(rtk_uint32 phymask)
+rtk_api_ret_t uc2_patch_6818C_231206(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, addr, val, len;
 
@@ -1616,10 +1730,12 @@ void uc2_patch_6818C_231206(rtk_uint32 phymask)
 				addr = uc2_patch_6818C_231206_patch[i][0];
 				val = uc2_patch_6818C_231206_patch[i][1];
 
-				dal_rtl8373_phy_write(1 << port, 31, addr, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_write(1 << port, 31, addr, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 n2_patch_6818C_231206_patch[][2] = { { 0xa436, 0xA016 }, { 0xa438, 0x0020 }, { 0xa436, 0xA012 }, { 0xa438, 0x0000 }, { 0xa436, 0xA014 }, { 0xa438, 0x1800 }, { 0xa438, 0x8010 }, { 0xa438, 0x1800 }, { 0xa438, 0x801f },
@@ -1633,7 +1749,7 @@ rtk_uint16 n2_patch_6818C_231206_patch[][2] = { { 0xa436, 0xA016 }, { 0xa438, 0x
 						{ 0xa438, 0x0ff8 }, { 0xa436, 0xA014 }, { 0xa438, 0xd186 }, { 0xa438, 0xd04e }, { 0xa436, 0xA164 }, { 0xa438, 0x049d }, { 0xa436, 0xA166 }, { 0xa438, 0x049e }, { 0xa436, 0xA162 },
 						{ 0xa438, 0x0003 } };
 
-void n2_patch_6818C_231206(rtk_uint32 phymask)
+rtk_api_ret_t n2_patch_6818C_231206(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, addr, val, len;
 
@@ -1643,10 +1759,12 @@ void n2_patch_6818C_231206(rtk_uint32 phymask)
 			for (i = 0; i < len; i++) {
 				addr = n2_patch_6818C_231206_patch[i][0];
 				val = n2_patch_6818C_231206_patch[i][1];
-				dal_rtl8373_phy_write(1 << port, 31, addr, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_write(1 << port, 31, addr, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 uc_patch_6818C_221117_patch[][2] = {
@@ -1666,7 +1784,7 @@ rtk_uint16 uc_patch_6818C_221117_patch[][2] = {
 	{ 0xa438, 0x4053 }, { 0xa436, 0xb850 }, { 0xa438, 0x3af9 }, { 0xa436, 0xb852 }, { 0xa438, 0x0000 }, { 0xa436, 0xb878 }, { 0xa438, 0x0000 }, { 0xa436, 0xb884 }, { 0xa438, 0x0000 }, { 0xa436, 0xb832 }, { 0xa438, 0x001f }
 };
 
-void uc_patch_6818C_221117(rtk_uint32 phymask)
+rtk_api_ret_t uc_patch_6818C_221117(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, addr, val, len;
 
@@ -1677,44 +1795,50 @@ void uc_patch_6818C_221117(rtk_uint32 phymask)
 				addr = uc_patch_6818C_221117_patch[i][0];
 				val = uc_patch_6818C_221117_patch[i][1];
 
-				dal_rtl8373_phy_write(1 << port, 31, addr, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_write(1 << port, 31, addr, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 data_ram_patch_6818C_221026_patch[][2] = { { 0xC206, 0xB1 } };
-void data_ram_patch_6818C_221026(rtk_uint32 phymask)
+rtk_api_ret_t data_ram_patch_6818C_221026(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, data_ram_addr, data_ram_val, len;
 
 	len = sizeof(data_ram_patch_6818C_221026_patch) / 4;
 	for (port = 0; port < 8; port++) {
 		if ((1 << port) & phymask) {
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 0x1,
-						      0); // #disable data_mem_auto_inc
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb892, 0xff00,
-						      0); // #set uc2 data ram page
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 0x1,
+						      0)); // #disable data_mem_auto_inc
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb892, 0xff00,
+						      0)); // #set uc2 data ram page
 			for (i = 0; i < len; i++) {
 				data_ram_addr = data_ram_patch_6818C_221026_patch[i][0];
 				data_ram_val = data_ram_patch_6818C_221026_patch[i][1];
-				data_ram_write_8b(port, data_ram_addr, data_ram_val);
+				RTK_ERR_CHK(data_ram_write_8b(port, data_ram_addr, data_ram_val));
 			}
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 0x1,
-						      1); // # enable data_mem_auto_inc
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 0x1,
+						      1)); // # enable data_mem_auto_inc
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
-void afe_patch_6818C_220607(rtk_uint16 phymask)
+rtk_api_ret_t afe_patch_6818C_220607(rtk_uint16 phymask)
 {
 	rtk_uint16 port;
 	for (port = 0; port < 8; port++) {
 		if ((1 << port) & phymask) {
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xbf84, 0x7, 4);
-			dal_rtl8373_phy_regbits_write(1 << port, 31, 0xbf8c, 0x1f << 6, 0);
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xbf84, 0x7, 4));
+			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xbf8c, 0x1f << 6, 0));
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 rtk_uint16 RTCT_para_6818C_231206_patch[][4] = {
@@ -1741,7 +1865,7 @@ rtk_uint16 RTCT_para_6818C_231206_patch[][4] = {
 	{ 0xa436, 15, 0, 0x81b0 }, { 0xa438, 15, 8, 0x05 }, { 0xa436, 15, 0, 0x81b3 }, { 0xa438, 15, 8, 0x1d }, { 0xa436, 15, 0, 0x81fb }, { 0xa438, 15, 8, 0x6c }, { 0xa436, 15, 0, 0x8702 }, { 0xa438, 15, 8, 0x50 }
 };
 
-void RTCT_para_6818C_231206(rtk_uint32 phymask)
+rtk_api_ret_t RTCT_para_6818C_231206(rtk_uint32 phymask)
 {
 	rtk_uint16 port, i, addr, val, len, msb, lsb;
 	rtk_uint32 maskbits, j, masklen;
@@ -1762,10 +1886,12 @@ void RTCT_para_6818C_231206(rtk_uint32 phymask)
 					maskbits = (maskbits << 1) | 1;
 				}
 				maskbits = maskbits << lsb;
-				dal_rtl8373_phy_regbits_write(1 << port, 31, addr, maskbits, val);
+				RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, addr, maskbits, val));
 			}
 		}
 	}
+
+	return RT_ERR_OK;
 }
 
 void cfg_rl6637_sds_mode(rtk_uint32 phyId, rtk_uint32 sds_mode)
@@ -1929,96 +2055,96 @@ rtk_api_ret_t rtl8373_8224_init(void)
 	//******************** Begin to Initial RTL8373 MDC/MDIO ********************************
 	//  puts "MDC/MDIO pad initial"
 
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK,
-			       0); // MAC_PORT8_TYPE=0 port type: RTL8373 default set port0-7 polling 10G/2.5GPHY
-	rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xff,
-			       0xff); // RTL8373 set port0-8 polling internal resolution reg
-	rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0x7000,
-			       7); // enable SMI0/1/2 MDC clock output, default is 0
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK,
+			       0)); // MAC_PORT8_TYPE=0 port type: RTL8373 default set port0-7 polling 10G/2.5GPHY
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xff,
+			       0xff)); // RTL8373 set port0-8 polling internal resolution reg
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0x7000,
+			       7)); // enable SMI0/1/2 MDC clock output, default is 0
 	//******************** End to Initial RTL8373 MDC/MDIO ********************************
 
 	//>50ms
 	delay_loop(5000000);
 
-	get_version_8373();
-	get_version_8224();
+	RTK_ERR_CHK(get_version_8373());
+	RTK_ERR_CHK(get_version_8224());
 	rtlglue_printf("8373_8224 init, 8373 ver is %d, 8224 ver is %d\n", Ver8373_72, Ver8224);
 
 	delay_loop(100);
 
-	rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_USX_SUB_MODE_MASK,
-			       2); // SDS0_USX_SUB_MODE = 0x2, default is 0x2 10G-QXGMII
-	rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_MODE_SEL_MASK,
-			       0xD); // SDS0_MODE_SEL = 0xD
-	dal_rtl8373_sds_regbits_write(0, 6, 1, 0x4, 1);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_USX_SUB_MODE_MASK,
+			       2)); // SDS0_USX_SUB_MODE = 0x2, default is 0x2 10G-QXGMII
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_MODE_SEL_MASK,
+			       0xD)); // SDS0_MODE_SEL = 0xD
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(0, 6, 1, 0x4, 1));
 	delay_loop(20);
-	dal_rtl8373_sds_regbits_write(0, 6, 1, 0x4, 0);
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(0, 6, 1, 0x4, 0));
 
-	rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_MODE_SEL_MASK,
-			       0x1F); // SDS0_MODE_SEL = 0x1F
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_MODE_SEL_MASK,
+			       0x1F)); // SDS0_MODE_SEL = 0x1F
 	delay_loop(100);
 
-	rtl8373_setAsicRegBit(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_CFG_MAC3_8221B_OFFSET, 0);
-	rtl8373_setAsicRegBit(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_CFG_MAC8_8221B_OFFSET, 0);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_CFG_MAC3_8221B_OFFSET, 0));
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_CFG_MAC8_8221B_OFFSET, 0));
 
 	SDS_MODE_SET_SW(CHIP_RTL8373_MODE, 0, SERDES_10GQXG);
 	SDS_MODE_SET_SW(CHIP_RTL8224_MODE, 0, SERDES_10GQXG);
 
 	delay_loop(50);
-	fw_reset_flow_tgr_8224(0);
+	RTK_ERR_CHK(fw_reset_flow_tgr_8224(0));
 
 	delay_loop(50);
 
-	fw_reset_flow_tgr(0);
+	RTK_ERR_CHK(fw_reset_flow_tgr(0));
 
-	rtl8373_setAsicRegBits(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc);
-	dal_rtl8224_top_regbits_write(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc);
-	dal_rtl8373_phy_write(0xff, 31, 0xa610, 0x2858);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc));
+	RTK_ERR_CHK(dal_rtl8224_top_regbits_write(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc));
+	RTK_ERR_CHK(dal_rtl8373_phy_write(0xff, 31, 0xa610, 0x2858));
 
 	// ## ---------------------------Patch MAC--------------------------
 	// #set MAC_L2_GLOBAL_CTRL0 0x5FD4
-	rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_INVLD_MAC_CTRL_EN_OFFSET, 1);
-	rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_UNKN_OPCODE_EN_OFFSET, 1);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_INVLD_MAC_CTRL_EN_OFFSET, 1));
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_UNKN_OPCODE_EN_OFFSET, 1));
 
 	//  #BYP_TX_CRC=1
 	for (i = 0; i < 9; i++) {
-		rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_RX_CHK_CRC_EN_OFFSET, 1);
-		rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_CLOCK_SWITCH_OFFSET, 1);
+		RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_RX_CHK_CRC_EN_OFFSET, 1));
+		RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_CLOCK_SWITCH_OFFSET, 1));
 	}
 
-	rtl8373_setAsicRegBit(RTL8373_RS_LAYER_CONFIG_ADDR, RTL8373_RS_LAYER_CONFIG_RS_LINK_FAULT_INDI_OFF_OFFSET, 1);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_RS_LAYER_CONFIG_ADDR, RTL8373_RS_LAYER_CONFIG_RS_LINK_FAULT_INDI_OFF_OFFSET, 1));
 
 	for (i = 0; i < 10; i++) {
-		rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050);
+		RTK_ERR_CHK(rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050));
 	}
 
 	// ## ---------------------------Init END--------------------------
 
-	rtl8373_setAsicRegBit(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_OFFSET, ENABLE);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_OFFSET, ENABLE));
 
 	delay_loop(50);
 
 #if PHY_PATCH
 	if (Ver8224 == 1) { // chipB
-		RL6818B_pwr_on_patch_phy_v009(0xf);
-		RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf);
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009(0xf));
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf));
 	} else if (Ver8224 == 2) { // chipC
-		RL6818C_pwr_on_patch_phy_v008(0xf);
-		RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf);
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008(0xf));
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf));
 	}
 
 	if (Ver8373_72 == 1) { // chipB
-		RL6818B_pwr_on_patch_phy_v009(0xf0);
-		RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf0);
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009(0xf0));
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf0));
 	} else if (Ver8373_72 == 2) { // chipC
-		RL6818C_pwr_on_patch_phy_v008(0xf0);
-		RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0);
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008(0xf0));
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0));
 	}
 #endif
 
-	dal_rtl8373_phy_write(0xff, 31, 0xa610, 0x2058);
-	rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, RTL8373_SMI_GLB_CTRL_SMI_POLLING_MASK_MASK, 0x1ff);
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK, 0);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(0xff, 31, 0xa610, 0x2058));
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, RTL8373_SMI_GLB_CTRL_SMI_POLLING_MASK_MASK, 0x1ff));
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK, 0));
 
 	return RT_ERR_OK;
 }
@@ -2029,66 +2155,66 @@ rtk_api_ret_t rtl8372_init(void)
 	//******************** Begin to Initial RTL8373 MDC/MDIO ********************************
 	//  puts "MDC/MDIO pad initial"
 
-	rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xf0,
-			       0xf); // RTL8372 set port4-7 polling internal resolution reg
-	rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0x7000,
-			       7); // enable SMI0/1/2 MDC clock output, default is 0
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xf0,
+			       0xf)); // RTL8372 set port4-7 polling internal resolution reg
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0x7000,
+			       7)); // enable SMI0/1/2 MDC clock output, default is 0
 	//******************** End to Initial RTL8373 MDC/MDIO ********************************
 
-	get_version_8373();
+	RTK_ERR_CHK(get_version_8373());
 	//   rtlglue_printf("8372 init, 8372 ver is %d\n", Ver8373_72);
 
 	delay_loop(100);
 
-	rtl8373_setAsicRegBit(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_CFG_MAC3_8221B_OFFSET, 0);
-	rtl8373_setAsicRegBit(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_CFG_MAC3_8221B_OFFSET, 0);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_CFG_MAC3_8221B_OFFSET, 0));
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_CFG_MAC3_8221B_OFFSET, 0));
 	//   ## tgr reset flow
 	delay_loop(50);
 
 	//******************** Begin to Initial RTL8372 PHY configuration ***************************
 
 	// #MDI reverse configuration for Demo Tap UP RJ45, RTL8372
-	rtl8373_setAsicRegBits(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc));
 
 	//  puts "Power down PHY 4~7"
-	dal_rtl8373_phy_write(0xf0, 31, 0xa610, 0x2858);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(0xf0, 31, 0xa610, 0x2858));
 
 	//  ## ---------------------------Patch MAC--------------------------
 
-	rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_INVLD_MAC_CTRL_EN_OFFSET, 1);
-	rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_UNKN_OPCODE_EN_OFFSET, 1);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_INVLD_MAC_CTRL_EN_OFFSET, 1));
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_UNKN_OPCODE_EN_OFFSET, 1));
 
 	//  #BYP_TX_CRC=1
 	for (i = 3; i < 9; i++) {
-		rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_RX_CHK_CRC_EN_OFFSET, 1);
-		rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_CLOCK_SWITCH_OFFSET, 1);
+		RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_RX_CHK_CRC_EN_OFFSET, 1));
+		RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_CLOCK_SWITCH_OFFSET, 1));
 	}
 
-	rtl8373_setAsicRegBit(RTL8373_RS_LAYER_CONFIG_ADDR, RTL8373_RS_LAYER_CONFIG_RS_LINK_FAULT_INDI_OFF_OFFSET, 1);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_RS_LAYER_CONFIG_ADDR, RTL8373_RS_LAYER_CONFIG_RS_LINK_FAULT_INDI_OFF_OFFSET, 1));
 
 	for (i = 0; i < 10; i++) {
-		rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050);
+		RTK_ERR_CHK(rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050));
 	}
 
 	// ## ---------------------------Init END--------------------------
-	rtl8373_setAsicRegBit(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_OFFSET, ENABLE);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_OFFSET, ENABLE));
 
 	delay_loop(200);
 
 #if PHY_PATCH
 	if (Ver8373_72 == 1) {
-		RL6818B_pwr_on_patch_phy_v009(0xf0);
-		RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf0);
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009(0xf0));
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf0));
 	} else if (Ver8373_72 == 2) {
-		RL6818C_pwr_on_patch_phy_v008(0xf0);
-		RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0);
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008(0xf0));
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0));
 	}
 #endif
 
-	dal_rtl8373_phy_write(0xf0, 31, 0xa610, 0x2058);
-	rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, RTL8373_SMI_GLB_CTRL_SMI_POLLING_MASK_MASK, 0x1f8);
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT3_TYPE_MASK, 0);
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK, 0);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(0xf0, 31, 0xa610, 0x2058));
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, RTL8373_SMI_GLB_CTRL_SMI_POLLING_MASK_MASK, 0x1f8));
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT3_TYPE_MASK, 0));
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK, 0));
 
 	return RT_ERR_OK;
 }
@@ -2098,24 +2224,24 @@ rtk_api_ret_t rtl8366u_init(void)
 	rtk_uint32 i = 0;
 	rtk_uint32 chip_mode = 0;
 
-	rtl8373_getAsicRegBits(RTL8373_BOND_INFO_ADDR, 3, &chip_mode);
+	RTK_ERR_CHK(rtl8373_getAsicRegBits(RTL8373_BOND_INFO_ADDR, 3, &chip_mode));
 
 	if (chip_mode != 2) {
 		return RT_ERR_CHIP_NOT_SUPPORTED; // chip mode error
 	}
 
-	get_version_8366u();
+	RTK_ERR_CHK(get_version_8366u());
 	rtlglue_printf("rtl8366u_init , 8366U ver is %d\n", Ver8366U);
 	//******************** Begin to Initial RTL8373 MDC/MDIO ********************************
 	//  puts "MDC/MDIO pad initial"
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK,
-			       0); // #MAC_PORT8_TYPE=0 port type: sds_ablty
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT3_TYPE_MASK,
-			       0); // #MAC_PORT3_TYPE=0 port type: sds_ablty
-	rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xf0,
-			       0xf); // #RTL8372/RTL8372N/RTL8366U set port4-7 polling internal resolution reg
-	rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0x7000,
-			       7); // enable SMI0/1/2 MDC clock output, default is 0
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK,
+			       0)); // #MAC_PORT8_TYPE=0 port type: sds_ablty
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT3_TYPE_MASK,
+			       0)); // #MAC_PORT3_TYPE=0 port type: sds_ablty
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xf0,
+			       0xf)); // #RTL8372/RTL8372N/RTL8366U set port4-7 polling internal resolution reg
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0x7000,
+			       7)); // enable SMI0/1/2 MDC clock output, default is 0
 	delay_loop(1);
 
 	//******************** End to Initial RTL8373 MDC/MDIO ********************************
@@ -2125,64 +2251,64 @@ rtk_api_ret_t rtl8366u_init(void)
 
 	// ## ---------------------------Init SDS--------------------------
 
-	dal_rtl8373_sds_regbits_write(0, 0, 0, 0x200, 1); // #SDS0RX PN swap
-	dal_rtl8373_sds_regbits_write(1, 0, 0, 0x200, 1); // #SDS1RX PN swap
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(0, 0, 0, 0x200, 1)); // #SDS0RX PN swap
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(1, 0, 0, 0x200, 1)); // #SDS1RX PN swap
 
-	dal_rtl8373_sds_regbits_write(0, 6, 2, 0x2000, 1);
-	dal_rtl8373_sds_regbits_write(1, 6, 2, 0x2000, 1);
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(0, 6, 2, 0x2000, 1));
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(1, 6, 2, 0x2000, 1));
 
 	//   ## tgr reset flow
 	delay_loop(5);
-	fw_reset_flow_tgr(1); // 8366U SDS1 execute reset flow
+	RTK_ERR_CHK(fw_reset_flow_tgr(1)); // 8366U SDS1 execute reset flow
 	delay_loop(5);
-	fw_reset_flow_tgr(0);
+	RTK_ERR_CHK(fw_reset_flow_tgr(0));
 
 	// ## ---------------------------Patch PHY--------------------------
 
 	// ##MDI reverse configuration for Demo Tap UP RJ45, RTL8366U/RTL8373N/RTL8372N
-	rtl8373_setAsicRegBits(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xF, 0xC);
-	rtl8373_setAsicRegBits(RTL8373_CFG_PHY_TX_POLARITY_SWAP_ADDR, 0xFFFF,
-			       0x596A); // #TX_POLARITY_SWAP
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xF, 0xC));
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_CFG_PHY_TX_POLARITY_SWAP_ADDR, 0xFFFF,
+			       0x596A)); // #TX_POLARITY_SWAP
 
 	//  puts "Power down PHY 4~7"
-	dal_rtl8373_phy_write(0xF0, 31, 0xa610, 0x2858);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(0xF0, 31, 0xa610, 0x2858));
 
 	// ## ---------------------------Patch MAC--------------------------
-	rtl8373_setAsicRegBits(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, 0x180000,
-			       3); // #cfg_FWD_INVLD_MAC_CTRL_EN,cfg_FWD_UNKN_OPCODE_EN
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, 0x180000,
+			       3)); // #cfg_FWD_INVLD_MAC_CTRL_EN,cfg_FWD_UNKN_OPCODE_EN
 
 	//  set MAC_L2_PORT_CTRL_ADDR 0x1238; 0x1238+$port*0x100
 	for (i = 3; i < 9; i++) {
-		rtl8373_setAsicRegBits(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), 0x10,
-				       1); // #RX_CHK_CRC_EN=1
-		rtl8373_setAsicRegBits(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), 0x100,
-				       1); // #CLOCK_SWITCH=1; Îª½â¾öÄ³Ð©linkdownÊ±ÒòclockÍ£µô¶øÎÞ·¨drain outµÄÎÊÌâ
+		RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), 0x10,
+				       1)); // #RX_CHK_CRC_EN=1
+		RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), 0x100,
+				       1)); // #CLOCK_SWITCH=1; Îª½â¾öÄ³Ð©linkdownÊ±ÒòclockÍ£µô¶øÎÞ·¨drain outµÄÎÊÌâ
 	}
 
 	// #RS_LINK_FAULT_INDI_OFF=1 disable link fault flag, resolve port4-port7 linkdown dsc expand issue
 
-	rtl8373_setAsicRegBits(RTL8373_RS_LAYER_CONFIG_ADDR, 0x20, 1);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_RS_LAYER_CONFIG_ADDR, 0x20, 1));
 
 	//
 	for (i = 0; i < 10; i++) {
-		rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050);
+		RTK_ERR_CHK(rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050));
 	}
 	// ## ---------------------------Init END--------------------------
-	rtl8373_setAsicRegBits(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_MASK, ENABLE);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_MASK, ENABLE));
 	delay_loop(100);
 
 #if PHY_PATCH
 	if (Ver8366U == 2) {
-		RL6818C_pwr_on_patch_phy_v008(0xf0);
-		RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0);
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008(0xf0));
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0));
 	}
 
 #endif
 
 	//  puts "Power up PHY 4~7"
-	dal_rtl8373_phy_write(0xF0, 31, 0xa610, 0x2058);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(0xF0, 31, 0xa610, 0x2058));
 	// RTL8372/RTL8372N/RTL8366U set polling mask 0x1f8, port 3/8 from serdes need config bit8=1
-	rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, 0x1FF000, 0x1f8);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, 0x1FF000, 0x1f8));
 
 	delay_loop(50);
 
@@ -2194,24 +2320,24 @@ rtk_api_ret_t rtl8372n_init(void)
 	rtk_uint32 i = 0;
 	rtk_uint32 chip_mode = 0;
 
-	rtl8373_getAsicRegBits(RTL8373_BOND_INFO_ADDR, 3, &chip_mode);
+	RTK_ERR_CHK(rtl8373_getAsicRegBits(RTL8373_BOND_INFO_ADDR, 3, &chip_mode));
 
 	if (chip_mode != 2) {
 		return RT_ERR_CHIP_NOT_SUPPORTED; // chip mode error
 	}
 
-	get_version_8373();
+	RTK_ERR_CHK(get_version_8373());
 
 	//******************** Begin to Initial RTL8373 MDC/MDIO ********************************
 	//  puts "MDC/MDIO pad initial"
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK,
-			       0); // #MAC_PORT8_TYPE=0 port type: sds_ablty
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT3_TYPE_MASK,
-			       0); // #MAC_PORT3_TYPE=0 port type: sds_ablty
-	rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xf0,
-			       0xf); // #RTL8372/RTL8372N/RTL8366U set port4-7 polling internal resolution reg
-	rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0x7000,
-			       7); // enable SMI0/1/2 MDC clock output, default is 0
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK,
+			       0)); // #MAC_PORT8_TYPE=0 port type: sds_ablty
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT3_TYPE_MASK,
+			       0)); // #MAC_PORT3_TYPE=0 port type: sds_ablty
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xf0,
+			       0xf)); // #RTL8372/RTL8372N/RTL8366U set port4-7 polling internal resolution reg
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0x7000,
+			       7)); // enable SMI0/1/2 MDC clock output, default is 0
 	delay_loop(1);
 	//******************** End to Initial RTL8373 MDC/MDIO ********************************
 
@@ -2241,9 +2367,9 @@ rtk_api_ret_t rtl8372n_init(void)
 
 	//   ## tgr reset flow
 	delay_loop(5);
-	fw_reset_flow_tgr(1); // 8366U SDS1 execute reset flow
+	RTK_ERR_CHK(fw_reset_flow_tgr(1)); // 8366U SDS1 execute reset flow
 	delay_loop(5);
-	fw_reset_flow_tgr(0);
+	RTK_ERR_CHK(fw_reset_flow_tgr(0));
 
 	// ## ---------------------------Patch PHY--------------------------
 
@@ -2252,44 +2378,44 @@ rtk_api_ret_t rtl8372n_init(void)
 	// rtl8373_setAsicRegBits(RTL8373_CFG_PHY_TX_POLARITY_SWAP_ADDR, 0xFFFF, 0x596A); //#TX_POLARITY_SWAP
 
 	//  puts "Power down PHY 4~7"
-	dal_rtl8373_phy_write(0xF0, 31, 0xa610, 0x2858);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(0xF0, 31, 0xa610, 0x2858));
 
 	// ## ---------------------------Patch MAC--------------------------
-	rtl8373_setAsicRegBits(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, 0x180000,
-			       3); // #cfg_FWD_INVLD_MAC_CTRL_EN,cfg_FWD_UNKN_OPCODE_EN
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, 0x180000,
+			       3)); // #cfg_FWD_INVLD_MAC_CTRL_EN,cfg_FWD_UNKN_OPCODE_EN
 
 	//  set MAC_L2_PORT_CTRL_ADDR 0x1238; 0x1238+$port*0x100
 	for (i = 3; i < 9; i++) {
-		rtl8373_setAsicRegBits(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), 0x10,
-				       1); // #RX_CHK_CRC_EN=1
-		rtl8373_setAsicRegBits(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), 0x100,
-				       1); // #CLOCK_SWITCH=1; Îª½â¾öÄ³Ð©linkdownÊ±ÒòclockÍ£µô¶øÎÞ·¨drain outµÄÎÊÌâ
+		RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), 0x10,
+				       1)); // #RX_CHK_CRC_EN=1
+		RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), 0x100,
+				       1)); // #CLOCK_SWITCH=1; Îª½â¾öÄ³Ð©linkdownÊ±ÒòclockÍ£µô¶øÎÞ·¨drain outµÄÎÊÌâ
 	}
 
 	// #RS_LINK_FAULT_INDI_OFF=1 disable link fault flag, resolve port4-port7 linkdown dsc expand issue
 
-	rtl8373_setAsicRegBits(RTL8373_RS_LAYER_CONFIG_ADDR, 0x20, 1);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_RS_LAYER_CONFIG_ADDR, 0x20, 1));
 
 	//
 	for (i = 0; i < 10; i++) {
-		rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050);
+		RTK_ERR_CHK(rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050));
 	}
 	// ## ---------------------------Init END--------------------------
-	rtl8373_setAsicRegBits(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_MASK, ENABLE);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_MASK, ENABLE));
 	delay_loop(100);
 
 #if PHY_PATCH
 	if (Ver8373_72 == 2) {
-		RL6818C_pwr_on_patch_phy_v008(0xf0);
-		RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0);
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008(0xf0));
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0));
 	}
 
 #endif
 
 	//  puts "Power up PHY 4~7"
-	dal_rtl8373_phy_write(0xF0, 31, 0xa610, 0x2058);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(0xF0, 31, 0xa610, 0x2058));
 	// RTL8372/RTL8372N/RTL8366U set polling mask 0x1f8, port 3/8 from serdes need config bit8=1
-	rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, 0x1FF000, 0x1f8);
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, 0x1FF000, 0x1f8));
 
 	delay_loop(50);
 
@@ -2319,7 +2445,7 @@ rtk_api_ret_t rtl8373N_8224N_init(void)
 	rtk_uint32 i;
 	rtk_uint32 phymask = 0xff;
 
-	rtl8373_getAsicRegBits(RTL8373_BOND_INFO_ADDR, 3, &chip_mode);
+	RTK_ERR_CHK(rtl8373_getAsicRegBits(RTL8373_BOND_INFO_ADDR, 3, &chip_mode));
 
 	if (chip_mode != 0x3) {
 		return RT_ERR_CHIP_NOT_SUPPORTED; // chip mode error
@@ -2328,120 +2454,120 @@ rtk_api_ret_t rtl8373N_8224N_init(void)
 	Pin_Reset_8224N_via_8373N();
 	//******************** Begin to Initial RTL8373 MDC/MDIO ********************************
 	//	puts "MDC/MDIO pad initial"
-	rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK,
-			       0); // MAC_PORT8_TYPE=0 port type: RTL8373 default set port0-7 polling 10G/2.5GPHY
-	rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xFF,
-			       0xFF); // #RTL8372/RTL8372N/RTL8366U set port4-7 polling internal resolution reg
-	rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0X7000,
-			       7); // enable SMI0/1/2 MDC clock output, default is 0
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_MAC_TYPE_CTRL_ADDR, RTL8373_SMI_MAC_TYPE_CTRL_MAC_PORT8_TYPE_MASK,
+			       0)); // MAC_PORT8_TYPE=0 port type: RTL8373 default set port0-7 polling 10G/2.5GPHY
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_PORT_POLLING_SEL_ADDR, 0xFF,
+			       0xFF)); // #RTL8372/RTL8372N/RTL8366U set port4-7 polling internal resolution reg
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_CTRL_ADDR, 0X7000,
+			       7)); // enable SMI0/1/2 MDC clock output, default is 0
 
 	//******************** End to Initial RTL8373 MDC/MDIO ********************************
 	//>50ms
 	delay_loop(5000000);
 
-	get_version_8373();
-	get_version_8224();
+	RTK_ERR_CHK(get_version_8373());
+	RTK_ERR_CHK(get_version_8224());
 	rtlglue_printf("8373N_8224N init, 8373N ver is %d, 8224N ver is %d\n", Ver8373N, Ver8224N);
 
 	delay_loop(100);
 	// ## ---------------------------Init LED--------------------------
 	// led_8373N_cfg();
 	// ## ---------------------------Init SDS--------------------------
-	rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_USX_SUB_MODE_MASK,
-			       2); // SDS0_USX_SUB_MODE = 0x2, default is 0x2 10G-QXGMII
-	rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_MODE_SEL_MASK,
-			       0xD); // SDS0_MODE_SEL = 0xD
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_USX_SUB_MODE_MASK,
+			       2)); // SDS0_USX_SUB_MODE = 0x2, default is 0x2 10G-QXGMII
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_MODE_SEL_MASK,
+			       0xD)); // SDS0_MODE_SEL = 0xD
 
-	dal_rtl8373_sds_regbits_write(0, 6, 1, 0x4, 1); // #serdes0 AFE loopback
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(0, 6, 1, 0x4, 1)); // #serdes0 AFE loopback
 	delay_loop(20);
 
-	dal_rtl8373_sds_regbits_write(0, 6, 1, 0x4, 0); // #关闭loopback
-	rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_MODE_SEL_MASK,
-			       0x1F); // SDS0_MODE_SEL = 0x1F
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(0, 6, 1, 0x4, 0)); // #关闭loopback
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SDS_MODE_SEL_ADDR, RTL8373_SDS_MODE_SEL_SDS0_MODE_SEL_MASK,
+			       0x1F)); // SDS0_MODE_SEL = 0x1F
 	delay_loop(100);
 
-	dal_rtl8373_sds_regbits_write(0, 6, 2, 0x2000,
-				      1); // ##S0RX PN swap for 64B/66B
-	dal_rtl8373_sds_regbits_write(1, 6, 2, 0x2000,
-				      1); // S1RX PN swap for 64B/66B
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(0, 6, 2, 0x2000,
+				      1)); // ##S0RX PN swap for 64B/66B
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(1, 6, 2, 0x2000,
+				      1)); // S1RX PN swap for 64B/66B
 
-	dal_rtl8373_sds_regbits_write(1, 0, 0, 0x200,
-				      1); // #S1RX PN swap for 8B/10B
+	RTK_ERR_CHK(dal_rtl8373_sds_regbits_write(1, 0, 0, 0x200,
+				      1)); // #S1RX PN swap for 8B/10B
 
-	dal_rtl8224_sds_regbits_write(0, 6, 2, 0x2000,
-				      1); // ##S0RX PN swap for 64B/66B
+	RTK_ERR_CHK(dal_rtl8224_sds_regbits_write(0, 6, 2, 0x2000,
+				      1)); // ##S0RX PN swap for 64B/66B
 
 	SDS_MODE_SET_SW(CHIP_RTL8373N_MODE, 0, SERDES_10GQXG);
 
 	// ## ---------------------------Init 8224 SDS--------------------------
 	SDS_MODE_SET_SW(CHIP_RTL8224N_MODE, 0, SERDES_10GQXG);
 	delay_loop(50);
-	fw_reset_flow_tgr_8224(0);
+	RTK_ERR_CHK(fw_reset_flow_tgr_8224(0));
 
 	delay_loop(50);
-	fw_reset_flow_tgr(1);
+	RTK_ERR_CHK(fw_reset_flow_tgr(1));
 
 	delay_loop(50);
-	fw_reset_flow_tgr(0);
+	RTK_ERR_CHK(fw_reset_flow_tgr(0));
 
 	// ## ---------------------------Patch PHY--------------------------
 
 	// ##MDI reverse configuration for Demo Tap UP RJ45, RTL8366U/RTL8373N/RTL8372N
-	rtl8373_setAsicRegBits(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc);
-	rtl8373_setAsicRegBits(RTL8373_CFG_PHY_TX_POLARITY_SWAP_ADDR, 0xffff,
-			       0x596A); // #TX_POLARITY_SWAP
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc));
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_CFG_PHY_TX_POLARITY_SWAP_ADDR, 0xffff,
+			       0x596A)); // #TX_POLARITY_SWAP
 
-	dal_rtl8224_top_regbits_write(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc);
-	dal_rtl8224_top_regbits_write(RTL8373_CFG_PHY_TX_POLARITY_SWAP_ADDR, 0xffff, 0x596A);
+	RTK_ERR_CHK(dal_rtl8224_top_regbits_write(RTL8373_CFG_PHY_MDI_REVERSE_ADDR, 0xf, 0xc));
+	RTK_ERR_CHK(dal_rtl8224_top_regbits_write(RTL8373_CFG_PHY_TX_POLARITY_SWAP_ADDR, 0xffff, 0x596A));
 
 	//	puts "Power down PHY 0~7"
-	dal_rtl8373_phy_write(phymask, 31, 0xa610, 0x2858);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(phymask, 31, 0xa610, 0x2858));
 
 	// ## ---------------------------Patch MAC--------------------------
-	rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_INVLD_MAC_CTRL_EN_OFFSET,
-			      1); // #cfg_FWD_INVLD_MAC_CTRL_EN,
-	rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_UNKN_OPCODE_EN_OFFSET,
-			      1); // cfg_FWD_UNKN_OPCODE_EN
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_INVLD_MAC_CTRL_EN_OFFSET,
+			      1)); // #cfg_FWD_INVLD_MAC_CTRL_EN,
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_GLOBAL_CTRL0_ADDR, RTL8373_MAC_L2_GLOBAL_CTRL0_FWD_UNKN_OPCODE_EN_OFFSET,
+			      1)); // cfg_FWD_UNKN_OPCODE_EN
 
 	for (i = 0; i < 8; i++) {
-		rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_RX_CHK_CRC_EN_OFFSET,
-				      1); // #RX_CHK_CRC_EN=1
-		rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_CLOCK_SWITCH_OFFSET,
-				      1); // #CLOCK_SWITCH=1;
+		RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_RX_CHK_CRC_EN_OFFSET,
+				      1)); // #RX_CHK_CRC_EN=1
+		RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_MAC_L2_PORT_CTRL_ADDR(i), RTL8373_MAC_L2_PORT_CTRL_CLOCK_SWITCH_OFFSET,
+				      1)); // #CLOCK_SWITCH=1;
 	}
 
-	rtl8373_setAsicRegBit(RTL8373_RS_LAYER_CONFIG_ADDR, RTL8373_RS_LAYER_CONFIG_RS_LINK_FAULT_INDI_OFF_OFFSET, 1);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_RS_LAYER_CONFIG_ADDR, RTL8373_RS_LAYER_CONFIG_RS_LINK_FAULT_INDI_OFF_OFFSET, 1));
 
 	for (i = 0; i < 10; i++) {
-		rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050);
+		RTK_ERR_CHK(rtl8373_setAsicReg(RTL8373_FC_PORT_ACT_CTRL_ADDR(i), 0x1050));
 	}
 	// ## ---------------------------Init END--------------------------
 
-	rtl8373_setAsicRegBit(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_OFFSET, ENABLE);
+	RTK_ERR_CHK(rtl8373_setAsicRegBit(RTL8373_DW8051_CFG_ADDR, RTL8373_DW8051_CFG_DW8051_READY_OFFSET, ENABLE));
 	delay_loop(50);
 
 #if PHY_PATCH
 
 	if (Ver8224N == 1) { // chip B
-		RL6818B_pwr_on_patch_phy_v009(0xf);
-		RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf);
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009(0xf));
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf));
 	} else if (Ver8224N == 2) { // chip C
-		RL6818C_pwr_on_patch_phy_v008(0xf);
-		RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf);
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008(0xf));
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf));
 	}
 
 	if (Ver8373N == 1) {
-		RL6818B_pwr_on_patch_phy_v009(0xf0);
-		RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf0);
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009(0xf0));
+		RTK_ERR_CHK(RL6818B_pwr_on_patch_phy_v009_rls_lockmain(0xf0));
 	} else if (Ver8373N == 2) {
-		RL6818C_pwr_on_patch_phy_v008(0xf0);
-		RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0);
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008(0xf0));
+		RTK_ERR_CHK(RL6818C_pwr_on_patch_phy_v008_rls_lockmain(0xf0));
 	}
 #endif
 
 	//  puts "Power up PHY 0~7"
-	dal_rtl8373_phy_write(phymask, 31, 0xa610, 0x2058);
-	rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, RTL8373_SMI_GLB_CTRL_SMI_POLLING_MASK_MASK, 0x1ff);
+	RTK_ERR_CHK(dal_rtl8373_phy_write(phymask, 31, 0xa610, 0x2058));
+	RTK_ERR_CHK(rtl8373_setAsicRegBits(RTL8373_SMI_GLB_CTRL_ADDR, RTL8373_SMI_GLB_CTRL_SMI_POLLING_MASK_MASK, 0x1ff));
 
 	delay_loop(50);
 

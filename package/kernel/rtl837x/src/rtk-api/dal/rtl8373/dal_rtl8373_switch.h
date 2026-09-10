@@ -36,80 +36,80 @@ void delay_loop(rtk_uint32 loop);
 
 void Pin_Reset_8224_via_8373(void);
 
-void uc1_sram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val);
+rtk_api_ret_t uc1_sram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val);
 
 rtk_uint32 uc1_sram_read_8b(rtk_uint32 port, rtk_uint32 addr);
 
-void uc2_sram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val);
+rtk_api_ret_t uc2_sram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val);
 
 rtk_uint32 uc2_sram_read_8b(rtk_uint32 port, rtk_uint32 addr);
 
-void data_ram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val);
+rtk_api_ret_t data_ram_write_8b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val);
 
 rtk_uint32 uc_sram_read_16b(rtk_uint32 port, rtk_uint32 addr);
 
 void uc_sram_write_16b(rtk_uint32 port, rtk_uint32 addr, rtk_uint32 val);
 
-void n0_patch_RL6818B_230724(rtk_uint32 phymask);
+rtk_api_ret_t n0_patch_RL6818B_230724(rtk_uint32 phymask);
 
-void n2_patch_6818B_230724(rtk_uint32 phymask);
+rtk_api_ret_t n2_patch_6818B_230724(rtk_uint32 phymask);
 
-void uc2_patch_6818B_230815(rtk_uint32 phymask);
+rtk_api_ret_t uc2_patch_6818B_230815(rtk_uint32 phymask);
 
-void uc_patch_6818B_20221211(rtk_uint32 phymask);
+rtk_api_ret_t uc_patch_6818B_20221211(rtk_uint32 phymask);
 
-void rtct_para_6818B_221211(rtk_uint32 phymask);
+rtk_api_ret_t rtct_para_6818B_221211(rtk_uint32 phymask);
 
 void n2_patch_6818C_221026(rtk_uint32 phymask);
 
-void uc_patch_6818C_221117(rtk_uint32 phymask);
+rtk_api_ret_t uc_patch_6818C_221117(rtk_uint32 phymask);
 
-void data_ram_patch_6818C_221026(rtk_uint32 phymask);
+rtk_api_ret_t data_ram_patch_6818C_221026(rtk_uint32 phymask);
 
-void RTCT_para_6818C_231206(rtk_uint32 phymask);
+rtk_api_ret_t RTCT_para_6818C_231206(rtk_uint32 phymask);
 
-void data_ram_patch_6818B_220714(rtk_uint32 phymask);
+rtk_api_ret_t data_ram_patch_6818B_220714(rtk_uint32 phymask);
 
-void alg_tune_2p5G_6818B_220701(rtk_uint32 phymask);
+rtk_api_ret_t alg_tune_2p5G_6818B_220701(rtk_uint32 phymask);
 
-void alg_tune_giga_6818B_220617(rtk_uint32 phymask);
+rtk_api_ret_t alg_tune_giga_6818B_220617(rtk_uint32 phymask);
 
-void afe_patch_6818B_220607(rtk_uint32 phymask);
+rtk_api_ret_t afe_patch_6818B_220607(rtk_uint32 phymask);
 
 void rtct_para_6818B_220713(rtk_uint16 phymask);
 
 rtk_api_ret_t SDS_MODE_SET_SW(rtk_uint32 CHIP_MODE, rtk_uint32 SDS_INDX, rtk_uint32 SDS_MODE);
 
-void get_version_8373(void);
+rtk_api_ret_t get_version_8373(void);
 
-void get_version_8224(void);
+rtk_api_ret_t get_version_8224(void);
 
-void get_version_8366u(void);
+rtk_api_ret_t get_version_8366u(void);
 
 void afe_patch_6818_220325(void);
 
-void afe_patch_6818C_220607(rtk_uint16 phymask);
+rtk_api_ret_t afe_patch_6818C_220607(rtk_uint16 phymask);
 
-void RL6818C_pwr_on_patch_phy_v008_rls_lockmain(rtk_uint32 phymask);
+rtk_api_ret_t RL6818C_pwr_on_patch_phy_v008_rls_lockmain(rtk_uint32 phymask);
 
-void RL6818C_pwr_on_patch_phy_v008(rtk_uint32 phymask);
+rtk_api_ret_t RL6818C_pwr_on_patch_phy_v008(rtk_uint32 phymask);
 
-void alg_tune_fnet_6818_220628(rtk_uint32 phymask);
+rtk_api_ret_t alg_tune_fnet_6818_220628(rtk_uint32 phymask);
 
 void n0_patch_RL6818B_221012(rtk_uint32 phymask);
 
 void uc_patch_6818B_20220927(rtk_uint32 phymask);
 
-void RL6818B_pwr_on_patch_phy_v009_rls_lockmain(rtk_uint32 phymask);
+rtk_api_ret_t RL6818B_pwr_on_patch_phy_v009_rls_lockmain(rtk_uint32 phymask);
 
-void RL6818B_pwr_on_patch_phy_v009(rtk_uint32 phymask);
+rtk_api_ret_t RL6818B_pwr_on_patch_phy_v009(rtk_uint32 phymask);
 
-void n0_patch_RL6818C_230703(rtk_uint32 phymask);
+rtk_api_ret_t n0_patch_RL6818C_230703(rtk_uint32 phymask);
 
-void n2_patch_6818C_231206(rtk_uint32 phymask);
+rtk_api_ret_t n2_patch_6818C_231206(rtk_uint32 phymask);
 
 void uc_patch_6818C_221012(rtk_uint32 phymask);
-void uc2_patch_6818C_231206(rtk_uint32 phymask);
+rtk_api_ret_t uc2_patch_6818C_231206(rtk_uint32 phymask);
 
 void RL6818B_pwr_on_patch_phy_v004a_rls_lockmain(rtk_uint32 phymask);
 

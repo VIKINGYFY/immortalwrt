@@ -45,7 +45,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -179,14 +179,14 @@ static int edma_port_change_mtu(struct n
+@@ -179,14 +179,14 @@
  	port = port_priv->ppe_port;
  	old_mtu = netdev->mtu;
  	ret = ppe_l3_if_set(port->ppe_dev, port->port_id, netdev->dev_addr,
@@ -62,7 +62,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		return ret;
  	}
  
-@@ -318,7 +318,7 @@ static int edma_port_set_mac_address(str
+@@ -318,7 +318,7 @@
  
  	ret = ppe_l3_if_set(port_priv->ppe_port->ppe_dev,
  			    port_priv->ppe_port->port_id,
@@ -71,7 +71,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (ret) {
  		netdev_err(netdev, "set L3 interface MAC failed: %d\n", ret);
  		return ret;
-@@ -488,7 +488,7 @@ int edma_port_setup(struct ppe_port *por
+@@ -488,7 +488,7 @@
  	}
  
  	ret = ppe_l3_if_set(ppe_dev, port_id, netdev->dev_addr,
@@ -82,7 +82,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -333,14 +333,19 @@ int ppe_my_mac_set(struct ppe_device *pp
+@@ -333,14 +333,19 @@
   * @addr: MAC address of the interface, the source MAC of routed packets
   * leaving through it
   * @mtu: MTU of the interface
@@ -104,7 +104,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  {
  	u32 in[3] = {}, eg[3] = {};
  	u32 reg;
-@@ -363,6 +368,7 @@ int ppe_l3_if_set(struct ppe_device *ppe
+@@ -363,6 +368,7 @@
  	in[1] &= ~(PPE_IN_L3_IF_W1_TTL_EXCEED_CMD |
  		   PPE_IN_L3_IF_W1_TTL_EXCEED_DEACCEL |
  		   PPE_IN_L3_IF_W1_DMAC_CHECK_DIS |
@@ -112,7 +112,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		   PPE_IN_L3_IF_W1_MRU_IPV6);
  	in[1] |= FIELD_PREP(PPE_IN_L3_IF_W1_TTL_EXCEED_CMD,
  			    PPE_ACTION_REDIRECT_TO_CPU);
-@@ -374,6 +380,9 @@ int ppe_l3_if_set(struct ppe_device *ppe
+@@ -374,6 +380,9 @@
  	in[2] |= FIELD_PREP(PPE_IN_L3_IF_W2_UDP_CSM0_CMD,
  			    PPE_IN_L3_IF_UDP_CSM0_MAPT_RECALCULATE);
  
@@ -122,7 +122,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ret = regmap_bulk_write(ppe_dev->regmap, reg, in, ARRAY_SIZE(in));
  	if (ret)
  		return ret;
-@@ -382,6 +391,11 @@ int ppe_l3_if_set(struct ppe_device *ppe
+@@ -382,6 +391,11 @@
  	eg[1] = FIELD_PREP(PPE_EG_L3_IF_W1_MAC_ADDR_HI,
  			   addr[0] << 8 | addr[1]);
  
@@ -134,7 +134,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	reg = PPE_EG_L3_IF_TBL_ADDR + PPE_EG_L3_IF_TBL_INC * index;
  
  	return regmap_bulk_write(ppe_dev->regmap, reg, eg, ARRAY_SIZE(eg));
-@@ -418,6 +432,91 @@ int ppe_l3_if_clear(struct ppe_device *p
+@@ -418,6 +432,91 @@
  }
  
  /**
@@ -228,7 +228,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @port: PPE port to configure
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-@@ -70,11 +70,13 @@ int ppe_flow_hw_init(struct ppe_device *
+@@ -70,11 +70,13 @@
  int ppe_my_mac_set(struct ppe_device *ppe_dev, int index, const u8 *addr,
  		   bool valid);
  int ppe_l3_if_set(struct ppe_device *ppe_dev, int index, const u8 *addr,
@@ -271,7 +271,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <linux/seq_file.h>
  #include <net/flow_offload.h>
  #include <net/ipv6.h>
-@@ -78,6 +82,38 @@ struct ppe_ft_pub_ip {
+@@ -78,6 +82,38 @@
  static_assert(offsetof(struct ppe_ft_pub_ip, ref) == 0);
  
  /**
@@ -310,7 +310,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * struct ppe_ft_flow - An offloaded flow.
   * @node: Hash table node, keyed by the flow cookie.
   * @cookie: Flow cookie of the rule.
-@@ -86,6 +122,7 @@ static_assert(offsetof(struct ppe_ft_pub
+@@ -86,6 +122,7 @@
   * @nexthop: Next hop index of the flow.
   * @my_mac: Router MAC slot held by the flow, negative when none.
   * @pub_ip: Public IP slot held by the flow, negative when none.
@@ -318,7 +318,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @eport: Egress PPE port of the flow.
   * @packets: Hit packet count at the last stats read.
   * @bytes: Hit byte count at the last stats read.
-@@ -100,6 +137,7 @@ struct ppe_ft_flow {
+@@ -100,6 +137,7 @@
  	u16 nexthop;
  	int my_mac;
  	int pub_ip;
@@ -326,7 +326,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	u8 eport;
  	u32 packets;
  	u64 bytes;
-@@ -129,6 +167,8 @@ struct ppe_ft_host {
+@@ -129,6 +167,8 @@
   * @nexthop_used: Allocation bitmap of the next hop entries.
   * @my_macs: Refcounted router MAC slots.
   * @pub_ips: Refcounted public IP slots.
@@ -335,7 +335,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @block_cb_list: Flow block callbacks bound to the PPE ports.
   * @hosts: Refcount of the flows sharing a source host entry.
   */
-@@ -150,6 +190,8 @@ struct ppe_flowtable {
+@@ -148,6 +188,8 @@
  	DECLARE_BITMAP(nexthop_used, PPE_NEXTHOP_TBL_ENTRIES);
  	struct ppe_ft_my_mac my_macs[PPE_MY_MAC_TBL_ENTRIES];
  	struct ppe_ft_pub_ip pub_ips[PPE_PUB_IP_TBL_ENTRIES];
@@ -344,7 +344,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct list_head block_cb_list;
  };
  
-@@ -173,6 +215,7 @@ struct ppe_ft_data {
+@@ -171,6 +213,7 @@
  	__be32 dip;
  	__be16 sport;
  	__be16 dport;
@@ -352,7 +352,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  };
  
  static int ppe_ft_mangle_eth(const struct flow_action_entry *act, void *eth)
-@@ -404,6 +447,282 @@ static void ppe_ft_pub_ip_put(struct ppe
+@@ -402,6 +445,282 @@
  	ppe_ft_ref_put(ft->pub_ips, sizeof(*ft->pub_ips), index);
  }
  
@@ -635,7 +635,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /* Hash key of a flow's source IP for the host refcount table. */
  static u32 ppe_ft_host_key(const struct ppe_flow_entry *flow)
  {
-@@ -567,7 +886,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -565,7 +884,9 @@
  	flow->cookie = f->cookie;
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
@@ -645,7 +645,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	{
  		struct flow_match_basic match;
-@@ -738,6 +1059,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -736,6 +1057,9 @@
  			}
  			nh.vid = act->vlan.vid;
  			break;
@@ -655,7 +655,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		case FLOW_ACTION_CSUM:
  			break;
  		default:
-@@ -752,6 +1076,14 @@ static int ppe_ft_flow_replace(struct pp
+@@ -750,6 +1074,14 @@
  		goto err_free;
  	}
  
@@ -670,7 +670,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	port_priv = netdev_priv(odev);
  	nh.port = port_priv->ppe_port->port_id;
  	nh.l3_if = nh.port;
-@@ -803,25 +1135,50 @@ static int ppe_ft_flow_replace(struct pp
+@@ -801,25 +1133,50 @@
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
  	}
  
@@ -731,7 +731,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  		ret = ppe_l3_if_my_mac_set(ft->ppe_dev, nh.l3_if,
  					   flow->my_mac, true);
-@@ -883,6 +1240,8 @@ err_host:
+@@ -881,6 +1238,8 @@
  	ppe_ft_host_put(ft, &flow->entry);
  err_my_mac:
  	ppe_ft_my_mac_put(ft, flow->my_mac);
@@ -740,7 +740,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  err_pub_ip:
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
  err_unlock:
-@@ -912,6 +1271,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -910,6 +1269,7 @@
  		ppe_ft_host_put(ft, &flow->entry);
  		clear_bit(flow->nexthop, ft->nexthop_used);
  		ppe_ft_my_mac_put(ft, flow->my_mac);
@@ -748,81 +748,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
-@@ -1276,6 +1636,73 @@ static int ppe_ft_flow_rows_show(struct
- 	 * between reads. This expensive view is separate from flows.
- 	 */
- 	mutex_lock(&ft->lock);
-+	{
-+		int i;
-+
-+		for (i = 0; i < PPE_FT_PPPOE_SESSIONS; i++) {
-+			struct ppe_ft_pppoe *session = &ft->pppoe[i];
-+			u32 base[2] = {}, ext = 0, ext1 = 0, ext2 = 0;
-+			u32 in_l3[3] = {}, eg_l3[3] = {};
-+			u32 reg;
-+			int l3_if, base_err, ext_err, ext1_err, ext2_err;
-+			int in_err, eg_err;
-+
-+			if (!session->ref.refcnt)
-+				continue;
-+			l3_if = ppe_ft_pppoe_l3_if(ft, i);
-+			reg = PPE_PPPOE_SESSION_ADDR + PPE_PPPOE_SESSION_INC * i;
-+			base_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, base,
-+						    ARRAY_SIZE(base));
-+			reg = PPE_PPPOE_SESSION_EXT_ADDR +
-+				PPE_PPPOE_SESSION_EXT_INC * i;
-+			ext_err = regmap_read(ft->ppe_dev->regmap, reg, &ext);
-+			reg = PPE_PPPOE_SESSION_EXT1_ADDR +
-+				PPE_PPPOE_SESSION_EXT1_INC * i;
-+			ext1_err = regmap_read(ft->ppe_dev->regmap, reg, &ext1);
-+			reg = PPE_PPPOE_SESSION_EXT2_ADDR +
-+				PPE_PPPOE_SESSION_EXT2_INC * i;
-+			ext2_err = regmap_read(ft->ppe_dev->regmap, reg, &ext2);
-+			reg = PPE_IN_L3_IF_TBL_ADDR + PPE_IN_L3_IF_TBL_INC * l3_if;
-+			in_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, in_l3,
-+						  ARRAY_SIZE(in_l3));
-+			reg = PPE_EG_L3_IF_TBL_ADDR + PPE_EG_L3_IF_TBL_INC * l3_if;
-+			eg_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, eg_l3,
-+						  ARRAY_SIZE(eg_l3));
-+			seq_printf(seq,
-+				   "pppoe index:%d sid:%u port:%u connected:%u poisoned:%u ref:%u peer:%pM local:%pM l3_if:%d\n",
-+				   i, session->sid, session->port,
-+				   session->connected, session->poisoned,
-+				   session->ref.refcnt, session->peer,
-+				   session->local, l3_if);
-+			ppe_ft_debug_words(seq, "pppoe_base_raw", base,
-+					   ARRAY_SIZE(base));
-+			seq_printf(seq,
-+				   "  pppoe_ext_raw:%08x %08x %08x read:%d/%d/%d/%d sid:%lu port_bitmap:%02lx uc:%u smac:%u l3_valid:%u l3:%lu\n",
-+				   ext, ext1, ext2, base_err, ext_err,
-+				   ext1_err, ext2_err,
-+				   FIELD_GET(PPE_PPPOE_SESSION_SESSION_ID,
-+					     base[0]),
-+				   FIELD_GET(PPE_PPPOE_SESSION_PORT_BITMAP,
-+					     base[0]),
-+				   !!(ext & PPE_PPPOE_SESSION_EXT_UC_VALID),
-+				   !!(ext & PPE_PPPOE_SESSION_EXT_SMAC_VALID),
-+				   !!(ext2 & PPE_PPPOE_SESSION_EXT2_L3_IF_VALID),
-+				   FIELD_GET(PPE_PPPOE_SESSION_EXT2_L3_IF,
-+					     ext2));
-+			ppe_ft_debug_words(seq, "pppoe_in_l3_raw", in_l3,
-+					   ARRAY_SIZE(in_l3));
-+			ppe_ft_debug_words(seq, "pppoe_eg_l3_raw", eg_l3,
-+					   ARRAY_SIZE(eg_l3));
-+			seq_printf(seq,
-+				   "  pppoe_l3 read:%d/%d in_en:%u out_en:%u out_sid:%lu\n",
-+				   in_err, eg_err,
-+				   !!(in_l3[1] & PPE_IN_L3_IF_W1_PPPOE_EN),
-+				   !!(eg_l3[2] & PPE_EG_L3_IF_W2_PPPOE_EN),
-+				   FIELD_GET(PPE_EG_L3_IF_W1_SESSION_ID,
-+					     eg_l3[1]));
-+		}
-+	}
-+
- 	rhashtable_walk_enter(&ft->flows, &iter);
- 	rhashtable_walk_start(&iter);
- 	while ((flow = rhashtable_walk_next(&iter))) {
-@@ -1679,6 +2106,7 @@ int ppe_flowtable_setup_tc(struct net_de
+@@ -1289,6 +1649,7 @@
   */
  int ppe_flowtable_setup(struct ppe_device *ppe_dev)
  {
@@ -830,7 +756,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct ppe_flowtable *ft;
  	int ret;
  
-@@ -1687,6 +2115,11 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -1297,6 +1658,11 @@
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -842,7 +768,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	mutex_init(&ft->lock);
  	INIT_LIST_HEAD(&ft->block_cb_list);
  	INIT_LIST_HEAD(&ft->zombies);
-@@ -1698,8 +2131,30 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -1308,8 +1674,30 @@
  	}
  
  	hash_init(ft->hosts);
@@ -873,7 +799,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	return 0;
  }
  
-@@ -1727,7 +2182,17 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -1337,7 +1725,17 @@
  		return;
  
  	WARN_ON(!list_empty(&ft->block_cb_list));
@@ -890,7 +816,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +	mutex_unlock(&ft->lock);
  
  	debugfs_remove(ft->debugfs_reasons);
- 	debugfs_remove(ft->debugfs_pipeline);
+ 	debugfs_remove(ft->debugfs);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -215,6 +215,8 @@

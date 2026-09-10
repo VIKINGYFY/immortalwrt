@@ -12,7 +12,6 @@ Only plain physical underlays are accepted; unresolved neighbours and
 layered underlays remain on the software path.
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
-
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -30,7 +30,9 @@
@@ -33,7 +32,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  /**
   * struct ppe_ft_ref - Common head of a refcounted hardware-entry table.
-@@ -167,11 +170,38 @@ struct ppe_ft_flow {
+@@ -167,11 +170,38 @@
  	int pub_ip;
  	int pppoe;
  	int vlan;
@@ -72,7 +71,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #define PPE_FT_HOST_HASH_BITS	8
  
  /* Refcounted hardware host entry. Its hardware-selected index is
-@@ -222,6 +252,8 @@ struct ppe_flowtable {
+@@ -220,6 +250,8 @@
  	struct ppe_ft_pub_ip pub_ips[PPE_PUB_IP_TBL_ENTRIES];
  	struct ppe_ft_pppoe pppoe[PPE_FT_PPPOE_SESSIONS];
  	struct ppe_ft_vlan vlans[PPE_L3_VLAN_UPLINKS];
@@ -81,7 +80,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct notifier_block ppp_nb;
  	struct list_head block_cb_list;
  };
-@@ -981,21 +1013,300 @@ static bool ppe_ft_rule_is_tunnel(const
+@@ -979,21 +1011,300 @@
  	return is_tunnel;
  }
  
@@ -152,8 +151,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +	underlay = &ft->tunnel_underlays[port];
 +	if (WARN_ON_ONCE(!underlay->refcnt) || --underlay->refcnt)
 +		return;
- 
--	return -EOPNOTSUPP;	/* TODO: program the tunnel engine */
++
 +	ret = ppe_tunnel_port_l3_if_set(ft->ppe_dev, port, false, 0);
 +	err = ppe_tunnel_l3_if_set(ft->ppe_dev, underlay->l3_if, 0);
 +	if (ret || err) {
@@ -317,7 +315,8 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +				  tunnel->underlay_port, tunnel->mtu, true);
 +	if (ret)
 +		goto err_enable;
-+
+ 
+-	return -EOPNOTSUPP;	/* TODO: program the tunnel engine */
 +	dev_hold(dev);
 +	return i;
 +
@@ -395,7 +394,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  /* Hash key of a flow's source IP for the host refcount table. */
-@@ -1118,10 +1429,12 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1116,10 +1427,12 @@
  	struct edma_port_priv *port_priv;
  	struct flow_action_entry *act;
  	struct net_device *odev = NULL;
@@ -408,7 +407,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	int i, nexthop, ret, redirects = 0, iport = -1, imtu = 0;
  
  	/* nf_flow_offload_refresh() re-sends FLOW_CLS_REPLACE for as long
-@@ -1141,8 +1454,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1139,8 +1452,9 @@
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS))
  		return -EOPNOTSUPP;
  
@@ -420,7 +419,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	if (rule->match.dissector->used_keys &
  	    ~(BIT_ULL(FLOW_DISSECTOR_KEY_META) |
-@@ -1164,6 +1478,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1162,6 +1476,7 @@
  	flow->pub_ip = -1;
  	flow->pppoe = -1;
  	flow->vlan = -1;
@@ -428,7 +427,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	nh.vid = -1;
  	data.pppoe_sid = -1;
  	data.ingress_vid = -1;
-@@ -1374,11 +1689,40 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1372,11 +1687,40 @@
  		}
  	}
  
@@ -471,7 +470,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
  
  	/* The PPPoE L3 interface carries the session ID, so it needs
-@@ -1386,7 +1730,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1384,7 +1728,7 @@
  	 */
  	if (data.pppoe_sid >= 0 && is_zero_ether_addr(data.eth.src)) {
  		ret = -EOPNOTSUPP;
@@ -480,7 +479,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
  
  	/* Tagged ingress must arrive on a PPE port to be classified by
-@@ -1415,11 +1759,13 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1413,11 +1757,13 @@
  		}
  	}
  
@@ -499,7 +498,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	/* The hardware rewrites one direction per flow: the translated
  	 * source of SNAT comes from the public IP table, the translated
-@@ -1427,6 +1773,31 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1425,6 +1771,31 @@
  	 * port from the flow entry itself.
  	 */
  	mutex_lock(&ft->lock);
@@ -531,7 +530,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	if (flow->entry.is_ipv6) {
  		/* The hardware routes IPv6 but has no NAT66. Mangles of
-@@ -1495,7 +1866,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1493,7 +1864,7 @@
  	 * reverse direction ingresses on; the egress L3 interface
  	 * provides the rewrite.
  	 */
@@ -540,7 +539,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		flow->my_mac = ppe_ft_my_mac_get(ft, data.eth.src);
  		if (flow->my_mac < 0) {
  			ret = flow->my_mac;
-@@ -1564,6 +1935,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1562,6 +1933,8 @@
  
  	set_bit(nexthop, ft->nexthop_used);
  	mutex_unlock(&ft->lock);
@@ -549,7 +548,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	return 0;
  
-@@ -1591,7 +1964,11 @@ err_vlan:
+@@ -1589,7 +1962,11 @@
  err_pub_ip:
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
  err_unlock:
@@ -561,7 +560,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  err_free:
  	kfree_rcu(flow, rcu);
  
-@@ -1620,6 +1997,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -1618,6 +1995,7 @@
  		ppe_ft_pppoe_put(ft, flow->pppoe);
  		ppe_ft_vlan_put(ft, flow->vlan);
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
@@ -569,7 +568,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2558,5 +2936,9 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -2099,5 +2477,9 @@
  		kfree(host);
  	}
  

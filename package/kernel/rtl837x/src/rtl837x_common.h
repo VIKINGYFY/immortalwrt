@@ -100,7 +100,6 @@ struct rtk_gsw {
 	bool init_rtl8372n_leds;
 	bool quarantine_before_conduit;
 	bool reinit_cpu_serdes;
-	bool dsa_svlan;
 	bool conduit_ready;
 	char conduit_name[IFNAMSIZ];
 	u32 probe_attempts;
@@ -138,10 +137,16 @@ struct rtk_gsw {
 
 	dal_mapper_t *pMapper;
 
+	/* Separate software owners share the hardware 4K table. Internal VIDs
+	 * are reserved from customer VLAN configuration.
+	 */
+	struct rtl837x_vlan_entry svlan_table[4096];
 	struct rtl837x_vlan_entry vlan_table[4096];
 
 	uint16_t port_pvid[RTK_MAX_NUM_OF_PORT]; // 端口PVID配置
 
+	bool bridge_state_dirty;
+	u8 stp_state[RTK_MAX_NUM_OF_PORT];
 	u16 tag8021q_pvid[RTK_MAX_NUM_OF_PORT];
 	bool tag8021q_pvid_valid[RTK_MAX_NUM_OF_PORT];
 	uint16_t bridge_pvid[RTK_MAX_NUM_OF_PORT];

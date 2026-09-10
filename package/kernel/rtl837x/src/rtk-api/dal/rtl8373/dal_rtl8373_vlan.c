@@ -48,6 +48,22 @@ static void _dal_rtl8373_Vlan4kStSmi2User(rtk_uint32 smiVlan4kEntry, dal_rtl8373
 	pUserVlan4kEntry->ivl_svl = (rtk_uint16)((smiVlan4kEntry >> 25) & 0x1);
 }
 
+/* Both readers and writers share the same indirect table engine. */
+static ret_t rtl8373_vlan_wait_ready(void)
+{
+	rtk_uint32 value, i;
+	ret_t ret;
+
+	for (i = 0; i < RTL8373_VLAN_BUSY_CHECK_NO; i++) {
+		ret = rtl8373_getAsicReg(RTL8373_ITA_CTRL0_ADDR, &value);
+		if (ret != RT_ERR_OK)
+			return ret;
+		if (!(value & BIT(RTL8373_ITA_CTRL0_TLB_EXECUTE_OFFSET)))
+			return RT_ERR_OK;
+	}
+	return RT_ERR_BUSYWAIT_TIMEOUT;
+}
+
 ret_t _dal_rtl8373_setAsicVlan4kEntry(dal_rtl8373_user_vlan4kentry *pVlan4kEntry)
 {
 	rtk_uint32 vlanEntryVal = 0;
@@ -72,6 +88,8 @@ ret_t _dal_rtl8373_setAsicVlan4kEntry(dal_rtl8373_user_vlan4kentry *pVlan4kEntry
 	if (pVlan4kEntry->svlan_chk_ivl_svl > RTK_ENABLE_END)
 		return RT_ERR_INPUT;
 
+	RTK_ERR_CHK(rtl8373_vlan_wait_ready());
+
 	/* Prepare Data */
 	_dal_rtl8373_Vlan4kStUser2Smi(pVlan4kEntry, &vlanEntryVal);
 
@@ -84,41 +102,14 @@ ret_t _dal_rtl8373_setAsicVlan4kEntry(dal_rtl8373_user_vlan4kentry *pVlan4kEntry
 	regData |= (TB_TARGET_CVLAN << RTL8373_ITA_CTRL0_TLB_TYPE_OFFSET);
 	regData |= (TB_OP_WRITE << RTL8373_ITA_CTRL0_TLB_ACT_OFFSET);
 	regData |= (TB_EXECUTE << RTL8373_ITA_CTRL0_TLB_EXECUTE_OFFSET);
-#if 0
-	/* Write Address (VLAN_ID) */
-	regData = pVlan4kEntry->vid;
-	regAddr = RTL8373_ITA_CTRL0_ADDR;
-	retVal = rtl8373_setAsicRegBits(regAddr, RTL8373_ITA_CTRL0_TBL_ADDR_OFFSET, regData);
-	if (retVal != RT_ERR_OK)
-		return retVal;
-
-	/* Write Command */
-	/* Write ACS_CMD register */
-	retVal = rtl8373_setAsicRegBit(regAddr, RTL8373_ITA_CTRL0_TLB_ACT_OFFSET, TB_OP_WRITE);
-	if (retVal != RT_ERR_OK)
-		return retVal;
-
-	retVal = rtl8373_setAsicRegBits(regAddr, RTL8373_ITA_CTRL0_TLB_TYPE_MASK, TB_TARGET_CVLAN);
-	if (retVal != RT_ERR_OK)
-		return retVal;
-
-	retVal = rtl8373_setAsicRegBit(regAddr, RTL8373_ITA_CTRL0_TLB_EXECUTE_OFFSET, TB_EXECUTE);
-	if (retVal != RT_ERR_OK)
-		return retVal;
-#endif
 	retVal = rtl8373_setAsicReg(RTL8373_ITA_CTRL0_ADDR, regData);
 	if (retVal != RT_ERR_OK)
 		return retVal;
 
-	/*wait access finished */
-	do {
-		retVal = rtl8373_getAsicReg(RTL8373_ITA_CTRL0_ADDR, &regData);
-		if (retVal != RT_ERR_OK)
-			return retVal;
-	} while (regData & 0x1);
+	RTK_ERR_CHK(rtl8373_vlan_wait_ready());
 
 #if defined(CONFIG_RTL8373_ASICDRV_TEST)
-	memcpy(&Rtl8367dVirtualVlanTable[pVlan4kEntry->vid], pVlan4kEntry, sizeof(dal_rtl8373_user_vlan4kentry));
+	memcpy(&Rtl8371cVirtualVlanTable[pVlan4kEntry->vid], pVlan4kEntry, sizeof(dal_rtl8373_user_vlan4kentry));
 #endif
 
 	return RT_ERR_OK;
@@ -129,23 +120,11 @@ ret_t _dal_rtl8373_getAsicVlan4kEntry(dal_rtl8373_user_vlan4kentry *pVlan4kEntry
 	rtk_uint32 retVal = 0;
 	rtk_uint32 regData = 0;
 	rtk_uint32 regAddr = 0;
-	rtk_uint32 busyCounter = 0;
 
 	if (pVlan4kEntry->vid > RTL8373_VIDMAX)
 		return RT_ERR_VLAN_VID;
 
-	/* Polling status */
-	busyCounter = RTL8373_VLAN_BUSY_CHECK_NO;
-	regAddr = RTL8373_ITA_CTRL0_ADDR;
-	do {
-		retVal = rtl8373_getAsicRegBit(regAddr, RTL8373_ITA_CTRL0_TLB_EXECUTE_OFFSET, &regData);
-		if (retVal != RT_ERR_OK)
-			return retVal;
-		busyCounter--;
-		if (busyCounter == 0)
-			return RT_ERR_BUSYWAIT_TIMEOUT;
-
-	} while (regData);
+	RTK_ERR_CHK(rtl8373_vlan_wait_ready());
 
 	/* Write Address (VLAN_ID) */
 	regAddr = RTL8373_ITA_CTRL0_ADDR;
@@ -168,16 +147,7 @@ ret_t _dal_rtl8373_getAsicVlan4kEntry(dal_rtl8373_user_vlan4kentry *pVlan4kEntry
 	if (retVal != RT_ERR_OK)
 		return retVal;
 
-	/*wait access finished */
-	busyCounter = RTL8373_VLAN_BUSY_CHECK_NO;
-	do {
-		retVal = rtl8373_getAsicRegBit(regAddr, RTL8373_ITA_CTRL0_TLB_EXECUTE_OFFSET, &regData);
-		if (retVal != RT_ERR_OK)
-			return retVal;
-		busyCounter--;
-		if (busyCounter == 0)
-			return RT_ERR_BUSYWAIT_TIMEOUT;
-	} while (regData);
+	RTK_ERR_CHK(rtl8373_vlan_wait_ready());
 
 	/* Read VLAN data from register */
 	retVal = rtl8373_getAsicReg(RTL8373_ITA_READ_DATA0_ADDR(0), &regData);
@@ -187,7 +157,7 @@ ret_t _dal_rtl8373_getAsicVlan4kEntry(dal_rtl8373_user_vlan4kentry *pVlan4kEntry
 	_dal_rtl8373_Vlan4kStSmi2User(regData, pVlan4kEntry);
 
 #if defined(CONFIG_RTL8373_ASICDRV_TEST)
-	memcpy(pVlan4kEntry, &Rtl8367dVirtualVlanTable[pVlan4kEntry->vid], sizeof(dal_rtl8373_user_vlan4kentry));
+	memcpy(pVlan4kEntry, &Rtl8371cVirtualVlanTable[pVlan4kEntry->vid], sizeof(dal_rtl8373_user_vlan4kentry));
 #endif
 
 	return RT_ERR_OK;

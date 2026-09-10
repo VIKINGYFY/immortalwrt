@@ -1,0 +1,351 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: record bounded flow failures
+
+Keep one timestamped resource failure with an owned copy of the installing
+flow tuple, cookie, ports and VLAN identities. Independently retain the last
+failed hardware command, raw result and errno under flow_lock. Expose both
+on demand in resource_stats, distinguishing command-write failures from
+polling and avoiding per-packet logs or unbounded allocations.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+@@ -60,6 +60,17 @@
+ 	bool has_vports;
+ };
+ 
++/* Last failed indirect command, protected by flow_lock. No packet logging. */
++struct ppe_hw_failure {
++	u64 time_ns;
++	u64 count;
++	u32 command;
++	u32 result;
++	u32 address;
++	int error;
++	bool polled;
++};
++
+ /**
+  * struct ppe_device - PPE device private data.
+  * @dev: PPE device structure.
+@@ -100,6 +111,7 @@
+ 	/* Serialize the L3 flow operation registers. */
+ 	struct mutex flow_lock;
+ 	u8 flow_cmd_id;
++	struct ppe_hw_failure last_hw_failure;
+ 	/* Serialize the APPE tunnel command and table registers. */
+ 	struct mutex tunnel_lock;
+ 	/* Serialize tunnel object ID and dedicated VP allocation. */
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -17,6 +17,7 @@
+ #include <linux/bitfield.h>
+ #include <linux/etherdevice.h>
+ #include <linux/errno.h>
++#include <linux/ktime.h>
+ #include <linux/regmap.h>
+ #include <linux/string.h>
+ 
+@@ -30,7 +31,8 @@
+ static int ppe_flow_op_issue(struct ppe_device *ppe_dev, u32 op_type,
+ 			     bool by_index, int index)
+ {
+-	u32 val, cmd_id;
++	u32 val, cmd_id, command;
++	bool polled = false;
+ 	int ret;
+ 
+ 	cmd_id = ppe_dev->flow_cmd_id;
+@@ -42,9 +44,11 @@
+ 		val |= PPE_FLOW_OP_MODE |
+ 		       FIELD_PREP(PPE_FLOW_OP_ENTRY_INDEX, index);
+ 
++	command = val;
+ 	ret = regmap_write(ppe_dev->regmap, PPE_FLOW_TBL_OP_ADDR, val);
++	val = 0;
+ 	if (ret)
+-		return ret;
++		goto failed;
+ 	/* Poll for completion without sleeping first. The engine normally
+ 	 * finishes within a few microseconds, and keeping the flow_lock owner
+ 	 * on the CPU lets other installers optimistically spin on the mutex
+@@ -52,6 +56,7 @@
+ 	 * inflate the load average during a burst of new connections. Only a
+ 	 * slow or stuck engine falls back to the sleeping poll below.
+ 	 */
++	polled = true;
+ 	ret = regmap_read_poll_timeout(ppe_dev->regmap,
+ 				       PPE_FLOW_TBL_OP_RSLT_ADDR, val,
+ 		FIELD_GET(PPE_FLOW_OP_RSLT_CMD_ID, val) == cmd_id &&
+@@ -62,16 +67,30 @@
+ 			FIELD_GET(PPE_FLOW_OP_RSLT_CMD_ID, val) == cmd_id &&
+ 			FIELD_GET(PPE_FLOW_OP_RSLT_VALID_CNT, val), 10, 10000);
+ 	if (ret)
+-		return ret;
+-	if (val & PPE_FLOW_OP_RSLT_FAIL)
+-		return -ENOENT;
++		goto failed;
++	if (val & PPE_FLOW_OP_RSLT_FAIL) {
++		ret = -ENOENT;
++		goto failed;
++	}
+ 	return FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val);
++
++failed:
++	lockdep_assert_held(&ppe_dev->flow_lock);
++	ppe_dev->last_hw_failure.time_ns = ktime_get_ns();
++	ppe_dev->last_hw_failure.count++;
++	ppe_dev->last_hw_failure.command = command;
++	ppe_dev->last_hw_failure.result = val;
++	ppe_dev->last_hw_failure.address = PPE_FLOW_TBL_OP_ADDR;
++	ppe_dev->last_hw_failure.error = ret;
++	ppe_dev->last_hw_failure.polled = polled;
++	return ret;
+ }
+ 
+ /* The read engine is separate from the add/delete result queue. */
+ static int ppe_flow_read_op_issue(struct ppe_device *ppe_dev, int index)
+ {
+-	u32 val, cmd_id;
++	u32 val, cmd_id, command;
++	bool polled = false;
+ 	int ret;
+ 
+ 	cmd_id = ppe_dev->flow_cmd_id;
+@@ -82,10 +101,13 @@
+ 	      PPE_FLOW_OP_MODE |
+ 	      FIELD_PREP(PPE_FLOW_OP_ENTRY_INDEX, index);
+ 
++	command = val;
+ 	ret = regmap_write(ppe_dev->regmap, PPE_FLOW_TBL_RD_OP_ADDR, val);
++	val = 0;
+ 	if (ret)
+-		return ret;
++		goto failed;
+ 
++	polled = true;
+ 	ret = regmap_read_poll_timeout(ppe_dev->regmap,
+ 				       PPE_FLOW_TBL_RD_OP_RSLT_ADDR, val,
+ 		FIELD_GET(PPE_FLOW_OP_RSLT_CMD_ID, val) == cmd_id &&
+@@ -96,19 +118,35 @@
+ 			FIELD_GET(PPE_FLOW_OP_RSLT_CMD_ID, val) == cmd_id &&
+ 			FIELD_GET(PPE_FLOW_OP_RSLT_VALID_CNT, val), 10, 10000);
+ 	if (ret)
+-		return ret;
+-	if (val & PPE_FLOW_OP_RSLT_FAIL)
+-		return -ENOENT;
+-	if (FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val) != index)
+-		return -EIO;
++		goto failed;
++	if (val & PPE_FLOW_OP_RSLT_FAIL) {
++		ret = -ENOENT;
++		goto failed;
++	}
++	if (FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val) != index) {
++		ret = -EIO;
++		goto failed;
++	}
+ 
+ 	return 0;
++
++failed:
++	lockdep_assert_held(&ppe_dev->flow_lock);
++	ppe_dev->last_hw_failure.time_ns = ktime_get_ns();
++	ppe_dev->last_hw_failure.count++;
++	ppe_dev->last_hw_failure.command = command;
++	ppe_dev->last_hw_failure.result = val;
++	ppe_dev->last_hw_failure.address = PPE_FLOW_TBL_RD_OP_ADDR;
++	ppe_dev->last_hw_failure.error = ret;
++	ppe_dev->last_hw_failure.polled = polled;
++	return ret;
+ }
+ 
+ static int ppe_host_op_issue(struct ppe_device *ppe_dev, u32 op_type,
+ 			     bool by_index, int index)
+ {
+-	u32 val, cmd_id;
++	u32 val, cmd_id, command;
++	bool polled = false;
+ 	int ret;
+ 
+ 	cmd_id = ppe_dev->flow_cmd_id;
+@@ -120,12 +158,15 @@
+ 		val |= PPE_HOST_OP_MODE |
+ 		       FIELD_PREP(PPE_HOST_OP_ENTRY_INDEX, index);
+ 
++	command = val;
+ 	ret = regmap_write(ppe_dev->regmap, PPE_HOST_TBL_OP_ADDR, val);
++	val = 0;
+ 	if (ret)
+-		return ret;
++		goto failed;
+ 	/* Fast non-sleeping poll first, sleeping fallback for a stuck engine;
+ 	 * see ppe_flow_op_issue() for the load-average rationale.
+ 	 */
++	polled = true;
+ 	ret = regmap_read_poll_timeout(ppe_dev->regmap,
+ 				       PPE_HOST_TBL_OP_RSLT_ADDR, val,
+ 		FIELD_GET(PPE_HOST_OP_RSLT_CMD_ID, val) == cmd_id &&
+@@ -136,10 +177,23 @@
+ 			FIELD_GET(PPE_HOST_OP_RSLT_CMD_ID, val) == cmd_id &&
+ 			FIELD_GET(PPE_HOST_OP_RSLT_VALID_CNT, val), 10, 10000);
+ 	if (ret)
+-		return ret;
+-	if (val & PPE_HOST_OP_RSLT_FAIL)
+-		return -ENOENT;
++		goto failed;
++	if (val & PPE_HOST_OP_RSLT_FAIL) {
++		ret = -ENOENT;
++		goto failed;
++	}
+ 	return FIELD_GET(PPE_HOST_OP_RSLT_ENTRY_INDEX, val);
++
++failed:
++	lockdep_assert_held(&ppe_dev->flow_lock);
++	ppe_dev->last_hw_failure.time_ns = ktime_get_ns();
++	ppe_dev->last_hw_failure.count++;
++	ppe_dev->last_hw_failure.command = command;
++	ppe_dev->last_hw_failure.result = val;
++	ppe_dev->last_hw_failure.address = PPE_HOST_TBL_OP_ADDR;
++	ppe_dev->last_hw_failure.error = ret;
++	ppe_dev->last_hw_failure.polled = polled;
++	return ret;
+ }
+ 
+ /* Split an IPv6 address into CPU-order words, least significant first. */
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -27,6 +27,7 @@
+ #include <linux/ppp_defs.h>
+ #include <linux/rcupdate.h>
+ #include <linux/regmap.h>
++#include <linux/ktime.h>
+ #include <linux/rhashtable.h>
+ #include <linux/rtnetlink.h>
+ #include <linux/seq_file.h>
+@@ -392,6 +393,18 @@
+ 	unsigned int refcnt;
+ };
+ 
++struct ppe_ft_failure {
++	u64 time_ns;
++	u64 count;
++	unsigned long cookie;
++	struct ppe_flow_entry entry;
++	enum ppe_ft_resource_stage stage;
++	int error;
++	int iport, eport;
++	int isvid, icvid, esvid, ecvid;
++	bool flow_valid;
++};
++
+ /**
+  * struct ppe_flowtable - Flowtable offload state of the PPE.
+  * @ppe_dev: Back pointer to the PPE device.
+@@ -438,6 +451,9 @@
+ 	atomic_long_t rejects[PPE_FT_REJECT_MAX];
+ 	unsigned long resource_failures[PPE_FT_RES_MAX][6];
+ 	int resource_last_errno[PPE_FT_RES_MAX];
++	/* Borrowed only while replace owns lock; failures copy all context. */
++	const struct ppe_ft_flow *installing;
++	struct ppe_ft_failure last_failure;
+ 	DECLARE_HASHTABLE(hosts, PPE_FT_HOST_HASH_BITS);
+ 	struct ppe_ft_nexthop *nexthops;
+ 	unsigned int nexthop_active;
+@@ -473,6 +489,8 @@
+ static int ppe_ft_resource_result(struct ppe_flowtable *ft,
+ 				  enum ppe_ft_resource_stage stage, int ret)
+ {
++	struct ppe_ft_failure *last = &ft->last_failure;
++	const struct ppe_ft_flow *flow = ft->installing;
+ 	int bucket;
+ 
+ 	lockdep_assert_held(&ft->lock);
+@@ -499,6 +517,21 @@
+ 	}
+ 	ft->resource_failures[stage][bucket]++;
+ 	ft->resource_last_errno[stage] = ret;
++	last->time_ns = ktime_get_ns();
++	last->count++;
++	last->stage = stage;
++	last->error = ret;
++	last->flow_valid = !!flow;
++	if (flow) {
++		last->cookie = flow->cookie;
++		last->entry = flow->entry;
++		last->iport = flow->iport;
++		last->eport = flow->eport;
++		last->isvid = flow->rule.data.ingress_svid;
++		last->icvid = flow->rule.data.ingress_cvid;
++		last->esvid = flow->rule.nh.svid;
++		last->ecvid = flow->rule.nh.cvid;
++	}
+ 	return ret;
+ }
+ 
+@@ -3404,6 +3437,7 @@
+ 	flow->rule.priority = f->common.prio;
+ 
+ 	mutex_lock(&ft->lock);
++	ft->installing = flow;
+ 	ppe_flow_account_prune(&flow->rx_account, NULL);
+ 	ppe_flow_account_prune(&flow->tx_account, NULL);
+ 	ret = ppe_ft_flow_refresh(ft, flow, tunnel_flow);
+@@ -3795,6 +3829,7 @@
+ 		}
+ 	}
+ 
++	ft->installing = NULL;
+ 	mutex_unlock(&ft->lock);
+ 	if (tdev)
+ 		dev_put(tdev);
+@@ -3850,6 +3885,7 @@
+ 		ppe_vp_put(ft->ppe_dev, flow->ivp);
+ err_unlock:
+ 	ppe_ft_tunnel_put(ft, flow ? flow->tunnel : -1);
++	ft->installing = NULL;
+ 	mutex_unlock(&ft->lock);
+ err_tdev:
+ 	if (tdev)
+@@ -4271,6 +4307,8 @@
+ {
+ 	struct ppe_flowtable *ft = seq->private;
+ 	struct ppe_ft_host *host;
++	struct ppe_ft_failure *last = &ft->last_failure;
++	struct ppe_hw_failure hw;
+ 	unsigned int hosts = 0;
+ 	int bucket;
+ 
+@@ -4295,6 +4333,31 @@
+ 		   ft->nexthop_active,
+ 		   ft->ppe_dev->variant->num_nexthop_entries,
+ 		   ft->nexthop_allocs, ft->nexthop_reuses, ft->nexthop_frees);
++	seq_printf(seq, "last_failure count:%llu monotonic_ns:%llu stage:%s errno:%d flow_valid:%u\n",
++		   last->count, last->time_ns,
++		   last->count ? ppe_ft_resource_names[last->stage] : "none",
++		   last->error, last->flow_valid);
++	if (last->flow_valid) {
++		seq_printf(seq, "last_failure cookie:%lx ports:%d/%d ingress_tags:%d/%d egress_tags:%d/%d proto:%u sport:%u dport:%u ",
++			   last->cookie, last->iport, last->eport,
++			   last->isvid, last->icvid, last->esvid, last->ecvid,
++			   last->entry.proto, ntohs(last->entry.sport), ntohs(last->entry.dport));
++		if (last->entry.is_ipv6)
++			seq_printf(seq, "src:%pI6c dst:%pI6c\n",
++				   &last->entry.sip.ip6, &last->entry.dip.ip6);
++		else
++			seq_printf(seq, "src:%pI4 dst:%pI4\n",
++				   &last->entry.sip.ip4, &last->entry.dip.ip4);
++	}
++	/* Independent latest hardware failure, including cleanup/read commands.
++	 * Compare timestamps; a subsequent cleanup error need not be the cause.
++	 */
++	mutex_lock(&ft->ppe_dev->flow_lock);
++	hw = ft->ppe_dev->last_hw_failure;
++	mutex_unlock(&ft->ppe_dev->flow_lock);
++	seq_printf(seq, "last_hw_failure count:%llu monotonic_ns:%llu address:%08x command:%08x result:%08x polled:%u errno:%d\n",
++		   hw.count, hw.time_ns, hw.address, hw.command,
++		   hw.result, hw.polled, hw.error);
+ 	mutex_unlock(&ft->lock);
+ 
+ 	return 0;

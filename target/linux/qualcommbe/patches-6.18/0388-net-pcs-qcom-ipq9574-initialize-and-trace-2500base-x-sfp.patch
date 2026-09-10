@@ -13,11 +13,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -144,6 +144,8 @@ struct ipq_pcs_mii {
+@@ -144,6 +144,12 @@ struct ipq_pcs_mii {
  	struct ipq_pcs *qpcs;
  	struct phylink_pcs pcs;
  	int index;
 +	u32 debug_last_status;
++	bool debug_last_link;
++	int debug_last_speed;
++	phy_interface_t debug_last_interface;
++	unsigned int debug_last_neg_mode;
 +	u8 debug_status_count;
  
  	/* RX clock from NSSCC to PCS MII */
@@ -78,13 +82,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
  	case PHY_INTERFACE_MODE_USXGMII:
  	case PHY_INTERFACE_MODE_10G_QXGMII:
-@@ -838,6 +859,25 @@ static void ipq_pcs_get_state(struct phy
+@@ -838,6 +859,33 @@ static void ipq_pcs_get_state(struct phy
  		break;
  	}
  
-+	/* Use only the normal channel status register, with a bounded
-+	 * initial/change trace. LOS gating alone does not prove PCS sync
-+	 * or copper traffic for modules with no accessible PHY.
++	/* Keep one initial record and then only report a link/personality
++	 * transition. For out-of-band 2500BASE-X, the raw PCS bit can
++	 * toggle while SFP LOS keeps the reported link up; logging every
++	 * raw toggle creates false link-failure noise.
 +	 */
 +	if ((state->interface == PHY_INTERFACE_MODE_SGMII ||
 +	     state->interface == PHY_INTERFACE_MODE_1000BASEX ||
@@ -92,11 +97,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	    qpcs_mii->debug_status_count < 16 &&
 +	    !regmap_read(qpcs->regmap, PCS_MII_STS(index), &status) &&
 +	    (!qpcs_mii->debug_status_count ||
-+	     qpcs_mii->debug_last_status != status)) {
++	     qpcs_mii->debug_last_link != state->link ||
++	     qpcs_mii->debug_last_speed != state->speed ||
++	     qpcs_mii->debug_last_interface != state->interface ||
++	     qpcs_mii->debug_last_neg_mode != neg_mode)) {
 +		qpcs_mii->debug_last_status = status;
++		qpcs_mii->debug_last_link = state->link;
++		qpcs_mii->debug_last_speed = state->speed;
++		qpcs_mii->debug_last_interface = state->interface;
++		qpcs_mii->debug_last_neg_mode = neg_mode;
 +		qpcs_mii->debug_status_count++;
 +		dev_info(qpcs->dev,
-+			 "PCS status: channel=%d interface=%s neg=%u raw=0x%08x pcs-link=%u reported-link=%u speed=%d\n",
++			 "PCS transition: channel=%d interface=%s neg=%u raw=0x%08x pcs-link=%u reported-link=%u speed=%d\n",
 +			 index, phy_modes(state->interface), neg_mode, status,
 +			 !!(status & PCS_MII_LINK_STS), state->link, state->speed);
 +	}

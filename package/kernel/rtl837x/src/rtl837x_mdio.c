@@ -317,7 +317,6 @@ END_DETECT_CHIP:
 	gsw->cpu_sds = rtl837x_cpu_port_to_sds(gsw);
 	gsw->configured_port_mask = gsw->valid_port_mask;
 
-	dev_dbg(gsw->dev, "Found Realtek RTL chip %s\n", gsw->chip_name);
 	return RT_ERR_OK;
 }
 
@@ -545,20 +544,18 @@ int rtl8372n_hw_init(struct rtk_gsw *gsw, rtl837x_pnswap_cfg_t swap_cfg)
 	if (!gsw->preserve_boot_config)
 		rtl837x_hw_reset(gsw);
 	ret = rtl837x_switch_probe(gsw);
-	if (ret) {
-		dev_err(gsw->dev, "rtl837x_switch_probe Fail, error:%d\n", ret);
+	if (ret)
 		return -EPERM;
-	}
 	ret = rtl837x_of_get_configured_port_mask(gsw->dev->of_node, gsw->valid_port_mask, &gsw->configured_port_mask);
 	if (ret) {
-		dev_err(gsw->dev, "invalid DSA port mask, error:%d\n", ret);
+		dev_err(gsw->dev, "switch topology setup failed: %d\n", ret);
 		return ret;
 	}
 
 	if (gsw->preserve_boot_config) {
 		ret = rtk_switch_attach();
 		if (ret) {
-			dev_err(gsw->dev, "rtk_switch_attach failed, error:%d\n", ret);
+			dev_err(gsw->dev, "SDK attach failed: %d\n", ret);
 			return -EPERM;
 		}
 		ret = rtl837x_rtl8372n_led_init(gsw);
@@ -681,7 +678,7 @@ int rtl8372n_hw_init(struct rtk_gsw *gsw, rtl837x_pnswap_cfg_t swap_cfg)
 
 	ret = rtk_switch_init();
 	if (ret) {
-		dev_err(gsw->dev, "rtk_switch_init Fail, error:%d\n", ret);
+		dev_err(gsw->dev, "SDK initialization failed: %d\n", ret);
 		return -EPERM;
 	}
 	ret = rtl837x_rtl8372n_led_init(gsw);
@@ -694,18 +691,7 @@ int rtl8372n_hw_init(struct rtk_gsw *gsw, rtl837x_pnswap_cfg_t swap_cfg)
 	if (ret)
 		return ret;
 
-	ret = rtk_vlan_reset();
-	if (ret) {
-		dev_err(gsw->dev, "rtk_vlan_reset failed, error:%d\n", ret);
-		return -EPERM;
-	}
-
-	ret = rtk_vlan_init();
-	if (ret) {
-		dev_err(gsw->dev, "rtk_vlan_init failed, error:%d\n", ret);
-		return -EPERM;
-	}
-
+	/* DSA setup owns VLAN/SVLAN table initialization after registration. */
 	ret = rtl8372n_igmp_init(gsw);
 	if (ret) {
 		dev_err(gsw->dev, "rtl8372n_igmp_init failed, error:%d\n", ret);
@@ -777,7 +763,7 @@ static void rtl837x_sfp_attach(void *upstream, struct sfp_bus *bus)
 {
 	struct rtk_gsw *gsw = upstream;
 
-	dev_info(gsw->dev, "SFP module attach\n");
+	dev_dbg(gsw->dev, "SFP attached\n");
 }
 
 /* unused */
@@ -785,7 +771,7 @@ static void rtl837x_sfp_detach(void *upstream, struct sfp_bus *bus)
 {
 	struct rtk_gsw *gsw = upstream;
 
-	dev_info(gsw->dev, "SFP module detach\n");
+	dev_dbg(gsw->dev, "SFP detached\n");
 }
 
 static int rtl837x_sfp_module_insert(void *upstream, const struct sfp_eeprom_id *id)
@@ -810,8 +796,6 @@ static int rtl837x_sfp_module_insert(void *upstream, const struct sfp_eeprom_id 
 	sfp_parse_support(gsw->sfp_bus, id, support, interfaces);
 	iface = sfp_select_interface(gsw->sfp_bus, support);
 #endif
-
-	dev_info(gsw->dev, "%s SFP module inserted\n", phy_modes(iface));
 
 	switch (iface) {
 	case PHY_INTERFACE_MODE_10GBASER:
@@ -842,6 +826,7 @@ static int rtl837x_sfp_module_insert(void *upstream, const struct sfp_eeprom_id 
 		dev_err(gsw->dev, "failed to configure SFP SerDes mode %d: %d\n", new_mode, ret);
 		return -EIO;
 	}
+	dev_dbg(gsw->dev, "SFP module configured: interface=%s\n", phy_modes(iface));
 
 	return 0;
 }
@@ -852,8 +837,6 @@ static void rtl837x_sfp_module_remove(void *upstream)
 	rtk_sds_mode_t old_mode = gsw->sds1mode;
 	int ret;
 
-	dev_info(gsw->dev, "SFP module remove\n");
-
 	USE_SERDESMODE(1, SERDES_OFF);
 	rtl837x_sdk_lock(gsw);
 	ret = rtk_sdsMode_set(1, gsw->sds1mode);
@@ -862,6 +845,8 @@ static void rtl837x_sfp_module_remove(void *upstream)
 	rtl837x_sdk_unlock(gsw);
 	if (ret)
 		dev_warn(gsw->dev, "failed to disable SFP SerDes: %d\n", ret);
+	else
+		dev_dbg(gsw->dev, "SFP module removed\n");
 }
 
 static const struct sfp_upstream_ops sfp_ops = {
@@ -1071,8 +1056,6 @@ static int rtl837x_dsa_probe(struct mdio_device *mdiodev)
 
 	int ret;
 
-	dev_dbg(dev, "start rtl837x_dsa_probe");
-
 	ret = rtl837x_of_get_dsa_cpu_port(np, &cpu_port, &ethernet);
 	if (ret == -ENOENT) {
 		ethernet = of_parse_phandle(np, "ethernet", 0);
@@ -1159,7 +1142,6 @@ static int rtl837x_dsa_probe(struct mdio_device *mdiodev)
 	gsw->init_rtl8372n_leds = of_property_read_bool(np, "realtek,rtl8372n-led-init");
 	gsw->quarantine_before_conduit = of_property_read_bool(np, "realtek,quarantine-before-conduit");
 	gsw->reinit_cpu_serdes = of_property_read_bool(np, "realtek,reinit-cpu-serdes");
-	gsw->dsa_svlan = of_property_read_bool(np, "realtek,dsa-svlan");
 	if (gsw->reinit_cpu_serdes && !gsw->preserve_boot_config) {
 		dev_err(dev, "realtek,reinit-cpu-serdes requires realtek,preserve-boot-config\n");
 		if (master)
@@ -1207,12 +1189,11 @@ static int rtl837x_dsa_probe(struct mdio_device *mdiodev)
 		of_property_read_u32(mdiodev->bus->parent->of_node, "clock-frequency", &mdc_rate);
 
 	dev_info(gsw->dev,
-		 "rtl837x dev info:smi-addr:%d requested-mdc:%u configured-cpu-port:%u sds0:%d sds1:%d swap_cfg:0x%x preserve-boot:%u led-init:%u quarantine:%u reinit-cpu-serdes:%u dsa-svlan:%u\n",
+		 "rtl837x dev info:smi-addr:%d requested-mdc:%u configured-cpu-port:%u sds0:%d sds1:%d swap_cfg:0x%x preserve-boot:%u led-init:%u quarantine:%u reinit-cpu-serdes:%u\n",
 		 gsw->mdio_addr, mdc_rate, gsw->cpu_port, gsw->sds0mode,
 		 gsw->sds1mode, *(uint8_t *)&gsw->swap_cfg,
 		 gsw->preserve_boot_config, gsw->init_rtl8372n_leds,
-		 gsw->quarantine_before_conduit, gsw->reinit_cpu_serdes,
-		 gsw->dsa_svlan);
+		 gsw->quarantine_before_conduit, gsw->reinit_cpu_serdes);
 
 	rtl837x_sdk_lock(gsw);
 	ret = rtl8372n_hw_init(gsw, gsw->swap_cfg);
@@ -1220,7 +1201,7 @@ static int rtl837x_dsa_probe(struct mdio_device *mdiodev)
 	if (ret) {
 		dev_err(gsw->dev, "probe diagnostics: conduit=%s ready=%u attempts=%u raw-id=0x%08x last-error=%d mdio-reads=%llu writes=%llu timeouts=%llu\n", gsw->conduit_name[0] ? gsw->conduit_name : "none", gsw->conduit_ready,
 			gsw->probe_attempts, gsw->last_probe_id, gsw->last_probe_error, (unsigned long long)gsw->mdio_reads, (unsigned long long)gsw->mdio_writes, (unsigned long long)gsw->mdio_timeouts);
-		dev_err(gsw->dev, "rtl8372n_hw_init failed, ret=%d\n", ret);
+		dev_err(gsw->dev, "switch hardware initialization failed: %d\n", ret);
 		if (master)
 			dev_put(master);
 		return -ENODEV;
@@ -1231,7 +1212,7 @@ static int rtl837x_dsa_probe(struct mdio_device *mdiodev)
 
 	ret = rtl837x_dsa_register(gsw);
 	if (ret) {
-		dev_err(gsw->dev, "rtl837x_dsa_register failed, ret=%d\n", ret);
+		dev_err(gsw->dev, "DSA registration failed: %d\n", ret);
 		if (master)
 			dev_put(master);
 		return ret;
@@ -1254,6 +1235,7 @@ static int rtl837x_dsa_probe(struct mdio_device *mdiodev)
 	return 0;
 
 err_dsa_unregister:
+	dev_err(gsw->dev, "post-registration setup failed: %d\n", ret);
 	rtl837x_dsa_unregister(gsw);
 	dev_set_drvdata(dev, NULL);
 	if (master)

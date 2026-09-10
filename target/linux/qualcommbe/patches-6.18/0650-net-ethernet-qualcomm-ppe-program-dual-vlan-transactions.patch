@@ -1,0 +1,547 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: program dual-VLAN transactions
+
+Provide verified S/C VLAN translation, VSI/L3 binding and port-role
+primitives. Reserve disjoint bridge, VLAN and fallback resources,
+prepare actions before publishing keys and verify withdrawals before
+releasing dependencies. Flowtable ownership is introduced by the later
+lifecycle patch.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
+@@ -224,7 +224,7 @@
+ 	if (vsi >= 0)
+ 		return vsi;
+ 
+-	for (i = 0; i < ARRAY_SIZE(pb->vsis) - PPE_L3_VLAN_UPLINKS; i++) {
++	for (i = 0; i < ARRAY_SIZE(pb->vsis) - PPE_L3_RESERVED_VSIS; i++) {
+ 		if (pb->vsis[i].br || pb->vsis[i].poisoned)
+ 			continue;
+ 
+@@ -358,14 +358,15 @@
+ 		if (idx < 0) {
+ 			idx = find_first_zero_bit(pb->xlt_used,
+ 						  PPE_XLT_RULE_TBL_ENTRIES -
+-						  PPE_L3_VLAN_UPLINKS);
++						  PPE_L3_RESERVED_VSIS);
+ 			if (idx >= PPE_XLT_RULE_TBL_ENTRIES -
+-				   PPE_L3_VLAN_UPLINKS)
++				   PPE_L3_RESERVED_VSIS)
+ 				return -ENOSPC;
+ 		}
+ 
+ 		ret = ppe_ing_xlt_rule_set(pb->ppe_dev, idx, rules[i].bitmap,
+-					   rules[i].vid, vsi, false);
++					   -1, rules[i].vid, vsi,
++					   false, false);
+ 		if (ret)
+ 			return ret;
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -12,9 +12,11 @@
+ #include <linux/bitmap.h>
+ #include <linux/bits.h>
+ #include <linux/device.h>
++#include <linux/if_vlan.h>
+ #include <linux/limits.h>
+ #include <linux/math64.h>
+ #include <linux/of.h>
++#include <linux/ratelimit.h>
+ #include <linux/regmap.h>
+ #include <linux/string.h>
+ 
+@@ -1430,6 +1432,51 @@
+ 	return regmap_set_bits(ppe_dev->regmap, reg, PPE_PORT_EG_VLAN_TBL_TX_COUNTING_EN);
+ }
+ 
++/**
++ * ppe_port_vlan_ingress_type_set - Select the ingress QinQ role of a port
++ * @ppe_dev: PPE device
++ * @port: PPE port
++ * @core: Treat a single provider tag as an S-tag
++ *
++ * Return: 0 on success, negative error code on failure.
++ */
++int ppe_port_vlan_ingress_type_set(struct ppe_device *ppe_dev, int port,
++				   bool core)
++{
++	u32 reg, role = core ? PPE_PORT_PARSING_REG_PORT_ROLE : 0;
++
++	if (port < 0 || port >= PPE_PORT_PARSING_REG_ENTRIES)
++		return -EINVAL;
++
++	reg = PPE_PORT_PARSING_REG_ADDR + PPE_PORT_PARSING_REG_INC * port;
++
++	return regmap_update_bits(ppe_dev->regmap, reg,
++				  PPE_PORT_PARSING_REG_PORT_ROLE, role);
++}
++
++/**
++ * ppe_port_vlan_egress_type_set - Select the egress QinQ role of a port
++ * @ppe_dev: PPE device
++ * @port: PPE port
++ * @core: Emit a single provider tag from the S-tag slot
++ *
++ * Return: 0 on success, negative error code on failure.
++ */
++int ppe_port_vlan_egress_type_set(struct ppe_device *ppe_dev, int port,
++				  bool core)
++{
++	u32 reg;
++
++	if (port < 0 || port >= PPE_PORT_EG_VLAN_TBL_ENTRIES)
++		return -EINVAL;
++
++	reg = PPE_PORT_EG_VLAN_TBL_ADDR + PPE_PORT_EG_VLAN_TBL_INC * port;
++
++	return regmap_update_bits(ppe_dev->regmap, reg,
++				  PPE_PORT_EG_VLAN_TBL_VLAN_TYPE,
++				  core ? PPE_PORT_EG_VLAN_TBL_VLAN_TYPE : 0);
++}
++
+ static int ppe_rss_hash_ipv4_config(struct ppe_device *ppe_dev, int index,
+ 				    struct ppe_rss_hash_cfg cfg)
+ {
+@@ -1740,67 +1787,146 @@
+ 					     val));
+ }
+ 
++/* Match QSDK hppe_reg_tbl_set(): all defined words in ascending address
++ * order. Bulk MMIO is still a sequence of word writes, not an atomic bus
++ * transaction. Verify the row before publishing ownership or freeing the
++ * dependencies of a withdrawn key. These tables are safe to read and are
++ * do not include packet or counter tables.
++ */
++static int ppe_xlt_write_verify(struct ppe_device *ppe_dev, u32 reg,
++				const u32 *value, size_t count)
++{
++	static struct ratelimit_state rate =
++		RATELIMIT_STATE_INIT_FLAGS(rate, 60 * HZ, 4,
++					   RATELIMIT_MSG_ON_RELEASE);
++	u32 readback[4] = {}, expected[4] = {};
++	int ret, write_err, read_err = -ENODATA;
++
++	if (!count || count > ARRAY_SIZE(readback))
++		return -EINVAL;
++	memcpy(expected, value, count * sizeof(*value));
++	write_err = regmap_bulk_write(ppe_dev->regmap, reg, value, count);
++	ret = write_err;
++	if (!ret) {
++		read_err = regmap_bulk_read(ppe_dev->regmap, reg, readback, count);
++		ret = read_err;
++		if (!ret && memcmp(expected, readback, count * sizeof(*value)))
++			ret = -EIO;
++	}
++	if (ret && __ratelimit(&rate))
++		dev_warn(ppe_dev->dev,
++			 "XLT verify failed: reg=%#x words=%zu write=%d read=%d err=%d expected=%08x/%08x/%08x/%08x actual=%08x/%08x/%08x/%08x\n",
++			 reg, count, write_err, read_err, ret,
++			 expected[0], expected[1], expected[2], expected[3],
++			 readback[0], readback[1], readback[2], readback[3]);
++
++	return ret;
++}
++
+ /**
+  * ppe_ing_xlt_rule_set - Program an ingress VLAN translation rule
+  * @ppe_dev: PPE device
+  * @index: Rule index to program
+  * @port_bitmap: Bitmap of the ingress ports the rule matches
+- * @vid: C-VLAN ID matched by the rule, or a negative value to match
++ * @svid: S-VLAN ID matched by the rule, or a negative value for untagged
++ * @cvid: C-VLAN ID matched by the rule, or a negative value to match
+  * untagged and priority-tagged packets instead
+  * @vsi: VSI assigned to the matching packets
++ * @strip_svid: Delete the matched S-VLAN tag after classification
+  * @strip_cvid: Delete the matched C-VLAN tag after classification
+  *
+- * The rule matches single-tagged packets with the given C-VLAN ID, or
+- * untagged and priority-tagged packets when @vid is negative, received
+- * on the ports of the bitmap, and assigns them to the VSI. Routed VLAN
+- * interfaces strip the classified C-tag before L3 processing; bridge
+- * rules retain it for the VSI egress tag policy.
++ * The rule independently matches the provider and customer VLAN slots.
++ * This permits an 802.1ad DSA source tag to coexist with one ordinary
++ * customer VLAN while retaining the existing untagged and single-tag paths.
+  *
+  * Return: 0 on success, negative error code on failure.
+  */
+ int ppe_ing_xlt_rule_set(struct ppe_device *ppe_dev, int index,
+-			 unsigned int port_bitmap, int vid, int vsi,
+-			 bool strip_cvid)
++			 unsigned int port_bitmap, int svid, int cvid,
++			 int vsi, bool strip_svid, bool strip_cvid)
+ {
+-	u32 rule[4] = {}, action[4] = {};
+-	unsigned int fmt;
++	u32 rule[4] = {}, action[3] = {};
++	u32 count[3] = {};
++	unsigned int cfmt, sfmt;
+ 	u32 reg;
+ 	int ret;
+ 
+-	/* Program the action before validating the rule. */
+-	action[1] = PPE_XLT_ACTION_W1_VSI_CMD;
++	if (index < 0 || index >= PPE_XLT_RULE_TBL_ENTRIES ||
++	    !port_bitmap || port_bitmap & ~GENMASK(ppe_dev->num_ports - 1, 0) ||
++	    vsi < 0 || vsi >= PPE_VSI_TBL_ENTRIES ||
++	    svid < -1 || svid > VLAN_VID_MASK ||
++	    cvid < -1 || cvid > VLAN_VID_MASK)
++		return -EINVAL;
++
++	/* Withdraw and verify an old key before replacing its action.
++	 * Use the same complete-row sequence for setup and withdrawal.
++	 */
++	ret = ppe_ing_xlt_rule_clear(ppe_dev, index);
++	if (ret)
++		return ret;
++
++	/* The reserved routed/fallback rows own the matching counter IDs.
++	 * No bridge counter allocator shares these IDs.
++	 */
++	if (index >= PPE_XLT_RULE_TBL_ENTRIES - PPE_L3_RESERVED_VSIS) {
++		reg = PPE_XLT_CNT_TBL_ADDR + PPE_XLT_CNT_TBL_INC * index;
++		ret = regmap_bulk_write(ppe_dev->regmap, reg, count,
++					ARRAY_SIZE(count));
++		if (ret)
++			return ret;
++		action[1] = PPE_XLT_ACTION_W1_CNT_EN |
++			FIELD_PREP(PPE_XLT_ACTION_W1_CNT_ID_LO, index & 7);
++		action[2] = FIELD_PREP(PPE_XLT_ACTION_W2_CNT_ID_HI, index >> 3);
++	}
++
++	/* Program the action before making the rule valid. */
++	action[1] |= PPE_XLT_ACTION_W1_VSI_CMD;
+ 	action[1] |= FIELD_PREP(PPE_XLT_ACTION_W1_VSI, vsi);
+-	if (strip_cvid && vid >= 0)
++	if (strip_svid && svid >= 0)
++		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_SVID_CMD,
++					PPE_XLT_VID_CMD_DELETE);
++	if (strip_cvid && cvid >= 0)
+ 		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_CVID_CMD,
+ 					PPE_XLT_VID_CMD_DELETE);
+ 
+ 	reg = PPE_XLT_ACTION_TBL_ADDR + PPE_XLT_ACTION_TBL_INC * index;
+-	ret = regmap_bulk_write(ppe_dev->regmap, reg,
+-				action, ARRAY_SIZE(action));
++	ret = ppe_xlt_write_verify(ppe_dev, reg, action, ARRAY_SIZE(action));
+ 	if (ret)
+ 		return ret;
+ 
+ 	rule[0] = PPE_XLT_RULE_W0_VALID;
+ 	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_PORT_BITMAP, port_bitmap);
+ 
+-	/* Match packets without an S-tag. */
+-	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_FMT, PPE_XLT_FMT_UNTAGGED);
++	if (svid >= 0) {
++		sfmt = svid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
++		rule[0] |= PPE_XLT_RULE_W0_SKEY_VID_INCL;
++		rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_VID, svid);
++	} else {
++		sfmt = PPE_XLT_FMT_UNTAGGED;
++	}
++	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_FMT, sfmt);
+ 
+-	if (vid >= 0) {
+-		fmt = vid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
++	if (cvid >= 0) {
++		cfmt = cvid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
+ 		rule[1] |= PPE_XLT_RULE_W1_CKEY_VID_INCL;
+-		rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_VID, vid);
++		rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_VID, cvid);
+ 	} else {
+-		fmt = PPE_XLT_FMT_UNTAGGED | PPE_XLT_FMT_PRIO_TAGGED;
++		cfmt = PPE_XLT_FMT_UNTAGGED | PPE_XLT_FMT_PRIO_TAGGED;
+ 	}
+ 
+-	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_CKEY_FMT_LO, fmt & 0x1);
+-	rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_FMT_HI, fmt >> 1);
++	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_CKEY_FMT_LO, cfmt & 0x1);
++	rule[1] |= FIELD_PREP(PPE_XLT_RULE_W1_CKEY_FMT_HI, cfmt >> 1);
+ 
+ 	reg = PPE_XLT_RULE_TBL_ADDR + PPE_XLT_RULE_TBL_INC * index;
+ 
+-	return regmap_bulk_write(ppe_dev->regmap, reg,
+-				 rule, ARRAY_SIZE(rule));
++	/* Publish the complete key in QSDK word order. The previous split
++	 * tail/head sequence left word0 zero in the r15 RTL captures.
++	 */
++	ret = ppe_xlt_write_verify(ppe_dev, reg, rule, ARRAY_SIZE(rule));
++	if (ret)
++		return ret;
++
++	return 0;
+ }
+ 
+ /**
+@@ -1815,8 +1941,155 @@
+ 	u32 rule[4] = {};
+ 	u32 reg = PPE_XLT_RULE_TBL_ADDR + PPE_XLT_RULE_TBL_INC * index;
+ 
+-	return regmap_bulk_write(ppe_dev->regmap, reg,
+-				 rule, ARRAY_SIZE(rule));
++	if (index < 0 || index >= PPE_XLT_RULE_TBL_ENTRIES)
++		return -EINVAL;
++
++	return ppe_xlt_write_verify(ppe_dev, reg, rule, ARRAY_SIZE(rule));
++}
++
++/* QSDK src_info_type=1 selects an L3 interface without changing the
++ * physical source port. Preserve the VSI, tag actions and hit counter.
++ * Only the reserved routed VLAN rows may own this override.
++ */
++int ppe_ing_xlt_l3_if_set(struct ppe_device *ppe_dev, int index, int l3_if)
++{
++	u32 action[3], reg;
++	u32 mask = PPE_XLT_ACTION_W1_SRC_INFO_VALID |
++		   PPE_XLT_ACTION_W1_SRC_INFO_L3 | PPE_XLT_ACTION_W1_SRC_INFO;
++	int ret;
++
++	if (index < PPE_XLT_RULE_TBL_ENTRIES - PPE_L3_RESERVED_VSIS ||
++	    index >= PPE_XLT_RULE_TBL_ENTRIES || l3_if < -1 ||
++	    l3_if >= PPE_IN_L3_IF_TBL_ENTRIES)
++		return -EINVAL;
++
++	reg = PPE_XLT_ACTION_TBL_ADDR + PPE_XLT_ACTION_TBL_INC * index;
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, action, ARRAY_SIZE(action));
++	if (ret)
++		return ret;
++	action[1] &= ~mask;
++	if (l3_if >= 0)
++		action[1] |= PPE_XLT_ACTION_W1_SRC_INFO_VALID |
++			     PPE_XLT_ACTION_W1_SRC_INFO_L3 |
++			     FIELD_PREP(PPE_XLT_ACTION_W1_SRC_INFO, l3_if);
++
++	return ppe_xlt_write_verify(ppe_dev, reg, action, ARRAY_SIZE(action));
++}
++
++/**
++ * ppe_eg_xlt_rule_set - Program a BE egress VLAN translation rule
++ * @ppe_dev: PPE device
++ * @index: Rule index shared with the ingress VLAN translation table
++ * @port_bitmap: Bitmap of the egress ports the rule matches
++ * @svid: S-VLAN ID to add when @add_svid is true
++ * @cvid: C-VLAN ID to add when @add_cvid is true
++ * @vsi: VSI matched by the rule
++ * @add_svid: Add the S-VLAN tag when that tag slot is absent
++ * @add_cvid: Add the C-VLAN tag when that tag slot is absent
++ *
++ * Ingress VLAN translation removes tags before the PPE L3 and PPPoE stages.
++ * The corresponding egress rule restores the on-wire DSA tag on packets
++ * punted back to the CPU, including control packets which miss a flow entry.
++ * The BE table layout is two words for the rule and three for the action.
++ * The third action word is reserved today, but is written and cleared so a
++ * reused slot cannot inherit state from a previous owner.
++ *
++ * Return: 0 on success, negative error code on failure.
++ */
++int ppe_eg_xlt_rule_set(struct ppe_device *ppe_dev, int index,
++			unsigned int port_bitmap, int svid, int cvid,
++			int vsi, bool add_svid, bool add_cvid)
++{
++	u32 rule[2] = {}, action[3] = {};
++	unsigned int sfmt, cfmt;
++	u32 reg;
++	int ret;
++
++	if (index < 0 || index >= PPE_EG_XLT_RULE_TBL_ENTRIES ||
++	    index >= PPE_EG_XLT_ACTION_TBL_ENTRIES || !port_bitmap ||
++	    port_bitmap & ~GENMASK(ppe_dev->num_ports - 1, 0) ||
++	    vsi < 0 || vsi >= 64 ||
++	    svid < -1 || svid > VLAN_VID_MASK ||
++	    cvid < -1 || cvid > VLAN_VID_MASK ||
++	    (add_svid && svid < 0) || (add_cvid && cvid < 0) ||
++	    (!add_svid && !add_cvid))
++		return -EINVAL;
++
++	reg = PPE_EG_XLT_RULE_TBL_ADDR + PPE_EG_XLT_RULE_TBL_INC * index;
++	ret = ppe_xlt_write_verify(ppe_dev, reg, rule, ARRAY_SIZE(rule));
++	if (ret)
++		return ret;
++
++	if (add_svid)
++		action[0] |= FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_SVID_CMD,
++					PPE_EG_XLT_VID_CMD_ADD_OR_REPLACE) |
++			     FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_SVID, svid);
++	if (add_cvid)
++		action[0] |= FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_CVID_CMD,
++					PPE_EG_XLT_VID_CMD_ADD_OR_REPLACE) |
++			     FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_CVID, cvid);
++
++	/* The action must be valid before the rule is made visible. */
++	reg = PPE_EG_XLT_ACTION_TBL_ADDR + PPE_EG_XLT_ACTION_TBL_INC * index;
++	ret = ppe_xlt_write_verify(ppe_dev, reg, action, ARRAY_SIZE(action));
++	if (ret)
++		return ret;
++
++	rule[0] = PPE_EG_XLT_RULE_W0_VALID |
++		  FIELD_PREP(PPE_EG_XLT_RULE_W0_PORT_BITMAP, port_bitmap) |
++		  PPE_EG_XLT_RULE_W0_VSI_INCL |
++		  FIELD_PREP(PPE_EG_XLT_RULE_W0_VSI, vsi) |
++		  PPE_EG_XLT_RULE_W0_VSI_VALID;
++	/* Only match an absent slot that this action adds. This leaves
++	 * software-tagged control packets unchanged while still restoring
++	 * tags stripped from routed packets.
++	 */
++	sfmt = add_svid ? PPE_XLT_FMT_UNTAGGED :
++			  PPE_XLT_FMT_UNTAGGED |
++			  PPE_XLT_FMT_PRIO_TAGGED |
++			  PPE_XLT_FMT_TAGGED;
++	cfmt = add_cvid ? PPE_XLT_FMT_UNTAGGED :
++			  PPE_XLT_FMT_UNTAGGED |
++			  PPE_XLT_FMT_PRIO_TAGGED |
++			  PPE_XLT_FMT_TAGGED;
++	rule[0] |= FIELD_PREP(PPE_EG_XLT_RULE_W0_SKEY_FMT,
++			      sfmt);
++	rule[1] = FIELD_PREP(PPE_EG_XLT_RULE_W1_CKEY_FMT,
++			     cfmt);
++
++	reg = PPE_EG_XLT_RULE_TBL_ADDR + PPE_EG_XLT_RULE_TBL_INC * index;
++	return ppe_xlt_write_verify(ppe_dev, reg, rule, ARRAY_SIZE(rule));
++}
++
++/**
++ * ppe_eg_xlt_rule_clear - Invalidate a BE egress VLAN translation rule
++ * @ppe_dev: PPE device
++ * @index: Rule index shared with the ingress VLAN translation table
++ *
++ * The key is invalidated before its action is cleared so a teardown cannot
++ * briefly route packets through an incomplete translation entry.
++ *
++ * Return: 0 on success, negative error code on failure.
++ */
++int ppe_eg_xlt_rule_clear(struct ppe_device *ppe_dev, int index)
++{
++	u32 rule[2] = {}, action[3] = {};
++	u32 rule_reg, action_reg;
++	int ret;
++
++	if (index < 0 || index >= PPE_EG_XLT_RULE_TBL_ENTRIES ||
++	    index >= PPE_EG_XLT_ACTION_TBL_ENTRIES)
++		return -EINVAL;
++
++	rule_reg = PPE_EG_XLT_RULE_TBL_ADDR + PPE_EG_XLT_RULE_TBL_INC * index;
++	action_reg = PPE_EG_XLT_ACTION_TBL_ADDR +
++		     PPE_EG_XLT_ACTION_TBL_INC * index;
++	ret = ppe_xlt_write_verify(ppe_dev, rule_reg, rule, ARRAY_SIZE(rule));
++	if (ret)
++		return ret;
++
++	return ppe_xlt_write_verify(ppe_dev, action_reg, action,
++				    ARRAY_SIZE(action));
+ }
+ 
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+@@ -317,6 +317,9 @@
+  * below them.
+  */
+ #define PPE_L3_VLAN_UPLINKS			8
++#define PPE_L3_PORT_FALLBACKS			8
++#define PPE_L3_RESERVED_VSIS			(PPE_L3_VLAN_UPLINKS + \
++						 PPE_L3_PORT_FALLBACKS)
+ 
+ /**
+  * struct ppe_fdb_entry - PPE hardware FDB entry.
+@@ -350,10 +353,19 @@
+ int ppe_port_default_cvid_set(struct ppe_device *ppe_dev, int port, int vid);
+ int ppe_port_vlan_ingress_filter_set(struct ppe_device *ppe_dev, int port,
+ 				     bool enable);
++int ppe_port_vlan_ingress_type_set(struct ppe_device *ppe_dev, int port,
++				   bool core);
++int ppe_port_vlan_egress_type_set(struct ppe_device *ppe_dev, int port,
++				  bool core);
+ int ppe_ing_xlt_rule_set(struct ppe_device *ppe_dev, int index,
+-			 unsigned int port_bitmap, int vid, int vsi,
+-			 bool strip_cvid);
++			 unsigned int port_bitmap, int svid, int cvid,
++			 int vsi, bool strip_svid, bool strip_cvid);
+ int ppe_ing_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
++int ppe_ing_xlt_l3_if_set(struct ppe_device *ppe_dev, int index, int l3_if);
++int ppe_eg_xlt_rule_set(struct ppe_device *ppe_dev, int index,
++			unsigned int port_bitmap, int svid, int cvid,
++			int vsi, bool add_svid, bool add_cvid);
++int ppe_eg_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
+ int ppe_port_bridge_txmac_set(struct ppe_device *ppe_dev, int port,
+ 			      bool enable);
+ int ppe_port_bridge_learning_set(struct ppe_device *ppe_dev, int port,
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -159,8 +159,30 @@
+ #define PPE_XLT_ACTION_W0_XLT_CVID		GENMASK(28, 17)
+ #define PPE_XLT_ACTION_W1_VSI_CMD		BIT(11)
+ #define PPE_XLT_ACTION_W1_VSI			GENMASK(17, 12)
++#define PPE_XLT_ACTION_W1_SRC_INFO_VALID		BIT(18)
++#define PPE_XLT_ACTION_W1_SRC_INFO_L3		BIT(19)
++#define PPE_XLT_ACTION_W1_SRC_INFO		GENMASK(27, 20)
++#define PPE_XLT_ACTION_W1_CNT_EN			BIT(28)
++#define PPE_XLT_ACTION_W1_CNT_ID_LO		GENMASK(31, 29)
++#define PPE_XLT_ACTION_W2_CNT_ID_HI		GENMASK(3, 0)
+ #define PPE_XLT_VID_CMD_DELETE			2
+ 
++/* QSDK INGRESS_POLICER_BASE + VLAN_DEV_CNT_TBL: per XLT action,
++ * distinct from the per-VSI receive counters at 0x178000.
++ */
++#define PPE_XLT_CNT_TBL_ADDR			0x17f000
++#define PPE_XLT_CNT_TBL_INC			0x10
++#define PPE_XLT_CNT_W2_BYTES_HI			GENMASK(7, 0)
++
++/* QSDK RT_INTERFACE_CNT_TBL in the ingress policer block. */
++#define PPE_RT_IF_CNT_TBL_ADDR			0x140000
++#define PPE_RT_IF_CNT_TBL_INC			0x20
++#define PPE_RT_IF_CNT_W2_BYTES_HI			GENMASK(7, 0)
++#define PPE_RT_IF_CNT_W2_DROP_PACKETS_LO		GENMASK(31, 8)
++#define PPE_RT_IF_CNT_W3_DROP_PACKETS_HI		GENMASK(7, 0)
++#define PPE_RT_IF_CNT_W3_DROP_BYTES_LO		GENMASK(31, 8)
++#define PPE_RT_IF_CNT_W4_DROP_BYTES_HI		GENMASK(15, 0)
++
+ /* PPE service code configuration for the ingress direction functions,
+  * including bypass configuration for relevant PPE switch core functions
+  * such as flow entry lookup bypass.
+@@ -176,6 +198,12 @@
+ #define PPE_SERVICE_SET_RX_CNT_EN(tbl_cfg, value)	\
+ 	FIELD_MODIFY(PPE_SERVICE_W1_RX_CNT_EN, (tbl_cfg) + 0x1, value)
+ 
++/* PPE physical-port ingress VLAN parsing roles. */
++#define PPE_PORT_PARSING_REG_ADDR		0x1e0000
++#define PPE_PORT_PARSING_REG_ENTRIES		8
++#define PPE_PORT_PARSING_REG_INC		4
++#define PPE_PORT_PARSING_REG_PORT_ROLE		BIT(0)
++
+ /* PPE port egress VLAN configurations. */
+ #define PPE_PORT_EG_VLAN_TBL_ADDR		0x20020
+ #define PPE_PORT_EG_VLAN_TBL_ENTRIES		8
+@@ -188,6 +216,29 @@
+ #define PPE_PORT_EG_VLAN_TBL_DEI_PROP_CMD	BIT(7)
+ #define PPE_PORT_EG_VLAN_TBL_TX_COUNTING_EN	BIT(8)
+ 
++/* BE egress VLAN translation rules and actions. The hardware uses the
++ * same index as the ingress table, but stores the egress tables in PTX.
++ */
++#define PPE_EG_XLT_RULE_TBL_ADDR		0x27000
++#define PPE_EG_XLT_RULE_TBL_ENTRIES		128
++#define PPE_EG_XLT_RULE_TBL_INC		0x10
++#define PPE_EG_XLT_RULE_W0_VALID		BIT(0)
++#define PPE_EG_XLT_RULE_W0_PORT_BITMAP		GENMASK(8, 1)
++#define PPE_EG_XLT_RULE_W0_VSI_INCL		BIT(9)
++#define PPE_EG_XLT_RULE_W0_VSI		GENMASK(15, 10)
++#define PPE_EG_XLT_RULE_W0_VSI_VALID		BIT(16)
++#define PPE_EG_XLT_RULE_W0_SKEY_FMT		GENMASK(19, 17)
++#define PPE_EG_XLT_RULE_W1_CKEY_FMT		GENMASK(9, 7)
++
++#define PPE_EG_XLT_ACTION_TBL_ADDR		0x21000
++#define PPE_EG_XLT_ACTION_TBL_ENTRIES		128
++#define PPE_EG_XLT_ACTION_TBL_INC		0x10
++#define PPE_EG_XLT_ACTION_W0_XLT_SVID_CMD	GENMASK(2, 1)
++#define PPE_EG_XLT_ACTION_W0_XLT_SVID		GENMASK(14, 3)
++#define PPE_EG_XLT_ACTION_W0_XLT_CVID_CMD	GENMASK(16, 15)
++#define PPE_EG_XLT_ACTION_W0_XLT_CVID		GENMASK(28, 17)
++#define PPE_EG_XLT_VID_CMD_ADD_OR_REPLACE	1
++
+ /* PPE queue counters enable/disable control. */
+ #define PPE_EG_BRIDGE_CONFIG_ADDR		0x20044
+ #define PPE_EG_BRIDGE_CONFIG_QUEUE_CNT_EN	BIT(2)

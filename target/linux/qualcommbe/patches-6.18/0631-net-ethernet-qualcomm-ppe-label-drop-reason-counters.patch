@@ -1,20 +1,29 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
 Date: Sat, 29 Aug 2026 12:32:00 +0800
-Subject: [PATCH] net: ethernet: qualcomm: label PPE pause-frame counter
+Subject: [PATCH] net: ethernet: qualcomm: label PPE drop reason counters
 
 Name drop reason 122 in the debugfs reason-counter output. QSDK r42
 defines it as the link-layer pause-frame sink. Naming it prevents normal
 802.3x flow-control traffic from being mistaken for forwarding loss.
 
+Label code zero as None, matching QSDK. It has no drop reason and must not
+be interpreted as a business-traffic loss counter. Preserve raw counts.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c | 2 ++
- 1 file changed, 2 insertions(+)
-
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -3059,6 +3059,8 @@ static const char *ppe_ft_reason_name(bo
+@@ -2996,6 +2996,8 @@
+ 	}
+ 
+ 	switch (code) {
++	case 0:
++		return "None (no drop reason)";
+ 	case 73:
+ 		return "L3 no-route action drop";
+ 	case 74:
+@@ -3006,6 +3008,8 @@
  		return "L3 flow miss action drop";
  	case 80:
  		return "L2 MTU checking fail drop";

@@ -400,10 +400,6 @@ rtk_api_ret_t dal_rtl8373_svlanMbrPortEntry_set(rtk_vlan_t svid, rtk_svlan_membe
 
 	memset(&vlan4kEntry, 0, sizeof(dal_rtl8373_user_vlan4kentry));
 	vlan4kEntry.vid = svid;
-	if ((retVal = _dal_rtl8373_getAsicVlan4kEntry(&vlan4kEntry)) != RT_ERR_OK)
-		return retVal;
-
-	vlan4kEntry.vid = svid;
 	vlan4kEntry.mbr = phyMbrPmask;
 	vlan4kEntry.untag = phyUntagPmask;
 	vlan4kEntry.svlan_chk_ivl_svl = pSvlan_cfg->chk_ivl_svl;

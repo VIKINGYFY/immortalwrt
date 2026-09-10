@@ -8,7 +8,6 @@ enable operation.  Keeping enable separate lets the object transaction
 publish lookup only after every dependent row has verified.
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
-
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -790,6 +790,10 @@
@@ -35,7 +34,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <linux/kernel.h>
  #include <linux/regmap.h>
  
-@@ -25,6 +27,84 @@ enum ppe_tunnel_op {
+@@ -25,6 +27,84 @@
  	PPE_TUNNEL_OP_GET,
  };
  
@@ -120,7 +119,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static int ppe_tunnel_check(struct ppe_device *ppe_dev)
  {
  	if (!ppe_dev->variant->has_tunnel_engine)
-@@ -170,6 +250,39 @@ int ppe_tunnel_decap_del(struct ppe_devi
+@@ -170,6 +250,39 @@
  	return ret;
  }
  
@@ -160,7 +159,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static int ppe_tunnel_encap_restore(struct ppe_device *ppe_dev, int tunnel_id,
  				    const u32 *control, const u32 *header)
  {
-@@ -627,11 +740,25 @@ out:
+@@ -627,11 +740,25 @@
  
  int ppe_tunnel_hw_init(struct ppe_device *ppe_dev)
  {
@@ -204,7 +203,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  /* Keep tunnel VPs disjoint from the wireless VP pool (64..71). */
  #define PPE_TUNNEL_VP_BASE		72
-@@ -27,6 +30,16 @@ struct ppe_tunnel_encap_entry {
+@@ -27,6 +30,16 @@
  	u32 header[PPE_TUNNEL_ENCAP_HEADER_WORDS];
  };
  
@@ -221,7 +220,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  int ppe_tunnel_hw_init(struct ppe_device *ppe_dev);
  int ppe_tunnel_decap_add(struct ppe_device *ppe_dev,
  			 const struct ppe_tunnel_decap_entry *entry,
-@@ -34,6 +47,12 @@ int ppe_tunnel_decap_add(struct ppe_devi
+@@ -34,6 +47,12 @@
  int ppe_tunnel_decap_get(struct ppe_device *ppe_dev, int index,
  			 struct ppe_tunnel_decap_entry *entry);
  int ppe_tunnel_decap_del(struct ppe_device *ppe_dev, int index);
