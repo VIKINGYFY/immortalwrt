@@ -73,9 +73,55 @@ static u32 rtl837x_bridge_ports(struct rtk_gsw *gsw, int port)
 	return members;
 }
 
-static int rtl837x_update_isolation(struct rtk_gsw *gsw)
+static int rtl837x_update_cpu_keep(struct rtk_gsw *gsw, int changing_port,
+				 bool vlan_filtering)
 {
 	rtk_portmask_t cpu_keep = { 0 };
+	rtk_portmask_t readback = { 0 };
+	int port, ret;
+
+	if (!gsw->dsa_svlan)
+		return 0;
+
+	for (port = 0; port < RTK_MAX_NUM_OF_PORT; port++) {
+		struct dsa_port *dp;
+		bool filtering;
+
+		if (!rtl837x_user_port(gsw, port))
+			continue;
+		dp = dsa_to_port(&gsw->ds, port);
+		filtering = port == changing_port ? vlan_filtering :
+			    dsa_port_is_vlan_filtering(dp);
+		if (!dsa_port_bridge_dev_get(dp) || !filtering)
+			cpu_keep.bits[0] |= BIT(port);
+	}
+
+	/* The S-tag already identifies the source port. Preserve the wire
+	 * C-tag on standalone and VLAN-unaware bridge ingress alike: adding
+	 * the bridge's private PVID here makes PPE see a tag which Linux's
+	 * software PVID untagging hides from the flow offload rule.
+	 */
+	ret = rtk_vlan_keep_get(gsw->cpu_port, &readback);
+	if (ret)
+		return rtl837x_to_errno(ret);
+	if (readback.bits[0] == cpu_keep.bits[0])
+		return 0;
+	ret = rtk_vlan_keep_set(gsw->cpu_port, &cpu_keep);
+	if (ret)
+		return rtl837x_to_errno(ret);
+	ret = rtk_vlan_keep_get(gsw->cpu_port, &readback);
+	if (ret)
+		return rtl837x_to_errno(ret);
+	if (readback.bits[0] != cpu_keep.bits[0])
+		return -EIO;
+	dev_info(gsw->dev, "SVLAN CPU customer-tag keep: ingress=0x%03x\n",
+		 cpu_keep.bits[0]);
+
+	return 0;
+}
+
+static int rtl837x_update_isolation(struct rtk_gsw *gsw)
+{
 	u32 permit;
 	int port, ret;
 
@@ -95,27 +141,9 @@ static int rtl837x_update_isolation(struct rtk_gsw *gsw)
 		ret = rtk_port_isolation_set(port, permit);
 		if (ret)
 			return rtl837x_to_errno(ret);
-
-		if (gsw->dsa_svlan && rtl837x_user_port(gsw, port) &&
-		    !dsa_port_bridge_dev_get(dsa_to_port(&gsw->ds, port)))
-			cpu_keep.bits[0] |= BIT(port);
 	}
 
-	if (gsw->dsa_svlan) {
-		/* A bridge VLAN can make the shared CVLAN 1 CPU member tagged.
-		 * Standalone ports have no bridge PVID untagging on RX, so keep
-		 * their original customer-tag format on CPU egress. The outer
-		 * service tag still carries the source port. In particular, do
-		 * not turn an untagged WAN session frame into customer VLAN 1.
-		 */
-		ret = rtk_vlan_keep_set(gsw->cpu_port, &cpu_keep);
-		if (ret)
-			return rtl837x_to_errno(ret);
-		dev_info(gsw->dev, "SVLAN CPU customer-tag keep: ingress=0x%03x\n",
-			 cpu_keep.bits[0]);
-	}
-
-	return 0;
+	return rtl837x_update_cpu_keep(gsw, -1, false);
 }
 
 static int rtl837x_commit_pvid_for_mode(struct rtk_gsw *gsw, int port,
@@ -1205,13 +1233,26 @@ static int __rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool v
 		return rtl837x_to_errno(ret);
 
 	ret = rtl837x_commit_pvid_for_mode(gsw, port, vlan_filtering);
+	/* DSA commits dp->vlan_filtering after this callback returns. */
+	if (!ret)
+		ret = rtl837x_update_cpu_keep(gsw, port, vlan_filtering);
 	if (ret) {
+		rollback_ret = rtl837x_commit_pvid_for_mode(gsw, port,
+							old_vlan_filtering);
+		if (rollback_ret)
+			dev_err(gsw->dev, "failed to restore PVID on port %d: %d\n",
+				port, rollback_ret);
 		rollback_ret = rtk_vlan_portIgrFilterEnable_set(
 			port, old_vlan_filtering ? ENABLED : DISABLED);
 		if (rollback_ret)
 			dev_err(gsw->dev,
 				"failed to restore VLAN ingress filtering on port %d: %d\n",
 				port, rtl837x_to_errno(rollback_ret));
+		rollback_ret = rtl837x_update_cpu_keep(gsw, port,
+						      old_vlan_filtering);
+		if (rollback_ret)
+			dev_err(gsw->dev, "failed to restore CPU tag keep on port %d: %d\n",
+				port, rollback_ret);
 	}
 
 	return ret;
@@ -1506,7 +1547,8 @@ int rtl837x_dsa_register(struct rtk_gsw *gsw)
 	ds->num_ports = gsw->dsa_num_ports;
 	ds->phys_mii_mask = rtl837x_user_ports(gsw);
 	ds->configure_vlan_while_not_filtering = true;
-	ds->untag_bridge_pvid = true;
+	/* SVLAN mode preserves real customer tags on VLAN-unaware RX. */
+	ds->untag_bridge_pvid = !gsw->dsa_svlan;
 	ds->fdb_isolation = true;
 	ds->max_num_bridges = DSA_TAG_8021Q_MAX_NUM_BRIDGES;
 	ds->ageing_time_min = 14000;

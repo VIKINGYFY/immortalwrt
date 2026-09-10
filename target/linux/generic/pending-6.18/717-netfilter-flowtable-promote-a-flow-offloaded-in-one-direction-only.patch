@@ -17,7 +17,7 @@ Assisted-by: Claude:claude-opus-5
 
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -367,6 +367,26 @@ nf_flow_offload_lookup(struct nf_flowtab
+@@ -370,6 +370,26 @@ nf_flow_offload_lookup(struct nf_flowtab
  	return flow_offload_lookup(flow_table, &tuple);
  }
  
@@ -44,7 +44,7 @@ Assisted-by: Claude:claude-opus-5
  static int nf_flow_offload_forward(struct nf_flowtable_ctx *ctx,
  				   struct nf_flowtable *flow_table,
  				   struct flow_offload_tuple_rhash *tuplehash,
-@@ -380,6 +400,9 @@ static int nf_flow_offload_forward(struc
+@@ -383,6 +403,9 @@ static int nf_flow_offload_forward(struc
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  
@@ -54,7 +54,7 @@ Assisted-by: Claude:claude-opus-5
  	mtu = flow->tuplehash[dir].tuple.mtu + ctx->offset;
  	if (unlikely(nf_flow_exceeds_mtu(skb, mtu)))
  		return 0;
-@@ -662,6 +685,9 @@ static int nf_flow_offload_ipv6_forward(
+@@ -665,6 +688,9 @@ static int nf_flow_offload_ipv6_forward(
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  
