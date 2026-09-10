@@ -28,7 +28,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -18,6 +18,11 @@ struct ppe_ports;
+@@ -18,6 +18,11 @@
  struct ppe_bridge;
  struct ppe_flowtable;
  
@@ -40,7 +40,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /* Per-SoC PPE parameters. The PPE register layer is shared between the
   * HPPE (IPQ807x) and APPE (IPQ9574) generations; this collects the few
   * things that actually differ so the shared code stays chip-agnostic.
-@@ -60,6 +65,7 @@ struct ppe_variant {
+@@ -60,6 +65,7 @@
   * @ports: PPE MAC ports.
   * @bridge: PPE bridge offload private data.
   * @flowtable: PPE flowtable offload private data.
@@ -48,7 +48,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @fdb_lock: Lock to serialize the hardware FDB operation registers.
   * @fdb_cmd_id: Rolling command ID of the last issued FDB operation.
   * @flow_lock: Lock to serialize the L3 flow operation registers.
-@@ -81,6 +87,7 @@ struct ppe_device {
+@@ -81,6 +87,7 @@
  	struct ppe_ports *ports;
  	struct ppe_bridge *bridge;
  	struct ppe_flowtable *flowtable;
@@ -58,7 +58,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	/* Serialize the L3 flow operation registers. */
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -86,6 +86,7 @@ static_assert(offsetof(struct ppe_ft_pub
+@@ -86,6 +86,7 @@
   * @nexthop: Next hop index of the flow.
   * @my_mac: Router MAC slot held by the flow, negative when none.
   * @pub_ip: Public IP slot held by the flow, negative when none.
@@ -66,7 +66,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @packets: Hit packet count at the last stats read.
   * @bytes: Hit byte count at the last stats read.
   */
-@@ -99,6 +100,7 @@ struct ppe_ft_flow {
+@@ -99,6 +100,7 @@
  	u16 nexthop;
  	int my_mac;
  	int pub_ip;
@@ -74,7 +74,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	u32 packets;
  	u64 bytes;
  };
-@@ -696,6 +698,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -694,6 +696,7 @@
  	port_priv = netdev_priv(odev);
  	nh.port = port_priv->ppe_port->port_id;
  	nh.l3_if = nh.port;
@@ -82,7 +82,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ether_addr_copy(nh.mac, data.eth.dst);
  
  	/* The hardware rewrites one direction per flow: the translated
-@@ -907,6 +910,19 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -905,6 +908,19 @@
  		return -ENOENT;
  	}
  
@@ -102,7 +102,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ret = ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  	if (!ret && (packets != flow->packets || bytes != flow->bytes)) {
  		/* The hardware byte counter is 40 bits wide and wraps. */
-@@ -1437,6 +1453,26 @@ static int ppe_ft_block_cb(enum tc_setup
+@@ -1116,6 +1132,26 @@
  }
  
  /**
@@ -131,7 +131,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @type_data: Flow block offload request
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.h
-@@ -13,4 +13,5 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -13,4 +13,5 @@
  void ppe_flowtable_destroy(struct ppe_device *ppe_dev);
  int ppe_flowtable_setup_tc(struct net_device *dev, void *type_data);
  void ppe_flowtable_debugfs_init(struct ppe_device *ppe_dev);
@@ -147,7 +147,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include "ppe_port.h"
  #include "ppe_regs.h"
  
-@@ -1030,6 +1031,8 @@ static void ppe_port_mac_link_up(struct
+@@ -1030,6 +1031,8 @@
  	if (ret)
  		goto err_port_mac_link_up;
  
@@ -156,7 +156,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	return;
  
  err_port_mac_link_up:
-@@ -1081,6 +1084,8 @@ static void ppe_port_mac_link_down(struc
+@@ -1081,6 +1084,8 @@
  	int ret, port = ppe_port->port_id;
  	u32 reg;
  

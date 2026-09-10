@@ -36,7 +36,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * take the L3 route path, and a hit in the hardware flow table forwards
   * the packet through its next hop entry, which rewrites the MACs, the
   * VLAN and the translated addresses. Flow misses take the ordinary
-@@ -102,10 +103,33 @@ static int ppe_host_op_issue(struct ppe_
+@@ -102,10 +103,33 @@
  	return FIELD_GET(PPE_HOST_OP_RSLT_ENTRY_INDEX, val);
  }
  
@@ -71,7 +71,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  static void ppe_flow_entry_pack(const struct ppe_flow_entry *flow, u32 *val)
-@@ -128,10 +152,24 @@ static void ppe_flow_entry_pack(const st
+@@ -128,10 +152,24 @@
  	val[3] |= FIELD_PREP(PPE_FLOW_W3_L4_DPORT_LO,
  			     dport & GENMASK(3, 0));
  	val[4] = FIELD_PREP(PPE_FLOW_W4_L4_DPORT_HI, dport >> 4);
@@ -110,7 +110,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <linux/types.h>
  
  struct ppe_device;
-@@ -35,21 +36,27 @@ struct ppe_flow_nexthop {
+@@ -35,21 +36,27 @@
  };
  
  /**
@@ -144,7 +144,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	u8 proto;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -112,7 +112,11 @@ struct ppe_ft_flow {
+@@ -112,7 +112,11 @@
   */
  struct ppe_ft_host {
  	struct hlist_node node;
@@ -157,7 +157,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	int index;
  	unsigned int refcnt;
  };
-@@ -403,13 +407,23 @@ static void ppe_ft_pub_ip_put(struct ppe
+@@ -401,13 +405,23 @@
  /* Hash key of a flow's source IP for the host refcount table. */
  static u32 ppe_ft_host_key(const struct ppe_flow_entry *flow)
  {
@@ -183,7 +183,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  /* Add or reference the source host before inserting its flow. */
-@@ -430,7 +444,11 @@ static int ppe_ft_host_get(struct ppe_fl
+@@ -428,7 +442,11 @@
  	host = kzalloc(sizeof(*host), GFP_KERNEL);
  	if (!host)
  		return -ENOMEM;
@@ -196,7 +196,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ret = ppe_host_entry_add(ft->ppe_dev, flow);
  	if (ret < 0) {
  		kfree(host);
-@@ -522,9 +540,11 @@ static int ppe_ft_flow_replace(struct pp
+@@ -520,9 +538,11 @@
  		return 0;
  
  	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC) ||
@@ -209,7 +209,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	/* VLAN-tagged ingress is not translated to a flow key yet. */
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN))
-@@ -535,6 +555,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -533,6 +553,7 @@
  	      BIT_ULL(FLOW_DISSECTOR_KEY_CONTROL) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_BASIC) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
@@ -217,7 +217,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	      BIT_ULL(FLOW_DISSECTOR_KEY_TCP) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_PORTS)))
  		return -EOPNOTSUPP;
-@@ -552,12 +573,21 @@ static int ppe_ft_flow_replace(struct pp
+@@ -550,12 +571,21 @@
  		struct flow_match_basic match;
  
  		flow_rule_match_basic(rule, &match);
@@ -241,7 +241,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  		switch (match.key->ip_proto) {
  		case IPPROTO_TCP:
-@@ -572,17 +602,38 @@ static int ppe_ft_flow_replace(struct pp
+@@ -570,17 +600,38 @@
  		}
  	}
  
@@ -283,7 +283,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
  
  	{
-@@ -613,7 +664,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -611,7 +662,9 @@
  		struct flow_match_control match;
  
  		flow_rule_match_control(rule, &match);
@@ -294,7 +294,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		    match.mask->addr_type != 0xffff || match.mask->thoff ||
  		    match.mask->flags) {
  			ret = -EOPNOTSUPP;
-@@ -633,8 +686,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -631,8 +684,8 @@
  		}
  	}
  
@@ -305,7 +305,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	data.sport = flow->entry.sport;
  	data.dport = flow->entry.dport;
  
-@@ -653,6 +706,10 @@ static int ppe_ft_flow_replace(struct pp
+@@ -651,6 +704,10 @@
  				ret = ppe_ft_mangle_eth(act, &data.eth);
  				break;
  			case FLOW_ACT_MANGLE_HDR_TYPE_IP4:
@@ -316,7 +316,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  				ret = ppe_ft_mangle_ipv4(act, &data);
  				break;
  			case FLOW_ACT_MANGLE_HDR_TYPE_TCP:
-@@ -708,13 +765,25 @@ static int ppe_ft_flow_replace(struct pp
+@@ -706,13 +763,25 @@
  	 */
  	mutex_lock(&ft->lock);
  
@@ -347,7 +347,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		   data.sport != flow->entry.sport) {
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_SNAT;
  		flow->entry.nat_port = data.sport;
-@@ -725,7 +794,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -723,7 +792,7 @@
  			goto err_unlock;
  		}
  		nh.pub_ip_index = flow->pub_ip;
@@ -356,256 +356,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		   data.dport != flow->entry.dport) {
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_DNAT;
  		flow->entry.nat_port = data.dport;
-@@ -950,6 +1019,36 @@ static void ppe_ft_debug_words(struct se
- 	seq_putc(seq, '\n');
- }
- 
-+static void ppe_ft_host_ip6_decode(struct in6_addr *addr, const u32 *host)
-+{
-+	u32 ip[4];
-+	int i;
-+
-+	ip[0] = FIELD_GET(PPE_HOST_V6_W0_IP_ADDR_0, host[0]);
-+	ip[0] |= (host[1] & GENMASK(21, 0)) << 10;
-+	ip[1] = host[1] >> 22 | (host[2] & GENMASK(21, 0)) << 10;
-+	ip[2] = host[2] >> 22 | (host[3] & GENMASK(21, 0)) << 10;
-+	ip[3] = host[3] >> 22 |
-+		FIELD_GET(PPE_HOST_V6_W4_IP_ADDR_4, host[4]) << 10;
-+	for (i = 0; i < 4; i++)
-+		addr->s6_addr32[3 - i] = cpu_to_be32(ip[i]);
-+}
-+
-+static void ppe_ft_flow_ip6_decode(struct in6_addr *addr, const u32 *flow)
-+{
-+	u32 ip[4];
-+	int i;
-+
-+	ip[0] = FIELD_GET(PPE_FLOW_V6_W4_IP_ADDR_0, flow[4]);
-+	ip[0] |= (flow[5] & GENMASK(11, 0)) << 20;
-+	ip[1] = flow[5] >> 12 | (flow[6] & GENMASK(11, 0)) << 20;
-+	ip[2] = flow[6] >> 12 | (flow[7] & GENMASK(11, 0)) << 20;
-+	ip[3] = flow[7] >> 12 |
-+		FIELD_GET(PPE_FLOW_V6_W8_IP_ADDR_4, flow[8]) << 20;
-+	for (i = 0; i < 4; i++)
-+		addr->s6_addr32[3 - i] = cpu_to_be32(ip[i]);
-+}
-+
- static void ppe_ft_port_mac_decode(u8 *mac, const u32 *row)
- {
- 	mac[0] = (row[3] & BIT(0)) << 7 | (row[2] >> 25 & 0x7f);
-@@ -1166,31 +1265,36 @@ static int ppe_ft_flow_rows_show(struct
- 	regmap_read(ft->ppe_dev->regmap, PPE_L3_ROUTE_CTRL_EXT_ADDR,
- 		    &route_ext);
- 	seq_printf(seq,
--		   "global flow_ctrl0:%08x flow_ctrl1_l3uc:%08x route_ctrl_ext:%08x host_hash0:%u host_hash1:%u\n",
-+		   "global flow_ctrl0:%08x flow_ctrl1_l3uc:%08x route_ctrl_ext:%08x host_hash0:%lu host_hash1:%lu\n",
- 		   ctrl0, ctrl1, route_ext,
- 		   FIELD_GET(PPE_L3_ROUTE_CTRL_EXT_HOST_HASH_MODE_0,
- 			     route_ext),
- 		   FIELD_GET(PPE_L3_ROUTE_CTRL_EXT_HOST_HASH_MODE_1,
- 			     route_ext));
- 
--	/* Unlike the lightweight flows view, this diagnostic snapshot holds
--	 * the resource lock so a flow, host and next hop cannot be torn down
--	 * between their individual table reads.
-+	/* Hold the resource lock so the dependent rows cannot be torn down
-+	 * between reads. This expensive view is separate from flows.
- 	 */
- 	mutex_lock(&ft->lock);
- 	rhashtable_walk_enter(&ft->flows, &iter);
- 	rhashtable_walk_start(&iter);
- 	while ((flow = rhashtable_walk_next(&iter))) {
--		u32 f[PPE_FLOW_TBL_WORDS] = {};
--		u32 h[4] = {}, nh[4] = {}, in_l3[4] = {}, eg_l3[4] = {};
--		u32 my_mac[2] = {}, pub_ip = 0, packets = 0;
-+		u32 f[9] = {}, h[5] = {}, nh[4] = {};
-+		u32 in_l3[3] = {}, eg_l3[3] = {}, my_mac[2] = {};
-+		u32 pub_ip = 0, packets = 0;
- 		u32 reg;
- 		u16 hw_host, hw_nh, sport, dport;
- 		u64 bytes = 0;
--		__be32 host_ip, inline_ip, dnat_ip;
-+		union {
-+			__be32 ip4;
-+			struct in6_addr ip6;
-+		} host_ip = {}, inline_ip = {};
-+		__be32 dnat_ip, pub_ip_addr;
- 		u8 dmac[ETH_ALEN];
- 		int flow_err, host_err, nh_err, in_err, eg_err;
- 		int my_mac_err = 0, pub_ip_err = 0;
-+		int flow_words, host_words;
-+		bool key_match, source_match;
- 		u8 l3_if;
- 
- 		if (IS_ERR(flow)) {
-@@ -1199,13 +1303,16 @@ static int ppe_ft_flow_rows_show(struct
- 			break;
- 		}
- 
-+		flow_words = flow->entry.is_ipv6 ? ARRAY_SIZE(f) :
-+			PPE_FLOW_TBL_WORDS;
-+		host_words = flow->entry.is_ipv6 ? ARRAY_SIZE(h) : 4;
- 		reg = PPE_FLOW_TBL_ADDR + PPE_FLOW_TBL_INC * flow->index;
- 		flow_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, f,
--					    ARRAY_SIZE(f));
-+					    flow_words);
- 		hw_host = FIELD_GET(PPE_FLOW_W0_HOST_INDEX, f[0]);
- 		reg = PPE_HOST_TBL_ADDR + PPE_HOST_TBL_INC * hw_host;
- 		host_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, h,
--					    ARRAY_SIZE(h));
-+					    host_words);
- 		hw_nh = FIELD_GET(PPE_FLOW_W1_NEXT_HOP, f[1]);
- 		reg = PPE_NEXTHOP_TBL_ADDR + PPE_NEXTHOP_TBL_INC * hw_nh;
- 		nh_err = regmap_bulk_read(ft->ppe_dev->regmap, reg, nh,
-@@ -1220,9 +1327,8 @@ static int ppe_ft_flow_rows_show(struct
- 		if (flow->my_mac >= 0) {
- 			reg = PPE_MY_MAC_TBL_ADDR +
- 				PPE_MY_MAC_TBL_INC * flow->my_mac;
--			my_mac_err = regmap_bulk_read(ft->ppe_dev->regmap,
--						      reg, my_mac,
--						  ARRAY_SIZE(my_mac));
-+			my_mac_err = regmap_bulk_read(ft->ppe_dev->regmap, reg,
-+						      my_mac, ARRAY_SIZE(my_mac));
- 		}
- 		if (flow->pub_ip >= 0) {
- 			reg = PPE_PUB_IP_TBL_ADDR +
-@@ -1232,13 +1338,33 @@ static int ppe_ft_flow_rows_show(struct
- 		}
- 		ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
- 
--		host_ip = cpu_to_be32(h[1]);
--		inline_ip = cpu_to_be32(FIELD_GET(PPE_FLOW_W2_IP_ADDR_LO,
--						  f[2]) |
-+		if (flow->entry.is_ipv6) {
-+			ppe_ft_host_ip6_decode(&host_ip.ip6, h);
-+			ppe_ft_flow_ip6_decode(&inline_ip.ip6, f);
-+			source_match = ipv6_addr_equal(&host_ip.ip6,
-+						       &flow->entry.sip.ip6);
-+			key_match = source_match &&
-+				ipv6_addr_equal(&inline_ip.ip6,
-+						&flow->entry.dip.ip6);
-+		} else {
-+			host_ip.ip4 = cpu_to_be32(h[1]);
-+			inline_ip.ip4 = cpu_to_be32
-+				(FIELD_GET(PPE_FLOW_W2_IP_ADDR_LO, f[2]) |
- 				 FIELD_GET(PPE_FLOW_W3_IP_ADDR_HI, f[3]) << 20);
-+			source_match = host_ip.ip4 == flow->entry.sip.ip4;
-+			key_match = source_match &&
-+				inline_ip.ip4 == flow->entry.dip.ip4;
-+		}
- 		sport = FIELD_GET(PPE_FLOW_W3_L4_SPORT, f[3]);
- 		dport = FIELD_GET(PPE_FLOW_W3_L4_DPORT_LO, f[3]) |
- 			FIELD_GET(PPE_FLOW_W4_L4_DPORT_HI, f[4]) << 4;
-+		key_match = key_match && !flow_err && !host_err &&
-+			hw_host == flow->entry.host_index &&
-+			!(f[0] & PPE_FLOW_W0_HOST_INDEX_TYPE) &&
-+			sport == be16_to_cpu(flow->entry.sport) &&
-+			dport == be16_to_cpu(flow->entry.dport) &&
-+			FIELD_GET(PPE_FLOW_W0_PROTOCOL_TYPE, f[0]) ==
-+				flow->entry.proto;
- 		dmac[0] = nh[2] >> 24;
- 		dmac[1] = nh[2] >> 16;
- 		dmac[2] = nh[2] >> 8;
-@@ -1246,19 +1372,30 @@ static int ppe_ft_flow_rows_show(struct
- 		dmac[4] = nh[1] >> 24;
- 		dmac[5] = nh[1] >> 16;
- 		dnat_ip = cpu_to_be32(nh[3]);
-+		pub_ip_addr = cpu_to_be32(pub_ip);
- 
-+		if (flow->entry.is_ipv6)
-+			seq_printf(seq,
-+				   "flow cookie:%lx sw:[%pI6c]:%u->[%pI6c]:%u",
-+				   flow->cookie, &flow->entry.sip.ip6,
-+				   be16_to_cpu(flow->entry.sport),
-+				   &flow->entry.dip.ip6,
-+				   be16_to_cpu(flow->entry.dport));
-+		else
-+			seq_printf(seq, "flow cookie:%lx sw:%pI4:%u->%pI4:%u",
-+				   flow->cookie, &flow->entry.sip.ip4,
-+				   be16_to_cpu(flow->entry.sport),
-+				   &flow->entry.dip.ip4,
-+				   be16_to_cpu(flow->entry.dport));
- 		seq_printf(seq,
--			   "flow cookie:%lx sw:%pI4:%u->%pI4:%u proto:%u fwd:%u index:%d host:%u nexthop:%u my_mac:%d pub_ip:%d packets:%u bytes:%llu\n",
--			   flow->cookie, &flow->entry.sip,
--			   be16_to_cpu(flow->entry.sport), &flow->entry.dip,
--			   be16_to_cpu(flow->entry.dport), flow->entry.proto,
--			   flow->entry.fwd_type, flow->index,
-+			   " proto:%u fwd:%u index:%d host:%u nexthop:%u my_mac:%d pub_ip:%d packets:%u bytes:%llu\n",
-+			   flow->entry.proto, flow->entry.fwd_type, flow->index,
- 			   flow->entry.host_index, flow->nexthop,
- 			   flow->my_mac, flow->pub_ip, packets,
- 			   (unsigned long long)bytes);
--		ppe_ft_debug_words(seq, "flow_raw", f, ARRAY_SIZE(f));
-+		ppe_ft_debug_words(seq, "flow_raw", f, flow_words);
- 		seq_printf(seq,
--			   "  flow_dec read:%d valid:%u type:%u host_dst:%u host:%u proto:%lu age:%lu src_l3_valid:%u src_l3:%lu fwd:%lu nexthop:%u nat_l4:%lu service:%lu inline:%pI4 sport:%u dport:%u key_match:%u\n",
-+			   "  flow_dec read:%d valid:%u type:%u host_dst:%u host:%u proto:%lu age:%lu src_l3_valid:%u src_l3:%lu fwd:%lu nexthop:%u nat_l4:%lu service:%lu",
- 			   flow_err, !!(f[0] & PPE_FLOW_W0_VALID),
- 			   !!(f[0] & PPE_FLOW_W0_ENTRY_TYPE),
- 			   !!(f[0] & PPE_FLOW_W0_HOST_INDEX_TYPE), hw_host,
-@@ -1268,26 +1405,26 @@ static int ppe_ft_flow_rows_show(struct
- 			   FIELD_GET(PPE_FLOW_W0_SRC_L3_IF, f[0]),
- 			   FIELD_GET(PPE_FLOW_W0_FWD_TYPE, f[0]), hw_nh,
- 			   FIELD_GET(PPE_FLOW_W1_L4_PORT, f[1]),
--			   FIELD_GET(PPE_FLOW_W2_SERVICE_CODE, f[2]),
--			   &inline_ip, sport, dport,
--			   !flow_err && !host_err &&
--			   hw_host == flow->entry.host_index &&
--			   !(f[0] & PPE_FLOW_W0_HOST_INDEX_TYPE) &&
--			   host_ip == flow->entry.sip &&
--			   inline_ip == flow->entry.dip &&
--			   sport == be16_to_cpu(flow->entry.sport) &&
--			   dport == be16_to_cpu(flow->entry.dport) &&
--			   FIELD_GET(PPE_FLOW_W0_PROTOCOL_TYPE, f[0]) ==
--				flow->entry.proto);
--		ppe_ft_debug_words(seq, "host_raw", h, ARRAY_SIZE(h));
-+			   FIELD_GET(PPE_FLOW_W2_SERVICE_CODE, f[2]));
-+		if (flow->entry.is_ipv6)
-+			seq_printf(seq, " inline:%pI6c", &inline_ip.ip6);
-+		else
-+			seq_printf(seq, " inline:%pI4", &inline_ip.ip4);
-+		seq_printf(seq, " sport:%u dport:%u key_match:%u\n",
-+			   sport, dport, key_match);
-+		ppe_ft_debug_words(seq, "host_raw", h, host_words);
- 		seq_printf(seq,
--			   "  host_dec read:%d index:%u valid:%u key_type:%lu fwd_cmd:%lu dst_info:%lu lan_wan:%u addr:%pI4 source_match:%u\n",
-+			   "  host_dec read:%d index:%u valid:%u key_type:%lu fwd_cmd:%lu dst_info:%lu lan_wan:%u",
- 			   host_err, hw_host, !!(h[0] & PPE_HOST_W0_VALID),
- 			   FIELD_GET(PPE_HOST_W0_KEY_TYPE, h[0]),
- 			   FIELD_GET(PPE_HOST_W0_FWD_CMD, h[0]),
- 			   FIELD_GET(PPE_HOST_W0_DST_INFO, h[0]),
--			   !!(h[0] & PPE_HOST_W0_LAN_WAN), &host_ip,
--			   !host_err && host_ip == flow->entry.sip);
-+			   !!(h[0] & PPE_HOST_W0_LAN_WAN));
-+		if (flow->entry.is_ipv6)
-+			seq_printf(seq, " addr:%pI6c", &host_ip.ip6);
-+		else
-+			seq_printf(seq, " addr:%pI4", &host_ip.ip4);
-+		seq_printf(seq, " source_match:%u\n", source_match && !host_err);
- 		ppe_ft_debug_words(seq, "nexthop_raw", nh, ARRAY_SIZE(nh));
- 		seq_printf(seq,
- 			   "  nexthop_dec read:%d index:%u index_match:%u type:%u port:%lu l3_if:%u ctag:%u cvid:%lu pub_ip:%lu dmac:%pM dnat:%pI4\n",
-@@ -1310,7 +1447,8 @@ static int ppe_ft_flow_rows_show(struct
- 		if (flow->my_mac >= 0) {
- 			ppe_ft_debug_words(seq, "my_mac_raw", my_mac,
- 					   ARRAY_SIZE(my_mac));
--			seq_printf(seq, "  my_mac_dec read:%d index:%d valid:%u\n",
-+			seq_printf(seq,
-+				   "  my_mac_dec read:%d index:%d valid:%u\n",
- 				   my_mac_err, flow->my_mac,
- 				   !!(my_mac[1] & PPE_MY_MAC_W1_VALID));
- 		}
-@@ -1318,7 +1456,7 @@ static int ppe_ft_flow_rows_show(struct
- 			seq_printf(seq,
- 				   "  pub_ip read:%d index:%d raw:%08x addr:%pI4\n",
- 				   pub_ip_err, flow->pub_ip, pub_ip,
--				   &((__be32){ cpu_to_be32(pub_ip) }));
-+				   &pub_ip_addr);
- 	}
- 	rhashtable_walk_stop(&iter);
- 	rhashtable_walk_exit(&iter);
-@@ -1373,11 +1511,18 @@ static int ppe_ft_flows_show(struct seq_
+@@ -1058,11 +1127,18 @@
  			    &w0);
  		ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  

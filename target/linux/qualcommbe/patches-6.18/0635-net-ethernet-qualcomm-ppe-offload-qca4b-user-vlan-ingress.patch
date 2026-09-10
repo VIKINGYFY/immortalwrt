@@ -28,7 +28,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -1993,6 +1993,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1991,6 +1991,7 @@
  	int vlan_pops = 0;
  	struct in6_addr lwt_local = {}, lwt_remote = {};
  	u8 lwt_hop_limit = 0;
@@ -36,7 +36,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
  	int i, nexthop, ret, redirects = 0, vlan_pushes = 0;
  	int pppoe_pushes = 0, csums = 0;
-@@ -2411,17 +2412,23 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2409,17 +2410,23 @@
  				goto put_idev;
  			}
  
@@ -64,7 +64,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  				if (vp_ret >= 0)
  					flow->ivp = vp_ret;
  			} else {
-@@ -2447,7 +2454,8 @@ put_idev:
+@@ -2445,7 +2452,8 @@
  			goto err_prelock_ivp;
  		}
  
@@ -74,7 +74,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  			ret = -EOPNOTSUPP;
  			goto err_prelock_ivp;
  		}
-@@ -2473,7 +2481,8 @@ put_idev:
+@@ -2471,7 +2479,8 @@
  				goto err_prelock_ivp;
  			}
  			if (dsa_mode == PPE_FT_DSA_QCA4B) {
@@ -84,7 +84,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  				if (ret < 0)
  					goto err_prelock_ivp;
  				flow->vp = ret;
-@@ -2528,6 +2537,10 @@ put_idev:
+@@ -2526,6 +2535,10 @@
  			flow->vp_flow.key.sip.ip4 = flow->entry.sip.ip4;
  			flow->vp_flow.key.dip.ip4 = flow->entry.dip.ip4;
  		}
@@ -95,7 +95,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  	}
  
  	if (tunnel_flow && !lwt_tunnel) {
-@@ -2665,7 +2678,7 @@ put_idev:
+@@ -2663,7 +2676,7 @@
  			goto err_ingress_my_mac;
  	}
  
@@ -114,7 +114,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  #include <linux/ip.h>
  #include <linux/ipv6.h>
  #include <linux/kernel.h>
-@@ -481,6 +482,8 @@ static unsigned int ppe_vp_ingress(void
+@@ -481,6 +482,8 @@
  	const struct ethhdr *eth;
  	__be16 ports[2];
  	unsigned int offset;
@@ -123,7 +123,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  	int mac_len;
  
  	/* A hardware miss trips this VP's persistent fail-open circuit
-@@ -494,6 +497,25 @@ static unsigned int ppe_vp_ingress(void
+@@ -494,6 +497,25 @@
  	 */
  	if (!atomic_read(&slot->nflows))
  		return NF_ACCEPT;
@@ -149,7 +149,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  
  	if (skb->protocol != htons(ETH_P_IP) &&
  	    skb->protocol != htons(ETH_P_IPV6))
-@@ -544,6 +566,10 @@ static unsigned int ppe_vp_ingress(void
+@@ -544,6 +566,10 @@
  		return NF_ACCEPT;
  	key.sport = ports[0];
  	key.dport = ports[1];
@@ -160,7 +160,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  
  	rcu_read_lock();
  	flow = rhashtable_lookup_fast(&slot->flows, &key,
-@@ -559,6 +585,8 @@ static unsigned int ppe_vp_ingress(void
+@@ -559,6 +585,8 @@
  	 */
  	mac_len = skb->data - skb_mac_header(skb);
  	skb_push(skb, mac_len);
@@ -169,7 +169,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  
  	/* On success the transmit path owns the frame (freed at Tx
  	 * completion) and it must not continue up the stack. On any failure
-@@ -567,6 +595,9 @@ static unsigned int ppe_vp_ingress(void
+@@ -567,6 +595,9 @@
  	if (edma_tx_vp_inject(slot->vp, skb) == 0)
  		return NF_STOLEN;
  
@@ -179,7 +179,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  	skb_pull(skb, mac_len);
  
  	return NF_ACCEPT;
-@@ -833,7 +864,8 @@ int ppe_vp_get(struct ppe_device *ppe_de
+@@ -833,7 +864,8 @@
  	return PPE_VP_PORT_BASE + free;
  }
  
@@ -189,7 +189,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  {
  	struct ppe_vp *vp = ppe_dev->vp;
  	int i, ret;
-@@ -853,6 +885,20 @@ int ppe_vp_get_qca4b(struct ppe_device *
+@@ -853,6 +885,20 @@
  			ret = -EOPNOTSUPP;
  			goto out;
  		}
@@ -210,7 +210,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  		vp->slots[i].refcnt++;
  		ret = vp->slots[i].vp;
  		goto out;
-@@ -863,6 +909,13 @@ int ppe_vp_get_qca4b(struct ppe_device *
+@@ -863,6 +909,13 @@
  		goto out;
  	for (i = 0; i < PPE_VP_SLOTS; i++) {
  		if (rcu_access_pointer(vp->slots[i].dev) == dev) {
@@ -224,7 +224,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  			vp->slots[i].refcnt++;
  			ret = vp->slots[i].vp;
  			goto out;
-@@ -1002,8 +1055,12 @@ int ppe_vp_flow_add(struct ppe_device *p
+@@ -1002,8 +1055,12 @@
  
  	if (!vpt || i < 0 || i >= PPE_VP_SLOTS)
  		return -EINVAL;
@@ -239,7 +239,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  
  	ret = rhashtable_insert_fast(&vpt->slots[i].flows, &flow->node,
  				     ppe_vp_flow_params);
-@@ -1112,6 +1169,11 @@ void ppe_vp_qca4b_debug_show(struct ppe_
+@@ -1112,6 +1169,11 @@
  			   dev ? netif_carrier_ok(dev) : 0, slot->athtag_active,
  			   slot->poisoned, prx_ret, prx, eg_ret,
  			   eg_vp[2], eg_vp[1], eg_vp[0]);
@@ -253,7 +253,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  }
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
-@@ -16,7 +16,8 @@ struct seq_file;
+@@ -16,7 +16,8 @@
  
  /* An installed VP-uplink flow is the authority for source-tagged
   * injection. The flowtable embeds this object in its flow lifetime; the
@@ -263,7 +263,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
   */
  struct ppe_vp_flow_key {
  	union {
-@@ -25,6 +26,8 @@ struct ppe_vp_flow_key {
+@@ -25,6 +26,8 @@
  	} sip, dip;
  	__be16 sport;
  	__be16 dport;
@@ -272,7 +272,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  	u8 protocol;
  	bool is_ipv6;
  };
-@@ -54,7 +57,8 @@ void ppe_vp_teardown(struct ppe_device *
+@@ -54,7 +57,8 @@
  
  int ppe_vp_get(struct ppe_device *ppe_dev, struct net_device *dev,
  	       int priority);

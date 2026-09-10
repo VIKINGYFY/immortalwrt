@@ -13,7 +13,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
  drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c | 52 ++++++++++++++++++------
  1 file changed, 40 insertions(+), 12 deletions(-)
-
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 @@ -20,6 +20,7 @@
@@ -24,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define PPE_PKT_CNT_TBL_SIZE				3
  #define PPE_DROP_PKT_CNT_TBL_SIZE			5
-@@ -831,12 +832,45 @@ static bool ppe_athtag_supported(struct
+@@ -831,12 +832,45 @@
  	return ppe_dev->variant && !strcmp(ppe_dev->variant->name, "IPQ5332");
  }
  
@@ -72,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret, port;
  
  	if (!ppe_athtag_supported(ppe_dev))
-@@ -873,25 +907,14 @@ static int ppe_athtag_show(struct seq_fi
+@@ -873,25 +907,14 @@
  			   !!(value & PPE_ATHTAG_PRX_PORT_TO_VP_ENABLE));
  	}
  

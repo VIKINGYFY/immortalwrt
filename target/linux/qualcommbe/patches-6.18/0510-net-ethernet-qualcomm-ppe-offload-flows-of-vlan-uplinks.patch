@@ -39,7 +39,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -212,7 +212,8 @@ static int ppe_bridge_vsi_find(struct pp
+@@ -212,7 +212,8 @@
  }
  
  /* Get the VSI backing (bridge, VID), allocating a free VSI when there
@@ -49,7 +49,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   */
  static int ppe_bridge_vsi_get(struct ppe_bridge *pb, struct net_device *br,
  			      u16 vid)
-@@ -223,7 +224,7 @@ static int ppe_bridge_vsi_get(struct ppe
+@@ -223,7 +224,7 @@
  	if (vsi >= 0)
  		return vsi;
  
@@ -58,7 +58,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		if (pb->vsis[i].br || pb->vsis[i].poisoned)
  			continue;
  
-@@ -356,8 +357,10 @@ static int ppe_bridge_vsi_xlt_update(str
+@@ -356,8 +357,10 @@
  
  		if (idx < 0) {
  			idx = find_first_zero_bit(pb->xlt_used,
@@ -73,7 +73,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -307,6 +307,12 @@ enum ppe_stp_state {
+@@ -307,6 +307,12 @@
   */
  #define PPE_FDB_PORT_NONE			0xff
  
@@ -88,7 +88,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @addr: MAC address.
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -517,6 +517,30 @@ rollback:
+@@ -517,6 +517,30 @@
  }
  
  /**
@@ -121,7 +121,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @port: PPE port to configure
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-@@ -74,6 +74,7 @@ int ppe_l3_if_set(struct ppe_device *ppe
+@@ -74,6 +74,7 @@
  int ppe_l3_if_my_mac_set(struct ppe_device *ppe_dev, int index,
  			 int my_mac, bool enable);
  int ppe_l3_if_clear(struct ppe_device *ppe_dev, int index);
@@ -131,7 +131,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			  bool enable, u16 sid, const u8 *peer, int l3_if);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -86,16 +86,18 @@ static_assert(offsetof(struct ppe_ft_pub
+@@ -86,16 +86,18 @@
   * @ref: Reference count of the session.
   * @sid: PPPoE session ID.
   * @peer: PPPoE peer/server MAC address.
@@ -154,7 +154,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   */
  struct ppe_ft_pppoe {
  	struct ppe_ft_ref ref;
-@@ -104,6 +106,7 @@ struct ppe_ft_pppoe {
+@@ -104,6 +106,7 @@
  	u8 local[ETH_ALEN];
  	u16 mtu;
  	u8 port;
@@ -162,7 +162,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct net_device *ppp_dev;
  	bool connected;
  	bool poisoned;
-@@ -114,6 +117,29 @@ static_assert(offsetof(struct ppe_ft_ppp
+@@ -114,6 +117,29 @@
  #define PPE_FT_PPPOE_SESSIONS	8
  
  /**
@@ -192,7 +192,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * struct ppe_ft_flow - An offloaded flow.
   * @node: Hash table node, keyed by the flow cookie.
   * @cookie: Flow cookie of the rule.
-@@ -123,6 +149,7 @@ static_assert(offsetof(struct ppe_ft_ppp
+@@ -123,6 +149,7 @@
   * @my_mac: Router MAC slot held by the flow, negative when none.
   * @pub_ip: Public IP slot held by the flow, negative when none.
   * @pppoe: PPPoE session slot held by the flow, negative when none.
@@ -200,7 +200,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @eport: Egress PPE port of the flow.
   * @packets: Hit packet count at the last stats read.
   * @bytes: Hit byte count at the last stats read.
-@@ -138,6 +165,7 @@ struct ppe_ft_flow {
+@@ -138,6 +165,7 @@
  	int my_mac;
  	int pub_ip;
  	int pppoe;
@@ -208,7 +208,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	u8 eport;
  	u32 packets;
  	u64 bytes;
-@@ -168,6 +196,7 @@ struct ppe_ft_host {
+@@ -168,6 +196,7 @@
   * @my_macs: Refcounted router MAC slots.
   * @pub_ips: Refcounted public IP slots.
   * @pppoe: Refcounted PPPoE session slots.
@@ -216,7 +216,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @ppp_nb: PPP channel lifecycle notifier.
   * @block_cb_list: Flow block callbacks bound to the PPE ports.
   * @hosts: Refcount of the flows sharing a source host entry.
-@@ -191,6 +220,7 @@ struct ppe_flowtable {
+@@ -189,6 +218,7 @@
  	struct ppe_ft_my_mac my_macs[PPE_MY_MAC_TBL_ENTRIES];
  	struct ppe_ft_pub_ip pub_ips[PPE_PUB_IP_TBL_ENTRIES];
  	struct ppe_ft_pppoe pppoe[PPE_FT_PPPOE_SESSIONS];
@@ -224,7 +224,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct notifier_block ppp_nb;
  	struct list_head block_cb_list;
  };
-@@ -216,6 +246,8 @@ struct ppe_ft_data {
+@@ -214,6 +244,8 @@
  	__be16 sport;
  	__be16 dport;
  	int pppoe_sid;
@@ -233,7 +233,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  };
  
  static int ppe_ft_mangle_eth(const struct flow_action_entry *act, void *eth)
-@@ -457,20 +489,23 @@ static int ppe_ft_pppoe_l3_if(struct ppe
+@@ -455,20 +487,23 @@
  	return ft->ppe_dev->num_ports + index;
  }
  
@@ -263,7 +263,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  {
  	struct net_device_path_stack stack = {};
  	u8 daddr[ETH_ALEN] = {};
-@@ -478,7 +513,10 @@ static int ppe_ft_pppoe_path(struct net_
+@@ -476,7 +511,10 @@
  	int i, ret;
  
  	topo->port = -1;
@@ -274,7 +274,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	rcu_read_lock();
  	ret = dev_fill_forward_path(ppp_dev, daddr, &stack);
  	if (ret)
-@@ -497,6 +535,15 @@ static int ppe_ft_pppoe_path(struct net_
+@@ -495,6 +533,15 @@
  			topo->sid = path->encap.id;
  			ether_addr_copy(topo->peer, path->encap.h_dest);
  			break;
@@ -290,7 +290,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		case DEV_PATH_ETHERNET: {
  			struct edma_port_priv *port_priv;
  
-@@ -519,7 +566,6 @@ static int ppe_ft_pppoe_path(struct net_
+@@ -517,7 +564,6 @@
  	    !is_valid_ether_addr(topo->peer) ||
  	    !is_valid_ether_addr(topo->local))
  		ret = -EINVAL;
@@ -298,7 +298,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  out_unlock:
  	rcu_read_unlock();
  	return ret;
-@@ -533,8 +579,10 @@ static bool ppe_ft_pppoe_match(const voi
+@@ -531,8 +577,10 @@
  	       ether_addr_equal(session->peer, want->peer);
  }
  
@@ -310,7 +310,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  {
  	int i;
  
-@@ -549,6 +597,8 @@ static int ppe_ft_pppoe_get(struct ppe_f
+@@ -547,6 +595,8 @@
  		if (!session->connected)
  			return -ENOTCONN;
  		if (session->port != port ||
@@ -319,7 +319,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		    !ether_addr_equal(session->local, local))
  			return -EEXIST;
  
-@@ -561,51 +611,67 @@ static int ppe_ft_pppoe_get(struct ppe_f
+@@ -559,51 +609,67 @@
  
  static void ppe_ft_pppoe_put(struct ppe_flowtable *ft, int index)
  {
@@ -391,7 +391,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		    !ether_addr_equal(session->local, topo.local)) {
  			ret = -EEXIST;
  			goto out_ref;
-@@ -621,7 +687,7 @@ static int ppe_ft_pppoe_connect(struct p
+@@ -619,7 +685,7 @@
  	ret = ppe_l3_if_set(ft->ppe_dev, ppe_ft_pppoe_l3_if(ft, i),
  			    topo.local, topo.mtu, topo.sid);
  	if (ret)
@@ -400,7 +400,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	ret = ppe_pppoe_session_set(ft->ppe_dev, i, true, topo.sid,
  				    topo.peer, ppe_ft_pppoe_l3_if(ft, i));
-@@ -645,7 +711,7 @@ static int ppe_ft_pppoe_connect(struct p
+@@ -643,7 +709,7 @@
  				i, cleanup_ret);
  			goto out_unlock;
  		}
@@ -409,7 +409,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
  
  	if (is_new) {
-@@ -658,9 +724,14 @@ static int ppe_ft_pppoe_connect(struct p
+@@ -656,9 +722,14 @@
  	mutex_unlock(&ft->lock);
  	return 0;
  
@@ -426,7 +426,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  out_unlock:
  	mutex_unlock(&ft->lock);
  	return ret;
-@@ -677,10 +748,14 @@ static int ppe_ft_pppoe_disconnect(struc
+@@ -675,10 +746,14 @@
  
  		if (!session->connected || session->ppp_dev != ppp_dev)
  			continue;
@@ -441,7 +441,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			session->poisoned = true;
  			dev_err(ft->ppe_dev->dev,
  				"quarantining PPPoE session %d: %d\n", i, ret);
-@@ -723,6 +798,117 @@ static int ppe_ft_ppp_event(struct notif
+@@ -721,6 +796,117 @@
  	return NOTIFY_DONE;
  }
  
@@ -559,7 +559,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /* Hash key of a flow's source IP for the host refcount table. */
  static u32 ppe_ft_host_key(const struct ppe_flow_entry *flow)
  {
-@@ -846,7 +1032,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -844,7 +1030,8 @@
  	struct ppe_flow_nexthop nh = {};
  	struct ppe_ft_data data = {};
  	struct ppe_ft_flow *flow;
@@ -569,7 +569,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	/* nf_flow_offload_refresh() re-sends FLOW_CLS_REPLACE for as long
  	 * as the flow's packets traverse the software path, and the core
-@@ -865,10 +1052,6 @@ static int ppe_ft_flow_replace(struct pp
+@@ -863,10 +1050,6 @@
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS))
  		return -EOPNOTSUPP;
  
@@ -580,7 +580,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (rule->match.dissector->used_keys &
  	    ~(BIT_ULL(FLOW_DISSECTOR_KEY_META) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_CONTROL) |
-@@ -876,7 +1059,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -874,7 +1057,8 @@
  	      BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_TCP) |
@@ -590,7 +590,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		return -EOPNOTSUPP;
  
  	flow = kzalloc(sizeof(*flow), GFP_KERNEL);
-@@ -887,8 +1071,10 @@ static int ppe_ft_flow_replace(struct pp
+@@ -885,8 +1069,10 @@
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
  	flow->pppoe = -1;
@@ -601,7 +601,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	{
  		struct flow_match_basic match;
-@@ -970,6 +1156,25 @@ static int ppe_ft_flow_replace(struct pp
+@@ -968,6 +1154,25 @@
  		flow->entry.dport = match.key->dst;
  	}
  
@@ -627,7 +627,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
  		struct flow_match_meta match;
  
-@@ -979,6 +1184,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -977,6 +1182,7 @@
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -635,7 +635,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
  
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL)) {
-@@ -1059,6 +1265,12 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1057,6 +1263,12 @@
  			}
  			nh.vid = act->vlan.vid;
  			break;
@@ -648,7 +648,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		case FLOW_ACTION_PPPOE_PUSH:
  			data.pppoe_sid = act->pppoe.sid;
  			break;
-@@ -1071,6 +1283,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1069,6 +1281,7 @@
  	}
  
  	if (!odev || !edma_port_dev_check(odev) ||
@@ -656,7 +656,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	    is_zero_ether_addr(data.eth.dst)) {
  		ret = -EOPNOTSUPP;
  		goto err_free;
-@@ -1084,6 +1297,32 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1082,6 +1295,32 @@
  		goto err_free;
  	}
  
@@ -689,7 +689,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	port_priv = netdev_priv(odev);
  	nh.port = port_priv->ppe_port->port_id;
  	nh.l3_if = nh.port;
-@@ -1135,6 +1374,15 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1133,6 +1372,15 @@
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
  	}
  
@@ -705,7 +705,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	/* A PPPoE push routes the flow through the L3 interface of its
  	 * session, which encapsulates on egress; the session table
  	 * entry of the slot terminates the reverse direction, whose
-@@ -1143,10 +1391,10 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1141,10 +1389,10 @@
  	if (data.pppoe_sid >= 0) {
  		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
  					       data.eth.dst, data.eth.src,
@@ -718,7 +718,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		}
  		nh.l3_if = ppe_ft_pppoe_l3_if(ft, flow->pppoe);
  	}
-@@ -1162,6 +1410,10 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1160,6 +1408,10 @@
  			goto err_pppoe;
  		}
  
@@ -729,7 +729,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		if (data.pppoe_sid < 0) {
  			ret = ppe_l3_if_set(ft->ppe_dev, nh.l3_if,
  					    data.eth.src, odev->mtu, -1);
-@@ -1242,6 +1494,8 @@ err_my_mac:
+@@ -1240,6 +1492,8 @@
  	ppe_ft_my_mac_put(ft, flow->my_mac);
  err_pppoe:
  	ppe_ft_pppoe_put(ft, flow->pppoe);
@@ -738,7 +738,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  err_pub_ip:
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
  err_unlock:
-@@ -1272,6 +1526,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -1270,6 +1524,7 @@
  		clear_bit(flow->nexthop, ft->nexthop_used);
  		ppe_ft_my_mac_put(ft, flow->my_mac);
  		ppe_ft_pppoe_put(ft, flow->pppoe);
@@ -746,7 +746,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
-@@ -2115,7 +2370,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -1658,7 +1913,7 @@
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -755,7 +755,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		    PPE_IN_L3_IF_TBL_ENTRIES)) {
  		kfree(ft);
  		return -ERANGE;
-@@ -2190,6 +2445,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -1733,6 +1988,7 @@
  			continue;
  		if (ft->pppoe[i].connected)
  			ppe_pppoe_session_set(ft->ppe_dev, i, false, 0, NULL, 0);

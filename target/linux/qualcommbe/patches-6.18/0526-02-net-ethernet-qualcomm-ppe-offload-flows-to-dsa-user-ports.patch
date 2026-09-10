@@ -41,7 +41,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  #include <linux/etherdevice.h>
  #include <linux/hashtable.h>
  #include <linux/if_arp.h>
-@@ -160,6 +161,8 @@ static_assert(offsetof(struct ppe_ft_vla
+@@ -160,6 +161,8 @@
   * @pppoe: PPPoE session slot held by the flow, negative when none.
   * @vlan: VLAN uplink slot held by the flow, negative when none.
   * @eport: Egress PPE port of the flow.
@@ -50,7 +50,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
   * @packets: Hit packet count at the last stats read.
   * @bytes: Hit byte count at the last stats read.
   */
-@@ -181,6 +184,8 @@ struct ppe_ft_flow {
+@@ -181,6 +184,8 @@
  	int ivp;
  	struct ppe_vp_flow vp_flow;
  	u8 eport;
@@ -59,7 +59,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	u32 packets;
  	u64 bytes;
  };
-@@ -1779,6 +1784,42 @@ static void ppe_ft_flow_quarantine(struc
+@@ -1777,6 +1782,42 @@
  	list_add_tail(&flow->zombie_node, &ft->zombies);
  }
  
@@ -102,7 +102,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
  			       struct flow_cls_offload *f)
  {
-@@ -2148,6 +2189,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2146,6 +2187,7 @@
  	}
  	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
  	if (!tunnel_encap && !edma_port_dev_check(odev) &&
@@ -110,7 +110,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	    (!ft->ppe_dev->variant->has_vports ||
  	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
  		ret = -EOPNOTSUPP;
-@@ -2170,6 +2212,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2168,6 +2210,7 @@
  	 */
  	if (data.ingress_ifindex) {
  		struct net_device *idev;
@@ -118,7 +118,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		struct net_device *master;
  		int vp_ret = 0;
  
-@@ -2194,6 +2237,29 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2192,6 +2235,29 @@
  			struct edma_port_priv *ipriv = netdev_priv(idev);
  
  			iport = ipriv->ppe_port->port_id;
@@ -148,7 +148,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
  			reject_reason = PPE_FT_REJECT_INGRESS_VP;
-@@ -2202,6 +2268,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2200,6 +2266,7 @@
  			if (vp_ret >= 0)
  				flow->ivp = vp_ret;
  		}
@@ -156,7 +156,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		dev_put(idev);
  
  		if (vp_ret < 0) {
-@@ -2221,6 +2288,30 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2219,6 +2286,30 @@
  			port_priv = netdev_priv(odev);
  			nh.port = port_priv->ppe_port->port_id;
  			nh.l3_if = nh.port;
@@ -187,7 +187,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		} else {
  			ret = ppe_vp_get(ft->ppe_dev, odev,
  					 f->common.prio);
-@@ -2557,6 +2648,8 @@ err_prelock_ivp:
+@@ -2555,6 +2646,8 @@
  err_free:
  	if (ret)
  		atomic_long_inc(&ft->rejects[reject_reason]);
@@ -196,7 +196,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	kfree_rcu(flow, rcu);
  
  	return ret;
-@@ -2589,6 +2682,8 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2587,6 +2680,8 @@
  		ppe_ft_tunnel_put(ft, flow->tunnel);
  		ppe_vp_put(ft->ppe_dev, flow->vp);
  		ppe_vp_put(ft->ppe_dev, flow->ivp);
@@ -205,7 +205,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2655,6 +2750,13 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -2653,6 +2748,13 @@
  		return -ENOENT;
  	}
  
@@ -219,7 +219,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	/* Hardware-forwarded packets never revalidate the route in
  	 * software, and the hit counter of a flow counts at ingress
  	 * lookup whether or not egress delivery still works: a flow
-@@ -3504,7 +3606,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3047,7 +3149,7 @@
  
  static void ppe_ft_flow_free(void *ptr, void *arg)
  {
@@ -228,7 +228,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  }
  
  /**
-@@ -3548,7 +3650,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3089,7 +3191,7 @@
  	rhashtable_free_and_destroy(&ft->flows, ppe_ft_flow_free, NULL);
  	list_for_each_entry_safe(flow, flow_tmp, &ft->zombies, zombie_node) {
  		list_del(&flow->zombie_node);

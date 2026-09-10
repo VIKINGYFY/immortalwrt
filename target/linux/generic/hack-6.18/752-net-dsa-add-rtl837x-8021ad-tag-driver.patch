@@ -1,0 +1,123 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: dsa: add a standalone RTL837x 8021ad tag driver
+
+Encode source-port identity in an outer service tag while preserving
+customer VLANs. Keep RTL in its own module with strict service-tag
+validation and bounded decode-error reporting. Use the common DSA tag
+helpers without PPPoE packet tracing or per-switch tracing state.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -57,6 +57,7 @@
+ #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
+ #define DSA_TAG_PROTO_MXL862_VALUE		30
+ #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
++#define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
+ 
+ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
+@@ -91,6 +92,7 @@
+ 	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
+ 	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
+ 	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
++	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
+ };
+ 
+ struct dsa_switch;
+--- a/net/dsa/Kconfig
++++ b/net/dsa/Kconfig
+@@ -192,6 +192,12 @@
+ 	  Say Y or M if you want to enable support for tagging frames at
+ 	  with a trailed. e.g. Marvell 88E6060.
+ 
++config NET_DSA_TAG_RTL837X_8021AD
++	tristate "Tag driver for Realtek RTL837x switches using service VLANs"
++	help
++	  Encode RTL837x port identity in an 802.1ad service tag while
++	  preserving the customer's 802.1Q VLAN tag independently.
++
+ config NET_DSA_TAG_VSC73XX_8021Q
+ 	tristate "Tag driver for Microchip/Vitesse VSC73xx family of switches, using VLAN"
+ 	help
+--- a/net/dsa/Makefile
++++ b/net/dsa/Makefile
+@@ -39,6 +39,7 @@
+ obj-$(CONFIG_NET_DSA_TAG_RZN1_A5PSW) += tag_rzn1_a5psw.o
+ obj-$(CONFIG_NET_DSA_TAG_SJA1105) += tag_sja1105.o
+ obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag_trailer.o
++obj-$(CONFIG_NET_DSA_TAG_RTL837X_8021AD) += tag_rtl837x_8021ad.o
+ obj-$(CONFIG_NET_DSA_TAG_VSC73XX_8021Q) += tag_vsc73xx_8021q.o
+ obj-$(CONFIG_NET_DSA_TAG_XRS700X) += tag_xrs700x.o
+ 
+--- /dev/null
++++ b/net/dsa/tag_rtl837x_8021ad.c
+@@ -0,0 +1,67 @@
++// SPDX-License-Identifier: GPL-2.0 OR MIT
++/* Copyright (C) 2024 Pawel Dembicki <paweldembicki@gmail.com>
++ */
++#include <linux/dsa/8021q.h>
++
++#include "tag.h"
++#include "tag_8021q.h"
++
++#define RTL837X_8021AD_NAME "rtl837x-8021ad"
++
++static struct sk_buff *
++rtl837x_xmit(struct sk_buff *skb, struct net_device *netdev)
++{
++	struct dsa_port *dp = dsa_user_to_port(netdev);
++	u16 queue_mapping = skb_get_queue_mapping(skb);
++	u16 tx_vid = dsa_tag_8021q_standalone_vid(dp);
++	u8 pcp;
++
++	pcp = netdev_txq_to_tc(netdev, queue_mapping);
++
++	return dsa_8021q_xmit(skb, netdev, ETH_P_8021AD,
++			      ((pcp << VLAN_PRIO_SHIFT) | tx_vid));
++}
++
++static struct sk_buff *
++rtl837x_rcv(struct sk_buff *skb, struct net_device *netdev)
++{
++	bool hw_vlan = skb_vlan_tag_present(skb);
++	__be16 protocol = hw_vlan ? skb->vlan_proto : eth_hdr(skb)->h_proto;
++	int src_port = -1, switch_id = -1, vbid = -1, vid = -1;
++
++	/* Only the outer service tag carries the DSA source identity.
++	 * A missing tag must never decode PPPoE or IP payload as a VLAN TCI.
++	 */
++	if (protocol != htons(ETH_P_8021AD) ||
++	    (!hw_vlan && !pskb_may_pull(skb, VLAN_HLEN)))
++		goto decode_error;
++
++	dsa_8021q_rcv(skb, &src_port, &switch_id, &vbid, &vid);
++	skb->dev = dsa_tag_8021q_find_user(netdev, src_port, switch_id,
++					   vid, vbid);
++	if (!skb->dev)
++		goto decode_error;
++
++	dsa_default_offload_fwd_mark(skb);
++
++	return skb;
++
++decode_error:
++	dev_warn_ratelimited(&netdev->dev, "Couldn't decode source port\n");
++	return NULL;
++}
++
++static const struct dsa_device_ops rtl837x_8021ad_netdev_ops = {
++	.name			= RTL837X_8021AD_NAME,
++	.proto			= DSA_TAG_PROTO_RTL837X_8021AD,
++	.xmit			= rtl837x_xmit,
++	.rcv			= rtl837x_rcv,
++	.needed_headroom	= VLAN_HLEN,
++	.promisc_on_conduit	= true,
++};
++
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("RTL837x DSA transport with separate service and customer VLANs");
++MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_RTL837X_8021AD, RTL837X_8021AD_NAME);
++
++module_dsa_tag_driver(rtl837x_8021ad_netdev_ops);

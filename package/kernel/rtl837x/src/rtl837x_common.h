@@ -100,7 +100,6 @@ struct rtk_gsw {
 	bool init_rtl8372n_leds;
 	bool quarantine_before_conduit;
 	bool reinit_cpu_serdes;
-	bool dsa_svlan;
 	bool conduit_ready;
 	char conduit_name[IFNAMSIZ];
 	u32 probe_attempts;
@@ -138,6 +137,8 @@ struct rtk_gsw {
 
 	dal_mapper_t *pMapper;
 
+	/* SVID transport membership and customer VLANs have separate owners. */
+	struct rtl837x_vlan_entry svlan_table[4096];
 	struct rtl837x_vlan_entry vlan_table[4096];
 
 	uint16_t port_pvid[RTK_MAX_NUM_OF_PORT]; // 端口PVID配置

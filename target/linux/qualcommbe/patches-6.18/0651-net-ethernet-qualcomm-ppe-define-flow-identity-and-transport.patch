@@ -1,0 +1,288 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: define flow identity and transport
+
+Define source L3 and router-MAC identity primitives and QCA virtual-
+port transport interfaces for common DSA and PPPoE flow installation.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -24,6 +24,7 @@
+ #include "ppe_config.h"
+ #include "ppe_flow.h"
+ #include "ppe_regs.h"
++#include "ppe_vp.h"
+ 
+ /* Issue an operation and return the hardware-selected table index. */
+ static int ppe_flow_op_issue(struct ppe_device *ppe_dev, u32 op_type,
+@@ -182,6 +183,10 @@
+ 	val[0] |= FIELD_PREP(PPE_FLOW_W0_HOST_INDEX, flow->host_index);
+ 	val[0] |= FIELD_PREP(PPE_FLOW_W0_PROTOCOL_TYPE, flow->proto);
+ 	val[0] |= FIELD_PREP(PPE_FLOW_W0_AGE, 3);
++	if (flow->src_l3_if_valid) {
++		val[0] |= PPE_FLOW_W0_SRC_L3_IF_VALID;
++		val[0] |= FIELD_PREP(PPE_FLOW_W0_SRC_L3_IF, flow->src_l3_if);
++	}
+ 	val[0] |= FIELD_PREP(PPE_FLOW_W0_FWD_TYPE, flow->fwd_type);
+ 	val[1] = FIELD_PREP(PPE_FLOW_W1_NEXT_HOP, flow->nexthop);
+ 	val[1] |= FIELD_PREP(PPE_FLOW_W1_L4_PORT,
+@@ -457,14 +462,12 @@
+ 		   bool valid)
+ {
+ 	u32 reg = PPE_MY_MAC_TBL_ADDR + PPE_MY_MAC_TBL_INC * index;
+-	u32 my_mac_mask;
+ 	u32 val[2] = {};
+ 	int i, ret;
+ 
+ 	if (index < 0 || index >= PPE_MY_MAC_TBL_ENTRIES)
+ 		return -EINVAL;
+ 
+-	my_mac_mask = FIELD_PREP(PPE_IN_L3_IF_W1_MAC_BITMAP, BIT(index));
+ 	if (valid) {
+ 		val[0] = (u32)addr[2] << 24 | addr[3] << 16 |
+ 			 addr[4] << 8 | addr[5];
+@@ -476,10 +479,7 @@
+ 		 * interface which used its previous address.
+ 		 */
+ 		for (i = 0; i < PPE_IN_L3_IF_TBL_ENTRIES; i++) {
+-			reg = PPE_IN_L3_IF_TBL_ADDR +
+-			      PPE_IN_L3_IF_TBL_INC * i + sizeof(u32);
+-			ret = regmap_update_bits(ppe_dev->regmap, reg,
+-						 my_mac_mask, 0);
++			ret = ppe_l3_if_my_mac_set(ppe_dev, i, index, false);
+ 			if (ret)
+ 				return ret;
+ 		}
+@@ -568,16 +568,39 @@
+ int ppe_l3_if_my_mac_set(struct ppe_device *ppe_dev, int index, int my_mac,
+ 			 bool enable)
+ {
+-	u32 reg = PPE_IN_L3_IF_TBL_ADDR + PPE_IN_L3_IF_TBL_INC * index +
+-		  sizeof(u32);
+-	u32 mask;
++	u32 reg = PPE_IN_L3_IF_TBL_ADDR + PPE_IN_L3_IF_TBL_INC * index;
++	u32 val[3], readback, mask;
++	int ret;
+ 
+-	if (my_mac < 0 || my_mac >= PPE_MY_MAC_TBL_ENTRIES)
++	if (index < 0 || index >= PPE_IN_L3_IF_TBL_ENTRIES ||
++	    my_mac < 0 || my_mac >= PPE_MY_MAC_TBL_ENTRIES)
+ 		return -EINVAL;
+ 
+ 	mask = FIELD_PREP(PPE_IN_L3_IF_W1_MAC_BITMAP, BIT(my_mac));
+-	return regmap_update_bits(ppe_dev->regmap, reg, mask,
+-				  enable ? mask : 0);
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
++	if (ret)
++		return ret;
++	if (!!(val[1] & mask) == enable)
++		return 0;
++
++	/* Use the SSDK table transaction, preserving route/MTU/PPPoE state.
++	 * A successful MMIO write alone does not prove that the binding stuck.
++	 */
++	val[1] = (val[1] & ~mask) | (enable ? mask : 0);
++	ret = regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
++	if (ret)
++		return ret;
++	ret = regmap_read(ppe_dev->regmap, reg + sizeof(u32), &readback);
++	if (ret)
++		return ret;
++	if ((readback & mask) != (val[1] & mask)) {
++		dev_err_ratelimited(ppe_dev->dev,
++				    "L3 MAC binding mismatch: l3=%d mac=%d want=%08x read=%08x\n",
++				    index, my_mac, val[1], readback);
++		return -EIO;
++	}
++
++	return 0;
+ }
+ 
+ int ppe_l3_if_clear(struct ppe_device *ppe_dev, int index)
+@@ -603,15 +626,16 @@
+  * @sid: PPPoE session ID
+  * @peer: PPPoE peer/server MAC address
+  * @l3_if: L3 interface assigned to the terminated packets
++ * @port: Physical ingress port or virtual port below the session
+  *
+- * Match the session on every PPE ingress port by SID and peer MAC, as
+- * the vendor interface-lifecycle transaction does. Both unicast and
+- * multicast session traffic resolves to the PPPoE L3 interface.
++ * Match SID and peer on the physical or virtual port owned by this session.
++ * Both unicast and multicast traffic resolves to the PPPoE L3 interface.
+  *
+  * Return: 0 on success, negative error code on failure.
+  */
+ int ppe_pppoe_session_set(struct ppe_device *ppe_dev, int index,
+-			  bool enable, u16 sid, const u8 *peer, int l3_if)
++			  bool enable, u16 sid, const u8 *peer, int l3_if,
++			  int port)
+ {
+ 	u32 ext2_mask = PPE_PPPOE_SESSION_EXT2_L3_IF_VALID |
+ 			PPE_PPPOE_SESSION_EXT2_L3_IF;
+@@ -619,7 +643,13 @@
+ 	u32 val, ext, ext1, ext2;
+ 	int ret = 0, err;
+ 
+-	if (index >= ppe_dev->variant->num_pppoe_sessions)
++	if (index < 0 || index >= ppe_dev->variant->num_pppoe_sessions)
++		return -EINVAL;
++	if (enable && (!peer || l3_if < 0 ||
++		       l3_if >= PPE_IN_L3_IF_TBL_ENTRIES || port < 0 ||
++		       ((unsigned int)port >= ppe_dev->num_ports &&
++			(port < PPE_VP_PORT_BASE ||
++			 port >= PPE_VP_PORT_BASE + PPE_VP_SLOTS))))
+ 		return -EINVAL;
+ 
+ 	base_reg = PPE_PPPOE_SESSION_ADDR + PPE_PPPOE_SESSION_INC * index;
+@@ -646,9 +676,12 @@
+ 		return ret;
+ 	}
+ 
+-	val = FIELD_PREP(PPE_PPPOE_SESSION_SESSION_ID, sid) |
+-	      FIELD_PREP(PPE_PPPOE_SESSION_PORT_BITMAP,
+-			 FIELD_MAX(PPE_PPPOE_SESSION_PORT_BITMAP));
++	val = FIELD_PREP(PPE_PPPOE_SESSION_SESSION_ID, sid);
++	if (port >= PPE_VP_PORT_BASE)
++		val |= FIELD_PREP(PPE_PPPOE_SESSION_PORT_TYPE, 1) |
++		       FIELD_PREP(PPE_PPPOE_SESSION_PORT_BITMAP, port);
++	else
++		val |= FIELD_PREP(PPE_PPPOE_SESSION_PORT_BITMAP, BIT(port));
+ 	ext = PPE_PPPOE_SESSION_EXT_MC_VALID |
+ 	      PPE_PPPOE_SESSION_EXT_UC_VALID |
+ 	      PPE_PPPOE_SESSION_EXT_SMAC_VALID |
+@@ -694,13 +727,26 @@
+ int ppe_vsi_l3_if_set(struct ppe_device *ppe_dev, int vsi, int l3_if)
+ {
+ 	u32 reg = PPE_L3_VSI_ADDR + PPE_L3_VSI_INC * vsi;
+-	u32 val = 0;
++	u32 mask = PPE_L3_VSI_L3_IF_VALID | PPE_L3_VSI_L3_IF_INDEX;
++	u32 val = 0, readback;
++	int ret;
++
++	if (vsi < 0 || vsi >= PPE_VSI_TBL_ENTRIES ||
++	    l3_if >= PPE_IN_L3_IF_TBL_ENTRIES)
++		return -EINVAL;
+ 
+ 	if (l3_if >= 0)
+ 		val = PPE_L3_VSI_L3_IF_VALID |
+ 		      FIELD_PREP(PPE_L3_VSI_L3_IF_INDEX, l3_if);
+ 
+-	return regmap_write(ppe_dev->regmap, reg, val);
++	ret = regmap_update_bits(ppe_dev->regmap, reg, mask, val);
++	if (ret)
++		return ret;
++	ret = regmap_read(ppe_dev->regmap, reg, &readback);
++	if (ret)
++		return ret;
++
++	return (readback & mask) == val ? 0 : -EIO;
+ }
+ 
+ /**
+@@ -716,9 +762,13 @@
+ 	u32 reg = PPE_L3_VP_PORT_TBL_ADDR + PPE_L3_VP_PORT_TBL_INC * port;
+ 	u32 mask = PPE_L3_VP_PORT_W0_L3_IF_VALID |
+ 		   PPE_L3_VP_PORT_W0_L3_IF_INDEX;
+-	u32 val[4];
++	u32 val[4], readback;
+ 	int ret;
+ 
++	if (port < 0 || port >= PPE_L3_VP_PORT_TBL_ENTRIES ||
++	    l3_if >= PPE_IN_L3_IF_TBL_ENTRIES)
++		return -EINVAL;
++
+ 	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+ 	if (ret)
+ 		return ret;
+@@ -729,7 +779,14 @@
+ 		val[0] |= PPE_L3_VP_PORT_W0_L3_IF_VALID |
+ 			  FIELD_PREP(PPE_L3_VP_PORT_W0_L3_IF_INDEX, l3_if);
+ 
+-	return regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
++	ret = regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
++	if (ret)
++		return ret;
++	ret = regmap_read(ppe_dev->regmap, reg, &readback);
++	if (ret)
++		return ret;
++
++	return (readback & mask) == (val[0] & mask) ? 0 : -EIO;
+ }
+ 
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+@@ -55,6 +55,8 @@
+  * @pmtu: Path MTU of the egress device of the flow.
+  * @priority: Internal priority selected by the flow QoS result.
+  * @priority_valid: Whether the rule carries an explicit priority action.
++ * @src_l3_if: Ingress routing interface selected by port, VLAN, PPPoE or VP.
++ * @src_l3_if_valid: Restrict hits to that ingress routing interface.
+  */
+ struct ppe_flow_entry {
+ 	union {
+@@ -72,6 +74,8 @@
+ 	u16 pmtu;
+ 	u8 priority;
+ 	bool priority_valid;
++	u8 src_l3_if;
++	bool src_l3_if_valid;
+ };
+ 
+ int ppe_flow_hw_init(struct ppe_device *ppe_dev);
+@@ -85,7 +89,8 @@
+ int ppe_vsi_l3_if_set(struct ppe_device *ppe_dev, int vsi, int l3_if);
+ int ppe_port_l3_if_set(struct ppe_device *ppe_dev, int port, int l3_if);
+ int ppe_pppoe_session_set(struct ppe_device *ppe_dev, int index,
+-			  bool enable, u16 sid, const u8 *peer, int l3_if);
++			  bool enable, u16 sid, const u8 *peer, int l3_if,
++			  int port);
+ int ppe_pub_ip_set(struct ppe_device *ppe_dev, int index, __be32 addr);
+ int ppe_nexthop_set(struct ppe_device *ppe_dev, int index,
+ 		    const struct ppe_flow_nexthop *nh);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
+@@ -951,6 +951,31 @@
+ 	return ret;
+ }
+ 
++/* Retain an existing QCA mapping without creating a mapping or an RX hook. */
++int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port)
++{
++	struct ppe_vp *vpt = ppe_dev->vp;
++	struct ppe_vp_slot *slot;
++	int i = vp - PPE_VP_PORT_BASE;
++	int ret = -ENODEV;
++
++	if (!vpt || i < 0 || i >= PPE_VP_SLOTS)
++		return -EINVAL;
++
++	mutex_lock(&vpt->lock);
++	slot = &vpt->slots[i];
++	if (!vpt->inject_disabled && slot->refcnt &&
++	    rcu_access_pointer(slot->dev) &&
++	    slot->type == PPE_VP_SLOT_QCA4B && !slot->poisoned &&
++	    slot->physical_port == physical_port) {
++		slot->refcnt++;
++		ret = 0;
++	}
++	mutex_unlock(&vpt->lock);
++
++	return ret;
++}
++
+ /**
+  * ppe_vp_put - Release a virtual port
+  * @ppe_dev: PPE device
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
+@@ -59,6 +59,7 @@
+ 	       int priority);
+ int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
+ 		     int priority, bool need_hook);
++int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port);
+ void ppe_vp_put(struct ppe_device *ppe_dev, int vp);
+ struct net_device *ppe_vp_dev(struct ppe_device *ppe_dev, int vp);
+ bool ppe_vp_is_qca4b(struct ppe_device *ppe_dev, int vp);
