@@ -2,8 +2,8 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=dsa-rtl837x
-PKG_VERSION:=2.0
-PKG_RELEASE:=5
+PKG_VERSION:=20260917
+PKG_RELEASE:=1
 PKG_MAINTAINER:=air jinkela (air_jinkela@163.com)
 PKG_LICENSE:=GPL-2.0-only AND LicenseRef-Realtek-Proprietary
 PKG_LICENSE_FILES:=LICENSE LICENSE.realtek

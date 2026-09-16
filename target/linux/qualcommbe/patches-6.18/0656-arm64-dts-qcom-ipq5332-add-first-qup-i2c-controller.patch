@@ -1,0 +1,31 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] arm64: dts: qcom: ipq5332: add first QUP I2C controller
+
+Describe the I2C personality of the first QUP block. Keep both it and
+the existing SPI personality disabled by default; boards select one.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
+@@ -525,6 +525,20 @@
+ 			status = "disabled";
+ 		};
+ 
++		blsp1_i2c0: i2c@78b5000 {
++			compatible = "qcom,i2c-qup-v2.2.1";
++			reg = <0x078b5000 0x600>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			interrupts = <GIC_SPI 292 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&gcc GCC_BLSP1_QUP1_I2C_APPS_CLK>,
++				 <&gcc GCC_BLSP1_AHB_CLK>;
++			clock-names = "core", "iface";
++			dmas = <&blsp_dma 4>, <&blsp_dma 5>;
++			dma-names = "tx", "rx";
++			status = "disabled";
++		};
++
+ 		blsp1_spi0: spi@78b5000 {
+ 			compatible = "qcom,spi-qup-v2.2.1";
+ 			reg = <0x078b5000 0x600>;

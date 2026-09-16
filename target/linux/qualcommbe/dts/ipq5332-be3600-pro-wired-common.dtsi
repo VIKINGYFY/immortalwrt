@@ -9,6 +9,7 @@
 / {
 	aliases {
 		serial0 = &blsp1_uart0;
+		i2c0 = &blsp1_i2c0;
 		led-boot = &led_system_blue;
 		led-failsafe = &led_system_orange;
 		led-running = &led_system_blue;
@@ -53,6 +54,14 @@
 	};
 };
 
+&blsp1_i2c0 {
+	status = "okay";
+	clock-frequency = <400000>;
+	/* Apply PSE reset electrical settings after TLMM functions are ready. */
+	pinctrl-0 = <&poe_i2c_pins &poe_reset_pins>;
+	pinctrl-names = "default";
+};
+
 &blsp1_uart0 {
 	status = "okay";
 
@@ -86,6 +95,30 @@
 };
 
 &tlmm {
+	/* Stock GPIO504 = TLMM offset45 (legacy base459, 53 GPIOs). */
+	gpio-line-names =
+		"", "", "", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
+		"", "", "", "", "", "poe-reset", "", "",
+		"", "", "", "", "";
+
+	poe_i2c_pins: poe-i2c-state {
+		pins = "gpio16", "gpio17";
+		function = "blsp0_i2c";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+
+	poe_reset_pins: poe-reset-state {
+		pins = "gpio45";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+
 	qpic_snand_default_state: qpic-snand-default-state {
 		clock-pins {
 			pins = "gpio13";
