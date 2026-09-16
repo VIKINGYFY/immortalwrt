@@ -16,8 +16,11 @@ unregistering ports and freeing statistics. Unmap queued RX buffers using
 the original mapping type and size, free partial assembly, and bound partial
 ring allocation unwind with a signed index.
 
+Respect napi_complete_done() before rearming and serialize completion, IRQ
+scheduling and interrupt enable/disable under a per-ring lock. Stop cannot
+be undone by the polling tail.
+
 Signed-off-by: ViKing <vking@example.com>
----
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
@@ -811,7 +814,15 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Set buffer allocation size */
  	if (edma_ctx->rx_buf_size) {
-@@ -778,11 +796,11 @@
+@@ -597,6 +615,7 @@
+ 		rxdesc_ring = &edma_ctx->rx_rings[ring_idx];
+ 		rxdesc_ring->count = EDMA_RX_RING_SIZE;
+ 		rxdesc_ring->ring_id = rx->ring_start + ring_idx;
++		spin_lock_init(&rxdesc_ring->irq_lock);
+ 		rxdesc_ring->vp_punt_src = -1;
+ 
+ 		if (queue_id > EDMA_CPU_PORT_QUEUE_MAX(EDMA_RX_QUEUE_START)) {
+@@ -778,11 +797,11 @@
  	u32 i;
  
  	/* Free RxFill ring descriptors */
@@ -825,7 +836,43 @@ Signed-off-by: ViKing <vking@example.com>
  		edma_cfg_rx_desc_ring_cleanup(&edma_ctx->rx_rings[i]);
  
  	kfree(edma_ctx->rxfill_rings);
-@@ -874,10 +892,11 @@
+@@ -827,13 +846,17 @@
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+ 	struct edma_ring_info *rx = hw_info->rx;
++	unsigned long flags;
+ 	u32 i, reg;
+ 
+ 	for (i = 0; i < rx->num_rings; i++) {
+ 		struct edma_rxdesc_ring *rxdesc_ring =
+ 				&edma_ctx->rx_rings[i];
++		spin_lock_irqsave(&rxdesc_ring->irq_lock, flags);
++		rxdesc_ring->irq_enabled = false;
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->ring_id);
+ 		regmap_write(regmap, reg, EDMA_MASK_INT_CLEAR);
++		spin_unlock_irqrestore(&rxdesc_ring->irq_lock, flags);
+ 	}
+ }
+ 
+@@ -848,13 +871,17 @@
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+ 	struct edma_ring_info *rx = hw_info->rx;
++	unsigned long flags;
+ 	u32 i, reg;
+ 
+ 	for (i = 0; i < rx->num_rings; i++) {
+ 		struct edma_rxdesc_ring *rxdesc_ring =
+ 				&edma_ctx->rx_rings[i];
++		spin_lock_irqsave(&rxdesc_ring->irq_lock, flags);
++		rxdesc_ring->irq_enabled = true;
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->ring_id);
+ 		regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_rx);
++		spin_unlock_irqrestore(&rxdesc_ring->irq_lock, flags);
+ 	}
+ }
+ 
+@@ -874,10 +901,11 @@
  
  		rxdesc_ring = &edma_ctx->rx_rings[i];
  
@@ -838,7 +885,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -897,10 +916,11 @@
+@@ -897,10 +925,11 @@
  
  		rxdesc_ring = &edma_ctx->rx_rings[i];
  
@@ -851,7 +898,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -923,7 +943,10 @@
+@@ -923,7 +952,10 @@
  		if (!rxdesc_ring->napi_added)
  			continue;
  
@@ -873,7 +920,51 @@ Signed-off-by: ViKing <vking@example.com>
  		reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_CTRL(txdesc_ring->id);
  		regmap_read(regmap, reg, &data);
  		data &= ~EDMA_TXDESC_TX_ENABLE;
-@@ -600,10 +599,11 @@
+@@ -426,6 +425,7 @@
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[i];
+ 		txcmpl_ring->count = EDMA_TX_RING_SIZE;
+ 		txcmpl_ring->id = txcmpl->ring_start + i;
++		spin_lock_init(&txcmpl_ring->irq_lock);
+ 		txcmpl_ring->txdesc_ring = &edma_ctx->tx_rings[i];
+ 
+ 		ret = edma_cfg_txcmpl_ring_setup(txcmpl_ring);
+@@ -555,13 +555,17 @@
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+ 	struct edma_txcmpl_ring *txcmpl_ring;
++	unsigned long flags;
+ 	u32 i, ring_idx, reg;
+ 
+ 	for_each_possible_cpu(i) {
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
++		spin_lock_irqsave(&txcmpl_ring->irq_lock, flags);
++		txcmpl_ring->irq_enabled = false;
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
+ 		regmap_write(regmap, reg, EDMA_MASK_INT_CLEAR);
++		spin_unlock_irqrestore(&txcmpl_ring->irq_lock, flags);
+ 	}
+ }
+ 
+@@ -575,13 +579,17 @@
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+ 	struct edma_txcmpl_ring *txcmpl_ring;
++	unsigned long flags;
+ 	u32 i, ring_idx, reg;
+ 
+ 	for_each_possible_cpu(i) {
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
++		spin_lock_irqsave(&txcmpl_ring->irq_lock, flags);
++		txcmpl_ring->irq_enabled = true;
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
+ 		regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
++		spin_unlock_irqrestore(&txcmpl_ring->irq_lock, flags);
+ 	}
+ }
+ 
+@@ -600,10 +608,11 @@
  	for_each_possible_cpu(i) {
  		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
  		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
@@ -886,7 +977,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -622,10 +622,11 @@
+@@ -622,10 +631,11 @@
  	for_each_possible_cpu(i) {
  		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
  		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
@@ -899,7 +990,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -647,7 +648,10 @@
+@@ -647,7 +657,10 @@
  		if (!txcmpl_ring->napi_added)
  			continue;
  
@@ -1026,17 +1117,66 @@ Signed-off-by: ViKing <vking@example.com>
  
  		/* Update consumer index. */
  		cons_idx = (cons_idx + 1) & EDMA_RX_RING_SIZE_MASK;
+@@ -811,6 +815,7 @@
+ 	struct edma_rxdesc_ring *rxdesc_ring = (struct edma_rxdesc_ring *)napi;
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
++	unsigned long flags;
+ 	int work_done = 0;
+ 	u32 status, reg;
+ 
+@@ -825,10 +830,13 @@
+ 		status = status & EDMA_RXDESC_RING_INT_STATUS_MASK;
+ 	} while (likely(status));
+ 
+-	napi_complete(napi);
+-
+-	reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->ring_id);
+-	regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_rx);
++	/* Hold through completion: stop cannot race the final IRQ rearm. */
++	spin_lock_irqsave(&rxdesc_ring->irq_lock, flags);
++	if (napi_complete_done(napi, work_done) && rxdesc_ring->irq_enabled) {
++		reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->ring_id);
++		regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_rx);
++	}
++	spin_unlock_irqrestore(&rxdesc_ring->irq_lock, flags);
+ 
+ 	return work_done;
+ }
+@@ -847,14 +855,18 @@
+ 	struct edma_rxdesc_ring *rxdesc_ring = (struct edma_rxdesc_ring *)ctx;
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
++	unsigned long flags;
+ 	u32 reg;
+ 
+-	if (likely(napi_schedule_prep(&rxdesc_ring->napi))) {
++	spin_lock_irqsave(&rxdesc_ring->irq_lock, flags);
++	if (rxdesc_ring->irq_enabled && napi_schedule_prep(&rxdesc_ring->napi)) {
+ 		/* Disable RxDesc interrupt. */
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_INT_MASK(rxdesc_ring->ring_id);
+ 		regmap_write(regmap, reg, EDMA_MASK_INT_DISABLE);
+ 		__napi_schedule(&rxdesc_ring->napi);
+ 	}
+ 
++	spin_unlock_irqrestore(&rxdesc_ring->irq_lock, flags);
++
+ 	return IRQ_HANDLED;
+ }
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-@@ -275,6 +275,7 @@
+@@ -275,6 +275,10 @@
  	struct edma_rxdesc_stats rxdesc_stats;
  	struct edma_rxfill_ring *rxfill;
  	bool napi_added;
 +	bool napi_enabled;
++	/* Serialize poll completion/IRQ scheduling with the final stop mask. */
++	spinlock_t irq_lock;
++	bool irq_enabled;
  	dma_addr_t pdma;
  	dma_addr_t sdma;
  	struct sk_buff *head;
-@@ -287,6 +288,7 @@
+@@ -287,6 +291,7 @@
  extern int edma_rx_mitigation_pkt_cnt;
  
  irqreturn_t edma_rx_handle_irq(int irq, void *ctx);
@@ -1044,13 +1184,67 @@ Signed-off-by: ViKing <vking@example.com>
  int edma_rx_alloc_buffer(struct edma_rxfill_ring *rxfill_ring, int alloc_count);
  int edma_rx_napi_poll(struct napi_struct *napi, int budget);
  #endif
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+@@ -331,6 +331,7 @@
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+ 	u32 txcmpl_intr_status;
++	unsigned long flags;
+ 	int work_done = 0;
+ 	u32 data, reg;
+ 
+@@ -346,11 +347,13 @@
+ 	} while (txcmpl_intr_status);
+ 
+ 	/* No more packets to process. Finish NAPI processing. */
+-	napi_complete(napi);
+-
+-	/* Set Tx cmpl ring interrupt mask. */
+-	reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
+-	regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
++	/* Hold through completion: stop cannot race the final IRQ rearm. */
++	spin_lock_irqsave(&txcmpl_ring->irq_lock, flags);
++	if (napi_complete_done(napi, work_done) && txcmpl_ring->irq_enabled) {
++		reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
++		regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
++	}
++	spin_unlock_irqrestore(&txcmpl_ring->irq_lock, flags);
+ 
+ 	return work_done;
+ }
+@@ -369,16 +372,20 @@
+ 	struct edma_txcmpl_ring *txcmpl_ring = (struct edma_txcmpl_ring *)ctx;
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
++	unsigned long flags;
+ 	u32 reg;
+ 
+ 	pr_debug("irq: irq=%d txcmpl_ring_id=%u\n", irq, txcmpl_ring->id);
+-	if (likely(napi_schedule_prep(&txcmpl_ring->napi))) {
++	spin_lock_irqsave(&txcmpl_ring->irq_lock, flags);
++	if (txcmpl_ring->irq_enabled && napi_schedule_prep(&txcmpl_ring->napi)) {
+ 		/* Disable TxCmpl intr. */
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
+ 		regmap_write(regmap, reg, EDMA_MASK_INT_DISABLE);
+ 		__napi_schedule(&txcmpl_ring->napi);
+ 	}
+ 
++	spin_unlock_irqrestore(&txcmpl_ring->irq_lock, flags);
++
+ 	return IRQ_HANDLED;
+ }
+ 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-@@ -360,6 +360,7 @@
+@@ -360,6 +360,10 @@
  	dma_addr_t dma;
  	u32 count;
  	bool napi_added;
 +	bool napi_enabled;
++	/* Serialize poll completion/IRQ scheduling with the final stop mask. */
++	spinlock_t irq_lock;
++	bool irq_enabled;
  	struct edma_txdesc_ring *txdesc_ring;
  };
  

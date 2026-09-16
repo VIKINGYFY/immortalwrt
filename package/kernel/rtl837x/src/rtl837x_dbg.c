@@ -304,7 +304,7 @@ static ssize_t rtl837x_context_read(struct file *filep, char __user *ubuf, size_
 	u32 tpid = U32_MAX;
 	int port, ret;
 	int read_errors[15];
-	bool bridge_dirty;
+	bool bridge_dirty, vlan_dirty;
 	int len;
 	ssize_t read;
 
@@ -329,6 +329,7 @@ static ssize_t rtl837x_context_read(struct file *filep, char __user *ubuf, size_
 	read_errors[13] = dal_rtl8373_svlanUntagAction_get(&svlan_untag, &svlan_untag_svid);
 	read_errors[14] = dal_rtl8373_svlanUnassignAction_get(&svlan_unassign);
 	bridge_dirty = gsw->bridge_state_dirty;
+	vlan_dirty = gsw->vlan_state_dirty;
 	rtl837x_sdk_unlock(gsw);
 
 	len = scnprintf(buf, RTL837X_CONTEXT_BUFSIZE,
@@ -350,7 +351,7 @@ static ssize_t rtl837x_context_read(struct file *filep, char __user *ubuf, size_
 	for (port = 0; port < ARRAY_SIZE(read_errors); port++)
 		len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len, " %d", read_errors[port]);
 	len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len,
-			 " bridge-dirty=%u\n", bridge_dirty);
+			 " bridge-dirty=%u vlan-dirty=%u\n", bridge_dirty, vlan_dirty);
 
 	len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len, "tagger=rtl837x-8021ad vlan-slots=2 ext-cpu=%u private-tag=%u insert=%u tpid=0x%04x\n", ext_cpu, cpu_tag, insert_mode, tpid);
 	len += scnprintf(buf + len, RTL837X_CONTEXT_BUFSIZE - len, "tagger-state aware=0x%03x egr-filter=%u vlan1=0x%03x/0x%03x\n", aware.bits[0], egr_filter, vlan1.mbr.bits[0], vlan1.untag.bits[0]);

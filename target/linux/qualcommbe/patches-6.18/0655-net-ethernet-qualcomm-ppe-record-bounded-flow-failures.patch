@@ -7,7 +7,12 @@ failed hardware command, raw result and errno under flow_lock. Expose both
 on demand in resource_stats, distinguishing command-write failures from
 polling and avoiding per-packet logs or unbounded allocations.
 
+Record a separate bounded rejection snapshot, including pre-resource
+failures, monotonic time, branch, errno and owned flow/port/VLAN/PPPoE
+identity. Count ingress MY_MAC, VLAN and PPPoE resource failures as well.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
@@ -224,10 +229,39 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/rhashtable.h>
  #include <linux/rtnetlink.h>
  #include <linux/seq_file.h>
-@@ -392,6 +393,18 @@
+@@ -362,10 +363,14 @@
+ 	PPE_FT_RES_FLOW_READBACK,
+ 	PPE_FT_RES_FLOW_PUBLISH,
+ 	PPE_FT_RES_VP_PUBLISH,
++	PPE_FT_RES_VLAN,
++	PPE_FT_RES_PPPOE,
+ 	PPE_FT_RES_MAX,
+ };
+ 
+ static const char * const ppe_ft_resource_names[PPE_FT_RES_MAX] = {
++	[PPE_FT_RES_VLAN] = "vlan",
++	[PPE_FT_RES_PPPOE] = "pppoe",
+ 	[PPE_FT_RES_CORE] = "core_role",
+ 	[PPE_FT_RES_L3_SETUP] = "l3_setup",
+ 	[PPE_FT_RES_MY_MAC] = "my_mac",
+@@ -392,6 +397,32 @@
  	unsigned int refcnt;
  };
  
++/* Own only scalar values and the tuple; never retain a netdev/flow pointer. */
++struct ppe_ft_reject {
++	u64 count, time_ns;
++	unsigned long cookie;
++	struct ppe_flow_entry entry;
++	enum ppe_ft_reject_reason reason;
++	const char *detail;
++	unsigned int line;
++	int error, input_ifindex, output_ifindex;
++	int iport, eport, ivp, vp;
++	int isvid, icvid, esvid, ecvid, isid, esid;
++	bool tuple_valid;
++};
++
 +struct ppe_ft_failure {
 +	u64 time_ns;
 +	u64 count;
@@ -243,17 +277,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * struct ppe_flowtable - Flowtable offload state of the PPE.
   * @ppe_dev: Back pointer to the PPE device.
-@@ -438,6 +451,9 @@
+@@ -438,6 +469,12 @@
  	atomic_long_t rejects[PPE_FT_REJECT_MAX];
  	unsigned long resource_failures[PPE_FT_RES_MAX][6];
  	int resource_last_errno[PPE_FT_RES_MAX];
 +	/* Borrowed only while replace owns lock; failures copy all context. */
 +	const struct ppe_ft_flow *installing;
 +	struct ppe_ft_failure last_failure;
++	/* Rejections can precede the resource mutex. */
++	spinlock_t reject_lock;
++	struct ppe_ft_reject last_reject;
  	DECLARE_HASHTABLE(hosts, PPE_FT_HOST_HASH_BITS);
  	struct ppe_ft_nexthop *nexthops;
  	unsigned int nexthop_active;
-@@ -473,6 +489,8 @@
+@@ -473,6 +510,8 @@
  static int ppe_ft_resource_result(struct ppe_flowtable *ft,
  				  enum ppe_ft_resource_stage stage, int ret)
  {
@@ -262,7 +299,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int bucket;
  
  	lockdep_assert_held(&ft->lock);
-@@ -499,6 +517,21 @@
+@@ -499,6 +538,21 @@
  	}
  	ft->resource_failures[stage][bucket]++;
  	ft->resource_last_errno[stage] = ret;
@@ -284,7 +321,527 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -3404,6 +3437,7 @@
+@@ -2757,6 +2811,45 @@
+ 	return 0;
+ }
+ 
++static void ppe_ft_record_reject(struct ppe_flowtable *ft, unsigned long cookie,
++				 const struct ppe_ft_flow *flow,
++				 const struct ppe_ft_data *data,
++				 const struct ppe_flow_nexthop *nh,
++				 enum ppe_ft_reject_reason reason,
++				 const char *detail, unsigned int line,
++				 int iport, int output_ifindex,
++				 bool tuple_valid, int error)
++{
++	struct ppe_ft_reject next = {
++		.cookie = cookie, .reason = reason, .detail = detail, .line = line,
++		.error = error, .input_ifindex = data->ingress_ifindex,
++		.output_ifindex = output_ifindex, .iport = iport,
++		.eport = flow ? flow->eport : -1,
++		.ivp = flow ? flow->ivp : -1, .vp = flow ? flow->vp : -1,
++		.isvid = data->ingress_svid, .icvid = data->ingress_cvid,
++		.esvid = nh->svid, .ecvid = nh->cvid,
++		.isid = data->ingress_pppoe_sid, .esid = data->pppoe_sid,
++		.tuple_valid = tuple_valid,
++	};
++
++	if (!error)
++		return;
++	if (tuple_valid && flow)
++		next.entry = flow->entry;
++	/* Called only after replace has dropped the resource mutex. */
++	spin_lock_bh(&ft->reject_lock);
++	next.time_ns = ktime_get_ns();
++	next.count = ft->last_reject.count + 1;
++	ft->last_reject = next;
++	spin_unlock_bh(&ft->reject_lock);
++}
++
++/* Pinpoint every rejection branch in the matching firmware source. */
++#define PPE_FT_REJECT(label) do { \
++	reject_line = __LINE__; \
++	goto label; \
++} while (0)
++
+ static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
+ 			       struct flow_cls_offload *f)
+ {
+@@ -2768,8 +2861,12 @@
+ 	struct ip6_tnl_flow_offload_info tnl_info;
+ 	struct ppe_flow_nexthop nh = {};
+ 	struct ppe_ft_data data = {};
+-	struct ppe_ft_flow *flow, *old;
++	struct ppe_ft_flow *flow = NULL, *old;
+ 	enum ppe_ft_reject_reason reject_reason = PPE_FT_REJECT_PARSE;
++	const char *reject_detail = "rule-check";
++	unsigned int reject_line = 0;
++	int output_ifindex = 0;
++	bool tuple_valid = false;
+ 	int vlan_pops = 0;
+ 	struct in6_addr lwt_local = {}, lwt_remote = {};
+ 	u8 lwt_hop_limit = 0;
+@@ -2782,17 +2879,30 @@
+ 	/* Padding is included in the normalized request comparison below. */
+ 	memset(&data, 0, sizeof(data));
+ 	memset(&nh, 0, sizeof(nh));
++	nh.svid = -1;
++	nh.cvid = -1;
++	data.pppoe_sid = -1;
++	data.ingress_pppoe_sid = -1;
++	data.ingress_svid = -1;
++	data.ingress_cvid = -1;
++	data.ingress_dsa = false;
+ 
+ 	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC) ||
+-	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS))
+-		return -EOPNOTSUPP;
++	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS)) {
++		ret = -EOPNOTSUPP;
++		PPE_FT_REJECT(err_free);
++	}
+ 	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV4_ADDRS) &&
+-	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS))
+-		return -EOPNOTSUPP;
++	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS)) {
++		ret = -EOPNOTSUPP;
++		PPE_FT_REJECT(err_free);
++	}
+ 
+ 	tunnel_flow = ppe_ft_rule_is_tunnel(rule);
+-	if (tunnel_flow && !ft->ppe_dev->variant->has_tunnel_engine)
+-		return -EOPNOTSUPP;
++	if (tunnel_flow && !ft->ppe_dev->variant->has_tunnel_engine) {
++		ret = -EOPNOTSUPP;
++		PPE_FT_REJECT(err_free);
++	}
+ 
+ 	/* Match keys outside the supported set must reject the rule,
+ 	 * not be skipped: offloading a partially matched rule as a
+@@ -2812,16 +2922,22 @@
+ 	      BIT_ULL(FLOW_DISSECTOR_KEY_VLAN) |
+ 	      BIT_ULL(FLOW_DISSECTOR_KEY_CVLAN) |
+ 	      BIT_ULL(FLOW_DISSECTOR_KEY_PPPOE) |
+-	      PPE_FT_TUNNEL_KEYS))
+-		return -EOPNOTSUPP;
++	      PPE_FT_TUNNEL_KEYS)) {
++		ret = -EOPNOTSUPP;
++		PPE_FT_REJECT(err_free);
++	}
+ 
+ 	flow = kzalloc(sizeof(*flow), GFP_KERNEL);
+-	if (!flow)
+-		return -ENOMEM;
++	if (!flow) {
++		ret = -ENOMEM;
++		PPE_FT_REJECT(err_free);
++	}
+ 
+ 	flow->cookie = f->cookie;
+ 	INIT_LIST_HEAD(&flow->zombie_node);
+ 	flow->index = -1;
++	flow->iport = -1;
++	flow->eport = -1;
+ 	flow->ingress_my_mac = -1;
+ 	flow->my_mac = -1;
+ 	flow->pub_ip = -1;
+@@ -2832,13 +2948,6 @@
+ 	flow->tunnel = -1;
+ 	flow->vp = -1;
+ 	flow->ivp = -1;
+-	nh.svid = -1;
+-	nh.cvid = -1;
+-	data.pppoe_sid = -1;
+-	data.ingress_pppoe_sid = -1;
+-	data.ingress_svid = -1;
+-	data.ingress_cvid = -1;
+-	data.ingress_dsa = false;
+ 
+ 	{
+ 		struct flow_match_basic match;
+@@ -2847,7 +2956,7 @@
+ 		if (match.mask->n_proto != htons(0xffff) ||
+ 		    match.mask->ip_proto != 0xff) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		switch (ntohs(match.key->n_proto)) {
+ 		case ETH_P_IP:
+@@ -2857,7 +2966,7 @@
+ 			break;
+ 		default:
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 
+ 		switch (match.key->ip_proto) {
+@@ -2869,7 +2978,7 @@
+ 			break;
+ 		default:
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 	}
+ 
+@@ -2878,7 +2987,7 @@
+ 
+ 		if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 
+ 		flow_rule_match_ipv6_addrs(rule, &match);
+@@ -2887,7 +2996,7 @@
+ 		    memchr_inv(&match.mask->dst, 0xff,
+ 			       sizeof(match.mask->dst))) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		flow->entry.sip.ip6 = match.key->src;
+ 		flow->entry.dip.ip6 = match.key->dst;
+@@ -2896,14 +3005,14 @@
+ 
+ 		if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV4_ADDRS)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 
+ 		flow_rule_match_ipv4_addrs(rule, &match);
+ 		if (match.mask->src != htonl(0xffffffff) ||
+ 		    match.mask->dst != htonl(0xffffffff)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		flow->entry.sip.ip4 = match.key->src;
+ 		flow->entry.dip.ip4 = match.key->dst;
+@@ -2916,12 +3025,14 @@
+ 		if (match.mask->src != htons(0xffff) ||
+ 		    match.mask->dst != htons(0xffff)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		flow->entry.sport = match.key->src;
+ 		flow->entry.dport = match.key->dst;
+ 	}
+ 
++	tuple_valid = true;
++
+ 	/* Match the wire order S/C exactly. A second C-tag cannot be encoded
+ 	 * by putting its VID in the S-tag slot: that changes its TPID.
+ 	 */
+@@ -2943,18 +3054,18 @@
+ 		    (i && (data.ingress_svid < 0 ||
+ 			   match.key->vlan_tpid != htons(ETH_P_8021Q)))) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 
+ 		ret = ppe_ft_vlan_add(match.key->vlan_tpid, match.key->vlan_id,
+ 				      &data.ingress_svid, &data.ingress_cvid);
+ 		if (ret)
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		data.ingress_tags++;
+ 
+ 		if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 	}
+ 
+@@ -2969,7 +3080,7 @@
+ 		    match.key->ppp_proto != htons(flow->entry.is_ipv6 ?
+ 						 PPP_IPV6 : PPP_IP)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		data.ingress_pppoe_sid = ntohs(match.key->session_id);
+ 	}
+@@ -2981,7 +3092,7 @@
+ 		if (match.mask->ingress_ifindex != -1 ||
+ 		    match.mask->ingress_iftype || match.mask->l2_miss) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		data.ingress_ifindex = match.key->ingress_ifindex;
+ 	}
+@@ -2997,7 +3108,7 @@
+ 		    match.mask->addr_type != 0xffff || match.mask->thoff ||
+ 		    match.mask->flags) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 	}
+ 
+@@ -3009,7 +3120,7 @@
+ 		flow_rule_match_tcp(rule, &match);
+ 		if (match.key->flags || match.mask->flags != flags) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 	}
+ 
+@@ -3024,9 +3135,10 @@
+ 		case FLOW_ACTION_REDIRECT:
+ 			if (redirects++) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			odev = act->dev;
++			output_ifindex = odev ? odev->ifindex : 0;
+ 			break;
+ 		case FLOW_ACTION_MANGLE:
+ 			switch (act->mangle.htype) {
+@@ -3053,17 +3165,17 @@
+ 				break;
+ 			default:
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			if (ret)
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			break;
+ 		case FLOW_ACTION_VLAN_PUSH:
+ 			if (++vlan_pushes > 2 || act->vlan.prio ||
+ 			    (vlan_pushes == 2 && (nh.svid < 0 ||
+ 						 act->vlan.proto != htons(ETH_P_8021Q)))) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			{
+ 				int svid = nh.svid, cvid = nh.cvid;
+@@ -3071,7 +3183,7 @@
+ 				ret = ppe_ft_vlan_add(act->vlan.proto, act->vlan.vid,
+ 						      &svid, &cvid);
+ 				if (ret)
+-					goto err_free;
++					PPE_FT_REJECT(err_free);
+ 				nh.svid = svid;
+ 				nh.cvid = cvid;
+ 			}
+@@ -3079,13 +3191,13 @@
+ 		case FLOW_ACTION_VLAN_POP:
+ 			if (++vlan_pops > 2) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			break;
+ 		case FLOW_ACTION_PPPOE_PUSH:
+ 			if (pppoe_pushes++) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			data.pppoe_sid = act->pppoe.sid;
+ 			break;
+@@ -3098,7 +3210,7 @@
+ 			if (csums++ || flow->entry.is_ipv6 ||
+ 			    act->csum_flags != flags) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			break;
+ 		}
+@@ -3107,7 +3219,7 @@
+ 			    !ppe_ft_lwt_encap(act, &lwt_local, &lwt_remote,
+ 					      &lwt_hop_limit)) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			lwt_tunnel = true;
+ 			tunnel_encap = true;
+@@ -3117,21 +3229,21 @@
+ 			    !ppe_ft_lwt_decap(rule, act, &lwt_local,
+ 					      &lwt_remote, &lwt_hop_limit)) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			lwt_tunnel = true;
+ 			break;
+ 		case FLOW_ACTION_PRIORITY:
+ 			if (act->priority >= PPE_QUEUE_INTER_PRI_NUM) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_free;
++				PPE_FT_REJECT(err_free);
+ 			}
+ 			flow->entry.priority = act->priority;
+ 			flow->entry.priority_valid = true;
+ 			break;
+ 		default:
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 	}
+ 
+@@ -3139,13 +3251,13 @@
+ 	if (tunnel_flow) {
+ 		if (!odev) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		if (flow->entry.is_ipv6 || data.pppoe_sid >= 0 ||
+ 		    nh.svid >= 0 || nh.cvid >= 0 ||
+ 		    data.ingress_svid >= 0 || data.ingress_cvid >= 0) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		if (lwt_tunnel) {
+ 			tdev = odev;
+@@ -3163,17 +3275,31 @@
+ 		}
+ 		if (!tdev) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_free;
++			PPE_FT_REJECT(err_free);
+ 		}
+ 		if (tunnel_encap && !lwt_tunnel)
+ 			dev_hold(tdev);
+ 	}
+ 
+-	if (!odev || redirects != 1 ||
+-	    vlan_pops != data.ingress_tags ||
+-	    is_zero_ether_addr(data.eth.dst)) {
++	if (!odev) {
++		reject_detail = "missing-output";
++		ret = -EOPNOTSUPP;
++		PPE_FT_REJECT(err_tdev);
++	}
++	if (redirects != 1) {
++		reject_detail = "redirect-count";
++		ret = -EOPNOTSUPP;
++		PPE_FT_REJECT(err_tdev);
++	}
++	if (vlan_pops != data.ingress_tags) {
++		reject_detail = "vlan-pop-count";
+ 		ret = -EOPNOTSUPP;
+-		goto err_tdev;
++		PPE_FT_REJECT(err_tdev);
++	}
++	if (is_zero_ether_addr(data.eth.dst)) {
++		reject_detail = "missing-destination-mac";
++		ret = -EOPNOTSUPP;
++		PPE_FT_REJECT(err_tdev);
+ 	}
+ 	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
+ 	if (!tunnel_encap && !edma_port_dev_check(odev) &&
+@@ -3181,7 +3307,7 @@
+ 	    (!ft->ppe_dev->variant->has_vports ||
+ 	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
+ 		ret = -EOPNOTSUPP;
+-		goto err_tdev;
++		PPE_FT_REJECT(err_tdev);
+ 	}
+ 
+ 	flow->entry.pmtu = odev->mtu;
+@@ -3191,7 +3317,7 @@
+ 	 */
+ 	if (data.pppoe_sid >= 0 && is_zero_ether_addr(data.eth.src)) {
+ 		ret = -EOPNOTSUPP;
+-		goto err_tdev;
++		PPE_FT_REJECT(err_tdev);
+ 	}
+ 
+ 	reject_reason = PPE_FT_REJECT_INGRESS_DEVICE;
+@@ -3208,7 +3334,7 @@
+ 		idev = dev_get_by_index(dev_net(odev), data.ingress_ifindex);
+ 		if (!idev) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_prelock_ivp;
++			PPE_FT_REJECT(err_prelock_ivp);
+ 		}
+ 
+ 		/* A station sends routed traffic to the bridge MAC, not to the
+@@ -3280,14 +3406,14 @@
+ 
+ 		if (vp_ret < 0) {
+ 			ret = vp_ret;
+-			goto err_prelock_ivp;
++			PPE_FT_REJECT(err_prelock_ivp);
+ 		}
+ 
+ 		if ((data.ingress_svid >= 0 || data.ingress_cvid >= 0) &&
+ 		    iport < 0 &&
+ 		    !ingress_vp_vlan) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_prelock_ivp;
++			PPE_FT_REJECT(err_prelock_ivp);
+ 		}
+ 	}
+ 
+@@ -3312,17 +3438,17 @@
+ 			dsa_mode = ppe_ft_dsa_resolve(odev, &dsa);
+ 			if (dsa_mode < 0) {
+ 				ret = dsa_mode;
+-				goto err_prelock_ivp;
++				PPE_FT_REJECT(err_prelock_ivp);
+ 			}
+ 			if (nh.svid >= 0) {
+ 				ret = -EOPNOTSUPP;
+-				goto err_prelock_ivp;
++				PPE_FT_REJECT(err_prelock_ivp);
+ 			}
+ 			if (dsa_mode == PPE_FT_DSA_QCA4B) {
+ 				ret = ppe_vp_get_qca4b(ft->ppe_dev, odev,
+ 						       f->common.prio, false);
+ 				if (ret < 0)
+-					goto err_prelock_ivp;
++					PPE_FT_REJECT(err_prelock_ivp);
+ 				flow->vp = ret;
+ 				nh.port = ret;
+ 				nh.l3_if = ppe_ft_vp_l3_if(ft, ret);
+@@ -3330,7 +3456,7 @@
+ 				ret = ppe_ft_vlan_add(dsa.tx_proto, dsa.vid,
+ 						      &nh.svid, &nh.cvid);
+ 				if (ret)
+-					goto err_prelock_ivp;
++					PPE_FT_REJECT(err_prelock_ivp);
+ 				port_priv = netdev_priv(dsa_port_to_conduit(dsa.dp));
+ 				nh.port = port_priv->ppe_port->port_id;
+ 				nh.l3_if = nh.port;
+@@ -3344,7 +3470,7 @@
+ 			ret = ppe_vp_get(ft->ppe_dev, odev,
+ 					 f->common.prio);
+ 			if (ret < 0)
+-				goto err_prelock_ivp;
++				PPE_FT_REJECT(err_prelock_ivp);
+ 			flow->vp = ret;
+ 			nh.port = ret;
+ 			nh.l3_if = ppe_ft_vp_l3_if(ft, ret);
+@@ -3387,7 +3513,7 @@
+ 		if (ret || ipv6_addr_any(&tnl_info.local) ||
+ 		    ipv6_addr_any(&tnl_info.remote)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_prelock_ivp;
++			PPE_FT_REJECT(err_prelock_ivp);
+ 		}
+ 	}
+ 
+@@ -3404,13 +3530,14 @@
  	flow->rule.priority = f->common.prio;
  
  	mutex_lock(&ft->lock);
@@ -292,7 +849,325 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_flow_account_prune(&flow->rx_account, NULL);
  	ppe_flow_account_prune(&flow->tx_account, NULL);
  	ret = ppe_ft_flow_refresh(ft, flow, tunnel_flow);
-@@ -3795,6 +3829,7 @@
+ 	if (ret) {
+ 		if (ret > 0)
+ 			ret = 0;
+-		goto err_vp;
++		PPE_FT_REJECT(err_vp);
+ 	}
+ 	if (tunnel_flow) {
+ 		struct in6_addr local, remote;
+@@ -3432,13 +3559,13 @@
+ 		}
+ 		if (ipv6_addr_any(&remote)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_unlock;
++			PPE_FT_REJECT(err_unlock);
+ 		}
+ 		flow->tunnel = ppe_ft_tunnel_get(ft, tdev, &local, &remote,
+ 						 link, hop_limit, mtu);
+ 		if (flow->tunnel < 0) {
+ 			ret = flow->tunnel;
+-			goto err_unlock;
++			PPE_FT_REJECT(err_unlock);
+ 		}
+ 		if (tunnel_encap) {
+ 			const struct ppe_ft_tunnel *tunnel =
+@@ -3459,7 +3586,7 @@
+ 		if (data.sport != flow->entry.sport ||
+ 		    data.dport != flow->entry.dport) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_vp;
++			PPE_FT_REJECT(err_vp);
+ 		}
+ 
+ 		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
+@@ -3468,7 +3595,7 @@
+ 		   (data.dip != flow->entry.dip.ip4 ||
+ 		    data.dport != flow->entry.dport)) {
+ 		ret = -EOPNOTSUPP;
+-		goto err_vp;
++		PPE_FT_REJECT(err_vp);
+ 	} else if (data.sip != flow->entry.sip.ip4 ||
+ 		   data.sport != flow->entry.sport) {
+ 		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_SNAT;
+@@ -3477,7 +3604,7 @@
+ 		flow->pub_ip = ppe_ft_pub_ip_get(ft, data.sip);
+ 		if (flow->pub_ip < 0) {
+ 			ret = flow->pub_ip;
+-			goto err_vp;
++			PPE_FT_REJECT(err_vp);
+ 		}
+ 		nh.pub_ip_index = flow->pub_ip;
+ 	} else if (data.dip != flow->entry.dip.ip4 ||
+@@ -3494,7 +3621,7 @@
+ 		ret = ppe_ft_core_port_get(ft, egress_core_port, false);
+ 		ret = ppe_ft_resource_result(ft, PPE_FT_RES_CORE, ret);
+ 		if (ret)
+-			goto err_pub_ip;
++			PPE_FT_REJECT(err_pub_ip);
+ 		flow->core_egress_port = egress_core_port;
+ 	}
+ 
+@@ -3509,27 +3636,30 @@
+ 
+ 		flow->ingress_my_mac =
+ 			ppe_ft_my_mac_get(ft, data.eth.ingress);
++		flow->ingress_my_mac =
++			ppe_ft_resource_result(ft, PPE_FT_RES_MY_MAC,
++					       flow->ingress_my_mac);
+ 		if (flow->ingress_my_mac < 0) {
+ 			ret = flow->ingress_my_mac;
+-			goto err_core_egress;
++			PPE_FT_REJECT(err_core_egress);
+ 		}
+ 
+ 		ret = ppe_l3_if_set(ft->ppe_dev, ingress_l3_if,
+ 				    data.eth.ingress, imtu, -1);
+ 		ret = ppe_ft_resource_result(ft, PPE_FT_RES_L3_SETUP, ret);
+ 		if (ret)
+-			goto err_ingress_my_mac;
++			PPE_FT_REJECT(err_ingress_my_mac);
+ 
+ 		ret = ppe_ft_port_l3_if_set(ft, flow->ivp, ingress_l3_if);
+ 		ret = ppe_ft_resource_result(ft, PPE_FT_RES_L3_SETUP, ret);
+ 		if (ret)
+-			goto err_ingress_my_mac;
++			PPE_FT_REJECT(err_ingress_my_mac);
+ 
+ 		ret = ppe_l3_if_my_mac_set(ft->ppe_dev, ingress_l3_if,
+ 					   flow->ingress_my_mac, true);
+ 		ret = ppe_ft_resource_result(ft, PPE_FT_RES_L3_SETUP, ret);
+ 		if (ret)
+-			goto err_ingress_my_mac;
++			PPE_FT_REJECT(err_ingress_my_mac);
+ 	}
+ 
+ 	if ((data.ingress_svid >= 0 || data.ingress_cvid >= 0) &&
+@@ -3540,9 +3670,10 @@
+ 					     (data.ingress_dsa ||
+ 					      data.ingress_svid >= 0) &&
+ 					     data.ingress_cvid >= 0);
++		flow->vlan = ppe_ft_resource_result(ft, PPE_FT_RES_VLAN, flow->vlan);
+ 		if (flow->vlan < 0) {
+ 			ret = flow->vlan;
+-			goto err_ingress_my_mac;
++			PPE_FT_REJECT(err_ingress_my_mac);
+ 		}
+ 	}
+ 
+@@ -3559,8 +3690,9 @@
+ 			src_l3_if = ppe_ft_vlan_l3_if(ft, flow->vlan);
+ 		if (flow->vlan >= 0 && ft->vlans[flow->vlan].pppoe >= 0 &&
+ 		    data.ingress_pppoe_sid < 0) {
++			reject_detail = "plain-ip-on-pppoe-vsi";
+ 			ret = -EOPNOTSUPP;
+-			goto err_vlan;
++			PPE_FT_REJECT(err_vlan);
+ 		}
+ 		if (data.ingress_pppoe_sid >= 0) {
+ 			int physical = flow->ivp >= 0 ?
+@@ -3577,29 +3709,36 @@
+ 				    session->cvid != data.ingress_cvid)
+ 					continue;
+ 				if (session_index >= 0) {
++					reject_detail = "ambiguous-pppoe-session";
+ 					ret = -EOPNOTSUPP;
+-					goto err_vlan;
++					PPE_FT_REJECT(err_vlan);
+ 				}
+ 				session_index = i;
+ 			}
+ 			if (session_index < 0) {
++				reject_detail = "missing-pppoe-session";
+ 				ret = -ENOTCONN;
+-				goto err_vlan;
++				PPE_FT_REJECT(err_vlan);
+ 			}
+ 			ret = ppe_ft_pppoe_activate(ft, session_index, flow->ivp);
+-			if (ret)
+-				goto err_vlan;
++			ret = ppe_ft_resource_result(ft, PPE_FT_RES_PPPOE, ret);
++			if (ret) {
++				reject_detail = "pppoe-activation";
++				PPE_FT_REJECT(err_vlan);
++			}
+ 			if (flow->vlan != ft->pppoe[session_index].vlan) {
++				reject_detail = "pppoe-vlan-identity";
+ 				ret = -EEXIST;
+-				goto err_vlan;
++				PPE_FT_REJECT(err_vlan);
+ 			}
+ 			ft->pppoe[session_index].ref.refcnt++;
+ 			flow->ingress_pppoe = session_index;
+ 			src_l3_if = ppe_ft_pppoe_hw_l3_if(ft, session_index);
+ 		}
+ 		if (src_l3_if < 0 || src_l3_if >= PPE_IN_L3_IF_TBL_ENTRIES) {
++			reject_detail = "source-l3-range";
+ 			ret = -EOPNOTSUPP;
+-			goto err_vlan;
++			PPE_FT_REJECT(err_vlan);
+ 		}
+ 		flow->entry.src_l3_if = src_l3_if;
+ 		flow->entry.src_l3_if_valid = true;
+@@ -3611,15 +3750,18 @@
+ 			if (flow->ingress_my_mac < 0) {
+ 				flow->ingress_my_mac =
+ 					ppe_ft_my_mac_get(ft, data.eth.ingress);
++				flow->ingress_my_mac =
++					ppe_ft_resource_result(ft, PPE_FT_RES_MY_MAC,
++							       flow->ingress_my_mac);
+ 				if (flow->ingress_my_mac < 0) {
+ 					ret = flow->ingress_my_mac;
+-					goto err_vlan;
++					PPE_FT_REJECT(err_vlan);
+ 				}
+ 			}
+ 			ret = ppe_l3_if_my_mac_set(ft->ppe_dev, src_l3_if,
+ 						   flow->ingress_my_mac, true);
+ 			if (ret)
+-				goto err_vlan;
++				PPE_FT_REJECT(err_vlan);
+ 			/* Retain the underlay MAC for ordinary VLAN routing after
+ 			 * this session withdraws and restores its VSI selector.
+ 			 */
+@@ -3628,7 +3770,7 @@
+ 							   ppe_ft_vlan_l3_if(ft, flow->vlan),
+ 							   flow->ingress_my_mac, true);
+ 				if (ret)
+-					goto err_vlan;
++					PPE_FT_REJECT(err_vlan);
+ 			}
+ 		}
+ 	}
+@@ -3649,13 +3791,13 @@
+ 		if (flow->vp >= 0 &&
+ 		    !ppe_vp_is_qca4b(ft->ppe_dev, flow->vp)) {
+ 			ret = -EOPNOTSUPP;
+-			goto err_vlan;
++			PPE_FT_REJECT(err_vlan);
+ 		}
+ 		if (flow->vp >= 0) {
+ 			pppoe_port = ppe_vp_physical_port(ft->ppe_dev, flow->vp);
+ 			if (pppoe_port < 0) {
+ 				ret = pppoe_port;
+-				goto err_vlan;
++				PPE_FT_REJECT(err_vlan);
+ 			}
+ 		}
+ 
+@@ -3663,9 +3805,10 @@
+ 					       data.eth.dst, data.eth.src,
+ 					       pppoe_port, nh.svid, nh.cvid,
+ 					       flow->vp);
++		flow->pppoe = ppe_ft_resource_result(ft, PPE_FT_RES_PPPOE, flow->pppoe);
+ 		if (flow->pppoe < 0) {
+ 			ret = flow->pppoe;
+-			goto err_vlan;
++			PPE_FT_REJECT(err_vlan);
+ 		}
+ 		nh.l3_if = ppe_ft_pppoe_hw_l3_if(ft, flow->pppoe);
+ 	}
+@@ -3679,7 +3822,7 @@
+ 		flow->my_mac = ppe_ft_my_mac_get(ft, data.eth.src);
+ 		if (flow->my_mac < 0) {
+ 			ret = flow->my_mac;
+-			goto err_pppoe;
++			PPE_FT_REJECT(err_pppoe);
+ 		}
+ 
+ 		/* PPPoE topology configured its L3 interface before the
+@@ -3691,7 +3834,7 @@
+ 					    data.eth.src, odev->mtu, -1);
+ 			ret = ppe_ft_resource_result(ft, PPE_FT_RES_L3_SETUP, ret);
+ 			if (ret)
+-				goto err_my_mac;
++				PPE_FT_REJECT(err_my_mac);
+ 		}
+ 
+ 		/* The port binding classifies plain ingress on the
+@@ -3705,21 +3848,21 @@
+ 			ret = ppe_ft_port_l3_if_set(ft, nh.port, nh.l3_if);
+ 			ret = ppe_ft_resource_result(ft, PPE_FT_RES_L3_SETUP, ret);
+ 			if (ret)
+-				goto err_my_mac;
++				PPE_FT_REJECT(err_my_mac);
+ 		}
+ 
+ 		ret = ppe_l3_if_my_mac_set(ft->ppe_dev, nh.l3_if,
+ 					   flow->my_mac, true);
+ 		ret = ppe_ft_resource_result(ft, PPE_FT_RES_L3_SETUP, ret);
+ 		if (ret)
+-			goto err_my_mac;
++			PPE_FT_REJECT(err_my_mac);
+ 	}
+ 
+ 	nexthop = ppe_ft_resource_result(ft, PPE_FT_RES_NEXTHOP,
+ 					 ppe_ft_nexthop_get(ft, &nh));
+ 	if (nexthop < 0) {
+ 		ret = nexthop;
+-		goto err_my_mac;
++		PPE_FT_REJECT(err_my_mac);
+ 	}
+ 
+ 	flow->nexthop = nexthop;
+@@ -3728,12 +3871,12 @@
+ 	ret = ppe_ft_resource_result(ft, PPE_FT_RES_HOST,
+ 				     ppe_ft_host_get(ft, &flow->entry));
+ 	if (ret)
+-		goto err_nexthop;
++		PPE_FT_REJECT(err_nexthop);
+ 
+ 	ret = ppe_ft_resource_result(ft, PPE_FT_RES_FLOW_ADD,
+ 				     ppe_flow_entry_add(ft->ppe_dev, &flow->entry));
+ 	if (ret < 0)
+-		goto err_host;
++		PPE_FT_REJECT(err_host);
+ 	flow->index = ret;
+ 
+ 	/* A recycled table index can retain counters from its previous owner.
+@@ -3743,12 +3886,12 @@
+ 				 &flow->packets, &flow->bytes);
+ 	ret = ppe_ft_resource_result(ft, PPE_FT_RES_FLOW_READBACK, ret);
+ 	if (ret)
+-		goto err_added_flow;
++		PPE_FT_REJECT(err_added_flow);
+ 
+ 	ret = ppe_flow_entry_enable(ft->ppe_dev, flow->index, true);
+ 	ret = ppe_ft_resource_result(ft, PPE_FT_RES_FLOW_ENABLE, ret);
+ 	if (ret)
+-		goto err_added_flow;
++		PPE_FT_REJECT(err_added_flow);
+ 
+ 	ret = ppe_flow_entry_matches(ft->ppe_dev, flow->index, &flow->entry);
+ 	ret = ppe_ft_resource_result(ft, PPE_FT_RES_FLOW_READBACK, ret);
+@@ -3764,9 +3907,9 @@
+ 				ft->flow_owners[flow->index] = flow;
+ 			ppe_ft_flow_quarantine(ft, flow);
+ 			flow = NULL;
+-			goto err_unlock;
++			PPE_FT_REJECT(err_unlock);
+ 		}
+-		goto err_host;
++		PPE_FT_REJECT(err_host);
+ 	}
+ 
+ 	old = ft->flow_owners[flow->index];
+@@ -3780,7 +3923,7 @@
+ 					    ppe_ft_params);
+ 	ret = ppe_ft_resource_result(ft, PPE_FT_RES_FLOW_PUBLISH, ret);
+ 	if (ret)
+-		goto err_hw_flow;
++		PPE_FT_REJECT(err_hw_flow);
+ 	ppe_ft_flow_count_inc(ft, flow);
+ 
+ 	if (flow->ivp >= 0) {
+@@ -3791,10 +3934,11 @@
+ 			rhashtable_remove_fast(&ft->flows, &flow->node,
+ 					       ppe_ft_params);
+ 			ppe_ft_flow_count_dec(ft, flow);
+-			goto err_hw_flow;
++			PPE_FT_REJECT(err_hw_flow);
  		}
  	}
  
@@ -300,7 +1175,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ft->lock);
  	if (tdev)
  		dev_put(tdev);
-@@ -3850,6 +3885,7 @@
+@@ -3850,6 +3994,7 @@
  		ppe_vp_put(ft->ppe_dev, flow->ivp);
  err_unlock:
  	ppe_ft_tunnel_put(ft, flow ? flow->tunnel : -1);
@@ -308,7 +1183,67 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ft->lock);
  err_tdev:
  	if (tdev)
-@@ -4271,6 +4307,8 @@
+@@ -3863,19 +4008,26 @@
+ 	if (tdev)
+ 		dev_put(tdev);
+ err_free:
+-	if (ret)
++	if (ret) {
+ 		atomic_long_inc(&ft->rejects[reject_reason]);
++		ppe_ft_record_reject(ft, f->cookie, flow, &data, &nh,
++				     reject_reason, reject_detail, reject_line,
++				     iport, output_ifindex, tuple_valid, ret);
++	}
+ 	if (flow) {
+ 		ppe_flow_account_put(&flow->rx_account);
+ 		ppe_flow_account_put(&flow->tx_account);
+ 	}
+ 	if (flow && flow->egress_dev)
+ 		dev_put(flow->egress_dev);
+-	kfree_rcu(flow, rcu);
++	if (flow)
++		kfree_rcu(flow, rcu);
+ 
+ 	return ret;
+ }
+ 
++#undef PPE_FT_REJECT
++
+ static int ppe_ft_flow_destroy(struct ppe_flowtable *ft,
+ 			       struct flow_cls_offload *f)
+ {
+@@ -4267,10 +4419,39 @@
+ }
+ DEFINE_SHOW_ATTRIBUTE(ppe_ft_active_flows);
+ 
++static void ppe_ft_reject_show(struct seq_file *seq, struct ppe_flowtable *ft)
++{
++	struct ppe_ft_reject last;
++
++	spin_lock_bh(&ft->reject_lock);
++	last = ft->last_reject;
++	spin_unlock_bh(&ft->reject_lock);
++	seq_printf(seq, "last_reject count:%llu monotonic_ns:%llu stage:%s detail:%s line:%u errno:%d tuple_valid:%u\n",
++		   last.count, last.time_ns,
++		   last.count ? ppe_ft_reject_names[last.reason] : "none",
++		   last.detail ?: "none", last.line, last.error, last.tuple_valid);
++	if (!last.count)
++		return;
++	seq_printf(seq, "last_reject cookie:%lx ifindex:%d/%d ports:%d/%d vp:%d/%d ingress_tags:%d/%d egress_tags:%d/%d pppoe_sid:%d/%d\n",
++		   last.cookie, last.input_ifindex, last.output_ifindex,
++		   last.iport, last.eport, last.ivp, last.vp,
++		   last.isvid, last.icvid, last.esvid, last.ecvid, last.isid, last.esid);
++	if (!last.tuple_valid)
++		return;
++	seq_printf(seq, "last_reject proto:%u sport:%u dport:%u ",
++		   last.entry.proto, ntohs(last.entry.sport), ntohs(last.entry.dport));
++	if (last.entry.is_ipv6)
++		seq_printf(seq, "src:%pI6c dst:%pI6c\n", &last.entry.sip.ip6, &last.entry.dip.ip6);
++	else
++		seq_printf(seq, "src:%pI4 dst:%pI4\n", &last.entry.sip.ip4, &last.entry.dip.ip4);
++}
++
+ static int ppe_ft_resource_stats_show(struct seq_file *seq, void *data)
  {
  	struct ppe_flowtable *ft = seq->private;
  	struct ppe_ft_host *host;
@@ -317,7 +1252,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int hosts = 0;
  	int bucket;
  
-@@ -4295,6 +4333,31 @@
+@@ -4295,6 +4476,32 @@
  		   ft->nexthop_active,
  		   ft->ppe_dev->variant->num_nexthop_entries,
  		   ft->nexthop_allocs, ft->nexthop_reuses, ft->nexthop_frees);
@@ -346,6 +1281,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	seq_printf(seq, "last_hw_failure count:%llu monotonic_ns:%llu address:%08x command:%08x result:%08x polled:%u errno:%d\n",
 +		   hw.count, hw.time_ns, hw.address, hw.command,
 +		   hw.result, hw.polled, hw.error);
++	ppe_ft_reject_show(seq, ft);
  	mutex_unlock(&ft->lock);
  
  	return 0;
+@@ -4516,6 +4723,7 @@
+ 	}
+ 
+ 	mutex_init(&ft->lock);
++	spin_lock_init(&ft->reject_lock);
+ 	atomic_set(&ft->ipv4_flows, 0);
+ 	atomic_set(&ft->ipv6_flows, 0);
+ 	INIT_LIST_HEAD(&ft->block_cb_list);

@@ -62,6 +62,16 @@ struct rtl837x_vlan_entry {
 	u16 untag;
 };
 
+/* One failed control operation is retained until verified rollback completes. */
+struct rtl837x_vlan_snapshot {
+	rtk_vlan_entry_t row;
+	rtk_portmask_t keep;
+	rtk_vlan_t pvid, svid;
+	rtk_enable_t filtering;
+	u16 vid;
+	u8 port;
+};
+
 typedef struct rtl837x_pnswap_cfg_s {
 	uint8_t sds0_rx_swap : 1;
 	uint8_t sds0_tx_swap : 1;
@@ -137,15 +147,12 @@ struct rtk_gsw {
 
 	dal_mapper_t *pMapper;
 
-	/* Separate software owners share the hardware 4K table. Internal VIDs
-	 * are reserved from customer VLAN configuration.
-	 */
-	struct rtl837x_vlan_entry svlan_table[4096];
-	struct rtl837x_vlan_entry vlan_table[4096];
-
+	/* VLAN membership is read from hardware inside each transaction. */
 	uint16_t port_pvid[RTK_MAX_NUM_OF_PORT]; // 端口PVID配置
 
 	bool bridge_state_dirty;
+	bool vlan_state_dirty;
+	struct rtl837x_vlan_snapshot vlan_rollback;
 	u8 stp_state[RTK_MAX_NUM_OF_PORT];
 	u16 tag8021q_pvid[RTK_MAX_NUM_OF_PORT];
 	bool tag8021q_pvid_valid[RTK_MAX_NUM_OF_PORT];

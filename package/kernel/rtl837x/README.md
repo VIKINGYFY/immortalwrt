@@ -43,28 +43,11 @@ It builds the switch driver module:
 rtl837x_dsa.ko
 ```
 
-Package version `1.0` includes serialized SDK context selection for multiple
-RTL8372N instances sharing the RTL8373 mapper family, an indirect-MDIO path
-aligned with the validated native `mii_bus` transaction sequence, and an optional
-bootloader configuration handoff mode. Ordered RTL8372N initialization and selective
-CPU SerDes SDK reinitialization, plus deferred-probe port quarantine, are available
-as generic Device Tree policies. The driver also records per-instance MDIO
-transport diagnostics, including the first indirect command's control and data
-words, for early hardware bring-up. An opt-in RTL8372N LED policy restores the
-chip vendor's parallel LED defaults when a warm handoff intentionally skips
-the SDK cold-initialization path. Version `0.0.13` corrected the raw-register to
-SDK-field conversion used by that LED table. Version `0.0.14` changes the
-operational data path to standard tag_8021q VLAN headers, keeps VLAN-unaware
-bridge PVIDs in the tagger-managed VID domain, and adds bounded forwarding-state
-and first-packet diagnostics. Early deferred-probe quarantine remains CPU-only;
-after DSA registration, tag VLAN membership and egress filtering isolate
-standalone ports and bridge domains. Version `0.0.15` also makes routed bridge
-traffic fall back to the target port's standalone VID when that target is not a
-bridge member, and implements the DSA MTU callbacks needed to add the 802.1Q
-tag overhead to the CPU conduit. Version `0.1` removes the legacy recovery poller,
-makes VLAN/PVID updates transactional, and maps VLAN-unaware FDB entries into
-their tag_8021q isolation domains. Mixed-family SDK context isolation remains
-unvalidated.
+The current package uses serialized SDK context selection for multiple RTL8372N
+instances. DSA, PHY, GPIO, SFP and debugfs operations all use the same guard.
+Mixed-family SDK context isolation remains unvalidated. The linked SDK mapper
+retains callbacks referenced by all built API wrappers and SDK headers; unused
+DAL modules are omitted without changing the mapper structure or PHY firmware.
 
 The driver consumes the MDIO controller exposed by the SoC DTS. It does not
 require QSDK-specific UNIPHY clocks, CMN register windows, or a board-specific
@@ -90,8 +73,9 @@ Port identity always uses an outer 802.1ad S-tag allocated by the Linux
 tag_8021q core. The inner 802.1Q C-tag belongs to the customer VLAN. There is
 one transport mode for all supported boards; the former `realtek,dsa-svlan`
 property is no longer required or read. Untagged user frames remain valid.
-SVID and CVID membership have separate software tables, including when the
-two VLAN IDs have the same numerical value.
+The hardware shares one 4K table between service and customer VLANs. Customer
+VIDs 3072–4095 are reserved for DSA service tags and return `-EBUSY`; membership
+transactions read actual hardware rows instead of maintaining duplicate caches.
 
 The driver implements `port_change_mtu` and `port_max_mtu`. DSA therefore raises
 the CPU conduit MTU by the tagger's 4-byte overhead while user ports retain the
@@ -231,12 +215,12 @@ detected switch family and the configured mask
 comes from the available DSA ports, both constrained by the DSA CPU port; the
 property contains no board or MDIO-address policy. Full DSA setup enables VLAN
 egress filtering and registers all tag_8021q VLANs before it opens the
-operational isolation matrix. The tag_8021q core gives each standalone port a
-distinct VID and replaces it with a
-shared bridge VID only while the port belongs to a VLAN-unaware bridge. This
-makes VLAN membership the sole operational forwarding gate and prevents a
-standalone WAN from joining a LAN broadcast domain even when both links carry
-untagged traffic. Removing a port from a bridge restores its standalone VID.
+operational isolation matrix. The tag_8021q core allocates the reserved service-tag domain. Each user port
+retains its standalone source SVID; bridge membership updates customer VLAN
+membership, service-row membership and isolation without merging source-port
+identities. A standalone WAN therefore remains outside the LAN forwarding
+domain even when both carry untagged traffic. Leaving a bridge removes its
+forwarding membership while retaining the port's source SVID.
 
 ### MDIO and reset handling
 
@@ -348,32 +332,39 @@ snapshot for success logging.
 - Local LAN-to-LAN forwarding follows customer VLAN membership and bridge
   isolation. Source-port SVIDs remain distinct across bridge join/leave.
 
-Version `2.0-3` bounds RTL VLAN/SVLAN table-engine writes with the SDK busy poll
-limit, removes the cold-path VLAN reset/init duplicate, and removes the
-redundant DSA setup egress-filter write. VLAN1 seeding remains responsible for
-configured-port membership and per-port state.
-
-## r27 / package 2.0-4 error paths and footprint
-
-Customer VLAN IDs 3072–4095 are reserved for `tag_8021q` service tags. The
-hardware uses one 4K table for customer and service VLAN rows; attempting to
-add a customer VLAN in this range now returns `-EBUSY` with an extack.
+## Transactions and failure recovery
 
 Bridge changes snapshot isolation, CPU tag preservation and service membership
-before programming. Failed transactions restore every candidate row, including
-the row whose completion failed. Failed rollback marks `bridge-dirty` and tries
-to block user ports; later STP requests cannot reopen them until a complete
-bridge transaction recovers the hardware. An MDIO failure can also prevent the
-blocking write itself; that failure is explicitly logged. Context debugfs shows
-getter errors instead of silently presenting failed reads as valid state.
+before programming. Customer VLAN, tag VLAN and filtering changes also snapshot
+the affected hardware row, customer PVID, service PVID, ingress filtering and CPU
+tag preservation. Software PVID ownership is published only after readback.
+Failed operations restore the complete snapshot, including a write that may have
+committed before reporting failure.
 
-Cold PHY patch handshakes now have a 30-read limit, propagate bus errors and
-attempt to release patch requests/locks before returning failure. PHY firmware
-payloads and existing delays are retained. Both VLAN table reads and writes
-wait for the indirect engine before issuing a command and after completion;
-full SVLAN writes no longer perform a redundant table read.
+A failed rollback retains one pending snapshot, marks `vlan-dirty` or
+`bridge-dirty`, and attempts to block user ports. Later STP requests cannot reopen
+them. A subsequent configuration transaction must restore pending VLAN state
+and complete bridge recovery before forwarding is restored. A bus error can
+also prevent the blocking write; this failure is explicitly logged. The
+`context` file exposes both dirty flags and getter errors.
 
-Four unreferenced register/table description objects are no longer linked.
-The SDK mapper and firmware tables remain. This revision requires hardware
-validation of cold initialization and error recovery; host fault tests and
-successful compilation do not establish those runtime properties.
+Cold PHY patch handshakes have a 30-read limit and propagate bus errors. Failure
+cleanup releases patch requests/locks and restores the data-RAM access gate and
+page selector. PHY firmware payloads and delays remain unchanged. VLAN table
+reads and writes poll the indirect engine before and after each command.
+
+Successful bridge membership changes retain `SVLAN bridge join/leave` logs.
+Transaction failures report phase, original errno, rollback errno and dirty
+state; completed recovery is logged once. There are no RTL slot lifecycle logs.
+
+On Qualcomm PPE, `resource_stats` includes bounded `last_failure`, hardware
+command failure and `last_reject` records. The latter carries monotonic time,
+rejection stage/detail/source line, errno, cookie, tuple validity, interface and
+port IDs, VLAN identities and PPPoE session IDs. These snapshots are overwritten
+by later failures and are diagnostics, not a per-flow event history. Collect
+`dmesg`, `/proc/uptime`, `/proc/sys/kernel/random/boot_id`, `resource_stats` and
+RTL `context` together so timestamps can be matched to the same boot. The PPE
+revision identifies the source corresponding to a rejection line number.
+
+Host fault injection and compilation validate control paths; cold boot,
+forwarding, throughput and real hardware error recovery require device testing.

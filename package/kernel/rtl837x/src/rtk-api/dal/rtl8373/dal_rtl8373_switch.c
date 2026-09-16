@@ -417,28 +417,57 @@ rtk_uint16 data_ram_patch_6818B_220714_patch[][2] = { { 0xC202, 0xFA }, { 0xC203
 
 						      { 0xC201, 0x01 }, { 0xC22E, 0xD7 }, { 0xC26F, 0x18 }, { 0xC28E, 0x52 } };
 
-rtk_api_ret_t data_ram_patch_6818B_220714(rtk_uint32 phymask)
+/* A transport error may follow a committed gate write. Restore the saved
+ * page and auto-increment state on every failed data-memory phase.
+ */
+static rtk_api_ret_t rtl8373_data_ram_patch(rtk_uint32 phymask,
+					 const rtk_uint16 patch[][2],
+					 rtk_uint32 len, bool uc2_finish)
 {
-	rtk_uint32 port, i, data_ram_addr, data_ram_val, len;
-
-	len = sizeof(data_ram_patch_6818B_220714_patch) / 4;
+	rtk_uint32 port, i, auto_inc, page;
+	rtk_api_ret_t ret, cleanup, err;
 
 	for (port = 0; port < 8; port++) {
-		if ((1 << port) & phymask) {
-			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, 0));
-			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb892, 0xff00, 0));
-			for (i = 0; i < len; i++) {
-				data_ram_addr = data_ram_patch_6818B_220714_patch[i][0];
-				data_ram_val = data_ram_patch_6818B_220714_patch[i][1];
-				RTK_ERR_CHK(data_ram_write_8b(port, data_ram_addr, data_ram_val));
-			}
-
-			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, 1));
-			RTK_ERR_CHK(uc2_sram_write_8b(port, 0x8217, 0x1e));
+		if (!(phymask & (1 << port)))
+			continue;
+		RTK_ERR_CHK(dal_rtl8373_phy_regbits_read(port, 31, 0xb896, 1, &auto_inc));
+		RTK_ERR_CHK(dal_rtl8373_phy_regbits_read(port, 31, 0xb892, 0xff00, &page));
+		ret = dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, 0);
+		if (ret)
+			goto restore;
+		ret = dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb892, 0xff00, 0);
+		if (ret)
+			goto restore;
+		for (i = 0; i < len; i++) {
+			ret = data_ram_write_8b(port, patch[i][0], patch[i][1]);
+			if (ret)
+				goto restore;
+		}
+		ret = dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, 1);
+		if (ret)
+			goto restore;
+		if (uc2_finish) {
+			ret = uc2_sram_write_8b(port, 0x8217, 0x1e);
+			if (ret)
+				goto restore;
 		}
 	}
-
 	return RT_ERR_OK;
+
+restore:
+	cleanup = dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb892, 0xff00, page);
+	err = dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 1, auto_inc);
+	if (!cleanup)
+		cleanup = err;
+	rtlglue_printf("PHY data RAM patch failed: port=%u ret=%d cleanup=%d\n",
+		       port, ret, cleanup);
+	return ret;
+}
+
+rtk_api_ret_t data_ram_patch_6818B_220714(rtk_uint32 phymask)
+{
+	return rtl8373_data_ram_patch(phymask, data_ram_patch_6818B_220714_patch,
+				      ARRAY_SIZE(data_ram_patch_6818B_220714_patch), true);
 }
 
 rtk_uint16 alg_tune_2p5G_6818B_220701_patch[][2] = { { 0x8066, 0x10 }, { 0x8067, 0x40 }, { 0x8068, 0x0a }, { 0x8069, 0x40 }, { 0x806e, 0x02 }, { 0x806f, 0xa0 },
@@ -1806,26 +1835,8 @@ rtk_api_ret_t uc_patch_6818C_221117(rtk_uint32 phymask)
 rtk_uint16 data_ram_patch_6818C_221026_patch[][2] = { { 0xC206, 0xB1 } };
 rtk_api_ret_t data_ram_patch_6818C_221026(rtk_uint32 phymask)
 {
-	rtk_uint16 port, i, data_ram_addr, data_ram_val, len;
-
-	len = sizeof(data_ram_patch_6818C_221026_patch) / 4;
-	for (port = 0; port < 8; port++) {
-		if ((1 << port) & phymask) {
-			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 0x1,
-						      0)); // #disable data_mem_auto_inc
-			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb892, 0xff00,
-						      0)); // #set uc2 data ram page
-			for (i = 0; i < len; i++) {
-				data_ram_addr = data_ram_patch_6818C_221026_patch[i][0];
-				data_ram_val = data_ram_patch_6818C_221026_patch[i][1];
-				RTK_ERR_CHK(data_ram_write_8b(port, data_ram_addr, data_ram_val));
-			}
-			RTK_ERR_CHK(dal_rtl8373_phy_regbits_write(1 << port, 31, 0xb896, 0x1,
-						      1)); // # enable data_mem_auto_inc
-		}
-	}
-
-	return RT_ERR_OK;
+	return rtl8373_data_ram_patch(phymask, data_ram_patch_6818C_221026_patch,
+				      ARRAY_SIZE(data_ram_patch_6818C_221026_patch), false);
 }
 
 rtk_api_ret_t afe_patch_6818C_220607(rtk_uint16 phymask)
