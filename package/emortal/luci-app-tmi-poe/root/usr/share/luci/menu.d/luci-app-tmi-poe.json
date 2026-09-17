@@ -1,0 +1,25 @@
+{
+	"admin/control": {
+		"title": "Control",
+		"order": 44,
+		"action": {
+			"type": "firstchild"
+		}
+	},
+	"admin/control/tmi-poe": {
+		"title": "TMI PoE Control",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "tmi-poe/overview"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-tmi-poe"
+			],
+			"uci": {
+				"tmi-poe": true
+			}
+		}
+	}
+}

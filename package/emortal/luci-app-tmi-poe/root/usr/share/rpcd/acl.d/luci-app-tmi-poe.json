@@ -1,0 +1,33 @@
+{
+	"luci-app-tmi-poe": {
+		"description": "Grant LuCI access to TMI PoE control and status",
+		"read": {
+			"ubus": {
+				"system": [
+					"board"
+				]
+			},
+			"uci": [
+				"tmi-poe"
+			],
+			"file": {
+				"/usr/libexec/tmi-poe-status": [
+					"exec"
+				],
+				"/usr/libexec/tmi-poe-log": [
+					"exec"
+				]
+			}
+		},
+		"write": {
+			"uci": [
+				"tmi-poe"
+			],
+			"file": {
+				"/usr/libexec/tmi-poe-log-clear": [
+					"exec"
+				]
+			}
+		}
+	}
+}

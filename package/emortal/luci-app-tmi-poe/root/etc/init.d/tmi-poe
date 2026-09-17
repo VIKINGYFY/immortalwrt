@@ -7,10 +7,10 @@ USE_PROCD=1
 start_service() {
 	procd_open_instance
 	procd_set_param command /usr/sbin/tmi-poe run
-	procd_set_param file /etc/config/tmi-poe
+	# Package upgrades call start: restart only when the executable changes.
+	# Configuration changes are validated and applied by reload_service().
+	procd_set_param file /usr/sbin/tmi-poe
 	procd_set_param term_timeout 8
-	procd_set_param stdout 1
-	procd_set_param stderr 1
 	# Do not repeatedly reset PoE after a missing controller or failed init.
 	procd_close_instance
 }

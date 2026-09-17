@@ -84,7 +84,7 @@ define Device/xiaomi_be3600-pro-wired-common
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq5332
-	DEVICE_PACKAGES := -kmod-ath12k -kmod-leds-gpio kmod-dsa-rtl837x tmi-poe
+	DEVICE_PACKAGES := -kmod-ath12k -kmod-leds-gpio kmod-dsa-rtl837x luci-app-tmi-poe luci-i18n-tmi-poe-zh-cn
 endef
 
 define Device/xiaomi_be3600-pro-wired-p5

@@ -30,19 +30,23 @@ static int write_reg(struct tmi_io *io, uint8_t reg, uint8_t value)
 	return io->write(io->ctx, reg, value);
 }
 
+static int verify_value(struct tmi_io *io, uint8_t reg, uint8_t expected, uint8_t value)
+{
+	if (value == expected)
+		return 0;
+	io->failed_reg = reg;
+	io->operation = "verify";
+	io->expected = expected;
+	io->actual = value;
+	return -EIO;
+}
+
 static int verify_reg(struct tmi_io *io, uint8_t reg, uint8_t expected)
 {
 	uint8_t value;
 	int ret = read_reg(io, reg, &value);
 
-	if (ret)
-		return ret;
-	if (value == expected)
-		return 0;
-	io->operation = "verify";
-	io->expected = expected;
-	io->actual = value;
-	return -EIO;
+	return ret ? ret : verify_value(io, reg, expected, value);
 }
 
 static int write_verify(struct tmi_io *io, uint8_t reg, uint8_t value)
@@ -356,11 +360,55 @@ int tmi_verify_policy(struct tmi_io *io, const struct tmi_board *board,
 	ret = verify_reg(io, 0x78, value >> 8);
 	if (ret)
 		return ret;
+	ret = verify_reg(io, 0x21, tmi_board_mask(board));
+	if (ret)
+		return ret;
+	ret = verify_reg(io, 0x22, policy->mask);
+	if (ret)
+		return ret;
+	ret = verify_reg(io, 0x23, policy->mask);
+	if (ret)
+		return ret;
 	return verify_reg(io, 0x2d, policy->class4plus ? tmi_board_mask(board) : 0);
 }
 
-int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
-		    struct tmi_status *status)
+int tmi_check_policy_status(struct tmi_io *io, const struct tmi_board *board,
+			    const struct tmi_policy *policy, const struct tmi_status *status)
+{
+	unsigned int group, value = budget_value(policy->budget_mw);
+	int ret;
+
+	/* Detect reset/lost configuration from the already collected snapshot.
+	 * Do not silently continue under strap defaults or re-enable outputs.
+	 */
+	io->stage = "configuration-monitor";
+	for (group = 0; group < board->channels / 4; group++) {
+		ret = verify_value(io, 0x1f + group, port_modes(policy->mask, 0, group),
+				   status->modes[group]);
+		if (ret)
+			return ret;
+	}
+	ret = verify_value(io, 0x21, tmi_board_mask(board), status->disconnect);
+	if (ret)
+		return ret;
+	ret = verify_value(io, 0x22, policy->mask, status->detect);
+	if (ret)
+		return ret;
+	ret = verify_value(io, 0x23, policy->mask, status->classify);
+	if (ret)
+		return ret;
+	ret = verify_value(io, 0x2d, policy->class4plus ? tmi_board_mask(board) : 0,
+			   status->class4plus);
+	if (ret)
+		return ret;
+	ret = verify_value(io, 0x77, value & 0xff, status->budget_raw & 0xff);
+	if (ret)
+		return ret;
+	return verify_value(io, 0x78, value >> 8, status->budget_raw >> 8);
+}
+
+static int read_status(struct tmi_io *io, const struct tmi_board *board,
+		       struct tmi_status *status, bool read_events)
 {
 	struct tmi_status sample = { 0 };
 	unsigned int raw, port, channel, i;
@@ -372,6 +420,9 @@ int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
 		if (ret)
 			return ret;
 	}
+	ret = read_reg(io, 0x21, &sample.disconnect);
+	if (ret)
+		return ret;
 	ret = read_reg(io, 0x22, &sample.detect);
 	if (ret)
 		return ret;
@@ -393,12 +444,15 @@ int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
 	ret = read_reg(io, 0x1d, &sample.good);
 	if (ret)
 		return ret;
-	/* Even addresses are read-only event latches; odd addresses clear them. */
-	for (i = 0; i < TMI_EVENTS; i++) {
-		ret = read_reg(io, 0x02 + 2 * i, &sample.events[i]);
-		if (ret)
-			return ret;
-	}
+	/* Queries peek at the even, non-clearing aliases. The daemon already
+	 * collected the odd aliases and must deliver its pending events instead.
+	 */
+	if (read_events)
+		for (i = 0; i < TMI_EVENTS; i++) {
+			ret = read_reg(io, 0x02 + 2 * i, &sample.events[i]);
+			if (ret)
+				return ret;
+		}
 	ret = read_word(io, 0x89, &raw);
 	if (ret)
 		return ret;
@@ -427,6 +481,12 @@ int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
 	return 0;
 }
 
+int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
+		    struct tmi_status *status)
+{
+	return read_status(io, board, status, true);
+}
+
 int tmi_poll_status(struct tmi_io *io, const struct tmi_board *board,
 		    struct tmi_status *status)
 {
@@ -446,7 +506,7 @@ int tmi_poll_status(struct tmi_io *io, const struct tmi_board *board,
 			return ret;
 		io->pending_events[i] |= event;
 	}
-	ret = tmi_read_status(io, board, &sample);
+	ret = read_status(io, board, &sample, false);
 	if (ret)
 		return ret;
 	memcpy(sample.events, io->pending_events, sizeof(sample.events));
