@@ -10,7 +10,7 @@ unmatched rules.
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -1081,13 +1081,13 @@
+@@ -1081,13 +1081,13 @@ static void ppe_ft_tunnel_underlay_put(s
  
  static int ppe_ft_tunnel_resolve(struct ppe_flowtable *ft,
  				 const struct net_device *tdev,
@@ -26,7 +26,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		.saddr = *local,
  		.daddr = *remote,
  	};
-@@ -1146,11 +1146,11 @@
+@@ -1146,11 +1146,11 @@ static void ppe_ft_tunnel_put(struct ppe
  
  static int ppe_ft_tunnel_get(struct ppe_flowtable *ft, struct net_device *dev,
  			     const struct in6_addr *local,
@@ -40,7 +40,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct ppe_tunnel_ipip6 ipip6;
  	struct ppe_ft_tunnel *tunnel;
  	int i, ret, err, cleanup_ret = 0, l3_if;
-@@ -1173,13 +1173,13 @@
+@@ -1173,13 +1173,13 @@ static int ppe_ft_tunnel_get(struct ppe_
  	tunnel->dev = dev;
  	tunnel->local = *local;
  	tunnel->remote = *remote;
@@ -57,7 +57,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (ret)
  		goto err_clear;
  	l3_if = ppe_ft_tunnel_underlay_get(ft, tunnel->underlay_port);
-@@ -1428,6 +1428,7 @@
+@@ -1428,6 +1428,7 @@ static int ppe_ft_flow_replace(struct pp
  	struct flow_action_entry *act;
  	struct net_device *odev = NULL;
  	struct net_device *tdev = NULL;
@@ -65,7 +65,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct ppe_flow_nexthop nh = {};
  	struct ppe_ft_data data = {};
  	struct ppe_ft_flow *flow;
-@@ -1765,6 +1766,24 @@
+@@ -1765,6 +1766,24 @@ static int ppe_ft_flow_replace(struct pp
  		ether_addr_copy(nh.mac, data.eth.dst);
  	}
  
@@ -90,7 +90,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	/* The hardware rewrites one direction per flow: the translated
  	 * source of SNAT comes from the public IP table, the translated
  	 * destination of DNAT from the next hop, and the translated L4
-@@ -1772,16 +1791,12 @@
+@@ -1772,16 +1791,12 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	mutex_lock(&ft->lock);
  	if (tunnel_flow) {

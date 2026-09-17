@@ -8,7 +8,7 @@ egress programming stay consistent for VLAN-aware DSA ports.
 Signed-off-by: ViKing <viking.yfy@qq.com>
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -633,9 +633,13 @@
+@@ -633,9 +633,13 @@ int ppe_nexthop_set(struct ppe_device *p
  	val[0] = PPE_NEXTHOP_W0_TYPE;
  	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_PORT, nh->port);
  	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_POST_L3_IF, nh->l3_if);
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	val[1] |= FIELD_PREP(PPE_NEXTHOP_W1_MAC_ADDR_LO,
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-@@ -22,7 +22,8 @@
+@@ -22,7 +22,8 @@ struct ppe_device;
   * @port: Egress PPE port.
   * @l3_if: Egress L3 interface, providing the source MAC rewrite.
   * @mac: Destination MAC rewrite.
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @pub_ip_index: Index of the translated source address of SNAT flows.
   * @dnat_ip: Translated destination address of DNAT flows.
   */
-@@ -30,7 +31,8 @@
+@@ -30,7 +31,8 @@ struct ppe_flow_nexthop {
  	u8 port;
  	u8 l3_if;
  	u8 mac[ETH_ALEN];
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -579,7 +579,7 @@
+@@ -579,7 +579,7 @@ static bool ppe_ft_nexthop_match(const v
  
  	return slot->key.port == nh->port && slot->key.l3_if == nh->l3_if &&
  	       ether_addr_equal(slot->key.mac, nh->mac) &&
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	       slot->key.pub_ip_index == nh->pub_ip_index &&
  	       slot->key.dnat_ip == nh->dnat_ip;
  }
-@@ -2049,7 +2049,8 @@
+@@ -2049,7 +2049,8 @@ static int ppe_ft_flow_replace(struct pp
  	flow->tunnel = -1;
  	flow->vp = -1;
  	flow->ivp = -1;
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	data.pppoe_sid = -1;
  	data.ingress_vid = -1;
  	data.ingress_dsa = false;
-@@ -2247,11 +2248,11 @@
+@@ -2247,11 +2248,11 @@ static int ppe_ft_flow_replace(struct pp
  		case FLOW_ACTION_VLAN_PUSH:
  			if (vlan_pushes++ ||
  			    act->vlan.proto != htons(ETH_P_8021Q) ||
@@ -81,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			break;
  		case FLOW_ACTION_VLAN_POP:
  			if (vlan_pops++) {
-@@ -2310,7 +2311,8 @@
+@@ -2310,7 +2311,8 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -91,7 +91,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    data.ingress_vid >= 0) {
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -2459,14 +2461,10 @@
+@@ -2459,14 +2461,10 @@ put_idev:
  			struct dsa_port *dp;
  			int dsa_ovid, dsa_mode;
  
@@ -109,7 +109,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			dsa_mode = ppe_ft_dsa_resolve(odev, &dp, &dsa_ovid);
  			if (dsa_mode < 0) {
  				ret = dsa_mode;
-@@ -2484,7 +2482,19 @@
+@@ -2484,7 +2482,19 @@ put_idev:
  				port_priv = netdev_priv(dsa_port_to_conduit(dp));
  				nh.port = port_priv->ppe_port->port_id;
  				nh.l3_if = nh.port;
@@ -130,7 +130,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			}
  			flow->egress_dev = odev;
  			flow->egress_vid = dsa_ovid;
-@@ -2690,7 +2700,8 @@
+@@ -2690,7 +2700,8 @@ put_idev:
  
  		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
  					       data.eth.dst, data.eth.src,

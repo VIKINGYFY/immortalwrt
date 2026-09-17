@@ -26,7 +26,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <net/ipv6.h>
  #include <net/tcp.h>
  
-@@ -907,6 +908,94 @@
+@@ -907,6 +908,94 @@ static void ppe_ft_vlan_put(struct ppe_f
  	memset(slot, 0, sizeof(*slot));
  }
  
@@ -121,7 +121,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /* Hash key of a flow's source IP for the host refcount table. */
  static u32 ppe_ft_host_key(const struct ppe_flow_entry *flow)
  {
-@@ -1050,6 +1139,9 @@
+@@ -1050,6 +1139,9 @@ static int ppe_ft_flow_replace(struct pp
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS))
  		return -EOPNOTSUPP;
  

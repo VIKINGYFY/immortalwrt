@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -224,7 +224,7 @@
+@@ -224,7 +224,7 @@ static int ppe_bridge_vsi_get(struct ppe
  	if (vsi >= 0)
  		return vsi;
  
@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (pb->vsis[i].br || pb->vsis[i].poisoned)
  			continue;
  
-@@ -358,14 +358,15 @@
+@@ -358,14 +358,15 @@ static int ppe_bridge_vsi_xlt_update(str
  		if (idx < 0) {
  			idx = find_first_zero_bit(pb->xlt_used,
  						  PPE_XLT_RULE_TBL_ENTRIES -
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/regmap.h>
  #include <linux/string.h>
  
-@@ -1430,6 +1432,51 @@
+@@ -1430,6 +1432,51 @@ int ppe_counter_enable_set(struct ppe_de
  	return regmap_set_bits(ppe_dev->regmap, reg, PPE_PORT_EG_VLAN_TBL_TX_COUNTING_EN);
  }
  
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_rss_hash_ipv4_config(struct ppe_device *ppe_dev, int index,
  				    struct ppe_rss_hash_cfg cfg)
  {
-@@ -1740,67 +1787,146 @@
+@@ -1740,67 +1787,146 @@ int ppe_port_vlan_ingress_filter_set(str
  					     val));
  }
  
@@ -277,7 +277,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -1815,8 +1941,155 @@
+@@ -1815,8 +1941,155 @@ int ppe_ing_xlt_rule_clear(struct ppe_de
  	u32 rule[4] = {};
  	u32 reg = PPE_XLT_RULE_TBL_ADDR + PPE_XLT_RULE_TBL_INC * index;
  
@@ -437,7 +437,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -317,6 +317,9 @@
+@@ -317,6 +317,9 @@ enum ppe_stp_state {
   * below them.
   */
  #define PPE_L3_VLAN_UPLINKS			8
@@ -447,7 +447,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /**
   * struct ppe_fdb_entry - PPE hardware FDB entry.
-@@ -350,10 +353,19 @@
+@@ -350,10 +353,19 @@ int ppe_vsi_eg_mode_set(struct ppe_devic
  int ppe_port_default_cvid_set(struct ppe_device *ppe_dev, int port, int vid);
  int ppe_port_vlan_ingress_filter_set(struct ppe_device *ppe_dev, int port,
  				     bool enable);

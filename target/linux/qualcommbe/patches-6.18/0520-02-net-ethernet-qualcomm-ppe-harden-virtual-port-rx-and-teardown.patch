@@ -18,7 +18,7 @@ dropping those packets for lack of linear data.
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-@@ -597,6 +597,7 @@
+@@ -597,6 +597,7 @@ static int edma_cfg_rx_rings_setup(void)
  		rxdesc_ring = &edma_ctx->rx_rings[ring_idx];
  		rxdesc_ring->count = EDMA_RX_RING_SIZE;
  		rxdesc_ring->ring_id = rx->ring_start + ring_idx;
@@ -28,7 +28,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			pr_err("Invalid queue_id: %d\n", queue_id);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
-@@ -156,6 +156,72 @@
+@@ -156,6 +156,72 @@ static inline uint8_t edma_rx_checksum_v
  	return skb->ip_summed;
  }
  
@@ -101,7 +101,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static void edma_rx_process_last_segment(struct edma_rxdesc_ring *rxdesc_ring,
  					 struct edma_rxdesc_pri *rxdesc_pri)
  {
-@@ -170,6 +236,16 @@
+@@ -170,6 +236,16 @@ static void edma_rx_process_last_segment
  	pkt_length = EDMA_RXDESC_PACKET_LEN_GET(rxdesc_pri);
  
  	skb_head = rxdesc_ring->head;
@@ -118,7 +118,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	dev = skb_head->dev;
  
  	/* Check Rx checksum offload status. */
-@@ -187,9 +263,7 @@
+@@ -187,9 +263,7 @@ static void edma_rx_process_last_segment
  			 * in addition to the SKB linked to current descriptor.
  			 */
  			dev_kfree_skb_any(skb_head);
@@ -129,7 +129,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  			u64_stats_update_begin(&rx_stats->syncp);
  			rx_stats->rx_nr_frag_headroom_err++;
-@@ -201,9 +275,7 @@
+@@ -201,9 +275,7 @@ static void edma_rx_process_last_segment
  
  	if (unlikely(!pskb_pull(skb_head, EDMA_RXDESC_DATA_OFFSET_GET(rxdesc_ring->pdesc_head)))) {
  		dev_kfree_skb_any(skb_head);
@@ -140,7 +140,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  		u64_stats_update_begin(&rx_stats->syncp);
  		rx_stats->rx_nr_frag_headroom_err++;
-@@ -226,9 +298,7 @@
+@@ -226,9 +298,7 @@ static void edma_rx_process_last_segment
  	 * bound device instead of being received up the stack.
  	 */
  	if (edma_rx_deliver_vp(rxdesc_ring->pdesc_head, skb_head)) {
@@ -151,7 +151,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		return;
  	}
  
-@@ -240,9 +310,7 @@
+@@ -240,9 +310,7 @@ static void edma_rx_process_last_segment
  	else
  		netif_receive_skb(skb_head);
  
@@ -162,7 +162,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  static void edma_rx_handle_frag_list(struct edma_rxdesc_ring *rxdesc_ring,
-@@ -390,6 +458,49 @@
+@@ -390,6 +458,49 @@ static bool edma_rx_deliver_vp(struct ed
  	return true;
  }
  
@@ -212,7 +212,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static bool edma_rx_handle_linear_packets(struct edma_rxdesc_ring *rxdesc_ring,
  					  struct edma_rxdesc_pri *rxdesc_pri,
  					  struct sk_buff *skb)
-@@ -458,10 +569,8 @@
+@@ -458,10 +569,8 @@ send_to_stack:
  }
  
  static struct net_device *edma_rx_get_src_dev(struct edma_rxdesc_stats *rxdesc_stats,
@@ -224,7 +224,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
  	struct net_device *ndev = NULL;
  	u8 src_port_num;
-@@ -589,32 +698,67 @@
+@@ -589,32 +698,67 @@ static int edma_rx_reap(struct edma_rxde
  		/* Handle linear packets or initial segments first. */
  		if (likely(!(rxdesc_ring->head))) {
  			struct edma_port_priv *port_priv;
@@ -317,7 +317,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-@@ -279,6 +279,7 @@
+@@ -279,6 +279,7 @@ struct edma_rxdesc_ring {
  	dma_addr_t sdma;
  	struct sk_buff *head;
  	struct sk_buff *last;
@@ -327,7 +327,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  extern int edma_rx_napi_budget;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
-@@ -308,6 +308,11 @@
+@@ -308,6 +308,11 @@ static void qcom_ppe_remove(struct platf
  	struct ppe_device *ppe_dev;
  
  	ppe_dev = platform_get_drvdata(pdev);

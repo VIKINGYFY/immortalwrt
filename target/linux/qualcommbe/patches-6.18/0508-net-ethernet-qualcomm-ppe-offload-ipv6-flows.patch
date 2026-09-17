@@ -36,7 +36,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * take the L3 route path, and a hit in the hardware flow table forwards
   * the packet through its next hop entry, which rewrites the MACs, the
   * VLAN and the translated addresses. Flow misses take the ordinary
-@@ -102,10 +103,33 @@
+@@ -102,10 +103,33 @@ static int ppe_host_op_issue(struct ppe_
  	return FIELD_GET(PPE_HOST_OP_RSLT_ENTRY_INDEX, val);
  }
  
@@ -71,7 +71,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  static void ppe_flow_entry_pack(const struct ppe_flow_entry *flow, u32 *val)
-@@ -128,10 +152,24 @@
+@@ -128,10 +152,24 @@ static void ppe_flow_entry_pack(const st
  	val[3] |= FIELD_PREP(PPE_FLOW_W3_L4_DPORT_LO,
  			     dport & GENMASK(3, 0));
  	val[4] = FIELD_PREP(PPE_FLOW_W4_L4_DPORT_HI, dport >> 4);
@@ -110,7 +110,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <linux/types.h>
  
  struct ppe_device;
-@@ -35,21 +36,27 @@
+@@ -35,21 +36,27 @@ struct ppe_flow_nexthop {
  };
  
  /**
@@ -144,7 +144,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	u8 proto;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -112,7 +112,11 @@
+@@ -112,7 +112,11 @@ struct ppe_ft_flow {
   */
  struct ppe_ft_host {
  	struct hlist_node node;
@@ -157,7 +157,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	int index;
  	unsigned int refcnt;
  };
-@@ -401,13 +405,23 @@
+@@ -401,13 +405,23 @@ static void ppe_ft_pub_ip_put(struct ppe
  /* Hash key of a flow's source IP for the host refcount table. */
  static u32 ppe_ft_host_key(const struct ppe_flow_entry *flow)
  {
@@ -183,7 +183,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  /* Add or reference the source host before inserting its flow. */
-@@ -428,7 +442,11 @@
+@@ -428,7 +442,11 @@ static int ppe_ft_host_get(struct ppe_fl
  	host = kzalloc(sizeof(*host), GFP_KERNEL);
  	if (!host)
  		return -ENOMEM;
@@ -196,7 +196,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ret = ppe_host_entry_add(ft->ppe_dev, flow);
  	if (ret < 0) {
  		kfree(host);
-@@ -520,9 +538,11 @@
+@@ -520,9 +538,11 @@ static int ppe_ft_flow_replace(struct pp
  		return 0;
  
  	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC) ||
@@ -209,7 +209,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	/* VLAN-tagged ingress is not translated to a flow key yet. */
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN))
-@@ -533,6 +553,7 @@
+@@ -533,6 +553,7 @@ static int ppe_ft_flow_replace(struct pp
  	      BIT_ULL(FLOW_DISSECTOR_KEY_CONTROL) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_BASIC) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
@@ -217,7 +217,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	      BIT_ULL(FLOW_DISSECTOR_KEY_TCP) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_PORTS)))
  		return -EOPNOTSUPP;
-@@ -550,12 +571,21 @@
+@@ -550,12 +571,21 @@ static int ppe_ft_flow_replace(struct pp
  		struct flow_match_basic match;
  
  		flow_rule_match_basic(rule, &match);
@@ -241,7 +241,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  		switch (match.key->ip_proto) {
  		case IPPROTO_TCP:
-@@ -570,17 +600,38 @@
+@@ -570,17 +600,38 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -283,7 +283,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
  
  	{
-@@ -611,7 +662,9 @@
+@@ -611,7 +662,9 @@ static int ppe_ft_flow_replace(struct pp
  		struct flow_match_control match;
  
  		flow_rule_match_control(rule, &match);
@@ -294,7 +294,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		    match.mask->addr_type != 0xffff || match.mask->thoff ||
  		    match.mask->flags) {
  			ret = -EOPNOTSUPP;
-@@ -631,8 +684,8 @@
+@@ -631,8 +684,8 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -305,7 +305,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	data.sport = flow->entry.sport;
  	data.dport = flow->entry.dport;
  
-@@ -651,6 +704,10 @@
+@@ -651,6 +704,10 @@ static int ppe_ft_flow_replace(struct pp
  				ret = ppe_ft_mangle_eth(act, &data.eth);
  				break;
  			case FLOW_ACT_MANGLE_HDR_TYPE_IP4:
@@ -316,7 +316,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  				ret = ppe_ft_mangle_ipv4(act, &data);
  				break;
  			case FLOW_ACT_MANGLE_HDR_TYPE_TCP:
-@@ -706,13 +763,25 @@
+@@ -706,13 +763,25 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	mutex_lock(&ft->lock);
  
@@ -347,7 +347,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		   data.sport != flow->entry.sport) {
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_SNAT;
  		flow->entry.nat_port = data.sport;
-@@ -723,7 +792,7 @@
+@@ -723,7 +792,7 @@ static int ppe_ft_flow_replace(struct pp
  			goto err_unlock;
  		}
  		nh.pub_ip_index = flow->pub_ip;
@@ -356,7 +356,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		   data.dport != flow->entry.dport) {
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_DNAT;
  		flow->entry.nat_port = data.dport;
-@@ -1058,11 +1127,18 @@
+@@ -1058,11 +1127,18 @@ static int ppe_ft_flows_show(struct seq_
  			    &w0);
  		ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  

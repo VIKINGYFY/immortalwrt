@@ -25,7 +25,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -135,6 +135,7 @@
+@@ -135,6 +135,7 @@ static void ppe_host_entry_pack(const st
  static void ppe_flow_entry_pack(const struct ppe_flow_entry *flow, u32 *val)
  {
  	u16 dport = be16_to_cpu(flow->dport);
@@ -33,7 +33,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  
  	/* Match QWRT: index the source host, keep the destination inline,
  	 * add disabled, then enable after every dependency exists.
-@@ -170,6 +171,19 @@
+@@ -170,6 +171,19 @@ static void ppe_flow_entry_pack(const st
  				    ip & GENMASK(19, 0));
  		val[3] |= FIELD_PREP(PPE_FLOW_W3_IP_ADDR_HI, ip >> 20);
  	}
@@ -55,7 +55,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  int ppe_host_entry_add(struct ppe_device *ppe_dev,
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-@@ -50,6 +50,7 @@
+@@ -50,6 +50,7 @@ struct ppe_flow_nexthop {
   * @host_index: Source host-table index returned by hardware.
   * @nat_port: Translated source port of SNAT flows, translated
   * destination port of DNAT flows.
@@ -63,7 +63,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
   */
  struct ppe_flow_entry {
  	union {
-@@ -64,6 +65,7 @@
+@@ -64,6 +65,7 @@ struct ppe_flow_entry {
  	u16 nexthop;
  	u16 host_index;
  	__be16 nat_port;
@@ -73,7 +73,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  int ppe_flow_hw_init(struct ppe_device *ppe_dev);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2196,6 +2196,8 @@
+@@ -2196,6 +2196,8 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_tdev;
  	}
  

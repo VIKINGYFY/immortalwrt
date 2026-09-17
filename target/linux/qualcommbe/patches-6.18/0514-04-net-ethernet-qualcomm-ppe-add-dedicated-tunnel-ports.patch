@@ -24,7 +24,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <linux/compiler.h>
  #include <linux/interconnect.h>
  #include <linux/mutex.h>
-@@ -22,6 +23,9 @@
+@@ -22,6 +23,9 @@ struct ppe_flowtable;
   * survive from physical-port setup through later virtual-port use.
   */
  #define PPE_PORT_ID_COUNT	256
@@ -34,7 +34,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  /* Per-SoC PPE parameters. The PPE register layer is shared between the
   * HPPE (IPQ807x) and APPE (IPQ9574) generations; this collects the few
-@@ -96,6 +100,11 @@
+@@ -96,6 +100,11 @@ struct ppe_device {
  	u8 flow_cmd_id;
  	/* Serialize the APPE tunnel command and table registers. */
  	struct mutex tunnel_lock;
@@ -71,7 +71,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include "ppe_regs.h"
  #include "ppe_tunnel.h"
  
-@@ -431,9 +433,205 @@
+@@ -431,9 +433,205 @@ out:
  	return ret;
  }
  
@@ -289,7 +289,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  struct ppe_device;
  
  struct ppe_tunnel_decap_entry {
-@@ -41,5 +44,13 @@
+@@ -41,5 +44,13 @@ int ppe_tunnel_port_l3_if_set(struct ppe
  int ppe_tunnel_l3_if_set(struct ppe_device *ppe_dev, int index, u32 value);
  int ppe_tunnel_key_set(struct ppe_device *ppe_dev, int type,
  		       const u32 key[PPE_TUNNEL_KEY_WORDS]);

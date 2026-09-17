@@ -23,7 +23,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
-@@ -238,7 +238,7 @@
+@@ -238,7 +238,7 @@ static int qcom_ppe_probe(struct platfor
  	ppe_dev->variant = of_device_get_match_data(dev);
  	if (!ppe_dev->variant)
  		return -ENODEV;
@@ -32,7 +32,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	ppe_dev->num_ports = num_ports;
  	ppe_dev->num_icc_paths = num_icc;
  
-@@ -328,7 +328,11 @@
+@@ -328,7 +328,11 @@ static void qcom_ppe_remove(struct platf
  
  static const struct ppe_variant ppe_variant_ipq5332 = {
  	.name			= "IPQ5332",
@@ -44,7 +44,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	.shaper_clock_khz	= 200000,
  	.has_tunnel_engine	= true,
  	.has_vports		= true,
-@@ -336,7 +340,11 @@
+@@ -336,7 +340,11 @@ static const struct ppe_variant ppe_vari
  
  static const struct ppe_variant ppe_variant_ipq9574 = {
  	.name			= "IPQ9574",
@@ -58,7 +58,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	.has_vports		= true,
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -28,34 +28,34 @@
+@@ -28,34 +28,34 @@ struct ppe_vp;
  #define PPE_TUNNEL_L3_IF_COUNT	128
  #define PPE_TUNNEL_VP_COUNT	184
  
@@ -107,7 +107,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  };
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -185,6 +185,8 @@
+@@ -185,6 +185,8 @@ int ppe_host_entry_add(struct ppe_device
  	if (!ret)
  		ret = ppe_host_op_issue(ppe_dev, PPE_FDB_OP_TYPE_ADD, false, 0);
  	mutex_unlock(&ppe_dev->flow_lock);
@@ -116,7 +116,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	return ret;
  }
  
-@@ -192,6 +194,9 @@
+@@ -192,6 +194,9 @@ int ppe_host_entry_del(struct ppe_device
  {
  	int ret;
  
@@ -126,7 +126,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	mutex_lock(&ppe_dev->flow_lock);
  	ret = ppe_host_op_issue(ppe_dev, PPE_FDB_OP_TYPE_DEL, true, index);
  	mutex_unlock(&ppe_dev->flow_lock);
-@@ -211,6 +216,8 @@
+@@ -211,6 +216,8 @@ int ppe_flow_entry_add(struct ppe_device
  	if (!ret)
  		ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_ADD, false, 0);
  	mutex_unlock(&ppe_dev->flow_lock);
@@ -135,7 +135,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	return ret;
  }
  
-@@ -221,6 +228,9 @@
+@@ -221,6 +228,9 @@ int ppe_flow_entry_enable(struct ppe_dev
  	u32 val[PPE_FLOW_TBL_WORDS];
  	int ret;
  
@@ -145,7 +145,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	mutex_lock(&ppe_dev->flow_lock);
  	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
  	if (!ret) {
-@@ -242,6 +252,9 @@
+@@ -242,6 +252,9 @@ int ppe_flow_entry_del(struct ppe_device
  {
  	int ret;
  
@@ -155,7 +155,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	mutex_lock(&ppe_dev->flow_lock);
  	ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_DEL, true, index);
  	mutex_unlock(&ppe_dev->flow_lock);
-@@ -266,6 +279,9 @@
+@@ -266,6 +279,9 @@ int ppe_flow_stats_get(struct ppe_device
  	u32 val[3];
  	int ret;
  
@@ -165,7 +165,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
  	if (ret)
  		return ret;
-@@ -591,6 +607,9 @@
+@@ -591,6 +607,9 @@ int ppe_nexthop_set(struct ppe_device *p
  	u32 reg = PPE_NEXTHOP_TBL_ADDR + PPE_NEXTHOP_TBL_INC * index;
  	u32 val[4] = {};
  
@@ -177,7 +177,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_POST_L3_IF, nh->l3_if);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -258,6 +258,7 @@
+@@ -258,6 +258,7 @@ struct ppe_flowtable {
  	struct rhashtable flows;
  	struct list_head zombies;
  	struct dentry *debugfs;
@@ -185,7 +185,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct dentry *debugfs_reasons;
  	atomic_long_t replace_calls;
  	atomic_long_t replace_unsupported;
-@@ -2375,8 +2376,8 @@
+@@ -2375,8 +2376,8 @@ static int ppe_ft_flow_replace(struct pp
  	}
  
  	nexthop = find_first_zero_bit(ft->nexthop_used,
@@ -196,7 +196,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		ret = -ENOSPC;
  		goto err_my_mac;
  	}
-@@ -2737,6 +2738,20 @@
+@@ -2737,6 +2738,20 @@ static int ppe_ft_flows_show(struct seq_
  }
  DEFINE_SHOW_ATTRIBUTE(ppe_ft_flows);
  
@@ -217,7 +217,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  /**
   * ppe_flowtable_debugfs_init - Expose the flowtable state in debugfs
   * @ppe_dev: PPE device
-@@ -2755,8 +2770,10 @@
+@@ -2755,8 +2770,10 @@ void ppe_flowtable_debugfs_init(struct p
  	ft->debugfs = debugfs_create_file("flows", 0400,
  					  ppe_dev->debugfs_root, ft,
  					  &ppe_ft_flows_fops);
@@ -230,7 +230,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	ft->debugfs_reasons = debugfs_create_file("reason_counters", 0400,
  						  ppe_dev->debugfs_root, ft,
  						  &ppe_ft_reason_counters_fops);
-@@ -2969,6 +2986,7 @@
+@@ -2969,6 +2986,7 @@ void ppe_flowtable_destroy(struct ppe_de
  	mutex_unlock(&ft->lock);
  
  	debugfs_remove(ft->debugfs_reasons);

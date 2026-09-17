@@ -19,7 +19,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <net/neighbour.h>
  #include <net/tcp.h>
  
-@@ -610,6 +612,7 @@
+@@ -610,6 +612,7 @@ static int ppe_ft_pppoe_path(struct net_
  	    !is_valid_ether_addr(topo->peer) ||
  	    !is_valid_ether_addr(topo->local))
  		ret = -EINVAL;
@@ -27,7 +27,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  out_unlock:
  	rcu_read_unlock();
  	return ret;
-@@ -1097,6 +1100,63 @@
+@@ -1097,6 +1100,63 @@ static int ppe_ft_tunnel_pppoe_port_put(
  	return ret;
  }
  
@@ -91,7 +91,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static int ppe_ft_tunnel_underlay_get(struct ppe_flowtable *ft, int port,
  				      int pppoe)
  {
-@@ -1337,13 +1397,11 @@
+@@ -1337,13 +1397,11 @@ out_dst:
  }
  
  static bool ppe_ft_tunnel_match(const struct ppe_ft_tunnel *tunnel,
@@ -105,7 +105,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	       ipv6_addr_equal(&tunnel->local, local) &&
  	       ipv6_addr_equal(&tunnel->remote, remote) &&
  	       tunnel->underlay_port == path->underlay_port &&
-@@ -1386,7 +1444,7 @@
+@@ -1386,7 +1444,7 @@ static int ppe_ft_tunnel_get(struct ppe_
  		return ret;
  
  	for (i = 0; i < PPE_FT_TUNNELS; i++) {
@@ -114,7 +114,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  					 &path))
  			continue;
  		ppe_ft_tunnel_path_put(ft, &path);
-@@ -1671,7 +1729,9 @@
+@@ -1671,7 +1729,9 @@ static int ppe_ft_flow_replace(struct pp
  	struct ppe_ft_data data = {};
  	struct ppe_ft_flow *flow;
  	int vlan_pops = 0;
@@ -125,7 +125,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	int i, nexthop, ret, redirects = 0, iport = -1, imtu = 0;
  
  	/* nf_flow_offload_refresh() re-sends FLOW_CLS_REPLACE for as long
-@@ -1703,7 +1763,8 @@
+@@ -1703,7 +1763,8 @@ static int ppe_ft_flow_replace(struct pp
  	      BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_TCP) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_PORTS) |
@@ -135,7 +135,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		return -EOPNOTSUPP;
  
  	flow = kzalloc(sizeof(*flow), GFP_KERNEL);
-@@ -1920,6 +1981,25 @@
+@@ -1920,6 +1981,25 @@ static int ppe_ft_flow_replace(struct pp
  			break;
  		case FLOW_ACTION_CSUM:
  			break;
@@ -161,7 +161,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		default:
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -1936,7 +2016,10 @@
+@@ -1936,7 +2016,10 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -173,7 +173,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			tdev = odev;
  			tunnel_encap = true;
  		} else if (data.ingress_ifindex) {
-@@ -1951,7 +2034,7 @@
+@@ -1951,7 +2034,7 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -182,7 +182,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			dev_hold(tdev);
  	}
  
-@@ -2004,7 +2087,7 @@
+@@ -2004,7 +2087,7 @@ static int ppe_ft_flow_replace(struct pp
  		ether_addr_copy(nh.mac, data.eth.dst);
  	}
  
@@ -191,7 +191,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		struct ip6_tnl_flow_offload_key key = {
  			.addr = tunnel_encap ? flow->entry.dip.ip4 :
  					       flow->entry.sip.ip4,
-@@ -2018,7 +2101,7 @@
+@@ -2018,7 +2101,7 @@ static int ppe_ft_flow_replace(struct pp
  		if (ret || ipv6_addr_any(&tnl_info.local) ||
  		    ipv6_addr_any(&tnl_info.remote)) {
  			ret = -EOPNOTSUPP;
@@ -200,7 +200,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		}
  	}
  
-@@ -2029,12 +2112,29 @@
+@@ -2029,12 +2112,29 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	mutex_lock(&ft->lock);
  	if (tunnel_flow) {

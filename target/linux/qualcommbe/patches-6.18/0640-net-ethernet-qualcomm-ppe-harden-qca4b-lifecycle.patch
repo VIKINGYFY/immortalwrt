@@ -14,7 +14,7 @@ Signed-off-by: ViKing <vking@example.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2938,6 +2938,53 @@
+@@ -2938,6 +2938,53 @@ static void ppe_ft_flow_drain(struct ppe
  	rhashtable_walk_exit(&iter);
  }
  
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <vking@example.com>
  {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.h
-@@ -14,4 +14,5 @@
+@@ -14,4 +14,5 @@ void ppe_flowtable_destroy(struct ppe_de
  int ppe_flowtable_setup_tc(struct net_device *dev, void *type_data);
  void ppe_flowtable_debugfs_init(struct ppe_device *ppe_dev);
  void ppe_flowtable_port_carrier(struct ppe_device *ppe_dev, int port, bool up);
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <vking@example.com>
  #endif
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
-@@ -84,6 +84,7 @@
+@@ -84,6 +84,7 @@ struct ppe_vp_slot {
  	bool poisoned;
  	bool miss_disabled;
  	bool athtag_active;
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <vking@example.com>
  };
  
  struct ppe_vp {
-@@ -256,7 +257,7 @@
+@@ -256,7 +257,7 @@ static int ppe_vp_athtag_add(struct ppe_
  	u32 value, verify[3];
  	u32 eg_vp_reg, physical_reg, switch_reg;
  	bool first_eg, first_rx;
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	first_eg = !vp->athtag_users;
  	first_rx = !vp->athtag_rx_users[slot->physical_port];
-@@ -380,14 +381,29 @@
+@@ -380,14 +381,29 @@ static int ppe_vp_athtag_add(struct ppe_
  	return 0;
  
  rollback:
@@ -133,7 +133,7 @@ Signed-off-by: ViKing <vking@example.com>
  	return ret;
  }
  
-@@ -718,6 +734,7 @@
+@@ -718,6 +734,7 @@ static void ppe_vp_slot_reset(struct ppe
  	slot->vp = 0;
  	slot->miss_disabled = false;
  	slot->athtag_active = false;
@@ -141,7 +141,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
  
  static int ppe_vp_qca4b_create_locked(struct ppe_vp *vp,
-@@ -729,7 +746,7 @@
+@@ -729,7 +746,7 @@ static int ppe_vp_qca4b_create_locked(st
  	struct dsa_port *dp;
  	int physical_port;
  	int free = -1;
@@ -150,7 +150,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	ret = ppe_vp_qca4b_info(ppe_dev, dev, &dp, &physical_port);
  	if (ret)
-@@ -769,6 +786,7 @@
+@@ -769,6 +786,7 @@ static int ppe_vp_qca4b_create_locked(st
  	if (ret)
  		goto err_hw;
  
@@ -158,7 +158,7 @@ Signed-off-by: ViKing <vking@example.com>
  	rcu_assign_pointer(slot->dev, dev);
  	ppe_flowtable_port_carrier(ppe_dev, slot->vp,
  				   netif_carrier_ok(dev));
-@@ -779,7 +797,16 @@
+@@ -779,7 +797,16 @@ static int ppe_vp_qca4b_create_locked(st
  	return 0;
  
  err_hw:
@@ -176,7 +176,7 @@ Signed-off-by: ViKing <vking@example.com>
  err_reset:
  	dev_warn(ppe_dev->dev,
  		 "QCA4B VP join failed: slot=%d vp=%d dev=%s ret=%d\n",
-@@ -1195,6 +1222,7 @@
+@@ -1195,6 +1222,7 @@ static int ppe_vp_netdev_event(struct no
  	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
  	struct ppe_vp *vp = container_of(nb, struct ppe_vp, notifier);
  	bool cleared = false, carrier_up = false;
@@ -184,7 +184,7 @@ Signed-off-by: ViKing <vking@example.com>
  	int carrier = -1, i;
  
  	switch (event) {
-@@ -1234,9 +1262,12 @@
+@@ -1234,9 +1262,12 @@ static int ppe_vp_netdev_event(struct no
  		/* A bridge MAC change affects every VAP below that master. */
  		if (bound != dev) {
  			if (event == NETDEV_CHANGEADDR &&
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <vking@example.com>
  			continue;
  		}
  
-@@ -1252,6 +1283,11 @@
+@@ -1252,6 +1283,11 @@ static int ppe_vp_netdev_event(struct no
  			if (event == NETDEV_CHANGEUPPER)
  				WRITE_ONCE(vp->slots[i].host_mac,
  					   ppe_vp_host_mac(bound));
@@ -210,7 +210,7 @@ Signed-off-by: ViKing <vking@example.com>
  			if (event == NETDEV_CHANGEMTU) {
  				int ret;
  
-@@ -1265,15 +1301,26 @@
+@@ -1265,15 +1301,26 @@ static int ppe_vp_netdev_event(struct no
  			}
  			carrier = PPE_VP_PORT_BASE + i;
  			carrier_up = netif_carrier_ok(dev);

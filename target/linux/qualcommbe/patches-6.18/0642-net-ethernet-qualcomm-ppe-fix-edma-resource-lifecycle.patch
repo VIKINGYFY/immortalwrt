@@ -32,7 +32,7 @@ Signed-off-by: ViKing <vking@example.com>
  #include <linux/printk.h>
  #include <linux/regmap.h>
  #include <linux/reset.h>
-@@ -166,41 +165,55 @@
+@@ -166,41 +165,55 @@ static struct edma_hw_info ipq9574_hw_in
  };
  
  static int edma_clock_set_and_enable(struct device *dev,
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <vking@example.com>
  static int edma_clock_configure(void)
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
-@@ -211,14 +224,16 @@
+@@ -211,14 +224,16 @@ static int edma_clock_configure(void)
  	ppe_rate = ppe_dev->clk_rate;
  
  	ret = edma_clock_set_and_enable(dev, clock_name[EDMA_SYS_CLK],
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	dev_dbg(dev, "EDMA clocks are configured\n");
  
-@@ -440,6 +455,54 @@
+@@ -440,6 +455,54 @@ static irqreturn_t edma_misc_handle_irq(
  	return IRQ_HANDLED;
  }
  
@@ -168,7 +168,7 @@ Signed-off-by: ViKing <vking@example.com>
  static int edma_irq_register(void)
  {
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
-@@ -451,16 +514,16 @@
+@@ -451,16 +514,16 @@ static int edma_irq_register(void)
  	u32 i;
  
  	/* Request IRQ for TXCMPL rings. */
@@ -189,7 +189,7 @@ Signed-off-by: ViKing <vking@example.com>
  		}
  
  		snprintf(edma_txcmpl_irq_name[i], EDMA_IRQ_NAME_SIZE, "txcmpl_%d",
-@@ -475,8 +538,9 @@
+@@ -475,8 +538,9 @@ static int edma_irq_register(void)
  		if (ret) {
  			pr_err("TXCMPL ring IRQ:%d request %d failed\n",
  			       edma_ctx->intr_info.intr_txcmpl[i], i);
@@ -200,7 +200,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  		pr_debug("TXCMPL ring: %d IRQ:%d request success: %s\n",
  			 txcmpl->ring_start + i,
-@@ -485,22 +549,21 @@
+@@ -485,22 +549,21 @@ static int edma_irq_register(void)
  	}
  
  	/* Request IRQ for RXDESC rings. */
@@ -229,7 +229,7 @@ Signed-off-by: ViKing <vking@example.com>
  			 rx->ring_start + i);
  
  		irq_set_status_flags(edma_ctx->intr_info.intr_rx[i], IRQ_DISABLE_UNLAZY);
-@@ -512,8 +575,9 @@
+@@ -512,8 +575,9 @@ static int edma_irq_register(void)
  		if (ret) {
  			pr_err("RXDESC ring IRQ:%d request failed\n",
  			       edma_ctx->intr_info.intr_rx[i]);
@@ -240,7 +240,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  		pr_debug("RXDESC ring: %d IRQ:%d request success: %s\n",
  			 rx->ring_start + i,
-@@ -528,35 +592,14 @@
+@@ -528,35 +592,14 @@ static int edma_irq_register(void)
  	if (ret) {
  		pr_err("MISC IRQ:%d request failed\n",
  		       edma_ctx->intr_info.intr_misc);
@@ -280,7 +280,7 @@ Signed-off-by: ViKing <vking@example.com>
  	return ret;
  }
  
-@@ -568,88 +611,95 @@
+@@ -568,88 +611,95 @@ static int edma_irq_configure(void)
  	struct edma_ring_info *rx = hw_info->rx;
  	char edma_irq_name[EDMA_IRQ_NAME_SIZE];
  	struct device *dev = ppe_dev->dev;
@@ -408,7 +408,7 @@ Signed-off-by: ViKing <vking@example.com>
  		pr_err("Error in allocating Rx rings\n");
  		goto rx_rings_alloc_fail;
  	}
-@@ -659,7 +709,7 @@
+@@ -659,7 +709,7 @@ static int edma_alloc_rings(void)
  rx_rings_alloc_fail:
  	edma_cfg_tx_rings_cleanup();
  
@@ -417,7 +417,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
  
  static int edma_hw_reset(void)
-@@ -668,19 +718,26 @@
+@@ -668,19 +718,26 @@ static int edma_hw_reset(void)
  	struct device *dev = ppe_dev->dev;
  	struct reset_control *edma_hw_rst;
  	struct device_node *edma_np;
@@ -449,7 +449,7 @@ Signed-off-by: ViKing <vking@example.com>
  	fsleep(100);
  
  	reset_control_put(edma_hw_rst);
-@@ -689,6 +746,12 @@
+@@ -689,6 +746,12 @@ static int edma_hw_reset(void)
  	of_node_put(edma_np);
  
  	return 0;
@@ -462,7 +462,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
  
  static int edma_hw_configure(void)
-@@ -716,7 +779,7 @@
+@@ -716,7 +779,7 @@ static int edma_hw_configure(void)
  	}
  
  	/* Allocate memory for netdevices. */
@@ -471,7 +471,7 @@ Signed-off-by: ViKing <vking@example.com>
  					 hw_info->max_ports),
  					 GFP_KERNEL);
  	if (!edma_ctx->netdev_arr)
-@@ -775,13 +838,13 @@
+@@ -775,13 +838,13 @@ static int edma_hw_configure(void)
  	reg = EDMA_BASE_OFFSET + EDMA_REG_DMAR_CTRL_ADDR;
  	ret = regmap_write(regmap, reg, data);
  	if (ret)
@@ -487,7 +487,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Set Miscellaneous error interrupt mask. */
  	data = EDMA_MISC_AXI_RD_ERR_MASK |
-@@ -805,7 +868,7 @@
+@@ -805,7 +868,7 @@ static int edma_hw_configure(void)
  	reg = EDMA_BASE_OFFSET + EDMA_REG_PORT_CTRL_ADDR;
  	ret = regmap_write(regmap, reg, data);
  	if (ret)
@@ -496,7 +496,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	ret = (int)edma_configure_ucast_prio_map_tbl();
  	if (ret) {
-@@ -821,24 +884,64 @@
+@@ -821,24 +884,64 @@ static int edma_hw_configure(void)
  		goto edma_cfg_rx_rps_hash_map_failed;
  	}
  
@@ -563,7 +563,7 @@ Signed-off-by: ViKing <vking@example.com>
  /**
   * edma_destroy - EDMA Destroy.
   * @ppe_dev: PPE device
-@@ -847,56 +950,35 @@
+@@ -847,56 +950,35 @@ dummy_dev_alloc_failed:
   */
  void edma_destroy(struct ppe_device *ppe_dev)
  {
@@ -637,7 +637,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
  
  /* EDMA Rx RPS core sysctl table */
-@@ -948,30 +1030,34 @@
+@@ -948,30 +1030,34 @@ int edma_setup(struct ppe_device *ppe_de
  		return -EINVAL;
  	}
  
@@ -678,7 +678,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  
  	edma_cfg_rx_enable_interrupts();
-@@ -980,4 +1066,20 @@
+@@ -980,4 +1066,20 @@ int edma_setup(struct ppe_device *ppe_de
  	dev_info(dev, "EDMA configuration successful\n");
  
  	return 0;
@@ -701,7 +701,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
-@@ -103,11 +103,11 @@
+@@ -103,11 +103,11 @@ struct edma_hw_info {
   */
  struct edma_intr_info {
  	u32 intr_mask_rx;
@@ -716,7 +716,7 @@ Signed-off-by: ViKing <vking@example.com>
  };
  
  /**
-@@ -130,6 +130,12 @@
+@@ -130,6 +130,12 @@ struct edma_intr_info {
   * @has_vports: Virtual ports exist, cached from the PPE variant
   * @vp_inject_port: netdev_arr index that carried the last VP inject
   * @vp_q_mask: CPU-to-Tx-queue mask of the VP inject
@@ -729,7 +729,7 @@ Signed-off-by: ViKing <vking@example.com>
   */
  struct edma_context {
  	struct net_device **netdev_arr;
-@@ -150,6 +156,12 @@
+@@ -150,6 +156,12 @@ struct edma_context {
  	bool has_vports;
  	int vp_inject_port;
  	u32 vp_q_mask;
@@ -742,7 +742,7 @@ Signed-off-by: ViKing <vking@example.com>
  };
  
  struct edma_port_tx_stats;
-@@ -159,6 +171,7 @@
+@@ -159,6 +171,7 @@ extern struct edma_context *edma_ctx;
  
  int edma_err_stats_alloc(void);
  void edma_err_stats_free(void);
@@ -752,7 +752,7 @@ Signed-off-by: ViKing <vking@example.com>
  void edma_debugfs_teardown(void);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-@@ -408,7 +408,10 @@
+@@ -408,7 +408,10 @@ static void edma_cfg_rx_fill_ring_cleanu
  	struct regmap *regmap = ppe_dev->regmap;
  	struct device *dev = ppe_dev->dev;
  	u16 cons_idx, curr_idx;
@@ -764,7 +764,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Get RxFill ring producer index */
  	curr_idx = rxfill_ring->prod_idx & EDMA_RXFILL_PROD_IDX_MASK;
-@@ -435,6 +438,8 @@
+@@ -435,6 +438,8 @@ static void edma_cfg_rx_fill_ring_cleanu
  			continue;
  		}
  
@@ -773,7 +773,7 @@ Signed-off-by: ViKing <vking@example.com>
  		dev_kfree_skb_any(skb);
  	}
  
-@@ -493,7 +498,10 @@
+@@ -493,7 +498,10 @@ static void edma_cfg_rx_desc_ring_cleanu
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
  	struct device *dev = ppe_dev->dev;
@@ -785,7 +785,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Get Rxdesc consumer & producer indices */
  	cons_idx = rxdesc_ring->cons_idx & EDMA_RXDESC_CONS_IDX_MASK;
-@@ -519,9 +527,18 @@
+@@ -519,9 +527,18 @@ static void edma_cfg_rx_desc_ring_cleanu
  			continue;
  		}
  
@@ -804,7 +804,7 @@ Signed-off-by: ViKing <vking@example.com>
  	/* Update the consumer index */
  	reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_CONS_IDX(rxdesc_ring->ring_id);
  	regmap_write(regmap, reg, cons_idx);
-@@ -546,7 +563,8 @@
+@@ -546,7 +563,8 @@ static int edma_cfg_rx_rings_setup(void)
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
  	struct edma_ring_info *rxfill = hw_info->rxfill;
  	struct edma_ring_info *rx = hw_info->rx;
@@ -814,7 +814,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Set buffer allocation size */
  	if (edma_ctx->rx_buf_size) {
-@@ -597,6 +615,7 @@
+@@ -597,6 +615,7 @@ static int edma_cfg_rx_rings_setup(void)
  		rxdesc_ring = &edma_ctx->rx_rings[ring_idx];
  		rxdesc_ring->count = EDMA_RX_RING_SIZE;
  		rxdesc_ring->ring_id = rx->ring_start + ring_idx;
@@ -822,7 +822,7 @@ Signed-off-by: ViKing <vking@example.com>
  		rxdesc_ring->vp_punt_src = -1;
  
  		if (queue_id > EDMA_CPU_PORT_QUEUE_MAX(EDMA_RX_QUEUE_START)) {
-@@ -778,11 +797,11 @@
+@@ -778,11 +797,11 @@ void edma_cfg_rx_rings_cleanup(void)
  	u32 i;
  
  	/* Free RxFill ring descriptors */
@@ -836,7 +836,7 @@ Signed-off-by: ViKing <vking@example.com>
  		edma_cfg_rx_desc_ring_cleanup(&edma_ctx->rx_rings[i]);
  
  	kfree(edma_ctx->rxfill_rings);
-@@ -827,13 +846,17 @@
+@@ -827,13 +846,17 @@ void edma_cfg_rx_disable_interrupts(void
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
  	struct edma_ring_info *rx = hw_info->rx;
@@ -854,7 +854,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -848,13 +871,17 @@
+@@ -848,13 +871,17 @@ void edma_cfg_rx_enable_interrupts(void)
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
  	struct edma_ring_info *rx = hw_info->rx;
@@ -872,7 +872,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -874,10 +901,11 @@
+@@ -874,10 +901,11 @@ void edma_cfg_rx_napi_disable(void)
  
  		rxdesc_ring = &edma_ctx->rx_rings[i];
  
@@ -885,7 +885,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -897,10 +925,11 @@
+@@ -897,10 +925,11 @@ void edma_cfg_rx_napi_enable(void)
  
  		rxdesc_ring = &edma_ctx->rx_rings[i];
  
@@ -898,7 +898,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -923,7 +952,10 @@
+@@ -923,7 +952,10 @@ void edma_cfg_rx_napi_delete(void)
  		if (!rxdesc_ring->napi_added)
  			continue;
  
@@ -912,7 +912,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-@@ -278,7 +278,6 @@
+@@ -278,7 +278,6 @@ void edma_cfg_tx_rings_disable(u32 port_
  		txdesc_ring = &edma_ctx->tx_rings[ring_idx];
  		u32 data;
  
@@ -920,7 +920,7 @@ Signed-off-by: ViKing <vking@example.com>
  		reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_CTRL(txdesc_ring->id);
  		regmap_read(regmap, reg, &data);
  		data &= ~EDMA_TXDESC_TX_ENABLE;
-@@ -426,6 +425,7 @@
+@@ -426,6 +425,7 @@ static int edma_cfg_tx_rings_setup(void)
  		txcmpl_ring = &edma_ctx->txcmpl_rings[i];
  		txcmpl_ring->count = EDMA_TX_RING_SIZE;
  		txcmpl_ring->id = txcmpl->ring_start + i;
@@ -928,7 +928,7 @@ Signed-off-by: ViKing <vking@example.com>
  		txcmpl_ring->txdesc_ring = &edma_ctx->tx_rings[i];
  
  		ret = edma_cfg_txcmpl_ring_setup(txcmpl_ring);
-@@ -555,13 +555,17 @@
+@@ -555,13 +555,17 @@ void edma_cfg_tx_disable_interrupts(u32
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
  	struct edma_txcmpl_ring *txcmpl_ring;
@@ -946,7 +946,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -575,13 +579,17 @@
+@@ -575,13 +579,17 @@ void edma_cfg_tx_enable_interrupts(u32 p
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
  	struct edma_txcmpl_ring *txcmpl_ring;
@@ -964,7 +964,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -600,10 +608,11 @@
+@@ -600,10 +608,11 @@ void edma_cfg_tx_napi_enable(u32 port_id
  	for_each_possible_cpu(i) {
  		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
  		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
@@ -977,7 +977,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -622,10 +631,11 @@
+@@ -622,10 +631,11 @@ void edma_cfg_tx_napi_disable(u32 port_i
  	for_each_possible_cpu(i) {
  		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
  		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
@@ -990,7 +990,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
  }
  
-@@ -647,7 +657,10 @@
+@@ -647,7 +657,10 @@ void edma_cfg_tx_napi_delete(u32 port_id
  		if (!txcmpl_ring->napi_added)
  			continue;
  
@@ -1004,7 +1004,7 @@ Signed-off-by: ViKing <vking@example.com>
  	}
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
-@@ -325,13 +325,10 @@
+@@ -325,13 +325,10 @@ static const struct file_operations edma
  /**
   * edma_debugfs_teardown - EDMA debugfs teardown.
   *
@@ -1019,7 +1019,7 @@ Signed-off-by: ViKing <vking@example.com>
  	debugfs_remove_recursive(edma_dentry);
  	edma_dentry = NULL;
  	stats_dentry = NULL;
-@@ -369,12 +366,6 @@
+@@ -369,12 +366,6 @@ int edma_debugfs_setup(struct ppe_device
  		goto debugfs_dir_failed;
  	}
  
@@ -1034,7 +1034,7 @@ Signed-off-by: ViKing <vking@example.com>
  		pr_err("Unable to create EDMA miscellaneous statistics file entry in debugfs\n");
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -443,9 +443,12 @@
+@@ -443,9 +443,12 @@ void edma_port_destroy(struct ppe_port *
  	struct net_device *netdev = edma_ctx->netdev_arr[port_id - 1];
  	int ret;
  
@@ -1048,7 +1048,7 @@ Signed-off-by: ViKing <vking@example.com>
  	ret = ppe_port_l3_if_set(port->ppe_dev, port_id, -1);
  	if (ret)
  		netdev_warn(netdev, "failed to unbind L3 interface: %d\n", ret);
-@@ -457,7 +460,6 @@
+@@ -457,7 +460,6 @@ void edma_port_destroy(struct ppe_port *
  		netdev_warn(netdev, "failed to clear L3 interface: %d\n", ret);
  	free_netdev(netdev);
  	ppe_port_phylink_destroy(port);
@@ -1056,7 +1056,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
  
  /**
-@@ -574,6 +576,7 @@
+@@ -574,6 +576,7 @@ int edma_port_setup(struct ppe_port *por
  register_netdev_fail:
  	ppe_port_phylink_destroy(port);
  port_phylink_setup_fail:
@@ -1066,7 +1066,7 @@ Signed-off-by: ViKing <vking@example.com>
  	edma_port_stats_free(netdev);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
-@@ -120,6 +120,18 @@
+@@ -120,6 +120,18 @@ static int edma_rx_alloc_buffer_list(str
  	return num_alloc;
  }
  
@@ -1085,7 +1085,7 @@ Signed-off-by: ViKing <vking@example.com>
  /**
   * edma_rx_alloc_buffer - EDMA Rx alloc buffer.
   * @rxfill_ring: EDMA Rxfill ring
-@@ -634,12 +646,10 @@
+@@ -634,12 +646,10 @@ static struct net_device *edma_rx_get_sr
  static int edma_rx_reap(struct edma_rxdesc_ring *rxdesc_ring, int budget)
  {
  	struct edma_rxdesc_stats *rxdesc_stats = &rxdesc_ring->rxdesc_stats;
@@ -1098,7 +1098,7 @@ Signed-off-by: ViKing <vking@example.com>
  	u32 prod_idx, cons_idx, end_idx;
  	u32 work_to_do, work_done = 0;
  	struct sk_buff *next_skb;
-@@ -675,17 +685,11 @@
+@@ -675,17 +685,11 @@ static int edma_rx_reap(struct edma_rxde
  		struct net_device *ndev;
  		struct sk_buff *skb;
  		dma_addr_t dma_addr;
@@ -1117,7 +1117,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  		/* Update consumer index. */
  		cons_idx = (cons_idx + 1) & EDMA_RX_RING_SIZE_MASK;
-@@ -811,6 +815,7 @@
+@@ -811,6 +815,7 @@ int edma_rx_napi_poll(struct napi_struct
  	struct edma_rxdesc_ring *rxdesc_ring = (struct edma_rxdesc_ring *)napi;
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
@@ -1125,7 +1125,7 @@ Signed-off-by: ViKing <vking@example.com>
  	int work_done = 0;
  	u32 status, reg;
  
-@@ -825,10 +830,13 @@
+@@ -825,10 +830,13 @@ int edma_rx_napi_poll(struct napi_struct
  		status = status & EDMA_RXDESC_RING_INT_STATUS_MASK;
  	} while (likely(status));
  
@@ -1143,7 +1143,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	return work_done;
  }
-@@ -847,14 +855,18 @@
+@@ -847,14 +855,18 @@ irqreturn_t edma_rx_handle_irq(int irq,
  	struct edma_rxdesc_ring *rxdesc_ring = (struct edma_rxdesc_ring *)ctx;
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
@@ -1165,7 +1165,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-@@ -275,6 +275,10 @@
+@@ -275,6 +275,10 @@ struct edma_rxdesc_ring {
  	struct edma_rxdesc_stats rxdesc_stats;
  	struct edma_rxfill_ring *rxfill;
  	bool napi_added;
@@ -1176,7 +1176,7 @@ Signed-off-by: ViKing <vking@example.com>
  	dma_addr_t pdma;
  	dma_addr_t sdma;
  	struct sk_buff *head;
-@@ -287,6 +291,7 @@
+@@ -287,6 +291,7 @@ extern int edma_rx_mitigation_timer;
  extern int edma_rx_mitigation_pkt_cnt;
  
  irqreturn_t edma_rx_handle_irq(int irq, void *ctx);
@@ -1186,7 +1186,7 @@ Signed-off-by: ViKing <vking@example.com>
  #endif
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-@@ -331,6 +331,7 @@
+@@ -331,6 +331,7 @@ int edma_tx_napi_poll(struct napi_struct
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
  	u32 txcmpl_intr_status;
@@ -1194,7 +1194,7 @@ Signed-off-by: ViKing <vking@example.com>
  	int work_done = 0;
  	u32 data, reg;
  
-@@ -346,11 +347,13 @@
+@@ -346,11 +347,13 @@ int edma_tx_napi_poll(struct napi_struct
  	} while (txcmpl_intr_status);
  
  	/* No more packets to process. Finish NAPI processing. */
@@ -1213,7 +1213,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	return work_done;
  }
-@@ -369,16 +372,20 @@
+@@ -369,16 +372,20 @@ irqreturn_t edma_tx_handle_irq(int irq,
  	struct edma_txcmpl_ring *txcmpl_ring = (struct edma_txcmpl_ring *)ctx;
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
@@ -1237,7 +1237,7 @@ Signed-off-by: ViKing <vking@example.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-@@ -360,6 +360,10 @@
+@@ -360,6 +360,10 @@ struct edma_txcmpl_ring {
  	dma_addr_t dma;
  	u32 count;
  	bool napi_added;
@@ -1258,7 +1258,7 @@ Signed-off-by: ViKing <vking@example.com>
  #include "edma_port.h"
  #include "ppe.h"
  #include "ppe_flowtable.h"
-@@ -1524,6 +1525,7 @@
+@@ -1524,6 +1525,7 @@ err_port_clk:
  	ppe_port_clock_deinit(&ppe_ports->port[i]);
  err_port_setup:
  	/* Destroy edma ports created till now */
@@ -1266,7 +1266,7 @@ Signed-off-by: ViKing <vking@example.com>
  	while (i) {
  		i--;
  		edma_port_destroy(&ppe_ports->port[i]);
-@@ -1548,6 +1550,8 @@
+@@ -1548,6 +1550,8 @@ void ppe_port_mac_deinit(struct ppe_devi
  	struct ppe_port *ppe_port;
  	int i;
  

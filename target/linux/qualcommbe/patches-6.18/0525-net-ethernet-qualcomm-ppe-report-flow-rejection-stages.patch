@@ -19,7 +19,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  1 file changed, 49 insertions(+), 2 deletions(-)
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -225,6 +225,33 @@
+@@ -225,6 +225,33 @@ static_assert(offsetof(struct ppe_ft_tun
  
  #define PPE_FT_HOST_HASH_BITS	8
  
@@ -53,7 +53,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  /* Refcounted hardware host entry. Its hardware-selected index is
   * carried explicitly by every flow which references it.
   */
-@@ -266,6 +293,7 @@
+@@ -266,6 +293,7 @@ struct ppe_flowtable {
  	atomic_long_t replace_unsupported;
  	atomic_long_t replace_failed;
  	atomic_long_t destroy_calls;
@@ -61,7 +61,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	DECLARE_HASHTABLE(hosts, PPE_FT_HOST_HASH_BITS);
  	DECLARE_BITMAP(nexthop_used, PPE_NEXTHOP_TBL_ENTRIES);
  	struct ppe_ft_my_mac my_macs[PPE_MY_MAC_TBL_ENTRIES];
-@@ -1761,6 +1789,7 @@
+@@ -1761,6 +1789,7 @@ static int ppe_ft_flow_replace(struct pp
  	struct ppe_flow_nexthop nh = {};
  	struct ppe_ft_data data = {};
  	struct ppe_ft_flow *flow;
@@ -69,7 +69,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	int vlan_pops = 0;
  	struct in6_addr lwt_local = {}, lwt_remote = {};
  	u8 lwt_hop_limit = 0;
-@@ -1976,6 +2005,7 @@
+@@ -1976,6 +2005,7 @@ static int ppe_ft_flow_replace(struct pp
  	data.sport = flow->entry.sport;
  	data.dport = flow->entry.dport;
  
@@ -77,7 +77,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	flow_action_for_each(i, act, &rule->action) {
  		switch (act->id) {
  		case FLOW_ACTION_REDIRECT:
-@@ -2075,6 +2105,7 @@
+@@ -2075,6 +2105,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -85,7 +85,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (tunnel_flow) {
  		if (!odev) {
  			ret = -EOPNOTSUPP;
-@@ -2113,6 +2144,7 @@
+@@ -2113,6 +2144,7 @@ static int ppe_ft_flow_replace(struct pp
  		ret = -EOPNOTSUPP;
  		goto err_tdev;
  	}
@@ -93,7 +93,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (!tunnel_encap && !edma_port_dev_check(odev) &&
  	    (!ft->ppe_dev->variant->has_vports ||
  	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
-@@ -2128,6 +2160,7 @@
+@@ -2128,6 +2160,7 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_tdev;
  	}
  
@@ -101,7 +101,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* Resolve the ingress identity. Tagged physical ingress needs a VLAN
  	 * uplink. Wireless ingress takes its own VP reference so the mapping
  	 * and interception hook live for this direction independently of the
-@@ -2161,6 +2194,7 @@
+@@ -2161,6 +2194,7 @@ static int ppe_ft_flow_replace(struct pp
  			iport = ipriv->ppe_port->port_id;
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
@@ -109,7 +109,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  			vp_ret = ppe_vp_get(ft->ppe_dev, idev,
  					    f->common.prio);
  			if (vp_ret >= 0)
-@@ -2179,6 +2213,7 @@
+@@ -2179,6 +2213,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -117,7 +117,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (!tunnel_encap) {
  		if (edma_port_dev_check(odev)) {
  			port_priv = netdev_priv(odev);
-@@ -2231,6 +2266,7 @@
+@@ -2231,6 +2266,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -125,7 +125,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* The hardware rewrites one direction per flow: the translated
  	 * source of SNAT comes from the public IP table, the translated
  	 * destination of DNAT from the next hop, and the translated L4
-@@ -2314,6 +2350,7 @@
+@@ -2314,6 +2350,7 @@ static int ppe_ft_flow_replace(struct pp
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
  	}
  
@@ -133,7 +133,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* An ingress virtual port is an independent L3 endpoint.  A flow
  	 * may be accepted without its reverse direction, so it cannot rely
  	 * on the reverse rule to publish the bridge MAC or configure the VP
-@@ -2360,6 +2397,7 @@
+@@ -2360,6 +2397,7 @@ static int ppe_ft_flow_replace(struct pp
  	 * entry of the slot terminates the reverse direction, whose
  	 * rule arrives as a plain flow of the inner tuple.
  	 */
@@ -141,7 +141,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (data.pppoe_sid >= 0) {
  		/* A PPPoE session is matched by an ingress physical-port
  		 * bitmap that cannot represent a virtual port, so a PPPoE
-@@ -2379,6 +2417,7 @@
+@@ -2379,6 +2417,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  		nh.l3_if = ppe_ft_pppoe_l3_if(ft, flow->pppoe);
  	}
@@ -149,7 +149,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	/* The source MAC of this direction is the router MAC the
  	 * reverse direction ingresses on; the egress L3 interface
-@@ -2514,6 +2553,8 @@
+@@ -2514,6 +2553,8 @@ err_prelock_ivp:
  	if (tdev)
  		dev_put(tdev);
  err_free:
@@ -158,7 +158,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	kfree_rcu(flow, rcu);
  
  	return ret;
-@@ -2730,7 +2771,7 @@
+@@ -2730,7 +2771,7 @@ static int ppe_ft_flows_show(struct seq_
  	struct rhashtable_iter iter;
  	struct ppe_ft_flow *flow;
  	struct list_head *pos;
@@ -167,7 +167,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	mutex_lock(&ft->lock);
  	list_for_each(pos, &ft->zombies)
-@@ -2744,6 +2785,11 @@
+@@ -2744,6 +2785,11 @@ static int ppe_ft_flows_show(struct seq_
  		   atomic_long_read(&ft->replace_unsupported),
  		   atomic_long_read(&ft->replace_failed),
  		   atomic_long_read(&ft->destroy_calls), zombies);
@@ -179,7 +179,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	rhashtable_walk_enter(&ft->flows, &iter);
  	rhashtable_walk_start(&iter);
-@@ -2775,10 +2821,11 @@
+@@ -2775,10 +2821,11 @@ static int ppe_ft_flows_show(struct seq_
  				   &flow->entry.dip.ip4,
  				   be16_to_cpu(flow->entry.dport));
  		seq_printf(seq,

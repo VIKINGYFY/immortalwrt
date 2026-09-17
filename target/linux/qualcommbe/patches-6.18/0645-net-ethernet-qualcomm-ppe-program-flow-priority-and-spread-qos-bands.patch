@@ -9,7 +9,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -133,6 +133,7 @@
+@@ -133,6 +133,7 @@ struct ppe_scheduler_qm_config {
   * @pri_max: Max priority configured.
   * @flow_id: Strict priority ID.
   * @drr_node_id: Node ID for scheduler.
@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * PPE port scheduler configuration which decides the priority in the
   * packet scheduler for the egress port.
-@@ -145,6 +146,7 @@
+@@ -145,6 +146,7 @@ struct ppe_scheduler_port_config {
  	unsigned int pri_max;
  	unsigned int flow_id;
  	unsigned int drr_node_id;
@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /**
-@@ -660,7 +662,7 @@
+@@ -660,7 +662,7 @@ static const struct ppe_scheduler_port_c
  		.flow_level	= true,
  		.node_id	= 36,
  		.loop_num	= 2,
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.flow_id	= 1,
  		.drr_node_id	= 8,
  	},
-@@ -672,6 +674,7 @@
+@@ -672,6 +674,7 @@ static const struct ppe_scheduler_port_c
  		.pri_max	= 8,
  		.flow_id	= 36,
  		.drr_node_id	= 48,
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  	{
  		.port		= 1,
-@@ -687,7 +690,7 @@
+@@ -687,7 +690,7 @@ static const struct ppe_scheduler_port_c
  		.flow_level	= true,
  		.node_id	= 40,
  		.loop_num	= 2,
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.flow_id	= 2,
  		.drr_node_id	= 12,
  	},
-@@ -699,6 +702,7 @@
+@@ -699,6 +702,7 @@ static const struct ppe_scheduler_port_c
  		.pri_max	= 8,
  		.flow_id	= 40,
  		.drr_node_id	= 64,
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  	{
  		.port		= 2,
-@@ -714,7 +718,7 @@
+@@ -714,7 +718,7 @@ static const struct ppe_scheduler_port_c
  		.flow_level	= true,
  		.node_id	= 44,
  		.loop_num	= 2,
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.flow_id	= 3,
  		.drr_node_id	= 16,
  	},
-@@ -726,6 +730,7 @@
+@@ -726,6 +730,7 @@ static const struct ppe_scheduler_port_c
  		.pri_max	= 8,
  		.flow_id	= 44,
  		.drr_node_id	= 80,
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  	{
  		.port		= 3,
-@@ -741,7 +746,7 @@
+@@ -741,7 +746,7 @@ static const struct ppe_scheduler_port_c
  		.flow_level	= true,
  		.node_id	= 48,
  		.loop_num	= 2,
@@ -85,7 +85,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.flow_id	= 4,
  		.drr_node_id	= 20,
  	},
-@@ -753,6 +758,7 @@
+@@ -753,6 +758,7 @@ static const struct ppe_scheduler_port_c
  		.pri_max	= 8,
  		.flow_id	= 48,
  		.drr_node_id	= 96,
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  	{
  		.port		= 4,
-@@ -768,7 +774,7 @@
+@@ -768,7 +774,7 @@ static const struct ppe_scheduler_port_c
  		.flow_level	= true,
  		.node_id	= 52,
  		.loop_num	= 2,
@@ -102,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.flow_id	= 5,
  		.drr_node_id	= 24,
  	},
-@@ -780,6 +786,7 @@
+@@ -780,6 +786,7 @@ static const struct ppe_scheduler_port_c
  		.pri_max	= 8,
  		.flow_id	= 52,
  		.drr_node_id	= 112,
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  	{
  		.port		= 5,
-@@ -795,7 +802,7 @@
+@@ -795,7 +802,7 @@ static const struct ppe_scheduler_port_c
  		.flow_level	= true,
  		.node_id	= 56,
  		.loop_num	= 2,
@@ -119,7 +119,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.flow_id	= 6,
  		.drr_node_id	= 28,
  	},
-@@ -807,6 +814,7 @@
+@@ -807,6 +814,7 @@ static const struct ppe_scheduler_port_c
  		.pri_max	= 8,
  		.flow_id	= 56,
  		.drr_node_id	= 128,
@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  	{
  		.port		= 6,
-@@ -822,7 +830,7 @@
+@@ -822,7 +830,7 @@ static const struct ppe_scheduler_port_c
  		.flow_level	= true,
  		.node_id	= 60,
  		.loop_num	= 2,
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.flow_id	= 7,
  		.drr_node_id	= 32,
  	},
-@@ -834,6 +842,7 @@
+@@ -834,6 +842,7 @@ static const struct ppe_scheduler_port_c
  		.pri_max	= 8,
  		.flow_id	= 60,
  		.drr_node_id	= 144,
@@ -144,7 +144,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  	{
  		.port		= 7,
-@@ -1975,6 +1984,25 @@
+@@ -1975,6 +1984,25 @@ static int ppe_tbf_queue_write(struct pp
  				 PPE_TBF_QUEUE_CFG_WORDS);
  }
  
@@ -170,7 +170,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_tbf_shaper_read(struct ppe_device *ppe_dev, int port, u32 *cfg)
  {
  	u32 reg;
-@@ -2020,18 +2048,18 @@
+@@ -2020,18 +2048,18 @@ static u32 ppe_tbf_queue_buffers(u64 rat
  }
  
  /**
@@ -195,7 +195,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * Return: 0 on success or a negative error code on failure.
   */
-@@ -2040,13 +2068,15 @@
+@@ -2040,13 +2068,15 @@ int ppe_port_tbf_set(struct ppe_port *po
  {
  	struct ppe_port_tbf *tbf = &port->tbf;
  	struct ppe_device *ppe_dev = port->ppe_dev;
@@ -216,7 +216,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!rate)
  		return -EINVAL;
-@@ -2057,49 +2087,57 @@
+@@ -2057,49 +2087,57 @@ int ppe_port_tbf_set(struct ppe_port *po
  				    &queue, &queue_end);
  	if (ret)
  		goto out_unlock;
@@ -304,7 +304,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	ret = ppe_port_shaper_set(ppe_dev, port->port_id, rate, burst);
-@@ -2111,13 +2149,8 @@
+@@ -2111,13 +2149,8 @@ int ppe_port_tbf_set(struct ppe_port *po
  				"port %d failed to roll back TBF shaper: %d\n",
  				port->port_id, shaper_ret);
  		}
@@ -320,7 +320,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto out_unlock;
  	}
  
-@@ -2131,8 +2164,10 @@
+@@ -2131,8 +2164,10 @@ int ppe_port_tbf_set(struct ppe_port *po
  	tbf->rate = rate;
  	tbf->burst = burst;
  	tbf->requested_limit = limit;
@@ -333,7 +333,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  out_unlock:
  	mutex_unlock(&port->tbf_lock);
-@@ -2150,10 +2185,10 @@
+@@ -2150,10 +2185,10 @@ int ppe_port_tbf_destroy(struct ppe_port
  {
  	struct ppe_port_tbf *tbf = &port->tbf;
  	struct ppe_device *ppe_dev = port->ppe_dev;
@@ -346,7 +346,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	mutex_lock(&port->tbf_lock);
  	if (!tbf->active || tbf->handle != handle) {
-@@ -2161,9 +2196,12 @@
+@@ -2161,9 +2196,12 @@ int ppe_port_tbf_destroy(struct ppe_port
  		goto out_unlock;
  	}
  
@@ -362,7 +362,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ppe_tbf_shaper_read(ppe_dev, port->port_id, old_shaper);
  	if (ret)
  		goto out_unlock;
-@@ -2181,23 +2219,22 @@
+@@ -2181,23 +2219,22 @@ int ppe_port_tbf_destroy(struct ppe_port
  		goto out_unlock;
  	}
  
@@ -401,7 +401,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	tbf->active = false;
-@@ -2206,7 +2243,8 @@
+@@ -2206,7 +2243,8 @@ int ppe_port_tbf_destroy(struct ppe_port
  	tbf->burst = 0;
  	tbf->requested_limit = 0;
  	tbf->applied_buffers = 0;
@@ -411,7 +411,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	memset(tbf->saved_cfg, 0, sizeof(tbf->saved_cfg));
  	memset(tbf->saved_shaper, 0, sizeof(tbf->saved_shaper));
  
-@@ -2916,7 +2954,17 @@
+@@ -2916,7 +2954,17 @@ static int ppe_node_scheduler_config(str
  	int ret, i;
  
  	for (i = 0; i < config.loop_num; i++) {
@@ -430,7 +430,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			/* Round robin scheduler without priority. */
  			sch_cfg.flow_id = config.flow_id;
  			sch_cfg.pri = 0;
-@@ -3100,9 +3148,18 @@
+@@ -3100,9 +3148,18 @@ static int ppe_queue_dest_init(struct pp
  				return ret;
  		}
  
@@ -451,7 +451,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  			ret = ppe_queue_ucast_offset_pri_set(ppe_dev, port_id,
  							     index, q_offset);
-@@ -3110,13 +3167,14 @@
+@@ -3110,13 +3167,14 @@ static int ppe_queue_dest_init(struct pp
  				return ret;
  		}
  
@@ -470,7 +470,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (ret)
  				return ret;
  		}
-@@ -3125,6 +3183,45 @@
+@@ -3125,6 +3183,45 @@ static int ppe_queue_dest_init(struct pp
  	return 0;
  }
  
@@ -516,7 +516,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Initialize the service code 1 used by CPU port. */
  static int ppe_servcode_init(struct ppe_device *ppe_dev)
  {
-@@ -3383,6 +3480,10 @@
+@@ -3383,6 +3480,10 @@ int ppe_hw_config(struct ppe_device *ppe
  	if (ret)
  		return ret;
  
@@ -529,7 +529,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -23,6 +23,9 @@
+@@ -23,6 +23,9 @@ struct ppe_port;
  #define PPE_QUEUE_INTER_PRI_NUM			16
  #define PPE_QUEUE_HASH_NUM			256
  
@@ -541,7 +541,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-@@ -972,19 +972,118 @@
+@@ -972,19 +972,118 @@ static const struct file_operations ppe_
  	.release = single_release,
  };
  
@@ -665,7 +665,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!ppe_dev->ports)
  		return 0;
  
-@@ -996,47 +1095,60 @@
+@@ -996,47 +1095,60 @@ static int ppe_tbf_queues_show(struct se
  		ret = ppe_port_resource_get(ppe_dev, port->port_id, PPE_RES_UCAST,
  					    &queue, &queue_end);
  		if (ret || queue < 0 || queue > queue_end ||
@@ -748,7 +748,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mutex_unlock(&port->tbf_lock);
  	}
  
-@@ -1077,6 +1189,8 @@
+@@ -1077,6 +1189,8 @@ void ppe_debugfs_setup(struct ppe_device
  				    &ppe_athtag_fops);
  	debugfs_create_file("tbf_queues", 0400, ppe_dev->debugfs_root,
  			    ppe_dev, &ppe_tbf_queues_fops);
@@ -759,7 +759,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = edma_debugfs_setup(ppe_dev);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -167,7 +167,7 @@
+@@ -167,7 +167,7 @@ static void ppe_flow_entry_pack(const st
  	} else {
  		u32 ip = be32_to_cpu(flow->dip.ip4);
  
@@ -768,7 +768,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				    ip & GENMASK(19, 0));
  		val[3] |= FIELD_PREP(PPE_FLOW_W3_IP_ADDR_HI, ip >> 20);
  	}
-@@ -220,8 +220,10 @@
+@@ -220,8 +220,10 @@ int ppe_host_entry_del(struct ppe_device
  int ppe_flow_entry_add(struct ppe_device *ppe_dev,
  		       const struct ppe_flow_entry *flow)
  {
@@ -780,7 +780,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ppe_flow_entry_pack(flow, val);
  	mutex_lock(&ppe_dev->flow_lock);
-@@ -229,6 +231,25 @@
+@@ -229,6 +231,25 @@ int ppe_flow_entry_add(struct ppe_device
  				val, ARRAY_SIZE(val));
  	if (!ret)
  		ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_ADD, false, 0);
@@ -806,7 +806,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ppe_dev->flow_lock);
  	if (ret >= ppe_dev->variant->num_flow_entries)
  		return -ERANGE;
-@@ -264,6 +285,8 @@
+@@ -264,6 +285,8 @@ int ppe_flow_entry_enable(struct ppe_dev
  
  int ppe_flow_entry_del(struct ppe_device *ppe_dev, int index)
  {
@@ -815,7 +815,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  
  	if (index < 0 || index >= ppe_dev->variant->num_flow_entries)
-@@ -271,6 +294,13 @@
+@@ -271,6 +294,13 @@ int ppe_flow_entry_del(struct ppe_device
  
  	mutex_lock(&ppe_dev->flow_lock);
  	ret = ppe_flow_op_issue(ppe_dev, PPE_FDB_OP_TYPE_DEL, true, index);
@@ -831,7 +831,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-@@ -53,6 +53,8 @@
+@@ -53,6 +53,8 @@ struct ppe_flow_nexthop {
   * @nat_port: Translated source port of SNAT flows, translated
   * destination port of DNAT flows.
   * @pmtu: Path MTU of the egress device of the flow.
@@ -840,7 +840,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  struct ppe_flow_entry {
  	union {
-@@ -68,6 +70,8 @@
+@@ -68,6 +70,8 @@ struct ppe_flow_entry {
  	u16 host_index;
  	__be16 nat_port;
  	u16 pmtu;
@@ -851,7 +851,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ppe_flow_hw_init(struct ppe_device *ppe_dev);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2300,6 +2300,14 @@
+@@ -2300,6 +2300,14 @@ static int ppe_ft_flow_replace(struct pp
  			}
  			lwt_tunnel = true;
  			break;
@@ -866,7 +866,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		default:
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -3165,8 +3173,9 @@
+@@ -3165,8 +3173,9 @@ static int ppe_ft_flows_show(struct seq_
  	rhashtable_walk_enter(&ft->flows, &iter);
  	rhashtable_walk_start(&iter);
  	while ((flow = rhashtable_walk_next(&iter))) {
@@ -877,7 +877,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (IS_ERR(flow)) {
  			if (PTR_ERR(flow) == -EAGAIN)
-@@ -3174,9 +3183,17 @@
+@@ -3174,9 +3183,17 @@ static int ppe_ft_flows_show(struct seq_
  			break;
  		}
  
@@ -898,7 +898,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  
  		if (flow->entry.is_ipv6)
-@@ -3192,10 +3209,13 @@
+@@ -3192,10 +3209,13 @@ static int ppe_ft_flows_show(struct seq_
  				   &flow->entry.dip.ip4,
  				   be16_to_cpu(flow->entry.dport));
  		seq_printf(seq,
@@ -918,7 +918,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-@@ -44,6 +44,7 @@
+@@ -44,6 +44,7 @@ enum ppe_mac_type {
  };
  
  #define PPE_TBF_QUEUE_CFG_WORDS	4
@@ -926,7 +926,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define PPE_TBF_SHAPER_CFG_WORDS	2
  
  /**
-@@ -53,9 +54,10 @@
+@@ -53,9 +54,10 @@ enum ppe_mac_type {
   * @rate: Configured byte rate
   * @burst: Configured burst in bytes
   * @requested_limit: Queue limit requested by the qdisc, in bytes
@@ -940,7 +940,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @saved_shaper: Port shaper entry restored on destroy
   * @rollback_failures: Failed attempts to restore hardware state
   * @callback_calls: TBF callbacks received through ndo_setup_tc
-@@ -72,8 +74,9 @@
+@@ -72,8 +74,9 @@ struct ppe_port_tbf {
  	u32 burst;
  	u32 requested_limit;
  	u32 applied_buffers;

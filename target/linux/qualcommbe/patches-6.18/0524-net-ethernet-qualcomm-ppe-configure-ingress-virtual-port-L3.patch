@@ -20,7 +20,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  1 file changed, 52 insertions(+), 2 deletions(-)
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -154,6 +154,7 @@
+@@ -154,6 +154,7 @@ static_assert(offsetof(struct ppe_ft_vla
   * @index: Hardware flow table index.
   * @entry: The flow, kept for the delete command.
   * @nexthop: Next hop index of the flow.
@@ -28,7 +28,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
   * @my_mac: Router MAC slot held by the flow, negative when none.
   * @pub_ip: Public IP slot held by the flow, negative when none.
   * @pppoe: PPPoE session slot held by the flow, negative when none.
-@@ -170,6 +171,7 @@
+@@ -170,6 +171,7 @@ struct ppe_ft_flow {
  	int index;
  	struct ppe_flow_entry entry;
  	u16 nexthop;
@@ -36,7 +36,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	int my_mac;
  	int pub_ip;
  	int pppoe;
-@@ -292,6 +294,7 @@
+@@ -292,6 +294,7 @@ struct ppe_ft_data {
  	struct {
  		u8 dst[ETH_ALEN];
  		u8 src[ETH_ALEN];
@@ -44,7 +44,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	} eth;
  	__be32 sip;
  	__be32 dip;
-@@ -1811,6 +1814,7 @@
+@@ -1811,6 +1814,7 @@ static int ppe_ft_flow_replace(struct pp
  		return -ENOMEM;
  
  	flow->cookie = f->cookie;
@@ -52,7 +52,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
  	flow->pppoe = -1;
-@@ -2131,6 +2135,7 @@
+@@ -2131,6 +2135,7 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	if (data.ingress_ifindex) {
  		struct net_device *idev;
@@ -60,7 +60,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		int vp_ret = 0;
  
  		idev = dev_get_by_index(dev_net(odev), data.ingress_ifindex);
-@@ -2139,11 +2144,21 @@
+@@ -2139,11 +2144,21 @@ static int ppe_ft_flow_replace(struct pp
  			goto err_prelock_ivp;
  		}
  
@@ -83,7 +83,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
  			vp_ret = ppe_vp_get(ft->ppe_dev, idev,
-@@ -2299,12 +2314,44 @@
+@@ -2299,12 +2314,44 @@ static int ppe_ft_flow_replace(struct pp
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
  	}
  
@@ -129,7 +129,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		}
  	}
  
-@@ -2445,6 +2492,8 @@
+@@ -2445,6 +2492,8 @@ err_pppoe:
  	ppe_ft_pppoe_put(ft, flow->pppoe);
  err_vlan:
  	ppe_ft_vlan_put(ft, flow->vlan);
@@ -138,7 +138,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  err_pub_ip:
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
  err_vp:
-@@ -2490,6 +2539,7 @@
+@@ -2490,6 +2539,7 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_host_put(ft, &flow->entry);
  		clear_bit(flow->nexthop, ft->nexthop_used);
  		ppe_ft_my_mac_put(ft, flow->my_mac);

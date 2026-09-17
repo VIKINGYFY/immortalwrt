@@ -20,7 +20,7 @@ Signed-off-by: ViKing <vking@example.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -352,26 +352,55 @@
+@@ -352,26 +352,55 @@ static int edma_port_setup_tbf(struct ne
  {
  	struct edma_port_priv *port_priv = netdev_priv(netdev);
  	struct ppe_port *port = port_priv->ppe_port;
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <vking@example.com>
  #include "ppe_regs.h"
  
  #define PPE_QUEUE_SCH_PRI_NUM		8
-@@ -1939,6 +1941,298 @@
+@@ -1939,6 +1941,298 @@ int ppe_port_shaper_set(struct ppe_devic
  	return regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
  }
  
@@ -409,7 +409,7 @@ Signed-off-by: ViKing <vking@example.com>
  /* There are different table index ranges for configuring queue base ID of
   * the destination port, CPU code and service code.
   */
-@@ -355,6 +357,10 @@
+@@ -355,6 +357,10 @@ int ppe_port_bridge_learning_set(struct
  				 bool enable);
  int ppe_port_shaper_set(struct ppe_device *ppe_dev, int port, u64 rate,
  			u32 burst);
@@ -430,7 +430,7 @@ Signed-off-by: ViKing <vking@example.com>
  #include "ppe_regs.h"
  #include "ppe_vp.h"
  
-@@ -971,6 +972,78 @@
+@@ -971,6 +972,78 @@ static const struct file_operations ppe_
  	.release = single_release,
  };
  
@@ -509,7 +509,7 @@ Signed-off-by: ViKing <vking@example.com>
  void ppe_debugfs_setup(struct ppe_device *ppe_dev)
  {
  	struct ppe_debugfs_entry *entry;
-@@ -1002,6 +1075,8 @@
+@@ -1002,6 +1075,8 @@ void ppe_debugfs_setup(struct ppe_device
  		debugfs_create_file("qca8386_athtag", 0400,
  				    ppe_dev->debugfs_root, ppe_dev,
  				    &ppe_athtag_fops);
@@ -520,7 +520,7 @@ Signed-off-by: ViKing <vking@example.com>
  	ret = edma_debugfs_setup(ppe_dev);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -1496,6 +1496,7 @@
+@@ -1496,6 +1496,7 @@ int ppe_port_mac_init(struct ppe_device
  		ppe_ports->port[i].np = port_node;
  		ppe_ports->port[i].interface = phy_mode;
  		ppe_ports->port[i].mac_type = PPE_MAC_TYPE_GMAC;
@@ -538,7 +538,7 @@ Signed-off-by: ViKing <vking@example.com>
  #include <linux/phy.h>
  #include <linux/phylink.h>
  
-@@ -42,6 +43,47 @@
+@@ -42,6 +43,47 @@ enum ppe_mac_type {
  	PPE_MAC_TYPE_XGMAC,
  };
  
@@ -586,7 +586,7 @@ Signed-off-by: ViKing <vking@example.com>
  /**
   * struct ppe_port - Private data for each PPE port
   * @np: Port device tree node
-@@ -60,6 +102,8 @@
+@@ -60,6 +102,8 @@ enum ppe_mac_type {
   * @fifo_report_next: Earliest jiffies for the next FIFO error report
   * @fifo_report_rx: RX FIFO counter at the previous report
   * @fifo_report_tx: TX FIFO counter at the previous report
@@ -595,7 +595,7 @@ Signed-off-by: ViKing <vking@example.com>
   */
  struct ppe_port {
  	struct device_node *np;
-@@ -78,6 +122,8 @@
+@@ -78,6 +122,8 @@ struct ppe_port {
  	unsigned long fifo_report_next;
  	u64 fifo_report_rx;
  	u64 fifo_report_tx;
