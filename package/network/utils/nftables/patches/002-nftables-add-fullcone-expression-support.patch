@@ -5,14 +5,17 @@ Subject: [PATCH] nftables: add fullcone expression support
 
 Signed-off-by: Syrone Wong <wong.syrone@gmail.com>
 ---
- include/linux/netfilter/nf_tables.h | 16 ++++++++++
- include/statement.h                 |  1 +
- src/netlink_delinearize.c           | 48 +++++++++++++++++++++++++++++
- src/netlink_linearize.c             |  7 +++++
- src/parser_bison.y                  | 28 +++++++++++++++--
- src/scanner.l                       |  1 +
- src/statement.c                     |  1 +
- 7 files changed, 100 insertions(+), 2 deletions(-)
+ include/linux/netfilter/nf_tables.h |   16 ++++++++++++
+ include/statement.h                 |    1 +
+ src/netlink_delinearize.c           |   48 +++++++++++++++++++++++++++++++++++
+ src/netlink_linearize.c             |    7 +++++
+ src/parser_bison.y                  |   28 +++++++++++++++++++-
+ src/scanner.l                       |    1 +
+ src/statement.c                     |    1 +
+ src/parser_json.c                   |    2 +
+ src/evaluate.c                      |    2 +
+ src/optimize.c                      |    5 ++++
+ 10 files changed, 109 insertions(+), 2 deletions(-)
 
 --- a/include/linux/netfilter/nf_tables.h
 +++ b/include/linux/netfilter/nf_tables.h
@@ -207,3 +210,46 @@ Signed-off-by: Syrone Wong <wong.syrone@gmail.com>
  		[NFT_NAT_REDIR]	= "redirect",
  	};
  
+--- a/src/parser_json.c
++++ b/src/parser_json.c
+@@ -2282,6 +2282,7 @@
+ 		[NFT_NAT_SNAT]	= "snat",
+ 		[NFT_NAT_DNAT]	= "dnat",
+ 		[NFT_NAT_MASQ]	= "masquerade",
++		[NFT_NAT_FULLCONE] = "fullcone",
+ 		[NFT_NAT_REDIR]	= "redirect",
+ 	};
+ 	size_t i;
+@@ -2890,6 +2891,7 @@
+ 		{ "snat", json_parse_nat_stmt },
+ 		{ "dnat", json_parse_nat_stmt },
+ 		{ "masquerade", json_parse_nat_stmt },
++		{ "fullcone", json_parse_nat_stmt },
+ 		{ "redirect", json_parse_nat_stmt },
+ 		{ "reject", json_parse_reject_stmt },
+ 		{ "set", json_parse_set_stmt },
+--- a/src/evaluate.c
++++ b/src/evaluate.c
+@@ -87,6 +87,8 @@
+ 			return "redirect";
+ 		case NFT_NAT_MASQ:
+ 			return "masquerade";
++		case NFT_NAT_FULLCONE:
++			return "fullcone";
+ 		}
+ 		break;
+ 	default:
+--- a/src/optimize.c
++++ b/src/optimize.c
+@@ -300,6 +300,11 @@
+ 			break;
+ 		case NFT_NAT_MASQ:
+ 			break;
++		case NFT_NAT_FULLCONE:
++			/* Track the statement, but keep fullcone rules separate.
++			 * NAT map merging does not preserve both-hook semantics
++			 * and independently configured source port ranges. */
++			return !fully_compare;
+ 		case NFT_NAT_REDIR:
+ 			if ((stmt_a->nat.proto &&
+ 			     stmt_a->nat.proto->etype != EXPR_SYMBOL &&

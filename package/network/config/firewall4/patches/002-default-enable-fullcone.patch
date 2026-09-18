@@ -1,0 +1,23 @@
+From: ImmortalWrt contributors
+Subject: [PATCH] firewall4: enable SONiC fullcone on WAN by default
+
+--- a/root/etc/config/firewall
++++ b/root/etc/config/firewall
+@@ -5,6 +5,9 @@
+ 	option forward		REJECT
+ # Uncomment this line to disable ipv6 rules
+ #	option disable_ipv6	1
++	option flow_offloading	1
++	option flow_offloading_hw	1
++	option fullcone		1
+ 
+ config zone
+ 	option name		lan
+@@ -21,6 +24,7 @@
+ 	option output		ACCEPT
+ 	option forward		DROP
+ 	option masq		1
++	option fullcone		1
+ 	option mtu_fix		1
+ 
+ config forwarding
