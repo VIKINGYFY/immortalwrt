@@ -1,0 +1,16 @@
+Subject: [PATCH] luci-base: remove the legacy fullcone module probe
+
+The SONiC backend is integrated into the regular NAT modules and its LuCI
+page does not use the legacy fullcone feature flag. Remove the probe for the
+retired xt_FULLCONENAT and nft_fullcone modules.
+
+--- a/root/usr/share/rpcd/ucode/luci
++++ b/root/usr/share/rpcd/ucode/luci
+@@ -269,7 +269,6 @@
+ 				bonding:    access('/sys/module/bonding'),
+ 				mii_tool:   access('/usr/sbin/mii-tool'),
+ 				offloading: access('/sys/module/xt_FLOWOFFLOAD/refcnt') == true || access('/sys/module/nft_flow_offload/refcnt') == true,
+-				fullcone:   access('/sys/module/xt_FULLCONENAT/refcnt') == true || access('/sys/module/nft_fullcone/refcnt') == true,
+ 				br2684ctl:  access('/usr/sbin/br2684ctl') == true,
+ 				swconfig:   access('/sbin/swconfig') == true,
+ 				zram:       access('/sys/class/zram-control') == true,

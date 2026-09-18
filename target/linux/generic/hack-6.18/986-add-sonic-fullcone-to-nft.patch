@@ -1,0 +1,198 @@
+From: openwrt-sonic-fullcone contributors
+Subject: [PATCH] netfilter: add SONiC fullcone expression to nft_masq
+
+Build with CONFIG_NF_NAT_FULLCONE selected by the SONiC package.
+Use the shared SONiC NAT core for both hooks in ip/ip6/inet NAT tables.
+Reject other families before acquiring conntrack references.
+Linux 6.18 has no reduce op.
+
+--- a/net/netfilter/nft_masq.c
++++ b/net/netfilter/nft_masq.c
+@@ -12,6 +12,8 @@
+ #include <net/netfilter/nf_tables.h>
+ #include <net/netfilter/nf_nat.h>
+ #include <net/netfilter/nf_nat_masquerade.h>
++#include <net/netfilter/nf_conntrack.h>
++#include <uapi/linux/netfilter/nf_nat.h>
+ 
+ struct nft_masq {
+ 	u32			flags;
+@@ -128,6 +130,114 @@
+ 	}
+ }
+ 
++#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
++/* SONiC fullcone expression — shares struct/init/dump with masq,
++ * but allows prerouting hook and sets NF_NAT_RANGE_FULLCONE.
++ */
++
++enum nft_fullcone_attributes {
++	NFTA_FULLCONE_UNSPEC,
++	NFTA_FULLCONE_FLAGS,
++	NFTA_FULLCONE_REG_PROTO_MIN,
++	NFTA_FULLCONE_REG_PROTO_MAX,
++	__NFTA_FULLCONE_MAX
++};
++#define NFTA_FULLCONE_MAX	(__NFTA_FULLCONE_MAX - 1)
++
++static const struct nla_policy nft_fullcone_policy[NFTA_FULLCONE_MAX + 1] = {
++	[NFTA_FULLCONE_FLAGS]		=
++		NLA_POLICY_MASK(NLA_BE32, NF_NAT_RANGE_MASK),
++	[NFTA_FULLCONE_REG_PROTO_MIN]	= { .type = NLA_U32 },
++	[NFTA_FULLCONE_REG_PROTO_MAX]	= { .type = NLA_U32 },
++};
++
++/* One shared expression for ip, ip6 and inet NAT tables. Other table
++ * families must not acquire conntrack references through this frontend.
++ */
++static int nft_fullcone_init(const struct nft_ctx *ctx,
++			     const struct nft_expr *expr,
++			     const struct nlattr * const tb[])
++{
++	switch (ctx->family) {
++	case NFPROTO_IPV4:
++	case NFPROTO_IPV6:
++	case NFPROTO_INET:
++		return nft_masq_init(ctx, expr, tb);
++	default:
++		return -EOPNOTSUPP;
++	}
++}
++
++static int nft_fullcone_validate(const struct nft_ctx *ctx,
++				 const struct nft_expr *expr)
++{
++	int err;
++
++	err = nft_chain_validate_dependency(ctx->chain, NFT_CHAIN_T_NAT);
++	if (err < 0)
++		return err;
++
++	return nft_chain_validate_hooks(ctx->chain,
++			(1 << NF_INET_PRE_ROUTING) |
++			(1 << NF_INET_POST_ROUTING));
++}
++
++static void nft_fullcone_eval(const struct nft_expr *expr,
++			      struct nft_regs *regs,
++			      const struct nft_pktinfo *pkt)
++{
++	const struct nft_masq *priv = nft_expr_priv(expr);
++	struct nf_nat_range2 range;
++	enum nf_nat_manip_type mtype = HOOK2MANIP(nft_hook(pkt));
++
++	memset(&range, 0, sizeof(range));
++	range.flags = priv->flags | NF_NAT_RANGE_FULLCONE;
++
++	if (priv->sreg_proto_min) {
++		range.min_proto.all = (__force __be16)
++			nft_reg_load16(&regs->data[priv->sreg_proto_min]);
++		range.max_proto.all = (__force __be16)
++			nft_reg_load16(&regs->data[priv->sreg_proto_max]);
++	}
++
++	if (mtype == NF_NAT_MANIP_SRC) {
++		switch (nft_pf(pkt)) {
++		case NFPROTO_IPV4:
++			regs->verdict.code = nf_nat_masquerade_ipv4(pkt->skb,
++					nft_hook(pkt), &range, nft_out(pkt));
++			break;
++#ifdef CONFIG_NF_TABLES_IPV6
++		case NFPROTO_IPV6:
++			regs->verdict.code = nf_nat_masquerade_ipv6(pkt->skb,
++					&range, nft_out(pkt));
++			break;
++#endif
++		default:
++			break;
++		}
++	} else {
++		struct nf_conn *ct;
++		enum ip_conntrack_info ctinfo;
++
++		ct = nf_ct_get(pkt->skb, &ctinfo);
++		if (!ct || (ctinfo != IP_CT_NEW && ctinfo != IP_CT_RELATED &&
++			    ctinfo != IP_CT_RELATED_REPLY)) {
++			regs->verdict.code = NF_ACCEPT;
++			return;
++		}
++		regs->verdict.code = nf_nat_setup_info(ct, &range,
++						       NF_NAT_MANIP_DST);
++	}
++}
++
++static void
++nft_fullcone_destroy(const struct nft_ctx *ctx, const struct nft_expr *expr)
++{
++	nf_ct_netns_put(ctx->net, ctx->family);
++}
++
++#endif /* CONFIG_NF_NAT_FULLCONE */
++
+ static void
+ nft_masq_ipv4_destroy(const struct nft_ctx *ctx, const struct nft_expr *expr)
+ {
+@@ -236,6 +346,29 @@
+ static inline void nft_masq_module_exit_inet(void) {}
+ #endif
+ 
++#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
++static struct nft_expr_type nft_fullcone_type;
++static const struct nft_expr_ops nft_fullcone_ops = {
++	.type		= &nft_fullcone_type,
++	.size		= NFT_EXPR_SIZE(sizeof(struct nft_masq)),
++	.eval		= nft_fullcone_eval,
++	.init		= nft_fullcone_init,
++	.destroy	= nft_fullcone_destroy,
++	.dump		= nft_masq_dump,
++	.validate	= nft_fullcone_validate,
++};
++
++static struct nft_expr_type nft_fullcone_type __read_mostly = {
++	.family		= NFPROTO_UNSPEC,
++	.name		= "fullcone",
++	.ops		= &nft_fullcone_ops,
++	.policy		= nft_fullcone_policy,
++	.maxattr	= NFTA_FULLCONE_MAX,
++	.owner		= THIS_MODULE,
++};
++
++#endif /* CONFIG_NF_NAT_FULLCONE */
++
+ static int __init nft_masq_module_init(void)
+ {
+ 	int ret;
+@@ -265,6 +398,15 @@
+ 		return ret;
+ 	}
+ 
++#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
++	ret = nft_register_expr(&nft_fullcone_type);
++	if (ret < 0) {
++		nf_nat_masquerade_inet_unregister_notifiers();
++		nft_unregister_expr(&nft_masq_ipv4_type);
++		nft_masq_module_exit_inet();
++		nft_masq_module_exit_ipv6();
++	}
++#endif
+ 	return ret;
+ }
+ 
+@@ -273,11 +415,17 @@
+ 	nft_masq_module_exit_ipv6();
+ 	nft_masq_module_exit_inet();
+ 	nft_unregister_expr(&nft_masq_ipv4_type);
++#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
++	nft_unregister_expr(&nft_fullcone_type);
++#endif
+ 	nf_nat_masquerade_inet_unregister_notifiers();
+ }
+ 
+ module_init(nft_masq_module_init);
+ module_exit(nft_masq_module_exit);
++#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
++MODULE_ALIAS_NFT_EXPR("fullcone");
++#endif
+ 
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Arturo Borrero Gonzalez <arturo@debian.org>");

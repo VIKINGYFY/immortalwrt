@@ -9,7 +9,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=firewall
-PKG_RELEASE:=2
+PKG_RELEASE:=4
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/firewall3.git
@@ -31,7 +31,7 @@ define Package/firewall
   CATEGORY:=Base system
   TITLE:=OpenWrt C Firewall
   DEPENDS:=+libubox +libubus +libuci +libip4tc +IPV6:libip6tc +libiptext +IPV6:libiptext6 \
-	+libxtables +kmod-ipt-core +kmod-ipt-conntrack +kmod-ipt-nat +iptables-mod-fullconenat
+	+libxtables +kmod-ipt-core +kmod-ipt-conntrack +kmod-ipt-nat
   PROVIDES:=uci-firewall
   CONFLICTS:=firewall4
 endef
