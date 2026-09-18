@@ -1,0 +1,64 @@
+#!/bin/sh
+
+# Migrate legacy fields and initialize defaults once at installation.
+# The standard uci-defaults runner removes this script after success.
+# Preserve explicit choices and existing masquerading snapshots.
+. /lib/functions.sh
+
+migrate_legacy() {
+	local section="$1"
+	if [ "$(uci -q get "firewall.$section.fullcone6")" = 1 ] &&
+	   [ "$(uci -q get "firewall.$section.fullcone")" != 1 ]; then
+		uci set "firewall.$section.fullcone=1" || exit 1
+	fi
+	if uci -q get "firewall.$section.fullcone6" >/dev/null; then
+		uci -q delete "firewall.$section.fullcone6" || exit 1
+	fi
+}
+
+init_defaults() {
+	uci -q get "firewall.$1.fullcone" >/dev/null ||
+		uci set "firewall.$1.fullcone=1" || exit 1
+}
+
+init_zone() {
+	local section="$1" name saved='' candidate option previous
+	if uci -q get "firewall.$section.fullcone_proto" >/dev/null; then
+		uci -q delete "firewall.$section.fullcone_proto" || exit 1
+	fi
+	config_get name "$section" name
+	[ -n "$name" ] || return 0
+
+	if [ "$name" = wan ]; then
+		uci -q get "firewall.$section.fullcone" >/dev/null ||
+			uci set "firewall.$section.fullcone=1" || exit 1
+	fi
+
+	[ "$(uci -q get 'firewall.@defaults[0].fullcone')" = 1 ] || return 0
+	[ "$(uci -q get "firewall.$section.fullcone")" = 1 ] || return 0
+
+	for candidate in $(uci -q show fullconenat_sonic | sed -n 's/^fullconenat_sonic\.\([^.=]*\)=zone$/\1/p'); do
+		if [ "$(uci -q get "fullconenat_sonic.$candidate.name")" = "$name" ]; then
+			saved="$candidate"
+			break
+		fi
+	done
+
+	[ -n "$saved" ] || saved="$(uci add fullconenat_sonic zone)" || exit 1
+	uci set "fullconenat_sonic.$saved.name=$name" || exit 1
+
+	for option in masq masq6; do
+		[ "$option" != masq6 ] || [ -x /sbin/fw4 ] || continue
+		if ! uci -q get "fullconenat_sonic.$saved.$option" >/dev/null; then
+			previous="$(uci -q get "firewall.$section.$option")" || previous=unset
+			uci set "fullconenat_sonic.$saved.$option=${previous:-unset}" || exit 1
+		fi
+		uci set "firewall.$section.$option=1" || exit 1
+	done
+}
+
+config_load firewall
+config_foreach migrate_legacy
+config_foreach init_defaults defaults
+config_foreach init_zone zone
+uci commit fullconenat_sonic && uci commit firewall

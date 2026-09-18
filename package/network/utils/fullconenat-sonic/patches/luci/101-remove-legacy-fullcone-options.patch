@@ -1,0 +1,20 @@
+Subject: [PATCH] luci-app-firewall: remove the legacy fullcone controls
+
+SONiC settings are provided by luci-app-fullconenat-sonic. Drop the old
+defaults controls gated by the retired module probe, including fullcone6
+which is not a SONiC configuration option.
+
+--- a/htdocs/luci-static/resources/view/firewall/zones.js
++++ b/htdocs/luci-static/resources/view/firewall/zones.js
+@@ -55,11 +55,6 @@
+ 		};
+ 
+ 		o = s.option(form.Flag, 'drop_invalid', _('Drop invalid packets'));
+-		if (L.hasSystemFeature('fullcone')) {
+-			o = s.option(form.Flag, 'fullcone', _('Enable FullCone NAT'));
+-			if (fw4)
+-				o = s.option(form.Flag, 'fullcone6', _('Enable FullCone NAT6'));
+-		}
+ 
+ 		let p = [
+ 			s.option(form.ListValue, 'input', _('Input', 'firewall input')),
