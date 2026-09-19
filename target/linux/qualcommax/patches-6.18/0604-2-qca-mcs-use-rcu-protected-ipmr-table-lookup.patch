@@ -1,0 +1,45 @@
+Subject: [PATCH] net: ipmr: keep NSS table lookups under RCU
+
+Linux 6.18.52 splits the table lookup into __ipmr_get_table() and an RCU
+wrapper defined below the NSS multicast helpers. Use the internal lookup
+inside the helpers' existing RCU critical sections. This also protects
+the table from lookup through the final cache/statistics access.
+
+--- a/net/ipv4/ipmr.c
++++ b/net/ipv4/ipmr.c
+@@ -369,11 +369,13 @@
+ 	struct mr_table *mrt;
+ 	struct mfc_cache *cache;
+ 
+-	mrt = ipmr_get_table(net, RT_TABLE_DEFAULT);
+-	if (!mrt)
++	rcu_read_lock();
++	mrt = __ipmr_get_table(net, RT_TABLE_DEFAULT);
++	if (!mrt) {
++		rcu_read_unlock();
+ 		return -ENOENT;
+-
+-	rcu_read_lock();
++	}
++
+ 	cache = ipmr_cache_find(mrt, origin, group);
+ 	if (!cache) {
+ 		rcu_read_unlock();
+@@ -424,11 +426,13 @@
+ 	struct mr_table *mrt;
+ 	struct mfc_cache *cache;
+ 
+-	mrt = ipmr_get_table(net, RT_TABLE_DEFAULT);
+-	if (!mrt)
++	rcu_read_lock();
++	mrt = __ipmr_get_table(net, RT_TABLE_DEFAULT);
++	if (!mrt) {
++		rcu_read_unlock();
+ 		return -ENOENT;
+-
+-	rcu_read_lock();
++	}
++
+ 	cache = ipmr_cache_find(mrt, origin, group);
+ 	if (!cache) {
+ 		rcu_read_unlock();

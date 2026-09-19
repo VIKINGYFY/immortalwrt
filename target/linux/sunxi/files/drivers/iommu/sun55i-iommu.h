@@ -42,8 +42,6 @@
 #include <linux/dma-iommu.h>
 #endif
 
-#define MAX_SG_SIZE (128 << 20)
-#define MAX_SG_TABLE_SIZE ((MAX_SG_SIZE / SPAGE_SIZE) * sizeof(u32))
 #define DUMP_REGION_MAP 0
 #define DUMP_REGION_RESERVE 1
 struct dump_region {

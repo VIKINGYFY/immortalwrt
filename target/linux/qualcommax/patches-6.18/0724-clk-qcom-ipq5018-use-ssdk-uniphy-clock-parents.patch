@@ -1,0 +1,30 @@
+Subject: [PATCH] clk: qcom: ipq5018: resolve SSDK UNIPHY clock parents
+
+SSDK registers the UNIPHY raw clocks by name. The NSS device tree has no
+PCS clock provider, so let GCC fall back to those names when the optional
+DT clock inputs are empty, matching the IPQ6018 NSS clock arrangement.
+
+--- a/drivers/clk/qcom/gcc-ipq5018.c
++++ b/drivers/clk/qcom/gcc-ipq5018.c
+@@ -368,8 +368,8 @@
+ 
+ static const struct clk_parent_data gcc_xo_uniphy_gcc_rx_uniphy_gcc_tx_ubi32_pll_gpll0[] = {
+ 	{ .index = DT_XO },
+-	{ .index = DT_UNIPHY_RX_CLK },
+-	{ .index = DT_UNIPHY_TX_CLK },
++	{ .index = DT_UNIPHY_RX_CLK, .name = "uniphy_gcc_rx" },
++	{ .index = DT_UNIPHY_TX_CLK, .name = "uniphy_gcc_tx" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+ 	{ .hw = &gpll0.clkr.hw },
+ };
+@@ -384,8 +384,8 @@
+ 
+ static const struct clk_parent_data gcc_xo_uniphy_gcc_tx_uniphy_gcc_rx_ubi32_pll_gpll0[] = {
+ 	{ .index = DT_XO },
+-	{ .index = DT_UNIPHY_TX_CLK },
+-	{ .index = DT_UNIPHY_RX_CLK },
++	{ .index = DT_UNIPHY_TX_CLK, .name = "uniphy_gcc_tx" },
++	{ .index = DT_UNIPHY_RX_CLK, .name = "uniphy_gcc_rx" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+ 	{ .hw = &gpll0.clkr.hw },
+ };

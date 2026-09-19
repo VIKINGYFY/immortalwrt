@@ -236,10 +236,14 @@
 };
 
 &usb_0 {
+	dr_mode = "host";
+
 	status = "okay";
 };
 
 &usb_1 {
+	dr_mode = "host";
+
 	status = "okay";
 };
 
@@ -260,6 +264,41 @@
 		partitions {
 			compatible = "qcom,smem-part";
 			qcom,smem-flash-id = <0>;
+
+			partition-0-art {
+				label = "0:art";
+				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					macaddr_lan4: macaddr@0 {
+						reg = <0x0 0x6>;
+					};
+
+					macaddr_lan3: macaddr@6 {
+						reg = <0x6 0x6>;
+					};
+
+					macaddr_lan2: macaddr@c {
+						reg = <0xc 0x6>;
+					};
+
+					macaddr_lan1: macaddr@12 {
+						reg = <0x12 0x6>;
+					};
+
+					macaddr_10g_1: macaddr@18 {
+						reg = <0x18 0x6>;
+					};
+
+					macaddr_10g_2: macaddr@1e {
+						reg = <0x1e 0x6>;
+					};
+				};
+			};
 
 			partition-0-ethphyfw1 {
 				label = "0:ethphyfw1";
@@ -303,6 +342,8 @@
 		compatible ="ethernet-phy-ieee802.3-c45";
 		reg = <0>;
 		reset-gpios = <&tlmm 44 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <100000>;
+		reset-deassert-us = <250000>;
 		firmware-name = "marvell/AQR-G4_v5.4.C-AQR_CIG_WF-1945_0x0_ID44778_VER1630.cld";
 		nvmem-cell-names = "firmware";
 		nvmem-cells = <&aqr0_fw>;
@@ -312,6 +353,8 @@
 		compatible ="ethernet-phy-ieee802.3-c45";
 		reg = <8>;
 		reset-gpios = <&tlmm 59 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <100000>;
+		reset-deassert-us = <250000>;
 		firmware-name = "marvell/AQR-G4_v5.4.C-AQR_CIG_WF-1945_0x8_ID44776_VER1630.cld";
 		nvmem-cell-names = "firmware";
 		nvmem-cells = <&aqr1_fw>;
@@ -414,6 +457,8 @@
 	phy-mode = "qsgmii";
 	phy-handle = <&qca8075_16>;
 	label = "lan4";
+	nvmem-cells = <&macaddr_lan4>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp2 {
@@ -421,6 +466,8 @@
 	phy-mode = "qsgmii";
 	phy-handle = <&qca8075_17>;
 	label = "lan3";
+	nvmem-cells = <&macaddr_lan3>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp3 {
@@ -428,6 +475,8 @@
 	phy-mode = "qsgmii";
 	phy-handle = <&qca8075_18>;
 	label = "lan2";
+	nvmem-cells = <&macaddr_lan2>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp4 {
@@ -435,18 +484,24 @@
 	phy-mode = "qsgmii";
 	phy-handle = <&qca8075_19>;
 	label = "lan1";
+	nvmem-cells = <&macaddr_lan1>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp5_syn {
 	status = "okay";
 	phy-handle = <&aqr113c_8>;
 	label = "10g-1";
+	nvmem-cells = <&macaddr_10g_1>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp6_syn {
 	status = "okay";
 	phy-handle = <&aqr113c_0>;
 	label = "10g-2";
+	nvmem-cells = <&macaddr_10g_2>;
+	nvmem-cell-names = "mac-address";
 };
 
 &wifi {

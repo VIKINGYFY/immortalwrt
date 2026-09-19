@@ -11,45 +11,15 @@ Observed on IPQ8074 during firmware recovery:
     ath11k_ahb_ce_irq_disable        <- CE register read
   (__scm_smc_call for the wcss stop concurrent on another CPU)
 
-Two paths reach CE registers inside that window:
-
-1. ath11k_core_reset() calls ath11k_hif_ce_irq_disable() before
-   ath11k_hif_power_down(), but the plain AHB hif ops do not implement
-   the ce_irq_enable/ce_irq_disable pair, so the copy engine interrupts
-   stay live across rproc_shutdown(). Implement the ops: mask the CE
-   interrupt-enable bits while the target is still powered, then wait
-   out in-flight handlers and tasklets - the same sequence the PCI bus
-   uses in ath11k_pcic_ce_irq_disable_sync() and ath11k_ahb_stop()
-   already uses on the shutdown path. ath11k_ahb_start() re-enables the
-   interrupts once the recovered firmware is up.
-
-2. When the firmware crashes, the remoteproc core stops the Q6 on its
-   own schedule, tens of milliseconds after the fatal-error IRQ and
-   while the just-crashed firmware's final burst of CE interrupts is
-   still being serviced - the driver gets no say in that ordering.
-   Gate the CE interrupt handler and tasklet on the remoteproc state:
-   it is moved off RPROC_RUNNING before the TrustZone teardown starts
-   and moved back only after the subsystem is powered up again. The CE
-   interrupts are edge triggered, so a skipped event cannot storm, and
-   the recovery path reprograms the rings from scratch anyway.
+The upstream CE IRQ operations now quiesce copy engines during reset.
+Keep the additional remoteproc state guard for asynchronous firmware
+crashes: remoteproc can stop the Q6 while CE handlers and tasklets are
+still pending. Skip access until the remote processor is running again.
+The interrupts are edge triggered and recovery reprograms the rings.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -371,6 +371,13 @@ static void ath11k_ahb_ce_irqs_disable(s
- 	}
- }
- 
-+static void ath11k_ahb_ce_irq_disable_sync(struct ath11k_base *ab)
-+{
-+	ath11k_ahb_ce_irqs_disable(ab);
-+	ath11k_ahb_sync_ce_irqs(ab);
-+	ath11k_ahb_kill_tasklets(ab);
-+}
-+
- static int ath11k_ahb_start(struct ath11k_base *ab)
- {
- 	ath11k_ahb_ce_irqs_enable(ab);
 @@ -479,6 +486,10 @@ static void ath11k_ahb_free_irq(struct a
  static void ath11k_ahb_ce_tasklet(struct tasklet_struct *t)
  {
@@ -77,12 +47,3 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  
  	/* last interrupt received for this CE */
  	ce_pipe->timestamp = jiffies;
-@@ -809,6 +829,8 @@ static const struct ath11k_hif_ops ath11
- 	.map_service_to_pipe = ath11k_ahb_map_service_to_pipe,
- 	.power_down = ath11k_ahb_power_down,
- 	.power_up = ath11k_ahb_power_up,
-+	.ce_irq_enable = ath11k_ahb_ce_irqs_enable,
-+	.ce_irq_disable = ath11k_ahb_ce_irq_disable_sync,
- };
- 
- static const struct ath11k_hif_ops ath11k_ahb_hif_ops_wcn6750 = {

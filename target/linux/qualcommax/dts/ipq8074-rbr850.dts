@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/*
+ * Copyright (c) 2026 Michael Lotz <mmlr@mlotz.ch>
+ */
+
+/dts-v1/;
+
+#include "ipq8074-rbx850.dtsi"
+
+/ {
+	model = "Netgear RBR850";
+	compatible = "netgear,rbr850", "qcom,ipq8074";
+};
+
+&switch {
+	switch_wan_bmp = <ESS_PORT5>;
+	switch_mac_mode1 = <MAC_MODE_SGMII_PLUS>;
+
+	qcom,port_phyinfo {
+		port@5 {
+			port_id = <5>;
+			phy_address = <24>;
+			port_mac_sel = "QGMAC_PORT";
+		};
+	};
+};
+
+&mdio {
+	phy4: ethernet-phy@18 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0x18>;
+	};
+};
+
+&dp5 {
+	status = "okay";
+	phy-mode = "sgmii";
+	phy-handle = <&phy4>;
+	label = "wan";
+	nvmem-cells = <&macaddr_boarddata 1>;
+	nvmem-cell-names = "mac-address";
+};

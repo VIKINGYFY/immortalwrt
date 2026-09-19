@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
 /*
  * Allwinner's pgtable controler
@@ -17,6 +17,7 @@
  *
  */
 
+#include <linux/dma-mapping.h>
 #include <linux/iommu.h>
 #include <linux/slab.h>
 #include "sun55i-iommu.h"
@@ -63,7 +64,6 @@
 #define IOVA_4M_ALIGN(iova) ((iova) & (~0x3fffff))
 
 struct sunxi_pgtable_t {
-	unsigned int *pgtable;
 	struct kmem_cache *iopte_cache;
 	struct device *dma_dev;
 } sunxi_pgtable_params;
@@ -85,33 +85,56 @@ static inline u32 *iopte_offset(u32 *ent, dma_addr_t iova)
 	return (u32 *)__va(iopte_base) + IOPTE_INDEX(iova);
 }
 
-static int sunxi_alloc_iopte(u32 *sent, int prot)
+static int sunxi_alloc_iopte(u32 *sent)
 {
+	dma_addr_t pent_dma;
 	u32 *pent;
-	u32 flags = 0;
 
-	flags |= (prot & IOMMU_READ) ? DENT_READABLE : 0;
-	flags |= (prot & IOMMU_WRITE) ? DENT_WRITABLE : 0;
-
-	pent = kmem_cache_zalloc(sunxi_pgtable_params.iopte_cache, GFP_ATOMIC);
+	pent = kmem_cache_zalloc(sunxi_pgtable_params.iopte_cache,
+				 GFP_ATOMIC | GFP_DMA32);
 	WARN_ON((unsigned long)pent & (PT_SIZE - 1));
 	if (!pent) {
 		pr_err("%s, %d, kmalloc failed!\n", __func__, __LINE__);
-		return 0;
+		return -ENOMEM;
 	}
+
+	pent_dma = dma_map_single(sunxi_pgtable_params.dma_dev, pent, PT_SIZE,
+				  DMA_TO_DEVICE);
+	if (dma_mapping_error(sunxi_pgtable_params.dma_dev, pent_dma)) {
+		dev_err(sunxi_pgtable_params.dma_dev,
+			"Failed to map L2 page table\n");
+		goto err_free;
+	}
+
+	if (pent_dma < SUNXI_PHYS_OFFSET || pent_dma != virt_to_phys(pent) ||
+	    upper_32_bits(cpu_phy_to_iommu_phy(pent_dma))) {
+		dev_err(sunxi_pgtable_params.dma_dev,
+			"L2 page table DMA address is not directly accessible\n");
+		dma_unmap_single(sunxi_pgtable_params.dma_dev, pent_dma, PT_SIZE,
+				 DMA_TO_DEVICE);
+		kmem_cache_free(sunxi_pgtable_params.iopte_cache, pent);
+		return -ERANGE;
+	}
+
 	dma_sync_single_for_cpu(sunxi_pgtable_params.dma_dev,
 				virt_to_phys(sent), sizeof(*sent),
 				DMA_TO_DEVICE);
-	*sent = cpu_phy_to_iommu_phy(__pa(pent)) | DENT_VALID;
+	*sent = cpu_phy_to_iommu_phy(pent_dma) | DENT_VALID;
 	dma_sync_single_for_device(sunxi_pgtable_params.dma_dev,
 				   virt_to_phys(sent), sizeof(*sent),
 				   DMA_TO_DEVICE);
 
-	return 1;
+	return 0;
+
+err_free:
+	kmem_cache_free(sunxi_pgtable_params.iopte_cache, pent);
+	return -ENOMEM;
 }
 
 static void sunxi_free_iopte(u32 *pent)
 {
+	dma_unmap_single(sunxi_pgtable_params.dma_dev, virt_to_phys(pent),
+			 PT_SIZE, DMA_TO_DEVICE);
 	kmem_cache_free(sunxi_pgtable_params.iopte_cache, pent);
 }
 
@@ -128,14 +151,18 @@ static inline u32 sunxi_mk_pte(phys_addr_t page, int prot)
 }
 
 int sunxi_pgtable_prepare_l1_tables(unsigned int *pgtable,
-				    dma_addr_t iova_start, dma_addr_t iova_end,
-				    int prot)
+				    dma_addr_t iova_start, dma_addr_t iova_end)
 {
 	u32 *dent;
-	for (; iova_start <= iova_end; iova_start += SPD_SIZE) {
+	int ret;
+
+	iova_start &= IOMMU_PD_MASK;
+	for (; iova_start < iova_end; iova_start += SPD_SIZE) {
 		dent = iopde_offset(pgtable, iova_start);
-		if (!IS_VALID(*dent) && !sunxi_alloc_iopte(dent, prot)) {
-			return -ENOMEM;
+		if (!IS_VALID(*dent)) {
+			ret = sunxi_alloc_iopte(dent);
+			if (ret)
+				return ret;
 		}
 	}
 	return 0;
@@ -150,6 +177,7 @@ int sunxi_pgtable_prepare_l2_tables(unsigned int *pgtable,
 	u32 iova_tail_count, iova_tail_size;
 	u32 pent_val;
 	int i;
+
 	paddr = cpu_phy_to_iommu_phy(paddr);
 	paddr_start = paddr & IOMMU_PT_MASK;
 	for (; iova_start < iova_end;) {
@@ -162,6 +190,10 @@ int sunxi_pgtable_prepare_l2_tables(unsigned int *pgtable,
 
 		dent = iopde_offset(pgtable, iova_start);
 		pent = iopte_offset(dent, iova_start);
+		dma_sync_single_for_cpu(sunxi_pgtable_params.dma_dev,
+					virt_to_phys(pent),
+					iova_tail_count * sizeof(*pent),
+					DMA_TO_DEVICE);
 		pent_val = sunxi_mk_pte(paddr_start, prot);
 		for (i = 0; i < iova_tail_count; i++) {
 			WARN_ON(*pent);
@@ -184,6 +216,7 @@ int sunxi_pgtable_delete_l2_tables(unsigned int *pgtable, dma_addr_t iova_start,
 {
 	u32 *dent, *pent;
 	u32 iova_tail_count, iova_tail_size;
+
 	iova_tail_count = NUM_ENTRIES_PTE - IOPTE_INDEX(iova_start);
 	iova_tail_size = iova_tail_count * SPAGE_SIZE;
 	if (iova_start + iova_tail_size > iova_end) {
@@ -195,18 +228,15 @@ int sunxi_pgtable_delete_l2_tables(unsigned int *pgtable, dma_addr_t iova_start,
 	if (!IS_VALID(*dent))
 		return -EINVAL;
 	pent = iopte_offset(dent, iova_start);
+	dma_sync_single_for_cpu(sunxi_pgtable_params.dma_dev,
+				virt_to_phys(pent),
+				iova_tail_count * sizeof(*pent),
+				DMA_TO_DEVICE);
 	memset(pent, 0, iova_tail_count * sizeof(u32));
 	dma_sync_single_for_device(sunxi_pgtable_params.dma_dev,
 				   virt_to_phys(iopte_offset(dent, iova_start)),
 				   iova_tail_count << 2, DMA_TO_DEVICE);
 
-	if (iova_tail_size == SPD_SIZE) {
-		*dent = 0;
-		dma_sync_single_for_device(sunxi_pgtable_params.dma_dev,
-					   virt_to_phys(dent), sizeof(*dent),
-					   DMA_TO_DEVICE);
-		sunxi_free_iopte(pent);
-	}
 	return iova_tail_size;
 }
 
@@ -214,6 +244,7 @@ phys_addr_t sunxi_pgtable_iova_to_phys(unsigned int *pgtable, dma_addr_t iova)
 {
 	u32 *dent, *pent;
 	phys_addr_t ret = 0;
+
 	dent = iopde_offset(pgtable, iova);
 	if (IS_VALID(*dent)) {
 		pent = iopte_offset(dent, iova);
@@ -263,7 +294,7 @@ void sunxi_pgtable_clear(unsigned int *pgtable)
 						   virt_to_phys(pent), PT_SIZE,
 						   DMA_TO_DEVICE);
 			dma_sync_single_for_cpu(sunxi_pgtable_params.dma_dev,
-						virt_to_phys(dent), PT_SIZE,
+						virt_to_phys(dent), sizeof(*dent),
 						DMA_TO_DEVICE);
 			*dent = 0;
 			dma_sync_single_for_device(sunxi_pgtable_params.dma_dev,
@@ -275,23 +306,47 @@ void sunxi_pgtable_clear(unsigned int *pgtable)
 	}
 }
 
-unsigned int *sunxi_pgtable_alloc(void)
+unsigned int *sunxi_pgtable_alloc(dma_addr_t *pgtable_dma)
 {
+	dma_addr_t dma;
 	unsigned int *pgtable;
-	pgtable = (unsigned int *)__get_free_pages(GFP_KERNEL,
-						   get_order(PD_SIZE));
 
-	if (pgtable != NULL) {
-		memset(pgtable, 0, PD_SIZE);
+	pgtable = (unsigned int *)__get_free_pages(GFP_KERNEL | GFP_DMA32,
+						   get_order(PD_SIZE));
+	if (!pgtable)
+		return NULL;
+
+	memset(pgtable, 0, PD_SIZE);
+	dma = dma_map_single(sunxi_pgtable_params.dma_dev, pgtable, PD_SIZE,
+			     DMA_TO_DEVICE);
+	if (dma_mapping_error(sunxi_pgtable_params.dma_dev, dma)) {
+		dev_err(sunxi_pgtable_params.dma_dev,
+			"Failed to map L1 page table\n");
+		goto err_free;
 	}
-	sunxi_pgtable_params.pgtable = pgtable;
+
+	if (dma < SUNXI_PHYS_OFFSET || dma != virt_to_phys(pgtable) ||
+	    upper_32_bits(cpu_phy_to_iommu_phy(dma))) {
+		dev_err(sunxi_pgtable_params.dma_dev,
+			"L1 page table DMA address is not directly accessible\n");
+		dma_unmap_single(sunxi_pgtable_params.dma_dev, dma, PD_SIZE,
+				 DMA_TO_DEVICE);
+		goto err_free;
+	}
+
+	*pgtable_dma = dma;
 	return pgtable;
+
+err_free:
+	free_pages((unsigned long)pgtable, get_order(PD_SIZE));
+	return NULL;
 }
 
-void sunxi_pgtable_free(unsigned int *pgtable)
+void sunxi_pgtable_free(unsigned int *pgtable, dma_addr_t pgtable_dma)
 {
+	dma_unmap_single(sunxi_pgtable_params.dma_dev, pgtable_dma, PD_SIZE,
+			 DMA_TO_DEVICE);
 	free_pages((unsigned long)pgtable, get_order(PD_SIZE));
-	sunxi_pgtable_params.pgtable = NULL;
 }
 
 static inline bool __region_ended(u32 pent)
@@ -441,6 +496,7 @@ ssize_t sunxi_pgtable_dump(unsigned int *pgtable, ssize_t len, char *buf,
 struct kmem_cache *sunxi_pgtable_alloc_pte_cache(void)
 {
 	struct kmem_cache *cache;
+
 	cache = kmem_cache_create("sunxi-iopte-cache", PT_SIZE, PT_SIZE,
 				  SLAB_HWCACHE_ALIGN, NULL);
 	sunxi_pgtable_params.iopte_cache = cache;
@@ -449,7 +505,9 @@ struct kmem_cache *sunxi_pgtable_alloc_pte_cache(void)
 
 void sunxi_pgtable_free_pte_cache(struct kmem_cache *iopte_cache)
 {
-	kmem_cache_destroy(iopte_cache);
+	if (iopte_cache)
+		kmem_cache_destroy(iopte_cache);
+	sunxi_pgtable_params.iopte_cache = NULL;
 }
 
 void sunxi_pgtable_set_dma_dev(struct device *dma_dev)

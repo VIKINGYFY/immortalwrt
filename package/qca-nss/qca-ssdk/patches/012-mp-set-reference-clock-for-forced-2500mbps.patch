@@ -1,0 +1,21 @@
+Subject: [PATCH] ssdk: mp: enable 50 MHz output for a forced 2.5G link
+
+The Archer AX55 connects the IPQ5018 UNIPHY to an RTL8367S switch and
+requires its 50 MHz reference clock output. The upstream PCS description
+sets UNIPHY_CLK_REF to 50 MHz; the NSS tree configures the same link through
+SSDK's forced-speed property instead. Handle 2500 Mbps alongside the
+existing 1000 Mbps case so the reference clock is explicitly enabled.
+
+--- a/src/adpt/mp/adpt_mp_uniphy.c
++++ b/src/adpt/mp/adpt_mp_uniphy.c
+@@ -286,6 +286,10 @@ _adpt_mp_uniphy_clk_output_set(a_uint32_t
+ 	{
+ 		_adpt_mp_uniphy_clk_output_ctrl_set(dev_id, index, UNIPHY_CLK_RATE_25M);
+ 	}
++	else if ((force_port) && (force_speed == FAL_SPEED_2500))
++	{
++		_adpt_mp_uniphy_clk_output_ctrl_set(dev_id, index, UNIPHY_CLK_RATE_50M);
++	}
+ 	phy_id = hsl_port_phyid_get(dev_id, SSDK_PHYSICAL_PORT2);
+ 	if (phy_id == QCA8030_PHY || phy_id == QCA8033_PHY || phy_id == QCA8035_PHY)
+ 	{
