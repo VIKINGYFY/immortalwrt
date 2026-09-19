@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-fullconenat-sonic
 PKG_VERSION:=20260917
-PKG_RELEASE:=9
+PKG_RELEASE:=11
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 PKG_LICENSE:=GPL-2.0-only
 
@@ -19,10 +19,6 @@ PKG_FILE_DEPENDS:=$(TOPDIR)/feeds/luci/applications/luci-app-firewall/htdocs/luc
 define Build/Prepare/luci-app-fullconenat-sonic
 	$(INSTALL_DIR) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/firewall
 	$(CP) $(PKG_FILE_DEPENDS) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/firewall/zones-sonic.js
-endef
-
-define Package/luci-app-fullconenat-sonic/conffiles
-/etc/config/fullconenat_sonic
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk
