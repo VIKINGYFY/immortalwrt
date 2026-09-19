@@ -24,6 +24,9 @@ Cross-component patches use their standard build locations:
 - `package/network/utils/nftables/patches/002-*.patch`: nft syntax.
 - `package/network/config/firewall4/patches/001-sonic-fullcone.patch` and
   `002-default-enable-fullcone.patch`: rule generation and defaults.
+- `package/network/config/firewall4/patches/003-match-nat-leakage-address-family.patch`:
+  only emit NAT leakage protection for masqueraded address families, so turning
+  off one family's masquerading cannot conflict with a zone's subnet matches.
 
 The LuCI cleanup patches are kept in this package's `patches/luci/` directory.
 The top-level `prepare-tmpinfo` step invokes its small idempotent bridge before
@@ -72,7 +75,8 @@ userspace package alone cannot add this feature to a different kernel.
 Fullcone requires `defaults.fullcone=1`, `zone.fullcone=1`, and `zone.masq=1`
 for IPv4 or (with fw4) `zone.masq6=1` for IPv6. Fresh configurations enable the global
 switch and WAN zone, preserving this tree's software/hardware offload
-defaults. IPv6 masquerading is not enabled by default.
+defaults. The base firewall configuration enables IPv4 masquerading; installing
+the LuCI package also enables IPv6 masquerading for active fw4 fullcone zones.
 
 ```uci
 config defaults
@@ -125,18 +129,16 @@ zone switch. The LuCI package carries a one-time uci-defaults migration that
 maps an enabled legacy `fullcone6` value to `fullcone` when needed and then
 removes the obsolete option; the normal settings page has no legacy fallback.
 The integrated form and its add/edit dialogs use the standard staged save/apply
-flow. Enabling
-fullcone records each selected zone's original `masq`/`masq6` values in the
-package-managed `/etc/config/fullconenat_sonic` configuration, then stages the
-required masquerade changes. Repeated saves retain that original snapshot.
-Disabling a zone restores only that zone; disabling the global switch restores
-all recorded zones. Missing options are restored by removing them. Restoration
-clears the snapshot, so the next enable captures the current settings again.
-Both configurations participate in the standard LuCI save/apply transaction.
-Zone renames retain the original snapshot; deleted zones discard their snapshot.
-New zones include the switch, initially off. The same one-time migration script enables
-the global and WAN switches only if absent, records active zones before enabling
-masquerading, and preserves explicit disabled values and existing snapshots.
+flow. Enabling Fullcone NAT enables IPv4 and (with fw4) IPv6 masquerading for
+selected zones. Turning off either masquerading option also disables the
+corresponding zone's Fullcone NAT when saving, preserving that mask-off choice.
+Other zones are unaffected. Enabling masquerading alone does not enable
+Fullcone NAT. Disabling a zone's Fullcone NAT or the global switch leaves the
+current masquerading settings unchanged; no restore snapshots are kept.
+New zones include the switch, initially off. The same one-time migration script
+enables the global and WAN switches only if absent, enables masquerading for
+active zones, and removes the obsolete fullconenat_sonic snapshot configuration.
+The normal form only reads and writes the firewall configuration.
 
 ## Mapping and offload behavior
 

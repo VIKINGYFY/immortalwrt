@@ -1,0 +1,20 @@
+From: ImmortalWrt contributors
+Subject: [PATCH] firewall4: match NAT leakage protection to the rule family
+
+Disabling IPv4 masquerading in a zone with IPv4 subnet matches while
+retaining IPv6 masquerading generated an invalid rule combining
+"meta nfproto ipv6" with "ip daddr". The reverse combination failed too.
+Only emit leakage protection when the match family uses masquerading.
+Device-only matches still cover either family and keep the existing guard.
+
+--- a/root/usr/share/firewall4/templates/ruleset.uc
++++ b/root/usr/share/firewall4/templates/ruleset.uc
+@@ -273,7 +273,7 @@
+ {%   if (zone.dflags[verdict]): %}
+ 	chain {{ verdict }}_to_{{ zone.name }} {
+ {%   for (let rule in zone.match_rules): %}
+-{%     if (!fw4.default_option("drop_invalid") && verdict == "accept" && (zone.masq || zone.masq6) && !zone.masq_allow_invalid): %}
++{%     if (!fw4.default_option("drop_invalid") && verdict == "accept" && ((zone.masq && rule.family != 6) || (zone.masq6 && rule.family != 4)) && !zone.masq_allow_invalid): %}
+ 		{%+ include("zone-drop-invalid.uc", { fw4, zone, rule }) %}
+ {%     endif %}
+ 		{%+ include("zone-verdict.uc", { fw4, zone, rule, egress: true, verdict }) %}
