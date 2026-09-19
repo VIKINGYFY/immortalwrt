@@ -305,9 +305,9 @@
  /* We return to original Alan's scheme. Hash table of resolved
   * entries is changed only in process context and protected
   * with weak lock mrt_lock. Queue of unresolved entries is protected
-@@ -114,6 +117,9 @@ static void mroute_netlink_event(struct
- static void igmpmsg_netlink_event(const struct mr_table *mrt, struct sk_buff *pkt);
- static void mroute_clean_tables(struct mr_table *mrt, int flags);
+@@ -116,6 +119,9 @@ static void igmpmsg_netlink_event(const
+ static void mroute_clean_tables(struct mr_table *mrt, int flags,
+ 				struct list_head *dev_kill_list);
  static void ipmr_expire_process(struct timer_list *t);
 +static struct mfc_cache *ipmr_cache_find(struct mr_table *mrt, __be32 origin,
 +					 __be32 mcastgrp);
@@ -315,7 +315,7 @@
  
  #ifdef CONFIG_IP_MROUTE_MULTIPLE_TABLES
  #define ipmr_for_each_table(mrt, net)					\
-@@ -235,6 +241,80 @@ static int ipmr_rule_fill(struct fib_rul
+@@ -227,6 +233,80 @@ static int ipmr_rule_fill(struct fib_rul
  	return 0;
  }
  
@@ -396,7 +396,7 @@
  static const struct fib_rules_ops __net_initconst ipmr_rules_ops_template = {
  	.family		= RTNL_FAMILY_IPMR,
  	.rule_size	= sizeof(struct ipmr_rule),
-@@ -248,6 +328,156 @@ static const struct fib_rules_ops __net_
+@@ -240,6 +320,156 @@ static const struct fib_rules_ops __net_
  	.owner		= THIS_MODULE,
  };
  
@@ -553,7 +553,7 @@
  static int __net_init ipmr_rules_init(struct net *net)
  {
  	struct fib_rules_ops *ops;
-@@ -1209,6 +1439,10 @@ static int ipmr_mfc_delete(struct mr_tab
+@@ -1226,6 +1456,10 @@ static int ipmr_mfc_delete(struct mr_tab
  	call_ipmr_mfc_entry_notifiers(net, FIB_EVENT_ENTRY_DEL, c, mrt->id);
  	mroute_netlink_event(mrt, c, RTM_DELROUTE);
  	mr_cache_put(&c->_c);
@@ -564,7 +564,7 @@
  
  	return 0;
  }
-@@ -1239,6 +1473,10 @@ static int ipmr_mfc_add(struct net *net,
+@@ -1256,6 +1490,10 @@ static int ipmr_mfc_add(struct net *net,
  		call_ipmr_mfc_entry_notifiers(net, FIB_EVENT_ENTRY_REPLACE, c,
  					      mrt->id);
  		mroute_netlink_event(mrt, c, RTM_NEWROUTE);
@@ -838,7 +838,7 @@
  /* Delete a VIF entry */
  static int mif6_delete(struct mr_table *mrt, int vifi, int notify,
  		       struct list_head *head)
-@@ -1239,6 +1472,7 @@ static int ip6mr_mfc_delete(struct mr_ta
+@@ -1237,6 +1470,7 @@ static int ip6mr_mfc_delete(struct mr_ta
  			    int parent)
  {
  	struct mfc6_cache *c;
@@ -846,7 +846,7 @@
  
  	/* The entries are added/deleted only under RTNL */
  	rcu_read_lock();
-@@ -1247,6 +1481,11 @@ static int ip6mr_mfc_delete(struct mr_ta
+@@ -1245,6 +1479,11 @@ static int ip6mr_mfc_delete(struct mr_ta
  	rcu_read_unlock();
  	if (!c)
  		return -ENOENT;
@@ -858,7 +858,7 @@
  	rhltable_remove(&mrt->mfc_hash, &c->_c.mnode, ip6mr_rht_params);
  	list_del_rcu(&c->_c.list);
  
-@@ -1254,6 +1493,11 @@ static int ip6mr_mfc_delete(struct mr_ta
+@@ -1252,6 +1491,11 @@ static int ip6mr_mfc_delete(struct mr_ta
  				       FIB_EVENT_ENTRY_DEL, c, mrt->id);
  	mr6_netlink_event(mrt, c, RTM_DELROUTE);
  	mr_cache_put(&c->_c);
@@ -870,7 +870,7 @@
  	return 0;
  }
  
-@@ -1475,6 +1719,10 @@ static int ip6mr_mfc_add(struct net *net
+@@ -1473,6 +1717,10 @@ static int ip6mr_mfc_add(struct net *net
  		call_ip6mr_mfc_entry_notifiers(net, FIB_EVENT_ENTRY_REPLACE,
  					       c, mrt->id);
  		mr6_netlink_event(mrt, c, RTM_NEWROUTE);

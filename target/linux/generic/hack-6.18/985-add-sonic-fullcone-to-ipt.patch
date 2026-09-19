@@ -18,7 +18,7 @@ registration with the SONiC build option. Refreshed for Linux 6.18.
  
  MODULE_LICENSE("GPL");
  MODULE_AUTHOR("Netfilter Core Team <coreteam@netfilter.org>");
-@@ -69,6 +71,69 @@
+@@ -69,6 +71,69 @@ static int masquerade_tg6_checkentry(con
  }
  #endif
  
@@ -88,7 +88,7 @@ registration with the SONiC build option. Refreshed for Linux 6.18.
  static struct xt_target masquerade_tg_reg[] __read_mostly = {
  	{
  #if IS_ENABLED(CONFIG_IPV6)
-@@ -92,7 +157,35 @@
+@@ -92,7 +157,35 @@ static struct xt_target masquerade_tg_re
  		.checkentry	= masquerade_tg_check,
  		.destroy	= masquerade_tg_destroy,
  		.me		= THIS_MODULE,
@@ -125,7 +125,7 @@ registration with the SONiC build option. Refreshed for Linux 6.18.
  };
  
  static int __init masquerade_tg_init(void)
-@@ -126,3 +219,10 @@
+@@ -126,3 +219,10 @@ module_exit(masquerade_tg_exit);
  MODULE_ALIAS("ip6t_MASQUERADE");
  #endif
  MODULE_ALIAS("ipt_MASQUERADE");

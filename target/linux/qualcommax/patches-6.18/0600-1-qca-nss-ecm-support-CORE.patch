@@ -80,7 +80,7 @@
  		     __be16 vlan_proto, u16 vlan_id)
 --- a/include/linux/netdevice.h
 +++ b/include/linux/netdevice.h
-@@ -650,6 +650,36 @@ enum netdev_queue_state_t {
+@@ -652,6 +652,36 @@ enum netdev_queue_state_t {
  	__QUEUE_STATE_FROZEN,
  };
  
@@ -117,7 +117,7 @@
  #define QUEUE_STATE_DRV_XOFF	(1 << __QUEUE_STATE_DRV_XOFF)
  #define QUEUE_STATE_STACK_XOFF	(1 << __QUEUE_STATE_STACK_XOFF)
  #define QUEUE_STATE_FROZEN	(1 << __QUEUE_STATE_FROZEN)
-@@ -2106,6 +2136,7 @@ struct net_device {
+@@ -2108,6 +2138,7 @@ struct net_device {
  		unsigned long		lltx:1;
  		unsigned long		netmem_tx:1;
  	);
@@ -125,7 +125,7 @@
  	const struct net_device_ops *netdev_ops;
  	const struct header_ops *header_ops;
  	struct netdev_queue	*_tx;
-@@ -3196,6 +3227,10 @@ enum netdev_cmd {
+@@ -3197,6 +3228,10 @@ enum netdev_cmd {
  	NETDEV_OFFLOAD_XSTATS_REPORT_USED,
  	NETDEV_OFFLOAD_XSTATS_REPORT_DELTA,
  	NETDEV_XDP_FEAT_CHANGE,
@@ -724,7 +724,7 @@
  static inline const void *choose_neigh_daddr(const struct in6_addr *p,
  					     struct sk_buff *skb,
  					     const void *daddr)
-@@ -3976,6 +3979,10 @@ int ip6_route_add(struct fib6_config *cf
+@@ -3978,6 +3981,10 @@ int ip6_route_add(struct fib6_config *cf
  		return err;
  
  	err = __ip6_ins_rt(rt, &cfg->fc_nlinfo, extack);
@@ -735,7 +735,7 @@
  	fib6_info_release(rt);
  
  	return err;
-@@ -3997,6 +4004,9 @@ static int __ip6_del_rt(struct fib6_info
+@@ -3999,6 +4006,9 @@ static int __ip6_del_rt(struct fib6_info
  	err = fib6_del(rt, info);
  	spin_unlock_bh(&table->tb6_lock);
  
@@ -745,7 +745,7 @@
  out:
  	fib6_info_release(rt);
  	return err;
-@@ -6535,6 +6545,20 @@ static int ip6_route_dev_notify(struct n
+@@ -6537,6 +6547,20 @@ static int ip6_route_dev_notify(struct n
  	return NOTIFY_OK;
  }
  
@@ -776,7 +776,7 @@
  	}
  #undef N
  	return "UNKNOWN_NETDEV_EVENT";
-@@ -13029,7 +13030,7 @@ static void __init net_dev_struct_check(
+@@ -13054,7 +13055,7 @@ static void __init net_dev_struct_check(
  #ifdef CONFIG_NET_XGRESS
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_tx, tcx_egress);
  #endif
@@ -785,7 +785,7 @@
  
  	/* TXRX read-mostly hotpath */
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, lstats);
-@@ -13038,7 +13039,7 @@ static void __init net_dev_struct_check(
+@@ -13063,7 +13064,7 @@ static void __init net_dev_struct_check(
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, hard_header_len);
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, features);
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, ip6_ptr);
@@ -794,7 +794,7 @@
  
  	/* RX read-mostly hotpath */
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_rx, ptype_specific);
-@@ -13056,7 +13057,7 @@ static void __init net_dev_struct_check(
+@@ -13081,7 +13082,7 @@ static void __init net_dev_struct_check(
  #ifdef CONFIG_NET_XGRESS
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_rx, tcx_ingress);
  #endif
@@ -893,7 +893,7 @@
  #if IS_ENABLED(CONFIG_NF_FLOW_TABLE)
 --- a/net/netfilter/nf_conntrack_proto_tcp.c
 +++ b/net/netfilter/nf_conntrack_proto_tcp.c
-@@ -515,11 +515,15 @@ tcp_in_window(struct nf_conn *ct, enum i
+@@ -559,11 +559,15 @@ tcp_in_window(struct nf_conn *ct, enum i
  	struct ip_ct_tcp *state = &ct->proto.tcp;
  	struct ip_ct_tcp_state *sender = &state->seen[dir];
  	struct ip_ct_tcp_state *receiver = &state->seen[!dir];
@@ -909,7 +909,7 @@
  	/*
  	 * Get the required data from the packet.
  	 */
-@@ -1287,7 +1291,7 @@ int nf_conntrack_tcp_packet(struct nf_co
+@@ -1331,7 +1335,7 @@ int nf_conntrack_tcp_packet(struct nf_co
  		 IP_CT_TCP_FLAG_DATA_UNACKNOWLEDGED &&
  		 timeouts[new_state] > timeouts[TCP_CONNTRACK_UNACK])
  		timeout = timeouts[TCP_CONNTRACK_UNACK];
@@ -918,7 +918,7 @@
  		 timeouts[new_state] > timeouts[TCP_CONNTRACK_RETRANS])
  		timeout = timeouts[TCP_CONNTRACK_RETRANS];
  	else
-@@ -1599,6 +1603,9 @@ void nf_conntrack_tcp_init_net(struct ne
+@@ -1643,6 +1647,9 @@ void nf_conntrack_tcp_init_net(struct ne
  	 */
  	tn->tcp_be_liberal = 0;
  
@@ -991,7 +991,7 @@
  
 --- a/net/ipv6/ip6_gre.c
 +++ b/net/ipv6/ip6_gre.c
-@@ -1903,6 +1903,7 @@ static void ip6gre_tap_setup(struct net_
+@@ -1901,6 +1901,7 @@ static void ip6gre_tap_setup(struct net_
  	dev->pcpu_stat_type = NETDEV_PCPU_STAT_TSTATS;
  	dev->priv_flags &= ~IFF_TX_SKB_SHARING;
  	dev->priv_flags |= IFF_LIVE_ADDR_CHANGE;

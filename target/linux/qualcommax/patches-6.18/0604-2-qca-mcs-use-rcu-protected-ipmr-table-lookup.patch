@@ -7,7 +7,7 @@ the table from lookup through the final cache/statistics access.
 
 --- a/net/ipv4/ipmr.c
 +++ b/net/ipv4/ipmr.c
-@@ -369,11 +369,13 @@
+@@ -369,11 +369,13 @@ int ipmr_find_mfc_entry(struct net *net,
  	struct mr_table *mrt;
  	struct mfc_cache *cache;
  
@@ -18,14 +18,13 @@ the table from lookup through the final cache/statistics access.
 +	if (!mrt) {
 +		rcu_read_unlock();
  		return -ENOENT;
--
--	rcu_read_lock();
 +	}
-+
+ 
+-	rcu_read_lock();
  	cache = ipmr_cache_find(mrt, origin, group);
  	if (!cache) {
  		rcu_read_unlock();
-@@ -424,11 +426,13 @@
+@@ -424,11 +426,13 @@ int ipmr_mfc_stats_update(struct net *ne
  	struct mr_table *mrt;
  	struct mfc_cache *cache;
  
@@ -36,10 +35,9 @@ the table from lookup through the final cache/statistics access.
 +	if (!mrt) {
 +		rcu_read_unlock();
  		return -ENOENT;
--
--	rcu_read_lock();
 +	}
-+
+ 
+-	rcu_read_lock();
  	cache = ipmr_cache_find(mrt, origin, group);
  	if (!cache) {
  		rcu_read_unlock();

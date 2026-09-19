@@ -212,7 +212,7 @@ Signed-off-by: Syrone Wong <wong.syrone@gmail.com>
  
 --- a/src/parser_json.c
 +++ b/src/parser_json.c
-@@ -2282,6 +2282,7 @@
+@@ -2282,6 +2282,7 @@ static int nat_type_parse(const char *ty
  		[NFT_NAT_SNAT]	= "snat",
  		[NFT_NAT_DNAT]	= "dnat",
  		[NFT_NAT_MASQ]	= "masquerade",
@@ -220,7 +220,7 @@ Signed-off-by: Syrone Wong <wong.syrone@gmail.com>
  		[NFT_NAT_REDIR]	= "redirect",
  	};
  	size_t i;
-@@ -2890,6 +2891,7 @@
+@@ -2890,6 +2891,7 @@ static struct stmt *json_parse_stmt(stru
  		{ "snat", json_parse_nat_stmt },
  		{ "dnat", json_parse_nat_stmt },
  		{ "masquerade", json_parse_nat_stmt },
@@ -230,7 +230,7 @@ Signed-off-by: Syrone Wong <wong.syrone@gmail.com>
  		{ "set", json_parse_set_stmt },
 --- a/src/evaluate.c
 +++ b/src/evaluate.c
-@@ -87,6 +87,8 @@
+@@ -87,6 +87,8 @@ const char *stmt_name(const struct stmt
  			return "redirect";
  		case NFT_NAT_MASQ:
  			return "masquerade";
@@ -241,7 +241,7 @@ Signed-off-by: Syrone Wong <wong.syrone@gmail.com>
  	default:
 --- a/src/optimize.c
 +++ b/src/optimize.c
-@@ -300,6 +300,11 @@
+@@ -300,6 +300,11 @@ static bool __stmt_type_eq(const struct
  			break;
  		case NFT_NAT_MASQ:
  			break;

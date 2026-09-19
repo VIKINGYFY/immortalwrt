@@ -24,7 +24,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
 
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -537,6 +537,12 @@ static int ath11k_ahb_config_ext_irq(str
+@@ -542,6 +542,12 @@ static int ath11k_ahb_config_ext_irq(str
  	int i, j;
  	int irq;
  	int ret;
@@ -37,7 +37,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  
  	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
  		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
-@@ -553,20 +559,20 @@ static int ath11k_ahb_config_ext_irq(str
+@@ -558,20 +564,20 @@ static int ath11k_ahb_config_ext_irq(str
  			       ath11k_ahb_ext_grp_napi_poll);
  
  		for (j = 0; j < ATH11K_EXT_IRQ_NUM_MAX; j++) {
@@ -62,7 +62,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  				irq_grp->irqs[num_irq++] = wbm2host_rx_release;
  
  			if (ab->hw_params.ring_mask->reo_status[i] & BIT(j))
-@@ -579,7 +585,7 @@ static int ath11k_ahb_config_ext_irq(str
+@@ -584,7 +590,7 @@ static int ath11k_ahb_config_ext_irq(str
  						ath11k_hw_get_mac_from_pdev_id(hw, j);
  				}
  
@@ -71,7 +71,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  					irq_grp->irqs[num_irq++] =
  						host2rxdma_host_buf_ring_mac1 -
  						ath11k_hw_get_mac_from_pdev_id(hw, j);
-@@ -948,6 +954,7 @@ static int ath11k_ahb_setup_resources(st
+@@ -955,6 +961,7 @@ static int ath11k_ahb_setup_resources(st
  	}
  
  	ab->mem = mem;
@@ -141,9 +141,9 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
 +	ab->nss.enabled = false;
 +
  	ath11k_thermal_unregister(ab);
- 	ath11k_dp_pdev_free(ab);
- 	ath11k_cfr_deinit(ab);
-@@ -2728,6 +2750,10 @@ int ath11k_core_pre_init(struct ath11k_b
+ 
+ 	/*
+@@ -2738,6 +2760,10 @@ int ath11k_core_pre_init(struct ath11k_b
  		ath11k_err(ab, "failed to pre init firmware: %d", ret);
  		return ret;
  	}

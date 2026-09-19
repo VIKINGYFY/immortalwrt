@@ -3,7 +3,7 @@ Subject: [PATCH] firewall4: enable SONiC fullcone on WAN by default
 
 --- a/root/etc/config/firewall
 +++ b/root/etc/config/firewall
-@@ -5,6 +5,9 @@
+@@ -5,6 +5,9 @@ config defaults
  	option forward		REJECT
  # Uncomment this line to disable ipv6 rules
  #	option disable_ipv6	1
@@ -13,7 +13,7 @@ Subject: [PATCH] firewall4: enable SONiC fullcone on WAN by default
  
  config zone
  	option name		lan
-@@ -21,6 +24,7 @@
+@@ -21,6 +24,7 @@ config zone
  	option output		ACCEPT
  	option forward		DROP
  	option masq		1

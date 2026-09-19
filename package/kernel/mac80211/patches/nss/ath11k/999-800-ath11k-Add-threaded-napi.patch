@@ -9,7 +9,7 @@
  			napi_enable(&irq_grp->napi);
  			irq_grp->napi_enabled = true;
  		}
-@@ -538,6 +540,7 @@ static int ath11k_ahb_config_ext_irq(str
+@@ -543,6 +545,7 @@ static int ath11k_ahb_config_ext_irq(str
  	int irq;
  	int ret;
  	bool nss_offload;
@@ -17,7 +17,7 @@
  
  	/* TCL Completion, REO Dest, ERR, Exception and h2rxdma rings are offloaded
  	 * to nss when its enabled, hence don't enable these interrupts
-@@ -555,6 +558,9 @@ static int ath11k_ahb_config_ext_irq(str
+@@ -560,6 +563,9 @@ static int ath11k_ahb_config_ext_irq(str
  		if (!irq_grp->napi_ndev)
  			return -ENOMEM;
  
@@ -27,7 +27,7 @@
  		netif_napi_add(irq_grp->napi_ndev, &irq_grp->napi,
  			       ath11k_ahb_ext_grp_napi_poll);
  
-@@ -620,6 +626,8 @@ static int ath11k_ahb_config_ext_irq(str
+@@ -625,6 +631,8 @@ static int ath11k_ahb_config_ext_irq(str
  		}
  	}
  

@@ -8,7 +8,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
 
 --- a/root/usr/share/firewall4/templates/ruleset.uc
 +++ b/root/usr/share/firewall4/templates/ruleset.uc
-@@ -327,6 +327,16 @@
+@@ -327,6 +327,16 @@ table inet fw4 {
  {%   for (let redirect in fw4.redirects(`dstnat_${zone.name}`)): %}
  		{%+ include("redirect.uc", { fw4, zone, redirect }) %}
  {%   endfor %}
@@ -25,7 +25,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  {%   fw4.includes('chain-append', `dstnat_${zone.name}`) %}
  	}
  
-@@ -340,6 +350,11 @@
+@@ -340,6 +350,11 @@ table inet fw4 {
  {%   if (zone.masq): %}
  {%    for (let saddrs in zone.masq4_src_subnets): %}
  {%     for (let daddrs in zone.masq4_dest_subnets): %}
@@ -37,7 +37,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  		{%+ include("zone-masq.uc", { fw4, zone, family: 4, saddrs, daddrs }) %}
  {%     endfor %}
  {%    endfor %}
-@@ -347,6 +362,11 @@
+@@ -347,6 +362,11 @@ table inet fw4 {
  {%   if (zone.masq6): %}
  {%    for (let saddrs in zone.masq6_src_subnets): %}
  {%     for (let daddrs in zone.masq6_dest_subnets): %}
@@ -73,7 +73,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
 +meta l4proto {{ fw4.l4proto(family, { name: proto }) }} fullcone{{ direction == "srcnat" ? ' to :1024-65535' : '' }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(family, true) }} fullcone {{ proto }} NAT {{ direction }}"
 --- a/root/usr/share/ucode/fw4.uc
 +++ b/root/usr/share/ucode/fw4.uc
-@@ -489,6 +489,29 @@
+@@ -489,6 +489,29 @@ function nft_try_hw_offload(devices) {
  	return (rc == 0);
  }
  
@@ -103,7 +103,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  
  return {
  	read_kernel_version: function() {
-@@ -1475,6 +1498,7 @@
+@@ -1475,6 +1498,7 @@ return {
  			"dnat",
  			"snat",
  			"masquerade",
@@ -111,7 +111,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  			"accept",
  			"reject",
  			"drop"
-@@ -1946,6 +1970,7 @@
+@@ -1946,6 +1970,7 @@ return {
  		}
  
  		let defs = this.parse_options(data, {
@@ -119,7 +119,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  			input: [ "policy", "drop" ],
  			output: [ "policy", "drop" ],
  			forward: [ "policy", "drop" ],
-@@ -1980,6 +2005,13 @@
+@@ -1980,6 +2005,13 @@ return {
  
  		delete defs.syn_flood;
  
@@ -133,7 +133,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  		this.state.defaults = defs;
  	},
  
-@@ -2005,6 +2037,9 @@
+@@ -2005,6 +2037,9 @@ return {
  
  			masq6: [ "bool" ],
  
@@ -143,11 +143,10 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  			extra: [ "string", null, UNSUPPORTED ],
  			extra_src: [ "string", null, UNSUPPORTED ],
  			extra_dest: [ "string", null, UNSUPPORTED ],
-@@ -2035,6 +2070,40 @@
- 				this.warn_section(data, `uses unavailable ct helper '${zone.helper.name}'`);
+@@ -2036,6 +2071,40 @@ return {
  			}
  		}
-+
+ 
 +		/* Only port-based conntrack protocols have a fullcone mapping key.
 +		 * An explicitly unsupported list must not turn into "all".
 +		 */
@@ -181,10 +180,11 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
 +		zone.fullcone_proto = names;
 +		zone.fullcone = !!(this.state.defaults.fullcone && zone.fullcone && length(names));
 +		zone.fullcone6 = zone.fullcone;
- 
++
  		if (zone.mtu_fix && this.kernel < 0x040a0000) {
  			this.warn_section(data, "option 'mtu_fix' requires kernel 4.10 or later");
-@@ -2205,8 +2274,17 @@
+ 			return;
+@@ -2205,8 +2274,17 @@ return {
  		zone.related_subnets = related_subnets;
  		zone.related_physdevs = related_physdevs;
  

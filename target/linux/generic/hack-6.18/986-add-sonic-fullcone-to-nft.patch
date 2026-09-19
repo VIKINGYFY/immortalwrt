@@ -17,7 +17,7 @@ Linux 6.18 has no reduce op.
  
  struct nft_masq {
  	u32			flags;
-@@ -128,6 +130,114 @@
+@@ -128,6 +130,114 @@ static void nft_masq_eval(const struct n
  	}
  }
  
@@ -132,7 +132,7 @@ Linux 6.18 has no reduce op.
  static void
  nft_masq_ipv4_destroy(const struct nft_ctx *ctx, const struct nft_expr *expr)
  {
-@@ -236,6 +346,29 @@
+@@ -236,6 +346,29 @@ static inline int nft_masq_module_init_i
  static inline void nft_masq_module_exit_inet(void) {}
  #endif
  
@@ -162,7 +162,7 @@ Linux 6.18 has no reduce op.
  static int __init nft_masq_module_init(void)
  {
  	int ret;
-@@ -265,6 +398,15 @@
+@@ -265,6 +398,15 @@ static int __init nft_masq_module_init(v
  		return ret;
  	}
  
@@ -178,7 +178,7 @@ Linux 6.18 has no reduce op.
  	return ret;
  }
  
-@@ -273,11 +415,17 @@
+@@ -273,11 +415,17 @@ static void __exit nft_masq_module_exit(
  	nft_masq_module_exit_ipv6();
  	nft_masq_module_exit_inet();
  	nft_unregister_expr(&nft_masq_ipv4_type);

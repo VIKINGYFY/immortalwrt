@@ -8,7 +8,7 @@
  'require tools.widgets as widgets';
  
  return view.extend({
-@@ -18,7 +19,8 @@
+@@ -18,7 +19,8 @@ return view.extend({
  	load() {
  		return Promise.all([
  			this.callConntrackHelpers(),
@@ -18,7 +18,7 @@
  		]);
  	},
  
-@@ -35,6 +37,7 @@
+@@ -35,6 +37,7 @@ return view.extend({
  
  		m = new form.Map('firewall', _('Firewall - Zone Settings'),
  			_('The firewall creates zones over your network interfaces to control network traffic flow.'));
@@ -26,7 +26,7 @@
  
  		s = m.section(form.TypedSection, 'defaults', _('General Settings'));
  		s.anonymous = true;
-@@ -55,6 +58,7 @@
+@@ -55,6 +58,7 @@ return view.extend({
  		};
  
  		o = s.option(form.Flag, 'drop_invalid', _('Drop invalid packets'));
@@ -34,7 +34,7 @@
  
  		let p = [
  			s.option(form.ListValue, 'input', _('Input', 'firewall input')),
-@@ -179,6 +183,8 @@
+@@ -179,6 +183,8 @@ return view.extend({
  			return null;
  		};
  
