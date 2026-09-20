@@ -313,7 +313,7 @@
 	status = "okay";
 	phy-handle = <&qca8075_0>;
 	label = "lan1";
-	nvmem-cells = <&hw_mac_addr 1>;
+	nvmem-cells = <&hw_mac_addr 0>;
 	nvmem-cell-names = "mac-address";
 };
 
@@ -321,7 +321,7 @@
 	status = "okay";
 	phy-handle = <&qca8075_1>;
 	label = "lan2";
-	nvmem-cells = <&hw_mac_addr 1>;
+	nvmem-cells = <&hw_mac_addr 0>;
 	nvmem-cell-names = "mac-address";
 };
 
@@ -329,7 +329,7 @@
 	status = "okay";
 	phy-handle = <&qca8075_2>;
 	label = "lan3";
-	nvmem-cells = <&hw_mac_addr 1>;
+	nvmem-cells = <&hw_mac_addr 0>;
 	nvmem-cell-names = "mac-address";
 };
 
@@ -337,7 +337,7 @@
 	status = "okay";
 	phy-handle = <&qca8075_3>;
 	label = "lan4";
-	nvmem-cells = <&hw_mac_addr 1>;
+	nvmem-cells = <&hw_mac_addr 0>;
 	nvmem-cell-names = "mac-address";
 };
 
@@ -361,8 +361,8 @@
 			qcom,ath10k-calibration-variant = "Linksys-MX5300";
 			reg = <0x00010000 0 0 0 0>;
 
-			nvmem-cell-names = "pre-calibration", "mac-address";
-			nvmem-cells = <&caldata_qca9984>, <&hw_mac_addr 2>;
+			nvmem-cell-names = "pre-calibration";
+			nvmem-cells = <&caldata_qca9984>;
 		};
 	};
 };
@@ -371,6 +371,4 @@
 	status = "okay";
 	qcom,ath11k-fw-memory-mode = <1>;
 	qcom,ath11k-calibration-variant = "Linksys-MX5300";
-	nvmem-cells = <&hw_mac_addr 3>;
-	nvmem-cell-names = "mac-address";
 };
