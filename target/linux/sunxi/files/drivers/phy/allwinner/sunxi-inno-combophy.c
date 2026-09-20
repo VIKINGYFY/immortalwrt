@@ -17,7 +17,6 @@
 #include <linux/platform_device.h>
 #include <linux/phy/phy.h>
 #include <linux/reset.h>
-#include <linux/notifier.h>
 #include <dt-bindings/phy/phy.h>
 
 /* PCIE USB3 Sub-System Registers */
@@ -49,7 +48,6 @@
 #define   PHY_PIPE_SW			BIT(9)
 #define   PHY_PIPE_SEL			BIT(8)  /* 0:rstn by PCIE or USB3; 1:rstn by PHY_PIPE_SW */
 #define   PHY_PIPE_CLK_INVERT		BIT(4)
-#define   PHY_FPGA_SYS_RSTN		BIT(1)  /* for FPGA  */
 #define   PHY_RSTN			BIT(0)
 
 /* Registers */
@@ -78,8 +76,6 @@ enum phy_refclk_sel {
 	INTER_SIG_REF_CLK = 0, /* PHY use internal single end reference clock */
 	EXTER_DIF_REF_CLK, /* PHY use external single end reference clock */
 };
-
-extern struct atomic_notifier_head inno_subsys_notifier_list;
 
 struct sunxi_combophy_of_data {
 	bool has_cfg_clk;
@@ -113,15 +109,11 @@ struct sunxi_combphy {
 	__u32 vernum; /* version number */
 	enum phy_use_sel user;
 	enum phy_refclk_sel ref;
-	struct notifier_block pwr_nb;
 	const struct sunxi_combophy_of_data *drvdata;
 
 	struct regulator *select3v3_supply;
 	bool initialized;
 };
-
-ATOMIC_NOTIFIER_HEAD(inno_subsys_notifier_list);
-EXPORT_SYMBOL(inno_subsys_notifier_list);
 
 /*  PCIE USB3 Sub-system Application */
 static void combo_pcie_clk_set(struct sunxi_combphy *combphy, bool enable)
@@ -298,50 +290,31 @@ static int sunxi_combphy_reset_deassert(struct sunxi_combphy *combphy)
 
 static int pcie_usb3_sub_system_init(struct platform_device *pdev)
 {
-	struct device *dev = &pdev->dev;
 	struct sunxi_combphy *combphy = platform_get_drvdata(pdev);
-	bool already_enabled = false;
 	int ret;
 
 	if (!combphy || combphy->initialized)
 		return 0;
 
-	if (combphy->phy_ctl) {
-		if (readl(combphy->phy_ctl + PCIE_COMBO_PHY_CTL) & PHY_RSTN) {
-			dev_info(dev, "PHY already enabled by Bootloader.\n");
-			already_enabled = true;
-		}
-	}
+	ret = sunxi_combphy_reset_deassert(combphy);
+	if (ret)
+		return ret;
 
-	if (!IS_ERR_OR_NULL(combphy->select3v3_supply)) {
-		ret = regulator_enable(combphy->select3v3_supply);
-		if (ret) return ret;
-	}
+	ret = clk_set_rate(combphy->phyclk_ref, 100000000);
+	if (ret)
+		goto err_reset;
 
-	if (!already_enabled) {
-		ret = sunxi_combphy_reset_deassert(combphy);
-		if (ret) goto err_regulator;
-
-		ret = clk_set_rate(combphy->phyclk_ref, 100000000);
+	if (combphy->drvdata->has_cfg_clk) {
+		ret = clk_set_rate(combphy->phyclk_cfg, 200000000);
 		if (ret)
 			goto err_reset;
-
-		if (combphy->drvdata->has_cfg_clk) {
-			ret = clk_set_rate(combphy->phyclk_cfg, 200000000);
-			if (ret)
-				goto err_reset;
-		}
 	}
 
 	ret = sunxi_combphy_enable_clocks(combphy);
-	if (ret) {
-		if (!already_enabled)
-			goto err_reset;
-		goto err_regulator;
-	}
+	if (ret)
+		goto err_reset;
 
-	if (!already_enabled)
-		pcie_usb3_sub_system_enable(combphy);
+	pcie_usb3_sub_system_enable(combphy);
 
 	combphy->initialized = true;
 	return 0;
@@ -350,9 +323,6 @@ err_reset:
 	if (combphy->drvdata->need_noppu_rst)
 		reset_control_assert(combphy->noppu_reset);
 	reset_control_assert(combphy->reset);
-err_regulator:
-	if (!IS_ERR_OR_NULL(combphy->select3v3_supply))
-		regulator_disable(combphy->select3v3_supply);
 	return ret;
 }
 
@@ -386,29 +356,8 @@ static int pcie_usb3_sub_system_exit(struct platform_device *pdev)
 	if (!IS_ERR_OR_NULL(combphy->reset))
 		reset_control_assert(combphy->reset);
 
-	if (!IS_ERR_OR_NULL(combphy->select3v3_supply))
-		regulator_disable(combphy->select3v3_supply);
-
 	combphy->initialized = false;
 	return 0;
-}
-
-static int sunxi_inno_combophy_power_event(struct notifier_block *nb, unsigned long event, void *p)
-{
-	struct sunxi_combphy *combphy = container_of(nb, struct sunxi_combphy, pwr_nb);
-	struct platform_device *pdev = to_platform_device(combphy->dev);
-
-	dev_dbg(combphy->dev, "event %s\n", event ? "on" : "off");
-	if (event) {
-		if (combphy->initialized) {
-			pcie_usb3_sub_system_exit(pdev);
-		}
-		pcie_usb3_sub_system_init(pdev);
-	}
-	else
-		pcie_usb3_sub_system_exit(pdev);
-
-	return NOTIFY_DONE;
 }
 
 static void sunxi_combphy_pcie_phy_enable(struct sunxi_combphy *combphy)
@@ -827,6 +776,7 @@ static int sunxi_combphy_power_on(struct phy *phy)
 {
 	struct sunxi_combphy *combphy = phy_get_drvdata(phy);
 	int ret;
+
 	switch (combphy->mode) {
 	case PHY_TYPE_PCIE:
 		break;
@@ -1075,29 +1025,8 @@ static int sunxi_combphy_probe(struct platform_device *pdev)
 		goto err_subsystem;
 	}
 
-	combphy->pwr_nb.notifier_call = sunxi_inno_combophy_power_event;
-	/* register inno power notifier */
-	ret = atomic_notifier_chain_register(&inno_subsys_notifier_list,
-					     &combphy->pwr_nb);
-	if (ret)
-		goto err_subsystem;
-
-	ret = pm_runtime_set_active(dev);
-	if (ret)
-		goto err_notifier;
-	pm_runtime_enable(dev);
-	ret = pm_runtime_resume_and_get(dev);
-	if (ret < 0)
-		goto err_pm;
-
 	return 0;
 
-err_pm:
-	pm_runtime_disable(dev);
-	pm_runtime_set_suspended(dev);
-err_notifier:
-	atomic_notifier_chain_unregister(&inno_subsys_notifier_list,
-					       &combphy->pwr_nb);
 err_subsystem:
 	pcie_usb3_sub_system_exit(pdev);
 
@@ -1107,20 +1036,12 @@ err_subsystem:
 static void sunxi_combphy_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct sunxi_combphy *combphy = platform_get_drvdata(pdev);
 	int ret;
 
 	ret = pcie_usb3_sub_system_exit(pdev);
 	if (ret) {
 		dev_err(dev, "failed to exit sub system\n");
 	}
-
-	/* unregister inno power notifier */
-	atomic_notifier_chain_unregister(&inno_subsys_notifier_list, &combphy->pwr_nb);
-
-	pm_runtime_disable(dev);
-	pm_runtime_put_noidle(dev);
-	pm_runtime_set_suspended(dev);
 }
 
 static int __maybe_unused sunxi_combo_suspend(struct device *dev)
@@ -1152,7 +1073,7 @@ static int __maybe_unused sunxi_combo_resume(struct device *dev)
 	return 0;
 }
 
-static struct dev_pm_ops sunxi_combo_pm_ops = {
+static const struct dev_pm_ops sunxi_combo_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(sunxi_combo_suspend, sunxi_combo_resume)
 };
 

@@ -212,6 +212,13 @@ define U-Boot/mangopi-m28k-rk3528
     widora_mangopi-m28k
 endef
 
+define U-Boot/nanopi-zero2-rk3528
+  $(U-Boot/rk3528/Default)
+  NAME:=NanoPi Zero2
+  BUILD_DEVICES:= \
+    friendlyarm_nanopi-zero2
+endef
+
 define U-Boot/radxa-e20c-rk3528
   $(U-Boot/rk3528/Default)
   NAME:=E20C
@@ -310,6 +317,13 @@ define U-Boot/fastrhino-r68s-rk3568
     lunzn_fastrhino-r68s
 endef
 
+define U-Boot/graperain-g3568-v2-rk3568
+  $(U-Boot/rk3568/Default)
+  NAME:=Graperain G3568 v2
+  BUILD_DEVICES:= \
+    graperain_g3568-v2
+endef
+
 define U-Boot/lyt-t68m-rk3568
   $(U-Boot/rk3568/Default)
   NAME:=LYT T68M
@@ -405,13 +419,6 @@ define U-Boot/rk3576/Default
   TPL:=$(RK3576_TPL)
 endef
 
-define U-Boot/generic-rk3576
-  $(U-Boot/rk3576/Default)
-  NAME:=Generic RK3576
-  BUILD_DEVICES:= \
-    friendlyarm_nanopi-r76s
-endef
-
 define U-Boot/nanopi-m5-rk3576
   $(U-Boot/rk3576/Default)
   NAME:=NanoPi M5
@@ -424,6 +431,13 @@ define U-Boot/photonicat2-rk3576
   NAME:=Photonicat2
   BUILD_DEVICES:= \
     ariaboard_photonicat2
+endef
+
+define U-Boot/nanopi-r76s-rk3576
+  $(U-Boot/rk3576/Default)
+  NAME:=NanoPi R76S
+  BUILD_DEVICES:= \
+    friendlyarm_nanopi-r76s
 endef
 
 define U-Boot/rock-4d-rk3576
@@ -554,6 +568,7 @@ UBOOT_TARGETS := \
   rock-pi-e-rk3328 \
   mangopi-m28c-rk3528 \
   mangopi-m28k-rk3528 \
+  nanopi-zero2-rk3528 \
   radxa-e20c-rk3528 \
   rock-2-rk3528 \
   nanopi-r3s-rk3566 \
@@ -565,6 +580,7 @@ UBOOT_TARGETS := \
   easepi-r1-rk3568 \
   fastrhino-r66s-rk3568 \
   fastrhino-r68s-rk3568 \
+  graperain-g3568-v2-rk3568 \
   lyt-t68m-rk3568 \
   mmbox-anas3035-rk3568 \
   mrkaio-m68s-rk3568 \
@@ -577,8 +593,8 @@ UBOOT_TARGETS := \
   rock-3a-rk3568 \
   rock-3b-rk3568 \
   sige3-rk3568 \
-  generic-rk3576 \
   nanopi-m5-rk3576 \
+  nanopi-r76s-rk3576 \
   photonicat2-rk3576 \
   rock-4d-rk3576 \
   cyber3588-aib-rk3588 \

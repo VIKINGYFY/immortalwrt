@@ -23,6 +23,7 @@
 #define SUNXI_PHYS_OFFSET 0x40000000UL
 
 #define IOMMU_VA_BITS 32
+#define SUNXI_IOMMU_PHYS_END ((1ULL << IOMMU_VA_BITS) + SUNXI_PHYS_OFFSET)
 
 #define IOMMU_PD_SHIFT 20
 #define IOMMU_PD_MASK (~((1UL << IOMMU_PD_SHIFT) - 1))
@@ -98,14 +99,13 @@ static inline dma_addr_t iommu_phy_to_cpu_phy(dma_addr_t iommu_phy)
 
 static inline dma_addr_t cpu_phy_to_iommu_phy(dma_addr_t cpu_phy)
 {
-	return cpu_phy > (1ULL << IOMMU_VA_BITS) ?
+	return cpu_phy >= (1ULL << IOMMU_VA_BITS) ?
 		       cpu_phy - (1ULL << IOMMU_VA_BITS) :
 		       cpu_phy;
 }
 
 int sunxi_pgtable_prepare_l1_tables(unsigned int *pgtable,
-				    dma_addr_t iova_start, dma_addr_t iova_end,
-				    int prot);
+				    dma_addr_t iova_start, dma_addr_t iova_end);
 int sunxi_pgtable_prepare_l2_tables(unsigned int *pgtable,
 				    dma_addr_t iova_start, dma_addr_t iova_end,
 				    phys_addr_t paddr, int prot);
@@ -114,8 +114,8 @@ int sunxi_pgtable_delete_l2_tables(unsigned int *pgtable, dma_addr_t iova_start,
 phys_addr_t sunxi_pgtable_iova_to_phys(unsigned int *pgtable, dma_addr_t iova);
 int sunxi_pgtable_invalid_helper(unsigned int *pgtable, dma_addr_t iova);
 void sunxi_pgtable_clear(unsigned int *pgtable);
-unsigned int *sunxi_pgtable_alloc(void);
-void sunxi_pgtable_free(unsigned int *pgtable);
+unsigned int *sunxi_pgtable_alloc(dma_addr_t *pgtable_dma);
+void sunxi_pgtable_free(unsigned int *pgtable, dma_addr_t pgtable_dma);
 ssize_t sunxi_pgtable_dump(unsigned int *pgtable, ssize_t len, char *buf,
 			   size_t buf_len, bool for_sysfs_show);
 struct kmem_cache *sunxi_pgtable_alloc_pte_cache(void);

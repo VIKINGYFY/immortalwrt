@@ -261,6 +261,41 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  		};
  	};
  
+--- a/arch/arm64/boot/dts/rockchip/rk3528-nanopi-zero2.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3528-nanopi-zero2.dts
+@@ -17,6 +17,10 @@
+ 		mmc0 = &sdhci;
+ 		mmc1 = &sdmmc;
+ 		serial0 = &uart0;
++		led-boot = &power_led;
++		led-failsafe = &power_led;
++		led-running = &power_led;
++		led-upgrade = &power_led;
+ 	};
+ 
+ 	chosen {
+@@ -56,20 +60,16 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&led1>, <&led_sys>;
+ 
+-		led-0 {
++		power_led: led-0 {
+ 			color = <LED_COLOR_ID_RED>;
+-			default-state = "on";
+ 			function = LED_FUNCTION_HEARTBEAT;
+ 			gpios = <&gpio4 RK_PB0 GPIO_ACTIVE_HIGH>;
+-			linux,default-trigger = "heartbeat";
+ 		};
+ 
+ 		led-1 {
+ 			color = <LED_COLOR_ID_GREEN>;
+-			default-state = "on";
+ 			function = LED_FUNCTION_STATUS;
+ 			gpios = <&gpio4 RK_PB1 GPIO_ACTIVE_HIGH>;
+-			linux,default-trigger = "default-on";
+ 		};
+ 	};
+ 
 --- a/arch/arm64/boot/dts/rockchip/rk3528-radxa-e20c.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3528-radxa-e20c.dts
 @@ -22,6 +22,11 @@
@@ -342,7 +377,7 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  
 --- a/arch/arm64/boot/dts/rockchip/rk3528-rock-2f.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3528-rock-2f.dts
-@@ -7,4 +7,16 @@
+@@ -7,6 +7,18 @@
  / {
  	model = "Radxa ROCK 2F";
  	compatible = "radxa,rock-2f", "rockchip,rk3528";
@@ -359,6 +394,8 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
 +	/delete-property/ default-state;
 +	/delete-property/ linux,default-trigger;
  };
+ 
+ &usb_host0_xhci {
 --- a/arch/arm64/boot/dts/rockchip/rk3566-nanopi-r3s.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3566-nanopi-r3s.dts
 @@ -24,6 +24,11 @@
@@ -495,6 +532,27 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  		};
  	};
  
+--- a/arch/arm64/boot/dts/rockchip/rk3568-graperain-g3568-v2.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3568-graperain-g3568-v2.dts
+@@ -19,6 +19,10 @@
+ 		mmc1 = &sdmmc0;
+ 		mmc2 = &sdmmc2;
+ 		rtc0 = &rtc0;
++		led-boot = &led_work;
++		led-failsafe = &led_work;
++		led-running = &led_work;
++		led-upgrade = &led_work;
+ 	};
+ 
+ 	chosen {
+@@ -75,7 +79,6 @@
+ 			color = <LED_COLOR_ID_BLUE>;
+ 			function = LED_FUNCTION_HEARTBEAT;
+ 			gpios = <&gpio0 RK_PC0 GPIO_ACTIVE_HIGH>;
+-			linux,default-trigger = "heartbeat";
+ 			pinctrl-names = "default";
+ 			pinctrl-0 = <&led_work_en>;
+ 		};
 --- a/arch/arm64/boot/dts/rockchip/rk3568-nanopi-r5c.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3568-nanopi-r5c.dts
 @@ -40,7 +40,6 @@
