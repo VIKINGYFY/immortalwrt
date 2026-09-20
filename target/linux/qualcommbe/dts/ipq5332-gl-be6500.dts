@@ -27,6 +27,11 @@
 			no-map;
 		};
 
+		q6_host_ddr: host-ddr@4b500000 {
+			reg = <0x0 0x4b500000 0x0 0x01f00000>;
+			no-map;
+		};
+
 		m3_dump: m3-dump@4d400000 {
 			reg = <0x0 0x4d400000 0x0 0x100000>;
 			no-map;
@@ -597,11 +602,11 @@
 	firmware-name = "ath12k/IPQ5332/hw1.0/q6_fw1.mdt", "ath12k/IPQ5332/hw1.0/iu_fw.mdt";
 	nvmem-cells = <&base_macaddr 3>;
 	nvmem-cell-names = "mac-address";
-	memory-region = <&q6_region>, <&m3_dump>, <&q6_caldb>, <&mlo_mem>;
-	memory-region-names = "q6-region", "m3-dump", "q6-caldb", "mlo-global-mem";
-	qcom,bdf-address-offset = <0x0c00000>;
+	memory-region = <&q6_region>, <&q6_host_ddr>, <&m3_dump>, <&q6_caldb>,
+			<&mlo_mem>;
+	memory-region-names = "q6-region", "host-ddr-mem", "m3-dump", "q6-caldb",
+			      "mlo-global-mem";
 	qcom,board-id = <18>;
-	qcom,legacy-userpd-bootinfo;
 	qcom,rproc = <&q6v5_wcss>;
 	qcom,wsi-controller;
 
@@ -631,4 +636,7 @@
 	status = "okay";
 
 	firmware-name = "ath12k/IPQ5332/hw1.0/q6_fw0.mdt";
+	qcom,bootargs_smem = <507>;
+	qcom,bootargs_version = <2>;
+	upd-firmware-names = "ath12k/IPQ5332/hw1.0/q6_fw1.mdt";
 };

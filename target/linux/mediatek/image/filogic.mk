@@ -3794,10 +3794,10 @@ define Device/tplink_tl-7dr7250-v1
   DEVICE_MODEL := TL-7DR7250
   DEVICE_VARIANT := v1
   DEVICE_DTS := mt7988d-tplink-tl-7dr7250-v1
-  DEVICE_PACKAGES += kmod-phy-airoha-en8811h airoha-en8811h-firmware
   ARTIFACT/preloader.bin := mt7988-bl2 spim-nand-ddr4
   ARTIFACT/bl31-uboot.fip := mt7988-bl31-uboot tplink_tl-7dr7250-v1
   $(call Device/tplink_tl-7dr-common)
+  DEVICE_PACKAGES += kmod-phy-airoha-en8811h airoha-en8811h-firmware
 endef
 TARGET_DEVICES += tplink_tl-7dr7250-v1
 

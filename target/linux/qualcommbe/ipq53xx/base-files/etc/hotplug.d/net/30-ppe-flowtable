@@ -18,7 +18,8 @@ reload_ppe_flowtable() {
 	local attempt
 	local batch="$run_dir/batch"
 	local pending="$run_dir/pending"
-	local ready
+	local ready_batch="$run_dir/ready"
+	local retry_batch="$run_dir/retry"
 	local rules="$run_dir/rules"
 	local worker="$run_dir/worker"
 	local dev
@@ -36,38 +37,51 @@ reload_ppe_flowtable() {
 		: > "$pending"
 		lock -u "$reload_lock"
 
-		ready=
 		attempt=1
 		while [ "$attempt" -le "$max_attempts" ]; do
-			if fw4 -q print > "$rules"; then
-				ready=1
+			: > "$ready_batch"
+			: > "$retry_batch"
+			if ! fw4 -q print > "$rules"; then
+				cat "$batch" > "$retry_batch"
+			else
 				while IFS= read -r dev; do
 					[ -n "$dev" ] || continue
-					if [ ! -L "$sys_class_net/$dev/master" ] ||
-					   ! grep -Fq "\"$dev\"" "$rules"; then
-						ready=
-						break
+					[ -L "$sys_class_net/$dev/phy80211" ] || continue
+					if [ -L "$sys_class_net/$dev/master" ] &&
+					   grep -Fq "\"$dev\"" "$rules"; then
+						printf '%s\n' "$dev" >> "$ready_batch"
+					else
+						printf '%s\n' "$dev" >> "$retry_batch"
 					fi
 				done < "$batch"
 			fi
 
-			[ -n "$ready" ] && break
+			if [ -s "$ready_batch" ]; then
+				lock "$reload_lock"
+				logger -t firewall \
+					"Reloading firewall after adding wireless devices: $(tr '\n' ' ' < "$ready_batch")"
+				if ! fw4 -q reload; then
+					cat "$ready_batch" >> "$retry_batch"
+				fi
+				lock -u "$reload_lock"
+			fi
+
+			if [ ! -s "$retry_batch" ]; then
+				rm -f "$batch"
+				break
+			fi
+
+			mv "$retry_batch" "$batch"
+			if [ "$attempt" -ge "$max_attempts" ]; then
+				logger -t firewall \
+					"PPE flowtable reload timed out or failed for wireless devices: $(tr '\n' ' ' < "$batch")"
+				break
+			fi
 			sleep 1
 			attempt=$((attempt + 1))
 		done
 
-		if [ -n "$ready" ]; then
-			lock "$reload_lock"
-			logger -t firewall \
-				"Reloading firewall after adding wireless devices: $(tr '\n' ' ' < "$batch")"
-			fw4 -q reload
-			lock -u "$reload_lock"
-		else
-			logger -t firewall \
-				"Skipping PPE flowtable reload; wireless devices were not ready: $(tr '\n' ' ' < "$batch")"
-		fi
-
-		rm -f "$batch" "$rules"
+		rm -f "$batch" "$ready_batch" "$retry_batch" "$rules"
 	done
 }
 

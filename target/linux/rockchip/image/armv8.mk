@@ -610,7 +610,7 @@ define Device/rumu3f_fine-3399
   DEVICE_MODEL := Fine 3399
   UBOOT_DEVICE_NAME := fine3399-rk3399
   BOOT_FLOW := pine64-bin
-  DEVICE_PACKAGES := kmod-r8169 wpad-openssl brcmfmac-firmware-43430b0-sdio brcmfmac-nvram-43430b0-sdio
+  DEVICE_PACKAGES := kmod-r8169 kmod-brcmfmac wpad-openssl brcmfmac-firmware-43430b0-sdio brcmfmac-nvram-43430b0-sdio
 endef
 TARGET_DEVICES += rumu3f_fine-3399
 
