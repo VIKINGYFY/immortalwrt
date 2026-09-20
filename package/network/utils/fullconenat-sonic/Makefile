@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fullconenat-sonic
 PKG_VERSION:=20260917
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 
 PKG_URL:=https://github.com/mufeng05/openwrt-sonic-fullcone
 SONIC_SOURCE_VERSION:=4de0643f6b48e7e7d57d768144204ce5d3078c8f
@@ -35,9 +35,6 @@ define Package/fullconenat-sonic/description
 endef
 
 # These patches target the LuCI feed and are applied before package scanning.
-define Build/Patch
-endef
-
 define Build/Compile
 endef
 

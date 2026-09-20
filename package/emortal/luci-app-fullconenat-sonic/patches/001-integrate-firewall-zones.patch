@@ -12,23 +12,28 @@
  
  		m = new form.Map('firewall', _('Firewall - Zone Settings'),
  			_('The firewall creates zones over your network interfaces to control network traffic flow.'));
-+		fullcone.attach(m, fw4);
++		fullcone.attach(m);
  
  		s = m.section(form.TypedSection, 'defaults', _('General Settings'));
  		s.anonymous = true;
-@@ -55,6 +57,7 @@
+@@ -55,11 +57,7 @@
  		};
  
  		o = s.option(form.Flag, 'drop_invalid', _('Drop invalid packets'));
+-		if (L.hasSystemFeature('fullcone')) {
+-			o = s.option(form.Flag, 'fullcone', _('Enable FullCone NAT'));
+-			if (fw4)
+-				o = s.option(form.Flag, 'fullcone6', _('Enable FullCone NAT6'));
+-		}
 +		fullcone.addGlobal(s);
  
  		let p = [
  			s.option(form.ListValue, 'input', _('Input', 'firewall input')),
-@@ -179,6 +182,8 @@
+@@ -184,6 +182,8 @@
  			return null;
  		};
  
-+		fullcone.addZone(s, fw4);
++		fullcone.addZone(s);
 +
  		o = s.taboption('general', form.Flag, 'mtu_fix', _('MSS clamping'));
  		o.modalonly = true;
