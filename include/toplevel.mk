@@ -76,7 +76,6 @@ endif
 _ignore = $(foreach p,$(IGNORE_PACKAGES),--ignore $(p))
 
 prepare-tmpinfo: FORCE
-	@$(TOPDIR)/package/network/utils/fullconenat-sonic/patches/apply-luci-feed.sh "$(TOPDIR)"
 	@+$(MAKE) -r -s $(STAGING_DIR_HOST)/.prereq-build $(PREP_MK)
 	mkdir -p tmp/info feeds
 	[ -e $(TOPDIR)/feeds/base ] || ln -sf ../package $(TOPDIR)/feeds/base

@@ -3,26 +3,19 @@
 'require form';
 'require uci';
 
-function syncMasquerading(fw4, before) {
-	const enabled = uci.sections('firewall', 'defaults')[0]?.fullcone === '1';
-	const maskOptions = fw4 ? [ 'masq', 'masq6' ] : [ 'masq' ];
-
+function syncMasquerading(before) {
 	for (const zone of uci.sections('firewall', 'zone')) {
 		const sid = zone['.name'];
-		// A user's mask-off choice takes priority over automatic enablement.
-		const maskDisabled = maskOptions.some(option =>
-			before[sid]?.[option] === '1' && uci.get('firewall', sid, option) !== '1');
-
-		if (maskDisabled)
+		// A user's IPv4 mask-off choice takes priority within the same save.
+		if (before[sid]?.masq === '1' && uci.get('firewall', sid, 'masq') !== '1')
 			uci.set('firewall', sid, 'fullcone', '0');
-		else if (enabled && zone.fullcone === '1')
-			for (const option of maskOptions)
-				uci.set('firewall', sid, option, '1');
+		else if (before[sid]?.fullcone !== '1' && uci.get('firewall', sid, 'fullcone') === '1')
+			uci.set('firewall', sid, 'masq', '1');
 	}
 }
 
 return baseclass.extend({
-	attach(map, fw4) {
+	attach(map) {
 		const save = map.save.bind(map);
 		map.save = function(cb, silent) {
 			// Read each option through get(): sections() retains deleted options.
@@ -30,11 +23,11 @@ return baseclass.extend({
 				const sid = zone['.name'];
 				return [ sid, {
 					masq: uci.get('firewall', sid, 'masq'),
-					masq6: uci.get('firewall', sid, 'masq6')
+					fullcone: uci.get('firewall', sid, 'fullcone')
 				} ];
 			}));
 			return save(() => {
-				syncMasquerading(fw4, before);
+				syncMasquerading(before);
 				return cb ? cb() : undefined;
 			}, silent);
 		};
@@ -47,15 +40,13 @@ return baseclass.extend({
 		return o;
 	},
 
-	addZone(section, fw4) {
+	addZone(section) {
 		const o = section.taboption('general', form.Flag, 'fullcone', _('Fullcone NAT'),
-			fw4
-				? _('Uses all supported protocols. Enabling Fullcone NAT automatically enables IPv4 and IPv6 masquerading. Disabling either masquerading option also disables Fullcone NAT for this zone. Disabling Fullcone NAT leaves masquerading unchanged. Usually enable this only on the WAN zone.')
-				: _('Uses all supported protocols. Enabling Fullcone NAT automatically enables IPv4 masquerading. Disabling masquerading also disables Fullcone NAT for this zone. Disabling Fullcone NAT leaves masquerading unchanged. Usually enable this only on the WAN zone.'));
+			_('Uses all supported protocols. Enabling Fullcone NAT automatically enables IPv4 masquerading. Disabling IPv4 masquerading also disables Fullcone NAT for this zone. Disabling Fullcone NAT leaves masquerading unchanged. IPv6 masquerading is independent. Usually enable this only on the WAN zone.'));
 		o.editable = true;
 		o.default = '0';
 		o.rmempty = false;
-		section.addModalOptions = modal => this.attach(modal.map, fw4);
+		section.addModalOptions = modal => this.attach(modal.map);
 		return o;
 	}
 });

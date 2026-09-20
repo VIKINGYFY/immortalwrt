@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-fullconenat-sonic
 PKG_VERSION:=20260917
-PKG_RELEASE:=11
+PKG_RELEASE:=12
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 PKG_LICENSE:=GPL-2.0-only
 

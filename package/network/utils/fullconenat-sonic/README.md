@@ -28,16 +28,9 @@ Cross-component patches use their standard build locations:
   only emit NAT leakage protection for masqueraded address families, so turning
   off one family's masquerading cannot conflict with a zone's subnet matches.
 
-The LuCI cleanup patches are kept in this package's `patches/luci/` directory.
-The top-level `prepare-tmpinfo` step invokes its small idempotent bridge before
-package metadata is scanned, applying those patches to the separate LuCI feed
-Git checkout when it is present. Both patches are checked before either is
-applied. An already applied patch is accepted; an upstream context mismatch
-stops the build instead of silently changing the feed.
-`include/quilt.mk` is unmodified and no patch files need to be copied into the
-feed repository. Kernel patches are applied through the generic kernel stack,
-independently of userspace package preparation.
-The package's own `Build/Patch` is empty because these patches target the feed.
+Kernel patches use the generic kernel stack. LuCI integration patches apply only
+to the copied view in the UI package build directory; no global metadata hook
+or writable Git feed checkout is required.
 
 The separate `package/emortal/luci-app-fullconenat-sonic` package owns the LuCI
 integration, ACL and translations for both firewall generations, using the
@@ -56,16 +49,16 @@ The standard LuCI build generates `luci-i18n-fullconenat-sonic-zh-cn` and
 selects it when Simplified Chinese is enabled in the LuCI language options.
 Translation compilation, installation and post-install cache refresh use
 the common LuCI rules; no custom translation or refresh commands are needed.
-These LuCI patches remove obsolete UI code; the SONiC page does not depend on
-the old feature probe. The feed checkout remains disposable and can be
-refreshed; the bridge reapplies the tracked patches on the next preparation.
+The copied view removes legacy fullcone controls and uses the SONiC helper.
+The original feed and its feature probe remain unchanged.
 
 Both legacy `fullconenat-nft` and `fullconenat` source packages are removed.
 The package rejects installation alongside their old binary packages.
 For APK builds this is also encoded as negative dependencies, since this
 tree's APK packer does not translate `CONFLICTS` into package metadata.
-`CONFIG_NF_NAT_FULLCONE` enables the SONiC frontends through normal kernel
-package metadata; the generic kernel configuration defaults it to off.
+`CONFIG_NF_NAT_FULLCONE` enables the SONiC core and frontends through normal
+kernel package metadata. When disabled, the extra endpoint table, conntrack
+fields, locks and reservation scans are compiled out.
 
 Build the kernel together with the packages. Installing the small
 userspace package alone cannot add this feature to a different kernel.
@@ -76,7 +69,8 @@ Fullcone requires `defaults.fullcone=1`, `zone.fullcone=1`, and `zone.masq=1`
 for IPv4 or (with fw4) `zone.masq6=1` for IPv6. Fresh configurations enable the global
 switch and WAN zone, preserving this tree's software/hardware offload
 defaults. The base firewall configuration enables IPv4 masquerading; installing
-the LuCI package also enables IPv6 masquerading for active fw4 fullcone zones.
+the LuCI package never changes IPv6 masquerading. Enable it independently
+when IPv6 NAT is needed.
 
 ```uci
 config defaults
@@ -90,15 +84,11 @@ config zone
         option fullcone '1'
 ```
 
-Supported fullcone protocols are TCP, UDP, UDP-Lite and SCTP. An empty
-`fullcone_proto` list enables all four. The LuCI page always uses this default
-and no longer offers a protocol selector; a one-time uci-defaults script
-removes lists saved by the former selector. Other protocols, and connections
-managed by a NAT helper, use ordinary NAT. An explicitly unsupported
-protocol list does not enable fullcone for all traffic.
-Negated protocol entries are ignored; they never enable the excluded
-protocol. The `tcpudp` alias and protocol numbers 6, 17, 132 and 136 are
-accepted by both firewall generations.
+Fullcone always uses all supported protocols: TCP, UDP, UDP-Lite and SCTP.
+There is no protocol selector in LuCI or UCI. The install migration removes
+obsolete `fullcone_proto` lists. Other protocols and connections managed by a
+NAT helper retain ordinary NAT semantics. fw4 groups the four protocols into
+one set per direction and address family; fw3 emits one rule per protocol.
 
 Mapping creation respects `masq_src` and `masq_dest`. New remote peers can
 reach an existing fullcone mapping without a destination restriction;
@@ -129,14 +119,14 @@ zone switch. The LuCI package carries a one-time uci-defaults migration that
 maps an enabled legacy `fullcone6` value to `fullcone` when needed and then
 removes the obsolete option; the normal settings page has no legacy fallback.
 The integrated form and its add/edit dialogs use the standard staged save/apply
-flow. Enabling Fullcone NAT enables IPv4 and (with fw4) IPv6 masquerading for
-selected zones. Turning off either masquerading option also disables the
+flow. Enabling a zone's Fullcone NAT enables IPv4 masquerading. Turning off
+IPv4 masquerading also disables the
 corresponding zone's Fullcone NAT when saving, preserving that mask-off choice.
-Other zones are unaffected. Enabling masquerading alone does not enable
+IPv6 masquerading and other zones are unaffected. Enabling IPv4 masquerading alone does not enable
 Fullcone NAT. Disabling a zone's Fullcone NAT or the global switch leaves the
 current masquerading settings unchanged; no restore snapshots are kept.
 New zones include the switch, initially off. The same one-time migration script
-enables the global and WAN switches only if absent, enables masquerading for
+enables the global and WAN switches only if absent, enables IPv4 masquerading for
 active zones, and removes the obsolete fullconenat_sonic snapshot configuration.
 The normal form only reads and writes the firewall configuration.
 
@@ -145,7 +135,10 @@ The normal form only reads and writes the firewall configuration.
 - Reuse is serialized by internal endpoint. Randomized port allocation
   still reuses that endpoint's existing fullcone binding.
 - Public endpoints are checked and published under their own bucket lock;
-  deletion uses the same lock. Ordinary SNAT also participates in the
+  lookup, tuple copying and deletion use the same lock to prevent reads of
+  recycled conntracks. Source mapping reuse holds the source list lock.
+  A matching owner ends the reservation scan, including when many connections
+  share the endpoint. Ordinary SNAT also participates in the
   reservation check, while retaining normal five-tuple sharing with other
   ordinary SNAT flows.
 - Matching includes network namespace, both conntrack zone directions,
@@ -166,3 +159,19 @@ MTK/QCA/QCB driver limits (for example NAT66 or double NAT) still apply.
 
 Compile, rule-rendering and source-level concurrency checks do not replace
 router packet tests, Linux RCU/lockdep testing, or MTK/QCA/QCB PPE tests.
+
+## Regression checks
+
+The source-extraction, firewall-rule, LuCI staging and migration test tools are
+kept in the external validation archive rather than shipped in this package.
+They use prepared kernel/firewall sources and isolated host fixtures; they do
+not contact a router. The recorded checks cover endpoint isolation, bounded
+allocation, mixed NAT policies, concurrent retirement/reuse, compilation
+without fullcone state, all supported protocols, address restrictions, DNAT
+precedence, unavailable-kernel fallback, IPv4 masquerading coupling, IPv6
+independence and idempotent migration.
+
+Compile the affected target modules with the kernel option both on and off,
+and rebuild the firmware before deploying kernel changes. The validation
+archive contains the exact tool copies, source hashes and run logs for each
+release check.
