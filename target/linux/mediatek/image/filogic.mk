@@ -4537,7 +4537,6 @@ define Device/tplink_wma301-common
   ARTIFACTS := preloader.bin bl31-uboot.fip
   ARTIFACT/preloader.bin := mt7981-bl2 wma301-v2-ddr3
 endef
-TARGET_DEVICES += tplink_wma301-common
 
 define Device/tplink_wma301-v2-ubootmod
   DEVICE_VARIANT := v2

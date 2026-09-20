@@ -48,11 +48,13 @@ case "$FIRMWARE" in
 		caldata_sysfsload_from_file "/sys/firmware/mikrotik/hard_config/wlan_data/data_0" 0x0 0x10000
 		;;
 	tplink,eap610-outdoor|\
-	tplink,eap620-hd-v2|\
-	tplink,eap620-hd-v3|\
 	tplink,eap623-outdoor-hd-v1|\
 	tplink,eap625-outdoor-hd-v1)
 		caldata_from_file "/tmp/factory_data/radio" 0 0x10000
+		;;
+	tplink,eap620-hd-v2|\
+	tplink,eap620-hd-v3)
+		caldata_from_file "/tmp/factory_data/radio" 0 0x20000
 		;;
 	yuncore,fap650)
 		caldata_extract "0:art" 0x1000 0x20000

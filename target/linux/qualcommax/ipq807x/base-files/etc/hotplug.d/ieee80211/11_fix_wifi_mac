@@ -46,11 +46,18 @@ case "$board" in
 		[ "$PHYNBR" = "2" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
 		;;
 	netgear,rbr750|\
+	netgear,rbr850|\
 	netgear,rbs750)
 		label_mac=$(get_mac_label_dt)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "2" ] && macaddr_add $label_mac 4 > /sys${DEVPATH}/macaddress
+		;;
+	netgear,rbs850)
+		label_mac=$(get_mac_label_dt)
+		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "2" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
 		;;
 	netgear,rax120v2|\
 	netgear,sxr80|\
