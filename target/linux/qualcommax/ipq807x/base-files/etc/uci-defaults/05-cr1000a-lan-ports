@@ -1,0 +1,57 @@
+#!/bin/sh
+# Migrate saved configurations from the single RTL9303 CPU interface.
+
+. /lib/functions.sh
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "verizon,cr1000a" ] || exit 0
+
+cr1000a_expand_ports() {
+	local section="$1" option="$2" ports port suffix changed=0 expanded=""
+	config_get ports "$section" "$option"
+	for port in $ports; do
+		case "$port" in
+			lan|lan:*|lan.*)
+				suffix="${port#lan}"
+				expanded="$expanded lan1$suffix lan2$suffix lan3$suffix"
+				changed=1
+				;;
+			*) expanded="$expanded $port" ;;
+		esac
+	done
+	[ "$changed" = 1 ] || return 0
+	uci -q delete "network.$section.$option"
+	for port in $expanded; do
+		uci add_list "network.$section.$option=$port"
+	done
+}
+
+cr1000a_device() {
+	cr1000a_expand_ports "$1" ports
+}
+
+cr1000a_interface() {
+	local section="$1" device type
+	config_get device "$section" device
+	config_get type "$section" type
+	if [ "$type" = bridge ]; then
+		cr1000a_expand_ports "$section" ifname
+	fi
+	# A direct attachment to old lan needs a bridge over all three new ports.
+	[ "$device" = lan ] || return 0
+	uci set network.cr1000a_lan_ports=device
+	uci set network.cr1000a_lan_ports.name=br-cr1000a
+	uci set network.cr1000a_lan_ports.type=bridge
+	uci -q delete network.cr1000a_lan_ports.ports
+	uci add_list network.cr1000a_lan_ports.ports=lan1
+	uci add_list network.cr1000a_lan_ports.ports=lan2
+	uci add_list network.cr1000a_lan_ports.ports=lan3
+	uci set "network.$section.device=br-cr1000a"
+}
+
+config_load network
+config_foreach cr1000a_device device
+config_foreach cr1000a_device bridge-vlan
+config_foreach cr1000a_interface interface
+uci commit network
+exit 0

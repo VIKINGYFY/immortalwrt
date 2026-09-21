@@ -90,11 +90,121 @@
 	pinctrl-0 = <&spi_4_pins>;
 	pinctrl-names = "default";
 
-	spi@4 {
-		// compatible = "qca,spidev";
-		compatible = "cisco,spi-petra";
-		reg = <0x00>;
+	rtl9303: switch@0 {
+		compatible = "realtek,rtl9303-spi";
+		reg = <0>;
 		spi-max-frequency = <12000000>;
+		dsa,member = <1 0>;
+
+		mdio-controller {
+			compatible = "realtek,rtl9303-spi-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mdio-bus@0 {
+				reg = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				lan2_phy: ethernet-phy@7 {
+					reg = <7>;
+				};
+			};
+
+			mdio-bus@1 {
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				lan3_phy: ethernet-phy@3 {
+					reg = <3>;
+				};
+			};
+
+			mdio-bus@2 {
+				reg = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				lan1_phy: ethernet-phy@0 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0>;
+				};
+			};
+		};
+
+		rtl9303_serdes_mdio: mdio-serdes {
+			compatible = "realtek,rtl9303-spi-serdes";
+		};
+
+		pcs {
+			compatible = "realtek,rtl9303-spi-pcs";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			mdio-parent-bus = <&rtl9303_serdes_mdio>;
+
+			rtl9303_sds3: serdes@3 {
+				reg = <3>;
+				#pcs-cells = <1>;
+			};
+
+			rtl9303_sds5: serdes@5 {
+				reg = <5>;
+				#pcs-cells = <1>;
+			};
+
+			rtl9303_sds6: serdes@6 {
+				reg = <6>;
+				#pcs-cells = <1>;
+			};
+
+			rtl9303_sds9: serdes@9 {
+				reg = <9>;
+				#pcs-cells = <1>;
+			};
+		};
+
+		ethernet-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@8 {
+				reg = <8>;
+				label = "lan1";
+				phy-mode = "usxgmii";
+				managed = "in-band-status";
+				phy-handle = <&lan1_phy>;
+				pcs-handle = <&rtl9303_sds3 0>;
+			};
+
+			port@14 {
+				reg = <20>;
+				label = "lan2";
+				phy-mode = "2500base-x";
+				phy-handle = <&lan2_phy>;
+				pcs-handle = <&rtl9303_sds5 0>;
+			};
+
+			port@18 {
+				reg = <24>;
+				label = "lan3";
+				phy-mode = "2500base-x";
+				phy-handle = <&lan3_phy>;
+				pcs-handle = <&rtl9303_sds6 0>;
+			};
+
+			port@1b {
+				reg = <27>;
+				ethernet = <&swport5>;
+				phy-mode = "10gbase-r";
+				pcs-handle = <&rtl9303_sds9 0>;
+
+				fixed-link {
+					speed = <10000>;
+					full-duplex;
+				};
+			};
+		};
 	};
 };
 
@@ -120,12 +230,6 @@
 	pinctrl-0 = <&mdio_pins>;
 	pinctrl-names = "default";
 	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
-
-	rtl9303: ethernet-phy@4 {
-		//compatible = "ethernet-phy-ieee802.3-c45";
-		reg = <0x04>;
-		// reset-gpios = <&tlmm 63 GPIO_ACTIVE_LOW>;
-	};
 
 	aqr113c: ethernet-phy@8 {
 		compatible = "ethernet-phy-ieee802.3-c45";
@@ -168,10 +272,14 @@
 
 		swport5: port@5 {
 			reg = <5>;
-			label = "lan";
-			phy-handle = <&rtl9303>;
+			label = "lan-cpu";
 			phy-mode = "10gbase-r";
 			pcs-handle = <&uniphy1 0>;
+
+			fixed-link {
+				speed = <10000>;
+				full-duplex;
+			};
 		};
 
 		swport6: port@6 {
@@ -179,6 +287,7 @@
 			label = "wan";
 			phy-handle = <&aqr113c>;
 			phy-mode = "usxgmii";
+			managed = "in-band-status";
 			pcs-handle = <&uniphy2 0>;
 		};
 	};
