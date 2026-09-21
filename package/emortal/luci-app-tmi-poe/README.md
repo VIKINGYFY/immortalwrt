@@ -104,6 +104,16 @@ to standard af/at operation. No manual or semiautomatic control is needed.
 power-good state in readable form. It reads hardware without resetting it,
 enabling outputs, or consuming event latches. The shared controller lock
 prevents it from observing a service's partial configuration/event update.
+
+Initialization verifies only implemented channel bits when programming the
+factory R32h setting: `0x0f` for TMI7604R and `0xff` for TMI7608R. P5 hardware
+reads the upper four bits as zero. The factory channel-pair settings likewise
+use R2Eh/R2Fh on TMI7604R; only TMI7608R also uses R30h/R31h. Applying the
+eight-channel sequence with strict readback to P5 caused initialization to fail
+and the cleanup path to shut down all outputs. Readback verification remains
+strict for the registers and values used by each chip. These setup differences
+come from board observations; the public datasheets omit their full bitfields.
+
 `tmi-poe status --debug` additionally reports the raw diagnostic snapshot:
 
 - `requested-mask` / `requested-budget-mw`: the current UCI configuration.

@@ -250,7 +250,6 @@ int tmi_initialize(struct tmi_io *io, const struct tmi_board *board,
 {
 	static const uint8_t setup[][2] = {
 		{ 0x01, 0xe7 }, { 0x54, 0xe7 }, { 0x32, 0xff }, { 0x76, 0x23 },
-		{ 0x2e, 0x33 }, { 0x2f, 0x33 }, { 0x30, 0x33 }, { 0x31, 0x33 },
 	};
 	unsigned int i;
 	int ret = tmi_validate(board, policy);
@@ -269,7 +268,20 @@ int tmi_initialize(struct tmi_io *io, const struct tmi_board *board,
 		return ret;
 	io->stage = "factory-setup";
 	for (i = 0; i < sizeof(setup) / sizeof(setup[0]); i++) {
-		ret = write_verify(io, setup[i][0], setup[i][1]);
+		uint8_t value = setup[i][1];
+
+		/* R32h only retains implemented channels: P5=0x0f, P8=0xff. */
+		if (setup[i][0] == 0x32)
+			value &= (1U << board->channels) - 1;
+		ret = write_verify(io, setup[i][0], value);
+		if (ret)
+			return ret;
+	}
+	/* Factory channel-pair settings: P5 retains only R2Eh/R2Fh;
+	 * P8 also implements R30h/R31h. Do not access absent P5 pairs.
+	 */
+	for (i = 0; i < board->channels / 2; i++) {
+		ret = write_verify(io, 0x2e + i, 0x33);
 		if (ret)
 			return ret;
 	}
