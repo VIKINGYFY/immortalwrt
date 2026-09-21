@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		veth = (struct vlan_ethhdr *)skb_mac_header(skb);
  		tuple->encap[i].id = ntohs(veth->h_vlan_TCI);
  		tuple->encap[i].proto = skb->protocol;
-@@ -285,6 +286,7 @@ static bool nf_flow_skb_encap_protocol(s
+@@ -286,6 +287,7 @@ static bool nf_flow_skb_encap_protocol(s
  
  	switch (skb->protocol) {
  	case htons(ETH_P_8021Q):
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!pskb_may_pull(skb, skb_mac_offset(skb) + sizeof(*veth)))
  			return false;
  
-@@ -319,6 +321,7 @@ static void nf_flow_encap_pop(struct sk_
+@@ -320,6 +322,7 @@ static void nf_flow_encap_pop(struct sk_
  		}
  		switch (skb->protocol) {
  		case htons(ETH_P_8021Q):

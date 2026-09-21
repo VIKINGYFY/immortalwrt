@@ -33,7 +33,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 ---
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
-@@ -184,6 +184,7 @@ struct flow_offload {
+@@ -185,6 +185,7 @@ struct flow_offload {
  	unsigned long				flags;
  	u16					type;
  	u32					timeout;
@@ -77,7 +77,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	if (ret < 0)
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -408,6 +408,9 @@ static int nf_flow_offload_forward(struc
+@@ -417,6 +417,9 @@ static int nf_flow_offload_forward(struc
  	ip_decrease_ttl(iph);
  	skb_clear_tstamp(skb);
  
@@ -87,7 +87,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
  		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
  
-@@ -686,6 +689,9 @@ static int nf_flow_offload_ipv6_forward(
+@@ -705,6 +708,9 @@ static int nf_flow_offload_ipv6_forward(
  	ip6h->hop_limit--;
  	skb_clear_tstamp(skb);
  

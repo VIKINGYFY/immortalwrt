@@ -27,7 +27,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
 
 --- a/include/net/netfilter/nf_conntrack.h
 +++ b/include/net/netfilter/nf_conntrack.h
-@@ -101,9 +101,18 @@
+@@ -101,9 +101,18 @@ struct nf_conn {
  
  #if IS_ENABLED(CONFIG_NF_NAT)
  	struct hlist_node	nat_bysource;
@@ -88,11 +88,10 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  static unsigned int nf_nat_htable_size __read_mostly;
  static siphash_aligned_key_t nf_nat_hash_rnd;
  
-@@ -178,6 +187,102 @@
- 
+@@ -179,6 +188,102 @@ hash_by_src(const struct net *net,
  	return reciprocal_scale(hash, nf_nat_htable_size);
  }
-+
+ 
 +static bool nf_nat_is_fullcone(const struct nf_conn *ct)
 +{
 +#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
@@ -188,10 +187,11 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
 +#endif
 +}
 +
- 
++
  /**
   * nf_nat_used_tuple - check if proposed nat tuple clashes with existing entry
-@@ -471,22 +576,79 @@
+  * @tuple: proposed NAT binding
+@@ -471,22 +576,79 @@ find_appropriate_src(struct net *net,
  {
  	unsigned int h = hash_by_src(net, zone, tuple);
  	const struct nf_conn *ct;
@@ -223,16 +223,13 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
 -			if (nf_in_range(result, range))
 -				return 1;
--		}
--	}
--	return 0;
--}
 +			if (nf_in_range(result, range)) {
 +				found = 1;
 +				break;
 +			}
-+		}
-+	}
+ 		}
+ 	}
+-	return 0;
 +#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
 +	spin_unlock_bh(lock);
 +#endif
@@ -273,12 +270,12 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
 +	}
 +	spin_unlock_bh(lock);
 +	return found;
-+}
+ }
 +#endif
  
  /* For [FUTURE] fragmentation handling, we want the least-used
   * src-ip/dst-ip/proto triple.  Fairness doesn't come into it.  Thus
-@@ -567,7 +729,7 @@
+@@ -567,7 +729,7 @@ find_best_ips_proto(const struct nf_conn
   *
   * Per-protocol part of tuple is initialized to the incoming packet.
   */
@@ -287,7 +284,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  					const struct nf_nat_range2 *range,
  					enum nf_nat_manip_type maniptype,
  					const struct nf_conn *ct)
-@@ -595,7 +757,7 @@
+@@ -595,7 +757,7 @@ static void nf_nat_l4proto_unique_tuple(
  		/* If there is no master conntrack we are not PPTP,
  		   do not change tuples */
  		if (!ct->master)
@@ -296,7 +293,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  		if (maniptype == NF_NAT_MANIP_SRC)
  			keyptr = &tuple->src.u.gre.key;
-@@ -622,14 +784,14 @@
+@@ -622,14 +784,14 @@ static void nf_nat_l4proto_unique_tuple(
  
  		break;
  	default:
@@ -313,7 +310,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  		if (ntohs(*keyptr) < 1024) {
  			/* Loose convention: >> 512 is credential passing */
-@@ -674,12 +836,19 @@
+@@ -674,12 +836,19 @@ find_free_id:
  another_round:
  	for (i = 0; i < attempts; i++, off++) {
  		*keyptr = htons(min + off % range_size);
@@ -336,7 +333,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  	attempts /= 2;
  	off = get_random_u16();
  	goto another_round;
-@@ -691,7 +860,7 @@
+@@ -691,7 +860,7 @@ another_round:
   * range. It might not be possible to get a unique tuple, but we try.
   * At worst (or if we race), we will end up with a final duplicate in
   * __nf_conntrack_confirm and drop the packet. */
@@ -345,11 +342,10 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  get_unique_tuple(struct nf_conntrack_tuple *tuple,
  		 const struct nf_conntrack_tuple *orig_tuple,
  		 const struct nf_nat_range2 *range,
-@@ -702,6 +871,17 @@
- 	struct net *net = nf_ct_net(ct);
+@@ -703,6 +872,17 @@ get_unique_tuple(struct nf_conntrack_tup
  
  	zone = nf_ct_zone(ct);
-+
+ 
 +#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
 +	if (maniptype == NF_NAT_MANIP_DST &&
 +	    (range->flags & NF_NAT_RANGE_FULLCONE)) {
@@ -360,10 +356,11 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
 +		return !nf_nat_used_tuple(tuple, ct);
 +	}
 +#endif
- 
++
  	/* 1) If this srcip/proto/src-proto-part is currently mapped,
  	 * and that same mapping gives a unique tuple within the given
-@@ -712,18 +892,30 @@
+ 	 * range, use that.
+@@ -712,18 +892,30 @@ get_unique_tuple(struct nf_conntrack_tup
  	 * manips not an issue.
  	 */
  	if (maniptype == NF_NAT_MANIP_SRC &&
@@ -399,7 +396,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  		}
  	}
  
-@@ -736,7 +928,8 @@
+@@ -736,7 +928,8 @@ get_unique_tuple(struct nf_conntrack_tup
  	 */
  
  	/* Only bother mapping if it's not already in range and unique */
@@ -409,7 +406,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  		if (range->flags & NF_NAT_RANGE_PROTO_SPECIFIED) {
  			if (!(range->flags & NF_NAT_RANGE_PROTO_OFFSET) &&
  			    l4proto_in_range(tuple, maniptype,
-@@ -744,14 +937,14 @@
+@@ -744,14 +937,14 @@ get_unique_tuple(struct nf_conntrack_tup
  					     &range->max_proto) &&
  			    (range->min_proto.all == range->max_proto.all ||
  			     !nf_nat_used_tuple(tuple, ct)))
@@ -427,7 +424,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  }
  
  struct nf_conn_nat *nf_ct_nat_ext_add(struct nf_conn *ct)
-@@ -767,13 +960,18 @@
+@@ -767,13 +960,18 @@ struct nf_conn_nat *nf_ct_nat_ext_add(st
  }
  EXPORT_SYMBOL_GPL(nf_ct_nat_ext_add);
  
@@ -448,7 +445,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  	/* Can't setup nat info for confirmed ct. */
  	if (nf_ct_is_confirmed(ct))
-@@ -793,7 +991,31 @@
+@@ -793,7 +991,31 @@ nf_nat_setup_info(struct nf_conn *ct,
  	nf_ct_invert_tuple(&curr_tuple,
  			   &ct->tuplehash[IP_CT_DIR_REPLY].tuple);
  
@@ -480,7 +477,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  	if (!nf_ct_tuple_equal(&new_tuple, &curr_tuple)) {
  		struct nf_conntrack_tuple reply;
-@@ -809,13 +1031,24 @@
+@@ -809,14 +1031,25 @@ nf_nat_setup_info(struct nf_conn *ct,
  			ct->status |= IPS_DST_NAT;
  
  		if (nfct_help(ct) && !nfct_seqadj(ct))
@@ -497,20 +494,20 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  	if (maniptype == NF_NAT_MANIP_SRC) {
  		unsigned int srchash;
  		spinlock_t *lock;
-+
+ 
 +#if IS_ENABLED(CONFIG_NF_NAT_FULLCONE)
 +		hlist_add_head_rcu(&ct->nat_by_manip_src,
 +				   &nf_nat_by_manip_src[manip_src_hash]);
 +		spin_unlock_bh(manip_lock);
 +#endif
- 
++
  		srchash = hash_by_src(net, nf_ct_zone(ct),
  				      &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
-@@ -833,6 +1066,68 @@
- 		ct->status |= IPS_SRC_NAT_DONE;
+ 		lock = &nf_nat_locks[srchash % CONNTRACK_LOCKS];
+@@ -834,6 +1067,68 @@ nf_nat_setup_info(struct nf_conn *ct,
  
  	return NF_ACCEPT;
-+}
+ }
 +/* Only port-based conntrack protocols have a reversible fullcone key.
 + * ICMP ids live in a different tuple field and GRE keys need their helper;
 + * do not advertise fullcone semantics for those protocols.
@@ -572,10 +569,11 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
 +#else
 +	return __nf_nat_setup_info(ct, &filtered_range, maniptype);
 +#endif
- }
++}
  EXPORT_SYMBOL(nf_nat_setup_info);
  
-@@ -995,6 +1290,15 @@
+ static unsigned int
+@@ -995,6 +1290,15 @@ static int nf_nat_proto_remove(struct nf
  static void nf_nat_cleanup_conntrack(struct nf_conn *ct)
  {
  	unsigned int h;
@@ -591,7 +589,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  	h = hash_by_src(nf_ct_net(ct), nf_ct_zone(ct), &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
  	spin_lock_bh(&nf_nat_locks[h % CONNTRACK_LOCKS]);
-@@ -1338,12 +1642,28 @@
+@@ -1338,12 +1642,28 @@ static int __init nf_nat_init(void)
  	if (!nf_nat_bysource)
  		return -ENOMEM;
  
@@ -621,7 +619,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  		return ret;
  	}
  
-@@ -1360,6 +1680,9 @@
+@@ -1360,6 +1680,9 @@ static int __init nf_nat_init(void)
  		nf_ct_helper_expectfn_destroy(&follow_master_nat);
  		unregister_pernet_subsys(&nat_net_ops);
  		kvfree(nf_nat_bysource);
@@ -631,7 +629,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  	}
  
  	return ret;
-@@ -1377,6 +1700,9 @@
+@@ -1377,6 +1700,9 @@ static void __exit nf_nat_cleanup(void)
  	synchronize_net();
  	nf_ct_helper_expectfn_destroy(&follow_master_nat);
  	kvfree(nf_nat_bysource);
@@ -643,7 +641,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
 --- a/net/netfilter/Kconfig
 +++ b/net/netfilter/Kconfig
-@@ -424,6 +424,16 @@
+@@ -423,6 +423,16 @@ config NF_NAT
  	  forms of full Network Address Port Translation. This can be
  	  controlled by iptables, ip6tables or nft.
  

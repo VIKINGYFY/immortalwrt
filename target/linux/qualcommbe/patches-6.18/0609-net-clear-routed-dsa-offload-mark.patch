@@ -28,7 +28,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  #include <net/gso.h>
  #include <net/ip.h>
  #include <net/ipv6.h>
-@@ -343,6 +344,24 @@
+@@ -343,6 +344,24 @@ struct nf_flow_xmit {
  	struct net_device	*outdev;
  };
  
@@ -53,16 +53,16 @@ Signed-off-by: VKing <noreply@openwrt.local>
  static unsigned int nf_flow_queue_xmit(struct net *net, struct sk_buff *skb,
  				       struct nf_flow_xmit *xmit)
  {
-@@ -354,6 +373,8 @@
- 		if (!skb)
+@@ -355,6 +374,8 @@ static unsigned int nf_flow_queue_xmit(s
  			return NF_STOLEN;
  	}
-+
-+	nf_flow_prepare_routed_mark(skb, dev);
  
++	nf_flow_prepare_routed_mark(skb, dev);
++
  	skb->dev = dev;
  	dev_hard_header(skb, dev, ntohs(skb->protocol),
-@@ -480,6 +501,8 @@
+ 			xmit->dest, xmit->source, skb->len);
+@@ -480,6 +501,8 @@ nf_flow_offload_ip_hook(void *priv, stru
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rtable(tuplehash->tuple.dst_cache);
@@ -71,7 +71,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		memset(skb->cb, 0, sizeof(struct inet_skb_parm));
  		IPCB(skb)->iif = skb->dev->ifindex;
  		IPCB(skb)->flags = IPSKB_FORWARDED;
-@@ -791,6 +814,8 @@
+@@ -791,6 +814,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rt6_info(tuplehash->tuple.dst_cache);
