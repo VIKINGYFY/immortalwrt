@@ -2,7 +2,7 @@
 
 # Migrate legacy fields and initialize defaults once at installation.
 # The standard uci-defaults runner removes this script after success.
-# Preserve explicit choices; remove the obsolete masquerading snapshots.
+# Preserve NAT choices; disable flow offloading and remove obsolete snapshots.
 . /lib/functions.sh
 
 migrate_legacy() {
@@ -17,6 +17,8 @@ migrate_legacy() {
 }
 
 init_defaults() {
+	uci set "firewall.$1.flow_offloading=0" || exit 1
+	uci set "firewall.$1.flow_offloading_hw=0" || exit 1
 	uci -q get "firewall.$1.fullcone" >/dev/null ||
 		uci set "firewall.$1.fullcone=1" || exit 1
 }

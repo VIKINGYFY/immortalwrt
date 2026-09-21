@@ -67,10 +67,12 @@ userspace package alone cannot add this feature to a different kernel.
 
 Fullcone requires `defaults.fullcone=1`, `zone.fullcone=1`, and `zone.masq=1`
 for IPv4 or (with fw4) `zone.masq6=1` for IPv6. Fresh configurations enable the global
-switch and WAN zone, preserving this tree's software/hardware offload
-defaults. The base firewall configuration enables IPv4 masquerading; installing
-the LuCI package never changes IPv6 masquerading. Enable it independently
-when IPv6 NAT is needed.
+switch and WAN zone, with software/hardware firewall flow offloading disabled.
+The LuCI package also resets both offload flags to `0` on installation and
+saving the form, and hides the Routing/NAT Offloading section. This does not
+change the separate Qualcomm NSS/ECM configuration. The base firewall
+configuration enables IPv4 masquerading; installing the LuCI package never
+changes IPv6 masquerading. Enable it independently when IPv6 NAT is needed.
 
 ```uci
 config defaults
@@ -151,8 +153,9 @@ The normal form only reads and writes the firewall configuration.
   have been destroyed, new peers need a new outbound mapping; already
   established inbound connections retain their own conntrack NAT state.
 
-Established supported TCP/UDP flows remain eligible for normal flowtable
-and PPE offload. A new remote tuple misses those entries and reaches the
+The kernel implementation keeps established supported TCP/UDP flows eligible
+for normal flowtable and PPE offload; this build disables the firewall flowtable
+policy by default as described above. A new remote tuple misses those entries and reaches the
 software fullcone lookup. Lack of hardware wildcard fullcone entries is
 not, by itself, a reason to disable ordinary connection offload. Existing
 MTK/QCA/QCB driver limits (for example NAT66 or double NAT) still apply.

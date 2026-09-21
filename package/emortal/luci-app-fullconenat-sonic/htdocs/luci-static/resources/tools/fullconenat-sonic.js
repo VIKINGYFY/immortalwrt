@@ -27,6 +27,10 @@ return baseclass.extend({
 				} ];
 			}));
 			return save(() => {
+				for (const defaults of uci.sections('firewall', 'defaults')) {
+					uci.set('firewall', defaults['.name'], 'flow_offloading', '0');
+					uci.set('firewall', defaults['.name'], 'flow_offloading_hw', '0');
+				}
 				syncMasquerading(before);
 				return cb ? cb() : undefined;
 			}, silent);
