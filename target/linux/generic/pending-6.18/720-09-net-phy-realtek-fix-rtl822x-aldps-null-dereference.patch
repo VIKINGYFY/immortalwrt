@@ -1,0 +1,63 @@
+From: ImmortalWrt
+Subject: [PATCH] net: phy: realtek: configure RTL822x ALDPS without private data
+
+The ALDPS helper is called by rtl822xb_config_init() for the original
+RTL8226B/RTL8221B and RTL8226B-CG/RTL8221B-CG drivers, which do not have
+rtl822x_probe() installed. Dereferencing phydev->priv therefore crashes
+during PHY attachment, as seen on the CR1000A's RTL9303 LAN ports.
+
+Read the ALDPS property when configuring PHYCR1 instead of caching it in
+probe-only private data. This preserves the default ALDPS and MDIO
+broadcast settings, without adding hwmon probing to older PHY variants
+or bypassing SerDes/in-band configuration.
+
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -308,10 +308,6 @@ struct rtl8261x_priv {
+ 	bool fw_loaded;
+ };
+ 
+-struct rtl822x_priv {
+-	bool enable_aldps;
+-};
+-
+ static int rtl821x_read_page(struct phy_device *phydev)
+ {
+ 	return __phy_read(phydev, RTL821x_PAGE_SELECT);
+@@ -1657,18 +1653,6 @@ static int rtl822x_write_mmd(struct phy_
+ 
+ static int rtl822x_probe(struct phy_device *phydev)
+ {
+-	struct device *dev = &phydev->mdio.dev;
+-	struct rtl822x_priv *priv;
+-
+-	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
+-	if (!priv)
+-		return -ENOMEM;
+-
+-	priv->enable_aldps = of_property_read_bool(dev->of_node,
+-						   "realtek,aldps-enable");
+-
+-	phydev->priv = priv;
+-
+ 	if (IS_ENABLED(CONFIG_REALTEK_PHY_HWMON) &&
+ 	    phydev->phy_id != RTL_GENERIC_PHYID)
+ 		return rtl822x_hwmon_init(phydev);
+@@ -1761,7 +1745,6 @@ static int rtl822xb_write_mmd(struct phy
+ 
+ static int rtl822x_init_phycr1(struct phy_device *phydev, bool no_aldps)
+ {
+-	struct rtl822x_priv *priv = phydev->priv;
+ 	u16 mask = RTL8221B_PHYCR1_ALDPS_EN | RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN;
+ 	u16 val = 0;
+ 
+@@ -1772,7 +1755,8 @@ static int rtl822x_init_phycr1(struct phy
+ 	if (!phydev->is_on_sfp_module)
+ 		mask |= RTL8221B_PHYCR1_PHYAD_0_EN;
+ 
+-	if (priv->enable_aldps && !no_aldps)
++	if (!no_aldps && of_property_read_bool(phydev->mdio.dev.of_node,
++					     "realtek,aldps-enable"))
+ 		val = RTL8221B_PHYCR1_ALDPS_EN | RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN;
+ 
+ 	return phy_modify_mmd_changed(phydev, MDIO_MMD_VEND2, RTL8221B_PHYCR1,

@@ -1,0 +1,133 @@
+Subject: [PATCH] net: dsa: add service tags for external RTL9303 switches
+
+The external CPU on the CR1000A connects to port 27, rather than the
+internal CPU port 28. Use isolated service VLANs to transport port
+identity. Unlike tag_8021q, retain five port bits for ports 20 and 24.
+Customer tags remain inside the service tag. Separate TX VLANs avoid
+replicating directed packets when the RX VLAN offloads a bridge.
+
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -58,6 +58,7 @@
+ #define DSA_TAG_PROTO_MXL862_VALUE		30
+ #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
+ #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
++#define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
+ 
+ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
+@@ -93,6 +94,7 @@
+ 	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
+ 	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
+ 	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
++	DSA_TAG_PROTO_RTL9303_8021AD	= DSA_TAG_PROTO_RTL9303_8021AD_VALUE,
+ };
+ 
+ struct dsa_switch;
+--- a/net/dsa/Kconfig
++++ b/net/dsa/Kconfig
+@@ -192,6 +192,12 @@
+ 	  Say Y or M if you want to enable support for tagging frames at
+ 	  with a trailed. e.g. Marvell 88E6060.
+ 
++config NET_DSA_TAG_RTL9303_8021AD
++	tristate "Tag driver for external Realtek RTL9303 switches"
++	help
++	  Encode the switch and five-bit port number in a private outer
++	  service VLAN, preserving customer VLAN tags.
++
+ config NET_DSA_TAG_RTL837X_8021AD
+ 	tristate "Tag driver for Realtek RTL837x switches using service VLANs"
+ 	help
+--- a/net/dsa/Makefile
++++ b/net/dsa/Makefile
+@@ -40,6 +40,7 @@
+ obj-$(CONFIG_NET_DSA_TAG_SJA1105) += tag_sja1105.o
+ obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag_trailer.o
+ obj-$(CONFIG_NET_DSA_TAG_RTL837X_8021AD) += tag_rtl837x_8021ad.o
++obj-$(CONFIG_NET_DSA_TAG_RTL9303_8021AD) += tag_rtl9303_8021ad.o
+ obj-$(CONFIG_NET_DSA_TAG_VSC73XX_8021Q) += tag_vsc73xx_8021q.o
+ obj-$(CONFIG_NET_DSA_TAG_XRS700X) += tag_xrs700x.o
+ 
+--- /dev/null
++++ b/net/dsa/tag_rtl9303_8021ad.c
+@@ -0,0 +1,79 @@
++// SPDX-License-Identifier: GPL-2.0-only
++#include <linux/if_vlan.h>
++
++#include "tag.h"
++
++#define RTL9303_VID_BASE 0xe00
++#define RTL9303_VID_MASK 0xf00
++#define RTL9303_TX_VID_BASE 0xf00
++
++static struct sk_buff *rtl9303_xmit(struct sk_buff *skb, struct net_device *dev)
++{
++	struct dsa_port *dp = dsa_user_to_port(dev);
++	u16 vid = RTL9303_TX_VID_BASE | (dp->ds->index << 5) | dp->index;
++	u16 tci = ((skb->priority & 7) << VLAN_PRIO_SHIFT) | vid;
++
++	/* Materialize any customer offload tag before prepending our S-tag. */
++	if (skb_vlan_tag_present(skb)) {
++		if (__vlan_insert_tag(skb, skb->vlan_proto, skb_vlan_tag_get(skb)))
++			return NULL;
++		skb->protocol = skb->vlan_proto;
++		__vlan_hwaccel_clear_tag(skb);
++	}
++	/* DSA frees the skb on error; the inserting helpers must not free it. */
++	if (__vlan_insert_tag(skb, htons(ETH_P_8021AD), tci))
++		return NULL;
++	return skb;
++}
++
++static struct sk_buff *rtl9303_rcv(struct sk_buff *skb, struct net_device *dev)
++{
++	bool hw_vlan = skb_vlan_tag_present(skb);
++	__be16 proto = hw_vlan ? skb->vlan_proto : eth_hdr(skb)->h_proto;
++	u16 tci, vid;
++	int err;
++
++	if (proto != htons(ETH_P_8021AD))
++		return NULL;
++	if (hw_vlan) {
++		tci = skb_vlan_tag_get(skb);
++		__vlan_hwaccel_clear_tag(skb);
++	} else {
++		if (!pskb_may_pull(skb, VLAN_HLEN))
++			return NULL;
++		skb_push_rcsum(skb, ETH_HLEN);
++		err = __skb_vlan_pop(skb, &tci);
++		skb_pull_rcsum(skb, ETH_HLEN);
++		if (err)
++			return NULL;
++	}
++	vid = tci & VLAN_VID_MASK;
++	if ((vid & RTL9303_VID_MASK) != RTL9303_VID_BASE)
++		return NULL;
++	skb->dev = dsa_conduit_find_user(dev, (vid >> 5) & 7, vid & 31);
++	if (!skb->dev)
++		return NULL;
++	skb->priority = (tci & VLAN_PRIO_MASK) >> VLAN_PRIO_SHIFT;
++	/* Multicast is delivered only to Linux for bridge snooping. Unicast
++	 * and broadcast have already been forwarded to eligible bridge peers.
++	 * DSA leaves dp->bridge unset when bridge_join requests fallback.
++	 */
++	if (!is_multicast_ether_addr(eth_hdr(skb)->h_dest) ||
++	    is_broadcast_ether_addr(eth_hdr(skb)->h_dest))
++		dsa_default_offload_fwd_mark(skb);
++	return skb;
++}
++
++static const struct dsa_device_ops rtl9303_tag_ops = {
++	.name = "rtl9303-8021ad",
++	.proto = DSA_TAG_PROTO_RTL9303_8021AD,
++	.xmit = rtl9303_xmit,
++	.rcv = rtl9303_rcv,
++	.needed_headroom = VLAN_HLEN,
++	.promisc_on_conduit = true,
++};
++module_dsa_tag_driver(rtl9303_tag_ops);
++
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("RTL9303 external CPU service VLAN tags");
++MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_RTL9303_8021AD, "rtl9303-8021ad");
