@@ -3,12 +3,30 @@
 . /lib/functions.sh
 . /lib/upgrade/common.sh
 
+arista_ap_find_mtd_index() {
+	local name="$1"
+	local legacy_name="$2"
+	local index
+
+	index="$(find_mtd_index "$name")"
+	if [ -z "$index" ] && [ -n "$legacy_name" ]; then
+		index="$(find_mtd_index "$legacy_name")"
+	fi
+
+	# Do not pass an ambiguous multi-partition result to a flash writer.
+	case "$index" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+
+	echo "$index"
+}
+
 arista_ap_ensure_fw_env_config() {
 	local env_mtd
 
 	[ -s /etc/fw_env.config ] && return 0
 
-	env_mtd="$(find_mtd_index '0:APPSBLENV')"
+	env_mtd="$(arista_ap_find_mtd_index '0:appsblenv' '0:APPSBLENV')"
 	[ -n "$env_mtd" ] || return 1
 
 	echo "/dev/mtd${env_mtd} 0x0 0x10000 0x10000" > /etc/fw_env.config
@@ -60,9 +78,16 @@ arista_ap_do_upgrade() {
 	board_dir="${board_dir%/}"
 	[ -n "$board_dir" ] || nand_do_upgrade_failed
 
-	kernel_mtd="$(find_mtd_index '0:HLOS')"
+	kernel_mtd="$(arista_ap_find_mtd_index '0:hlos' '0:HLOS')"
 	[ -n "$kernel_mtd" ] || {
-		echo 'cannot find kernel mtd partition 0:HLOS'
+		echo 'cannot find a unique kernel MTD partition 0:hlos/0:HLOS'
+		nand_do_upgrade_failed
+	}
+
+	# nand.sh resolves rootfs by name; reject duplicate legacy SMEM entries
+	# before either rootfs or the kernel is written.
+	arista_ap_find_mtd_index rootfs >/dev/null || {
+		echo 'cannot find a unique rootfs MTD partition'
 		nand_do_upgrade_failed
 	}
 
