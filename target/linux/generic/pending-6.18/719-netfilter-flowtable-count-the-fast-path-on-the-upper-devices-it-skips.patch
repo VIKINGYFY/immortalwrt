@@ -20,7 +20,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Assisted-by: Claude:claude-fable-5-1
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
-@@ -106,6 +106,8 @@ enum flow_offload_xmit_type {
+@@ -107,6 +107,8 @@ enum flow_offload_xmit_type {
  };
  
  #define NF_FLOW_TABLE_ENCAP_MAX		2
@@ -29,7 +29,7 @@ Assisted-by: Claude:claude-fable-5-1
  
  struct flow_offload_tuple {
  	union {
-@@ -136,8 +138,10 @@ struct flow_offload_tuple {
+@@ -137,8 +139,10 @@ struct flow_offload_tuple {
  	u8				dir:2,
  					xmit_type:3,
  					encap_num:2,
@@ -41,7 +41,7 @@ Assisted-by: Claude:claude-fable-5-1
  	union {
  		struct {
  			struct dst_entry *dst_cache;
-@@ -210,6 +214,8 @@ struct nf_flow_route {
+@@ -211,6 +215,8 @@ struct nf_flow_route {
  			} encap[NF_FLOW_TABLE_ENCAP_MAX];
  			u8			num_encaps:2,
  						ingress_vlans:2;
@@ -72,7 +72,7 @@ Assisted-by: Claude:claude-fable-5-1
  #include <net/gso.h>
  #include <net/ip.h>
  #include <net/ipv6.h>
-@@ -334,10 +335,51 @@ static void nf_flow_encap_pop(struct sk_
+@@ -337,10 +338,51 @@ static void nf_flow_encap_pop(struct sk_
  	}
  }
  
@@ -124,7 +124,7 @@ Assisted-by: Claude:claude-fable-5-1
  };
  
  static unsigned int nf_flow_queue_xmit(struct net *net, struct sk_buff *skb,
-@@ -355,6 +397,8 @@ static unsigned int nf_flow_queue_xmit(s
+@@ -358,6 +400,8 @@ static unsigned int nf_flow_queue_xmit(s
  	skb->dev = dev;
  	dev_hard_header(skb, dev, ntohs(skb->protocol),
  			xmit->dest, xmit->source, skb->len);
@@ -133,7 +133,7 @@ Assisted-by: Claude:claude-fable-5-1
  	dev_queue_xmit(skb);
  
  	return NF_STOLEN;
-@@ -446,6 +490,9 @@ static int nf_flow_offload_forward(struc
+@@ -449,6 +493,9 @@ static int nf_flow_offload_forward(struc
  	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
  		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
  
@@ -143,7 +143,7 @@ Assisted-by: Claude:claude-fable-5-1
  	return 1;
  }
  
-@@ -511,6 +558,7 @@ nf_flow_offload_ip_hook(void *priv, stru
+@@ -514,6 +561,7 @@ nf_flow_offload_ip_hook(void *priv, stru
  		}
  		xmit.dest = tuplehash->tuple.out.h_dest;
  		xmit.source = tuplehash->tuple.out.h_source;
@@ -151,7 +151,7 @@ Assisted-by: Claude:claude-fable-5-1
  		break;
  	default:
  		WARN_ON_ONCE(1);
-@@ -740,6 +788,9 @@ static int nf_flow_offload_ipv6_forward(
+@@ -743,6 +791,9 @@ static int nf_flow_offload_ipv6_forward(
  	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
  		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
  
@@ -161,7 +161,7 @@ Assisted-by: Claude:claude-fable-5-1
  	return 1;
  }
  
-@@ -822,6 +873,7 @@ nf_flow_offload_ipv6_hook(void *priv, st
+@@ -825,6 +876,7 @@ nf_flow_offload_ipv6_hook(void *priv, st
  		}
  		xmit.dest = tuplehash->tuple.out.h_dest;
  		xmit.source = tuplehash->tuple.out.h_source;

@@ -43,8 +43,8 @@ Signed-off-by: Chad Monroe <chad@monroe.io>
 +	u8 led_active_low;
  };
  
- struct rtl822x_priv {
-@@ -1653,6 +1669,213 @@ static int rtlgen_write_mmd(struct phy_d
+ static int rtl821x_read_page(struct phy_device *phydev)
+@@ -1649,6 +1665,213 @@ static int rtlgen_write_mmd(struct phy_d
  	return ret;
  }
  
@@ -258,7 +258,7 @@ Signed-off-by: Chad Monroe <chad@monroe.io>
  static int rtl822x_read_mmd(struct phy_device *phydev, int devnum, u16 regnum)
  {
  	int ret = rtlgen_read_mmd(phydev, devnum, regnum);
-@@ -3791,6 +4014,11 @@ static struct phy_driver realtek_drvs[]
+@@ -3775,6 +3998,11 @@ static struct phy_driver realtek_drvs[]
  		.soft_reset		= genphy_c45_pma_soft_reset,
  		.suspend		= genphy_c45_pma_suspend,
  		.resume			= genphy_c45_pma_resume,

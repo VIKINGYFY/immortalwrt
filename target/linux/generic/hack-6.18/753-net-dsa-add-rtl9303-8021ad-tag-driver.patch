@@ -8,7 +8,7 @@ replicating directed packets when the RX VLAN offloads a bridge.
 
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -58,6 +58,7 @@
+@@ -58,6 +58,7 @@ struct tc_action;
  #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
  #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
@@ -16,7 +16,7 @@ replicating directed packets when the RX VLAN offloads a bridge.
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -93,6 +94,7 @@
+@@ -93,6 +94,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
  	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
@@ -26,7 +26,7 @@ replicating directed packets when the RX VLAN offloads a bridge.
  struct dsa_switch;
 --- a/net/dsa/Kconfig
 +++ b/net/dsa/Kconfig
-@@ -192,6 +192,12 @@
+@@ -192,6 +192,12 @@ config NET_DSA_TAG_TRAILER
  	  Say Y or M if you want to enable support for tagging frames at
  	  with a trailed. e.g. Marvell 88E6060.
  
@@ -41,7 +41,7 @@ replicating directed packets when the RX VLAN offloads a bridge.
  	help
 --- a/net/dsa/Makefile
 +++ b/net/dsa/Makefile
-@@ -40,6 +40,7 @@
+@@ -40,6 +40,7 @@ obj-$(CONFIG_NET_DSA_TAG_RZN1_A5PSW) +=
  obj-$(CONFIG_NET_DSA_TAG_SJA1105) += tag_sja1105.o
  obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag_trailer.o
  obj-$(CONFIG_NET_DSA_TAG_RTL837X_8021AD) += tag_rtl837x_8021ad.o
