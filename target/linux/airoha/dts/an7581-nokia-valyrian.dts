@@ -358,8 +358,10 @@
 	status = "okay";
 };
 
+/* The wireless PCIe link negotiates Gen2 when the root port advertises it. */
 &pcie0 {
 	status = "okay";
+	max-link-speed = <2>;
 
 	reg = <0x0 0x1fc00000 0x0 0x1670>,
 	      <0x0 0x1fc20000 0x0 0x1670>;

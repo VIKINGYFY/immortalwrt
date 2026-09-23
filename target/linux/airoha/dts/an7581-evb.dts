@@ -171,10 +171,12 @@
 	status = "okay";
 };
 
+/* The wireless PCIe link negotiates Gen2 when the root port advertises it. */
 &pcie0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie0_rst_pins>;
 	status = "okay";
+	max-link-speed = <2>;
 
 	pcie@0,0 {
 		reg = <0x0000 0 0 0 0>;
@@ -191,6 +193,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie1_rst_pins>;
 	status = "okay";
+	max-link-speed = <2>;
 
 	pcie@1,0 {
 		reg = <0x0000 0 0 0 0>;

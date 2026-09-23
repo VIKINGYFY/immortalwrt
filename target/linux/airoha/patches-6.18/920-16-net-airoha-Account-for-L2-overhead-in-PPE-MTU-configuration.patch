@@ -23,14 +23,14 @@ Signed-off-by: Sayantan Nandy <sayantann11@gmail.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -8,6 +8,7 @@
+@@ -6,6 +6,7 @@
+ #include <linux/of.h>
+ #include <linux/of_net.h>
  #include <linux/of_reserved_mem.h>
- #include <linux/platform_device.h>
- #include <linux/tcp.h>
 +#include <linux/if_vlan.h>
  #include <linux/pcs/pcs.h>
- #include <linux/u64_stats_sync.h>
- #include <net/dst_metadata.h>
+ #include <linux/platform_device.h>
+ #include <linux/tcp.h>
 @@ -2115,7 +2116,7 @@ static void airoha_dev_set_mtu(struct ne
  	if (!airoha_is_lan_gdm_dev(dev))
  		airoha_fe_rmw(dev->eth, REG_WAN_MTU0,

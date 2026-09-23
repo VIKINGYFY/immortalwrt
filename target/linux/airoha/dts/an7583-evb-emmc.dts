@@ -205,8 +205,9 @@
 		reg = <0xf>;
 
 		reset-gpios = <&an7583_pinctrl 28 GPIO_ACTIVE_LOW>;
-		reset-assert-us = <10000>;
-		reset-deassert-us = <20000>;
+		/* Hold reset for 1 second and wait 100 ms before probing EN8811H. */
+		reset-assert-us = <1000000>;
+		reset-deassert-us = <100000>;
 
 		leds {
 			#address-cells = <1>;

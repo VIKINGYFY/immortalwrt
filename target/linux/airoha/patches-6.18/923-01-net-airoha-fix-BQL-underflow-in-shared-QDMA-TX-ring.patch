@@ -1,0 +1,439 @@
+From 6117098309452c641af4458a0f7c02888b026fb6 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sat, 20 Jun 2026 17:04:51 +0200
+Subject: [PATCH] net: airoha: fix BQL underflow in shared QDMA TX ring
+
+Multiple netdevs share each QDMA TX ring. Resetting a stopped netdev's
+BQL counters while its skbs remain in hardware lets later NAPI
+completions underflow dql->num_queued.
+
+Keep QDMA active for the driver lifetime. TX teardown now stops DMA,
+flushes BQL accounting, unmaps descriptors and releases pending skbs
+after NAPI has stopped. The local PON data and control netdevs retain
+their skb ownership while sharing the hardware ring.
+
+Fixes: a9c2ca61fec7 ("net: airoha: Support multiple net_devices for a single FE GDM port")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Reviewed-by: Simon Horman <horms@kernel.org>
+Link: https://patch.msgid.link/20260620-airoha-bql-fixes-v3-1-76b95374e63e@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c | 202 +++++++++++++++++------
+ drivers/net/ethernet/airoha/airoha_eth.h |   3 +-
+ 2 files changed, 122 insertions(+), 83 deletions(-)
+
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -1372,6 +1372,7 @@
+ 
+ 		e = &q->entry[index];
+ 		skb = e->skb;
++		e->skb = NULL;
+ 
+ 		dma_unmap_single(eth->dev, e->dma_addr, e->dma_len,
+ 				 DMA_TO_DEVICE);
+@@ -1530,55 +1531,76 @@
+ 	return 0;
+ }
+ 
+-static void airoha_qdma_cleanup_tx_queue(struct airoha_queue *q)
++static void airoha_qdma_tx_cleanup(struct airoha_qdma *qdma)
+ {
+-	struct airoha_qdma *qdma = q->qdma;
+-	struct airoha_eth *eth = qdma->eth;
+-	int i, qid = q - &qdma->q_tx[0];
+-	u16 index = 0;
++	u32 status;
++	int i;
+ 
+-	spin_lock_bh(&q->lock);
+-	for (i = 0; i < q->ndesc; i++) {
+-		struct airoha_queue_entry *e = &q->entry[i];
+-		struct airoha_qdma_desc *desc = &q->desc[i];
++	airoha_qdma_clear(qdma, REG_QDMA_GLOBAL_CFG,
++			  GLOBAL_CFG_TX_DMA_EN_MASK);
++	if (read_poll_timeout(airoha_qdma_rr, status,
++			      !(status & GLOBAL_CFG_TX_DMA_BUSY_MASK),
++			      USEC_PER_MSEC, 50 * USEC_PER_MSEC, true,
++			      qdma, REG_QDMA_GLOBAL_CFG))
++		dev_warn(qdma->eth->dev, "QDMA TX DMA busy timeout\n");
+ 
+-		if (!e->dma_addr)
++	for (i = 0; i < ARRAY_SIZE(qdma->q_tx); i++) {
++		struct airoha_queue *q = &qdma->q_tx[i];
++		u16 index = 0;
++		int j;
++
++		if (!q->ndesc)
+ 			continue;
+ 
+-		dma_unmap_single(eth->dev, e->dma_addr, e->dma_len,
+-				 DMA_TO_DEVICE);
+-		dev_kfree_skb_any(e->skb);
+-		e->dma_addr = 0;
+-		e->skb = NULL;
+-		list_add_tail(&e->list, &q->tx_list);
++		spin_lock_bh(&q->lock);
+ 
+-		/* Reset DMA descriptor */
+-		WRITE_ONCE(desc->ctrl, 0);
+-		WRITE_ONCE(desc->addr, 0);
+-		WRITE_ONCE(desc->data, 0);
+-		WRITE_ONCE(desc->msg0, 0);
+-		WRITE_ONCE(desc->msg1, 0);
+-		WRITE_ONCE(desc->msg2, 0);
++		q->flushing = true;
++		for (j = 0; j < q->ndesc; j++) {
++			struct airoha_queue_entry *e = &q->entry[j];
++			struct airoha_qdma_desc *desc = &q->desc[j];
++			struct sk_buff *skb = e->skb;
+ 
+-		q->queued--;
+-	}
++			if (!e->dma_addr)
++				continue;
+ 
+-	if (!list_empty(&q->tx_list)) {
+-		struct airoha_queue_entry *e;
++			dma_unmap_single(qdma->eth->dev, e->dma_addr,
++					 e->dma_len, DMA_TO_DEVICE);
++			e->dma_addr = 0;
++			list_add_tail(&e->list, &q->tx_list);
++
++			WRITE_ONCE(desc->ctrl, 0);
++			WRITE_ONCE(desc->addr, 0);
++			WRITE_ONCE(desc->data, 0);
++			WRITE_ONCE(desc->msg0, 0);
++			WRITE_ONCE(desc->msg1, 0);
++			WRITE_ONCE(desc->msg2, 0);
++
++			if (skb) {
++				struct netdev_queue *txq;
++
++				txq = skb_get_tx_queue(skb->dev, skb);
++				netdev_tx_completed_queue(txq, 1, skb->len);
++				dev_kfree_skb_any(skb);
++				e->skb = NULL;
++			}
+ 
+-		e = list_first_entry(&q->tx_list, struct airoha_queue_entry,
+-				     list);
+-		index = e - q->entry;
+-	}
+-	/* Set TX_DMA_IDX to TX_CPU_IDX to notify the hw the QDMA TX ring is
+-	 * empty.
+-	 */
+-	airoha_qdma_rmw(qdma, REG_TX_CPU_IDX(qid), TX_RING_CPU_IDX_MASK,
+-			FIELD_PREP(TX_RING_CPU_IDX_MASK, index));
+-	airoha_qdma_rmw(qdma, REG_TX_DMA_IDX(qid), TX_RING_DMA_IDX_MASK,
+-			FIELD_PREP(TX_RING_DMA_IDX_MASK, index));
++			q->queued--;
++		}
+ 
+-	spin_unlock_bh(&q->lock);
++		if (!list_empty(&q->tx_list)) {
++			struct airoha_queue_entry *e;
++
++			e = list_first_entry(&q->tx_list,
++					     struct airoha_queue_entry, list);
++			index = e - q->entry;
++		}
++		airoha_qdma_rmw(qdma, REG_TX_CPU_IDX(i), TX_RING_CPU_IDX_MASK,
++				FIELD_PREP(TX_RING_CPU_IDX_MASK, index));
++		airoha_qdma_rmw(qdma, REG_TX_DMA_IDX(i), TX_RING_DMA_IDX_MASK,
++				FIELD_PREP(TX_RING_DMA_IDX_MASK, index));
++
++		spin_unlock_bh(&q->lock);
++	}
+ }
+ 
+ static int airoha_qdma_init_hfwd_queues(struct airoha_qdma *qdma)
+@@ -1906,10 +1928,23 @@
+ 	return airoha_qdma_hw_init(qdma);
+ }
+ 
+-static void airoha_qdma_cleanup(struct airoha_qdma *qdma)
++static void airoha_qdma_cleanup(struct airoha_eth *eth,
++				struct airoha_qdma *qdma)
+ {
+ 	int i;
+ 
++	if (test_bit(DEV_STATE_INITIALIZED, &eth->state)) {
++		u32 status;
++
++		airoha_qdma_clear(qdma, REG_QDMA_GLOBAL_CFG,
++				  GLOBAL_CFG_RX_DMA_EN_MASK);
++		if (read_poll_timeout(airoha_qdma_rr, status,
++				      !(status & GLOBAL_CFG_RX_DMA_BUSY_MASK),
++				      USEC_PER_MSEC, 50 * USEC_PER_MSEC, true,
++				      qdma, REG_QDMA_GLOBAL_CFG))
++			dev_warn(eth->dev, "QDMA RX DMA busy timeout\n");
++	}
++
+ 	for (i = 0; i < ARRAY_SIZE(qdma->q_rx); i++) {
+ 		if (!qdma->q_rx[i].ndesc)
+ 			continue;
+@@ -1929,12 +1964,6 @@
+ 		netif_napi_del(&qdma->q_tx_irq[i].napi);
+ 	}
+ 
+-	for (i = 0; i < ARRAY_SIZE(qdma->q_tx); i++) {
+-		if (!qdma->q_tx[i].ndesc)
+-			continue;
+-
+-		airoha_qdma_cleanup_tx_queue(&qdma->q_tx[i]);
+-	}
+ }
+ 
+ static int airoha_hw_init(struct platform_device *pdev,
+@@ -1980,7 +2009,7 @@
+ 	return 0;
+ error:
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
+-		airoha_qdma_cleanup(&eth->qdma[i]);
++		airoha_qdma_cleanup(eth, &eth->qdma[i]);
+ 
+ 	return err;
+ }
+@@ -1990,7 +2019,7 @@
+ 	int i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
+-		airoha_qdma_cleanup(&eth->qdma[i]);
++		airoha_qdma_cleanup(eth, &eth->qdma[i]);
+ 	airoha_ppe_deinit(eth);
+ }
+ 
+@@ -2260,40 +2289,6 @@
+ 	}
+ }
+ 
+-static void airoha_qdma_start(struct airoha_qdma *qdma)
+-{
+-	airoha_qdma_set(qdma, REG_QDMA_GLOBAL_CFG,
+-			GLOBAL_CFG_TX_DMA_EN_MASK |
+-			GLOBAL_CFG_RX_DMA_EN_MASK);
+-	qdma->users++;
+-}
+-
+-static void airoha_qdma_stop(struct airoha_qdma *qdma)
+-{
+-	u32 status;
+-
+-	if (--qdma->users)
+-		return;
+-
+-	airoha_qdma_clear(qdma, REG_QDMA_GLOBAL_CFG,
+-			  GLOBAL_CFG_TX_DMA_EN_MASK |
+-			  GLOBAL_CFG_RX_DMA_EN_MASK);
+-
+-	if (read_poll_timeout(airoha_qdma_rr, status,
+-			      !(status & (GLOBAL_CFG_TX_DMA_BUSY_MASK |
+-					  GLOBAL_CFG_RX_DMA_BUSY_MASK)),
+-			      USEC_PER_MSEC, 50 * USEC_PER_MSEC, true,
+-			      qdma, REG_QDMA_GLOBAL_CFG))
+-		dev_warn(qdma->eth->dev, "QDMA DMA engine busy timeout\n");
+-
+-	for (int i = 0; i < ARRAY_SIZE(qdma->q_tx); i++) {
+-		if (!qdma->q_tx[i].ndesc)
+-			continue;
+-
+-		airoha_qdma_cleanup_tx_queue(&qdma->q_tx[i]);
+-	}
+-}
+-
+ static void airoha_dev_set_mtu(struct net_device *netdev)
+ {
+ 	struct airoha_gdm_dev *dev = netdev_priv(netdev);
+@@ -2321,7 +2316,7 @@
+ 	qdma = airoha_qdma_deref(dev);
+ 	qdma_id = qdma - &eth->qdma[0];
+ 
+-	if (qdma->users && airoha_fe_lro_is_enabled(eth, qdma_id)) {
++	if (airoha_fe_lro_is_enabled(eth, qdma_id)) {
+ 		netdev_warn(netdev, "required to disable HW GRO on QDMA%d\n",
+ 			    qdma_id);
+ 		return -EBUSY;
+@@ -2366,8 +2361,6 @@
+ 	airoha_dev_set_mtu(netdev);
+ 	port->users++;
+ 
+-	airoha_qdma_start(qdma);
+-
+ 	if (!airoha_is_lan_gdm_dev(dev) &&
+ 	    airoha_ppe_is_enabled(eth, 1))
+ 		pse_port = FE_PSE_PORT_PPE2;
+@@ -2391,7 +2384,6 @@
+ 				airoha_set_gdm_port_fwd_cfg(
+ 					eth, REG_GDM_FWD_CFG(port->id),
+ 					FE_PSE_PORT_DROP);
+-			airoha_qdma_stop(qdma);
+ 			airoha_set_vip_for_gdm_port(dev, false);
+ 			return err;
+ 		}
+@@ -2412,8 +2404,6 @@
+ 	struct airoha_gdm_dev *dev = netdev_priv(netdev);
+ 	struct airoha_gdm_port *port = dev->port;
+ 	struct airoha_qdma *qdma;
+-	int i;
+-
+ 	if (dev->phylink)
+ 		phylink_stop(dev->phylink);
+ 
+@@ -2424,9 +2414,6 @@
+ 		dev->pon_link_ops->stop(dev->pon_link_priv);
+ 	}
+ 	airoha_set_vip_for_gdm_port(dev, false);
+-	for (i = 0; i < netdev->num_tx_queues; i++)
+-		netdev_tx_reset_subqueue(netdev, i);
+-
+ 	qdma = airoha_qdma_deref(dev);
+ 	if (--port->users)
+ 		airoha_ppe_set_mtu(dev);
+@@ -2434,7 +2421,6 @@
+ 		airoha_set_gdm_port_fwd_cfg(qdma->eth,
+ 					    REG_GDM_FWD_CFG(port->id),
+ 					    FE_PSE_PORT_DROP);
+-	airoha_qdma_stop(qdma);
+ 	airoha_update_netdev_features(dev);
+ 
+ 	if (dev->phylink)
+@@ -2600,8 +2586,6 @@
+ 	/* QDMA0 is used for lan ports while QDMA1 is used for WAN ports */
+ 	qdma = &eth->qdma[!airoha_is_lan_gdm_dev(dev)];
+ 	cur_qdma = airoha_qdma_deref(dev);
+-	if (netif_running(netdev))
+-		airoha_qdma_start(qdma);
+ 
+ 	rcu_assign_pointer(dev->qdma, qdma);
+ 	netdev->irq = qdma->irq_banks[0].irq;
+@@ -2614,9 +2598,6 @@
+ 
+ 	synchronize_rcu();
+ 	netif_tx_wake_all_queues(netdev);
+-
+-	if (netif_running(netdev))
+-		airoha_qdma_stop(cur_qdma);
+ }
+ 
+ static int airoha_dev_init(struct net_device *netdev)
+@@ -2759,6 +2740,34 @@
+ 					   : port->id;
+ }
+ 
++static unsigned int airoha_qdma_user_count(struct airoha_eth *eth,
++					   struct airoha_qdma *qdma)
++{
++	unsigned int count = 0;
++	int i, j;
++
++	for (i = 0; i < ARRAY_SIZE(eth->ports); i++) {
++		struct airoha_gdm_port *port = eth->ports[i];
++
++		if (!port)
++			continue;
++
++		for (j = 0; j < ARRAY_SIZE(port->devs); j++) {
++			struct airoha_gdm_dev *dev = port->devs[j];
++			struct net_device *netdev;
++
++			if (!dev || airoha_qdma_deref(dev) != qdma)
++				continue;
++
++			netdev = netdev_from_priv(dev);
++			if (netif_running(netdev))
++				count++;
++		}
++	}
++
++	return count;
++}
++
+ static netdev_features_t airoha_dev_fix_features(struct net_device *netdev,
+ 						 netdev_features_t features)
+ {
+@@ -2766,7 +2775,7 @@
+ 	struct airoha_qdma *qdma;
+ 
+ 	qdma = airoha_qdma_deref(dev);
+-	if (qdma->users > 1)
++	if (airoha_qdma_user_count(dev->eth, qdma) > 1)
+ 		features &= ~NETIF_F_GRO_HW;
+ 
+ 	return features;
+@@ -2960,6 +2969,9 @@
+ 		goto error;
+ 
+ 	spin_lock_bh(&q->lock);
++	if (q->flushing)
++		goto error_unlock;
++
+ 	dma_dev = ctrl ? dev->eth->dev : owner_netdev->dev.parent;
+ 
+ 	/* skb->dev identifies the netdev owning the BQL queue. */
+@@ -3062,7 +3074,7 @@
+ 		e->dma_addr = 0;
+ 	}
+ 	list_splice(&tx_list, &q->tx_list);
+-
++error_unlock:
+ 	spin_unlock_bh(&q->lock);
+ error:
+ 	if (pon_data)
+@@ -4743,8 +4755,12 @@
+ 	if (err)
+ 		goto error_netdev_free;
+ 
+-	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
++	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
+ 		airoha_qdma_start_napi(&eth->qdma[i]);
++		airoha_qdma_set(&eth->qdma[i], REG_QDMA_GLOBAL_CFG,
++				GLOBAL_CFG_TX_DMA_EN_MASK |
++				GLOBAL_CFG_RX_DMA_EN_MASK);
++	}
+ 
+ 	for_each_child_of_node(pdev->dev.of_node, np) {
+ 		if (!of_device_is_compatible(np, "airoha,eth-mac"))
+@@ -4767,8 +4783,10 @@
+ 	return 0;
+ 
+ error_napi_stop:
+-	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
++	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
+ 		airoha_qdma_stop_napi(&eth->qdma[i]);
++		airoha_qdma_tx_cleanup(&eth->qdma[i]);
++	}
+ 
+ 	for (i = 0; i < ARRAY_SIZE(eth->ports); i++) {
+ 		struct airoha_gdm_port *port = eth->ports[i];
+@@ -4806,8 +4824,10 @@
+ 	struct airoha_eth *eth = platform_get_drvdata(pdev);
+ 	int i;
+ 
+-	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
++	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
+ 		airoha_qdma_stop_napi(&eth->qdma[i]);
++		airoha_qdma_tx_cleanup(&eth->qdma[i]);
++	}
+ 
+ 	for (i = 0; i < ARRAY_SIZE(eth->ports); i++) {
+ 		struct airoha_gdm_port *port = eth->ports[i];
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -212,6 +212,7 @@
+ 	int free_thr;
+ 	int buf_size;
+ 	bool txq_stopped;
++	bool flushing;
+ 
+ 	struct napi_struct napi;
+ 	struct page_pool *page_pool;
+@@ -572,8 +573,6 @@
+ 	struct airoha_eth *eth;
+ 	void __iomem *regs;
+ 
+-	int users;
+-
+ 	struct airoha_irq_bank irq_banks[AIROHA_MAX_NUM_IRQ_BANKS];
+ 
+ 	struct airoha_tx_irq_queue q_tx_irq[AIROHA_NUM_TX_IRQ];

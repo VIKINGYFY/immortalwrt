@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+#include "an7581-fiberhome-hg5585f-common.dtsi"
+
+/ {
+	model = "FiberHome HG5585F CU";
+	compatible = "fiberhome,hg5585f-cu", "airoha,an7581", "airoha,en7581";
+};
+
+/* The CU variant maps its four panel ports to internal PHY1 through PHY4. */
+&gsw_port1 {
+	label = "lan1";
+	status = "okay";
+};
+
+&gsw_phy1 {
+	status = "okay";
+};
