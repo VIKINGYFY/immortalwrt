@@ -26,6 +26,8 @@ define Device/airoha_an7583-evb
   DEVICE_MODEL := AN7583 Evaluation Board (SNAND)
   DEVICE_PACKAGES := aeonsemi-as21xxx-firmware kmod-leds-pwm \
 	kmod-pwm-airoha kmod-input-gpio-keys-polled
+  DEVICE_PACKAGES += -kmod-airoha-pon-frontend -kmod-airoha-xpon \
+    -airoha-ponctl -airoha-pond -luci-app-pon -luci-i18n-pon-zh-cn
   DEVICE_DTS := an7583-evb
   DEVICE_DTS_CONFIG := config@1
   IMAGE/sysupgrade.bin := append-kernel | pad-to 128k | append-rootfs | \
@@ -41,6 +43,8 @@ define Device/airoha_an7583-evb-emmc
   DEVICE_MODEL := AN7583 Evaluation Board (EMMC)
   DEVICE_DTS := an7583-evb-emmc
   DEVICE_PACKAGES := kmod-phy-airoha-en8811h
+  DEVICE_PACKAGES += -kmod-airoha-pon-frontend -kmod-airoha-xpon \
+    -airoha-ponctl -airoha-pond -luci-app-pon -luci-i18n-pon-zh-cn
   ARTIFACT/preloader.bin := an7583-preloader rfb
   ARTIFACT/bl31-uboot.fip := an7583-bl31-uboot rfb
   ARTIFACTS := preloader.bin bl31-uboot.fip

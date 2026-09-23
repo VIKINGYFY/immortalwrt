@@ -61,6 +61,8 @@ define Device/airoha_an7581-evb
   DEVICE_VENDOR := Airoha
   DEVICE_MODEL := AN7581 Evaluation Board (SNAND)
   DEVICE_PACKAGES := kmod-leds-pwm kmod-pwm-airoha kmod-input-gpio-keys-polled
+  DEVICE_PACKAGES += -kmod-airoha-pon-frontend -kmod-airoha-xpon \
+    -airoha-ponctl -airoha-pond -luci-app-pon -luci-i18n-pon-zh-cn
   DEVICE_DTS := an7581-evb
   DEVICE_DTS_CONFIG := config@1
   IMAGE/sysupgrade.bin := append-kernel | pad-to 128k | append-rootfs | pad-rootfs | append-metadata
@@ -76,6 +78,8 @@ define Device/airoha_an7581-evb-emmc-eagle
   DEVICE_DTS := an7581-evb-emmc-eagle
   DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware \
 		    kmod-mt7996-firmware wpad-openssl
+  DEVICE_PACKAGES += -kmod-airoha-pon-frontend -kmod-airoha-xpon \
+    -airoha-ponctl -airoha-pond -luci-app-pon -luci-i18n-pon-zh-cn
   ARTIFACT/preloader.bin := an7581-preloader rfb
   ARTIFACT/bl31-uboot.fip := an7581-bl31-uboot rfb
   ARTIFACTS := preloader.bin bl31-uboot.fip
@@ -88,6 +92,8 @@ define Device/airoha_an7581-evb-emmc-kite
   DEVICE_DTS := an7581-evb-emmc-kite
   DEVICE_PACKAGES := airoha-en7581-npu-firmware \
 		    kmod-mt7992-firmware wpad-openssl
+  DEVICE_PACKAGES += -kmod-airoha-pon-frontend -kmod-airoha-xpon \
+    -airoha-ponctl -airoha-pond -luci-app-pon -luci-i18n-pon-zh-cn
   ARTIFACT/preloader.bin := an7581-preloader rfb
   ARTIFACT/bl31-uboot.fip := an7581-bl31-uboot rfb
   ARTIFACTS := preloader.bin bl31-uboot.fip
@@ -374,6 +380,8 @@ define Device/quantum_q1000k-ubi
   DEVICE_ALT1_VARIANT := UBI
   DEVICE_DTS := an7581-q1000k
   DEVICE_PACKAGES := fitblk nand-utils rtl826x-firmware
+  DEVICE_PACKAGES += -kmod-airoha-pon-frontend -kmod-airoha-xpon \
+    -airoha-ponctl -airoha-pond -luci-app-pon -luci-i18n-pon-zh-cn
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048

@@ -6,7 +6,9 @@ KERNELNAME:=Image dtbs
 FEATURES+=pwm
 
 DEFAULT_PACKAGES += \
-	airoha-en7581-npu-firmware kmod-nf-conntrack-bridge uboot-envtools
+	airoha-en7581-npu-firmware kmod-nf-conntrack-bridge uboot-envtools \
+	kmod-airoha-pon-frontend kmod-airoha-xpon \
+	airoha-ponctl airoha-pond luci-app-pon luci-i18n-pon-zh-cn
 
 define Target/Description
 	Build firmware images for Airoha an7581 ARM based boards.
