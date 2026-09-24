@@ -99,3 +99,86 @@
 		};
 	};
 };
+
+&tlmm {
+	mdio_extra_pins: mdio-extra-pins {
+		phy-gpios {
+			pins = "gpio25", "gpio44";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		phy-power {
+			pins = "gpio29";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-high;
+		};
+	};
+};
+
+&mdio {
+	status = "okay";
+	pinctrl-0 = <&mdio_pins>, <&mdio_extra_pins>;
+	pinctrl-names = "default";
+
+	phy0: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0>;
+	};
+
+	phy8: ethernet-phy@8 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <8>;
+	};
+};
+
+&switch {
+	status = "okay";
+
+	switch_lan_bmp = <ESS_PORT5>;
+	switch_wan_bmp = <ESS_PORT6>;
+	switch_mac_mode = <MAC_MODE_DISABLED>;
+	switch_mac_mode1 = <MAC_MODE_USXGMII>;
+	switch_mac_mode2 = <MAC_MODE_USXGMII>;
+
+	qcom,port_phyinfo {
+		port@5 {
+			port_id = <5>;
+			phy_address = <8>;
+			compatible = "ethernet-phy-ieee802.3-c45";
+			ethernet-phy-ieee802.3-c45;
+		};
+
+		port@6 {
+			port_id = <6>;
+			phy_address = <0>;
+			compatible = "ethernet-phy-ieee802.3-c45";
+			ethernet-phy-ieee802.3-c45;
+		};
+	};
+};
+
+&edma {
+	status = "okay";
+};
+
+&dp5_syn {
+	status = "okay";
+	phy-mode = "usxgmii";
+	phy-handle = <&phy8>;
+	label = "lan";
+	nvmem-cells = <&macaddr_lan>;
+	nvmem-cell-names = "mac-address";
+};
+
+&dp6_syn {
+	status = "okay";
+	phy-mode = "usxgmii";
+	phy-handle = <&phy0>;
+	label = "wan";
+	nvmem-cells = <&macaddr_wan>;
+	nvmem-cell-names = "mac-address";
+};

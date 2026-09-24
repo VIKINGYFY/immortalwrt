@@ -739,7 +739,7 @@ define Device/arista_ap-c360
 	DEVICE_DTS_CONFIG := config@hk09
 	SUPPORTED_DEVICES := arista,c360
 	DEVICE_PACKAGES := kmod-ath11k-pci kmod-spi-gpio kmod-gpio-nxp-74hc164 \
-		ipq-wifi-arista_c360 ap-c360-radio-mode
+		ipq-wifi-arista_c360 ap-c360-radio-mode ath11k-firmware-qcn9074-ddwrt
 	IMAGES := sysupgrade.bin factory.bin
 	IMAGE/factory.bin := append-ubi
 	ARTIFACTS := kernel.itb
