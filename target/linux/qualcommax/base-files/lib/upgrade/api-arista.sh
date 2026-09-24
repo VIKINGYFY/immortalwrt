@@ -8,7 +8,7 @@ arista_ap_ensure_fw_env_config() {
 
 	[ -s /etc/fw_env.config ] && return 0
 
-	env_mtd="$(find_mtd_index '0:APPSBLENV')"
+	env_mtd="$(find_mtd_index '0:appsblenv')"
 	[ -n "$env_mtd" ] || return 1
 
 	echo "/dev/mtd${env_mtd} 0x0 0x10000 0x10000" > /etc/fw_env.config
@@ -60,9 +60,9 @@ arista_ap_do_upgrade() {
 	board_dir="${board_dir%/}"
 	[ -n "$board_dir" ] || nand_do_upgrade_failed
 
-	kernel_mtd="$(find_mtd_index '0:HLOS')"
+	kernel_mtd="$(find_mtd_index '0:hlos')"
 	[ -n "$kernel_mtd" ] || {
-		echo 'cannot find kernel mtd partition 0:HLOS'
+		echo 'cannot find kernel mtd partition 0:hlos'
 		nand_do_upgrade_failed
 	}
 

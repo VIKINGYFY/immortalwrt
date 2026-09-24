@@ -22,7 +22,7 @@ case "$board" in
 		;;
 	arista,c260|\
 	arista,c360)
-		label_mac=$(mtd_get_mac_binary 0:ART 0x0)
+		label_mac=$(mtd_get_mac_binary 0:art 0x0)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 0 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "2" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
