@@ -6,11 +6,8 @@
  * forwards it in hardware. The key is split across two tables: the flow entry
  * carries the destination address, the L4 ports and the protocol, while the
  * source address lives in the host table and the flow entry only references its
- * index. Which of the two addresses goes where when a packet is looked up is
- * a per-direction hardware choice (PPE_FLOW_KEY_SEL); every entry is staged
- * the same way here, and the one direction group that looks up with the
- * opposite orientation - WAN-to-LAN, where tunnel-terminated ingress lands -
- * gets its KEY_SEL flipped to match in ppe_flow_init().
+ * index. Every entry is staged with the packet source in the host table;
+ * keep that key orientation for each direction, including PPPoE ingress.
  *
  * Entries are placed by the hardware hash rather than by the driver: an add
  * stages the entry in the op registers, and the hardware picks the slot, writes
@@ -317,12 +314,138 @@ static int ppe_offload_show(struct seq_file *s, void *data)
 }
 DEFINE_SHOW_ATTRIBUTE(ppe_offload);
 
+static int ppe_offload_rejects_show(struct seq_file *s, void *data)
+{
+	struct qca_ppe_priv *priv = s->private;
+	int i;
+
+	guard(mutex)(&priv->flow_lock);
+	seq_puts(s, "reason count iif oif l3 l4 vlan cvlan push actions\n");
+	for (i = 0; i < PPE_REJECT_MAX; i++) {
+		const struct ppe_flow_reject_info *info = &priv->flow_reject_info[i];
+
+		if (!priv->flow_reject[i])
+			continue;
+		seq_printf(s, "%s %u %d %d %04x %u %04x:%u %04x:%u %04x:%u %016llx\n",
+			   ppe_flow_reject_name[i], priv->flow_reject[i],
+			   info->ingress_ifindex, info->egress_ifindex,
+			   info->n_proto, info->ip_proto,
+			   info->vlan_tpid, info->vlan_id,
+			   info->cvlan_tpid, info->cvlan_id,
+			   info->push_tpid, info->push_vid, info->actions);
+	}
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(ppe_offload_rejects);
+
+static int ppe_dsa_services_show(struct seq_file *s, void *data)
+{
+	struct qca_ppe_priv *priv = s->private;
+	int i;
+
+	seq_puts(s, "slot refs port vid vsi xlt\n");
+	guard(mutex)(&priv->vlan_lock);
+	{
+		u32 ingress_qinq, egress_qinq;
+
+		regmap_read(priv->regmap, PPE_BRIDGE_CONFIG, &ingress_qinq);
+		regmap_read(priv->regmap, PPE_EG_BRIDGE_CONFIG, &egress_qinq);
+		seq_printf(s, "dsa_qinq ingress=%08x egress=%08x\n",
+			   ingress_qinq, egress_qinq);
+	}
+	for (i = 0; i < QCA_PPE_DSA_SERVICE_MAX; i++) {
+		struct ppe_dsa_service *service = &priv->dsa_service[i];
+
+		if (!service->refs)
+			continue;
+		seq_printf(s, "%d %u %d %u %d %d\n", i, service->refs,
+			   service->port, service->vid, service->vsi, service->xlt);
+	}
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(ppe_dsa_services);
+
+static int ppe_pipeline_state_show(struct seq_file *s, void *data)
+{
+	struct qca_ppe_priv *priv = s->private;
+	u32 ctrl0, ctrl1, vsi;
+	int type, i;
+
+	regmap_read(priv->regmap, PPE_FLOW_CTRL0, &ctrl0);
+	seq_printf(s, "flow_ctrl0 %08x\n", ctrl0);
+	for (type = 0; type < PPE_FLOW_PKT_TYPES; type++) {
+		regmap_read(priv->regmap, PPE_FLOW_CTRL1(type), &ctrl1);
+		seq_printf(s, "flow_ctrl1[%d] %08x\n", type, ctrl1);
+	}
+	for (i = 0; i < 4; i++) {
+		regmap_read(priv->regmap, PPE_L3_VSI_TBL(i), &vsi);
+		seq_printf(s, "l3_vsi[%d] %08x\n", i, vsi);
+	}
+
+	guard(mutex)(&priv->vlan_lock);
+	for (i = 0; i < QCA_PPE_DSA_SERVICE_MAX; i++) {
+		struct ppe_dsa_service *service = &priv->dsa_service[i];
+		u32 rule, rule_w1, action, action_w1, action_w2;
+		u32 ingress_role, egress_role, cpu_egress_role;
+		u32 eg_rule, eg_rule_w1, eg_action, eg_action_w1;
+		u32 count[3];
+		u64 bytes;
+
+		if (!service->refs)
+			continue;
+		regmap_read(priv->regmap, PPE_PORT_PARSING(service->port),
+			    &ingress_role);
+		regmap_read(priv->regmap, PPE_PORT_EG_VLAN(service->port),
+			    &egress_role);
+		regmap_read(priv->regmap, PPE_PORT_EG_VLAN(QCA_PPE_CPU_PORT),
+			    &cpu_egress_role);
+		seq_printf(s, "dsa_core_port[%d] ingress=%08x egress=%08x cpu_egress=%08x\n",
+			   service->port, ingress_role, egress_role,
+			   cpu_egress_role);
+		regmap_read(priv->regmap, PPE_EG_XLT_RULE(service->xlt), &eg_rule);
+		regmap_read(priv->regmap, PPE_EG_XLT_RULE_W1(service->xlt),
+			    &eg_rule_w1);
+		regmap_read(priv->regmap, PPE_EG_XLT_ACTION(service->xlt),
+			    &eg_action);
+		regmap_read(priv->regmap, PPE_EG_XLT_ACTION_W1(service->xlt),
+			    &eg_action_w1);
+		seq_printf(s, "dsa_eg_xlt[%d] rule=%08x:%08x action=%08x:%08x\n",
+			   i, eg_rule, eg_rule_w1, eg_action, eg_action_w1);
+		regmap_read(priv->regmap, PPE_XLT_RULE_TBL(service->xlt), &rule);
+		regmap_read(priv->regmap, PPE_XLT_RULE_W1(service->xlt), &rule_w1);
+		regmap_read(priv->regmap, PPE_XLT_ACTION_TBL(service->xlt), &action);
+		regmap_read(priv->regmap, PPE_XLT_ACTION_W1(service->xlt), &action_w1);
+		regmap_read(priv->regmap, PPE_XLT_ACTION_W2(service->xlt), &action_w2);
+		regmap_read(priv->regmap, PPE_XLT_CNT_TBL(service->xlt), &count[0]);
+		regmap_read(priv->regmap, PPE_XLT_CNT_TBL(service->xlt) + 4, &count[1]);
+		regmap_read(priv->regmap, PPE_XLT_CNT_TBL(service->xlt) + 8, &count[2]);
+		bytes = count[1] | (u64)FIELD_GET(PPE_XLT_CNT_W2_BYTES_HI, count[2]) << 32;
+		seq_printf(s, "dsa_xlt[%d] port=%d vid=%u vsi=%d xlt=%d "
+			   "rule=%08x:%08x action=%08x:%08x:%08x "
+			   "counter_id=%u packets=%u bytes=%llu\n", i,
+			   service->port, service->vid, service->vsi, service->xlt,
+			   rule, rule_w1, action, action_w1, action_w2,
+			   (u32)(FIELD_GET(PPE_XLT_ACTION_W1_CNT_ID_LO, action_w1) |
+			   FIELD_GET(PPE_XLT_ACTION_W2_CNT_ID_HI, action_w2) << 3),
+			   count[0], (unsigned long long)bytes);
+	}
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(ppe_pipeline_state);
+
 void ppe_flow_debugfs_init(struct qca_ppe_priv *priv)
 {
 	debugfs_create_file("flows", 0400, priv->debugfs, priv,
 			    &ppe_flows_fops);
 	debugfs_create_file("offload", 0400, priv->debugfs, priv,
 			    &ppe_offload_fops);
+	debugfs_create_file("offload_rejects", 0400, priv->debugfs, priv,
+			    &ppe_offload_rejects_fops);
+	debugfs_create_file("dsa_services", 0400, priv->debugfs, priv,
+			    &ppe_dsa_services_fops);
+	debugfs_create_file("pipeline_state", 0400, priv->debugfs, priv,
+			    &ppe_pipeline_state_fops);
+	ppe_flow_offload_debugfs_init(priv);
 }
 
 /* The entry's two-bit age field counts down one step per age period, so an
@@ -370,25 +493,15 @@ void ppe_flow_init(struct qca_ppe_priv *priv)
 				PPE_FLOW_FRAG_BYPASS)
 			       << (dir * PPE_FLOW_CTRL1_DIR_BITS);
 
-		/* Tunnel-terminated ingress (a de-encapsulated PPPoE frame)
-		 * classifies as WAN-to-LAN regardless of the host entries,
-		 * and that direction group builds its lookup key with the
-		 * opposite orientation: without its KEY_SEL flipped, such
-		 * frames never find the entries this driver installs. All
-		 * other groups match the orientation entries are staged in.
-		 */
-		val |= PPE_FLOW_KEY_SEL
-		       << (PPE_FLOW_DIR_WAN_TO_LAN * PPE_FLOW_CTRL1_DIR_BITS);
-
 		regmap_write(priv->regmap, PPE_FLOW_CTRL1(type), val);
 	}
 
-	/* Both hash blocks are searched on every op, so both bucket functions
-	 * place the entries here and both are set explicitly rather than
-	 * inherited from whatever ran before.
+	/* The flow encoder stores the packet destination in the flow entry and the
+	 * packet source in the host entry. Keep the default source-key orientation
+	 * for PPPoE as well; both directions have been verified with live PPE flow
+	 * counters on CR1000A.
 	 */
-	ctrl = PPE_FLOW_EN | FIELD_PREP(PPE_FLOW_HASH_MODE0, 1) |
-	       FIELD_PREP(PPE_FLOW_HASH_MODE1, 1);
+	ctrl = PPE_FLOW_EN | FIELD_PREP(PPE_FLOW_HASH_MODE1, 1);
 	ppe_flow_age_timer_set(priv, &ctrl);
 	regmap_write(priv->regmap, PPE_FLOW_CTRL0, ctrl);
 }

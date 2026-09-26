@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* RTL9303 external-CPU transport, as used by the Verizon CR1000A. */
+/* RTL9303 external-CPU SPI transport. */
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
@@ -7,7 +7,6 @@
 #include <linux/regmap.h>
 #include <linux/spi/spi.h>
 #include <linux/unaligned.h>
-#include "rtl9303-version.h"
 
 struct rtl9303_spi {
 	struct spi_device *spi;
@@ -75,7 +74,6 @@ static int rtl9303_spi_probe(struct spi_device *spi)
 		return -ENOMEM;
 	priv->spi = spi;
 	spi->bits_per_word = 8;
-	spi->max_speed_hz = min(spi->max_speed_hz, 12000000U);
 	ret = spi_setup(spi);
 	if (ret)
 		return ret;
@@ -88,7 +86,7 @@ static int rtl9303_spi_probe(struct spi_device *spi)
 	if ((id >> 16) != 0x9303)
 		return dev_err_probe(dev, -ENODEV, "unexpected switch ID %#x\n", id);
 
-	dev_info(dev, "firmware-tag=%s switch-id=%08x\n", CR1000A_BUILD_TAG, id);
+	dev_info(dev, "switch-id=%08x\n", id);
 
 	/* Independent children allow normal deferred probing of PHYs and PCS.
 	 * The DSA child shares the SPI node containing ethernet-ports; management
@@ -134,5 +132,3 @@ module_spi_driver(rtl9303_spi_driver);
 
 MODULE_DESCRIPTION("RTL9303 external SPI register transport");
 MODULE_LICENSE("GPL");
-
-MODULE_VERSION(CR1000A_BUILD_TAG);

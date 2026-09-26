@@ -69,12 +69,8 @@ function device_log_append(config) {
 
 /* setup country code */
 function device_country_code(config) {
-	let status = global.ubus.call('network.wireless', 'status');
-	for (let name, radio in status) {
-		if (!radio.config.country)
-			continue;
-		config.country_code = radio.config.country;
-	}
+	if (config.country)
+		config.country_code = config.country;
 
 	if (!exists(config, 'country_code'))
 		return;

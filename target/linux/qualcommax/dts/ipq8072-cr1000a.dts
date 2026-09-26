@@ -17,9 +17,6 @@
 	compatible = "verizon,cr1000a", "qcom,ipq8074";
 
 	aliases {
-		ethernet4 = &swport5;
-		ethernet5 = &swport6;
-
 		label-mac-device = &swport5;
 		serial0 = &blsp1_uart5;
 	};
@@ -74,7 +71,8 @@
 };
 
 &blsp1_spi1 {
-	status = "okay";
+	/* The OEM DTS probes this slot, but the board returns no JEDEC ID. */
+	status = "disabled";
 
 	flash@0 {
 		compatible = "micron,n25q128a11", "jedec,spi-nor";
@@ -273,6 +271,8 @@
 		swport5: port@5 {
 			reg = <5>;
 			label = "lan-cpu";
+			nvmem-cells = <&base_mac 1>;
+			nvmem-cell-names = "mac-address";
 			phy-mode = "10gbase-r";
 			pcs-handle = <&uniphy1 0>;
 
@@ -285,6 +285,8 @@
 		swport6: port@6 {
 			reg = <6>;
 			label = "wan";
+			nvmem-cells = <&base_mac 0>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&aqr113c>;
 			phy-mode = "usxgmii";
 			managed = "in-band-status";
@@ -316,13 +318,42 @@
 
 &edma {
 	status = "okay";
+	qcom,disable-tso;
 };
 
 &pcie1 {
-	status = "okay";
+	/* The unused 10000000 host has no endpoint on this board. */
+	status = "disabled";
 };
 
 &sdhc_1 {
 	status = "okay";
 	vqmmc-supply = <&l11>;
+	non-removable;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+
+			partitions {
+				block-partition-appsblenv {
+					partname = "0:APPSBLENV";
+
+					nvmem-layout {
+						compatible = "u-boot,env";
+
+						base_mac: baseMAC {
+							compatible = "mac-base";
+							#nvmem-cell-cells = <1>;
+						};
+					};
+				};
+			};
+		};
+	};
 };

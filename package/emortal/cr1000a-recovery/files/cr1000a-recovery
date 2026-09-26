@@ -1,0 +1,122 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+[ "$(board_name)" = 'verizon,cr1000a' ] || {
+	echo 'CR1000A recovery: wrong board' >&2
+	exit 1
+}
+
+recovery_bootcmd='if run set_custom_bootargs && run read_hlos_emmc && bootm 44000000; then true; else run boot_recovery; fi'
+normal_bootcmd='run setup_and_boot'
+
+fail() {
+	echo "CR1000A recovery: $*" >&2
+	exit 1
+}
+
+recovery_part() {
+	local part
+	part=$(find_mmc_part recovery)
+	[ -b "$part" ] || fail 'recovery GPT partition is missing'
+	[ "$(cat "/sys/class/block/${part##*/}/size")" -ge 40960 ] || fail 'recovery partition is smaller than 20 MiB'
+	echo "$part"
+}
+
+check_fit() (
+	local header size scratch fit config kernel fdt image hash algo expected actual byte
+	local index=0 found_kernel=0 found_fdt=0 found_hash
+	header=$(hexdump -n 8 -e '8/1 "%02x"' "$1") || return 1
+	[ "${header%????????}" = d00dfeed ] || return 1
+	size=$(printf '%d' "0x${header#????????}") || return 1
+	[ "$size" -ge 1024 ] && [ "$size" -le 20971520 ] || return 1
+	[ "$size" -le "$2" ] || return 1
+	scratch=$(mktemp -d /tmp/cr1000a-fit.XXXXXX) || return 1
+	trap 'rm -rf "$scratch"' 0
+	fit="$scratch/image.itb"
+	head -c "$size" "$1" > "$fit" || return 1
+	[ "$(wc -c < "$fit")" -eq "$size" ] || return 1
+	config=$(fdtget -t s "$fit" /configurations default) || return 1
+	[ "$config" = config@verizon_cr1000a ] || return 1
+	kernel=$(fdtget -t s "$fit" "/configurations/$config" kernel) || return 1
+	fdt=$(fdtget -t s "$fit" "/configurations/$config" fdt) || return 1
+	[ -n "$kernel" ] && [ -n "$fdt" ] && [ "$kernel" != "$fdt" ] || return 1
+	for image in $(fdtget -l "$fit" /images); do
+		case "$image" in
+		"$kernel")
+			[ "$(fdtget -t s "$fit" "/images/$image" type)" = kernel ] || return 1
+			found_kernel=1
+			;;
+		"$fdt")
+			[ "$(fdtget -t s "$fit" "/images/$image" type)" = flat_dt ] || return 1
+			found_fdt=1
+			;;
+		esac
+		dumpimage -T flat_dt -p "$index" -o "$scratch/$image" "$fit" >/dev/null 2>&1 || return 1
+		found_hash=0
+		for hash in $(fdtget -l "$fit" "/images/$image"); do
+			algo=$(fdtget -t s "$fit" "/images/$image/$hash" algo 2>/dev/null) || continue
+			[ "$algo" = sha1 ] || continue
+			expected=''
+			for byte in $(fdtget -t bx "$fit" "/images/$image/$hash" value); do
+				expected="$expected$(printf '%02x' "0x$byte")"
+			done
+			actual=$(sha1sum "$scratch/$image") || return 1
+			[ "$expected" = "${actual%% *}" ] || return 1
+			found_hash=1
+		done
+		[ "$found_hash" = 1 ] || return 1
+		if [ "$image" = "$fdt" ]; then
+			case "$(fdtget -t s "$scratch/$image" / compatible)" in
+			verizon,cr1000a|verizon,cr1000a\ *) ;;
+			*) return 1 ;;
+			esac
+		fi
+		index=$((index + 1))
+	done
+	[ "$found_kernel" = 1 ] && [ "$found_fdt" = 1 ]
+)
+
+case "$1" in
+verify)
+	part=$(recovery_part)
+	check_fit "$part" 20971520 || fail 'recovery FIT hash, board or size check failed'
+	echo 'CR1000A recovery FIT verified'
+	;;
+status)
+	echo "recovery=$(fw_printenv -n cr1000a_recovery 2>/dev/null || echo 0)"
+	echo "bootcmd=$(fw_printenv -n bootcmd 2>/dev/null)"
+	echo "boot_recovery=$(fw_printenv -n boot_recovery 2>/dev/null)"
+	part=$(find_mmc_part recovery)
+	[ -b "$part" ] && echo "partition=$part" || echo 'partition=missing'
+	;;
+disable)
+	current=$(fw_printenv -n bootcmd 2>/dev/null)
+	[ "$current" = "$normal_bootcmd" ] || [ "$current" = "$recovery_bootcmd" ] || fail 'unknown bootcmd; refusing to replace it'
+	fw_setenv cr1000a_recovery 0 || fail 'cannot clear recovery flag'
+	fw_setenv bootcmd "$normal_bootcmd" || fail 'cannot restore normal bootcmd'
+	;;
+enable|install)
+	part=$(recovery_part)
+	current=$(fw_printenv -n bootcmd 2>/dev/null)
+	[ "$current" = "$normal_bootcmd" ] || [ "$current" = "$recovery_bootcmd" ] || fail 'unknown bootcmd; refusing to replace it'
+	if [ "$1" = install ]; then
+		[ -f "$2" ] || fail 'usage: cr1000a-recovery install /path/to/initramfs-uImage.itb'
+		bytes=$(wc -c < "$2")
+		[ "$bytes" -le 20971520 ] || fail 'FIT image exceeds the 20 MiB U-Boot read window'
+		check_fit "$2" "$bytes" || fail 'invalid FIT hash, board or size (20 MiB maximum)'
+		dd if="$2" of="$part" bs=1M conv=fsync || fail 'FIT write failed'
+		[ "$(sha256sum "$2" | cut -d ' ' -f 1)" = "$(head -c "$bytes" "$part" | sha256sum | cut -d ' ' -f 1)" ] || fail 'FIT readback mismatch'
+	else
+		check_fit "$part" 20971520 || fail 'recovery partition FIT hash, board or size check failed'
+	fi
+	start=$(cat "/sys/class/block/${part##*/}/start")
+	fw_setenv boot_recovery "setenv bootargs console=ttyMSM0,115200n8; mmc read 44000000 0x$(printf '%X' "$start") 0xA000 && bootm 44000000" || fail 'cannot set recovery command'
+	fw_setenv bootcmd "$recovery_bootcmd" || fail 'cannot set fallback bootcmd'
+	fw_setenv cr1000a_recovery 1 || fail 'cannot set recovery flag'
+	;;
+*)
+	echo 'Usage: cr1000a-recovery {status|verify|enable|disable|install /path/to/initramfs-uImage.itb}' >&2
+	exit 1
+	;;
+esac

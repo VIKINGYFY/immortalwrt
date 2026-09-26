@@ -1806,6 +1806,12 @@ static int edma_probe(struct platform_device *pdev)
 	netdev->hw_features = NETIF_F_RXCSUM | NETIF_F_IP_CSUM |
 			      NETIF_F_IPV6_CSUM | NETIF_F_SG | NETIF_F_TSO |
 			      NETIF_F_TSO6 | NETIF_F_RXHASH;
+	/* Some external-switch paths forward a GSO aggregate through PPE as a
+	 * single frame. Let those boards keep CPU traffic MTU-sized without
+	 * changing the EDMA feature set for every IPQ60xx/IPQ807x device.
+	 */
+	if (device_property_read_bool(dev, "qcom,disable-tso"))
+		netdev->hw_features &= ~(NETIF_F_TSO | NETIF_F_TSO6);
 	netdev->features = NETIF_F_GRO | netdev->hw_features;
 	/* A DSA user port takes its features from the conduit's vlan_features. */
 	netdev->vlan_features = netdev->hw_features;

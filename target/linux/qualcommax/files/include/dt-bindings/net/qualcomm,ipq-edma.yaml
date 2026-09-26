@@ -65,6 +65,12 @@ properties:
     items:
       - const: edma_rst
 
+  qcom,disable-tso:
+    type: boolean
+    description: |
+      Disable TSO and TSO6 on boards whose PPE egress path may forward a
+      GSO aggregate as one frame instead of segmenting it for the uplink.
+
 required:
   - compatible
   - reg

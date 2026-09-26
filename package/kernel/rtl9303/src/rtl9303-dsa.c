@@ -16,6 +16,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_mdio.h>
+#include <linux/of_net.h>
 #include <linux/pcs/pcs.h>
 #include <linux/phylink.h>
 #include <linux/platform_device.h>
@@ -492,13 +493,19 @@ static int rtl9303_fdb_update(struct dsa_switch *ds, int port,
 	int index, ret;
 
 	/* Standalone traffic is deliberately flooded to the external CPU.
-	 * Do not populate its RX/TX service VLAN forwarding databases.
+	 * There is no hardware bridge FID for DSA_DB_PORT host entries, so
+	 * treating these requests as successful avoids rejecting normal host
+	 * learning notifications from the software bridge.
 	 */
-	if (db.type == DSA_DB_PORT && port == priv->cpu_port)
+	if (db.type == DSA_DB_PORT)
 		return 0;
 	if (db.type != DSA_DB_BRIDGE)
 		return -EOPNOTSUPP;
-	if (vid || !db.bridge.num || db.bridge.num > RTL9303_BRIDGES)
+	/* A VLAN-unaware bridge still reports its software PVID (normally 1).
+	 * The ASIC uses the private service VID and the bridge FID instead.
+	 */
+	if (br_vlan_enabled(db.bridge.dev) || !db.bridge.num ||
+	    db.bridge.num > RTL9303_BRIDGES)
 		return -EOPNOTSUPP;
 	fid = RTL9303_FID_BASE + db.bridge.num;
 	mutex_lock(&priv->table_lock);
@@ -569,7 +576,7 @@ out:
 }
 
 /* Clean only our reserved forwarding domains, including stale static/MC
- * entries after a driver reload. Do not flush MoCA or the OEM VLAN domains.
+ * entries after a driver reload. Leave unrelated switch domains untouched.
  * The normal SRAM table and the enabled overflow CAM are both supported.
  */
 static int rtl9303_fdb_reset(struct rtl9303 *priv)
@@ -734,6 +741,8 @@ static int rtl9303_setup(struct dsa_switch *ds)
 		return -EINVAL;
 	priv->cpu_port = -1;
 	dsa_switch_for_each_port(dp, ds) {
+		if (dp->index >= RTL9303_PORTS)
+			return -EINVAL;
 		if (dsa_port_is_cpu(dp)) {
 			if (priv->cpu_port >= 0)
 				return -EINVAL;
@@ -742,8 +751,8 @@ static int rtl9303_setup(struct dsa_switch *ds)
 			priv->user_mask |= BIT(dp->index);
 		}
 	}
-	if (priv->cpu_port != 27 || priv->user_mask != (BIT(8) | BIT(20) | BIT(24)))
-		return dev_err_probe(ds->dev, -EINVAL, "unsupported RTL9303 external topology\n");
+	if (priv->cpu_port < 0 || !priv->user_mask)
+		return dev_err_probe(ds->dev, -EINVAL, "CPU and user ports are required\n");
 	mask = priv->user_mask | BIT(priv->cpu_port);
 	ds->fdb_isolation = true;
 	ds->assisted_learning_on_cpu_port = true;
@@ -848,10 +857,14 @@ static void rtl9303_get_caps(struct dsa_switch *ds, int port,
 			     struct phylink_config *config)
 {
 	struct dsa_port *dp = dsa_to_port(ds, port);
+	phy_interface_t interface;
+	int ret;
 
 	config->mac_capabilities = MAC_SYM_PAUSE | MAC_ASYM_PAUSE |
 		MAC_10 | MAC_100 | MAC_1000FD | MAC_2500FD;
-	if (port == 8 || port == 27) {
+	ret = of_get_phy_mode(dp->dn, &interface);
+	if (!ret && (interface == PHY_INTERFACE_MODE_USXGMII ||
+		     interface == PHY_INTERFACE_MODE_10GBASER)) {
 		config->mac_capabilities |= MAC_5000FD | MAC_10000FD;
 		__set_bit(PHY_INTERFACE_MODE_USXGMII, config->supported_interfaces);
 		__set_bit(PHY_INTERFACE_MODE_10GBASER, config->supported_interfaces);

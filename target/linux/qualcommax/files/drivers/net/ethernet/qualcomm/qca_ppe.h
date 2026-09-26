@@ -19,6 +19,9 @@
 #define QCA_PPE_MAX_PORTS		8
 #define QCA_PPE_CPU_PORT		0
 #define QCA_PPE_MAX_BRIDGES		8
+#define QCA_PPE_DSA_SERVICE_MAX	8
+#define QCA_PPE_DSA_RX_VID_BASE	0xe00
+#define QCA_PPE_DSA_TX_VID_BASE	0xf00
 
 /* Flow table op engine */
 #define PPE_TBL_OP_ADD		0
@@ -195,6 +198,7 @@
 #define   PPE_XGMAC_CRC_STRIP_TYPE	BIT(2) /* Called CST */
 #define   PPE_XGMAC_GMII_MPLS_LAYER_CK	BIT(6) /* Called GMPSLCE */
 #define   PPE_XGMAC_WATCHDOG_DISABLE	BIT(7) /* Called WD */
+#define   PPE_XGMAC_GIANT_PACKET_SIZE	GENMASK(29, 16) /* Called GPSL */
 #define   PPE_XGMAC_LOOPBACK		BIT(10) /* Called LM */
 
 #define PPE_XGMAC_PACKET_FILTER(xgmac)	(PPE_MAC_XGMAC_CSR_BASE + (xgmac) * 0x4000 + 0x8)
@@ -229,6 +233,10 @@
 
 /* --- IPR: the ingress parser (base 0x002000; 0x1e0000 only on APPE) --- */
 #define PPE_IPR_BASE			0x002000
+#define PPE_BRIDGE_CONFIG		PPE_IPR_BASE
+#define   PPE_BRIDGE_TYPE_STAG		BIT(0)
+#define PPE_PORT_PARSING(port)		(PPE_IPR_BASE + (port) * 0x4)
+#define   PPE_PORT_PARSING_CORE		BIT(0)
 
 /* One register for both trunk groups, and in the parser rather than beside the
  * trunk member tables in L2.
@@ -260,6 +268,9 @@
 #define   PPE_XLT_PORT_BMP		GENMASK(8, 1)
 #define   PPE_XLT_SKEY_FMT		GENMASK(11, 9)
 #define   PPE_XLT_SKEY_UNTAGGED		1
+#define   PPE_XLT_SKEY_TAGGED		4
+#define   PPE_XLT_SKEY_VID_INCL		BIT(12)
+#define   PPE_XLT_SKEY_VID		GENMASK(24, 13)
 #define   PPE_XLT_CKEY_FMT_0		BIT(31)
 
 #define PPE_XLT_RULE_W1(idx)		(PPE_IVLAN_BASE + 0x2000 + (idx) * 0x10 + 0x4)
@@ -268,11 +279,26 @@
 #define   PPE_XLT_CKEY_VID		GENMASK(14, 3)
 
 #define PPE_XLT_ACTION_TBL(idx)		(PPE_IVLAN_BASE + 0x4000 + (idx) * 0x10)
+#define   PPE_XLT_SVID_CMD		GENMASK(2, 1)
 #define   PPE_XLT_CVID_CMD		GENMASK(16, 15)
+#define   PPE_XLT_VID_DELETE		2
 
 #define PPE_XLT_ACTION_W1(idx)		(PPE_IVLAN_BASE + 0x4000 + (idx) * 0x10 + 0x4)
 #define   PPE_XLT_VSI_CMD		BIT(11)
-#define   PPE_XLT_VSI			GENMASK(16, 12)
+#define   PPE_XLT_VSI			GENMASK(17, 12)
+/* QSDK source-info action: select the routed L3 interface explicitly after
+ * an ingress translation assigns a private service-tag VSI. */
+#define   PPE_XLT_SRC_INFO_VALID	BIT(18)
+#define   PPE_XLT_SRC_INFO_L3		BIT(19)
+#define   PPE_XLT_SRC_INFO		GENMASK(27, 20)
+#define   PPE_XLT_ACTION_W1_CNT_EN	BIT(28)
+#define   PPE_XLT_ACTION_W1_CNT_ID_LO	GENMASK(31, 29)
+
+#define PPE_XLT_ACTION_W2(idx)		(PPE_IVLAN_BASE + 0x4000 + (idx) * 0x10 + 0x8)
+#define   PPE_XLT_ACTION_W2_CNT_ID_HI	GENMASK(3, 0)
+
+#define PPE_XLT_CNT_TBL(idx)		(0x17f000 + (idx) * 0x10)
+#define   PPE_XLT_CNT_W2_BYTES_HI	GENMASK(7, 0)
 
 /* --- PTX (base 0x020000) --- */
 #define PPE_PTX_BASE			0x020000
@@ -292,8 +318,11 @@
 #define   PPE_EG_XLT_CKEY_FMT		GENMASK(8, 6)
 
 #define PPE_EG_XLT_ACTION(idx)		(PPE_PTX_BASE + 0xd000 + (idx) * 0x8)
+#define   PPE_EG_XLT_SVID_CMD		GENMASK(2, 1)
+#define   PPE_EG_XLT_SVID		GENMASK(14, 3)
 #define   PPE_EG_XLT_CVID_CMD		GENMASK(16, 15)
 #define   PPE_EG_XLT_CVID		GENMASK(28, 17)
+#define   PPE_EG_XLT_SVID_ADD		1
 #define   PPE_EG_XLT_CVID_ADD		1
 
 #define PPE_EG_XLT_ACTION_W1(idx)	(PPE_PTX_BASE + 0xd000 + (idx) * 0x8 + 0x4)
@@ -310,10 +339,12 @@
 #define PPE_QUEUE_TX_CNT_TBL(q)		(PPE_PTX_BASE + 0x4000 + (q) * 0x10)
 
 #define PPE_EG_BRIDGE_CONFIG		(PPE_PTX_BASE + 0x6000)
+#define   PPE_EG_BRIDGE_TYPE_STAG	BIT(0)
 #define   PPE_EG_L2_EDIT_EN		BIT(1)
 #define   PPE_EG_QUEUE_CNT_EN		BIT(2)
 
 #define PPE_PORT_EG_VLAN(port)		(PPE_PTX_BASE + 0x420 + (port) * 0x4)
+#define   PPE_PORT_EG_VLAN_CORE		BIT(0)
 #define   PPE_PORT_EG_VLAN_CTAG_MODE	GENMASK(2, 1)
 #define   PPE_PORT_EG_VLAN_STAG_MODE	GENMASK(4, 3)
 #define   PPE_PORT_EG_VSI_TAG_EN	BIT(5)
@@ -764,6 +795,10 @@
 #define   PPE_NEXTHOP_PORT_LEN		8
 #define   PPE_NEXTHOP_POST_L3_IF_OFF	9
 #define   PPE_NEXTHOP_POST_L3_IF_LEN	8
+#define   PPE_NEXTHOP_STAG_FMT_OFF	18
+#define   PPE_NEXTHOP_STAG_FMT_LEN	1
+#define   PPE_NEXTHOP_SVID_OFF		19
+#define   PPE_NEXTHOP_SVID_LEN		12
 #define   PPE_NEXTHOP_CTAG_FMT_OFF	31
 #define   PPE_NEXTHOP_CTAG_FMT_LEN	1
 #define   PPE_NEXTHOP_CVID_OFF		32
@@ -1205,6 +1240,23 @@ enum ppe_flow_reject {
 	PPE_REJECT_MAX,
 };
 
+/* Last rejected rule for each reason, copied under flow_lock. No packet
+ * addresses or live netdevice pointers are retained.
+ */
+struct ppe_flow_reject_info {
+	int ingress_ifindex;
+	int egress_ifindex;
+	u16 n_proto;
+	u8 ip_proto;
+	u16 vlan_tpid;
+	u16 vlan_id;
+	u16 cvlan_tpid;
+	u16 cvlan_id;
+	u16 push_tpid;
+	u16 push_vid;
+	u64 actions;
+};
+
 /* One slot of a reference-counted hardware side table. */
 struct ppe_res {
 	u32 words[PPE_NEXTHOP_WORDS];
@@ -1254,6 +1306,18 @@ struct ppe_port_shaper {
 	u32 base_drops;
 };
 
+/* RTL9303 transports an external DSA user port over the PPE conduit as a
+ * private outer 802.1ad VLAN. Keep one routed VSI/XLT pair per service VID so
+ * the ingress tag can be removed for L3 parsing and restored for CPU misses.
+ */
+struct ppe_dsa_service {
+	u16 vid;
+	u32 refs;
+	s8 port;
+	s8 vsi;
+	s16 xlt;
+};
+
 struct qca_ppe_priv {
 	struct dsa_switch ds;
 	struct regmap *regmap;
@@ -1281,7 +1345,11 @@ struct qca_ppe_priv {
 	u16 wan_ref[QCA_PPE_MAX_PORTS];
 	int wan_xlt[QCA_PPE_MAX_PORTS];
 	u16 wan_vid[QCA_PPE_MAX_PORTS];
+	struct ppe_dsa_service dsa_service[QCA_PPE_DSA_SERVICE_MAX];
+	u16 dsa_core_ingress_refs[QCA_PPE_MAX_PORTS];
+	u16 dsa_core_egress_refs[QCA_PPE_MAX_PORTS];
 	u32 flow_reject[PPE_REJECT_MAX];
+	struct ppe_flow_reject_info flow_reject_info[PPE_REJECT_MAX];
 	u32 flow_offloaded;
 	u32 flow_reinstalled;
 	u32 flow_destroy_miss;
@@ -1475,6 +1543,7 @@ void ppe_flow_counter_read(struct qca_ppe_priv *priv, u32 index, u64 *packets,
 void ppe_flow_counter_clear(struct qca_ppe_priv *priv, u32 index);
 int ppe_flow_entry_delete(struct qca_ppe_priv *priv, u32 index);
 void ppe_flow_debugfs_init(struct qca_ppe_priv *priv);
+void ppe_flow_offload_debugfs_init(struct qca_ppe_priv *priv);
 
 
 unsigned long ppe_clk_rate(struct qca_ppe_priv *priv);

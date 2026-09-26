@@ -1306,10 +1306,17 @@ static void qca_ppe_xgmac_config(struct qca_ppe_priv *priv, int port)
 	regmap_set_bits(priv->regmap, PPE_XGMAC_TX_CONF(xgmac),
 			PPE_XGMAC_JABBER_DISABLE);
 
+	/* GMPSLCE needs an explicit size limit. Leaving GPSL at its reset
+	 * value rejects frames above 1518 bytes, including a full-size IP
+	 * packet carrying an external switch's VLAN tag.
+	 */
 	regmap_update_bits(priv->regmap, PPE_XGMAC_RX_CONF(xgmac),
 			   PPE_XGMAC_GMII_MPLS_LAYER_CK |
+			   PPE_XGMAC_GIANT_PACKET_SIZE |
 			   PPE_XGMAC_WATCHDOG_DISABLE,
-			   PPE_XGMAC_GMII_MPLS_LAYER_CK);
+			   PPE_XGMAC_GMII_MPLS_LAYER_CK |
+			   FIELD_PREP(PPE_XGMAC_GIANT_PACKET_SIZE,
+				      PPE_MAX_FRAME_SIZE));
 
 	regmap_update_bits(priv->regmap, PPE_XGMAC_PACKET_FILTER(xgmac),
 			   PPE_XGMAC_PROMISCUOUS |

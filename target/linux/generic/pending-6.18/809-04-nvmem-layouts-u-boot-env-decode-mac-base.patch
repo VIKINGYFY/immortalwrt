@@ -1,0 +1,46 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 26 Sep 2026 00:55:00 +0800
+Subject: [PATCH] nvmem: u-boot-env: decode opt-in ASCII mac-base cells
+
+U-Boot variables other than ethaddr can contain a MAC address.
+Use the existing mac-base cell post-processor for DT marked variables
+while keeping ethaddr handling unchanged.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+---
+--- a/Documentation/devicetree/bindings/nvmem/layouts/u-boot,env.yaml
++++ b/Documentation/devicetree/bindings/nvmem/layouts/u-boot,env.yaml
+@@ -62,6 +62,20 @@
+         description: The first argument is a MAC address offset.
+         const: 1
+ 
++patternProperties:
++  "^(?!(?:compatible|reg|bootcmd|env-size|ethaddr)$)[A-Za-z][A-Za-z0-9_]*$":
++    type: object
++    description: A U-Boot variable containing an ASCII base MAC address.
++    properties:
++      compatible:
++        const: mac-base
++      "#nvmem-cell-cells":
++        const: 1
++    required:
++      - compatible
++      - "#nvmem-cell-cells"
++    additionalProperties: false
++
+ allOf:
+   - if:
+       properties:
+--- a/drivers/nvmem/layouts/u-boot-env.c
++++ b/drivers/nvmem/layouts/u-boot-env.c
+@@ -78,6 +78,9 @@
+ 			info.raw_len = strlen(value);
+ 			info.bytes = ETH_ALEN;
+ 			info.read_post_process = u_boot_env_read_post_process_ethaddr;
++		} else {
++			/* Other ASCII MAC variables can opt in through mac-base. */
++			nvmem_layout_parse_mac_base(&info);
+ 		}
+ 
+ 		nvmem_add_one_cell(nvmem, &info);

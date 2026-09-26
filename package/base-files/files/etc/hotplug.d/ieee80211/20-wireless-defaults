@@ -1,0 +1,215 @@
+#!/bin/sh
+
+# Apply defaults at first boot and when a PHY appears later.
+reload_network=0
+if [ "${HOTPLUG_TYPE:-}" = ieee80211 ]; then
+	[ "${ACTION:-}" = add ] || exit 0
+	reload_network=1
+fi
+
+. /lib/functions.sh
+. /usr/share/libubox/jshn.sh
+
+[ -s /etc/board.json ] && [ -s /etc/config/wireless ] || exit 0
+
+check_default_ap() {
+	local section="$1" radio="$2" device mode ssid key encryption
+	config_get device "$section" device
+	config_get mode "$section" mode
+	[ "$device" = "$radio" ] && [ "$mode" = ap ] || return 0
+	radio_ap_count=$((radio_ap_count + 1))
+	config_get ssid "$section" ssid
+	config_get key "$section" key
+	config_get encryption "$section" encryption
+	[ "$ssid" = OWRT ] && [ "$key" = 12345678 ] &&
+		[ "$encryption" = psk2+ccmp ] || radio_custom=1
+}
+
+config_load wireless
+
+mark_existing_five_ghz() {
+	local section="$1" ssid
+	config_get ssid "$section" ssid
+	case "$ssid" in
+	OWRT-5.2G) five_low_assigned=1 ;;
+	OWRT-5.8G) five_high_assigned=1 ;;
+	esac
+}
+
+json_init
+json_load "$(cat /etc/board.json)" || exit 0
+json_is_a wlan object || exit 0
+json_select wlan
+phys=
+json_get_keys phys
+
+path_matches() {
+	local wanted="$1" paths path
+	if json_is_a path array; then
+		json_select path
+		json_get_values paths
+		json_select ..
+	else
+		json_get_var paths path
+	fi
+	for path in $paths; do
+		[ "$path" = "$wanted" ] && return 0
+	done
+	return 1
+}
+
+radio_channel_for_band() {
+	local wanted_radio="$1" wanted_band="$2" ids id index found=0
+	json_select radios || return 1
+	json_get_keys ids
+	for id in $ids; do
+		json_select "$id"
+		json_get_var index index
+		if [ "$index" = "$wanted_radio" ]; then
+			if json_select bands; then
+				if json_select "$wanted_band"; then
+					json_get_var band_channel default_channel
+					found=1
+					json_select ..
+				fi
+				json_select ..
+			fi
+			json_select ..
+			break
+		fi
+		json_select ..
+	done
+	json_select ..
+	[ "$found" -eq 1 ]
+}
+
+band_capabilities() {
+	local wanted_path="$1" wanted_phy="$2" wanted_radio="$3" wanted_band="$4" phy
+	local modes width default_channel
+	for phy in $phys; do
+		json_select "$phy" || continue
+		if ! { [ -n "$wanted_phy" ] && [ "$phy" = "$wanted_phy" ]; } &&
+			! { [ -n "$wanted_path" ] && path_matches "$wanted_path"; }; then
+			json_select ..
+			continue
+		fi
+		json_select info || { json_select ..; continue; }
+		json_select bands || { json_select ..; json_select ..; continue; }
+		if json_select "$wanted_band"; then
+			json_get_var width max_width
+			json_get_var default_channel default_channel
+			json_get_values modes modes
+			json_select ..
+			json_select ..
+			band_channel="$default_channel"
+			if [ -n "$wanted_radio" ] && json_is_a radios array; then
+				radio_channel_for_band "$wanted_radio" "$wanted_band" || {
+					json_select ..
+					json_select ..
+					return 1
+				}
+			fi
+			json_select ..
+			json_select ..
+			[ -n "$modes" ] || return 1
+			case "$width" in
+			*[!0-9]*|'') width=20 ;;
+			esac
+			band_width="$width"
+			band_modes="$modes"
+			return 0
+		fi
+		json_select ..
+		json_select ..
+		json_select ..
+	done
+	return 1
+}
+
+choose_htmode() {
+	local requested="$1" width mode
+	for width in 160 80 40 20; do
+		[ "$width" -le "$requested" ] && [ "$width" -le "$band_width" ] || continue
+		for mode in EHT HE VHT HT; do
+			case " $band_modes " in
+			*" $mode$width "*) echo "$mode$width"; return 0 ;;
+			esac
+		done
+	done
+	return 1
+}
+
+set_ap() {
+	local section="$1" radio="$2" suffix="$3" encryption
+	local device mode
+	config_get device "$section" device
+	config_get mode "$section" mode
+	[ "$device" = "$radio" ] && [ "$mode" = ap ] || return 0
+	if [ "$suffix" = 6G ]; then
+		encryption=sae+ccmp
+		uci set "wireless.$section.ieee80211w=2"
+	else
+		encryption=psk2+ccmp
+		uci -q delete "wireless.$section.ieee80211w"
+	fi
+	uci set "wireless.$section.ssid=OWRT-$suffix"
+	uci set "wireless.$section.encryption=$encryption"
+}
+
+configure_radio() {
+	local section="$1" path phy radio band name channel requested htmode
+	radio_ap_count=0
+	radio_custom=0
+	config_foreach check_default_ap wifi-iface "$section"
+	[ "$radio_ap_count" -gt 0 ] && [ "$radio_custom" -eq 0 ] || return 0
+	config_get path "$section" path
+	config_get phy "$section" phy
+	config_get radio "$section" radio
+	config_get band "$section" band
+	case "$band" in
+	2g)
+		band_capabilities "$path" "$phy" "$radio" 2G || return 0
+		name=2.4G channel=1 requested=20
+		;;
+	5g)
+		band_capabilities "$path" "$phy" "$radio" 5G || return 0
+		case "$band_channel" in
+		*[!0-9]*|'') band_channel=36 ;;
+		esac
+		if [ "$band_channel" -ge 100 ] && [ "$five_high_assigned" -eq 0 ]; then
+			name=5.8G channel=149 requested=80
+			five_high_assigned=1
+		elif [ "$five_low_assigned" -eq 0 ]; then
+			name=5.2G channel=36 requested=160
+			five_low_assigned=1
+		else
+			name=5.8G channel=149 requested=80
+			five_high_assigned=1
+		fi
+		;;
+	6g)
+		band_capabilities "$path" "$phy" "$radio" 6G || return 0
+		name=6G channel=33 requested=160
+		;;
+	*) return 0 ;;
+	esac
+	htmode=$(choose_htmode "$requested") || return 0
+	uci set "wireless.$section.country=US"
+	uci set "wireless.$section.channel=$channel"
+	uci set "wireless.$section.htmode=$htmode"
+	config_foreach set_ap wifi-iface "$section" "$name"
+	changed=1
+}
+
+five_low_assigned=0
+five_high_assigned=0
+config_foreach mark_existing_five_ghz wifi-iface
+changed=0
+config_foreach configure_radio wifi-device
+[ "$changed" -eq 0 ] || {
+	uci commit wireless || exit 1
+	if [ "$reload_network" -eq 1 ]; then
+		ubus call network reload >/dev/null || exit 1
+	fi
+}
+exit 0

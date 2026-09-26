@@ -17,10 +17,12 @@
  */
 
 #include <linux/bitfield.h>
+#include <linux/debugfs.h>
 #include <linux/if_pppox.h>
 #include <linux/if_vlan.h>
 #include <linux/netdevice.h>
 #include <linux/rhashtable.h>
+#include <linux/seq_file.h>
 #include <net/dsa.h>
 #include <net/flow_offload.h>
 #include <net/netfilter/nf_flow_table.h>
@@ -39,6 +41,12 @@ struct ppe_flow_data {
 
 	u16 vlan_id;
 	bool vlan_valid;
+	u16 ingress_svid;
+	bool ingress_svid_valid;
+	u8 ingress_mac[ETH_ALEN];
+	bool ingress_mac_valid;
+	u16 egress_svid;
+	bool egress_svid_valid;
 	u16 ivid;
 	u16 pppoe_sid;
 	bool pppoe_valid;
@@ -74,6 +82,8 @@ struct ppe_flow_entry {
 	int wan_iport;
 	u8 iport;
 	u8 oport;
+	s8 dsa_service;
+	s8 dsa_egress_port;
 	u16 ivid;
 	u16 ovid;
 	u64 packets;
@@ -93,6 +103,79 @@ struct ppe_flow_block {
 	struct qca_ppe_priv *priv;
 	struct flow_block *block;
 };
+
+/* Keep the software-side flow identity and the exact nexthop image together
+ * in one readout. The normal `flows` file only exposes hardware counters, so
+ * it cannot distinguish a LAN-to-WAN entry from its reverse or show whether
+ * the RTL9303 TX service tag was actually put in the nexthop.
+ */
+static int ppe_offload_entries_show(struct seq_file *s, void *data)
+{
+	struct qca_ppe_priv *priv = s->private;
+	struct ppe_flow_entry *entry;
+
+	seq_puts(s, "cookie index src_if iport oport ivid ovid dsa_service dsa_vid "
+		 "nexthop nh_type nh_port nh_stag_fmt nh_svid nh_ctag_fmt nh_cvid "
+		 "l3_if eg_l3_if wan_port wan_iport packets bytes nh_words\n");
+
+	guard(mutex)(&priv->flow_lock);
+	list_for_each_entry(entry, &priv->flow_list, list) {
+		u32 *words = NULL;
+		u16 dsa_vid = 0;
+		u64 packets, bytes;
+		int i;
+
+		if (entry->nexthop >= 0 &&
+		    entry->nexthop < priv->data->num_nexthop_entries) {
+			words = priv->nexthop[entry->nexthop].words;
+			if (entry->dsa_service >= 0 &&
+			    entry->dsa_service < QCA_PPE_DSA_SERVICE_MAX)
+				dsa_vid = priv->dsa_service[entry->dsa_service].vid;
+		}
+
+		ppe_flow_counter_read(priv, entry->index, &packets, &bytes);
+		seq_printf(s, "%lx %u %u %u %u %u %u %d %u %d ",
+			   entry->cookie, entry->index, entry->src_if,
+			   entry->iport, entry->oport, entry->ivid, entry->ovid,
+			   entry->dsa_service, dsa_vid, entry->nexthop);
+		if (!words) {
+			seq_puts(s, "- - - - - - ");
+		} else {
+			seq_printf(s, "%u %u %u %u %u %u ",
+				   (unsigned int)ppe_entry_get(words, PPE_NEXTHOP_TYPE_OFF,
+						 PPE_NEXTHOP_TYPE_LEN),
+				   (unsigned int)ppe_entry_get(words, PPE_NEXTHOP_PORT_OFF,
+						 PPE_NEXTHOP_PORT_LEN),
+				   (unsigned int)ppe_entry_get(words, PPE_NEXTHOP_STAG_FMT_OFF,
+						 PPE_NEXTHOP_STAG_FMT_LEN),
+				   (unsigned int)ppe_entry_get(words, PPE_NEXTHOP_SVID_OFF,
+						 PPE_NEXTHOP_SVID_LEN),
+				   (unsigned int)ppe_entry_get(words, PPE_NEXTHOP_CTAG_FMT_OFF,
+						 PPE_NEXTHOP_CTAG_FMT_LEN),
+				   (unsigned int)ppe_entry_get(words, PPE_NEXTHOP_CVID_OFF,
+						 PPE_NEXTHOP_CVID_LEN));
+		}
+		seq_printf(s, "%d %d %d %d %llu %llu ", entry->l3_if,
+			   entry->eg_l3_if, entry->wan_port, entry->wan_iport,
+			   packets, bytes);
+		if (!words) {
+			seq_puts(s, "-\n");
+			continue;
+		}
+		for (i = 0; i < PPE_NEXTHOP_WORDS; i++)
+			seq_printf(s, "%s%08x", i ? ":" : "", words[i]);
+		seq_putc(s, '\n');
+	}
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(ppe_offload_entries);
+
+void ppe_flow_offload_debugfs_init(struct qca_ppe_priv *priv)
+{
+	debugfs_create_file("offload_entries", 0400, priv->debugfs, priv,
+			    &ppe_offload_entries_fops);
+}
 
 static const struct rhashtable_params ppe_flow_ht_params = {
 	.head_offset = offsetof(struct ppe_flow_entry, node),
@@ -346,15 +429,248 @@ static int ppe_flow_mangle_ipv4(const struct flow_action_entry *act,
 	return 0;
 }
 
-static int ppe_flow_port_by_ifindex(struct qca_ppe_priv *priv, int ifindex)
+/* The RTL9303 DSA user netdev is not a user port of this PPE's DSA switch.
+ * Its conduit is the PPE port 5 (lan-cpu), and the tagger identifies the
+ * external socket in a private 802.1ad service VID. Return both pieces so a
+ * flow can use the conduit for hardware lookup while retaining socket
+ * identity in the VLAN editor/nexthop.
+ */
+static int ppe_flow_port_by_ifindex(struct qca_ppe_priv *priv, int ifindex,
+				    u16 *service_vid, u8 *ingress_mac,
+				    bool egress)
 {
 	struct dsa_port *dp;
+	struct net_device *dev, *conduit;
+	struct dsa_port *cp;
+	int ret = -EOPNOTSUPP;
+
+	if (service_vid)
+		*service_vid = 0;
+	if (ingress_mac)
+		eth_zero_addr(ingress_mac);
 
 	dsa_switch_for_each_user_port(dp, &priv->ds)
 		if (dp->user && dp->user->ifindex == ifindex)
 			return dp->index;
 
-	return -EOPNOTSUPP;
+	rcu_read_lock();
+	dev = __dev_get_by_index(&init_net, ifindex);
+	if (!dev || !dsa_user_dev_check(dev))
+		goto out;
+
+	dp = dsa_port_from_netdev(dev);
+	if (IS_ERR(dp) || !dp->cpu_dp || !dp->cpu_dp->tag_ops ||
+	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_RTL9303_8021AD)
+		goto out;
+
+	conduit = dsa_port_to_conduit(dp);
+	if (!conduit)
+		goto out;
+
+	dsa_switch_for_each_user_port(cp, &priv->ds) {
+		if (cp->user != conduit)
+			continue;
+
+		if (service_vid)
+			*service_vid = (egress ? QCA_PPE_DSA_TX_VID_BASE :
+					QCA_PPE_DSA_RX_VID_BASE) |
+				       (dp->ds->index << 5) | dp->index;
+		if (ingress_mac) {
+			ether_addr_copy(ingress_mac, dp->user->dev_addr);
+		}
+		ret = cp->index;
+		break;
+	}
+out:
+	rcu_read_unlock();
+	return ret;
+}
+
+static void ppe_dsa_service_egress_clear(struct qca_ppe_priv *priv, int xlt)
+{
+	/* Invalidate the key before clearing its action, as a miss must never see
+	 * an incomplete restore operation during service teardown.
+	 */
+	regmap_write(priv->regmap, PPE_EG_XLT_RULE(xlt), 0);
+	regmap_write(priv->regmap, PPE_EG_XLT_RULE_W1(xlt), 0);
+	regmap_write(priv->regmap, PPE_EG_XLT_ACTION(xlt), 0);
+	regmap_write(priv->regmap, PPE_EG_XLT_ACTION_W1(xlt), 0);
+}
+
+static int ppe_dsa_core_port_get(struct qca_ppe_priv *priv, int port,
+				  bool ingress)
+{
+	u16 *refs;
+	int ret;
+
+	if (WARN_ON_ONCE(port < 0 || port >= QCA_PPE_MAX_PORTS))
+		return -EINVAL;
+
+	refs = ingress ? &priv->dsa_core_ingress_refs[port] :
+			 &priv->dsa_core_egress_refs[port];
+	if (WARN_ON_ONCE(*refs == U16_MAX))
+		return -EOVERFLOW;
+	if ((*refs)++)
+		return 0;
+
+	ret = ingress ?
+		regmap_update_bits(priv->regmap, PPE_PORT_PARSING(port),
+				   PPE_PORT_PARSING_CORE, PPE_PORT_PARSING_CORE) :
+		regmap_update_bits(priv->regmap, PPE_PORT_EG_VLAN(port),
+				   PPE_PORT_EG_VLAN_CORE, PPE_PORT_EG_VLAN_CORE);
+	if (ret)
+		(*refs)--;
+	return ret;
+}
+
+static void ppe_dsa_core_port_put(struct qca_ppe_priv *priv, int port,
+				   bool ingress)
+{
+	u16 *refs;
+	int ret;
+
+	if (WARN_ON_ONCE(port < 0 || port >= QCA_PPE_MAX_PORTS))
+		return;
+	refs = ingress ? &priv->dsa_core_ingress_refs[port] :
+			 &priv->dsa_core_egress_refs[port];
+	if (WARN_ON_ONCE(!*refs) || --(*refs))
+		return;
+
+	ret = ingress ?
+		regmap_update_bits(priv->regmap, PPE_PORT_PARSING(port),
+				   PPE_PORT_PARSING_CORE, 0) :
+		regmap_update_bits(priv->regmap, PPE_PORT_EG_VLAN(port),
+				   PPE_PORT_EG_VLAN_CORE, 0);
+	if (ret) {
+		*refs = 1;
+		dev_err(priv->ds.dev, "failed to restore DSA port %d %s role: %d\n",
+			port, ingress ? "ingress" : "egress", ret);
+	}
+}
+
+static int ppe_dsa_service_get(struct qca_ppe_priv *priv, int port, u16 vid)
+{
+	struct ppe_dsa_service *service;
+	u32 rule, rule_w1, action, action_w1;
+	int i, vsi, xlt, ret;
+
+	lockdep_assert_held(&priv->vlan_lock);
+	for (i = 0; i < QCA_PPE_DSA_SERVICE_MAX; i++) {
+		service = &priv->dsa_service[i];
+		if (service->refs && service->port == port && service->vid == vid) {
+			service->refs++;
+			return i;
+		}
+	}
+
+	for (i = 0; i < QCA_PPE_DSA_SERVICE_MAX; i++)
+		if (!priv->dsa_service[i].refs)
+			break;
+	if (i == QCA_PPE_DSA_SERVICE_MAX)
+		return -ENOSPC;
+
+	vsi = ppe_vsi_alloc(priv);
+	if (vsi < 0)
+		return vsi;
+	xlt = ppe_xlt_idx_alloc(priv);
+	if (xlt < 0) {
+		ppe_vsi_free(priv, vsi);
+		return xlt;
+	}
+	ret = ppe_dsa_core_port_get(priv, port, true);
+	if (ret) {
+		ppe_xlt_idx_free(priv, &xlt);
+		ppe_vsi_free(priv, vsi);
+		return ret;
+	}
+	/* A flow miss leaves through the CPU port. It must emit the private
+	 * service tag as an S-tag before the RTL9303 receive tagger sees it.
+	 */
+	ret = ppe_dsa_core_port_get(priv, QCA_PPE_CPU_PORT, false);
+	if (ret) {
+		ppe_dsa_core_port_put(priv, port, true);
+		ppe_xlt_idx_free(priv, &xlt);
+		ppe_vsi_free(priv, vsi);
+		return ret;
+	}
+
+	service = &priv->dsa_service[i];
+	service->port = port;
+	service->vid = vid;
+	service->vsi = vsi;
+	service->xlt = xlt;
+	service->refs = 1;
+
+	/* The routed flow sees the frame after the private S-tag is removed.
+	 * Match only this conduit and VID, require an absent customer tag, and
+	 * assign the dedicated VSI before making the rule visible.
+	 */
+	action = FIELD_PREP(PPE_XLT_SVID_CMD, PPE_XLT_VID_DELETE);
+	regmap_write(priv->regmap, PPE_XLT_ACTION_TBL(xlt), action);
+	/* The routed path must carry the L3 interface selected by the XLT. The
+	 * VSI assignment alone is enough for ordinary VLAN bridge traffic, but
+	 * the CR1000A private RTL9303 service tag otherwise reaches the flow
+	 * lookup without an L3 interface and never matches LAN-to-WAN flows. */
+	action_w1 = PPE_XLT_VSI_CMD | FIELD_PREP(PPE_XLT_VSI, vsi) |
+		    PPE_XLT_SRC_INFO_VALID | PPE_XLT_SRC_INFO_L3 |
+		    FIELD_PREP(PPE_XLT_SRC_INFO, vsi);
+	regmap_write(priv->regmap, PPE_XLT_ACTION_W1(xlt), action_w1);
+
+	rule = PPE_XLT_VALID | FIELD_PREP(PPE_XLT_PORT_BMP, BIT(port)) |
+	       FIELD_PREP(PPE_XLT_SKEY_FMT, PPE_XLT_SKEY_TAGGED) |
+	       PPE_XLT_SKEY_VID_INCL | FIELD_PREP(PPE_XLT_SKEY_VID, vid) |
+	       PPE_XLT_CKEY_FMT_0;
+	/* cfmt=untagged|priority-tagged is three bits split across the two
+	 * hardware rule words. The low bit is CKEY_FMT_0; the high bit belongs in
+	 * RULE_W1 and must not be lost by the final word write. */
+	rule_w1 = FIELD_PREP(PPE_XLT_CKEY_FMT_1, 1);
+	regmap_write(priv->regmap, PPE_XLT_RULE_TBL(xlt), rule);
+	regmap_write(priv->regmap, PPE_XLT_RULE_W1(xlt), rule_w1);
+	regmap_write(priv->regmap, PPE_XLT_RULE_TBL(xlt) + 8, 0);
+
+	/* A flow miss still has to reach the RTL9303 DSA receive path with its
+	 * RX service tag intact. The tagger accepts only the e00 RX namespace
+	 * from the switch; routed hardware hits use the f00 TX namespace in the
+	 * nexthop STAG field below.
+	 */
+	action = FIELD_PREP(PPE_EG_XLT_SVID_CMD, PPE_EG_XLT_SVID_ADD) |
+		  FIELD_PREP(PPE_EG_XLT_SVID,
+			     QCA_PPE_DSA_RX_VID_BASE | (vid & 0xff));
+	regmap_write(priv->regmap, PPE_EG_XLT_ACTION(xlt), action);
+	regmap_write(priv->regmap, PPE_EG_XLT_ACTION_W1(xlt), 0);
+	rule = PPE_EG_XLT_VALID | FIELD_PREP(PPE_EG_XLT_PORT_BMP,
+					     BIT(QCA_PPE_CPU_PORT)) |
+	       PPE_EG_XLT_VSI_INCL | FIELD_PREP(PPE_EG_XLT_VSI, vsi) |
+	       PPE_EG_XLT_VSI_VALID | FIELD_PREP(PPE_EG_XLT_SKEY_FMT,
+						  PPE_XLT_SKEY_UNTAGGED);
+	regmap_write(priv->regmap, PPE_EG_XLT_RULE(xlt), rule);
+	regmap_write(priv->regmap, PPE_EG_XLT_RULE_W1(xlt),
+		     FIELD_PREP(PPE_EG_XLT_CKEY_FMT, PPE_XLT_SKEY_UNTAGGED));
+
+	ppe_vsi_member_set(priv, vsi, BIT(port) | BIT(QCA_PPE_CPU_PORT));
+	return i;
+}
+
+static void ppe_dsa_service_put(struct qca_ppe_priv *priv, int index)
+{
+	struct ppe_dsa_service *service = &priv->dsa_service[index];
+	int port, xlt;
+
+	lockdep_assert_held(&priv->vlan_lock);
+	if (--service->refs)
+		return;
+
+	xlt = service->xlt;
+	port = service->port;
+	ppe_dsa_service_egress_clear(priv, xlt);
+	ppe_xlt_idx_free(priv, &xlt);
+	ppe_vsi_free(priv, service->vsi);
+	ppe_dsa_core_port_put(priv, QCA_PPE_CPU_PORT, false);
+	ppe_dsa_core_port_put(priv, port, true);
+	memset(service, 0, sizeof(*service));
+	service->port = -1;
+	service->vsi = -1;
+	service->xlt = -1;
 }
 
 /* Make a tagged PPPoE WAN port route its ingress traffic in hardware, so the
@@ -596,7 +912,9 @@ static int ppe_flow_ingress_vsi(struct qca_ppe_priv *priv, int iport, u16 vid)
  * index keeps the two in step without a second allocator.
  */
 static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
-				  u16 vid, struct ppe_flow_entry *entry)
+				  u16 vid, bool dsa_service,
+				  const u8 *ingress_mac,
+				  struct ppe_flow_entry *entry)
 {
 	struct dsa_port *dp = dsa_to_port(&priv->ds, iport);
 	u32 words[PPE_NEXTHOP_WORDS] = {};
@@ -606,12 +924,20 @@ static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
 
 	lockdep_assert_held(&priv->vlan_lock);
 
-	vsi = ppe_flow_ingress_vsi(priv, iport, vid);
-	if (vsi < 0)
-		return vsi;
+	if (dsa_service) {
+		entry->dsa_service = ppe_dsa_service_get(priv, iport, vid);
+		if (entry->dsa_service < 0)
+			return entry->dsa_service;
+		vsi = priv->dsa_service[entry->dsa_service].vsi;
+	} else {
+		vsi = ppe_flow_ingress_vsi(priv, iport, vid);
+		if (vsi < 0)
+			return vsi;
+	}
 
 	entry->src_if = vsi;
-	entry->ivid = priv->wan_ref[iport] ? priv->wan_vid[iport] :
+	entry->ivid = dsa_service ? 0 :
+		      priv->wan_ref[iport] ? priv->wan_vid[iport] :
 		      vid ? vid : ppe_port_pvid(priv, iport);
 
 	/* A PPPoE uplink's ingress interface belongs to the uplink, so take a
@@ -634,13 +960,18 @@ static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
 		l3dev = dp->user;
 
 	ppe_entry_set(words, PPE_MY_MAC_ADDR_OFF, PPE_MY_MAC_ADDR_LEN,
-		      ether_addr_to_u64(l3dev->dev_addr));
+		      ether_addr_to_u64(dsa_service && ingress_mac ?
+					 ingress_mac : l3dev->dev_addr));
 	ppe_entry_set(words, PPE_MY_MAC_VALID_OFF, PPE_MY_MAC_VALID_LEN, 1);
 
 	ret = ppe_res_get(priv->my_mac, PPE_MY_MAC_ENTRIES, words,
 			  PPE_MY_MAC_WORDS);
-	if (ret < 0)
+	if (ret < 0) {
+		if (dsa_service)
+			ppe_dsa_service_put(priv, entry->dsa_service);
+		entry->dsa_service = -1;
 		return ret;
+	}
 	entry->my_mac = ret;
 	if (priv->my_mac[ret].refcount == 1)
 		ppe_tbl_write(priv, PPE_MY_MAC_TBL(ret), words,
@@ -708,6 +1039,14 @@ static void ppe_flow_l3_mtu_set(struct qca_ppe_priv *priv, int port, int mtu)
 		if (vlan->br_dev && vlan->ports & BIT(port) &&
 		    priv->l3_if_ref[vlan->vsi])
 			ppe_l3_if_mtu_set(priv, vlan->vsi, mtu + ETH_HLEN);
+	}
+
+	for (i = 0; i < QCA_PPE_DSA_SERVICE_MAX; i++) {
+		struct ppe_dsa_service *service = &priv->dsa_service[i];
+
+		if (service->refs && service->port == port &&
+		    priv->l3_if_ref[service->vsi])
+			ppe_l3_if_mtu_set(priv, service->vsi, mtu + ETH_HLEN);
 	}
 }
 
@@ -806,6 +1145,8 @@ static void ppe_flow_free_ingress(struct qca_ppe_priv *priv,
 	if (ppe_res_put(priv->my_mac, entry->my_mac))
 		ppe_tbl_clear(priv, PPE_MY_MAC_TBL(entry->my_mac),
 			      PPE_MY_MAC_WORDS);
+	if (entry->dsa_service >= 0)
+		ppe_dsa_service_put(priv, entry->dsa_service);
 }
 
 /* The routing domain a set of flows was built for is going away. Their entries
@@ -860,9 +1201,11 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	u64 mac;
 	int port, ret;
 
-	port = ppe_flow_port_by_ifindex(priv, data->odev->ifindex);
+	port = ppe_flow_port_by_ifindex(priv, data->odev->ifindex,
+					&data->egress_svid, NULL, true);
 	if (port < 0)
 		return port;
+	data->egress_svid_valid = !!data->egress_svid;
 
 	/* A frame sent back out the port it arrived on is discarded by source
 	 * port filtering, so offloading it would black-hole what the CPU would
@@ -870,7 +1213,6 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	 */
 	if (port == iport)
 		return -EBUSY;
-
 	entry->oport = port;
 	/* An untagged egress is credited to the port's PVID VLAN, the one an
 	 * untagged frame on that port belongs to.
@@ -888,13 +1230,15 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	}
 	/* The size a routed frame leaves at, which the hardware compares before
 	 * it egresses and sends the frame to the CPU when it does not fit. The
-	 * port's mtu carries one mac header and the vlan tag the nexthop pushes;
-	 * a pppoe session header rides inside that mtu rather than on top of it.
+	 * port's mtu carries one MAC header and every VLAN tag the nexthop pushes;
+	 * a PPPoE session header rides inside that mtu rather than on top of it.
 	 * It joins the key because two interfaces sharing a source address need
 	 * separate entries when they do not share a size.
 	 */
 	odp = dsa_to_port(&priv->ds, port);
-	eg_mtu = odp->user->mtu + ETH_HLEN + (data->vlan_valid ? VLAN_HLEN : 0);
+	eg_mtu = odp->user->mtu + ETH_HLEN +
+		 data->vlan_valid * VLAN_HLEN +
+		 data->egress_svid_valid * VLAN_HLEN;
 	words[PPE_EG_L3_IF_WORDS] = eg_mtu;
 
 	/* An L3 interface is one index with an ingress half and an egress half.
@@ -937,6 +1281,12 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	ppe_entry_set(words, PPE_NEXTHOP_PORT_OFF, PPE_NEXTHOP_PORT_LEN, port);
 	ppe_entry_set(words, PPE_NEXTHOP_POST_L3_IF_OFF,
 		      PPE_NEXTHOP_POST_L3_IF_LEN, entry->eg_l3_if);
+	if (data->egress_svid_valid) {
+		ppe_entry_set(words, PPE_NEXTHOP_STAG_FMT_OFF,
+			      PPE_NEXTHOP_STAG_FMT_LEN, 1);
+		ppe_entry_set(words, PPE_NEXTHOP_SVID_OFF,
+			      PPE_NEXTHOP_SVID_LEN, data->egress_svid);
+	}
 	if (data->vlan_valid) {
 		ppe_entry_set(words, PPE_NEXTHOP_CTAG_FMT_OFF,
 			      PPE_NEXTHOP_CTAG_FMT_LEN, 1);
@@ -983,6 +1333,18 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 			ppe_flow_purge_ingress(priv, port, wan_vsi);
 	}
 
+	if (data->egress_svid_valid) {
+		ret = ppe_dsa_core_port_get(priv, port, false);
+		if (ret) {
+			if (entry->wan_port >= 0) {
+				ppe_wan_ingress_put(priv, entry->wan_port);
+				entry->wan_port = -1;
+			}
+			goto err_nexthop;
+		}
+		entry->dsa_egress_port = port;
+	}
+
 	return 0;
 
 err_nexthop:
@@ -1020,6 +1382,8 @@ static void ppe_flow_free_egress(struct qca_ppe_priv *priv,
 
 	if (entry->wan_port >= 0)
 		ppe_wan_ingress_put(priv, entry->wan_port);
+	if (entry->dsa_egress_port >= 0)
+		ppe_dsa_core_port_put(priv, entry->dsa_egress_port, false);
 }
 
 /* The counters are cumulative and narrower than u64 - 32-bit packets, 40-bit
@@ -1212,9 +1576,54 @@ static void ppe_flow_encode(struct ppe_flow_data *data, bool v6, bool snat,
 	}
 }
 
-static int ppe_flow_reject(struct qca_ppe_priv *priv, enum ppe_flow_reject why)
+static int ppe_flow_reject(struct qca_ppe_priv *priv, struct flow_rule *rule,
+			   enum ppe_flow_reject why)
 {
+	struct ppe_flow_reject_info *info = &priv->flow_reject_info[why];
+	const struct flow_action_entry *act;
+	int i;
+
+	lockdep_assert_held(&priv->flow_lock);
 	priv->flow_reject[why]++;
+	memset(info, 0, sizeof(*info));
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
+		struct flow_match_meta match;
+
+		flow_rule_match_meta(rule, &match);
+		info->ingress_ifindex = match.key->ingress_ifindex;
+	}
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC)) {
+		struct flow_match_basic match;
+
+		flow_rule_match_basic(rule, &match);
+		info->n_proto = ntohs(match.key->n_proto);
+		info->ip_proto = match.key->ip_proto;
+	}
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
+		struct flow_match_vlan match;
+
+		flow_rule_match_vlan(rule, &match);
+		info->vlan_tpid = ntohs(match.key->vlan_tpid);
+		info->vlan_id = match.key->vlan_id;
+	}
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN)) {
+		struct flow_match_vlan match;
+
+		flow_rule_match_cvlan(rule, &match);
+		info->cvlan_tpid = ntohs(match.key->vlan_tpid);
+		info->cvlan_id = match.key->vlan_id;
+	}
+	flow_action_for_each(i, act, &rule->action) {
+		if (act->id < 64)
+			info->actions |= BIT_ULL(act->id);
+		if (act->id == FLOW_ACTION_REDIRECT && act->dev)
+			info->egress_ifindex = act->dev->ifindex;
+		if (act->id == FLOW_ACTION_VLAN_PUSH) {
+			info->push_tpid = ntohs(act->vlan.proto);
+			info->push_vid = act->vlan.vid;
+		}
+	}
 
 	return -EOPNOTSUPP;
 }
@@ -1258,7 +1667,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META) ||
 	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL) ||
 	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC))
-		return ppe_flow_reject(priv, PPE_REJECT_KEY);
+		return ppe_flow_reject(priv, rule, PPE_REJECT_KEY);
 
 	{
 		struct flow_match_meta match;
@@ -1272,9 +1681,14 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		 * flow-table identity.
 		 */
 		iport = ppe_flow_port_by_ifindex(priv,
-						 match.key->ingress_ifindex);
+						 match.key->ingress_ifindex,
+						 &data.ingress_svid,
+						 data.ingress_mac, false);
 		if (iport < 0)
-			return ppe_flow_reject(priv, PPE_REJECT_INGRESS_PORT);
+			return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_PORT);
+		data.ingress_svid_valid = !!data.ingress_svid;
+		data.ingress_mac_valid = data.ingress_svid_valid &&
+					 is_valid_ether_addr(data.ingress_mac);
 	}
 
 	/* An ingress tag is matched by the VSI it is classified into - the
@@ -1283,15 +1697,19 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	 * A tag this driver has no classification for, and a second tag,
 	 * stay in software.
 	 */
-	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN))
-		return ppe_flow_reject(priv, PPE_REJECT_INGRESS_VLAN);
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN) ||
+	    (data.ingress_svid_valid &&
+	     flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)))
+		return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_VLAN);
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
 		struct flow_match_vlan match;
 
 		flow_rule_match_vlan(rule, &match);
 		if (match.key->vlan_tpid != htons(ETH_P_8021Q))
-			return ppe_flow_reject(priv, PPE_REJECT_INGRESS_VLAN);
+			return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_VLAN);
 		data.ivid = match.key->vlan_id;
+	} else if (data.ingress_svid_valid) {
+		data.ivid = data.ingress_svid;
 	}
 
 	{
@@ -1300,7 +1718,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		flow_rule_match_control(rule, &match);
 		if (flow_rule_has_control_flags(match.mask->flags,
 						f->common.extack))
-			return ppe_flow_reject(priv, PPE_REJECT_KEY);
+			return ppe_flow_reject(priv, rule, PPE_REJECT_KEY);
 		data.addr_type = match.key->addr_type;
 	}
 
@@ -1312,7 +1730,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	}
 
 	if (ppe_flow_proto(data.l4proto) < 0)
-		return ppe_flow_reject(priv, PPE_REJECT_PROTO);
+		return ppe_flow_reject(priv, rule, PPE_REJECT_PROTO);
 
 	flow_action_for_each(i, act, &rule->action) {
 		switch (act->id) {
@@ -1322,7 +1740,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 			else
 				ret = 0;
 			if (ret)
-				return ppe_flow_reject(priv, PPE_REJECT_ACTION);
+				return ppe_flow_reject(priv, rule, PPE_REJECT_ACTION);
 			break;
 		case FLOW_ACTION_REDIRECT:
 			data.odev = act->dev;
@@ -1332,7 +1750,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		case FLOW_ACTION_VLAN_PUSH:
 			if (data.vlan_valid ||
 			    act->vlan.proto != htons(ETH_P_8021Q))
-				return ppe_flow_reject(priv, PPE_REJECT_ACTION);
+				return ppe_flow_reject(priv, rule, PPE_REJECT_ACTION);
 			data.vlan_id = act->vlan.vid;
 			data.vlan_valid = true;
 			break;
@@ -1344,23 +1762,23 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 			break;
 		case FLOW_ACTION_PRIORITY:
 			if (act->priority > PPE_QOS_MAX_PRI)
-				return ppe_flow_reject(priv, PPE_REJECT_ACTION);
+				return ppe_flow_reject(priv, rule, PPE_REJECT_ACTION);
 			data.priority = act->priority;
 			break;
 		case FLOW_ACTION_PPPOE_PUSH:
 			if (data.pppoe_valid)
-				return ppe_flow_reject(priv, PPE_REJECT_ACTION);
+				return ppe_flow_reject(priv, rule, PPE_REJECT_ACTION);
 			data.pppoe_sid = act->pppoe.sid;
 			data.pppoe_valid = true;
 			break;
 		default:
-			return ppe_flow_reject(priv, PPE_REJECT_ACTION);
+			return ppe_flow_reject(priv, rule, PPE_REJECT_ACTION);
 		}
 	}
 
 	if (!data.odev || !is_valid_ether_addr(data.eth.h_source) ||
 	    !is_valid_ether_addr(data.eth.h_dest))
-		return ppe_flow_reject(priv, PPE_REJECT_L2);
+		return ppe_flow_reject(priv, rule, PPE_REJECT_L2);
 
 	switch (data.addr_type) {
 	case FLOW_DISSECTOR_KEY_IPV4_ADDRS: {
@@ -1382,14 +1800,14 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		break;
 	}
 	default:
-		return ppe_flow_reject(priv, PPE_REJECT_KEY);
+		return ppe_flow_reject(priv, rule, PPE_REJECT_KEY);
 	}
 
 	if (ppe_flow_proto(data.l4proto) != PPE_FLOW_PROTO_OTHER) {
 		struct flow_match_ports match;
 
 		if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS))
-			return ppe_flow_reject(priv, PPE_REJECT_KEY);
+			return ppe_flow_reject(priv, rule, PPE_REJECT_KEY);
 
 		flow_rule_match_ports(rule, &match);
 		data.sport = match.key->src;
@@ -1418,13 +1836,13 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 			 * the nexthop's NAT address is 32 bits wide, so IPv6
 			 * address translation cannot be expressed at all.
 			 */
-			return ppe_flow_reject(priv, PPE_REJECT_NAT_IPV6);
+			return ppe_flow_reject(priv, rule, PPE_REJECT_NAT_IPV6);
 		default:
 			ret = 0;
 			break;
 		}
 		if (ret)
-			return ppe_flow_reject(priv, PPE_REJECT_ACTION);
+			return ppe_flow_reject(priv, rule, PPE_REJECT_ACTION);
 	}
 
 	snat = data.v4_src_new != data.v4_src || data.sport_new != data.sport;
@@ -1434,10 +1852,10 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	 * needs both - a hairpinned connection - has no hardware expression.
 	 */
 	if (snat && dnat)
-		return ppe_flow_reject(priv, PPE_REJECT_NAT_BOTH);
+		return ppe_flow_reject(priv, rule, PPE_REJECT_NAT_BOTH);
 
 	if (v6 && (snat || dnat))
-		return ppe_flow_reject(priv, PPE_REJECT_NAT_IPV6);
+		return ppe_flow_reject(priv, rule, PPE_REJECT_NAT_IPV6);
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
@@ -1452,33 +1870,37 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	entry->l3_if = -1;
 	entry->wan_port = -1;
 	entry->wan_iport = -1;
+	entry->dsa_service = -1;
+	entry->dsa_egress_port = -1;
 	entry->iport = iport;
 
-	ret = ppe_flow_alloc_ingress(priv, iport, data.ivid, entry);
+	ret = ppe_flow_alloc_ingress(priv, iport, data.ivid,
+					data.ingress_svid_valid,
+					data.ingress_mac_valid ? data.ingress_mac : NULL,
+					entry);
 	if (ret) {
-		priv->flow_reject[ret == -EOPNOTSUPP ? PPE_REJECT_INGRESS_VLAN :
-				  PPE_REJECT_RESOURCE]++;
+		ppe_flow_reject(priv, rule, ret == -EOPNOTSUPP ?
+				PPE_REJECT_INGRESS_VLAN : PPE_REJECT_RESOURCE);
 		goto err_free;
 	}
 
 	ret = ppe_flow_alloc_egress(priv, &data, snat, dnat, iport, entry);
 	if (ret) {
-		priv->flow_reject[ret == -ENOSPC ? PPE_REJECT_RESOURCE :
-				  ret == -EBUSY ? PPE_REJECT_HAIRPIN :
-				  PPE_REJECT_EGRESS_PORT]++;
+		ppe_flow_reject(priv, rule, ret == -ENOSPC ? PPE_REJECT_RESOURCE :
+				ret == -EBUSY ? PPE_REJECT_HAIRPIN :
+				PPE_REJECT_EGRESS_PORT);
 		goto err_ingress;
 	}
 
 	ppe_flow_encode(&data, v6, snat, dnat, entry->nexthop, entry->src_if,
 			fw, hw);
-
 	nfw = v6 ? PPE_FLOW_ENTRY_WORDS_V6 : PPE_FLOW_ENTRY_WORDS_V4;
 	nhw = v6 ? PPE_HOST_ENTRY_WORDS_V6 : PPE_HOST_ENTRY_WORDS_V4;
 
 	ret = ppe_flow_op(priv, PPE_TBL_OP_ADD, fw, nfw, hw, nhw, &entry->index,
 			  &entry->host_index);
 	if (ret) {
-		priv->flow_reject[PPE_REJECT_HW_OP]++;
+		ppe_flow_reject(priv, rule, PPE_REJECT_HW_OP);
 		goto err_egress;
 	}
 

@@ -1,10 +1,13 @@
-From: ImmortalWrt
-Subject: net: disable fraglist GRO by default on qualcommax
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 26 Sep 2026 00:55:00 +0800
+Subject: [PATCH] net: disable fraglist GRO by default on qualcommax
 
 Fraglist GRO can expose packet corruption and severe throughput regressions
 when forwarded traffic crosses network drivers that do not handle fraglist
 SKBs correctly. Keep regular GRO enabled, but make fraglist GRO opt-in on the
 qualcommax target.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/linux/netdev_features.h
 +++ b/include/linux/netdev_features.h
