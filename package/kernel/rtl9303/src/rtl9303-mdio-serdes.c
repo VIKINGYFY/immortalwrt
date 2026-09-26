@@ -118,7 +118,7 @@ static int rtsds_dbg_registers_show(struct seq_file *seqf, void *unused)
 	struct mii_bus *bus = ctrl->bus;
 	int sds = dbg_info->sds;
 	int regnum, page = 0;
-	int subpage;
+	int subpage, value;
 
 	do {
 		subpage = RTSDS_SUBPAGE(page);
@@ -134,10 +134,13 @@ static int rtsds_dbg_registers_show(struct seq_file *seqf, void *unused)
 		else
 			seq_printf(seqf, "PAGE %02X     : ", page);
 
-		for (regnum = 0; regnum < RTSDS_REG_CNT; regnum++)
-			seq_printf(seqf, "%04X ",
-				   mdiobus_c45_read(bus, sds, MDIO_MMD_VEND1,
-						    rtsds_sds_to_mmd(page, regnum)));
+		for (regnum = 0; regnum < RTSDS_REG_CNT; regnum++) {
+			value = mdiobus_c45_read(bus, sds, MDIO_MMD_VEND1,
+						rtsds_sds_to_mmd(page, regnum));
+			if (value < 0)
+				return value;
+			seq_printf(seqf, "%04X ", value);
+		}
 		seq_puts(seqf, "\n");
 	} while (++page < ctrl->cfg->page_cnt);
 
@@ -145,32 +148,59 @@ static int rtsds_dbg_registers_show(struct seq_file *seqf, void *unused)
 }
 DEFINE_SHOW_ATTRIBUTE(rtsds_dbg_registers);
 
+static void rtsds_debug_remove(void *root)
+{
+	debugfs_remove(root);
+}
+
 static int rtsds_debug_init(struct rtsds_ctrl *ctrl)
 {
 	struct rtsds_debug_info *dbg_info;
-	struct dentry *dir, *root;
-	char dirname[32];
+	struct dentry *dir, *root, *file;
+	char dirname[32], *name;
+	int ret;
 
-	root = debugfs_create_dir(RTSDS_DBG_ROOT_DIR, NULL);
+	/* Register cleanup after the data allocation so files disappear first. */
+	dbg_info = devm_kcalloc(ctrl->dev, ctrl->cfg->sds_cnt,
+				sizeof(*dbg_info), GFP_KERNEL);
+	if (!dbg_info)
+		return -ENOMEM;
+	name = devm_kasprintf(ctrl->dev, GFP_KERNEL, "%s-%s",
+			     RTSDS_DBG_ROOT_DIR, dev_name(ctrl->dev));
+	if (!name)
+		return -ENOMEM;
+
+	root = debugfs_create_dir(name, NULL);
 	if (IS_ERR(root))
 		return PTR_ERR(root);
+	ret = devm_add_action_or_reset(ctrl->dev, rtsds_debug_remove, root);
+	if (ret)
+		return ret;
 
 	for (int sds = 0; sds < ctrl->cfg->sds_cnt; sds++) {
-		dbg_info = devm_kzalloc(ctrl->dev, sizeof(*dbg_info), GFP_KERNEL);
-		if (!dbg_info)
-			return -ENOMEM;
-
-		dbg_info->ctrl = ctrl;
-		dbg_info->sds = sds;
+		dbg_info[sds].ctrl = ctrl;
+		dbg_info[sds].sds = sds;
 
 		snprintf(dirname, sizeof(dirname), "serdes.%d", sds);
 		dir = debugfs_create_dir(dirname, root);
+		if (IS_ERR(dir)) {
+			ret = PTR_ERR(dir);
+			goto err_remove;
+		}
 
-		debugfs_create_file("registers", 0600, dir, dbg_info,
-				    &rtsds_dbg_registers_fops);
+		file = debugfs_create_file("registers", 0400, dir, &dbg_info[sds],
+					   &rtsds_dbg_registers_fops);
+		if (IS_ERR(file)) {
+			ret = PTR_ERR(file);
+			goto err_remove;
+		}
 	}
 
 	return 0;
+
+err_remove:
+	devm_release_action(ctrl->dev, rtsds_debug_remove, root);
+	return ret;
 }
 
 #endif /* CONFIG_DEBUG_FS */
@@ -470,7 +500,9 @@ static int rtsds_probe(struct platform_device *pdev)
 		return ret;
 
 #ifdef CONFIG_DEBUG_FS
-	rtsds_debug_init(ctrl);
+	ret = rtsds_debug_init(ctrl);
+	if (ret)
+		dev_dbg(dev, "Failed to create SerDes debugfs: %d\n", ret);
 #endif
 
 	dev_info(dev, "Realtek SerDes mdio bus initialized, %d SerDes, %d pages, %d registers\n",

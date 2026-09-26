@@ -751,6 +751,9 @@ TARGET_DEVICES += arista_ap-c360
 define Device/verizon_cr1000a
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
+	# The OEM bootloader reads at most 20 MiB for either FIT image.
+	KERNEL_SIZE := 20480k
+	KERNEL_INITRAMFS = $$(KERNEL) | check-size $$(KERNEL_SIZE)
 	DEVICE_VENDOR := Verizon
 	DEVICE_MODEL := CR1000A
 	SOC := ipq8072

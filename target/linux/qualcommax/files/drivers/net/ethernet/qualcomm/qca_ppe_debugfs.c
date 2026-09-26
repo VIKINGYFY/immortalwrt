@@ -93,7 +93,7 @@ DEFINE_SHOW_ATTRIBUTE(ppe_policer);
 
 /* Why frames left the datapath. A CPU code says which exception handed the
  * frame to the host; a drop code says which stage discarded it, and is the
- * only counter that names the stage.
+ * only counter that names the stage. Drop code zero means no drop reason.
  */
 static int ppe_drop_code_show(struct seq_file *s, void *data)
 {
@@ -116,12 +116,13 @@ static int ppe_drop_code_show(struct seq_file *s, void *data)
 		if (i < PPE_CPU_CODE_ENTRIES)
 			seq_printf(s, "cpu  %-4u -    %llu %llu\n", i, pkts,
 				   bytes);
-		else
-			seq_printf(s, "drop %-4u %-4u %llu %llu\n",
-				   (i - PPE_CPU_CODE_ENTRIES) /
-				   PPE_DROP_CODE_PORTS,
-				   (i - PPE_CPU_CODE_ENTRIES) %
-				   PPE_DROP_CODE_PORTS, pkts, bytes);
+		else {
+			u32 code = (i - PPE_CPU_CODE_ENTRIES) / PPE_DROP_CODE_PORTS;
+			u32 port = (i - PPE_CPU_CODE_ENTRIES) % PPE_DROP_CODE_PORTS;
+
+			seq_printf(s, "%-4s %-4u %-4u %llu %llu\n",
+				   code ? "drop" : "none", code, port, pkts, bytes);
+		}
 	}
 
 	return 0;
