@@ -3,6 +3,7 @@
 #include <asm/mach-rtl-otto/mach-rtl-otto.h>
 #include <linux/etherdevice.h>
 
+#include "lag.h"
 #include "l2.h"
 #include "l3.h"
 #include "pie.h"
@@ -10,6 +11,7 @@
 #include "rtl-otto.h"
 #include "stats.h"
 #include "vlan.h"
+#include "stp.h"
 
 const struct rtldsa_mib_list_item rtldsa_839x_mib_list[] = {
 	MIB_LIST_ITEM("ifOutDiscards", MIB_ITEM(MIB_REG_STD, 0xd4, 1)),
@@ -141,11 +143,6 @@ static int rtldsa_839x_get_mirror_config(struct rtldsa_mirror_config *config,
 	return 0;
 }
 
-static inline int rtl839x_trk_mbr_ctr(int group)
-{
-	return RTL839X_TRK_MBR_CTR + (group << 3);
-}
-
 static void rtl839x_traffic_set(int source, u64 dest_matrix)
 {
 	rtl839x_set_port_reg_be(dest_matrix, rtl839x_port_iso_ctrl(source));
@@ -159,34 +156,6 @@ static void rtl839x_traffic_enable(int source, int dest)
 static void rtl839x_traffic_disable(int source, int dest)
 {
 	rtl839x_mask_port_reg_be(BIT_ULL(dest), 0, rtl839x_port_iso_ctrl(source));
-}
-
-static int rtldsa_839x_stp_get(struct rtl838x_switch_priv *priv, u16 msti, int port)
-{
-	int idx = 3 - ((port + 12) / 16);
-	int bit = 2 * ((port + 12) % 16);
-	/* port < priv->r->cpu_port (RTL839X_CPU_PORT == 52), so idx is 0..3 */
-	u32 buf[4];
-	int state;
-
-	otto_table_read(RTL8390_TBL_MSTI, msti, &buf);
-	state = (buf[idx] >> bit) & 0x3;
-
-	return state;
-}
-
-static void rtl839x_stp_set(struct rtl838x_switch_priv *priv, u16 msti, int port, int state)
-{
-	int tbl = otto_table_acquire(RTL8390_TBL_MSTI);
-	int idx = 3 - ((port + 12) / 16);
-	int bit = 2 * ((port + 12) % 16);
-	/* port < priv->r->cpu_port (RTL839X_CPU_PORT == 52), so idx is 0..3 */
-	u32 buf[4];
-
-	__otto_table_read(tbl, msti, &buf);
-	buf[idx] = (buf[idx] & ~(0x3 << bit)) | (state << bit);
-	__otto_table_write(tbl, msti, &buf);
-	otto_table_release(tbl);
 }
 
 /* Enables or disables the EEE/EEEP capability of a port */
@@ -282,16 +251,6 @@ static void rtl839x_set_egr_filter(int port,  enum egr_filter state)
 		    RTL839X_VLAN_PORT_EGR_FLTR + (((port >> 5) << 2)));
 }
 
-static int rtldsa_839x_set_distribution_algorithm(struct rtl838x_switch_priv *priv,
-						  int group, int algoidx, u32 algomsk)
-{
-	sw_w32_mask(3 << ((group & 0xf) << 1), algoidx << ((group & 0xf) << 1),
-		    RTL839X_TRK_HASH_IDX_CTRL + ((group >> 4) << 2));
-	sw_w32(algomsk, RTL839X_TRK_HASH_CTRL + (algoidx << 2));
-
-	return 0;
-}
-
 static void rtl839x_set_receive_management_action(int port, rma_ctrl_t type, action_type_t action)
 {
 	switch (type) {
@@ -312,24 +271,10 @@ static void rtl839x_set_receive_management_action(int port, rma_ctrl_t type, act
 	}
 }
 
-static int rtldsa_839x_lag_set_port_members(struct rtl838x_switch_priv *priv, int group,
-					    u64 members, struct netdev_lag_upper_info *info)
-{
-	priv->lags_port_members[group] = members;
-
-	priv->r->set_port_reg_be(priv->lags_port_members[group],
-				 priv->r->trk_mbr_ctr(group));
-
-	return 0;
-}
-
-int rtldsa_83xx_lag_setup_algomask(struct rtl838x_switch_priv *priv, int group,
-				   struct netdev_lag_upper_info *info);
-
 const struct rtldsa_config rtldsa_839x_cfg = {
 	.switch_ops = &rtldsa_83xx_switch_ops,
 	.phylink_mac_ops = &rtldsa_83xx_phylink_mac_ops,
-	.spanning_tree_ctrl = RTL839X_ST_CTRL,
+	.stp_init = rtldsa_839x_stp_init,
 	.l2_bucket_size = 4,
 	.n_mst = 256,
 	.num_lag_ids = 16,
