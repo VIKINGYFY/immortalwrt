@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cr1000a-recovery
-PKG_RELEASE:=1
+PKG_RELEASE:=3
 PKG_FLAGS:=nonshared
 
 include $(INCLUDE_DIR)/package.mk

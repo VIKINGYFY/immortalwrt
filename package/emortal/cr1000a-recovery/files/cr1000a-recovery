@@ -8,11 +8,29 @@
 }
 
 recovery_bootcmd='if run set_custom_bootargs && run read_hlos_emmc && bootm 44000000; then true; else run boot_recovery; fi'
+reset_bootcmd='if run cr1000a_reset_pressed; then run cr1000a_reset_recovery; else if run set_custom_bootargs && run read_hlos_emmc && bootm 44000000; then true; else run boot_recovery; fi; fi'
+button_bootcmd='if run cr1000a_mesh_pressed; then run cr1000a_mesh_recovery; else if run set_custom_bootargs && run read_hlos_emmc && bootm 44000000; then true; else run boot_recovery; fi; fi'
+mesh_pressed='mw.l 0x0102a000 0xc3 1; itest.l *0x0102a004 == 0'
+mesh_recovery='echo Recovery selected. Release Mesh to continue.; while itest.l *0x0102a004 == 0; do sleep 1; done; run boot_recovery'
 normal_bootcmd='run setup_and_boot'
 
 fail() {
 	echo "CR1000A recovery: $*" >&2
 	exit 1
+}
+
+known_bootcmd() {
+	[ "$1" = "$normal_bootcmd" ] || [ "$1" = "$recovery_bootcmd" ] ||
+		[ "$1" = "$reset_bootcmd" ] || [ "$1" = "$button_bootcmd" ]
+}
+
+clear_button_commands() {
+	local command
+	for command in "$@"; do
+		if fw_printenv -n "$command" >/dev/null 2>&1; then
+			fw_setenv "$command" || fail "cannot clear $command"
+		fi
+	done
 }
 
 recovery_part() {
@@ -92,14 +110,15 @@ status)
 	;;
 disable)
 	current=$(fw_printenv -n bootcmd 2>/dev/null)
-	[ "$current" = "$normal_bootcmd" ] || [ "$current" = "$recovery_bootcmd" ] || fail 'unknown bootcmd; refusing to replace it'
+	known_bootcmd "$current" || fail 'unknown bootcmd; refusing to replace it'
 	fw_setenv cr1000a_recovery 0 || fail 'cannot clear recovery flag'
 	fw_setenv bootcmd "$normal_bootcmd" || fail 'cannot restore normal bootcmd'
+	clear_button_commands cr1000a_mesh_pressed cr1000a_mesh_recovery cr1000a_reset_pressed cr1000a_reset_recovery
 	;;
 enable|install)
 	part=$(recovery_part)
 	current=$(fw_printenv -n bootcmd 2>/dev/null)
-	[ "$current" = "$normal_bootcmd" ] || [ "$current" = "$recovery_bootcmd" ] || fail 'unknown bootcmd; refusing to replace it'
+	known_bootcmd "$current" || fail 'unknown bootcmd; refusing to replace it'
 	if [ "$1" = install ]; then
 		[ -f "$2" ] || fail 'usage: cr1000a-recovery install /path/to/initramfs-uImage.itb'
 		bytes=$(wc -c < "$2")
@@ -112,7 +131,10 @@ enable|install)
 	fi
 	start=$(cat "/sys/class/block/${part##*/}/start")
 	fw_setenv boot_recovery "setenv bootargs console=ttyMSM0,115200n8; mmc read 44000000 0x$(printf '%X' "$start") 0xA000 && bootm 44000000" || fail 'cannot set recovery command'
-	fw_setenv bootcmd "$recovery_bootcmd" || fail 'cannot set fallback bootcmd'
+	fw_setenv cr1000a_mesh_pressed "$mesh_pressed" || fail 'cannot set Mesh test command'
+	fw_setenv cr1000a_mesh_recovery "$mesh_recovery" || fail 'cannot set Mesh recovery command'
+	fw_setenv bootcmd "$button_bootcmd" || fail 'cannot set Mesh/fallback bootcmd'
+	clear_button_commands cr1000a_reset_pressed cr1000a_reset_recovery
 	fw_setenv cr1000a_recovery 1 || fail 'cannot set recovery flag'
 	;;
 *)

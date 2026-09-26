@@ -348,8 +348,9 @@ static int ppe_dsa_services_show(struct seq_file *s, void *data)
 	{
 		u32 ingress_qinq, egress_qinq;
 
-		regmap_read(priv->regmap, PPE_BRIDGE_CONFIG, &ingress_qinq);
-		regmap_read(priv->regmap, PPE_EG_BRIDGE_CONFIG, &egress_qinq);
+		if (regmap_read(priv->regmap, PPE_BRIDGE_CONFIG, &ingress_qinq) ||
+		    regmap_read(priv->regmap, PPE_EG_BRIDGE_CONFIG, &egress_qinq))
+			return -EIO;
 		seq_printf(s, "dsa_qinq ingress=%08x egress=%08x\n",
 			   ingress_qinq, egress_qinq);
 	}
@@ -371,63 +372,71 @@ static int ppe_pipeline_state_show(struct seq_file *s, void *data)
 	u32 ctrl0, ctrl1, vsi;
 	int type, i;
 
-	regmap_read(priv->regmap, PPE_FLOW_CTRL0, &ctrl0);
+	if (regmap_read(priv->regmap, PPE_FLOW_CTRL0, &ctrl0))
+		return -EIO;
 	seq_printf(s, "flow_ctrl0 %08x\n", ctrl0);
 	for (type = 0; type < PPE_FLOW_PKT_TYPES; type++) {
-		regmap_read(priv->regmap, PPE_FLOW_CTRL1(type), &ctrl1);
+		if (regmap_read(priv->regmap, PPE_FLOW_CTRL1(type), &ctrl1))
+			return -EIO;
 		seq_printf(s, "flow_ctrl1[%d] %08x\n", type, ctrl1);
 	}
 	for (i = 0; i < 4; i++) {
-		regmap_read(priv->regmap, PPE_L3_VSI_TBL(i), &vsi);
+		if (regmap_read(priv->regmap, PPE_L3_VSI_TBL(i), &vsi))
+			return -EIO;
 		seq_printf(s, "l3_vsi[%d] %08x\n", i, vsi);
 	}
 
 	guard(mutex)(&priv->vlan_lock);
 	for (i = 0; i < QCA_PPE_DSA_SERVICE_MAX; i++) {
 		struct ppe_dsa_service *service = &priv->dsa_service[i];
-		u32 rule, rule_w1, action, action_w1, action_w2;
+		u32 rule[2], action[3], eg_rule[2], eg_action[2];
 		u32 ingress_role, egress_role, cpu_egress_role;
-		u32 eg_rule, eg_rule_w1, eg_action, eg_action_w1;
-		u32 count[3];
+		u32 count[3], counter_id;
+		bool counter_enabled;
 		u64 bytes;
 
 		if (!service->refs)
 			continue;
-		regmap_read(priv->regmap, PPE_PORT_PARSING(service->port),
-			    &ingress_role);
-		regmap_read(priv->regmap, PPE_PORT_EG_VLAN(service->port),
-			    &egress_role);
-		regmap_read(priv->regmap, PPE_PORT_EG_VLAN(QCA_PPE_CPU_PORT),
-			    &cpu_egress_role);
+		if (regmap_read(priv->regmap, PPE_PORT_PARSING(service->port),
+				&ingress_role) ||
+		    regmap_read(priv->regmap, PPE_PORT_EG_VLAN(service->port),
+				&egress_role) ||
+		    regmap_read(priv->regmap, PPE_PORT_EG_VLAN(QCA_PPE_CPU_PORT),
+				&cpu_egress_role))
+			return -EIO;
 		seq_printf(s, "dsa_core_port[%d] ingress=%08x egress=%08x cpu_egress=%08x\n",
 			   service->port, ingress_role, egress_role,
 			   cpu_egress_role);
-		regmap_read(priv->regmap, PPE_EG_XLT_RULE(service->xlt), &eg_rule);
-		regmap_read(priv->regmap, PPE_EG_XLT_RULE_W1(service->xlt),
-			    &eg_rule_w1);
-		regmap_read(priv->regmap, PPE_EG_XLT_ACTION(service->xlt),
-			    &eg_action);
-		regmap_read(priv->regmap, PPE_EG_XLT_ACTION_W1(service->xlt),
-			    &eg_action_w1);
+		if (regmap_bulk_read(priv->regmap, PPE_EG_XLT_RULE(service->xlt),
+				     eg_rule, ARRAY_SIZE(eg_rule)) ||
+		    regmap_bulk_read(priv->regmap, PPE_EG_XLT_ACTION(service->xlt),
+				     eg_action, ARRAY_SIZE(eg_action)) ||
+		    regmap_bulk_read(priv->regmap, PPE_XLT_RULE_TBL(service->xlt),
+				     rule, ARRAY_SIZE(rule)) ||
+		    regmap_bulk_read(priv->regmap, PPE_XLT_ACTION_TBL(service->xlt),
+				     action, ARRAY_SIZE(action)))
+			return -EIO;
 		seq_printf(s, "dsa_eg_xlt[%d] rule=%08x:%08x action=%08x:%08x\n",
-			   i, eg_rule, eg_rule_w1, eg_action, eg_action_w1);
-		regmap_read(priv->regmap, PPE_XLT_RULE_TBL(service->xlt), &rule);
-		regmap_read(priv->regmap, PPE_XLT_RULE_W1(service->xlt), &rule_w1);
-		regmap_read(priv->regmap, PPE_XLT_ACTION_TBL(service->xlt), &action);
-		regmap_read(priv->regmap, PPE_XLT_ACTION_W1(service->xlt), &action_w1);
-		regmap_read(priv->regmap, PPE_XLT_ACTION_W2(service->xlt), &action_w2);
-		regmap_read(priv->regmap, PPE_XLT_CNT_TBL(service->xlt), &count[0]);
-		regmap_read(priv->regmap, PPE_XLT_CNT_TBL(service->xlt) + 4, &count[1]);
-		regmap_read(priv->regmap, PPE_XLT_CNT_TBL(service->xlt) + 8, &count[2]);
-		bytes = count[1] | (u64)FIELD_GET(PPE_XLT_CNT_W2_BYTES_HI, count[2]) << 32;
+			   i, eg_rule[0], eg_rule[1], eg_action[0], eg_action[1]);
+		counter_enabled = action[1] & PPE_XLT_ACTION_W1_CNT_EN;
+		counter_id = FIELD_GET(PPE_XLT_ACTION_W1_CNT_ID_LO, action[1]) |
+			     FIELD_GET(PPE_XLT_ACTION_W2_CNT_ID_HI, action[2]) << 3;
 		seq_printf(s, "dsa_xlt[%d] port=%d vid=%u vsi=%d xlt=%d "
 			   "rule=%08x:%08x action=%08x:%08x:%08x "
-			   "counter_id=%u packets=%u bytes=%llu\n", i,
+			   "counter_enabled=%u counter_id=%u", i,
 			   service->port, service->vid, service->vsi, service->xlt,
-			   rule, rule_w1, action, action_w1, action_w2,
-			   (u32)(FIELD_GET(PPE_XLT_ACTION_W1_CNT_ID_LO, action_w1) |
-			   FIELD_GET(PPE_XLT_ACTION_W2_CNT_ID_HI, action_w2) << 3),
-			   count[0], (unsigned long long)bytes);
+			   rule[0], rule[1], action[0], action[1], action[2],
+			   counter_enabled, counter_id);
+		if (!counter_enabled) {
+			seq_putc(s, '\n');
+			continue;
+		}
+		if (regmap_bulk_read(priv->regmap, PPE_XLT_CNT_TBL(counter_id),
+				     count, ARRAY_SIZE(count)))
+			return -EIO;
+		bytes = count[1] | (u64)FIELD_GET(PPE_XLT_CNT_W2_BYTES_HI, count[2]) << 32;
+		seq_printf(s, " packets=%u bytes=%llu\n", count[0],
+			   (unsigned long long)bytes);
 	}
 	return 0;
 }

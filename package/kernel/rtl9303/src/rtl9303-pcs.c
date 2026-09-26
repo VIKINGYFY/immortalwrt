@@ -2733,7 +2733,11 @@ static void rtpcs_930x_sds_do_rx_calibration(struct rtpcs_serdes *sds,
 static int rtpcs_930x_sds_sym_err_reset(struct rtpcs_serdes *sds,
 					enum rtpcs_sds_mode hw_mode)
 {
-	int channel, channels;
+	int (*write_bits)(struct rtpcs_serdes *, enum rtpcs_page, int, int, int, u16);
+	int channel, channels, ret;
+
+	write_bits = hw_mode == RTPCS_SDS_MODE_XSGMII ?
+		     rtpcs_sds_xsg_write_bits : rtpcs_sds_write_bits;
 
 	switch (hw_mode) {
 	case RTPCS_SDS_MODE_USXGMII:
@@ -2743,10 +2747,12 @@ static int rtpcs_930x_sds_sym_err_reset(struct rtpcs_serdes *sds,
 		}
 		fallthrough;
 	case RTPCS_SDS_MODE_10GBASER:
-		/* Read twice to clear */
-		rtpcs_sds_read(sds, PAGE_TGR_STD_1, 0x1);
-		rtpcs_sds_read(sds, PAGE_TGR_STD_1, 0x1);
-		return 0;
+		/* Read twice to clear. */
+		ret = rtpcs_sds_read(sds, PAGE_TGR_STD_1, 0x1);
+		if (ret < 0)
+			return ret;
+		ret = rtpcs_sds_read(sds, PAGE_TGR_STD_1, 0x1);
+		return ret < 0 ? ret : 0;
 
 	case RTPCS_SDS_MODE_XSGMII:
 	case RTPCS_SDS_MODE_QSGMII:
@@ -2759,101 +2765,110 @@ static int rtpcs_930x_sds_sym_err_reset(struct rtpcs_serdes *sds,
 	}
 
 	for (channel = 0; channel < channels; channel++) {
-		if (hw_mode == RTPCS_SDS_MODE_XSGMII) {
-			rtpcs_sds_xsg_write_bits(sds, PAGE_SDS_EXT, 0x18, 2, 0, channel);
-			rtpcs_sds_xsg_write_bits(sds, PAGE_SDS_EXT, 0x3, 15, 8, 0x0);
-			rtpcs_sds_xsg_write_bits(sds, PAGE_SDS_EXT, 0x2, 15, 0, 0x0);
-		} else {
-			rtpcs_sds_write_bits(sds, PAGE_SDS_EXT, 0x18, 2, 0, channel);
-			rtpcs_sds_write_bits(sds, PAGE_SDS_EXT, 0x3, 15, 8, 0x0);
-			rtpcs_sds_write_bits(sds, PAGE_SDS_EXT, 0x2, 15, 0, 0x0);
-		}
+		ret = write_bits(sds, PAGE_SDS_EXT, 0x18, 2, 0, channel);
+		if (ret)
+			return ret;
+		ret = write_bits(sds, PAGE_SDS_EXT, 0x3, 15, 8, 0);
+		if (ret)
+			return ret;
+		ret = write_bits(sds, PAGE_SDS_EXT, 0x2, 15, 0, 0);
+		if (ret)
+			return ret;
 	}
 
 	if (channels > 1) {
-		if (hw_mode == RTPCS_SDS_MODE_XSGMII) {
-			rtpcs_sds_xsg_write_bits(sds, PAGE_SDS_EXT, 0x0, 15, 0, 0x0);
-			rtpcs_sds_xsg_write_bits(sds, PAGE_SDS_EXT, 0x1, 15, 8, 0x0);
-		} else {
-			rtpcs_sds_write_bits(sds, PAGE_SDS_EXT, 0x0, 15, 0, 0x0);
-			rtpcs_sds_write_bits(sds, PAGE_SDS_EXT, 0x1, 15, 8, 0x0);
-		}
+		ret = write_bits(sds, PAGE_SDS_EXT, 0x0, 15, 0, 0);
+		if (ret)
+			return ret;
+		ret = write_bits(sds, PAGE_SDS_EXT, 0x1, 15, 8, 0);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
 }
 
-static u32 rtpcs_930x_sds_sym_err_get(struct rtpcs_serdes *sds,
-				      enum rtpcs_sds_mode hw_mode)
+static int rtpcs_930x_sds_sym_err_get(struct rtpcs_serdes *sds,
+				       enum rtpcs_sds_mode hw_mode)
 {
-	u32 v = 0;
+	int high_reg, low_reg, high, low, ret;
 
 	if (hw_mode == RTPCS_SDS_MODE_QSGMII || hw_mode == RTPCS_SDS_MODE_XSGMII) {
-		v = rtpcs_sds_read_bits(sds, PAGE_SDS_EXT, 0x1, 15, 8) << 16; /* ALL_SYMBOLERR_CNT_NEW_23_16 */
-		v |= rtpcs_sds_read_bits(sds, PAGE_SDS_EXT, 0x0, 15, 0); /* ALL_SYMBOLERR_CNT_NEW_15_0 */
+		high_reg = 0x1;
+		low_reg = 0x0;
 	} else if (hw_mode == RTPCS_SDS_MODE_USXGMII &&
 		   sds->usxgmii_submode == RTPCS_SDS_USXGMII_SM_10GQXGMII) {
-		/* no known symbol error count for USXGMII QXGMII */
+		/* No known symbol error count for USXGMII QXGMII. */
+		return 0;
 	} else if (hw_mode == RTPCS_SDS_MODE_1000BASEX || hw_mode == RTPCS_SDS_MODE_SGMII ||
 		   hw_mode == RTPCS_SDS_MODE_10GBASER ||
 		   (hw_mode == RTPCS_SDS_MODE_USXGMII &&
 		    sds->usxgmii_submode == RTPCS_SDS_USXGMII_SM_10GSXGMII)) {
-		v = rtpcs_sds_read(sds, PAGE_TGR_STD_1, 0x1);
-		v &= 0xff;
+		ret = rtpcs_sds_read(sds, PAGE_TGR_STD_1, 0x1);
+		return ret < 0 ? ret : ret & 0xff;
 	} else {
-		rtpcs_sds_write_bits(sds, PAGE_SDS_EXT, 24, 2, 0, 0);
-
-		v = rtpcs_sds_read_bits(sds, PAGE_SDS_EXT, 0x3, 15, 8) << 16; /* MUX_SYMBOLERR_CNT_NEW_23_16 */
-		v |= rtpcs_sds_read_bits(sds, PAGE_SDS_EXT, 0x2, 15, 0); /* MUX_SYMBOLERR_CNT_NEW_15_0 */
+		ret = rtpcs_sds_write_bits(sds, PAGE_SDS_EXT, 0x18, 2, 0, 0);
+		if (ret)
+			return ret;
+		high_reg = 0x3;
+		low_reg = 0x2;
 	}
 
-	return v;
+	high = rtpcs_sds_read_bits(sds, PAGE_SDS_EXT, high_reg, 15, 8);
+	if (high < 0)
+		return high;
+	low = rtpcs_sds_read_bits(sds, PAGE_SDS_EXT, low_reg, 15, 0);
+	if (low < 0)
+		return low;
+
+	return high << 16 | low;
 }
 
+/* Return a positive value for symbol errors, negative for register I/O errors. */
 static int rtpcs_930x_sds_check_calibration(struct rtpcs_serdes *sds,
 					    enum rtpcs_sds_mode hw_mode)
 {
 	u32 errors1, errors2;
+	int ret;
 
-	rtpcs_930x_sds_sym_err_reset(sds, hw_mode);
-	rtpcs_930x_sds_sym_err_reset(sds, hw_mode);
+	ret = rtpcs_930x_sds_sym_err_reset(sds, hw_mode);
+	if (ret)
+		return ret;
+	ret = rtpcs_930x_sds_sym_err_reset(sds, hw_mode);
+	if (ret)
+		return ret;
 
-	/* Count errors during 1ms */
-	errors1 = rtpcs_930x_sds_sym_err_get(sds, hw_mode);
+	/* Count errors during 1ms. */
+	ret = rtpcs_930x_sds_sym_err_get(sds, hw_mode);
+	if (ret < 0)
+		return ret;
+	errors1 = ret;
 	usleep_range(1000, 2000);
-	errors2 = rtpcs_930x_sds_sym_err_get(sds, hw_mode);
+	ret = rtpcs_930x_sds_sym_err_get(sds, hw_mode);
+	if (ret < 0)
+		return ret;
+	errors2 = ret;
 
-	switch (hw_mode) {
-	case RTPCS_SDS_MODE_XSGMII:
-		if ((errors2 - errors1 > 100) || (errors1 >= 0xffff00) || (errors2 >= 0xffff00)) {
-			dev_err(sds->ctrl->dev, "SerDes %u: XSGMII error rate too high\n",
-				sds->id);
-			return 1;
-		}
-		break;
-	default:
-		if (errors2 > 0) {
-			dev_err(sds->ctrl->dev, "SerDes %u: symbol error rate too high\n",
-				sds->id);
-			return 1;
-		}
-		break;
-	}
+	if (hw_mode == RTPCS_SDS_MODE_XSGMII)
+		return errors2 - errors1 > 100 || errors1 >= 0xffff00 || errors2 >= 0xffff00;
 
-	return 0;
+	return errors2 > 0;
 }
 
+/* A busy receiver may still calibrate; keep that distinct from MDIO timeouts. */
 static int rtpcs_930x_sds_10g_idle(struct rtpcs_serdes *sds)
 {
 	struct rtpcs_serdes *even_sds = rtpcs_sds_get_even(sds);
 	ktime_t timeout;
-	int bit, busy;
+	int bit, busy, ret;
 
 	bit = (sds == even_sds) ? 0 : 1;
 	timeout = ktime_add_us(ktime_get(), 10000); /* timeout after 10 msecs */
 
 	do {
-		rtpcs_sds_write(even_sds, PAGE_WDIG, 0x2, 53);
+		ret = rtpcs_sds_write(even_sds, PAGE_WDIG, 0x2, 53);
+		if (ret)
+			return ret;
 		busy = rtpcs_sds_read_bits(even_sds, PAGE_WDIG, 0x14, bit, bit);
 		if (busy < 0)
 			return busy;
@@ -2864,8 +2879,9 @@ static int rtpcs_930x_sds_10g_idle(struct rtpcs_serdes *sds)
 		usleep_range(100, 200); /* wait ~100 usecs before retry */
 	} while (ktime_before(ktime_get(), timeout));
 
-	dev_warn(sds->ctrl->dev, "SerDes %u: waiting for RX idle timed out\n", sds->id);
-	return -ETIMEDOUT;
+	dev_dbg(sds->ctrl->dev, "SerDes %u: RX idle timed out, continuing calibration\n",
+		sds->id);
+	return 1;
 }
 
 static int rtpcs_930x_sds_config_polarity(struct rtpcs_serdes *sds, unsigned int tx_pol,
@@ -3135,21 +3151,25 @@ static int rtpcs_930x_sds_config_attachment(struct rtpcs_serdes *sds,
 
 static int rtpcs_930x_sds_post_config(struct rtpcs_serdes *sds, enum rtpcs_sds_mode hw_mode)
 {
-	int calib_tries = 0;
+	int attempt, ret;
 
 	if (hw_mode == RTPCS_SDS_MODE_QSGMII)
 		return 0;
 
-	rtpcs_930x_sds_10g_idle(sds);
-	do {
-		rtpcs_930x_sds_do_rx_calibration(sds, hw_mode);
-		calib_tries++;
-		msleep(50);
-	} while (rtpcs_930x_sds_check_calibration(sds, hw_mode) && calib_tries < 3);
-	if (calib_tries >= 3)
-		dev_warn(sds->ctrl->dev, "SerDes %u: RX calibration failed\n", sds->id);
+	ret = rtpcs_930x_sds_10g_idle(sds);
+	if (ret < 0)
+		return ret;
 
-	return 0;
+	for (attempt = 0; attempt < 3; attempt++) {
+		rtpcs_930x_sds_do_rx_calibration(sds, hw_mode);
+		msleep(50);
+		ret = rtpcs_930x_sds_check_calibration(sds, hw_mode);
+		if (ret <= 0)
+			return ret;
+	}
+
+	dev_err(sds->ctrl->dev, "SerDes %u: RX calibration failed\n", sds->id);
+	return -EIO;
 }
 
 static int rtpcs_930x_sds_probe(struct rtpcs_serdes *sds)

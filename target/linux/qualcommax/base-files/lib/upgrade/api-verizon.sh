@@ -47,7 +47,10 @@ cr1000a_setenv_if_changed() {
 
 cr1000a_do_upgrade() {
 	local rootfs hlos hlos_start hlos_size recovery recovery_start recovery_size
-	local recovery_bootcmd='if run set_custom_bootargs && run read_hlos_emmc && bootm 44000000; then true; else run boot_recovery; fi'
+	local button_bootcmd='if run cr1000a_mesh_pressed; then run cr1000a_mesh_recovery; else if run set_custom_bootargs && run read_hlos_emmc && bootm 44000000; then true; else run boot_recovery; fi; fi'
+	local mesh_pressed='mw.l 0x0102a000 0xc3 1; itest.l *0x0102a004 == 0'
+	local mesh_recovery='echo Recovery selected. Release Mesh to continue.; while itest.l *0x0102a004 == 0; do sleep 1; done; run boot_recovery'
+	local command
 	cr1000a_check_upgrade "$1" || return 1
 	CI_KERNPART='0:HLOS'
 	CI_ROOTPART=rootfs
@@ -74,7 +77,14 @@ cr1000a_do_upgrade() {
 	cr1000a_setenv_if_changed setup_and_boot 'run set_custom_bootargs;run read_hlos_emmc; bootm 44000000' || return 1
 	if [ -n "$recovery_start" ]; then
 		cr1000a_setenv_if_changed boot_recovery "setenv bootargs console=ttyMSM0,115200n8; mmc read 44000000 0x$(printf '%X' "$recovery_start") 0xA000 && bootm 44000000" || return 1
-		cr1000a_setenv_if_changed bootcmd "$recovery_bootcmd" || return 1
+		cr1000a_setenv_if_changed cr1000a_mesh_pressed "$mesh_pressed" || return 1
+		cr1000a_setenv_if_changed cr1000a_mesh_recovery "$mesh_recovery" || return 1
+		cr1000a_setenv_if_changed bootcmd "$button_bootcmd" || return 1
+		for command in cr1000a_reset_pressed cr1000a_reset_recovery; do
+			if fw_printenv -n "$command" >/dev/null 2>&1; then
+				fw_setenv "$command" || return 1
+			fi
+		done
 	else
 		cr1000a_setenv_if_changed bootcmd 'run setup_and_boot' || return 1
 	fi
