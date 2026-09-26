@@ -126,7 +126,7 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  
  	/* What interface are supported by the current link.
  	 * Can change on removal or addition of new PCS.
-@@ -543,9 +545,13 @@ static int phylink_validate_mac_and_pcs(
+@@ -542,11 +544,15 @@ static int phylink_validate_mac_and_pcs(
  	unsigned long capabilities;
  	int ret;
  
@@ -141,7 +141,9 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  			return PTR_ERR(pcs);
 +		}
  	/*
-@@ -571,6 +577,7 @@ static int phylink_validate_mac_and_pcs(
+ 	 * Find a PCS in available PCS list for the requested interface.
+ 	 *
+@@ -570,6 +576,7 @@ static int phylink_validate_mac_and_pcs(
  		 * error and backtrace rather than oopsing the kernel.
  		 */
  		if (!pcs->ops) {
@@ -149,7 +151,7 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  			phylink_err(pl, "interface %s: uninitialised PCS\n",
  				    phy_modes(state->interface));
  			dump_stack();
-@@ -580,6 +587,7 @@ static int phylink_validate_mac_and_pcs(
+@@ -579,6 +586,7 @@ static int phylink_validate_mac_and_pcs(
  		/* Recheck PCS to handle legacy way for .mac_select_pcs */
  		ret = phylink_validate_pcs_interface(pcs, state->interface);
  		if (ret) {
@@ -157,7 +159,7 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  			phylink_err(pl, "selected PCS does not support %s\n",
  				    phy_modes(state->interface));
  			return -EINVAL;
-@@ -588,8 +596,10 @@ static int phylink_validate_mac_and_pcs(
+@@ -587,8 +595,10 @@ static int phylink_validate_mac_and_pcs(
  		/* Validate the link parameters with the PCS */
  		if (pcs->ops->pcs_validate) {
  			ret = pcs->ops->pcs_validate(pcs, supported, state);
@@ -169,7 +171,7 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  
  			/* Ensure the advertising mask is a subset of the
  			 * supported mask.
-@@ -599,6 +609,8 @@ static int phylink_validate_mac_and_pcs(
+@@ -598,6 +608,8 @@ static int phylink_validate_mac_and_pcs(
  		}
  	}
  
@@ -178,7 +180,8 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  	/* Then validate the link parameters with the MAC */
  	if (pl->mac_ops->mac_get_caps)
  		capabilities = pl->mac_ops->mac_get_caps(pl->config,
-@@ -995,5 +1007,8 @@ static unsigned int phylink_inband_caps(
+@@ -993,6 +1005,9 @@ static unsigned int phylink_inband_caps(
+ 					 phy_interface_t interface)
  {
  	struct phylink_pcs *pcs = NULL;
 +	int ret = 0;
@@ -188,8 +191,8 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  	if (pl->mac_ops->mac_select_pcs) {
  		pcs = pl->mac_ops->mac_select_pcs(pl->config,
 @@ -1009,9 +1024,14 @@ static unsigned int phylink_inband_caps(
- 		}
  	}
+ 
  	if (IS_ERR_OR_NULL(pcs))
 -		return 0;
 +		goto exit;

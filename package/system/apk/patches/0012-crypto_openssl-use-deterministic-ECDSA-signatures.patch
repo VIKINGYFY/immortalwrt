@@ -21,8 +21,6 @@ Signed-off-by: John Crispin <john@phrozen.org>
  src/crypto_openssl.c | 232 ++++++++++++++++++++++++++++++++++++++++++++++++++-
  1 file changed, 231 insertions(+), 1 deletion(-)
 
-diff --git a/src/crypto_openssl.c b/src/crypto_openssl.c
-index 14fe5d6..6f63b63 100644
 --- a/src/crypto_openssl.c
 +++ b/src/crypto_openssl.c
 @@ -11,6 +11,16 @@
@@ -42,7 +40,7 @@ index 14fe5d6..6f63b63 100644
  #include "apk_crypto.h"
  
  // Copmatibility with older openssl
-@@ -164,6 +174,221 @@ int apk_digest_ctx_final(struct apk_digest_ctx *dctx, struct apk_digest *d)
+@@ -164,6 +174,221 @@ int apk_digest_ctx_final(struct apk_dige
  	return 0;
  }
  
@@ -264,7 +262,7 @@ index 14fe5d6..6f63b63 100644
  static int apk_pkey_init(struct apk_pkey *pkey, EVP_PKEY *key)
  {
  	unsigned char dig[EVP_MAX_MD_SIZE], *pub = NULL;
-@@ -210,8 +435,11 @@ int apk_pkey_load(struct apk_pkey *pkey, int dirfd, const char *fn, int priv)
+@@ -210,8 +435,11 @@ int apk_pkey_load(struct apk_pkey *pkey,
  
  int apk_sign_start(struct apk_digest_ctx *dctx, uint8_t alg, struct apk_pkey *pkey)
  {
@@ -277,7 +275,7 @@ index 14fe5d6..6f63b63 100644
  		return -APKE_CRYPTO_ERROR;
  	dctx->alg = alg;
  	return 0;
-@@ -243,6 +471,7 @@ int apk_verify(struct apk_digest_ctx *dctx, void *sig, size_t len)
+@@ -243,6 +471,7 @@ int apk_verify(struct apk_digest_ctx *dc
  static void apk_crypto_cleanup(void)
  {
  	free_algorithms();

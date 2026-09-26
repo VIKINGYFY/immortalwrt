@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/Documentation/devicetree/bindings/nvmem/layouts/u-boot,env.yaml
 +++ b/Documentation/devicetree/bindings/nvmem/layouts/u-boot,env.yaml
-@@ -62,6 +62,20 @@
+@@ -62,6 +62,20 @@ properties:
          description: The first argument is a MAC address offset.
          const: 1
  
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
        properties:
 --- a/drivers/nvmem/layouts/u-boot-env.c
 +++ b/drivers/nvmem/layouts/u-boot-env.c
-@@ -78,6 +78,9 @@
+@@ -78,6 +78,9 @@ static int u_boot_env_parse_cells(struct
  			info.raw_len = strlen(value);
  			info.bytes = ETH_ALEN;
  			info.read_post_process = u_boot_env_read_post_process_ethaddr;
