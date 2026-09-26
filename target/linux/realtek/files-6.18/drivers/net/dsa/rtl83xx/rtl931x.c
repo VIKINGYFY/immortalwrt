@@ -3,6 +3,7 @@
 #include <asm/mach-rtl-otto/mach-rtl-otto.h>
 #include <linux/etherdevice.h>
 
+#include "lag.h"
 #include "l2.h"
 #include "pie.h"
 #include "qos.h"
@@ -10,6 +11,7 @@
 #include "stats.h"
 #include "tc.h"
 #include "vlan.h"
+#include "stp.h"
 
 #define RTL931X_LED_CLK_SEL_MASK				GENMASK(16, 15)
 #define RTL931X_LED_CLK_SEL_800NS				0
@@ -114,39 +116,6 @@ const struct rtldsa_mib_desc rtldsa_931x_mib_desc = {
 	.list_count = ARRAY_SIZE(rtldsa_931x_mib_list),
 	.list = rtldsa_931x_mib_list
 };
-
-static int rtldsa_931x_stp_get(struct rtl838x_switch_priv *priv, u16 msti, int port)
-{
-	int idx = 3 - ((port + 8) / 16);
-	int bit = 2 * ((port + 8) % 16);
-	/* port ranges 0..55 (RTL931x covers ports 0 to 55 only), so idx is 0..3 */
-	u32 buf[4];
-	int state;
-
-	otto_table_read(RTL9310_TBL_MSTI, msti, &buf);
-	state = (buf[idx] >> bit) & 0x3;
-
-	return state;
-}
-
-static void rtl931x_stp_set(struct rtl838x_switch_priv *priv, u16 msti, int port, int state)
-{
-	int tbl = otto_table_acquire(RTL9310_TBL_MSTI);
-	int idx = 3 - ((port + 8) / 16);
-	int bit = 2 * ((port + 8) % 16);
-	/* port ranges 0..55 (RTL931x covers ports 0 to 55 only), so idx is 0..3 */
-	u32 buf[4];
-
-	__otto_table_read(tbl, msti, &buf);
-	buf[idx] = (buf[idx] & ~(0x3 << bit)) | (state << bit);
-	__otto_table_write(tbl, msti, &buf);
-	otto_table_release(tbl);
-}
-
-static inline int rtldsa_931x_trk_mbr_ctr(int group)
-{
-	return RTL931X_TRK_MBR_CTRL + (group << 3);
-}
 
 static inline int rtl931x_mac_force_mode_ctrl(int p)
 {
@@ -472,120 +441,6 @@ static void rtldsa_931x_led_init(struct rtl838x_switch_priv *priv)
 		dev_dbg(dev, "%08x: %08x\n", 0xbb000600 + i * 4, sw_r32(0x0600 + i * 4));
 }
 
-static void rtldsa_931x_lag_set_port2group(int group, int port, bool valid)
-{
-	u32 trk_id_valid = valid ? RTL931X_SRC_TRK_MAP_TRK_ID_VALID : 0;
-	int tbl = otto_table_acquire(RTL9310_TBL_SRC_TRK_MAP);
-	u32 mask = 0;
-
-	mask |= trk_id_valid;
-	/* Update TRK Field */
-	mask |= FIELD_PREP(RTL931X_SRC_TRK_MAP_TRK_ID, group);
-
-	__otto_table_write(tbl, port, &mask);
-	otto_table_release(tbl);
-}
-
-/* Write data from the data buffer into the lag-entry strucure */
-static void rtldsa_931x_lag_fill_data(u32 data[], struct rtldsa_93xx_lag_entry *e)
-{
-	/* 95-64 */
-	e->num_tx_candi = FIELD_GET(RTL931X_LAG_NUM_TX_CANDI, data[0]);
-	e->l2_hash_mask_idx = FIELD_GET(RTL931X_LAG_L2_HASH_MSK_IDX, data[0]);
-	e->ip4_hash_mask_idx = FIELD_GET(RTL931X_LAG_IP4_HASH_MSK_IDX, data[0]);
-	e->ip6_hash_mask_idx = FIELD_GET(RTL931X_LAG_IP6_HASH_MSK_IDX, data[0]);
-	e->flood_dlf_bcast.sep_flood_en = FIELD_GET(RTL931X_LAG_SEP_FLOOD_EN, data[0]);
-	e->sep_kwn_mc_en = FIELD_GET(RTL931X_LAG_SEP_KWN_MC_EN, data[0]);
-	e->trk_dev7 = FIELD_GET(RTL931X_LAG_TRK_DEV7, data[0]);
-	e->trk_port7 = FIELD_GET(RTL931X_LAG_TRK_PORT7, data[0]);
-	e->trk_dev6 = FIELD_GET(RTL931X_LAG_TRK_DEV6, data[0]);
-	e->trk_port6 = FIELD_GET(RTL931X_LAG_TRK_PORT6, data[0]);
-
-	/* 63-32 */
-	e->trk_dev5 = FIELD_GET(RTL931X_LAG_TRK_DEV5, data[1]);
-	e->trk_port5 = FIELD_GET(RTL931X_LAG_TRK_PORT5, data[1]);
-	e->trk_dev4 = FIELD_GET(RTL931X_LAG_TRK_DEV4, data[1]);
-	e->trk_port4 = FIELD_GET(RTL931X_LAG_TRK_PORT4, data[1]);
-	e->trk_dev3 = FIELD_GET(RTL931X_LAG_TRK_DEV3, data[1]);
-	e->trk_port3 = FIELD_GET(RTL931X_LAG_TRK_PORT3, data[1]);
-
-	/* 31-0 */
-	e->trk_dev2 = FIELD_GET(RTL931X_LAG_TRK_DEV2, data[2]);
-	e->trk_port2 = FIELD_GET(RTL931X_LAG_TRK_PORT2, data[2]);
-	e->trk_dev1 = FIELD_GET(RTL931X_LAG_TRK_DEV1, data[2]);
-	e->trk_port1 = FIELD_GET(RTL931X_LAG_TRK_PORT1, data[2]);
-	e->trk_dev0 = FIELD_GET(RTL931X_LAG_TRK_DEV0, data[2]);
-	e->trk_port0 = FIELD_GET(RTL931X_LAG_TRK_PORT0, data[2]);
-}
-
-/* Write lag-entry data into buffer */
-static void rtldsa_931x_lag_write_data(u32 data[], struct rtldsa_93xx_lag_entry *e)
-{
-	/* 95-64 */
-	data[0] = FIELD_PREP(RTL931X_LAG_NUM_TX_CANDI, e->num_tx_candi);
-	data[0] |= FIELD_PREP(RTL931X_LAG_L2_HASH_MSK_IDX, e->l2_hash_mask_idx);
-	data[0] |= FIELD_PREP(RTL931X_LAG_IP4_HASH_MSK_IDX, e->ip4_hash_mask_idx);
-	data[0] |= FIELD_PREP(RTL931X_LAG_IP6_HASH_MSK_IDX, e->ip6_hash_mask_idx);
-	data[0] |= FIELD_PREP(RTL931X_LAG_SEP_FLOOD_EN, e->flood_dlf_bcast.sep_flood_en);
-	data[0] |= FIELD_PREP(RTL931X_LAG_SEP_KWN_MC_EN, e->sep_kwn_mc_en);
-	data[0] |= FIELD_PREP(RTL931X_LAG_TRK_DEV7, e->trk_dev7);
-	data[0] |= FIELD_PREP(RTL931X_LAG_TRK_PORT7, e->trk_port7);
-	data[0] |= FIELD_PREP(RTL931X_LAG_TRK_DEV6, e->trk_dev6);
-	data[0] |= FIELD_PREP(RTL931X_LAG_TRK_PORT6, e->trk_port6);
-
-	/* 63-32 */
-	data[1] = FIELD_PREP(RTL931X_LAG_TRK_DEV5, e->trk_dev5);
-	data[1] |= FIELD_PREP(RTL931X_LAG_TRK_PORT5, e->trk_port5);
-	data[1] |= FIELD_PREP(RTL931X_LAG_TRK_DEV4, e->trk_dev4);
-	data[1] |= FIELD_PREP(RTL931X_LAG_TRK_PORT4, e->trk_port4);
-	data[1] |= FIELD_PREP(RTL931X_LAG_TRK_DEV3, e->trk_dev3);
-	data[1] |= FIELD_PREP(RTL931X_LAG_TRK_PORT3, e->trk_port3);
-
-	/* 31-0 */
-	data[2] = FIELD_PREP(RTL931X_LAG_TRK_DEV2, e->trk_dev2);
-	data[2] |= FIELD_PREP(RTL931X_LAG_TRK_PORT2, e->trk_port2);
-	data[2] |= FIELD_PREP(RTL931X_LAG_TRK_DEV1, e->trk_dev1);
-	data[2] |= FIELD_PREP(RTL931X_LAG_TRK_PORT1, e->trk_port1);
-	data[2] |= FIELD_PREP(RTL931X_LAG_TRK_DEV0, e->trk_dev0);
-	data[2] |= FIELD_PREP(RTL931X_LAG_TRK_PORT0, e->trk_port0);
-}
-
-static void rtldsa_931x_lag_set_local_group_id(int local_group, int global_group, bool valid)
-{
-	u32 mask = 0;
-
-	mask |= valid ? RTL931X_TRK_ID_CTRL_TRK_VALID : 0;
-	mask |= FIELD_PREP(RLT931X_TRK_ID_CTRL_TRK_ID, global_group);
-	sw_w32(mask, RTL931X_TRK_ID_CTRL + (4 * local_group));
-}
-
-static void rtldsa_931x_lag_set_local_port2group(int group, int port, bool valid)
-{
-	u32 mask = 0;
-
-	mask |= valid ? RTL931X_LOCAL_PORT_TRK_MAP_IS_TRK_MBR : 0;
-	mask |= FIELD_PREP(RTL931X_LOCAL_PORT_TRK_MAP_TRK_ID, group);
-	sw_w32(mask, RTL931X_LOCAL_PORT_TRK_MAP + (4 * port));
-}
-
-static void rtldsa_931x_lag_sync_tables(void)
-{
-	u32 val;
-	int ret;
-
-	sw_w32(BIT(0), RTL931X_TRK_LOCAL_TBL_REFRESH);
-
-	ret = readx_poll_timeout(sw_r32, RTL931X_TRK_LOCAL_TBL_REFRESH, val,
-				 !(val & BIT(0)), 20, 10000);
-	if (ret)
-		pr_err("%s: timeout\n", __func__);
-}
-
-static int rtldsa_931x_lag_table(void)
-{
-	return otto_table_acquire(RTL9310_TBL_LAG);
-}
-
 static u64 rtldsa_931x_stat_port_table_read(int port, unsigned int mib_size,
 					    unsigned int mib_offset, bool is_pvt)
 {
@@ -606,15 +461,12 @@ static u64 rtldsa_931x_stat_port_table_read(int port, unsigned int mib_size,
 	 * index.
 	 */
 	if (mib_size == 2) {
-		otto_table_read_bytes(id, port, val,
-				      field_offset - (mib_offset + 1),
-				      sizeof(val));
+		otto_table_offset_read(id, port, &val, field_offset - (mib_offset + 1));
 
 		return (u64)val[0] << 32 | val[1];
 	}
 
-	otto_table_read_bytes(id, port, val, field_offset - mib_offset,
-			      sizeof(val[0]));
+	otto_table_offset_read(id, port, &val[0], field_offset - mib_offset);
 
 	return val[0];
 }
@@ -622,7 +474,7 @@ static u64 rtldsa_931x_stat_port_table_read(int port, unsigned int mib_size,
 const struct rtldsa_config rtldsa_931x_cfg = {
 	.switch_ops = &rtldsa_93xx_switch_ops,
 	.phylink_mac_ops = &rtldsa_93xx_phylink_mac_ops,
-	.spanning_tree_ctrl = RTL931X_ST_CTRL,
+	.stp_init = rtldsa_931x_stp_init,
 	.l2_bucket_size = 8,
 	.n_mst = 128,
 	.num_lag_ids = 16,

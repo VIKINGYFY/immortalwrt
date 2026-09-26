@@ -9,6 +9,7 @@
 #include <linux/soc/realtek/otto_table.h>
 
 #include "stats.h"
+#include "stp.h"
 #include "vlan.h"
 
 /* Register definition */
@@ -251,10 +252,6 @@
 #define MV_ACT_DROP				1
 #define MV_ACT_TRAP2CPU				2
 #define MV_ACT_COPY2CPU				3
-
-#define RTL839X_ST_CTRL				(0x27e4)
-#define RTL930X_ST_CTRL				(0x8798)
-#define RTL931X_ST_CTRL				(0x8000)
 
 #define RTL930X_L2_PORT_SABLK_CTRL		(0x905c)
 #define RTL930X_L2_PORT_DABLK_CTRL		(0x9060)
@@ -860,14 +857,6 @@ struct rtldsa_port {
 	const struct dsa_port *dp;
 };
 
-struct rtldsa_mst {
-	/** @msti: MSTI mapped to this slot. 0 == unused */
-	u16 msti;
-
-	/** @refcount: number of vlans currently using this msti, undefined when unused */
-	struct kref refcount;
-};
-
 enum l2_entry_type {
 	L2_INVALID = 0,
 	L2_UNICAST = 1,
@@ -1161,7 +1150,7 @@ struct rtldsa_config {
 	u32 fib_entries;
 	int trk_ctrl;
 	int trk_hash_ctrl;
-	int spanning_tree_ctrl;
+	void (*stp_init)(void);
 	void (*vlan_tables_read)(u32 vlan, struct rtldsa_vlan_info *info);
 	void (*vlan_set_tagged)(u32 vlan, struct rtldsa_vlan_info *info);
 	void (*vlan_set_untagged)(u32 vlan, u64 portmask);
@@ -1342,9 +1331,6 @@ struct fdb_update_work {
 	u64 macs[];
 };
 
-int rtldsa_83xx_lag_setup_algomask(struct rtl838x_switch_priv *priv, int group,
-				   struct netdev_lag_upper_info *info);
-
 void rtldsa_port_fast_age(struct dsa_switch *ds, int port);
 int rtldsa_packet_cntr_alloc(struct rtl838x_switch_priv *priv);
 void rtldsa_packet_cntr_free(struct rtl838x_switch_priv *priv, int idx);
@@ -1378,9 +1364,6 @@ void rtldsa_930x_print_matrix(void);
 /* RTL931x-specific */
 void rtldsa_931x_print_matrix(void);
 
-int rtl83xx_lag_add(struct dsa_switch *ds, int group, int port, struct netdev_lag_upper_info *info);
-int rtl83xx_lag_del(struct dsa_switch *ds, int group, int port);
-
 /*
  * TODO: The following functions are currently not in use. So compiler will complain if
  * they are static and not made available externally. To preserve them for future use
@@ -1405,11 +1388,6 @@ extern struct rtl83xx_soc_info soc_info;
 
 void rtl838x_dbgfs_init(struct rtl838x_switch_priv *priv);
 void rtl930x_dbgfs_init(struct rtl838x_switch_priv *priv);
-void rtldsa_93xx_lag_switch_init(struct rtl838x_switch_priv *priv);
-int rtldsa_93xx_lag_set_distribution_algorithm(struct rtl838x_switch_priv *priv,
-					       int group, int algoidx, u32 algomsk);
-int rtldsa_93xx_lag_set_port_members(struct rtl838x_switch_priv *priv, int group,
-				     u64 members, struct netdev_lag_upper_info *info);
 
 void rtldsa_93xx_prepare_lag_fdb(struct rtl838x_l2_entry *e, int lag_group);
 
