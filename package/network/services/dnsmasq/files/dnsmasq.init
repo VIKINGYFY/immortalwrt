@@ -1390,10 +1390,17 @@ start_service() {
 	fi
 }
 
+reload_dnsmasq() {
+	start_service "$@"
+	# Reload hosts and leases before procd installs the new instance data.
+	# Sending HUP after service.set can kill a new ujail before its signal
+	# handlers are installed. Keep the pending procd JSON in the parent.
+	(procd_send_signal dnsmasq "$@")
+}
+
 reload_service() {
 	nftables_clear
-	rc_procd start_service "$@"
-	procd_send_signal dnsmasq "$@"
+	rc_procd reload_dnsmasq "$@"
 }
 
 stop_service() {
