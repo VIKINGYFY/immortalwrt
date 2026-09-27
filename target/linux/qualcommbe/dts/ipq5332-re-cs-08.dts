@@ -359,7 +359,10 @@
 		ppe_sfp: port@2 {
 			reg = <2>;
 			label = "sfp";
-			phy-mode = "2500base-x";
+			/* Match the factory SFP+ mode; phylink selects the module's
+			 * 1000BASE-X, 2500BASE-X or 10GBASE-R interface on insertion.
+			 */
+			phy-mode = "10gbase-r";
 			managed = "in-band-status";
 			sfp = <&sfp0>;
 			pcs-handle = <&pcs1_ch0>;

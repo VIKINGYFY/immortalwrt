@@ -1,20 +1,15 @@
 From: ViKing <viking.yfy@qq.com>
-Subject: [PATCH] net: pcs: qcom: initialize and trace 2500BASE-X SFP status
+Subject: [PATCH] net: pcs: qcom: initialize and trace Base-X SFP status
 
-Gate modules without in-band negotiation through the SFP LOS callbacks.
-Select the SGMII+ MAC personality explicitly as QSDK does for SFP ports,
-rather than inheriting the previous interface configuration.
-
-Record a bounded initial/change trace of the normal channel status
-register to distinguish the raw PCS state from the reported link. LOS
-and a reported 2500BASE-X link do not prove copper-side traffic.
+Use the SFP state machine to gate forced 1000BASE-X and 2500BASE-X
+links without in-band negotiation. Select the SGMII+ MAC personality
+explicitly and trace the raw PCS status separately from reported link.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
----
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -144,6 +144,12 @@ struct ipq_pcs_mii {
+@@ -144,6 +144,12 @@
  	struct ipq_pcs *qpcs;
  	struct phylink_pcs pcs;
  	int index;
@@ -27,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* RX clock from NSSCC to PCS MII */
  	struct clk *rx_clk;
-@@ -217,11 +223,24 @@ static void ipq_pcs_get_state_sgmii(stru
+@@ -217,11 +223,24 @@
  }
  
  static void ipq_pcs_get_state_2500basex(struct ipq_pcs *qpcs,
@@ -52,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = regmap_read(qpcs->regmap, PCS_MII_STS(0), &val);
  	if (ret) {
  		state->link = 0;
-@@ -360,7 +379,12 @@ static int ipq_pcs_config_mode(struct ip
+@@ -360,7 +379,12 @@
  		misc2 = PCS_MISC2_MODE_SGMII;
  		break;
  	case PHY_INTERFACE_MODE_2500BASEX:
@@ -66,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		misc2 = PCS_MISC2_MODE_SGMII_PLUS;
  		rate = 312500000;
  		break;
-@@ -813,6 +837,7 @@ static void ipq_pcs_get_state(struct phy
+@@ -813,19 +837,33 @@
  	struct ipq_pcs_mii *qpcs_mii = phylink_pcs_to_qpcs_mii(pcs);
  	struct ipq_pcs *qpcs = qpcs_mii->qpcs;
  	int index = qpcs_mii->index;
@@ -74,7 +69,25 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	switch (state->interface) {
  	case PHY_INTERFACE_MODE_SGMII:
-@@ -825,7 +850,7 @@ static void ipq_pcs_get_state(struct phy
+ 	case PHY_INTERFACE_MODE_QSGMII:
+ 	case PHY_INTERFACE_MODE_PSGMII:
++		ipq_pcs_get_state_sgmii(qpcs, index, state);
++		break;
+ 	case PHY_INTERFACE_MODE_1000BASEX:
++		/* Without in-band negotiation, the module's LOS signal gates
++		 * phylink. The PCS status bit does not track a forced Base-X
++		 * SFP host connection on this hardware.
++		 */
++		if (neg_mode == PHYLINK_PCS_NEG_INBAND_DISABLED) {
++			state->link = true;
++			state->speed = SPEED_1000;
++			state->duplex = DUPLEX_FULL;
++			state->pause |= MLO_PAUSE_TXRX_MASK;
++			break;
++		}
+ 		/* SGMII and 1000BASEX in-band autoneg word format are decoded
+ 		 * by PCS hardware and both placed to the same status register.
+ 		 */
  		ipq_pcs_get_state_sgmii(qpcs, index, state);
  		break;
  	case PHY_INTERFACE_MODE_2500BASEX:
@@ -83,7 +96,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
  	case PHY_INTERFACE_MODE_USXGMII:
  	case PHY_INTERFACE_MODE_10G_QXGMII:
-@@ -838,6 +863,33 @@ static void ipq_pcs_get_state(struct phy
+@@ -838,6 +876,33 @@
  		break;
  	}
  

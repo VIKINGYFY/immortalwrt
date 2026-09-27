@@ -1,24 +1,50 @@
-From: Daniel Golle <daniel@makrotopia.org>
-Subject: [PATCH] net: sfp: add TP-LINK SM410U fixed 2500BASE-X quirk
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: sfp: expose TL-SM410U 1G and 2.5G host modes
 
-The TL-SM410U exposes no PHY over I2C. Use the fixed 2500BASE-X host
-interface from the MediaTek reference quirk. Its advertised 1G/2.5G
-copper rates do not establish SGMII support on the serial host side.
-The SGMII-only trial did not link with a 1G copper peer on RE-CS-08.
+The SM410U advertises 1G/2.5G copper rates but has no host-accessible PHY.
+Expose separate 1000BASE-X and 2500BASE-X host modes for explicit speed
+selection. Keep host autonegotiation disabled without in-band status.
 
-Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/phy/sfp.c
 +++ b/drivers/net/phy/sfp.c
-@@ -611,6 +611,10 @@ static const struct sfp_quirk sfp_quirks
+@@ -492,6 +492,30 @@
+ 	sfp_quirk_disable_autoneg(id, caps);
+ }
+ 
++static void sfp_quirk_tp_link_sm410u(const struct sfp_eeprom_id *id,
++				     struct sfp_module_caps *caps)
++{
++	/* The module exposes no PHY over I2C. Its RJ45 side supports 1G
++	 * and 2.5G, while the serial host mode must be selected explicitly.
++	 * Keep host-side autonegotiation disabled without in-band status.
++	 */
++	linkmode_zero(caps->link_modes);
++	linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseX_Full_BIT,
++			 caps->link_modes);
++	linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
++			 caps->link_modes);
++	linkmode_set_bit(ETHTOOL_LINK_MODE_2500baseX_Full_BIT,
++			 caps->link_modes);
++	linkmode_set_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
++			 caps->link_modes);
++	linkmode_set_bit(ETHTOOL_LINK_MODE_Pause_BIT, caps->link_modes);
++	linkmode_set_bit(ETHTOOL_LINK_MODE_Asym_Pause_BIT, caps->link_modes);
++	phy_interface_zero(caps->interfaces);
++	__set_bit(PHY_INTERFACE_MODE_1000BASEX, caps->interfaces);
++	__set_bit(PHY_INTERFACE_MODE_2500BASEX, caps->interfaces);
++	sfp_quirk_disable_autoneg(id, caps);
++}
++
+ static void sfp_quirk_ubnt_uf_instant(const struct sfp_eeprom_id *id,
+ 				      struct sfp_module_caps *caps)
+ {
+@@ -611,6 +635,7 @@
  	SFP_QUIRK_F("Turris", "RTSFP-10G", sfp_fixup_rollball),
  
  	SFP_QUIRK_S("ZOERAX", "SFP-2.5G-T", sfp_quirk_oem_2_5g),
-+	/* Copper line rates are internal to the module; its known host
-+	 * interface is fixed 2500BASE-X, with no PHY accessible over I2C.
-+	 */
-+	SFP_QUIRK_S("TP-LINK", "TL-SM410U", sfp_quirk_oem_2_5g),
++	SFP_QUIRK_S("TP-LINK", "TL-SM410U", sfp_quirk_tp_link_sm410u),
  };
  
  static size_t sfp_strlen(const char *str, size_t maxlen)

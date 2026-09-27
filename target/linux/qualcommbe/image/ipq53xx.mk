@@ -111,7 +111,8 @@ define Device/jdcloud_re-cs-08
 	KERNEL_SIZE := 6144k
 	SOC := ipq5332
 	SUPPORTED_DEVICES += jdcloud,re-cs-08
-	DEVICE_PACKAGES :=  -kmod-ath12k -wpad-openssl kmod-sfp
+	DEVICE_PACKAGES := -kmod-ath12k -wpad-openssl kmod-sfp \
+		kmod-phy-marvell kmod-phy-marvell-10g
 	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
 endef
 TARGET_DEVICES += jdcloud_re-cs-08
