@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/dsa/qca/qca8k-common.c
 +++ b/drivers/net/dsa/qca/qca8k-common.c
-@@ -484,9 +484,9 @@ void qca8k_tag_8021q_setup(struct dsa_sw
+@@ -514,9 +514,9 @@ void qca8k_tag_8021q_setup(struct dsa_sw
  {
  	struct qca8k_priv *priv = ds->priv;
  	struct dsa_port *dp, *dpcpu;
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	qca8k_rmw(priv, QCA8K_SERVICE_TAG_CTL,
  		  QCA8K_SERVICE_TAG_MASK | QCA8K_SERVICE_TAG_STAG,
  			DSA_TAG_8021Q_VLAN_PROTO | QCA8K_SERVICE_TAG_STAG);
-@@ -495,6 +495,25 @@ void qca8k_tag_8021q_setup(struct dsa_sw
+@@ -525,6 +525,25 @@ void qca8k_tag_8021q_setup(struct dsa_sw
  			QCA8K_PKT_EDIT_TO_CPU_VID_CHG_EN);
  
  	dsa_switch_for_each_port(dp, ds) {
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (dsa_port_is_user(dp) || dsa_port_is_cpu(dp))
  			qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(dp->index),
  				  QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
-@@ -680,6 +699,9 @@ static int qca8k_port_configure_learning
+@@ -710,6 +729,9 @@ static int qca8k_port_configure_learning
  {
  	struct qca8k_priv *priv = ds->priv;
  
@@ -81,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (learning)
  		return regmap_set_bits(priv->regmap,
  				       QCA8K_PORT_LOOKUP_CTRL(port),
-@@ -794,6 +816,8 @@ int qca8k_port_bridge_flags(struct dsa_s
+@@ -824,6 +846,8 @@ int qca8k_port_bridge_flags(struct dsa_s
  		if (ret)
  			return ret;
  	}
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (flags.mask & BR_ISOLATED) {
  		struct dsa_port *dp = dsa_to_port(ds, port);
-@@ -819,6 +843,9 @@ int qca8k_port_bridge_join(struct dsa_sw
+@@ -849,6 +873,9 @@ int qca8k_port_bridge_join(struct dsa_sw
  {
  	struct qca8k_priv *priv = ds->priv;
  
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return qca8k_update_port_member(priv, port, bridge.dev, true);
  }
  
-@@ -828,6 +855,9 @@ void qca8k_port_bridge_leave(struct dsa_
+@@ -858,6 +885,9 @@ void qca8k_port_bridge_leave(struct dsa_
  	struct qca8k_priv *priv = ds->priv;
  	int err;
  
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	err = qca8k_update_port_member(priv, port, bridge.dev, false);
  	if (err)
  		dev_err(priv->dev,
-@@ -1127,6 +1157,11 @@ int qca8k_port_vlan_filtering(struct dsa
+@@ -1169,6 +1199,11 @@ int qca8k_port_vlan_filtering(struct dsa
  	struct qca8k_priv *priv = ds->priv;
  	int ret;
  

@@ -13,7 +13,7 @@ or bypassing SerDes/in-band configuration.
 
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -308,10 +308,6 @@ struct rtl8261x_priv {
+@@ -309,10 +309,6 @@ struct rtl8261x_priv {
  	bool fw_loaded;
  };
  
@@ -24,7 +24,7 @@ or bypassing SerDes/in-band configuration.
  static int rtl821x_read_page(struct phy_device *phydev)
  {
  	return __phy_read(phydev, RTL821x_PAGE_SELECT);
-@@ -1657,18 +1653,6 @@ static int rtl822x_write_mmd(struct phy_
+@@ -1658,18 +1654,6 @@ static int rtl822x_write_mmd(struct phy_
  
  static int rtl822x_probe(struct phy_device *phydev)
  {
@@ -43,7 +43,7 @@ or bypassing SerDes/in-band configuration.
  	if (IS_ENABLED(CONFIG_REALTEK_PHY_HWMON) &&
  	    phydev->phy_id != RTL_GENERIC_PHYID)
  		return rtl822x_hwmon_init(phydev);
-@@ -1761,7 +1745,6 @@ static int rtl822xb_write_mmd(struct phy
+@@ -1762,7 +1746,6 @@ static int rtl822xb_write_mmd(struct phy
  
  static int rtl822x_init_phycr1(struct phy_device *phydev, bool no_aldps)
  {
@@ -51,7 +51,7 @@ or bypassing SerDes/in-band configuration.
  	u16 mask = RTL8221B_PHYCR1_ALDPS_EN | RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN;
  	u16 val = 0;
  
-@@ -1772,7 +1755,8 @@ static int rtl822x_init_phycr1(struct ph
+@@ -1773,7 +1756,8 @@ static int rtl822x_init_phycr1(struct ph
  	if (!phydev->is_on_sfp_module)
  		mask |= RTL8221B_PHYCR1_PHYAD_0_EN;
  

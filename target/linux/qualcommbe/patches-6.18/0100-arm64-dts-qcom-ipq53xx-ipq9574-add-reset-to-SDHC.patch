@@ -1,13 +1,12 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: ViKing <viking.yfy@qq.com>
-Date: Wed, 2 Sep 2026 15:22:05 +0800
-Subject: [PATCH] arm64: dts: qcom: ipq53xx/ipq95xx: add SDHC reset
+From 4c6d5fec4434ff41dcf080b42e91f677b92437bd Mon Sep 17 00:00:00 2001
+From: Robert Marko <robert.marko@sartura.hr>
+Date: Fri, 25 Sep 2026 21:13:16 +0200
+Subject: [PATCH] arm64: dts: qcom: ipq53xx/ipq95xx: add reset to SDHC
 
-Reset the SDHC block before the driver enables its clocks. This matches
-the existing IPQ6018 and IPQ8074 SDHC descriptions and uses the GCC
-reset which is already exposed for this block on both SoCs.
+Add reset to SDHCI controller so it can be reset to avoid timeout issues
+after software reset due to bootloader set configuration.
 
-Signed-off-by: ViKing <viking.yfy@qq.com>
+Signed-off-by: Robert Marko <robert.marko@sartura.hr>
 ---
  arch/arm64/boot/dts/qcom/ipq5332.dtsi | 1 +
  arch/arm64/boot/dts/qcom/ipq9574.dtsi | 1 +
@@ -15,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
-@@ -433,6 +433,7 @@
+@@ -346,6 +346,7 @@
  				 <&gcc GCC_SDCC1_APPS_CLK>,
  				 <&xo_board>;
  			clock-names = "iface", "core", "xo";
@@ -25,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/arch/arm64/boot/dts/qcom/ipq9574.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq9574.dtsi
-@@ -495,6 +495,7 @@
+@@ -465,6 +465,7 @@
  				 <&xo_board_clk>,
  				 <&gcc GCC_SDCC1_ICE_CORE_CLK>;
  			clock-names = "iface", "core", "xo", "ice";

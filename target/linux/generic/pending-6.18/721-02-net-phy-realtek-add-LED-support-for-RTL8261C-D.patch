@@ -82,8 +82,8 @@ Assisted-by: LLM
 +	u8 led_active_low;
  };
  
- struct rtl822x_priv {
-@@ -2271,6 +2280,215 @@ static int rtl822xb_led_brightness_set(s
+ static int rtl821x_read_page(struct phy_device *phydev)
+@@ -2255,6 +2264,215 @@ static int rtl822xb_led_brightness_set(s
  					  RTL822X_VND2_LED_POLAR(index));
  }
  
@@ -299,7 +299,7 @@ Assisted-by: LLM
  static int rtl822xb_led_hw_is_supported(struct phy_device *phydev, u8 index,
  					unsigned long rules)
  {
-@@ -3218,6 +3436,11 @@ static struct phy_driver realtek_drvs[]
+@@ -3202,6 +3420,11 @@ static struct phy_driver realtek_drvs[]
  		.soft_reset		= genphy_c45_pma_soft_reset,
  		.suspend		= genphy_c45_pma_suspend,
  		.resume			= genphy_c45_pma_resume,
@@ -311,7 +311,7 @@ Assisted-by: LLM
  	}, {
  		PHY_ID_MATCH_EXACT(RTL_8261CE_CG),
  		.name			= "Realtek RTL8261CE 10Gbps PHY",
-@@ -3231,6 +3454,11 @@ static struct phy_driver realtek_drvs[]
+@@ -3215,6 +3438,11 @@ static struct phy_driver realtek_drvs[]
  		.soft_reset		= genphy_c45_pma_soft_reset,
  		.suspend		= genphy_c45_pma_suspend,
  		.resume			= genphy_c45_pma_resume,

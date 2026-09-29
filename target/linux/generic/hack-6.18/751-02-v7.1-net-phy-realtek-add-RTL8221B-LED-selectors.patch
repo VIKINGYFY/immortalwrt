@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -194,6 +194,12 @@
+@@ -199,6 +199,12 @@
  #define RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN	BIT(12)
  #define RTL8221B_PHYCR1_PHYAD_0_EN		BIT(13)
  
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define RTL8366RB_POWER_SAVE			0x15
  #define RTL8366RB_POWER_SAVE_ON			BIT(12)
  
-@@ -2088,9 +2094,75 @@ static int rtl822x_config_init(struct ph
+@@ -2024,9 +2030,75 @@ static int rtl822x_config_init(struct ph
  	return rtl822x_set_serdes_option_mode(phydev, true);
  }
  
@@ -104,4 +104,4 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	return rtl8221b_config_leds(phydev);
  }
  
- static int rtl822x_serdes_write(struct phy_device *phydev, u16 reg, u16 val)
+ static int rtl822x_config_inband(struct phy_device *phydev, unsigned int modes)
