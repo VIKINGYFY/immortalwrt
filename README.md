@@ -26,11 +26,13 @@ owrt 为多平台通用，MTK、QCA、QCB带有满血PPE驱动，仅支持有线
 
 # 自用 ImmortalWRT
 
-高通部分源码取自以下项目：
+部分源码取自以下项目：
+
+https://github.com/JiaY-shi/openwrt.git
 
 https://github.com/JuliusBairaktaris/openwrt-nss-edma.git
 
-https://github.com/JiaY-shi/openwrt.git
+https://github.com/pbs05/ponwrt.git
 
 https://github.com/perceival/openwrt-flint3.git
 
