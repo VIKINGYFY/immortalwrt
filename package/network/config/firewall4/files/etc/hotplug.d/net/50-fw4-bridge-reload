@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# A Wi-Fi AP interface that joins a bridge after fw4 has started is missing
+# from the generated bridge flowtable until the ruleset is rebuilt. Reload
+# the firewall, but only when a bridge flowtable is actually in use.
+
+[ "$ACTION" = "add" ] || exit 0
+
+case "${DEVICENAME}" in
+	phy*-ap*|ap-mld*) ;;
+	*) exit 0 ;;
+esac
+
+# No bridge flowtable, nothing to update.
+nft list flowtable bridge fw4 fb >/dev/null 2>&1 || exit 0
+
+# The device is already part of the flowtable.
+nft list flowtable bridge fw4 fb 2>/dev/null | grep -qw "\"${DEVICENAME}\"" && exit 0
+
+(
+	exec 9>/var/lock/fw4-bridge-reload.lock
+	flock -n 9 || exit 0
+	sleep 2
+	/etc/init.d/firewall reload >/dev/null 2>&1
+) &
+
+exit 0
