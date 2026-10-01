@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
+
+#include "an7581-nokia_xg-040g-md-common.dtsi"
+#include "an758x-nokia_xg-040g-ubi-parts.dtsi"
+
+/ {
+	model = "Nokia XG-040G-MD (UBI)";
+	compatible = "nokia,xg-040g-md-ubi", "airoha,an7581",
+		     "airoha,en7581";
+	variant = "usb-sfp";
+};
+
+&usb_pcs {
+	status = "okay";
+};
+
+&gdm4 {
+	/delete-property/ pcs-handle;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	lan_2p5g_eth: ethernet-port@0 {
+		compatible = "airoha,eth-port";
+		reg = <0>;
+		managed = "in-band-status";
+		pcs-handle = <&eth_pcs>;
+		phy-handle = <&en8811>;
+		phy-mode = "2500base-x";
+		nvmem-cell-names = "mac-address";
+		nvmem-cells = <&macaddr_factory_3e 2>;
+		openwrt,netdev-name = "lan1";
+		status = "okay";
+	};
+
+	lan_2p5g: ethernet-port@1 {
+		compatible = "airoha,eth-port";
+		reg = <1>;
+		managed = "in-band-status";
+		pcs-handle = <&usb_pcs>;
+		phy-mode = "2500base-x";
+		nvmem-cell-names = "mac-address";
+		nvmem-cells = <&macaddr_factory_3e 3>;
+		openwrt,netdev-name = "lan5";
+		status = "okay";
+	};
+};
+
+&usb0 {
+	status = "okay";
+
+	mediatek,u3p-dis-msk = <0x1>;
+    phys = <&usb0_phy PHY_TYPE_USB2>;
+
+	vusb33-supply = <&reg_3p3v>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	usb_port1: port@1 {
+		reg = <1>;
+		#trigger-source-cells = <0>;
+	};
+};

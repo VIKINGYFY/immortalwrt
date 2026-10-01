@@ -20,7 +20,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
-@@ -505,6 +505,12 @@ struct airoha_flow_table_entry {
+@@ -538,6 +538,12 @@ struct airoha_flow_table_entry {
  
  	struct rhash_head node;
  	unsigned long cookie;
@@ -33,7 +33,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  	/* Must be last --ends in a flexible-array member. */
  	struct airoha_foe_entry data;
-@@ -746,6 +752,7 @@ static inline bool airoha_is_valid_gdm_de
+@@ -806,6 +812,7 @@ airoha_qdma_deref(struct airoha_gdm_dev
  
  void airoha_ppe_set_mtu(struct airoha_gdm_dev *dev);
  void airoha_ppe_set_cpu_port(struct airoha_gdm_dev *dev, u8 ppe_id, u8 fport);
@@ -43,7 +43,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  			  u16 hash, bool rx_wlan);
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -3936,11 +3936,33 @@ drop:
+@@ -4114,11 +4114,33 @@ drop:
  }
  EXPORT_SYMBOL_GPL(airoha_eth_pon_xmit_control);
  
@@ -78,7 +78,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	struct airoha_gdm_dev *dev;
  	unsigned int i, j;
  
-@@ -3984,10 +4006,7 @@ int airoha_eth_pon_replace_flows(
+@@ -4164,10 +4186,7 @@ int airoha_eth_pon_replace_flows(
  		}
  	}
  
@@ -90,7 +90,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	return 0;
  }
  EXPORT_SYMBOL_GPL(airoha_eth_pon_replace_flows);
-@@ -4020,12 +4039,11 @@ int airoha_eth_pon_configure_epon(struct
+@@ -4200,12 +4219,11 @@ int airoha_eth_pon_configure_epon(struct
  		return -EOPNOTSUPP;
  	if (valid && channel >= 32)
  		return -ERANGE;
@@ -324,7 +324,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	struct airoha_flow_data data = {};
  	struct net_device *odev = NULL;
  	struct flow_action_entry *act;
-@@ -1200,9 +1341,15 @@ static int airoha_ppe_flow_offload_repla
+@@ -1201,9 +1342,15 @@ static int airoha_ppe_flow_offload_repla
  		return -EINVAL;
  
  	err = airoha_ppe_foe_entry_prepare(eth, &hwe, odev, offload_type,
@@ -342,7 +342,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS)) {
  		struct flow_match_ports ports;
-@@ -1272,7 +1419,9 @@ static int airoha_ppe_flow_offload_repla
+@@ -1273,7 +1420,9 @@ static int airoha_ppe_flow_offload_repla
  	if (!e)
  		return -ENOMEM;
  
@@ -362,7 +362,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  #include "airoha_eth.h"
  
  static void airoha_debugfs_ppe_print_tuple(struct seq_file *m,
-@@ -173,9 +173,47 @@ static int airoha_ppe_debugfs_foe_bind_show(struct seq_file *m, void *private)
+@@ -173,9 +174,47 @@ static int airoha_ppe_debugfs_foe_bind_s
  }
  DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_foe_bind);
  

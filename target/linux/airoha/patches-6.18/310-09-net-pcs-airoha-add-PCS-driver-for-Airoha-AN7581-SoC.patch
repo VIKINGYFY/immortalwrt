@@ -26,8 +26,6 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  create mode 100644 drivers/net/pcs/airoha/pcs-airoha.h
  create mode 100644 drivers/net/pcs/airoha/pcs-an7581.c
 
-diff --git a/drivers/net/pcs/Kconfig b/drivers/net/pcs/Kconfig
-index ba2caec866a5..8fae619f2432 100644
 --- a/drivers/net/pcs/Kconfig
 +++ b/drivers/net/pcs/Kconfig
 @@ -54,4 +54,6 @@ config PCS_RZN1_MIIC
@@ -37,19 +35,14 @@ index ba2caec866a5..8fae619f2432 100644
 +source "drivers/net/pcs/airoha/Kconfig"
 +
  endmenu
-diff --git a/drivers/net/pcs/Makefile b/drivers/net/pcs/Makefile
-index 3005cdd89ab7..91593aa8d926 100644
 --- a/drivers/net/pcs/Makefile
 +++ b/drivers/net/pcs/Makefile
-@@ -9,3 +9,5 @@ obj-$(CONFIG_PCS_XPCS)		+= pcs_xpcs.o
- obj-$(CONFIG_PCS_LYNX)		+= pcs-lynx.o
+@@ -10,3 +10,5 @@ obj-$(CONFIG_PCS_LYNX)		+= pcs-lynx.o
  obj-$(CONFIG_PCS_MTK_LYNXI)	+= pcs-mtk-lynxi.o
+ obj-$(CONFIG_PCS_MTK_USXGMII)	+= pcs-mtk-usxgmii.o
  obj-$(CONFIG_PCS_RZN1_MIIC)	+= pcs-rzn1-miic.o
 +
 +obj-$(CONFIG_PCS_AIROHA)	+= airoha/
-diff --git a/drivers/net/pcs/airoha/Kconfig b/drivers/net/pcs/airoha/Kconfig
-new file mode 100644
-index 000000000000..1aa4c0d33b87
 --- /dev/null
 +++ b/drivers/net/pcs/airoha/Kconfig
 @@ -0,0 +1,13 @@
@@ -66,9 +59,6 @@ index 000000000000..1aa4c0d33b87
 +	help
 +	  This module provides helper to phylink for managing the Airoha
 +	  AN7581 PCS for SoC Ethernet and PON SERDES.
-diff --git a/drivers/net/pcs/airoha/Makefile b/drivers/net/pcs/airoha/Makefile
-new file mode 100644
-index 000000000000..c5201d5cc356
 --- /dev/null
 +++ b/drivers/net/pcs/airoha/Makefile
 @@ -0,0 +1,7 @@
@@ -79,9 +69,6 @@ index 000000000000..c5201d5cc356
 +ifdef CONFIG_PCS_AIROHA_AN7581
 +pcs-airoha-objs			+= pcs-an7581.o
 +endif
-diff --git a/drivers/net/pcs/airoha/pcs-airoha-common.c b/drivers/net/pcs/airoha/pcs-airoha-common.c
-new file mode 100644
-index 000000000000..d9ec0e97b746
 --- /dev/null
 +++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
 @@ -0,0 +1,1309 @@
@@ -1394,9 +1381,6 @@ index 000000000000..d9ec0e97b746
 +MODULE_LICENSE("GPL");
 +MODULE_DESCRIPTION("Airoha PCS driver");
 +MODULE_AUTHOR("Christian Marangi <ansuelsmth@gmail.com>");
-diff --git a/drivers/net/pcs/airoha/pcs-airoha.h b/drivers/net/pcs/airoha/pcs-airoha.h
-new file mode 100644
-index 000000000000..8a76d51b5d2c
 --- /dev/null
 +++ b/drivers/net/pcs/airoha/pcs-airoha.h
 @@ -0,0 +1,1313 @@
@@ -2713,9 +2697,6 @@ index 000000000000..8a76d51b5d2c
 +	return 0;
 +}
 +#endif
-diff --git a/drivers/net/pcs/airoha/pcs-an7581.c b/drivers/net/pcs/airoha/pcs-an7581.c
-new file mode 100644
-index 000000000000..a98e004a5cae
 --- /dev/null
 +++ b/drivers/net/pcs/airoha/pcs-an7581.c
 @@ -0,0 +1,2100 @@
@@ -4819,5 +4800,3 @@ index 000000000000..a98e004a5cae
 +	 */
 +	return -EINVAL;
 +}
--- 
-2.53.0

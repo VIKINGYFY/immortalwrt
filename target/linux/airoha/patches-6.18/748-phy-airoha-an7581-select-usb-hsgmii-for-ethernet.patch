@@ -14,7 +14,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 
 --- a/drivers/phy/airoha/phy-airoha-usb.c
 +++ b/drivers/phy/airoha/phy-airoha-usb.c
-@@ -8,6 +8,7 @@
+@@ -9,6 +9,7 @@
  #include <linux/math.h>
  #include <linux/module.h>
  #include <linux/mfd/syscon.h>
@@ -22,7 +22,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  #include <linux/phy/phy.h>
  #include <linux/platform_device.h>
  #include <linux/regmap.h>
-@@ -17,6 +17,11 @@
+@@ -19,6 +20,11 @@
  #define   AIROHA_SCU_SSTR_USB_PCIE_SEL_PCIE	FIELD_PREP_CONST(AIROHA_SCU_SSTR_USB_PCIE_SEL, 0x0)
  #define   AIROHA_SCU_SSTR_USB_PCIE_SEL_USB	FIELD_PREP_CONST(AIROHA_SCU_SSTR_USB_PCIE_SEL, 0x1)
  
@@ -34,7 +34,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  /* U2PHY */
  #define AIROHA_USB_PHY_FMCR0			0x100
  #define   AIROHA_USB_PHY_MONCLK_SEL		GENMASK(27, 26)
-@@ -416,9 +421,28 @@ static int airoha_usb_phy_u2_set_mode(str
+@@ -414,10 +420,29 @@ static int airoha_usb_phy_u2_set_mode(st
  }
  
  static int airoha_usb_phy_u3_set_mode(struct airoha_usb_phy_priv *priv,
@@ -43,7 +43,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  {
 +	u32 hsgmii_sel;
  	u32 sel;
-+
+ 
 +	/* USB1 shares its SerDes lane with the HSGMII Ethernet PCS. */
 +	if (mode == PHY_MODE_ETHERNET) {
 +		if (priv->serdes_port != AIROHA_SCU_SERDES_USB1)
@@ -61,10 +61,11 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +	} else {
 +		hsgmii_sel = AIROHA_SCU_SSUSB_HSGMII_SEL_USB;
 +	}
- 
++
  	/* Only USB2 supports PCIe mode */
  	if (mode == PHY_MODE_PCIE &&
-@@ -431,6 +455,10 @@ static int airoha_usb_phy_u3_set_mode(str
+ 	    priv->serdes_port != AIROHA_SCU_SERDES_USB2)
+@@ -431,7 +456,11 @@ static int airoha_usb_phy_u3_set_mode(st
  	regmap_update_bits(priv->scu, AIROHA_SCU_SSTR,
  			   AIROHA_SCU_SSTR_USB_PCIE_SEL, sel);
  
@@ -76,7 +77,8 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +				  AIROHA_SCU_SSUSB_HSGMII_SEL, hsgmii_sel);
  }
  
-@@ -442,7 +470,7 @@ static int airoha_usb_phy_set_mode(struct
+ static int airoha_usb_phy_set_mode(struct phy *phy, enum phy_mode mode, int submode)
+@@ -443,7 +472,7 @@ static int airoha_usb_phy_set_mode(struc
  	case PHY_TYPE_USB2:
  		return airoha_usb_phy_u2_set_mode(priv, mode);
  	case PHY_TYPE_USB3:

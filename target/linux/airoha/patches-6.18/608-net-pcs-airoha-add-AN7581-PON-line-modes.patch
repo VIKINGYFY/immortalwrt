@@ -17,8 +17,6 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  5 files changed, 2472 insertions(+), 223 deletions(-)
  create mode 100644 include/linux/pcs/pcs-airoha.h
 
-Index: b/drivers/net/pcs/airoha/pcs-airoha-common.c
-===================================================================
 --- a/drivers/net/pcs/airoha/pcs-airoha-common.c
 +++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
 @@ -5,9 +5,11 @@
@@ -33,7 +31,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha-common.c
  #include <linux/pcs/pcs-provider.h>
  #include <linux/phy/phy.h>
  #include <linux/phylink.h>
-@@ -183,6 +185,244 @@ static int airoha_pcs_setup_scu(struct a
+@@ -188,6 +190,244 @@ static int airoha_pcs_setup_scu(struct a
  	return 0;
  }
  
@@ -278,7 +276,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha-common.c
  static void airoha_pcs_init_usxgmii(struct airoha_pcs_priv *priv, int index)
  {
  	const struct airoha_pcs_match_data *data = priv->data;
-@@ -1251,6 +1491,12 @@ static int airoha_pcs_probe(struct platf
+@@ -1263,6 +1503,12 @@ static int airoha_pcs_probe(struct platf
  
  	priv->dev = dev;
  	priv->data = data;
@@ -291,7 +289,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha-common.c
  
  	if (data->port_type == AIROHA_PCS_USB ||
  	    device_is_compatible(dev, "airoha,an7583-pcs-pcie")) {
-@@ -1403,6 +1649,9 @@ static const struct airoha_pcs_match_dat
+@@ -1400,6 +1646,9 @@ static const struct airoha_pcs_match_dat
  	.alloc_regmap_fields = an7581_pcs_alloc_regmap_fields,
  	.bringup = an7581_pcs_bringup,
  	.link_up = an7581_pcs_phya_link_up,
@@ -301,7 +299,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha-common.c
  };
  
  static const struct airoha_pcs_match_data an7581_pcs_pcie = {
-@@ -1435,8 +1684,12 @@ static const struct airoha_pcs_match_dat
+@@ -1432,8 +1681,12 @@ static const struct airoha_pcs_match_dat
  	.port_type = AIROHA_PCS_PON,
  	.usxgmii_rx_gb_out_vld_tweak = true,
  	.usxgmii_xfi_mode_sel = true,
@@ -314,11 +312,9 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha-common.c
  };
  
  static const struct airoha_pcs_match_data an7583_pcs_pcie = {
-Index: b/drivers/net/pcs/airoha/pcs-airoha.h
-===================================================================
 --- a/drivers/net/pcs/airoha/pcs-airoha.h
 +++ b/drivers/net/pcs/airoha/pcs-airoha.h
-@@ -1252,6 +1252,9 @@
+@@ -1254,6 +1254,9 @@
  #define   AIROHA_PCS_PMA_CK_RATE_5		FIELD_PREP_CONST(AIROHA_PCS_PMA_CK_RATE, 0x2)
  #define   AIROHA_PCS_PMA_AMP			GENMASK(10, 8)
  #define   AIROHA_PCS_PMA_PRBS_SEL		GENMASK(2, 0)
@@ -328,7 +324,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha.h
  #define AIROHA_PCS_PMA_RX_FLL_5			0x184
  #define   AIROHA_PCS_PMA_FLL_IDAC_MIN		GENMASK(26, 16)
  #define   AIROHA_PCS_PMA_FLL_IDAC_MAX		GENMASK(10, 0)
-@@ -1325,6 +1328,9 @@
+@@ -1327,6 +1330,9 @@
  #define AIROHA_PCS_PMA_TX_CALIB_0		0x264
  #define   AIROHA_PCS_PMA_TXCALIB_FORCE_TERMP_SEL GENMASK(25, 24)
  #define   AIROHA_PCS_PMA_TXCALIB_FORCE_TERMP_SEL_EN BIT(16)
@@ -338,14 +334,15 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha.h
  #define AIROHA_PCS_PMA_RX_TORGS_DEBUG_11	0x290
  #define   AIROHA_PCS_PMA_EYE_EB			GENMASK(14, 8)
  #define   AIROHA_PCS_PMA_EYE_EU			GENMASK(6, 0)
-@@ -1643,5 +1649,6 @@ struct airoha_pcs_priv {
+@@ -1646,6 +1652,7 @@ struct airoha_pcs_maps {
+ struct airoha_pcs_priv {
  	struct device *dev;
  	const struct airoha_pcs_match_data *data;
 +	u8 pon_mode;
  
  	struct airoha_pcs_port *ports;
  
-@@ -1660,6 +1667,17 @@ struct airoha_pcs_priv {
+@@ -1663,6 +1670,17 @@ struct airoha_pcs_priv {
  	struct phy *phy;
  
  	bool manual_rx_calib;
@@ -363,7 +360,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha.h
  };
  
  struct airoha_pcs_port {
-@@ -1678,11 +1696,17 @@ struct airoha_pcs_match_data {
+@@ -1682,11 +1700,17 @@ struct airoha_pcs_match_data {
  	bool usxgmii_rx_gb_out_vld_tweak;
  	bool usxgmii_xfi_mode_sel;
  
@@ -381,7 +378,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha.h
  };
  
  #define to_airoha_pcs_port(n) container_of(n, struct airoha_pcs_port, pcs)
-@@ -1692,6 +1716,16 @@ int an7581_pcs_alloc_regmap_fields(struc
+@@ -1696,6 +1720,16 @@ int an7581_pcs_alloc_regmap_fields(struc
  int an7581_pcs_pcie_alloc_regmap_fields(struct airoha_pcs_priv *priv);
  int an7581_pcs_bringup(struct airoha_pcs_priv *priv,
  		       int index, phy_interface_t interface);
@@ -398,7 +395,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha.h
  int an7581_pcs_usb_bringup(struct airoha_pcs_priv *priv,
  			   int index, phy_interface_t interface);
  
-@@ -1714,6 +1748,46 @@ static inline int an7581_pcs_bringup(str
+@@ -1718,6 +1752,46 @@ static inline int an7581_pcs_bringup(str
  	return -EOPNOTSUPP;
  }
  
@@ -445,7 +442,7 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha.h
  static inline int an7581_pcs_usb_bringup(struct airoha_pcs_priv *priv,
  					 int index, phy_interface_t interface)
  {
-@@ -1733,19 +1807,50 @@ static inline int an7581_pcs_rxlock_work
+@@ -1737,19 +1811,50 @@ static inline int an7581_pcs_rxlock_work
  #endif
  
  #ifdef CONFIG_PCS_AIROHA_AN7583
@@ -496,19 +493,17 @@ Index: b/drivers/net/pcs/airoha/pcs-airoha.h
  
  static inline int an7583_pcs_usb_phya_bringup(struct airoha_pcs_priv *priv,
  					      int index, phy_interface_t interface)
-Index: b/drivers/net/pcs/airoha/pcs-an7581.c
-===================================================================
 --- a/drivers/net/pcs/airoha/pcs-an7581.c
 +++ b/drivers/net/pcs/airoha/pcs-an7581.c
-@@ -4,6 +4,7 @@
-  * Author: Christian Marangi <ansuelsmth@gmail.com>
+@@ -5,6 +5,7 @@
   */
+ #include <linux/math.h>
  #include <linux/phy/phy.h>
 +#include <linux/pcs/pcs-airoha.h>
  #include <linux/phylink.h>
  #include <linux/regmap.h>
  
-@@ -1821,6 +1822,1476 @@ static void an7581_pcs_cdr_reset(struct
+@@ -1825,6 +1826,1476 @@ static void an7581_pcs_cdr_reset(struct
  			  AIROHA_PCS_PMA_FORCE_SEL_DA_CDR_LPF_LCK2DATA);
  }
  
@@ -1985,7 +1980,7 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
  static int an7581_pcs_phya_bringup(struct airoha_pcs_priv *priv,
  				   int index, phy_interface_t interface)
  {
-@@ -1834,6 +3296,8 @@ static int an7581_pcs_phya_bringup(struc
+@@ -1834,6 +3305,8 @@ static int an7581_pcs_phya_bringup(struc
  
  	an7581_pcs_tx_bringup(priv, index, interface);
  	an7581_pcs_rx_bringup(priv, index, interface);
@@ -1994,8 +1989,6 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
  
  	usleep_range(100, 200);
  
-Index: b/drivers/net/pcs/airoha/pcs-an7583.c
-===================================================================
 --- a/drivers/net/pcs/airoha/pcs-an7583.c
 +++ b/drivers/net/pcs/airoha/pcs-an7583.c
 @@ -4,11 +4,79 @@
@@ -3029,8 +3022,6 @@ Index: b/drivers/net/pcs/airoha/pcs-an7583.c
  
  void an7583_pcs_common_phya_link_up(struct airoha_pcs_priv *priv, int index)
  {
-Index: b/include/linux/pcs/pcs-airoha.h
-===================================================================
 --- /dev/null
 +++ b/include/linux/pcs/pcs-airoha.h
 @@ -0,0 +1,87 @@

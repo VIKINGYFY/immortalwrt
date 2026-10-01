@@ -27,7 +27,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  struct macsec_context;
  struct macsec_ops;
  struct netdev_config;
-@@ -1392,6 +1394,11 @@ struct netdev_net_notifier {
+@@ -1393,6 +1395,11 @@ struct netdev_net_notifier {
   *	The caller must be under RCU read context.
   * int (*ndo_fill_forward_path)(struct net_device_path_ctx *ctx, struct net_device_path *path);
   *     Get the forwarding path to reach the real device from the HW destination address
@@ -39,7 +39,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * ktime_t (*ndo_get_tstamp)(struct net_device *dev,
   *			     const struct skb_shared_hwtstamps *hwtstamps,
   *			     bool cycles);
-@@ -1647,6 +1654,10 @@ struct net_device_ops {
+@@ -1648,6 +1655,10 @@ struct net_device_ops {
  	struct net_device *	(*ndo_get_peer_dev)(struct net_device *dev);
  	int                     (*ndo_fill_forward_path)(struct net_device_path_ctx *ctx,
                                                           struct net_device_path *path);
@@ -50,8 +50,8 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ktime_t			(*ndo_get_tstamp)(struct net_device *dev,
  						  const struct skb_shared_hwtstamps *hwtstamps,
  						  bool cycles);
-@@ -3372,6 +3383,9 @@ int dev_get_iflink(const struct net_devi
- int dev_fill_metadata_dst(struct net_device *dev, struct sk_buff *skb);
+@@ -3375,6 +3386,9 @@ int dev_fill_bridge_path(struct net_devi
+ 			 struct net_device_path_stack *stack);
  int dev_fill_forward_path(const struct net_device *dev, const u8 *daddr,
  			  struct net_device_path_stack *stack);
 +int dev_ip6_tnl_flow_offload(struct net_device *dev,

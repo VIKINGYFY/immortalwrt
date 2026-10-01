@@ -17,11 +17,9 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  4 files changed, 792 insertions(+), 36 deletions(-)
  create mode 100644 include/linux/airoha-eth.h
 
-diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index b37b425..12b1ad2 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -3,11 +3,13 @@
+@@ -3,12 +3,14 @@
   * Copyright (c) 2024 AIROHA Inc
   * Author: Lorenzo Bianconi <lorenzo@kernel.org>
   */
@@ -35,6 +33,7 @@ index b37b425..12b1ad2 100644
 +#include <linux/slab.h>
  #include <linux/tcp.h>
  #include <linux/u64_stats_sync.h>
+ #include <net/dst_metadata.h>
 @@ -21,6 +23,8 @@
  #include "airoha_regs.h"
  #include "airoha_eth.h"
@@ -44,7 +43,7 @@ index b37b425..12b1ad2 100644
  u32 airoha_rr(void __iomem *base, u32 offset)
  {
  	return readl(base + offset);
-@@ -856,16 +860,55 @@ static struct sk_buff *airoha_qdma_lro_rx_skb(struct airoha_queue *q,
+@@ -856,16 +860,55 @@ static struct sk_buff *airoha_qdma_lro_r
  	return skb;
  }
  
@@ -102,7 +101,7 @@ index b37b425..12b1ad2 100644
  		skb = airoha_qdma_lro_rx_skb(q, desc, e);
  		if (!skb)
  			return NULL;
-@@ -885,11 +928,35 @@ static struct sk_buff *airoha_qdma_build_rx_skb(struct airoha_queue *q,
+@@ -885,11 +928,35 @@ static struct sk_buff *airoha_qdma_build
  	skb_mark_for_recycle(skb);
  	skb->dev = netdev;
  	skb_record_rx_queue(skb, qid);
@@ -139,7 +138,7 @@ index b37b425..12b1ad2 100644
  static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
  {
  	enum dma_data_direction dir = page_pool_get_dma_dir(q->page_pool);
-@@ -899,9 +966,10 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+@@ -899,9 +966,10 @@ static int airoha_qdma_rx_process(struct
  	while (done < budget) {
  		struct airoha_queue_entry *e = &q->entry[q->tail];
  		struct airoha_qdma_desc *desc = &q->desc[q->tail];
@@ -152,7 +151,7 @@ index b37b425..12b1ad2 100644
  		int data_len, len;
  		struct page *page;
  
-@@ -928,8 +996,49 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+@@ -928,8 +996,49 @@ static int airoha_qdma_rx_process(struct
  			goto free_frag;
  
  		netdev = netdev_from_priv(dev);
@@ -203,7 +202,7 @@ index b37b425..12b1ad2 100644
  			if (!q->skb)
  				goto free_frag;
  		} else { /* scattered frame */
-@@ -976,10 +1085,19 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+@@ -976,10 +1085,19 @@ static int airoha_qdma_rx_process(struct
  					     false);
  
  		done++;
@@ -223,7 +222,7 @@ index b37b425..12b1ad2 100644
  		if (q->skb) {
  			dev_kfree_skb(q->skb);
  			q->skb = NULL;
-@@ -1175,6 +1293,20 @@ static void airoha_qdma_wake_netdev_txqs(struct airoha_queue *q)
+@@ -1175,6 +1293,20 @@ static void airoha_qdma_wake_netdev_txqs
  
  				netif_wake_subqueue(netdev, j);
  			}
@@ -244,7 +243,7 @@ index b37b425..12b1ad2 100644
  		}
  	}
  	q->txq_stopped = false;
-@@ -1251,8 +1383,23 @@ static int airoha_qdma_tx_napi_poll(struct napi_struct *napi, int budget)
+@@ -1251,8 +1383,23 @@ static int airoha_qdma_tx_napi_poll(stru
  		q->queued--;
  
  		if (skb) {
@@ -268,7 +267,7 @@ index b37b425..12b1ad2 100644
  			txq = skb_get_tx_queue(skb->dev, skb);
  			netdev_tx_completed_queue(txq, 1, skb->len);
  			dev_kfree_skb_any(skb);
-@@ -2141,15 +2288,30 @@ static int airoha_dev_open(struct net_device *netdev)
+@@ -2180,15 +2327,30 @@ static int airoha_dev_open(struct net_de
  		return -EBUSY;
  	}
  
@@ -304,8 +303,8 @@ index b37b425..12b1ad2 100644
 +	}
  	err = airoha_set_vip_for_gdm_port(dev, true);
  	if (err)
- 		return err;
-@@ -2178,6 +2340,24 @@ static int airoha_dev_open(struct net_device *netdev)
+ 		goto err_phy_stop;
+@@ -2217,6 +2379,24 @@ static int airoha_dev_open(struct net_de
  
  	airoha_update_netdev_features(dev);
  
@@ -328,9 +327,10 @@ index b37b425..12b1ad2 100644
 +	}
 +
  	return 0;
- }
  
-@@ -2187,8 +2367,14 @@ static int airoha_dev_stop(struct net_device *netdev)
+ err_phy_stop:
+@@ -2234,9 +2414,15 @@ static int airoha_dev_stop(struct net_de
+ 	struct airoha_qdma *qdma;
  	int i;
  
 -	phylink_stop(dev->phylink);
@@ -346,7 +346,7 @@ index b37b425..12b1ad2 100644
  	airoha_set_vip_for_gdm_port(dev, false);
  	for (i = 0; i < netdev->num_tx_queues; i++)
  		netdev_tx_reset_subqueue(netdev, i);
-@@ -2203,6 +2389,7 @@ static int airoha_dev_stop(struct net_device *netdev)
+@@ -2251,7 +2437,8 @@ static int airoha_dev_stop(struct net_de
  	airoha_qdma_stop(qdma);
  	airoha_update_netdev_features(dev);
  
@@ -355,7 +355,8 @@ index b37b425..12b1ad2 100644
 +		phylink_disconnect_phy(dev->phylink);
  
  	return 0;
-@@ -2557,38 +2744,135 @@ static int airoha_dev_set_features(struct net_device *netdev,
+ }
+@@ -2604,38 +2791,135 @@ static int airoha_dev_set_features(struc
  	return 0;
  }
  
@@ -436,14 +437,13 @@ index b37b425..12b1ad2 100644
  	qdma = rcu_dereference(dev->qdma);
  	qid = airoha_qdma_get_txq(qdma, skb_get_queue_mapping(skb));
 -	tag = airoha_get_dsa_tag(skb, netdev);
--
+ 
 -	msg0 = FIELD_PREP(QDMA_ETH_TXMSG_CHAN_MASK,
 -			  qid / AIROHA_NUM_QOS_QUEUES) |
 -	       FIELD_PREP(QDMA_ETH_TXMSG_QUEUE_MASK,
 -			  qid % AIROHA_NUM_QOS_QUEUES) |
 -	       FIELD_PREP(QDMA_ETH_TXMSG_SP_TAG_MASK, tag);
 -	if (skb->ip_summed == CHECKSUM_PARTIAL)
-+
 +	pon_tag = READ_ONCE(dev->pon_qdma_tag);
 +	if (ctrl) {
 +		/* Control frames use dedicated OAM and OMCC descriptor mappings. */
@@ -505,7 +505,7 @@ index b37b425..12b1ad2 100644
  		if (skb_cow_head(skb, 0))
  			goto error;
  
-@@ -2602,21 +2886,44 @@ static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
+@@ -2649,21 +2933,44 @@ static netdev_tx_t airoha_dev_xmit(struc
  	}
  
  	fport = airoha_get_fe_port(dev);
@@ -552,7 +552,7 @@ index b37b425..12b1ad2 100644
  		netif_tx_stop_queue(txq);
  		q->txq_stopped = true;
  		spin_unlock_bh(&q->lock);
-@@ -2638,9 +2945,9 @@ static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
+@@ -2685,9 +2992,9 @@ static netdev_tx_t airoha_dev_xmit(struc
  		dma_addr_t addr;
  		u32 val;
  
@@ -564,7 +564,7 @@ index b37b425..12b1ad2 100644
  			goto error_unmap;
  
  		list_move_tail(&e->list, &tx_list);
-@@ -2670,6 +2977,19 @@ static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
+@@ -2717,6 +3024,19 @@ static netdev_tx_t airoha_dev_xmit(struc
  		len = skb_frag_size(frag);
  	}
  	q->queued += i;
@@ -584,7 +584,7 @@ index b37b425..12b1ad2 100644
  
  	skb_tx_timestamp(skb);
  	netdev_tx_sent_queue(txq, skb->len);
-@@ -2690,7 +3010,7 @@ static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
+@@ -2737,7 +3057,7 @@ static netdev_tx_t airoha_dev_xmit(struc
  
  error_unmap:
  	list_for_each_entry(e, &tx_list, list) {
@@ -593,7 +593,7 @@ index b37b425..12b1ad2 100644
  				 DMA_TO_DEVICE);
  		e->dma_addr = 0;
  	}
-@@ -2698,13 +3018,64 @@ error_unmap:
+@@ -2745,13 +3065,64 @@ error_unmap:
  
  	spin_unlock_bh(&q->lock);
  error:
@@ -659,7 +659,7 @@ index b37b425..12b1ad2 100644
  static void airoha_ethtool_get_drvinfo(struct net_device *netdev,
  				       struct ethtool_drvinfo *info)
  {
-@@ -2781,6 +3152,9 @@ airoha_ethtool_get_link_ksettings(struct net_device *netdev,
+@@ -2828,6 +3199,9 @@ airoha_ethtool_get_link_ksettings(struct
  {
  	struct airoha_gdm_dev *dev = netdev_priv(netdev);
  
@@ -669,7 +669,7 @@ index b37b425..12b1ad2 100644
  	return phylink_ethtool_ksettings_get(dev->phylink, cmd);
  }
  
-@@ -2790,6 +3164,9 @@ airoha_ethtool_set_link_ksettings(struct net_device *netdev,
+@@ -2837,6 +3211,9 @@ airoha_ethtool_set_link_ksettings(struct
  {
  	struct airoha_gdm_dev *dev = netdev_priv(netdev);
  
@@ -679,7 +679,7 @@ index b37b425..12b1ad2 100644
  	return phylink_ethtool_ksettings_set(dev->phylink, cmd);
  }
  
-@@ -3631,6 +4008,209 @@ static const struct net_device_ops airoha_netdev_ops = {
+@@ -3678,6 +4055,209 @@ static const struct net_device_ops airoh
  	.ndo_setup_tc		= airoha_dev_tc_setup,
  };
  
@@ -889,7 +889,7 @@ index b37b425..12b1ad2 100644
  static const struct ethtool_ops airoha_ethtool_ops = {
  	.get_drvinfo		= airoha_ethtool_get_drvinfo,
  	.get_eth_mac_stats      = airoha_ethtool_get_mac_stats,
-@@ -3904,9 +4482,22 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,
+@@ -3947,9 +4527,22 @@ static int airoha_alloc_gdm_device(struc
  	dev->port = port;
  	dev->eth = eth;
  	dev->nbq = nbq;
@@ -913,7 +913,7 @@ index b37b425..12b1ad2 100644
  }
  
  static int airoha_alloc_gdm_port(struct airoha_eth *eth,
-@@ -4170,7 +4761,8 @@ static void airoha_remove(struct platform_device *pdev)
+@@ -4214,7 +4807,8 @@ static void airoha_remove(struct platfor
  
  			netdev = netdev_from_priv(dev);
  			unregister_netdev(netdev);
@@ -923,8 +923,6 @@ index b37b425..12b1ad2 100644
  			of_node_put(netdev->dev.of_node);
  		}
  		airoha_metadata_dst_free(port);
-diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 6456e78..0569581 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -7,6 +7,7 @@
@@ -935,7 +933,7 @@ index 6456e78..0569581 100644
  #include <linux/debugfs.h>
  #include <linux/etherdevice.h>
  #include <linux/iopoll.h>
-@@ -552,6 +553,51 @@ struct airoha_qdma {
+@@ -580,6 +581,51 @@ struct airoha_qdma {
  enum airoha_priv_flags {
  	AIROHA_PRIV_F_WAN = BIT(0),
  	AIROHA_PRIV_F_QOS = BIT(1),
@@ -987,7 +985,7 @@ index 6456e78..0569581 100644
  };
  
  struct airoha_gdm_dev {
-@@ -567,6 +613,12 @@ struct airoha_gdm_dev {
+@@ -595,6 +641,12 @@ struct airoha_gdm_dev {
  	u32 flags;
  	int nbq;
  
@@ -1000,8 +998,6 @@ index 6456e78..0569581 100644
  	struct airoha_hw_stats stats;
  
  	struct phylink *phylink;
-diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index caa0b95..ca5d0c2 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -902,6 +902,13 @@
@@ -1018,9 +1014,6 @@ index caa0b95..ca5d0c2 100644
  #define QDMA_ETH_RXMSG_SPTAG		GENMASK(21, 14)
  /* RX MSG1 */
  #define QDMA_ETH_RXMSG_DEI_MASK		BIT(31)
-diff --git a/include/linux/airoha-eth.h b/include/linux/airoha-eth.h
-new file mode 100644
-index 0000000..82fa0c0
 --- /dev/null
 +++ b/include/linux/airoha-eth.h
 @@ -0,0 +1,105 @@
@@ -1129,5 +1122,3 @@ index 0000000..82fa0c0
 +					  void *priv);
 +
 +#endif
--- 
-2.43.0

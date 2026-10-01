@@ -10,6 +10,14 @@ an7581_setup_interfaces()
 {
 	local board="$1"
 
+	VARIANT_FILE="/proc/device-tree/variant"
+
+	if [ -f "$VARIANT_FILE" ]; then
+		VARIANT=$(tr -d '\0' < "$VARIANT_FILE")
+	else
+		VARIANT="standard"
+	fi
+
 	case "$board" in
 	airoha,an7581-evb)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "eth1"
@@ -23,12 +31,28 @@ an7581_setup_interfaces()
 		;;
 	fiberhome,hg5382a|\
 	fiberhome,hg5585f-ct)
-		# lan1 uses external GPY211; lan2 through lan4 use the integrated switch.
-		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "pon0"
+		case "$VARIANT" in
+			usb-sfp)
+				# lan1 uses external GPY211; lan2 through lan4 use the integrated switch; lan5 uses usb.
+				ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan5" "pon0"
+				;;
+			*)
+				# lan1 uses external GPY211; lan2 through lan4 use the integrated switch.
+				ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "pon0"
+				;;
+		esac
 		;;
 	fiberhome,hg5585f-cu)
-		# The integrated switch provides all four panel ports.
-		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "pon0"
+		case "$VARIANT" in
+			usb-sfp)
+				# lan1 through lan4 use the integrated switch. lan5 uses gdm4 usxgmii. lan6 uses usb.
+				ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan5 lan6" "pon0"
+				;;
+			*)
+				# The integrated switch provides all four panel ports.
+				ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "pon0"
+				;;
+		esac
 		;;
 	unionman,ung00a)
 		# The board exposes one 2.5G and three 1G ports with PON as the uplink.
@@ -45,7 +69,14 @@ an7581_setup_interfaces()
 	nokia,xg-040g-md-ubi |\
 	nokia,xg-040g-tf-ubi)
 		# netifd opens pon0 when the wan interface starts.
-		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "pon0"
+		case "$VARIANT" in
+			usb-sfp)
+				ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan5" "pon0"
+				;;
+			*)
+				ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "pon0"
+				;;
+		esac
 		;;
 	quantum,q1000k-ubi)
 		# Both copper ports are LAN; the upstream connection is PON.

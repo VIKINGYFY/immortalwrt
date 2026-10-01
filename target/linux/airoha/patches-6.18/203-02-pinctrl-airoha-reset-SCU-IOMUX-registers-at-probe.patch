@@ -71,7 +71,7 @@ Signed-off-by: Daniel Schwierzeck <daniel.schwierzeck@gmail.com>
  	pinctrl->desc.owner = data->pinctrl_owner;
 --- a/drivers/pinctrl/airoha/pinctrl-an7581.c
 +++ b/drivers/pinctrl/airoha/pinctrl-an7581.c
-@@ -1431,6 +1431,14 @@ static const struct airoha_pinctrl_conf
+@@ -1450,6 +1450,14 @@ static const struct airoha_pinctrl_conf
  	PINCTRL_CONF_DESC(62, REG_PCIE_RESET_OD, PCIE2_RESET_OD_MASK),
  };
  
@@ -86,7 +86,7 @@ Signed-off-by: Daniel Schwierzeck <daniel.schwierzeck@gmail.com>
  static const struct airoha_pinctrl_match_data pinctrl_match_data = {
  	.chip_scu_compatible = "airoha,en7581-chip-scu",
  	.pinctrl_name = KBUILD_MODNAME,
-@@ -1441,6 +1449,8 @@ static const struct airoha_pinctrl_match
+@@ -1460,6 +1468,8 @@ static const struct airoha_pinctrl_match
  	.num_grps = ARRAY_SIZE(pinctrl_groups),
  	.funcs = pinctrl_funcs,
  	.num_funcs = ARRAY_SIZE(pinctrl_funcs),
@@ -114,7 +114,7 @@ Signed-off-by: Daniel Schwierzeck <daniel.schwierzeck@gmail.com>
  /* LED MAP */
  #define REG_LAN_LED0_MAPPING			0x027c
  #define REG_LAN_LED1_MAPPING			0x0280
-@@ -1461,6 +1464,15 @@ static const struct airoha_pinctrl_conf
+@@ -1480,6 +1483,15 @@ static const struct airoha_pinctrl_conf
  	PINCTRL_CONF_DESC(52, REG_PCIE_RESET_OD, PCIE1_RESET_OD_MASK),
  };
  
@@ -130,7 +130,7 @@ Signed-off-by: Daniel Schwierzeck <daniel.schwierzeck@gmail.com>
  static const struct airoha_pinctrl_match_data pinctrl_match_data = {
  	.chip_scu_compatible = "airoha,en7581-chip-scu",
  	.pinctrl_name = KBUILD_MODNAME,
-@@ -1471,6 +1483,8 @@ static const struct airoha_pinctrl_match
+@@ -1490,6 +1502,8 @@ static const struct airoha_pinctrl_match
  	.num_grps = ARRAY_SIZE(pinctrl_groups),
  	.funcs = pinctrl_funcs,
  	.num_funcs = ARRAY_SIZE(pinctrl_funcs),

@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+#include "an7581-fiberhome-hg5585f-cu-common.dtsi"
+
+/ {
+	model = "FiberHome HG5585F CU";
+	compatible = "fiberhome,hg5585f-cu", "airoha,an7581", "airoha,en7581";
+	variant = "usb-sfp";
+};
+
+&usb_pcs {
+	status = "okay";
+};
+
+&eth_pcs {
+	status = "okay";
+};
+
+&gdm4 {
+	/delete-property/ pcs-handle;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	lan_10g: ethernet-port@0 {
+		compatible = "airoha,eth-port";
+		reg = <0>;
+		managed = "in-band-status";
+		pcs-handle = <&eth_pcs>;
+		phy-mode = "10gbase-r";
+		nvmem-cell-names = "mac-address";
+		nvmem-cells = <&fiberhome_base_mac 2>;
+		openwrt,netdev-name = "lan5";
+		status = "okay";
+	};
+
+	lan_2p5g: ethernet-port@1 {
+		compatible = "airoha,eth-port";
+		reg = <1>;
+		managed = "in-band-status";
+		pcs-handle = <&usb_pcs>;
+		phy-mode = "2500base-x";
+		nvmem-cell-names = "mac-address";
+		nvmem-cells = <&fiberhome_base_mac 3>;
+		openwrt,netdev-name = "lan6";
+		status = "okay";
+	};
+};
+
+&usb0 {
+	mediatek,u3p-dis-msk = <0x1>;
+    phys = <&usb0_phy PHY_TYPE_USB2>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	usb_port1: port@1 {
+		reg = <1>;
+		#trigger-source-cells = <0>;
+	};
+};

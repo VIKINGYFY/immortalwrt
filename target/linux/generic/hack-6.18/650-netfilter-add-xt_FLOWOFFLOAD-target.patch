@@ -44,7 +44,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  obj-$(CONFIG_NETFILTER_XT_TARGET_LED) += xt_LED.o
 --- /dev/null
 +++ b/net/netfilter/xt_FLOWOFFLOAD.c
-@@ -0,0 +1,709 @@
+@@ -0,0 +1,711 @@
 +/*
 + * Copyright (C) 2018-2021 Felix Fietkau <nbd@nbd.name>
 + *
@@ -385,6 +385,8 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +				info->num_encaps--;
 +				break;
 +			case DEV_PATH_BR_VLAN_KEEP:
++				break;
++			case DEV_PATH_BR_VLAN_KEEP_HW:
 +				break;
 +			}
 +			break;
@@ -804,7 +806,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +#endif /* _XT_FLOWOFFLOAD_H */
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
-@@ -310,6 +310,11 @@ void nf_flow_table_free(struct nf_flowta
+@@ -317,6 +317,11 @@ void nf_flow_table_free(struct nf_flowta
  
  void flow_offload_teardown(struct flow_offload *flow);
  

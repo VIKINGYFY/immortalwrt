@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: pbs05 <27010143+pbs05@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 00:00:00 +0800
+Subject: [PATCH] system-linux: report device type without link settings
+
+system_if_dump_info() returns early when a network device does not support
+ETHTOOL_GLINKSETTINGS. This leaves the devtype attribute out of the ubus
+device status for virtual devices such as 802.1Q VLAN interfaces.
+
+firewall4 uses devtype to resolve VLAN and bridge interfaces to their lower
+devices when building a hardware flowtable. A VLAN without devtype remains
+in the flowtable device set while its physical lower device is omitted.
+
+Report devtype before querying link settings because the device topology is
+independent of ethtool link mode support.
+
+Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+---
+ system-linux.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/system-linux.c
++++ b/system-linux.c
+@@ -3520,6 +3520,11 @@ system_if_dump_info(struct device *dev,
+ 	void *c, *d;
+ 	char *s;
+ 
++	/* Device topology is available for virtual interfaces which do not
++	 * implement ETHTOOL_GLINKSETTINGS. Keep devtype independent of the
++	 * optional link-mode query below.
++	 */
++	system_add_devtype(b, dev->ifname);
+ 	system_get_ethtool_pause(dev, &rx_pause, &tx_pause, &pause_autoneg);
+ 
+ 	memset(&ecmd, 0, sizeof(ecmd));
+@@ -3599,8 +3604,6 @@ system_if_dump_info(struct device *dev,
+ 	blobmsg_add_u8(b, "hw-tc-offload",
+ 		ethtool_feature_value(dev->ifname, "hw-tc-offload"));
+ 
+-	system_add_devtype(b, dev->ifname);
+-
+ 	/* Add PSE (PoE) status if available */
+ 	{
+ 		struct pse_reply_data pse_data;
+-- 
+2.51.0

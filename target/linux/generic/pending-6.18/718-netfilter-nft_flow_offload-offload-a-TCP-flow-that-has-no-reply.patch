@@ -37,9 +37,9 @@ Assisted-by: Claude:claude-opus-5
  #ifdef CONFIG_NF_CT_PROTO_SCTP
 --- a/net/netfilter/nft_flow_offload.c
 +++ b/net/netfilter/nft_flow_offload.c
-@@ -72,7 +72,8 @@ static void nft_flow_offload_eval(const
- 		tcph = skb_header_pointer(pkt->skb, nft_thoff(pkt),
- 					  sizeof(_tcph), &_tcph);
+@@ -77,7 +77,8 @@ static void nft_flow_offload_eval(const
+ 		tcph = skb_header_pointer(pkt->skb, thoff, sizeof(_tcph),
+ 					  &_tcph);
  		if (unlikely(!tcph || tcph->fin || tcph->rst ||
 -			     !nf_conntrack_tcp_established(ct)))
 +			     (!nf_conntrack_tcp_established(ct) &&
@@ -47,7 +47,7 @@ Assisted-by: Claude:claude-opus-5
  			goto out;
  		break;
  	case IPPROTO_UDP:
-@@ -121,7 +122,8 @@ static void nft_flow_offload_eval(const
+@@ -132,7 +133,8 @@ static void nft_flow_offload_eval(const
  	 */
  	flow->priority = pkt->skb->priority;
  

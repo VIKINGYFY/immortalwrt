@@ -1,6 +1,6 @@
 --- a/drivers/mtd/nand/spi/core.c
 +++ b/drivers/mtd/nand/spi/core.c
-@@ -19,6 +19,7 @@
+@@ -20,6 +20,7 @@
  #include <linux/string.h>
  #include <linux/spi/spi.h>
  #include <linux/spi/spi-mem.h>
@@ -8,7 +8,7 @@
  
  int spinand_read_reg_op(struct spinand_device *spinand, u8 reg, u8 *val)
  {
-@@ -1719,6 +1720,7 @@ static int spinand_probe(struct spi_mem
+@@ -1725,6 +1726,7 @@ static int spinand_probe(struct spi_mem
  	if (ret)
  		return ret;
  
@@ -16,7 +16,7 @@
  	ret = mtd_device_register(mtd, NULL, 0);
  	if (ret)
  		goto err_spinand_cleanup;
-@@ -1726,6 +1728,7 @@ static int spinand_probe(struct spi_mem
+@@ -1732,6 +1734,7 @@ static int spinand_probe(struct spi_mem
  	return 0;
  
  err_spinand_cleanup:
@@ -24,7 +24,7 @@
  	spinand_cleanup(spinand);
  
  	return ret;
-@@ -1744,6 +1747,7 @@ static int spinand_remove(struct spi_mem
+@@ -1750,6 +1753,7 @@ static int spinand_remove(struct spi_mem
  	if (ret)
  		return ret;
  

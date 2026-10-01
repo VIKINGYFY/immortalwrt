@@ -9,7 +9,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 ---
 --- a/drivers/nvmem/Kconfig
 +++ b/drivers/nvmem/Kconfig
-@@ -40,6 +40,17 @@
+@@ -40,6 +40,17 @@ config NVMEM_AN8855_EFUSE
  	  This driver can also be built as a module. If so, the module will
  	  be called nvmem-an8855-efuse.
  
@@ -29,7 +29,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	depends on ARCH_APPLE || COMPILE_TEST
 --- a/drivers/nvmem/Makefile
 +++ b/drivers/nvmem/Makefile
-@@ -12,6 +12,8 @@
+@@ -12,6 +12,8 @@ obj-y				+= layouts/
  # Devices
  obj-$(CONFIG_NVMEM_AN8855_EFUSE)	+= nvmem-an8855-efuse.o
  nvmem-an8855-efuse-y 			:= an8855-efuse.o
@@ -133,4 +133,3 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +module_platform_driver(an7583_efuse_driver);
 +
 +MODULE_DESCRIPTION("Airoha AN7583 eFuse driver");
-+MODULE_LICENSE("GPL");

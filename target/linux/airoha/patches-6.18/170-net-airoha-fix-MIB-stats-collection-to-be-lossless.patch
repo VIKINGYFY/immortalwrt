@@ -42,11 +42,9 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  drivers/net/ethernet/airoha/airoha_eth.h |  27 ++++
  2 files changed, 132 insertions(+), 66 deletions(-)
 
-diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 59001fd4b6f740..90aa8b0210bd6f 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -1686,11 +1686,14 @@ static void airoha_qdma_stop_napi(struct airoha_qdma *qdma)
+@@ -1637,11 +1637,14 @@ static void airoha_qdma_stop_napi(struct
  	}
  }
  
@@ -62,7 +60,7 @@ index 59001fd4b6f740..90aa8b0210bd6f 100644
  
  	/* Read relevant MIB for GDM with multiple port attached */
  	if (port->id == AIROHA_GDM3_IDX || port->id == AIROHA_GDM4_IDX)
-@@ -1701,152 +1704,188 @@ static void airoha_dev_get_hw_stats(struct airoha_gdm_dev *dev)
+@@ -1652,152 +1655,188 @@ static void airoha_dev_get_hw_stats(stru
  
  	u64_stats_update_begin(&dev->stats.syncp);
  
@@ -316,11 +314,9 @@ index 59001fd4b6f740..90aa8b0210bd6f 100644
  
  	spin_unlock(&port->stats_lock);
  }
-diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index f6d01a8e8da139..fe934f9ffe8a11 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
-@@ -245,6 +245,33 @@ struct airoha_hw_stats {
+@@ -236,6 +236,33 @@ struct airoha_hw_stats {
  	u64 rx_fragment;
  	u64 rx_jabber;
  	u64 rx_len[7];

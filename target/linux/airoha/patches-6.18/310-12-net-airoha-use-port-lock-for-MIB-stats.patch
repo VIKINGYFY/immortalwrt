@@ -6,7 +6,7 @@ fragment register updates. Keep the lossless MIB reader on that lock.
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -2075,7 +2075,7 @@ static void airoha_update_hw_stats(struct airoha_gdm_dev *dev)
+@@ -1651,7 +1651,7 @@ static void airoha_update_hw_stats(struc
  	u32 val, i = 0;
  	u64 data;
  
@@ -15,11 +15,12 @@ fragment register updates. Keep the lossless MIB reader on that lock.
  
  	/* Read relevant MIB for GDM with multiple port attached */
  	if (port->id == AIROHA_GDM3_IDX || port->id == AIROHA_GDM4_IDX)
-@@ -2269,6 +2269,6 @@ static void airoha_update_hw_stats(struct airoha_gdm_dev *dev)
+@@ -1845,7 +1845,7 @@ static void airoha_update_hw_stats(struc
+ 
  	u64_stats_update_end(&dev->stats.syncp);
  
 -	spin_unlock(&port->stats_lock);
 +	spin_unlock(&port->lock);
  }
  
- static void airoha_update_netdev_features(struct airoha_gdm_dev *dev)
+ static int airoha_dev_open(struct net_device *netdev)

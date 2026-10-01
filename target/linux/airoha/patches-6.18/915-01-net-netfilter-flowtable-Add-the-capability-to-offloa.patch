@@ -19,7 +19,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
-@@ -29,6 +29,7 @@ struct nf_flow_key {
+@@ -32,6 +32,7 @@ struct nf_flow_key {
  		struct flow_dissector_key_ipv4_addrs	ipv4;
  		struct flow_dissector_key_ipv6_addrs	ipv6;
  	};
@@ -27,7 +27,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	struct flow_dissector_key_keyid			enc_key_id;
  	union {
  		struct flow_dissector_key_ipv4_addrs	enc_ipv4;
-@@ -141,6 +142,7 @@ struct flow_offload_tuple {
+@@ -144,6 +145,7 @@ struct flow_offload_tuple {
  					in_vlan_ingress:2,
  					num_uppers:3;
  	u16				mtu;
@@ -37,7 +37,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		struct {
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -442,6 +442,7 @@ static int nf_flow_offload_forward(struc
+@@ -452,6 +452,7 @@ static int nf_flow_offload_forward(struc
  	struct flow_offload *flow;
  	unsigned int thoff, mtu;
  	struct iphdr *iph;
@@ -45,7 +45,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
-@@ -474,6 +475,12 @@ static int nf_flow_offload_forward(struc
+@@ -484,6 +485,12 @@ static int nf_flow_offload_forward(struc
  	iph = ip_hdr(skb);
  	nf_flow_nat_ip(flow, skb, thoff, dir, iph);
  
@@ -58,7 +58,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	ip_decrease_ttl(iph);
  	skb_clear_tstamp(skb);
  
-@@ -730,6 +737,7 @@ static int nf_flow_offload_ipv6_forward(
+@@ -751,6 +758,7 @@ static int nf_flow_offload_ipv6_forward(
  	struct flow_offload *flow;
  	unsigned int thoff, mtu;
  	struct ipv6hdr *ip6h;
@@ -66,7 +66,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
-@@ -761,6 +769,12 @@ static int nf_flow_offload_ipv6_forward(
+@@ -782,6 +790,12 @@ static int nf_flow_offload_ipv6_forward(
  	ip6h = ipv6_hdr(skb);
  	nf_flow_nat_ipv6(flow, skb, dir, ip6h);
  
@@ -81,7 +81,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
 --- a/net/netfilter/nf_flow_table_offload.c
 +++ b/net/netfilter/nf_flow_table_offload.c
-@@ -103,6 +103,7 @@ static int nf_flow_rule_match(struct nf_
+@@ -104,6 +104,7 @@ static int nf_flow_rule_match(struct nf_
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_BASIC, basic);
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_IPV4_ADDRS, ipv4);
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_IPV6_ADDRS, ipv6);
@@ -89,7 +89,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_TCP, tcp);
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_PORTS, tp);
  
-@@ -173,6 +174,10 @@ static int nf_flow_rule_match(struct nf_
+@@ -191,6 +192,10 @@ static int nf_flow_rule_match(struct nf_
  	match->dissector.used_keys |= BIT_ULL(key->control.addr_type);
  	mask->basic.n_proto = 0xffff;
  
@@ -102,15 +102,15 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		key->tcp.flags = 0;
 --- a/net/netfilter/nft_flow_offload.c
 +++ b/net/netfilter/nft_flow_offload.c
-@@ -8,6 +8,7 @@
- #include <linux/spinlock.h>
+@@ -9,6 +9,7 @@
+ #include <linux/if_vlan.h>
  #include <linux/netfilter/nf_conntrack_common.h>
  #include <linux/netfilter/nf_tables.h>
 +#include <net/dsfield.h>
  #include <net/ip.h>
  #include <net/flow.h>
  #include <net/netfilter/nf_tables.h>
-@@ -20,6 +21,27 @@ struct nft_flow_offload {
+@@ -21,6 +22,27 @@ struct nft_flow_offload {
  	struct nft_flowtable	*flowtable;
  };
  
@@ -138,13 +138,13 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static bool nft_flow_offload_skip(struct sk_buff *skb, int family)
  {
  	if (skb_sec_path(skb))
-@@ -113,6 +135,9 @@ static void nft_flow_offload_eval(const
+@@ -120,6 +142,9 @@ static void nft_flow_offload_eval(const
  	if (!flow)
  		goto err_flow_alloc;
  
 +	nft_flow_set_dscp(pkt, flow, dir);
 +	nft_flow_set_dscp(pkt, flow, !dir);
 +
- 	flow_offload_route_init(flow, &route);
- 	if (tcph)
- 		flow_offload_ct_tcp(ct);
+ 	if (routing)
+ 		flow_offload_route_init(flow, &route);
+ 	else

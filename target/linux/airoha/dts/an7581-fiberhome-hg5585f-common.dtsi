@@ -141,8 +141,7 @@
 };
 
 &gdm1 {
-	/* The switch CPU port uses the board base MAC address. */
-	nvmem-cells = <&fiberhome_base_mac>;
+	nvmem-cells = <&fiberhome_base_mac 1>;
 	nvmem-cell-names = "mac-address";
 	status = "okay";
 };
@@ -259,7 +258,7 @@
 };
 
 &gdm2 {
-	nvmem-cells = <&fiberhome_base_mac>;
+	nvmem-cells = <&fiberhome_base_mac 0>;
 	nvmem-cell-names = "mac-address";
 	airoha,pon-data-path;
 	status = "okay";

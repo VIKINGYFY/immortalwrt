@@ -20,7 +20,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -1312,6 +1312,25 @@
+@@ -1312,6 +1312,25 @@ static void airoha_qdma_wake_netdev_txqs
  	q->txq_stopped = false;
  }
  
@@ -46,7 +46,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  static int airoha_qdma_tx_napi_poll(struct napi_struct *napi, int budget)
  {
  	struct airoha_tx_irq_queue *irq_q;
-@@ -1374,9 +1393,7 @@
+@@ -1374,9 +1393,7 @@ static int airoha_qdma_tx_napi_poll(stru
  		skb = e->skb;
  		e->skb = NULL;
  
@@ -57,7 +57,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  		list_add_tail(&e->list, &q->tx_list);
  
  		WRITE_ONCE(desc->msg0, 0);
-@@ -1560,12 +1577,10 @@
+@@ -1560,12 +1577,10 @@ static void airoha_qdma_tx_cleanup(struc
  			struct airoha_qdma_desc *desc = &q->desc[j];
  			struct sk_buff *skb = e->skb;
  
@@ -72,7 +72,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  			list_add_tail(&e->list, &q->tx_list);
  
  			WRITE_ONCE(desc->ctrl, 0);
-@@ -2862,8 +2877,8 @@
+@@ -2862,8 +2877,8 @@ static netdev_tx_t airoha_dev_xmit_commo
  	struct device *dma_dev;
  	struct airoha_queue *q;
  	LIST_HEAD(tx_list);
@@ -82,7 +82,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  	u16 index;
  	u8 fport, nboq;
  	bool pon_data = !ctrl && (dev->flags & AIROHA_PRIV_F_PON);
-@@ -2991,24 +3006,21 @@
+@@ -2991,24 +3006,21 @@ static netdev_tx_t airoha_dev_xmit_commo
  		return NETDEV_TX_BUSY;
  	}
  
@@ -113,7 +113,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  		list_move_tail(&e->list, &tx_list);
  		e->skb = i == nr_frags - 1 ? skb : NULL;
  		e->dma_addr = addr;
-@@ -3032,8 +3044,13 @@
+@@ -3032,8 +3044,13 @@ static netdev_tx_t airoha_dev_xmit_commo
  		if (++i == nr_frags)
  			break;
  
@@ -128,7 +128,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  	}
  	q->queued += i;
  	if (pon_data) {
-@@ -3068,11 +3085,8 @@
+@@ -3068,11 +3085,8 @@ static netdev_tx_t airoha_dev_xmit_commo
  	return NETDEV_TX_OK;
  
  error_unmap:
@@ -144,7 +144,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  	spin_unlock_bh(&q->lock);
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
-@@ -185,12 +185,19 @@
+@@ -185,12 +185,19 @@ enum trtcm_param {
  #define TRTCM_TOKEN_RATE_MASK			GENMASK(23, 6)
  #define TRTCM_TOKEN_RATE_FRACTION_MASK		GENMASK(5, 0)
  
@@ -164,4 +164,3 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  		};
  	};
  	dma_addr_t dma_addr;
-
