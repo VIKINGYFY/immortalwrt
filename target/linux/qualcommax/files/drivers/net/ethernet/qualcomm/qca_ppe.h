@@ -268,7 +268,11 @@
 #define   PPE_XLT_PORT_BMP		GENMASK(8, 1)
 #define   PPE_XLT_SKEY_FMT		GENMASK(11, 9)
 #define   PPE_XLT_SKEY_UNTAGGED		1
+#define   PPE_XLT_SKEY_PRIO_TAGGED	2
 #define   PPE_XLT_SKEY_TAGGED		4
+#define   PPE_XLT_FMT_ANY		(PPE_XLT_SKEY_UNTAGGED | \
+					 PPE_XLT_SKEY_PRIO_TAGGED | \
+					 PPE_XLT_SKEY_TAGGED)
 #define   PPE_XLT_SKEY_VID_INCL		BIT(12)
 #define   PPE_XLT_SKEY_VID		GENMASK(24, 13)
 #define   PPE_XLT_CKEY_FMT_0		BIT(31)
@@ -300,6 +304,15 @@
 #define PPE_XLT_CNT_TBL(idx)		(0x17f000 + (idx) * 0x10)
 #define   PPE_XLT_CNT_W2_BYTES_HI	GENMASK(7, 0)
 
+/* Service-code tables.  These offsets are the HPPE SSDK layout: the
+ * egress table is eight bytes per entry, unlike the ingress tables. */
+#define PPE_SERVICE_TBL(idx)		(PPE_IVLAN_BASE + 0x6000 + (idx) * 0x10)
+
+#define PPE_IN_L2_SERVICE_TBL(idx)	(PPE_L2_BASE + 0x4000 + (idx) * 0x10)
+#define PPE_IN_L2_SERVICE_DST_VALID	BIT(0)
+#define PPE_IN_L2_SERVICE_BYPASS	GENMASK(29, 6)
+#define PPE_IN_L2_SERVICE_FAKE_MAC_DROP_BYP	BIT(21)
+
 /* --- PTX (base 0x020000) --- */
 #define PPE_PTX_BASE			0x020000
 
@@ -323,9 +336,12 @@
 #define   PPE_EG_XLT_CVID_CMD		GENMASK(16, 15)
 #define   PPE_EG_XLT_CVID		GENMASK(28, 17)
 #define   PPE_EG_XLT_SVID_ADD		1
+#define   PPE_EG_XLT_SVID_DELETE	2
 #define   PPE_EG_XLT_CVID_ADD		1
 
 #define PPE_EG_XLT_ACTION_W1(idx)	(PPE_PTX_BASE + 0xd000 + (idx) * 0x8 + 0x4)
+
+#define PPE_EG_SERVICE_TBL(idx)		(PPE_PTX_BASE + 0xc000 + (idx) * 0x8)
 
 /* What left the egress editor, per VSI, per physical port and per virtual
  * port, and what the whole stage took in and put out.
@@ -628,6 +644,8 @@
 #define PPE_L3_BASE			0x200000
 
 #define PPE_L3_VP_PORT_TBL(port)	(PPE_L3_BASE + 0x1000 + (port) * 0x10)
+#define   PPE_L3_VP_L3_IF_VALID		BIT(0)
+#define   PPE_L3_VP_L3_IF_INDEX		GENMASK(8, 1)
 #define   PPE_L3_VP_VSI_VALID		BIT(9)
 #define   PPE_L3_VP_VSI			GENMASK(14, 10)
 
@@ -768,6 +786,10 @@
 #define   PPE_FLOW_E_FWD_TYPE_LEN	3
 #define   PPE_FLOW_E_NEXTHOP_OFF	32
 #define   PPE_FLOW_E_NEXTHOP_LEN	12
+#define   PPE_FLOW_E_PORT_VALID_OFF	44
+#define   PPE_FLOW_E_PORT_VALID_LEN	1
+#define   PPE_FLOW_E_PORT_OFF		45
+#define   PPE_FLOW_E_PORT_LEN		8
 #define   PPE_FLOW_E_NEW_PORT_OFF	44
 #define   PPE_FLOW_E_NEW_PORT_LEN	16
 #define   PPE_FLOW_E_IPV4_OFF		76
@@ -784,6 +806,8 @@
 #define   PPE_FLOW_E_IPV6_OFF		140
 #define   PPE_FLOW_E_PRI_PROFILE_OFF	63
 #define   PPE_FLOW_E_PRI_PROFILE_LEN	5
+#define   PPE_FLOW_E_SERVICE_CODE_OFF	68
+#define   PPE_FLOW_E_SERVICE_CODE_LEN	8
 
 #define   PPE_FLOW_E_TYPE_IPV6		BIT(1)
 #define PPE_IN_NEXTHOP_TBL(i)		(PPE_L3_BASE + 0x60000 + (i) * 0x10)
@@ -1170,6 +1194,7 @@
 #define PPE_TRUNK_GROUPS		2
 
 #define PPE_XLT_TBL_NUM			64
+#define QCA_PPE_ROUTED_XLT_SLOTS	8
 #define PPE_XLT_MISS_RDT_TO_CPU		3
 #define PPE_XLT_CVID_DEL		2
 #define PPE_XLT_CKEY_TAGGED		4
@@ -1244,6 +1269,8 @@ enum ppe_flow_reject {
  * addresses or live netdevice pointers are retained.
  */
 struct ppe_flow_reject_info {
+	unsigned long cookie;
+	u64 generation;
 	int ingress_ifindex;
 	int egress_ifindex;
 	u16 n_proto;
@@ -1328,8 +1355,16 @@ struct qca_ppe_priv {
 	/* Guards the flow tables and the operation engine that reaches them. */
 	struct mutex flow_lock;
 	u32 flow_cmd_id;
+	/* An unacknowledged mutation cannot be overwritten or have its leases
+	 * reused. The result queue is consumed once, even if host readback fails. */
+	bool flow_op_busy, flow_op_result_valid;
+	u32 flow_op_cmd_id, flow_op_result, flow_op_rslt_reg;
+	unsigned long *host_retired;
+	u32 host_retire_pending, host_retire_index;
+	bool flow_stopping;
 	struct rhashtable flow_table;
 	struct list_head flow_list;
+	struct list_head flow_retire_list;
 	struct ppe_res *eg_l3_if;
 	struct ppe_res *pub_ip;
 	struct ppe_res *nexthop;
@@ -1348,14 +1383,26 @@ struct qca_ppe_priv {
 	struct ppe_dsa_service dsa_service[QCA_PPE_DSA_SERVICE_MAX];
 	u16 dsa_core_ingress_refs[QCA_PPE_MAX_PORTS];
 	u16 dsa_core_egress_refs[QCA_PPE_MAX_PORTS];
+	/* A nested S-tag DSA conduit also needs its tag on CPU slow-path TX. */
+	u32 dsa_core_egress_base;
 	u32 flow_reject[PPE_REJECT_MAX];
 	struct ppe_flow_reject_info flow_reject_info[PPE_REJECT_MAX];
 	u32 flow_offloaded;
 	u32 flow_reinstalled;
 	u32 flow_destroy_miss;
+	unsigned long flow_destroy_miss_cookie, flow_request_cookie;
+	u64 flow_request_generation;
 	u32 flow_stale;
+	u32 flow_retire_pending, flow_retire_failed;
+	u32 flow_counter_read_failed, flow_counter_clear_failed;
+	unsigned long flow_retire_cookie;
+	int flow_retire_result;
 	u32 flow_sparse_promoted;
 	u32 flow_sparse_demoted;
+	u32 flow_profile_inplace;
+	u32 flow_profile_failed;
+	u32 flow_profile_rollback_failed;
+	u64 wifi_slot_generation;
 	/* Guards the VSI, translation-index and bridge-VLAN state, and the
 	 * read-modify-write an MDB update makes of an FDB entry. The switchdev
 	 * ops reach it under rtnl, the FDB and MDB work from a workqueue that
@@ -1376,6 +1423,8 @@ struct qca_ppe_priv {
 	struct ppe_port_shaper shaper[QCA_PPE_MAX_PORTS];
 	struct dentry *debugfs;
 	DECLARE_BITMAP(vsi_bitmap, PPE_VSI_MAX);
+	DECLARE_BITMAP(vsi_retired, PPE_VSI_MAX);
+	u16 vsi_flow_refs[PPE_VSI_MAX];
 	DECLARE_BITMAP(xlt_bitmap, PPE_XLT_TBL_NUM);
 	u32 port_vsi[QCA_PPE_MAX_PORTS];
 	/* The member mask each VSI was last programmed with, so a bridge flag
@@ -1515,11 +1564,13 @@ void ppe_vsi_free(struct qca_ppe_priv *priv, u32 vsi);
 void ppe_vsi_member_set(struct qca_ppe_priv *priv, u32 vsi, u32 portmask);
 
 int ppe_xlt_idx_alloc(struct qca_ppe_priv *priv);
+int ppe_routed_xlt_idx_alloc(struct qca_ppe_priv *priv);
 void ppe_xlt_idx_free(struct qca_ppe_priv *priv, int *idx);
 struct qca_ppe_vlan_entry *ppe_vlan_find(struct qca_ppe_priv *priv,
 					 struct net_device *br_dev, u16 vid);
 
 int qca_ppe_vlan_setup(struct dsa_switch *ds);
+int ppe_dsa_core_port_set_base(struct qca_ppe_priv *priv, int port, bool core);
 int qca_ppe_port_vlan_filtering(struct dsa_switch *ds, int port,
 				bool vlan_filtering,
 				struct netlink_ext_ack *extack);
@@ -1538,9 +1589,10 @@ int ppe_flow_op(struct qca_ppe_priv *priv, u32 op_type,
 int ppe_host_del(struct qca_ppe_priv *priv, u32 index);
 int ppe_flow_entry_read(struct qca_ppe_priv *priv, u32 index, u32 *words,
 			int nwords);
-void ppe_flow_counter_read(struct qca_ppe_priv *priv, u32 index, u64 *packets,
-			   u64 *bytes);
-void ppe_flow_counter_clear(struct qca_ppe_priv *priv, u32 index);
+int ppe_flow_op_finish(struct qca_ppe_priv *priv, u32 *index, u32 *host_index);
+int ppe_flow_counter_read(struct qca_ppe_priv *priv, u32 index, u64 *packets,
+			  u64 *bytes);
+int ppe_flow_counter_clear(struct qca_ppe_priv *priv, u32 index);
 int ppe_flow_entry_delete(struct qca_ppe_priv *priv, u32 index);
 void ppe_flow_debugfs_init(struct qca_ppe_priv *priv);
 void ppe_flow_offload_debugfs_init(struct qca_ppe_priv *priv);

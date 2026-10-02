@@ -6,54 +6,7 @@
 	model = "Redmi AX6 (stock layout)";
 	compatible = "redmi,ax6-stock", "qcom,ipq8074";
 
-	aliases {
-		/* Aliases as required by u-boot to patch MAC addresses */
-		ethernet1 = &swport2;
-		ethernet2 = &swport3;
-		ethernet3 = &swport4;
-		ethernet4 = &swport5;
-	};
-
 	chosen {
 		bootargs-append = " root=/dev/ubiblock0_1";
-	};
-};
-
-&qpic_nand {
-	/delete-node/ partitions;
-
-	nand@0 {
-		/delete-node/ partitions;
-
-		partitions {
-			compatible = "qcom,smem-part";
-
-			partition-0-art {
-				label = "0:art";
-				read-only;
-
-				nvmem-layout {
-					compatible = "fixed-layout";
-					#address-cells = <1>;
-					#size-cells = <1>;
-
-					macaddr_dp2: macaddr@6 {
-						reg = <0x6 0x6>;
-					};
-
-					macaddr_dp3: macaddr@c {
-						reg = <0xc 0x6>;
-					};
-
-					macaddr_dp4: macaddr@12 {
-						reg = <0x12 0x6>;
-					};
-
-					macaddr_dp5: macaddr@18 {
-						reg = <0x18 0x6>;
-					};
-				};
-			};
-		};
 	};
 };

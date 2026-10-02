@@ -27,15 +27,6 @@ check_default_ap() {
 
 config_load wireless
 
-mark_existing_five_ghz() {
-	local section="$1" ssid
-	config_get ssid "$section" ssid
-	case "$ssid" in
-	OWRT-5.2G) five_low_assigned=1 ;;
-	OWRT-5.8G) five_high_assigned=1 ;;
-	esac
-}
-
 json_init
 json_load "$(cat /etc/board.json)" || exit 0
 json_is_a wlan object || exit 0
@@ -58,7 +49,7 @@ path_matches() {
 	return 1
 }
 
-radio_channel_for_band() {
+radio_supports_band() {
 	local wanted_radio="$1" wanted_band="$2" ids id index found=0
 	json_select radios || return 1
 	json_get_keys ids
@@ -67,11 +58,7 @@ radio_channel_for_band() {
 		json_get_var index index
 		if [ "$index" = "$wanted_radio" ]; then
 			if json_select bands; then
-				if json_select "$wanted_band"; then
-					json_get_var band_channel default_channel
-					found=1
-					json_select ..
-				fi
+				json_is_a "$wanted_band" object && found=1
 				json_select ..
 			fi
 			json_select ..
@@ -85,7 +72,7 @@ radio_channel_for_band() {
 
 band_capabilities() {
 	local wanted_path="$1" wanted_phy="$2" wanted_radio="$3" wanted_band="$4" phy
-	local modes width default_channel
+	local modes width
 	for phy in $phys; do
 		json_select "$phy" || continue
 		if ! { [ -n "$wanted_phy" ] && [ "$phy" = "$wanted_phy" ]; } &&
@@ -97,13 +84,11 @@ band_capabilities() {
 		json_select bands || { json_select ..; json_select ..; continue; }
 		if json_select "$wanted_band"; then
 			json_get_var width max_width
-			json_get_var default_channel default_channel
 			json_get_values modes modes
 			json_select ..
 			json_select ..
-			band_channel="$default_channel"
 			if [ -n "$wanted_radio" ] && json_is_a radios array; then
-				radio_channel_for_band "$wanted_radio" "$wanted_band" || {
+				radio_supports_band "$wanted_radio" "$wanted_band" || {
 					json_select ..
 					json_select ..
 					return 1
@@ -173,18 +158,10 @@ configure_radio() {
 		;;
 	5g)
 		band_capabilities "$path" "$phy" "$radio" 5G || return 0
-		case "$band_channel" in
-		*[!0-9]*|'') band_channel=36 ;;
-		esac
-		if [ "$band_channel" -ge 100 ] && [ "$five_high_assigned" -eq 0 ]; then
+		if [ "$band_width" -eq 80 ]; then
 			name=5.8G channel=149 requested=80
-			five_high_assigned=1
-		elif [ "$five_low_assigned" -eq 0 ]; then
-			name=5.2G channel=36 requested=160
-			five_low_assigned=1
 		else
-			name=5.8G channel=149 requested=80
-			five_high_assigned=1
+			name=5.2G channel=36 requested=160
 		fi
 		;;
 	6g)
@@ -201,9 +178,6 @@ configure_radio() {
 	changed=1
 }
 
-five_low_assigned=0
-five_high_assigned=0
-config_foreach mark_existing_five_ghz wifi-iface
 changed=0
 config_foreach configure_radio wifi-device
 [ "$changed" -eq 0 ] || {

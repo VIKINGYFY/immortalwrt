@@ -11,10 +11,7 @@
 
 / {
 	aliases {
-		ethernet0 = &swport1;
-		ethernet1 = &swport2;
-		ethernet3 = &swport4;
-		ethernet4 = &swport5;
+		label-mac-device = &swport1;
 
 		serial0 = &blsp1_uart3;
 	};
@@ -105,6 +102,8 @@
 			phy-handle = <&qca8075_0>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 0>;
+			nvmem-cells = <&macaddr_lan>;
+			nvmem-cell-names = "mac-address";
 		};
 
 		swport2: port@2 {
@@ -113,6 +112,8 @@
 			phy-handle = <&qca8075_1>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 1>;
+			nvmem-cells = <&macaddr_lan>;
+			nvmem-cell-names = "mac-address";
 		};
 
 		swport4: port@4 {
@@ -121,6 +122,8 @@
 			phy-handle = <&qca8075_3>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 3>;
+			nvmem-cells = <&macaddr_lan>;
+			nvmem-cell-names = "mac-address";
 		};
 
 		swport5: port@5 {
@@ -129,6 +132,8 @@
 			phy-handle = <&qca8075_4>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 4>;
+			nvmem-cells = <&macaddr_wan>;
+			nvmem-cell-names = "mac-address";
 		};
 	};
 };
@@ -145,6 +150,25 @@
 
 		partitions {
 			compatible = "qcom,smem-part";
+
+			partition-0-art {
+				label = "0:art";
+				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					macaddr_wan: macaddr@0 {
+						reg = <0x0 0x6>;
+					};
+
+					macaddr_lan: macaddr@6 {
+						reg = <0x6 0x6>;
+					};
+				};
+			};
 		};
 	};
 };

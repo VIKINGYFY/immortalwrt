@@ -11,6 +11,7 @@
 #include <linux/if_vlan.h>
 #include <linux/netdevice.h>
 #include <linux/platform_device.h>
+#include <linux/soc/qcom/qca_ppe.h>
 #include <net/page_pool/helpers.h>
 
 #define EDMA_HW_RESET_ID "edma_rst"
@@ -179,7 +180,7 @@
 #define EDMA_MAX_MTU (EDMA_MAX_FRAME_SIZE - ETH_HLEN - ETH_FCS_LEN - \
 		      (2 * VLAN_HLEN))
 #define EDMA_TX_PREHDR_SIZE (sizeof(struct edma_tx_preheader))
-#define EDMA_TX_RING_SIZE 128
+#define EDMA_TX_RING_SIZE 1024
 #define EDMA_RX_RING_SIZE 2048
 /* The bounds a frame is described to the engine within: at most this many
  * buffers, and no buffer below this size before the last. The queue stops
@@ -280,6 +281,9 @@ struct edma_stats {
 	u64 tx_desc_error;
 	u64 tx_unnamed_frame;
 	u64 misc_error;
+	u64 rx_ppe_csum_drop;
+	u64 tx_pending_reopen;
+	u64 rx_pending_reopen;
 };
 
 struct edma_soc_data {
@@ -299,11 +303,14 @@ struct edma_ring {
 	void *desc;
 	dma_addr_t dma;
 	u16 count;
+	/* TX producer is owned by the CPU, serialized by tx_lock. */
+	u16 prod_idx;
 	struct sk_buff **skb_store;
 	struct page **page_store;
 };
 
 struct edma_priv {
+	struct qca_ppe_wifi_inject_ops wifi_inject_ops;
 	const struct edma_soc_data *soc;
 	struct napi_struct tx_napi;
 	struct napi_struct rx_napi;

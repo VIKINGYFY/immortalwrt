@@ -1,0 +1,41 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath11k: resolve AP flowtable output on QCA
+
+Expose the terminal Ethernet netdev for native PPE CPU-return egress.
+mac80211 verifies the destination station; ordinary WLAN TX retains peer
+and key handling. Resolve this path only when native QCA PPE is enabled;
+other platforms retain the ordinary software path.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -10085,7 +10085,28 @@
+ 	return ret;
+ }
+ 
++/*
++ * Resolve an AP station to the Ethernet netdev used by normal WLAN TX.
++ * No WDMA/DS or firmware offload ownership is claimed here.
++ */
++static int ath11k_mac_op_net_fill_forward_path(struct ieee80211_hw *hw,
++					       struct ieee80211_vif *vif,
++					       struct ieee80211_sta *sta,
++					       struct net_device_path_ctx *ctx,
++					       struct net_device_path *path)
++{
++	if (!IS_ENABLED(CONFIG_QCOM_80211AX_PPE) ||
++	    vif->type != NL80211_IFTYPE_AP)
++		return -EOPNOTSUPP;
++
++	path->type = DEV_PATH_ETHERNET;
++	path->dev = ctx->dev;
++	ctx->dev = NULL;
++	return 0;
++}
++
+ static const struct ieee80211_ops ath11k_ops = {
++	.net_fill_forward_path          = ath11k_mac_op_net_fill_forward_path,
+ 	.tx				= ath11k_mac_op_tx,
+ 	.wake_tx_queue			= ieee80211_handle_wake_tx_queue,
+ 	.start                          = ath11k_mac_op_start,

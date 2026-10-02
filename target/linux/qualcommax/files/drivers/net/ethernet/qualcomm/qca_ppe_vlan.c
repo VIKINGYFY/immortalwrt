@@ -11,7 +11,29 @@ int ppe_xlt_idx_alloc(struct qca_ppe_priv *priv)
 
 	lockdep_assert_held(&priv->vlan_lock);
 
-	idx = find_first_zero_bit(priv->xlt_bitmap, PPE_XLT_TBL_NUM);
+	/* Entries 0..7 are the fixed DSA/CPU VLAN translation slots. They are
+	 * programmed outside this allocator and must never be reused by a flow
+	 * or WLAN private tag. */
+	/* The upper rows carry routed VLAN selectors. Bridge/DSA rules must
+	 * never consume them: their source-info action is a separate resource
+	 * class and is selected by the routed allocator below. */
+	idx = find_next_zero_bit(priv->xlt_bitmap,
+				 PPE_XLT_TBL_NUM - QCA_PPE_ROUTED_XLT_SLOTS,
+				 QCA_PPE_DSA_SERVICE_MAX);
+	if (idx >= PPE_XLT_TBL_NUM - QCA_PPE_ROUTED_XLT_SLOTS)
+		return -ENOSPC;
+
+	set_bit(idx, priv->xlt_bitmap);
+	return idx;
+}
+
+int ppe_routed_xlt_idx_alloc(struct qca_ppe_priv *priv)
+{
+	int idx;
+
+	lockdep_assert_held(&priv->vlan_lock);
+	idx = find_next_zero_bit(priv->xlt_bitmap, PPE_XLT_TBL_NUM,
+				 PPE_XLT_TBL_NUM - QCA_PPE_ROUTED_XLT_SLOTS);
 	if (idx >= PPE_XLT_TBL_NUM)
 		return -ENOSPC;
 

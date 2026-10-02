@@ -1,0 +1,138 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] clk: qcom: complete IPQ6018/IPQ8074 networking parents
+
+Document the UNIPHY and CMN networking inputs supplied to GCC by the
+IPQ6018 and IPQ8074 device trees, retaining the older input lists.
+
+Add the same CMN parent name fallback to gcc-ipq6018 that gcc-ipq8074
+already has. Firmware clock lookup remains preferred; global names
+only cover older DTs without explicit CMN inputs.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/clk/qcom/gcc-ipq6018.c
++++ b/drivers/clk/qcom/gcc-ipq6018.c
+@@ -361,7 +361,7 @@
+ 
+ static const struct clk_parent_data gcc_xo_bias_gpll0_gpll4_nss_ubi32[] = {
+ 	{ .fw_name = "xo" },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ 	{ .hw = &gpll0.clkr.hw },
+ 	{ .hw = &gpll4.clkr.hw },
+ 	{ .hw = &nss_crypto_pll.clkr.hw },
+@@ -540,7 +540,7 @@
+ 	{ .fw_name = "uniphy1_gcc_rx_clk" },
+ 	{ .fw_name = "uniphy1_gcc_tx_clk" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ };
+ 
+ static const struct parent_map
+@@ -595,7 +595,7 @@
+ 	{ .fw_name = "uniphy1_gcc_tx_clk" },
+ 	{ .fw_name = "uniphy1_gcc_rx_clk" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ };
+ 
+ static const struct parent_map
+@@ -734,7 +734,7 @@
+ 	{ .fw_name = "uniphy0_gcc_rx_clk" },
+ 	{ .fw_name = "uniphy0_gcc_tx_clk" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ };
+ 
+ static const struct parent_map gcc_xo_uniphy0_rx_tx_ubi32_bias_map[] = {
+@@ -770,7 +770,7 @@
+ 	{ .fw_name = "uniphy0_gcc_tx_clk" },
+ 	{ .fw_name = "uniphy0_gcc_rx_clk" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ };
+ 
+ static const struct parent_map gcc_xo_uniphy0_tx_rx_ubi32_bias_map[] = {
+@@ -1921,7 +1921,7 @@
+ 	{ .fw_name = "xo" },
+ 	{ .hw = &gpll0.clkr.hw },
+ 	{ .hw = &gpll2.clkr.hw },
+-	{ .fw_name = "bias_pll_nss_noc_clk" },
++	{ .fw_name = "bias_pll_nss_noc_clk", .name = "bias_pll_nss_noc_clk" },
+ };
+ 
+ static const struct parent_map gcc_xo_gpll0_gpll2_bias_pll_nss_noc_clk_map[] = {
+--- a/Documentation/devicetree/bindings/clock/qcom,gcc-ipq6018.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,gcc-ipq6018.yaml
+@@ -27,14 +27,28 @@
+     const: qcom,gcc-ipq6018
+ 
+   clocks:
++    minItems: 2
+     items:
+       - description: board XO clock
+       - description: sleep clock
++      - description: UNIPHY0 receive clock
++      - description: UNIPHY0 transmit clock
++      - description: UNIPHY1 receive clock
++      - description: UNIPHY1 transmit clock
++      - description: CMN PLL networking core clock
++      - description: CMN PLL networking NOC clock
+ 
+   clock-names:
++    minItems: 2
+     items:
+       - const: xo
+       - const: sleep_clk
++      - const: uniphy0_gcc_rx_clk
++      - const: uniphy0_gcc_tx_clk
++      - const: uniphy1_gcc_rx_clk
++      - const: uniphy1_gcc_tx_clk
++      - const: bias_pll_cc_clk
++      - const: bias_pll_nss_noc_clk
+ 
+   '#power-domain-cells': false
+ 
+--- a/Documentation/devicetree/bindings/clock/qcom,gcc-ipq8074.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,gcc-ipq8074.yaml
+@@ -24,18 +24,36 @@
+     const: qcom,gcc-ipq8074
+ 
+   clocks:
++    minItems: 4
+     items:
+       - description: board XO clock
+       - description: sleep clock
+       - description: Gen3 QMP PCIe PHY PIPE clock
+       - description: Gen2 QMP PCIe PHY PIPE clock
++      - description: UNIPHY0 receive clock
++      - description: UNIPHY0 transmit clock
++      - description: UNIPHY1 receive clock
++      - description: UNIPHY1 transmit clock
++      - description: UNIPHY2 receive clock
++      - description: UNIPHY2 transmit clock
++      - description: CMN PLL networking core clock
++      - description: CMN PLL networking NOC clock
+ 
+   clock-names:
++    minItems: 4
+     items:
+       - const: xo
+       - const: sleep_clk
+       - const: pcie0_pipe
+       - const: pcie1_pipe
++      - const: uniphy0_gcc_rx_clk
++      - const: uniphy0_gcc_tx_clk
++      - const: uniphy1_gcc_rx_clk
++      - const: uniphy1_gcc_tx_clk
++      - const: uniphy2_gcc_rx_clk
++      - const: uniphy2_gcc_tx_clk
++      - const: bias_pll_cc_clk
++      - const: bias_pll_nss_noc_clk
+ 
+ required:
+   - compatible

@@ -30,12 +30,15 @@
 static int ppe_flow_op_wait(struct qca_ppe_priv *priv, u32 rslt_reg,
 			    u32 cmd_id, u32 *rslt)
 {
-	u32 val;
-	int i;
+	u32 val, valid = rslt_reg == PPE_HOST_TBL_OP_RSLT ?
+		PPE_HOST_RSLT_VALID_CNT : PPE_FLOW_RSLT_VALID_CNT;
+	int i, ret;
 
 	for (i = 0; i < PPE_FLOW_OP_RETRIES; i++) {
-		regmap_read(priv->regmap, rslt_reg, &val);
-		if (FIELD_GET(PPE_FLOW_RSLT_VALID_CNT, val) &&
+		ret = regmap_read(priv->regmap, rslt_reg, &val);
+		if (ret)
+			return ret;
+		if ((val & valid) &&
 		    FIELD_GET(PPE_FLOW_RSLT_CMD_ID, val) == cmd_id) {
 			*rslt = val;
 			return 0;
@@ -62,49 +65,84 @@ int ppe_flow_op(struct qca_ppe_priv *priv, u32 op_type,
 		const u32 *entry, int nentry, const u32 *host, int nhost,
 		u32 *index, u32 *host_index)
 {
-	u32 cmd_id, rslt, val;
+	u32 cmd_id;
 	int ret, i;
 
 	lockdep_assert_held(&priv->flow_lock);
+	if (priv->flow_op_busy || priv->host_retire_pending)
+		return -EBUSY;
 
-	for (i = 0; i < nhost; i++)
-		regmap_write(priv->regmap, PPE_FLOW_HOST_TBL_OP_DATA(i),
-			     host[i]);
-	regmap_write(priv->regmap, PPE_FLOW_HOST_TBL_OP,
+	for (i = 0; i < nhost; i++) {
+		ret = regmap_write(priv->regmap, PPE_FLOW_HOST_TBL_OP_DATA(i),
+				   host[i]);
+		if (ret)
+			return ret;
+	}
+	ret = regmap_write(priv->regmap, PPE_FLOW_HOST_TBL_OP,
 		     FIELD_PREP(PPE_FLOW_HOST_OP_HASH_BLOCK,
 				PPE_FLOW_HASH_BLOCKS));
+	if (ret)
+		return ret;
 
-	for (i = 0; i < nentry; i++)
-		regmap_write(priv->regmap, PPE_FLOW_TBL_OP_DATA(i), entry[i]);
+	for (i = 0; i < nentry; i++) {
+		ret = regmap_write(priv->regmap, PPE_FLOW_TBL_OP_DATA(i), entry[i]);
+		if (ret)
+			return ret;
+	}
 
 	cmd_id = ppe_flow_next_cmd_id(priv);
-	regmap_write(priv->regmap, PPE_FLOW_TBL_OP,
+	ret = regmap_write(priv->regmap, PPE_FLOW_TBL_OP,
 		     FIELD_PREP(PPE_FLOW_OP_CMD_ID, cmd_id) |
 		     FIELD_PREP(PPE_FLOW_OP_TYPE, op_type) |
 		     FIELD_PREP(PPE_FLOW_OP_HASH_BLOCK, PPE_FLOW_HASH_BLOCKS) |
 		     PPE_FLOW_OP_HOST_EN);
-
-	ret = ppe_flow_op_wait(priv, PPE_FLOW_TBL_OP_RSLT, cmd_id, &rslt);
 	if (ret)
 		return ret;
 
-	if (rslt & PPE_FLOW_RSLT_FAIL)
+	priv->flow_op_busy = true;
+	priv->flow_op_result_valid = false;
+	priv->flow_op_cmd_id = cmd_id;
+	priv->flow_op_rslt_reg = PPE_FLOW_TBL_OP_RSLT;
+	return ppe_flow_op_finish(priv, index, host_index);
+}
+
+/* Finish an issued mutation before another writer can touch its staging area.
+ * Preserve a consumed result while its host-index readback is unavailable.
+ */
+int ppe_flow_op_finish(struct qca_ppe_priv *priv, u32 *index, u32 *host_index)
+{
+	u32 rslt, val, idx;
+	int ret;
+
+	lockdep_assert_held(&priv->flow_lock);
+	if (!priv->flow_op_busy)
+		return -EINVAL;
+	if (!priv->flow_op_result_valid) {
+		ret = ppe_flow_op_wait(priv, priv->flow_op_rslt_reg,
+				       priv->flow_op_cmd_id, &rslt);
+		if (ret)
+			return ret;
+		priv->flow_op_result = rslt;
+		priv->flow_op_result_valid = true;
+	}
+	rslt = priv->flow_op_result;
+	if (rslt & PPE_FLOW_RSLT_FAIL) {
+		priv->flow_op_busy = false;
 		return -ENOENT;
-
+	}
+	idx = FIELD_GET(PPE_FLOW_RSLT_ENTRY_IDX, rslt);
+	if ((index || host_index) && idx >= priv->data->num_flow_entries)
+		return -EIO;
 	if (index)
-		*index = FIELD_GET(PPE_FLOW_RSLT_ENTRY_IDX, rslt);
-
-	/* The host result register is a queue that fills on its own schedule,
-	 * so it may not yet - or no longer - hold this command's result. What
-	 * binds the flow to its host entry is the host index the hardware
-	 * wrote into the flow entry itself; read it from there.
-	 */
-	if (index && host_index) {
-		regmap_read(priv->regmap, PPE_IN_FLOW_TBL(*index), &val);
+		*index = idx;
+	if (host_index) {
+		ret = regmap_read(priv->regmap, PPE_IN_FLOW_TBL(idx), &val);
+		if (ret)
+			return ret;
 		*host_index = ppe_entry_get(&val, PPE_FLOW_E_HOST_IDX_OFF,
 					    PPE_FLOW_E_HOST_IDX_LEN);
 	}
-
+	priv->flow_op_busy = false;
 	return 0;
 }
 
@@ -116,18 +154,24 @@ int ppe_flow_op(struct qca_ppe_priv *priv, u32 op_type,
 int ppe_flow_entry_read(struct qca_ppe_priv *priv, u32 index, u32 *words,
 			int nwords)
 {
-	u32 cmd_id, rslt;
+	u32 cmd_id, rslt, read[PPE_FLOW_ENTRY_WORDS_V6];
 	int ret, i;
 
 	lockdep_assert_held(&priv->flow_lock);
+	if (priv->flow_op_busy)
+		return -EBUSY;
+	if (nwords <= 0 || nwords > PPE_FLOW_ENTRY_WORDS_V6)
+		return -EINVAL;
 
 	cmd_id = ppe_flow_next_cmd_id(priv);
-	regmap_write(priv->regmap, PPE_FLOW_TBL_RD_OP,
+	ret = regmap_write(priv->regmap, PPE_FLOW_TBL_RD_OP,
 		     FIELD_PREP(PPE_FLOW_OP_CMD_ID, cmd_id) |
 		     FIELD_PREP(PPE_FLOW_OP_TYPE, PPE_TBL_OP_GET) |
 		     FIELD_PREP(PPE_FLOW_OP_HASH_BLOCK, PPE_FLOW_HASH_BLOCKS) |
 		     PPE_FLOW_OP_INDEX_MODE |
 		     FIELD_PREP(PPE_FLOW_OP_ENTRY_IDX, index));
+	if (ret)
+		return ret;
 
 	ret = ppe_flow_op_wait(priv, PPE_FLOW_TBL_RD_OP_RSLT, cmd_id, &rslt);
 	if (ret)
@@ -136,9 +180,13 @@ int ppe_flow_entry_read(struct qca_ppe_priv *priv, u32 index, u32 *words,
 	if (rslt & PPE_FLOW_RSLT_FAIL)
 		return -ENOENT;
 
-	for (i = 0; i < nwords; i++)
-		regmap_read(priv->regmap, PPE_FLOW_TBL_RD_RSLT_DATA(i),
-			    &words[i]);
+	for (i = 0; i < nwords; i++) {
+		ret = regmap_read(priv->regmap, PPE_FLOW_TBL_RD_RSLT_DATA(i),
+				  &read[i]);
+		if (ret)
+			return ret;
+	}
+	memcpy(words, read, nwords * sizeof(*words));
 
 	return 0;
 }
@@ -148,24 +196,26 @@ int ppe_flow_entry_read(struct qca_ppe_priv *priv, u32 index, u32 *words,
  */
 int ppe_flow_entry_delete(struct qca_ppe_priv *priv, u32 index)
 {
-	u32 cmd_id, rslt;
+	u32 cmd_id;
 	int ret;
 
 	lockdep_assert_held(&priv->flow_lock);
-
+	if (priv->flow_op_busy)
+		return -EBUSY;
 	cmd_id = ppe_flow_next_cmd_id(priv);
-	regmap_write(priv->regmap, PPE_FLOW_TBL_OP,
+	ret = regmap_write(priv->regmap, PPE_FLOW_TBL_OP,
 		     FIELD_PREP(PPE_FLOW_OP_CMD_ID, cmd_id) |
 		     FIELD_PREP(PPE_FLOW_OP_TYPE, PPE_TBL_OP_DEL) |
 		     FIELD_PREP(PPE_FLOW_OP_HASH_BLOCK, PPE_FLOW_HASH_BLOCKS) |
 		     PPE_FLOW_OP_INDEX_MODE |
 		     FIELD_PREP(PPE_FLOW_OP_ENTRY_IDX, index));
-
-	ret = ppe_flow_op_wait(priv, PPE_FLOW_TBL_OP_RSLT, cmd_id, &rslt);
 	if (ret)
 		return ret;
-
-	return (rslt & PPE_FLOW_RSLT_FAIL) ? -ENOENT : 0;
+	priv->flow_op_busy = true;
+	priv->flow_op_result_valid = false;
+	priv->flow_op_cmd_id = cmd_id;
+	priv->flow_op_rslt_reg = PPE_FLOW_TBL_OP_RSLT;
+	return ppe_flow_op_finish(priv, NULL, NULL);
 }
 
 /* A host entry is visible in the flat mapping but a valid one cannot be cleared
@@ -173,60 +223,79 @@ int ppe_flow_entry_delete(struct qca_ppe_priv *priv, u32 index)
  */
 int ppe_host_del(struct qca_ppe_priv *priv, u32 index)
 {
-	u32 cmd_id, val;
-	int i;
+	u32 cmd_id;
+	int ret;
 
 	lockdep_assert_held(&priv->flow_lock);
-
+	if (priv->flow_op_busy)
+		return -EBUSY;
 	cmd_id = ppe_flow_next_cmd_id(priv);
-	regmap_write(priv->regmap, PPE_HOST_TBL_OP,
+	ret = regmap_write(priv->regmap, PPE_HOST_TBL_OP,
 		     FIELD_PREP(PPE_HOST_OP_CMD_ID, cmd_id) |
 		     FIELD_PREP(PPE_HOST_OP_TYPE, PPE_TBL_OP_DEL) |
 		     FIELD_PREP(PPE_HOST_OP_HASH_BLOCK, PPE_FLOW_HASH_BLOCKS) |
 		     PPE_HOST_OP_INDEX_MODE |
 		     FIELD_PREP(PPE_HOST_OP_ENTRY_IDX, index));
-
-	for (i = 0; i < PPE_FLOW_OP_RETRIES; i++) {
-		regmap_read(priv->regmap, PPE_HOST_TBL_OP_RSLT, &val);
-		if (FIELD_GET(PPE_HOST_RSLT_VALID_CNT, val) &&
-		    FIELD_GET(PPE_HOST_RSLT_CMD_ID, val) == cmd_id)
-			return (val & PPE_HOST_RSLT_FAIL) ? -ENOENT : 0;
-		udelay(1);
-	}
-
-	return -ETIMEDOUT;
+	if (ret)
+		return ret;
+	priv->flow_op_busy = true;
+	priv->flow_op_result_valid = false;
+	priv->flow_op_cmd_id = cmd_id;
+	priv->flow_op_rslt_reg = PPE_HOST_TBL_OP_RSLT;
+	priv->host_retire_index = index;
+	return ppe_flow_op_finish(priv, NULL, NULL);
 }
 
-void ppe_flow_counter_read(struct qca_ppe_priv *priv, u32 index, u64 *packets,
-			   u64 *bytes)
+int ppe_flow_counter_read(struct qca_ppe_priv *priv, u32 index, u64 *packets,
+			  u64 *bytes)
 {
-	u32 lo, hi, hi2;
+	u32 pkts, lo, hi, hi2;
+	int ret, i;
 
-	regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(index), &lo);
-	*packets = lo;
+	ret = regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(index), &pkts);
+	if (ret)
+		goto fail;
 
 	/* 40-bit byte counter. Re-read on a carry between the two halves so a
 	 * count crossing the low word's boundary is not torn by 1 << 32.
 	 */
-	regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(index) + 8, &hi);
-	do {
-		hi2 = hi;
-		regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(index) + 4, &lo);
-		regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(index) + 8, &hi);
-	} while (hi != hi2);
-	*bytes = lo | ((u64)FIELD_GET(PPE_FLOW_CNT_BYTES_HI, hi) << 32);
+	for (i = 0; i < 3; i++) {
+		ret = regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(index) + 8, &hi);
+		if (ret)
+			goto fail;
+		ret = regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(index) + 4, &lo);
+		if (ret)
+			goto fail;
+		ret = regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(index) + 8, &hi2);
+		if (ret)
+			goto fail;
+		if ((hi & PPE_FLOW_CNT_BYTES_HI) != (hi2 & PPE_FLOW_CNT_BYTES_HI))
+			continue;
+		*packets = pkts;
+		*bytes = lo | ((u64)FIELD_GET(PPE_FLOW_CNT_BYTES_HI, hi) << 32);
+		return 0;
+	}
+	ret = -EAGAIN;
+fail:
+	priv->flow_counter_read_failed++;
+	return ret;
 }
 
 /* Deleting an entry does not reset its counter, so a slot has to be cleared
  * when it is handed to a new flow rather than when the old one goes away.
  */
-void ppe_flow_counter_clear(struct qca_ppe_priv *priv, u32 index)
+int ppe_flow_counter_clear(struct qca_ppe_priv *priv, u32 index)
 {
-	int i;
+	int i, ret;
 
-	for (i = 0; i < PPE_FLOW_CNT_WORDS; i++)
-		regmap_write(priv->regmap, PPE_IN_FLOW_CNT_TBL(index) + i * 4,
-			     0);
+	for (i = 0; i < PPE_FLOW_CNT_WORDS; i++) {
+		ret = regmap_write(priv->regmap, PPE_IN_FLOW_CNT_TBL(index) + i * 4, 0);
+		if (ret) {
+			priv->flow_counter_clear_failed++;
+			return ret;
+		}
+	}
+	return 0;
 }
 
 static int ppe_flows_show(struct seq_file *s, void *data)
@@ -235,8 +304,9 @@ static int ppe_flows_show(struct seq_file *s, void *data)
 	u32 w[PPE_FLOW_ENTRY_WORDS_V6];
 	u64 packets, bytes;
 	u32 i;
+	int ret;
 
-	seq_puts(s, "index type proto fwd age host  pri packets bytes\n");
+	seq_puts(s, "index type proto fwd age host  pri packets bytes stats_read\n");
 
 	guard(mutex)(&priv->flow_lock);
 
@@ -247,9 +317,9 @@ static int ppe_flows_show(struct seq_file *s, void *data)
 				   PPE_FLOW_E_VALID_LEN))
 			continue;
 
-		ppe_flow_counter_read(priv, i, &packets, &bytes);
+		ret = ppe_flow_counter_read(priv, i, &packets, &bytes);
 
-		seq_printf(s, "%-5u %-4s %-5llu %-3llu %-3llu %-5llu %-3llu %llu %llu\n",
+		seq_printf(s, "%-5u %-4s %-5llu %-3llu %-3llu %-5llu %-3llu ",
 			   i, (w[0] & PPE_FLOW_E_TYPE_IPV6) ? "ipv6" : "ipv4",
 			   ppe_entry_get(w, PPE_FLOW_E_PROTO_OFF,
 					 PPE_FLOW_E_PROTO_LEN),
@@ -260,8 +330,11 @@ static int ppe_flows_show(struct seq_file *s, void *data)
 			   ppe_entry_get(w, PPE_FLOW_E_HOST_IDX_OFF,
 					 PPE_FLOW_E_HOST_IDX_LEN),
 			   ppe_entry_get(w, PPE_FLOW_E_PRI_PROFILE_OFF,
-					 PPE_FLOW_E_PRI_PROFILE_LEN),
-			   packets, bytes);
+					 PPE_FLOW_E_PRI_PROFILE_LEN));
+		if (ret)
+			seq_printf(s, "- - %d\n", ret);
+		else
+			seq_printf(s, "%llu %llu 0\n", packets, bytes);
 
 		/* An IPv6 entry occupies two slots and reads back identically
 		 * through either, so it would otherwise be listed twice.
@@ -299,11 +372,21 @@ static int ppe_offload_show(struct seq_file *s, void *data)
 	seq_printf(s, "%-24s %u\n", "offloaded", priv->flow_offloaded);
 	seq_printf(s, "%-24s %u\n", "reinstalled", priv->flow_reinstalled);
 	seq_printf(s, "%-24s %u\n", "destroy_miss", priv->flow_destroy_miss);
+	seq_printf(s, "destroy_miss_last cookie=%lx\n", priv->flow_destroy_miss_cookie);
 	seq_printf(s, "%-24s %u\n", "stale", priv->flow_stale);
+	seq_printf(s, "retire_pending %u\nretire_failed %u\ncounter_read_failed %u\ncounter_clear_failed %u\n",
+		   priv->flow_retire_pending, priv->flow_retire_failed,
+		   priv->flow_counter_read_failed, priv->flow_counter_clear_failed);
+	seq_printf(s, "retire_last cookie=%lx result=%d mutation_pending=%u host_pending=%u\n",
+		   priv->flow_retire_cookie, priv->flow_retire_result, priv->flow_op_busy,
+		   priv->host_retire_pending);
 	seq_printf(s, "%-24s %u\n", "sparse_promoted",
 		   priv->flow_sparse_promoted);
 	seq_printf(s, "%-24s %u\n", "sparse_demoted",
 		   priv->flow_sparse_demoted);
+	seq_printf(s, "profile_inplace %u\nprofile_failed %u\nprofile_rollback_failed %u\n",
+		   priv->flow_profile_inplace, priv->flow_profile_failed,
+		   priv->flow_profile_rollback_failed);
 	seq_printf(s, "%-24s %u\n", "live_entries",
 		   atomic_read(&priv->flow_table.nelems));
 	for (i = 0; i < PPE_REJECT_MAX; i++)
@@ -320,19 +403,20 @@ static int ppe_offload_rejects_show(struct seq_file *s, void *data)
 	int i;
 
 	guard(mutex)(&priv->flow_lock);
-	seq_puts(s, "reason count iif oif l3 l4 vlan cvlan push actions\n");
+	seq_puts(s, "reason count iif oif l3 l4 vlan cvlan push actions cookie generation\n");
 	for (i = 0; i < PPE_REJECT_MAX; i++) {
 		const struct ppe_flow_reject_info *info = &priv->flow_reject_info[i];
 
 		if (!priv->flow_reject[i])
 			continue;
-		seq_printf(s, "%s %u %d %d %04x %u %04x:%u %04x:%u %04x:%u %016llx\n",
+		seq_printf(s, "%s %u %d %d %04x %u %04x:%u %04x:%u %04x:%u %016llx %lx %llu\n",
 			   ppe_flow_reject_name[i], priv->flow_reject[i],
 			   info->ingress_ifindex, info->egress_ifindex,
 			   info->n_proto, info->ip_proto,
 			   info->vlan_tpid, info->vlan_id,
 			   info->cvlan_tpid, info->cvlan_id,
-			   info->push_tpid, info->push_vid, info->actions);
+			   info->push_tpid, info->push_vid, info->actions,
+			   info->cookie, info->generation);
 	}
 	return 0;
 }
@@ -387,6 +471,18 @@ static int ppe_pipeline_state_show(struct seq_file *s, void *data)
 	}
 
 	guard(mutex)(&priv->vlan_lock);
+	for (i = 0; i < priv->data->num_ports; i++) {
+		u32 ingress, egress;
+
+		if (regmap_read(priv->regmap, PPE_PORT_PARSING(i), &ingress) ||
+		    regmap_read(priv->regmap, PPE_PORT_EG_VLAN(i), &egress))
+			return -EIO;
+		seq_printf(s, "dsa_port_role port=%d base_egress=%u ingress_refs=%u "
+			   "egress_refs=%u ingress=%08x egress=%08x\n", i,
+			   !!(priv->dsa_core_egress_base & BIT(i)),
+			   priv->dsa_core_ingress_refs[i],
+			   priv->dsa_core_egress_refs[i], ingress, egress);
+	}
 	for (i = 0; i < QCA_PPE_DSA_SERVICE_MAX; i++) {
 		struct ppe_dsa_service *service = &priv->dsa_service[i];
 		u32 rule[2], action[3], eg_rule[2], eg_action[2];

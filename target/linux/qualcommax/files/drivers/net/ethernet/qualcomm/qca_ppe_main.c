@@ -227,6 +227,11 @@ void ppe_vsi_free(struct qca_ppe_priv *priv, u32 vsi)
 {
 	lockdep_assert_held(&priv->vlan_lock);
 
+	if (priv->vsi_flow_refs[vsi]) {
+		set_bit(vsi, priv->vsi_retired);
+		return;
+	}
+	clear_bit(vsi, priv->vsi_retired);
 	regmap_write(priv->regmap, PPE_VSI_TBL(vsi), 0);
 	regmap_write(priv->regmap, PPE_VSI_TBL(vsi) + 4, 0);
 	priv->vsi_member[vsi] = 0;
@@ -805,6 +810,19 @@ static int qca_ppe_port_enable(struct dsa_switch *ds, int port,
 				   struct phy_device *phy)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	struct dsa_port *dp = dsa_to_port(ds, port);
+	struct net_device *user = dp->user;
+	bool core = user && netdev_uses_dsa(user) &&
+		    user->dsa_ptr->tag_ops &&
+		    user->dsa_ptr->tag_ops->proto == DSA_TAG_PROTO_RTL9303_8021AD;
+	int ret;
+
+	/* DSA installs dsa_ptr before opening a nested switch's conduit.
+	 * Re-evaluate on open, but keep the role across stop and flow expiry.
+	 */
+	ret = ppe_dsa_core_port_set_base(priv, port, core);
+	if (ret)
+		return ret;
 
 	ppe_port_queues_enable(priv, port, true);
 
@@ -2750,9 +2768,13 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	rst = devm_reset_control_get(&pdev->dev, "ppe_rst");
 	if (IS_ERR(rst))
 		return PTR_ERR(rst);
-	reset_control_assert(rst);
+	ret = reset_control_assert(rst);
+	if (ret)
+		return dev_err_probe(&pdev->dev, ret, "failed to assert PPE reset");
 	msleep(100);
-	reset_control_deassert(rst);
+	ret = reset_control_deassert(rst);
+	if (ret)
+		return dev_err_probe(&pdev->dev, ret, "failed to deassert PPE reset");
 	msleep(100);
 
 	spin_lock_init(&priv->fdb_lock);

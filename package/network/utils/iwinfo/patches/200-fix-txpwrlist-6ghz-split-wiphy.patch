@@ -1,0 +1,151 @@
+From: Yury Ilyanok <yury.ilyanok@gmail.com>
+Subject: iwinfo: fix 6 GHz TX power lists in split wiphy dumps
+
+Adapt the CR1000A community fix to the current iwinfo source. Request
+split dumps and keep the lookup frequency separate from the result across
+partial replies. Match frequencies, since channel numbers overlap across
+bands. Skip missing attributes and return an empty result on lookup errors
+instead of truncating -1 to the uint8_t value 255.
+
+This only corrects the advertised power list. It does not change the
+driver-reported actual power or regulatory and firmware power limits.
+
+Origin: https://github.com/tsg2k2/openwrt/commit/99236397e049dc52c2fa7be52f43511a154fb310
+
+--- a/iwinfo_nl80211.c
++++ b/iwinfo_nl80211.c
+@@ -2554,10 +2554,15 @@
+ 	return -1;
+ }
+ 
++struct nl80211_txpwr_state {
++	int freq_cur;
++	int dbm_max;
++};
++
+ static int nl80211_get_txpwrlist_cb(struct nl_msg *msg, void *arg)
+ {
+-	int *dbm_max = arg;
+-	int ch_cur, ch_cmp, bands_remain, freqs_remain;
++	struct nl80211_txpwr_state *st = arg;
++	int bands_remain, freqs_remain;
+ 
+ 	struct nlattr **attr = nl80211_parse(msg);
+ 	struct nlattr *bands[NL80211_BAND_ATTR_MAX + 1];
+@@ -2573,29 +2578,34 @@
+ 		[NL80211_FREQUENCY_ATTR_MAX_TX_POWER] = { .type = NLA_U32  },
+ 	};
+ 
+-	ch_cur = *dbm_max; /* value int* is initialized with channel by caller */
+-	*dbm_max = -1;
++	/* Split dumps may contain messages without bands or frequencies. */
++	if (st->dbm_max >= 0 || !attr[NL80211_ATTR_WIPHY_BANDS])
++		return NL_SKIP;
+ 
+ 	nla_for_each_nested(band, attr[NL80211_ATTR_WIPHY_BANDS], bands_remain)
+ 	{
+ 		nla_parse(bands, NL80211_BAND_ATTR_MAX, nla_data(band),
+ 		          nla_len(band), NULL);
+ 
++		if (!bands[NL80211_BAND_ATTR_FREQS])
++			continue;
++
+ 		nla_for_each_nested(freq, bands[NL80211_BAND_ATTR_FREQS], freqs_remain)
+ 		{
+ 			nla_parse(freqs, NL80211_FREQUENCY_ATTR_MAX,
+ 			          nla_data(freq), nla_len(freq), freq_policy);
+ 
+-			ch_cmp = nl80211_freq2channel(nla_get_u32(
+-				freqs[NL80211_FREQUENCY_ATTR_FREQ]));
+-
+-			if ((!ch_cur || (ch_cmp == ch_cur)) &&
+-			    freqs[NL80211_FREQUENCY_ATTR_MAX_TX_POWER])
++			if (!freqs[NL80211_FREQUENCY_ATTR_FREQ] ||
++			    !freqs[NL80211_FREQUENCY_ATTR_MAX_TX_POWER])
++				continue;
++
++			/* Channel numbers overlap between 2.4, 5 and 6 GHz. */
++			if (!st->freq_cur || (uint32_t)(uint32_t)st->freq_cur == nla_get_u32(
++			    freqs[NL80211_FREQUENCY_ATTR_FREQ]))
+ 			{
+-				*dbm_max = (int)(0.01 * nla_get_u32(
+-					freqs[NL80211_FREQUENCY_ATTR_MAX_TX_POWER]));
+-
+-				break;
++				st->dbm_max = nla_get_u32(
++					freqs[NL80211_FREQUENCY_ATTR_MAX_TX_POWER]) / 100;
++				return NL_SKIP;
+ 			}
+ 		}
+ 	}
+@@ -2605,41 +2615,41 @@
+ 
+ static int nl80211_get_txpwrlist(const char *ifname, char *buf, int *len)
+ {
+-	int err, ch_cur;
+-	int dbm_max = -1, dbm_cur, dbm_cnt;
++	struct nl80211_txpwr_state st = { .freq_cur = 0, .dbm_max = -1 };
++	struct nl80211_msg_conveyor *cv;
++	uint32_t features = nl80211_get_protocol_features(ifname);
++	int flags, dbm_cur, dbm_cnt;
+ 	struct iwinfo_txpwrlist_entry entry;
+ 
+-	if (nl80211_get_channel(ifname, &ch_cur))
+-		ch_cur = 0;
+-
+-	/* initialize the value pointer with channel for callback */
+-	dbm_max = ch_cur;
+-
+-	err = nl80211_request(ifname, NL80211_CMD_GET_WIPHY, 0,
+-	                      nl80211_get_txpwrlist_cb, &dbm_max);
+-
+-	if (!err)
++	*len = 0;
++	if (nl80211_get_frequency(ifname, &st.freq_cur))
++		st.freq_cur = 0;
++
++	flags = features & NL80211_PROTOCOL_FEATURE_SPLIT_WIPHY_DUMP ? NLM_F_DUMP : 0;
++	cv = nl80211_msg(ifname, NL80211_CMD_GET_WIPHY, flags);
++	if (!cv)
++		goto out;
++
++	NLA_PUT_FLAG(cv->msg, NL80211_ATTR_SPLIT_WIPHY_DUMP);
++	if (nl80211_send(cv, nl80211_get_txpwrlist_cb, &st) ||
++	    st.dbm_max < 0 || st.dbm_max > UINT8_MAX)
++		goto out;
++
++	for (dbm_cur = 0, dbm_cnt = 0;
++	     dbm_cur <= st.dbm_max;
++	     dbm_cur++, dbm_cnt++)
+ 	{
+-		for (dbm_cur = 0, dbm_cnt = 0;
+-		     dbm_cur < dbm_max;
+-		     dbm_cur++, dbm_cnt++)
+-		{
+-			entry.dbm = dbm_cur;
+-			entry.mw  = iwinfo_dbm2mw(dbm_cur);
+-
+-			memcpy(&buf[dbm_cnt * sizeof(entry)], &entry, sizeof(entry));
+-		}
+-
+-		entry.dbm = dbm_max;
+-		entry.mw  = iwinfo_dbm2mw(dbm_max);
+-
++		entry.dbm = dbm_cur;
++		entry.mw  = iwinfo_dbm2mw(dbm_cur);
+ 		memcpy(&buf[dbm_cnt * sizeof(entry)], &entry, sizeof(entry));
+-		dbm_cnt++;
+-
+-		*len = dbm_cnt * sizeof(entry);
+-		return 0;
+ 	}
+ 
++	*len = dbm_cnt * sizeof(entry);
++	return 0;
++
++nla_put_failure:
++	nl80211_free(cv);
++out:
+ 	return -1;
+ }
+ 

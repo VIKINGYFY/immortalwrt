@@ -15,7 +15,7 @@
 		serial0 = &blsp1_uart5;
 		ethernet0 = &swport5;
 		ethernet1 = &swport6;
-		label-mac-device = &swport6;
+		label-mac-device = &swport5;
 
 		led-boot = &led_power_green;
 		led-failsafe = &led_power_red;
@@ -97,12 +97,10 @@
 					#size-cells = <1>;
 
 					macaddr_lan: macaddr@0 {
-						compatible = "mac-base";
 						reg = <0x0 0x6>;
 					};
 
 					macaddr_wan: macaddr@6 {
-						compatible = "mac-base";
 						reg = <0x6 0x6>;
 					};
 				};
@@ -160,10 +158,6 @@
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <8>;
 	};
-};
-
-&switch {
-	status = "okay";
 };
 
 &edma {

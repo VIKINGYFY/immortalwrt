@@ -1,5 +1,33 @@
 #include <dt-bindings/clock/qcom,ipq8074-cmn-pll.h>
 
+/* Use explicit CMN PLL parents; GCC name lookups remain a fallback. */
+&gcc {
+	clocks = <&xo>,
+		 <&sleep_clk>,
+		 <&pcie_qmp0>,
+		 <&pcie_qmp1>,
+		 <&uniphy0 UNIPHY_CLK_RX>,
+		 <&uniphy0 UNIPHY_CLK_TX>,
+		 <&uniphy1 UNIPHY_CLK_RX>,
+		 <&uniphy1 UNIPHY_CLK_TX>,
+		 <&uniphy2 UNIPHY_CLK_RX>,
+		 <&uniphy2 UNIPHY_CLK_TX>,
+		 <&cmn_pll IPQ8074_BIAS_PLL_CC_CLK>,
+		 <&cmn_pll IPQ8074_BIAS_PLL_NSS_NOC_CLK>;
+	clock-names = "xo",
+		      "sleep_clk",
+		      "pcie0_pipe",
+		      "pcie1_pipe",
+		      "uniphy0_gcc_rx_clk",
+		      "uniphy0_gcc_tx_clk",
+		      "uniphy1_gcc_rx_clk",
+		      "uniphy1_gcc_tx_clk",
+		      "uniphy2_gcc_rx_clk",
+		      "uniphy2_gcc_tx_clk",
+		      "bias_pll_cc_clk",
+		      "bias_pll_nss_noc_clk";
+};
+
 &soc {
 	cmn_pll_ref_clk: cmn-pll-ref-clk {
 		compatible = "fixed-clock";

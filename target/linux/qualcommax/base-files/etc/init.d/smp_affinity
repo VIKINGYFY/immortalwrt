@@ -4,201 +4,133 @@
 
 START=93
 
-PROG=smp_affinity
 PROC_ROOT=${PROC_ROOT:-/proc}
 IRQ_ROOT=${IRQ_ROOT:-${PROC_ROOT}/irq}
 IRQ_FILE=${IRQ_FILE:-${PROC_ROOT}/interrupts}
 SYS_ROOT=${SYS_ROOT:-/sys}
 TASKSET=${TASKSET:-taskset}
 
-log_msg() {
-	[ "$enable_log" = 1 ] || return 0
-	logger -t "$PROG" "Pinning $1($2) $3 to CPU $4"
-}
-
 log_status() {
 	[ "$enable_log" = 1 ] || return 0
-	logger -t "$PROG" "$*"
+	logger -t smp_affinity "$*"
 }
 
-cpu_mask() {
-	case "$1" in
-		''|*[!0-9]*) return 1 ;;
-	esac
-	printf '%x\n' "$((1 << $1))"
-}
+online_cpu() {
+	local cpu="$1" range first last
 
-get_irq() {
-	awk -v name="$1" '$NF == name || $NF == name ":" {
-		sub(/:$/, "", $1)
-		print $1
-	}' "$IRQ_FILE" 2>/dev/null
-}
-
-set_irq_affinity() {
-	local name="$1" cpu="$2" irq mask current found=0 failed=0
-
-	mask="$(cpu_mask "$cpu")" || return 1
-	for irq in $(get_irq "$name"); do
-		[ -e "$IRQ_ROOT/$irq/smp_affinity" ] || continue
-		found=1
-
-		# Avoid repeated writes while waiting for late-loading Wi-Fi IRQs.
-		current="$(cat "$IRQ_ROOT/$irq/smp_affinity" 2>/dev/null)"
-		current="$(printf '%s' "$current" | sed 's/^0*//')"
-		[ -n "$current" ] || current=0
-		[ "$current" = "$mask" ] && continue
-
-		if printf '%s\n' "$mask" > "$IRQ_ROOT/$irq/smp_affinity"; then
-			log_msg IRQ "$irq" "$name" "$cpu"
-		else
-			failed=1
+	for range in $(printf '%s' "$online" | tr ',' ' '); do
+		first="${range%-*}"
+		last="${range#*-}"
+		if [ "$cpu" -ge "$first" ] && [ "$cpu" -le "$last" ]; then
+			printf '%s\n' "$cpu"
+			return
 		fi
 	done
-
-	[ "$found" -eq 1 ] && [ "$failed" -eq 0 ]
+	# Keep the mapping valid if a CPU has been taken offline.
+	printf '%s\n' "${online%%[-,]*}"
 }
 
-set_thread_affinity() {
-	local pid="$1" cpu="$2" name="$3" mask
+bind_irq() {
+	local cpu="$2" path="$IRQ_ROOT/$1" current
 
-	[ -n "$pid" ] || return
-	mask="$(cpu_mask "$cpu")" || return 1
-	"$TASKSET" -p "$mask" "$pid" >/dev/null 2>&1 || return
-	log_msg thread "$pid" "$name" "$cpu"
+	[ -r "$path/smp_affinity_list" ] || return 1
+	read -r current < "$path/smp_affinity_list"
+	if [ "$current" != "$cpu" ]; then
+		echo "$cpu" > "$path/smp_affinity_list" || return 1
+		changed=$((changed + 1))
+	fi
+	read -r current < "$path/smp_affinity_list"
+	[ "$current" = "$cpu" ] || return 1
+	if [ -r "$path/effective_affinity_list" ]; then
+		read -r current < "$path/effective_affinity_list"
+		# The kernel can defer migration until this IRQ fires again. A
+		# matching requested mask is success; report pending effective moves.
+		[ "$current" = "$cpu" ] || pending=$((pending + 1))
+	fi
 	return 0
 }
 
-driver_has_device() {
-	local entry driver="$1"
+bind_thread() {
+	local pid="$1" cpu="$2" current comm
 
-	[ -d "$driver" ] || return 1
-	for entry in "$driver"/*; do
-		[ -L "$entry" ] || continue
-		[ "${entry##*/}" = module ] && continue
-		return 0
-	done
-
-	return 1
-}
-
-ath11k_active() {
-	# Both modules are autoloaded even when a board has no enabled Wi-Fi.
-	# Require an actual AHB or PCI device binding before waiting for IRQs.
-	if [ -d "$SYS_ROOT/module/ath11k_ahb" ] &&
-		driver_has_device "$SYS_ROOT/bus/platform/drivers/ath11k"; then
-		return 0
+	read -r comm < "$PROC_ROOT/$pid/comm" || return 1
+	case "$comm" in napi/eth0-[0-9]*) ;; *) return 1 ;; esac
+	current="$(awk '/^Cpus_allowed_list:/ {print $2}' "$PROC_ROOT/$pid/status")"
+	if [ "$current" != "$cpu" ]; then
+		"$TASKSET" -p "$(printf '%x' "$((1 << cpu))")" "$pid" >/dev/null 2>&1 || return 1
+		changed=$((changed + 1))
 	fi
-
-	[ -d "$SYS_ROOT/module/ath11k_pci" ] &&
-		driver_has_device "$SYS_ROOT/bus/pci/drivers/ath11k_pci"
+	current="$(awk '/^Cpus_allowed_list:/ {print $2}' "$PROC_ROOT/$pid/status")"
+	[ "$current" = "$cpu" ]
 }
 
-get_napi_threads() {
-	local comm_path comm id pid
+bind_edma_threads() {
+	local path comm pid count=0 rx_pid='' tx_pid='' threaded failed=0
 
-	TX_NAPI_ID=
-	TX_PID=
-	RX_NAPI_ID=
-	RX_PID=
+	[ -r "$SYS_ROOT/class/net/eth0/threaded" ] || return 0
+	read -r threaded < "$SYS_ROOT/class/net/eth0/threaded"
+	[ "$threaded" = 1 ] || return 0
 
-	for comm_path in "$PROC_ROOT"/[0-9]*/comm; do
-		[ -r "$comm_path" ] || continue
-		read -r comm < "$comm_path" || continue
-		case "$comm" in
-			napi/eth0-[0-9]*)
-				id="${comm##*-}"
-				case "$id" in
-					''|*[!0-9]*) continue ;;
-				esac
-				pid="${comm_path#"${PROC_ROOT}"/}"
-				pid="${pid%/comm}"
-
-				if [ -z "$TX_NAPI_ID" ] || [ "$id" -lt "$TX_NAPI_ID" ]; then
-					TX_NAPI_ID="$id"
-					TX_PID="$pid"
-				fi
-				if [ -z "$RX_NAPI_ID" ] || [ "$id" -gt "$RX_NAPI_ID" ]; then
-					RX_NAPI_ID="$id"
-					RX_PID="$pid"
-				fi
-				;;
-		esac
+	# EDMA adds TX then RX NAPI; the kernel creates threads in reverse list
+	# order, so RX has the lower PID. Both names can end in -0 on Linux 6.18
+	# because threads are created before napi_enable() allocates NAPI IDs.
+	# Require exactly two threads rather than guessing with an unknown layout.
+	for path in "$PROC_ROOT"/[0-9]*/comm; do
+		[ -r "$path" ] || continue
+		read -r comm < "$path" || continue
+		case "$comm" in napi/eth0-[0-9]*) ;; *) continue ;; esac
+		case "${comm##*-}" in ''|*[!0-9]*) continue ;; esac
+		pid="${path%/comm}"
+		pid="${pid##*/}"
+		count=$((count + 1))
+		[ -n "$rx_pid" ] && [ "$pid" -ge "$rx_pid" ] || rx_pid="$pid"
+		[ -n "$tx_pid" ] && [ "$pid" -le "$tx_pid" ] || tx_pid="$pid"
 	done
+	if [ "$count" -ne 2 ]; then
+		log_status "EDMA threaded NAPI: expected 2 threads, found $count"
+		return 1
+	fi
+	bind_thread "$rx_pid" "$(online_cpu 1)" || failed=1
+	bind_thread "$tx_pid" "$(online_cpu 2)" || failed=1
+	[ "$failed" -eq 0 ]
 }
 
-enable_affinity_edma() {
-	local seconds=0 rx_irq rxfill_irq tx_irq failed
-
-	while [ "$seconds" -lt 60 ]; do
-		rx_irq="$(get_irq edma_rxdesc)"
-		rxfill_irq="$(get_irq edma_rxfill)"
-		tx_irq="$(get_irq edma_txcmpl)"
-		get_napi_threads
-
-		if [ -n "$rx_irq" ] && [ -n "$rxfill_irq" ] && [ -n "$tx_irq" ] &&
-			[ -n "$RX_PID" ] && [ -n "$TX_PID" ] &&
-			[ "$RX_PID" != "$TX_PID" ]; then
-			failed=0
-			set_irq_affinity edma_rxfill 1 || failed=1
-			set_irq_affinity edma_rxdesc 1 || failed=1
-			set_thread_affinity "$RX_PID" 1 "EDMA RX NAPI" || failed=1
-			set_irq_affinity edma_txcmpl 2 || failed=1
-			set_thread_affinity "$TX_PID" 2 "EDMA TX NAPI" || failed=1
-			[ "$failed" -eq 0 ] && return 0
-		fi
-
-		seconds=$((seconds + 1))
-		sleep 1
-	done
-
-	log_status "Timed out waiting for EDMA IRQs/NAPI threads"
-	return 1
-}
-
-enable_affinity_wifi() {
-	local seconds=0 ready
-
-	# Both IPQ60xx and IPQ807x expose the same four REO rings and three
-	# WBM/PPDU groups.  Apply each mapping as soon as its IRQ appears.
-	while [ "$seconds" -lt 60 ]; do
-		ready=1
-		set_irq_affinity reo2host-destination-ring1 0 || ready=0
-		set_irq_affinity reo2host-destination-ring2 1 || ready=0
-		set_irq_affinity reo2host-destination-ring3 2 || ready=0
-		set_irq_affinity reo2host-destination-ring4 3 || ready=0
-
-		set_irq_affinity wbm2host-tx-completions-ring1 1 || ready=0
-		set_irq_affinity wbm2host-tx-completions-ring2 2 || ready=0
-		set_irq_affinity wbm2host-tx-completions-ring3 3 || ready=0
-
-		set_irq_affinity ppdu-end-interrupts-mac1 1 || ready=0
-		set_irq_affinity ppdu-end-interrupts-mac2 2 || ready=0
-		set_irq_affinity ppdu-end-interrupts-mac3 3 || ready=0
-
-		[ "$ready" -eq 1 ] && return
-
-		seconds=$((seconds + 1))
-		sleep 1
-	done
-
-	log_status "Timed out waiting for Wi-Fi IRQs"
-	return 1
-}
-
-boot() {
-	local enable
+start() {
+	local enable enable_log online irq cpu name changed=0 failed=0 pending=0 edma=0
 
 	config_load smp_affinity
 	config_get_bool enable general enable 1
 	config_get_bool enable_log general enable_log 1
+	[ "$enable" = 1 ] || return 0
+	online="$(cat "$SYS_ROOT/devices/system/cpu/online")" || return 1
+	[ -n "$online" ] || return 1
 
-	[ "$enable" -eq 1 ] || return
-
-	# IRQs may be registered after the network device; keep both groups
-	# asynchronous so late firmware loading does not block boot.
-	if ath11k_active; then
-		enable_affinity_wifi &
+	# Bind only registered IRQs. Missing PPDU MAC3 on dual-radio IPQ60xx,
+	# disabled Wi-Fi, or non-threaded NAPI must not hold up EDMA affinity.
+	while read -r irq cpu name; do
+		[ -n "$irq" ] || continue
+		case "$name" in edma_*) edma=1 ;; esac
+		cpu="$(online_cpu "$cpu")"
+		if ! bind_irq "$irq" "$cpu"; then
+			log_status "IRQ $irq ($name): affinity to CPU$cpu failed readback"
+			failed=$((failed + 1))
+		fi
+	done <<EOF
+$(awk '
+	$1 ~ /^[0-9]+:$/ {
+		name = $NF; sub(/:$/, "", name); cpu = -1
+		if (name == "edma_rxdesc" || name == "edma_rxfill") cpu = 1
+		else if (name == "edma_txcmpl") cpu = 2
+		else if (name ~ /^reo2host-destination-ring[1-4]$/) cpu = substr(name, length(name)) - 1
+		else if (name ~ /^wbm2host-tx-completions-ring[1-3]$/ || name ~ /^ppdu-end-interrupts-mac[1-3]$/) cpu = substr(name, length(name))
+		if (cpu >= 0) {sub(/:$/, "", $1); print $1, cpu, name}
+	}' "$IRQ_FILE")
+EOF
+	if [ "$edma" = 1 ] && ! bind_edma_threads; then
+		failed=$((failed + 1))
 	fi
-	enable_affinity_edma &
+	if [ "$changed" -gt 0 ] || [ "$failed" -gt 0 ]; then
+		log_status "IRQ/NAPI affinity: changed=$changed failed=$failed pending=$pending"
+	fi
+	[ "$failed" -eq 0 ]
 }

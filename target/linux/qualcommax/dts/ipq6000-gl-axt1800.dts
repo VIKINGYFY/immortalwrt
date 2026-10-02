@@ -8,10 +8,6 @@
 	model = "GL.iNet GL-AXT1800";
 	compatible = "glinet,gl-axt1800", "qcom,ipq6018";
 
-	aliases {
-		label-mac-device = &swport1;
-	};
-
 	vcc_sd: regulator-vcc-sd {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc_sd";
@@ -124,66 +120,19 @@
 	bus-width = <4>;
 };
 
-&mdio {
-	ethernet-phy-package@0 {
-		qca8075_3: ethernet-phy@3 {
-			status = "disabled";
-		};
-
-		qca8075_4: ethernet-phy@4 {
-			status = "disabled";
-		};
-	};
+&swport1 {
+	status = "okay";
+	label = "wan";
 };
 
-&switch {
+&swport2 {
 	status = "okay";
+	label = "lan2";
+};
 
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		port@0 {
-			reg = <0>;
-			ethernet = <&edma>;
-			phy-mode = "internal";
-
-			fixed-link {
-				speed = <1000>;
-				full-duplex;
-			};
-		};
-
-		swport1: port@1 {
-			reg = <1>;
-			label = "wan";
-			phy-mode = "psgmii";
-			phy-handle = <&qca8075_0>;
-			pcs-handle = <&uniphy0 0>;
-			nvmem-cells = <&macaddr_wan>;
-			nvmem-cell-names = "mac-address";
-		};
-
-		swport2: port@2 {
-			reg = <2>;
-			label = "lan2";
-			phy-mode = "psgmii";
-			phy-handle = <&qca8075_1>;
-			pcs-handle = <&uniphy0 1>;
-			nvmem-cells = <&macaddr_lan>;
-			nvmem-cell-names = "mac-address";
-		};
-
-		swport3: port@3 {
-			reg = <3>;
-			label = "lan1";
-			phy-mode = "psgmii";
-			phy-handle = <&qca8075_2>;
-			pcs-handle = <&uniphy0 2>;
-			nvmem-cells = <&macaddr_lan>;
-			nvmem-cell-names = "mac-address";
-		};
-	};
+&swport3 {
+	status = "okay";
+	label = "lan1";
 };
 
 &wifi {

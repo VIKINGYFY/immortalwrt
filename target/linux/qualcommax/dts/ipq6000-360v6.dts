@@ -17,6 +17,7 @@
 	compatible = "qihoo,360v6", "qcom,ipq6018";
 
 	aliases {
+		label-mac-device = &swport1;
 		serial0 = &blsp1_uart3;
 
 		led-boot = &led_status_red;
@@ -81,6 +82,21 @@
 
 		partitions {
 			compatible = "qcom,smem-part";
+
+			partitions {
+				partition-0-factory {
+					partname = "0:factory";
+
+					nvmem-layout {
+						compatible = "ascii-eq-delim-env";
+
+						lan_Mac: lanMac {
+							compatible = "mac-base";
+							#nvmem-cell-cells = <1>;
+						};
+					};
+				};
+			};
 		};
 	};
 };
@@ -143,36 +159,44 @@
 			};
 		};
 
-		port@1 {
+		swport1: port@1 {
 			reg = <1>;
 			label = "lan1";
 			phy-handle = <&qca8075_0>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 0>;
+			nvmem-cells = <&lan_Mac 0>;
+			nvmem-cell-names = "mac-address";
 		};
 
-		port@2 {
+		swport2: port@2 {
 			reg = <2>;
 			label = "lan2";
 			phy-handle = <&qca8075_1>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 1>;
+			nvmem-cells = <&lan_Mac 0>;
+			nvmem-cell-names = "mac-address";
 		};
 
-		port@3 {
+		swport3: port@3 {
 			reg = <3>;
 			label = "lan3";
 			phy-handle = <&qca8075_2>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 2>;
+			nvmem-cells = <&lan_Mac 0>;
+			nvmem-cell-names = "mac-address";
 		};
 
-		port@4 {
+		swport4: port@4 {
 			reg = <4>;
 			label = "wan";
 			phy-handle = <&qca8075_3>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 3>;
+			nvmem-cells = <&lan_Mac (-1)>;
+			nvmem-cell-names = "mac-address";
 		};
 	};
 };

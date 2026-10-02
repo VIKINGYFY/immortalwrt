@@ -1,0 +1,81 @@
+From: ViKing <vking@qq.com>
+Subject: [PATCH] wifi: ath11k: fix datapath buffer lifetime
+
+Credit pending TX and finish skb reads before publishing descriptors.
+Reserve headroom when aligning empty RX skbs. Free completion buffers
+on partial datapath allocation failure and reset each completion result.
+Keep existing RX allocation policy, ring sizes and PPE integration.
+
+Signed-off-by: ViKing <vking@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/dp.c
++++ b/drivers/net/wireless/ath/ath11k/dp.c
+@@ -1106,6 +1106,10 @@
+ 	return 0;
+ 
+ fail_cmn_srng_cleanup:
++	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
++		kfree(dp->tx_ring[i].tx_status);
++		dp->tx_ring[i].tx_status = NULL;
++	}
+ 	ath11k_dp_srng_common_cleanup(ab);
+ 
+ fail_link_desc_cleanup:
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -378,7 +378,7 @@
+ 
+ 		if (!IS_ALIGNED((unsigned long)skb->data,
+ 				DP_RX_BUFFER_ALIGN_SIZE)) {
+-			skb_pull(skb,
++			skb_reserve(skb,
+ 				 PTR_ALIGN(skb->data, DP_RX_BUFFER_ALIGN_SIZE) -
+ 				 skb->data);
+ 		}
+@@ -2875,7 +2875,7 @@
+ 
+ 	if (!IS_ALIGNED((unsigned long)skb->data,
+ 			DP_RX_BUFFER_ALIGN_SIZE)) {
+-		skb_pull(skb, PTR_ALIGN(skb->data, DP_RX_BUFFER_ALIGN_SIZE) -
++		skb_reserve(skb, PTR_ALIGN(skb->data, DP_RX_BUFFER_ALIGN_SIZE) -
+ 			 skb->data);
+ 	}
+ 
+--- a/drivers/net/wireless/ath/ath11k/dp_tx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
+@@ -256,16 +256,18 @@
+ 	ath11k_hal_tx_cmd_desc_setup(ab, hal_tcl_desc +
+ 					 sizeof(struct hal_tlv_hdr), &ti);
+ 
+-	ath11k_hal_srng_access_end(ab, tcl_ring);
+-
+-	ath11k_dp_shadow_start_timer(ab, tcl_ring, &dp->tx_ring_timer[ti.ring_id]);
+-
+-	spin_unlock_bh(&tcl_ring->lock);
+-
++	/* Completion may run on another CPU as soon as the source ring is
++	 * published. Finish skb reads and credit pending before that point.
++	 */
+ 	ath11k_dbg_dump(ab, ATH11K_DBG_DP_TX, NULL, "dp tx msdu: ",
+ 			skb->data, skb->len);
+-
+ 	atomic_inc(&ar->dp.num_tx_pending);
++
++	ath11k_hal_srng_access_end(ab, tcl_ring);
++
++	ath11k_dp_shadow_start_timer(ab, tcl_ring, &dp->tx_ring_timer[ti.ring_id]);
++
++	spin_unlock_bh(&tcl_ring->lock);
+ 
+ 	return 0;
+ 
+@@ -657,6 +659,9 @@
+ 					     struct hal_wbm_release_ring *desc,
+ 					     struct hal_tx_status *ts)
+ {
++	/* Each descriptor has independent completion flags and rate data. */
++	memset(ts, 0, sizeof(*ts));
++
+ 	ts->buf_rel_source =
+ 		FIELD_GET(HAL_WBM_RELEASE_INFO0_REL_SRC_MODULE, desc->info0);
+ 	if (unlikely(ts->buf_rel_source != HAL_WBM_REL_SRC_MODULE_FW &&
