@@ -6,6 +6,7 @@
 #include <net/dcbnl.h>
 #include <net/flow_offload.h>
 #include <net/pkt_cls.h>
+#include <linux/soc/qcom/qca_ppe.h>
 
 #include "qca_ppe.h"
 
@@ -484,6 +485,9 @@ static void ppe_qm_init(struct qca_ppe_priv *priv)
 	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 5, 0, 0);
 	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 6, 8, 0);
 	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 7, 240, 0);
+	/* Edited WLAN CPU return uses the CPU base queue and redirect profile. */
+	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + QCA_PPE_WIFI_SERVICE_CODE,
+			port_queue_base[0], QCA_PPE_REDIRECT_PROFILE_ID);
 
 	for (i = 0; i < PPE_NUM_PORTS; i++)
 		ppe_qm_map_set(priv, QM_VP_PORT_OFFSET + i,
@@ -532,9 +536,14 @@ static void ppe_qm_init(struct qca_ppe_priv *priv)
 				continue;
 			}
 
-			/* Profiles 0 and 15 both resolve to the CPU port. */
+			/* Profiles 0, 9 and 15 resolve to the CPU port. Profile 9 is
+			 * QSDK's redirect profile used by NOEDIT_REDIR_COREx.
+			 */
 			regmap_write(priv->regmap,
 				     PPE_QM_UCAST_PRI_MAP(pri),
+				     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
+			regmap_write(priv->regmap,
+				     PPE_QM_UCAST_PRI_MAP(QCA_PPE_REDIRECT_PROFILE_ID * 16 + pri),
 				     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
 			regmap_write(priv->regmap,
 				     PPE_QM_UCAST_PRI_MAP(15 * 16 + pri),
@@ -556,6 +565,8 @@ static void ppe_qm_init(struct qca_ppe_priv *priv)
 	}
 
 	for (i = 0; i < 256; i++) {
+		regmap_write(priv->regmap,
+			     PPE_QM_UCAST_HASH_MAP(QCA_PPE_REDIRECT_PROFILE_ID * 256 + i), 0);
 		regmap_write(priv->regmap, PPE_QM_UCAST_HASH_MAP(15 * 256 + i), 0);
 		regmap_write(priv->regmap, PPE_QM_UCAST_HASH_MAP(14 * 256 + i), 0);
 	}
@@ -566,7 +577,9 @@ static void ppe_qm_init(struct qca_ppe_priv *priv)
 	for (i = 0; i < PPE_MAX_SERVICE_CODES; i++) {
 		u32 idx = QM_SERVICE_CODE_OFFSET + (1 << 8) + i;
 
-		if (i == 2 || i == 6)
+		if (i == QCA_PPE_WIFI_SERVICE_CODE)
+			ppe_qm_map_set(priv, idx, port_queue_base[0], 0);
+		else if (i == 2 || i == 6)
 			ppe_qm_map_set(priv, idx, 8, 0);
 		else if (i == 3 || i == 4)
 			ppe_qm_map_set(priv, idx, 128, 8);

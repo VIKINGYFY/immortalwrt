@@ -268,7 +268,11 @@
 #define   PPE_XLT_PORT_BMP		GENMASK(8, 1)
 #define   PPE_XLT_SKEY_FMT		GENMASK(11, 9)
 #define   PPE_XLT_SKEY_UNTAGGED		1
+#define   PPE_XLT_SKEY_PRIO_TAGGED	2
 #define   PPE_XLT_SKEY_TAGGED		4
+#define   PPE_XLT_FMT_ANY		(PPE_XLT_SKEY_UNTAGGED | \
+					 PPE_XLT_SKEY_PRIO_TAGGED | \
+					 PPE_XLT_SKEY_TAGGED)
 #define   PPE_XLT_SKEY_VID_INCL		BIT(12)
 #define   PPE_XLT_SKEY_VID		GENMASK(24, 13)
 #define   PPE_XLT_CKEY_FMT_0		BIT(31)
@@ -300,6 +304,21 @@
 #define PPE_XLT_CNT_TBL(idx)		(0x17f000 + (idx) * 0x10)
 #define   PPE_XLT_CNT_W2_BYTES_HI	GENMASK(7, 0)
 
+/* Service-code tables.  These offsets are the HPPE SSDK layout: the
+ * egress table is eight bytes per entry, unlike the ingress tables. */
+#define PPE_SERVICE_TBL(idx)		(PPE_IVLAN_BASE + 0x6000 + (idx) * 0x10)
+#define PPE_SERVICE_TBL_W0_BYPASS	GENMASK(31, 0)
+#define PPE_SERVICE_TBL_W1_RX_CNT	BIT(0)
+
+#define PPE_IN_L2_SERVICE_TBL(idx)	(PPE_L2_BASE + 0x4000 + (idx) * 0x10)
+#define PPE_IN_L2_SERVICE_DST_VALID	BIT(0)
+#define PPE_IN_L2_SERVICE_DST_PORT	GENMASK(4, 1)
+#define PPE_IN_L2_SERVICE_DIRECTION	BIT(5)
+#define PPE_IN_L2_SERVICE_BYPASS	GENMASK(29, 6)
+#define PPE_IN_L2_SERVICE_FAKE_MAC_DROP_BYP	BIT(21)
+#define PPE_IN_L2_SERVICE_RX_CNT	BIT(30)
+#define PPE_IN_L2_SERVICE_TX_CNT	BIT(31)
+
 /* --- PTX (base 0x020000) --- */
 #define PPE_PTX_BASE			0x020000
 
@@ -323,9 +342,18 @@
 #define   PPE_EG_XLT_CVID_CMD		GENMASK(16, 15)
 #define   PPE_EG_XLT_CVID		GENMASK(28, 17)
 #define   PPE_EG_XLT_SVID_ADD		1
+#define   PPE_EG_XLT_SVID_DELETE	2
 #define   PPE_EG_XLT_CVID_ADD		1
 
 #define PPE_EG_XLT_ACTION_W1(idx)	(PPE_PTX_BASE + 0xd000 + (idx) * 0x8 + 0x4)
+
+#define PPE_EG_SERVICE_TBL(idx)		(PPE_PTX_BASE + 0xc000 + (idx) * 0x8)
+#define PPE_EG_SERVICE_FIELD_UPDATE	GENMASK(31, 0)
+/* HPPE field_update_action bits preserve the corresponding input metadata. */
+#define PPE_EG_SERVICE_NEXT_CODE	GENMASK(7, 0)
+#define PPE_EG_SERVICE_HW_SERVICE	GENMASK(13, 8)
+#define PPE_EG_SERVICE_OFFSET_SEL	BIT(14)
+#define PPE_EG_SERVICE_TX_CNT		BIT(15)
 
 /* What left the egress editor, per VSI, per physical port and per virtual
  * port, and what the whole stage took in and put out.
@@ -628,6 +656,8 @@
 #define PPE_L3_BASE			0x200000
 
 #define PPE_L3_VP_PORT_TBL(port)	(PPE_L3_BASE + 0x1000 + (port) * 0x10)
+#define   PPE_L3_VP_L3_IF_VALID		BIT(0)
+#define   PPE_L3_VP_L3_IF_INDEX		GENMASK(8, 1)
 #define   PPE_L3_VP_VSI_VALID		BIT(9)
 #define   PPE_L3_VP_VSI			GENMASK(14, 10)
 
@@ -768,6 +798,10 @@
 #define   PPE_FLOW_E_FWD_TYPE_LEN	3
 #define   PPE_FLOW_E_NEXTHOP_OFF	32
 #define   PPE_FLOW_E_NEXTHOP_LEN	12
+#define   PPE_FLOW_E_PORT_VALID_OFF	44
+#define   PPE_FLOW_E_PORT_VALID_LEN	1
+#define   PPE_FLOW_E_PORT_OFF		45
+#define   PPE_FLOW_E_PORT_LEN		8
 #define   PPE_FLOW_E_NEW_PORT_OFF	44
 #define   PPE_FLOW_E_NEW_PORT_LEN	16
 #define   PPE_FLOW_E_IPV4_OFF		76
@@ -1170,6 +1204,7 @@
 #define PPE_TRUNK_GROUPS		2
 
 #define PPE_XLT_TBL_NUM			64
+#define QCA_PPE_ROUTED_XLT_SLOTS	8
 #define PPE_XLT_MISS_RDT_TO_CPU		3
 #define PPE_XLT_CVID_DEL		2
 #define PPE_XLT_CKEY_TAGGED		4
@@ -1515,6 +1550,7 @@ void ppe_vsi_free(struct qca_ppe_priv *priv, u32 vsi);
 void ppe_vsi_member_set(struct qca_ppe_priv *priv, u32 vsi, u32 portmask);
 
 int ppe_xlt_idx_alloc(struct qca_ppe_priv *priv);
+int ppe_routed_xlt_idx_alloc(struct qca_ppe_priv *priv);
 void ppe_xlt_idx_free(struct qca_ppe_priv *priv, int *idx);
 struct qca_ppe_vlan_entry *ppe_vlan_find(struct qca_ppe_priv *priv,
 					 struct net_device *br_dev, u16 vid);

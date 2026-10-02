@@ -21,6 +21,7 @@
 #include <linux/regmap.h>
 #include <linux/reset.h>
 #include <linux/version.h>
+#include <linux/soc/qcom/qca_ppe.h>
 #include <net/netdev_queues.h>
 
 #include "qca_edma.h"
@@ -630,20 +631,8 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 			goto next;
 		}
 
-		if (EDMA_RXPH_SRC_INFO_TYPE_GET(rxph) !=
-		    EDMA_PREHDR_DSTINFO_PORTID_IND) {
-			dev_warn_ratelimited(&pdev->dev,
-					     "rx drop: src_info_type=%#x src_info=%#06x dst_info=%#06x\n",
-					     EDMA_RXPH_SRC_INFO_TYPE_GET(rxph),
-					     le16_to_cpu(rxph->src_info),
-					     le16_to_cpu(rxph->dst_info));
-			page_pool_put_full_page(priv->page_pool, page, true);
-			priv->stats.rx_bad_src_info++;
-			netdev->stats.rx_errors++;
-			goto next;
-		}
 
-		src_port = rxph->src_info & EDMA_SRC_PORT_MASK;
+		src_port = le16_to_cpu(rxph->src_info) & EDMA_SRC_PORT_MASK;
 
 		skb = napi_build_skb(page_address(page), page_size(page));
 		if (unlikely(!skb)) {
@@ -656,6 +645,43 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 		skb_mark_for_recycle(skb);
 		skb_reserve(skb, NET_SKB_PAD + EDMA_RX_PREHDR_SIZE);
 		skb_put(skb, pkt_len);
+		if (qca_ppe_wifi_ingress_return(skb, src_port))
+			goto next;
+
+		if (EDMA_RXPH_SRC_INFO_TYPE_GET(rxph) !=
+		    EDMA_PREHDR_DSTINFO_PORTID_IND) {
+			dev_warn_ratelimited(&pdev->dev,
+					     "rx drop: src_info_type=%#x src_info=%#06x dst_info=%#06x\n",
+					     EDMA_RXPH_SRC_INFO_TYPE_GET(rxph),
+					     le16_to_cpu(rxph->src_info),
+					     le16_to_cpu(rxph->dst_info));
+			dev_kfree_skb_any(skb);
+			priv->stats.rx_bad_src_info++;
+			netdev->stats.rx_errors++;
+			goto next;
+		}
+
+		/* src_info is the original ingress port, not the CPU destination.
+		 * Only a flow-installed service marker identifies edited WLAN data.
+		 * Exception CPU codes retain the normal DSA/slow path. */
+		if ((le32_to_cpu(rxph->rx_pre4) & 0xff) == QCA_PPE_WIFI_SERVICE_CODE) {
+			priv->stats.rx_ppe_endpoint++;
+			if (le32_to_cpu(rxph->rx_pre4) >> 24)
+				priv->stats.rx_ppe_exception++;
+		}
+		if ((le32_to_cpu(rxph->rx_pre4) & 0xff) == QCA_PPE_WIFI_SERVICE_CODE &&
+		    !(le32_to_cpu(rxph->rx_pre4) >> 24)) {
+			if ((desc_status & (EDMA_RXDESC_L3_CSUM_OK | EDMA_RXDESC_L4_CSUM_OK)) !=
+			    (EDMA_RXDESC_L3_CSUM_OK | EDMA_RXDESC_L4_CSUM_OK)) {
+				priv->stats.rx_ppe_csum_drop++;
+				dev_kfree_skb_any(skb);
+				netdev->stats.rx_dropped++;
+			} else {
+				qca_ppe_wifi_xmit(skb, src_port);
+				dev_sw_netstats_rx_add(priv->netdev, pkt_len);
+			}
+			goto next;
+		}
 
 		frame = skb->data;
 		skb->protocol = eth_type_trans(skb, priv->netdev);
@@ -794,7 +820,7 @@ static u32 edma_tx_tso(struct sk_buff *skb, struct edma_tx_preheader *txph)
 
 static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *netdev,
 				  struct sk_buff *skb,
-				  struct edma_ring *txdesc_ring)
+				  struct edma_ring *txdesc_ring, bool ingress)
 {
 	const struct skb_shared_info *shinfo = skb_shinfo(skb);
 	const struct edma_soc_data *soc = priv->soc;
@@ -856,9 +882,18 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 	txph = (struct edma_tx_preheader *)skb_push(skb, EDMA_TX_PREHDR_SIZE);
 	memset((void *)txph, 0, EDMA_TX_PREHDR_SIZE);
 
-	txph->dst_info = dst_info;
-	edma_tx_csum(skb, txph, proto);
-	tso = edma_tx_tso(skb, txph);
+	if (ingress) {
+		/* Submit the original tuple at CPU ingress. The private S-tag
+		 * selects the AP's VSI before the normal route/NAT lookup. HPPE
+		 * port 7 has no CPPE-style MAC loopback to re-enter through. */
+		txph->src_info = cpu_to_le16(EDMA_PREHDR_DSTINFO_PORTID_IND << 8);
+		txph->dst_info = cpu_to_le16(EDMA_PREHDR_DSTINFO_PORTID_IND << 8);
+		tso = 0;
+	} else {
+		txph->dst_info = dst_info;
+		edma_tx_csum(skb, txph, proto);
+		tso = edma_tx_tso(skb, txph);
+	}
 
 	txdesc_ring->skb_store[idx] = skb;
 	txph->opaque = idx;
@@ -936,6 +971,11 @@ unmap:
 	dma_unmap_single(dev, head_dma, skb_headlen(skb), DMA_TO_DEVICE);
 	txdesc_ring->skb_store[idx] = NULL;
 drop:
+	if (ingress) {
+		skb_pull(skb, EDMA_TX_PREHDR_SIZE);
+		spin_unlock_bh(&priv->tx_lock);
+		return NETDEV_TX_BUSY;
+	}
 	dev_kfree_skb_any(skb);
 	spin_unlock_bh(&priv->tx_lock);
 	return NETDEV_TX_OK;
@@ -1391,6 +1431,9 @@ static const char edma_stat_names[][ETH_GSTRING_LEN] = {
 	"tx_desc_error",
 	"tx_unnamed_frame",
 	"misc_error",
+	"rx_ppe_endpoint",
+	"rx_ppe_exception",
+	"rx_ppe_csum_drop",
 };
 
 static int edma_get_sset_count(struct net_device *netdev, int sset)
@@ -1509,13 +1552,27 @@ static netdev_tx_t edma_ndo_xmit(struct sk_buff *skb, struct net_device *netdev)
 	    pskb_expand_head(skb, nhead, ntail, GFP_ATOMIC))
 		goto drop;
 
-	return edma_ring_xmit(priv, netdev, skb, &priv->txdesc_ring);
+	return edma_ring_xmit(priv, netdev, skb, &priv->txdesc_ring, false);
 
 drop:
 	dev_kfree_skb_any(skb);
 	netdev->stats.tx_dropped++;
 
 	return NETDEV_TX_OK;
+}
+
+/* Caller supplies a private, linear non-GSO copy with sufficient headroom.
+ * Failure leaves ownership with the caller so the original RX can continue. */
+static int edma_wifi_inject(struct net_device *dev, struct sk_buff *skb)
+{
+	struct edma_priv *priv = netdev_priv(dev);
+
+	if (!netif_running(dev) || !netif_carrier_ok(dev) ||
+	    skb_is_gso(skb) || skb_is_nonlinear(skb) ||
+	    skb_headroom(skb) < EDMA_TX_PREHDR_SIZE)
+		return -ENETDOWN;
+	return edma_ring_xmit(priv, dev, skb, &priv->txdesc_ring, true) ==
+		NETDEV_TX_OK ? 0 : -EBUSY;
 }
 
 static const struct net_device_ops edma_netdev_ops = {
@@ -1845,6 +1902,9 @@ static int edma_probe(struct platform_device *pdev)
 		dev_warn(dev, "failed to enable threaded NAPI: %d\n", ret);
 
 	platform_set_drvdata(pdev, priv);
+	priv->wifi_inject_ops.dev = netdev;
+	priv->wifi_inject_ops.xmit = edma_wifi_inject;
+	qca_ppe_wifi_inject_register(&priv->wifi_inject_ops);
 
 	return 0;
 
@@ -1862,6 +1922,7 @@ static void edma_remove(struct platform_device *pdev)
 {
 	struct edma_priv *priv = platform_get_drvdata(pdev);
 
+	qca_ppe_wifi_inject_unregister(&priv->wifi_inject_ops);
 	unregister_netdev(priv->netdev);
 	netif_napi_del(&priv->tx_napi);
 	netif_napi_del(&priv->rx_napi);
