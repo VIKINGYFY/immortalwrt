@@ -1,17 +1,12 @@
 /dts-v1/;
 
-#include "ipq5332.dtsi"
-
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input.h>
-#include <dt-bindings/leds/common.h>
+#include "ipq5332-common.dtsi"
 
 / {
 	model = "Ubiquiti UniFi 7 Pro XGS";
 	compatible = "ubnt,u7-pro-xgs", "qcom,ipq5332";
 
 	aliases {
-		serial0 = &blsp1_uart0;
 		ethernet1 = &xgmac1;
 		led-boot = &led_status_white;
 		led-failsafe = &led_status_white;
@@ -23,7 +18,6 @@
 		bootargs = "console=ttyMSM0,115200n8";
 		bootargs-append = " root=/dev/fit0 rootwait";
 		rootdisk = <&kernel0>;
-		stdout-path = "serial0:115200n8";
 	};
 
 	pwmleds {
@@ -43,20 +37,6 @@
 			max-brightness = <255>;
 		};
 	};
-};
-
-&blsp1_uart0 {
-	pinctrl-0 = <&serial_0_pins>;
-	pinctrl-names = "default";
-	status = "okay";
-};
-
-&sleep_clk {
-	clock-frequency = <32000>;
-};
-
-&xo_board {
-	clock-frequency = <24000000>;
 };
 
 &qcom_ppe {
@@ -88,10 +68,6 @@
 				      "tx";
 		};
 	};
-};
-
-&pcs0 {
-	status = "okay";
 };
 
 &mdio {
@@ -126,7 +102,7 @@
 
 	pcie@0 {
 		wifi@0,0 {
-			reg = <0x00010000 0 0 0 0>;
+			reg = <0x00000000 0 0 0 0>;
 			qcom,board-id = <21>;
 
 			qcom,wsi-controller;
@@ -163,7 +139,7 @@
 
 	pcie@0 {
 		wifi@0,0 {
-			reg = <0x00010000 0 0 0 0>;
+			reg = <0x00000000 0 0 0 0>;
 			qcom,board-id = <4101>;
 
 			ports {
@@ -225,7 +201,7 @@
 	mmc-ddr-1_8v;
 	mmc-hs200-1_8v;
 	non-removable;
-	pinctrl-0 = <&sdc_default_state>;
+	pinctrl-0 = <&sdc_pins>;
 	pinctrl-names = "default";
 	status = "okay";
 
@@ -258,14 +234,6 @@
 		output-high;
 	};
 
-	pcie1_pins: pci1-pinmux {
-		pins = "gpio47";
-		function = "gpio";
-		drive-strength = <8>;
-		bias-pull-up;
-		output-high;
-	};
-
 	pcie2_pins: pci2-pinmux {
 		pins = "gpio44";
 		function = "gpio";
@@ -278,28 +246,5 @@
 		pins = "gpio31", "gpio32";
 		function = "pwm1";
 		drive-strength = <8>;
-	};
-
-	sdc_default_state: sdc-default-state {
-		clk-pins {
-			pins = "gpio13";
-			function = "sdc_clk";
-			drive-strength = <8>;
-			bias-disable;
-		};
-
-		cmd-pins {
-			pins = "gpio12";
-			function = "sdc_cmd";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-
-		data-pins {
-			pins = "gpio8", "gpio9", "gpio10", "gpio11";
-			function = "sdc_data";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
 	};
 };

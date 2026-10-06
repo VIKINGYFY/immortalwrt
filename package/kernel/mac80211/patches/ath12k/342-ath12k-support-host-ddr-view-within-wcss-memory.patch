@@ -1,0 +1,64 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: support host DDR view within WCSS memory
+
+An IPQ5332 UserPD host-DDR window can be contained in the root WCSS
+carveout used by remoteproc. Declare the physical reservation once and
+reference it for both roles, instead of creating overlapping reserved
+memory nodes. qcom,host-ddr-offset is a local optional u32 DT extension
+for AHB HOST_DDR and BDF mappings; zero retains the existing contract.
+
+Bound both the offset and requested length against the owning region
+before mapping. CALDB, M3, MLO and fixed PCI mappings keep their existing
+addresses. This preserves the complete remoteproc carveout and firmware
+physical addresses while removing the duplicate reservation.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -3191,7 +3191,8 @@
+ 	struct target_mem_chunk *chunk;
+ 	struct ath12k_hw_group *ag = ab->ag;
+ 	struct reserved_mem *rmem;
+-	u32 type, size;
++	u32 type, size, host_offset = 0;
++	size_t offset;
+ 	const char *name;
+ 	int i, idx, mlo_idx, ret;
+ 	int mlo_size = 0;
+@@ -3200,6 +3201,10 @@
+ 	    test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags))
+ 		return ath12k_qmi_assign_pci_target_mem_chunk(ab);
+ 
++	/* A host DDR view can share the remoteproc WCSS reservation. */
++	of_property_read_u32(ab->dev->of_node, "qcom,host-ddr-offset",
++			     &host_offset);
++
+ 	mutex_lock(&ag->mutex);
+ 	ath12k_qmi_begin_fixed_request(ab);
+ 
+@@ -3221,6 +3226,8 @@
+ 			name = type == CALDB_MEM_REGION_TYPE ? "q6-caldb" :
+ 			       type == M3_DUMP_REGION_TYPE ? "m3-dump" :
+ 			       "host-ddr-mem";
++			offset = type == HOST_DDR_REGION_TYPE ||
++				 type == BDF_MEM_REGION_TYPE ? host_offset : 0;
+ 			rmem = ath12k_core_get_rmem_by_name(ab, name);
+ 			if (!rmem && type == CALDB_MEM_REGION_TYPE) {
+ 				/* Preserve the optional CALDB zero-address contract. */
+@@ -3233,11 +3240,13 @@
+ 					ret = -ENODEV;
+ 					goto out;
+ 				}
+-				if (size > rmem->size) {
++				if (offset > rmem->size ||
++				    size > rmem->size - offset) {
+ 					ret = -EINVAL;
+ 					goto out;
+ 				}
+-				ret = ath12k_qmi_map_fixed_mem(ab, idx, rmem->base,
++				ret = ath12k_qmi_map_fixed_mem(ab, idx,
++							     rmem->base + offset,
+ 							     size, type);
+ 				if (ret)
+ 					goto out;

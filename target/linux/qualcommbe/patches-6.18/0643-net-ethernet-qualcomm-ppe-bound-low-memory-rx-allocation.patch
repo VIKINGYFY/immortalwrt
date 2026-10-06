@@ -1,0 +1,82 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: bound low-memory RX allocation
+
+On the 512 MiB BE6500, page-fragment memory continues to grow under traffic
+after ath12k RX has moved to slab-backed buffers. EDMA still uses four
+long-lived RX fill rings. A live fragment pins its entire shared 32 KiB
+page, so sparse buffer replacement can retain increasingly many pages.
+
+Let boards opt into slab-backed EDMA skb heads with qcom,rx-low-memory.
+Use the same RX allocation flag and headroom as the kmalloc branch of
+__netdev_alloc_skb. Keep all ring sizes, descriptors, DMA map/unmap sizes,
+page-mode payload allocation and data-offset handling unchanged. Other
+boards retain the existing allocator. Expose the choice in existing
+read-only EDMA RX stats without per-packet logging.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
+@@ -1018,6 +1018,8 @@
+ 	edma_ctx->has_vports = ppe_dev->variant->has_vports;
+ 	edma_ctx->vp_q_mask = num_possible_cpus() - 1;
+ 	edma_ctx->rx_buf_size = rx_buff_size;
++	edma_ctx->rx_slab = of_property_read_bool(dev->of_node,
++						"qcom,rx-low-memory");
+ 
+ 	edma_ctx->tx_requeue_stop = false;
+ 	if (tx_requeue_stop != 0)
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
+@@ -154,6 +154,7 @@
+ 	u32 rx_buf_size;
+ 	bool tx_requeue_stop;
+ 	bool has_vports;
++	bool rx_slab;
+ 	int vp_inject_port;
+ 	u32 vp_q_mask;
+ 	struct clk *sys_clk;
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
+@@ -28,6 +28,20 @@
+ static bool edma_rx_deliver_vp(struct edma_rxdesc_pri *rxdesc_pri,
+ 			       struct sk_buff *skb);
+ 
++static struct sk_buff *edma_rx_alloc_skb(unsigned int len)
++{
++	struct sk_buff *skb;
++
++	if (!edma_ctx->rx_slab)
++		return dev_alloc_skb(len);
++
++	skb = __alloc_skb(len + NET_SKB_PAD, GFP_ATOMIC,
++			  SKB_ALLOC_RX, NUMA_NO_NODE);
++	if (skb)
++		skb_reserve(skb, NET_SKB_PAD);
++	return skb;
++}
++
+ static int edma_rx_alloc_buffer_list(struct edma_rxfill_ring *rxfill_ring, int alloc_count)
+ {
+ 	struct edma_rxfill_stats *rxfill_stats = &rxfill_ring->rxfill_stats;
+@@ -54,7 +68,7 @@
+ 
+ 		rxfill_desc = EDMA_RXFILL_DESC(rxfill_ring, prod_idx);
+ 
+-		skb = dev_alloc_skb(rx_alloc_size);
++		skb = edma_rx_alloc_skb(rx_alloc_size);
+ 		if (unlikely(!skb)) {
+ 			u64_stats_update_begin(&rxfill_stats->syncp);
+ 			++rxfill_stats->alloc_failed;
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
+@@ -108,6 +108,9 @@
+ 	}
+ 
+ 	seq_puts(m, "\n#EDMA RX fill rings stats:\n\n");
++	seq_printf(m, "rx_allocator=%s rxfill_rings=%u\n",
++		   edma_ctx->rx_slab ? "slab" : "page_frag",
++		   rxfill->num_rings);
+ 	for (i = 0; i < rxfill->num_rings; i++) {
+ 		seq_printf(m, "\t\tEDMA RX fill %d ring stats:\n", i + rxfill->ring_start);
+ 		seq_printf(m, "\t\t rxfill[%d]:alloc_failed = %llu\n",

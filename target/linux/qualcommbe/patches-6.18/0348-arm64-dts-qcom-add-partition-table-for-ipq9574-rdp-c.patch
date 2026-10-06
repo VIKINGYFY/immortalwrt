@@ -7,12 +7,12 @@ Add partition table for ipq9574 SoC common to every RDB board.
 
 Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
 ---
- .../boot/dts/qcom/ipq9574-rdp-common.dtsi     | 146 +++++++++++++++++-
- 1 file changed, 145 insertions(+), 1 deletion(-)
+ .../boot/dts/qcom/ipq9574-rdp-common.dtsi     | 148 +++++++++++++++++-
+ 1 file changed, 147 insertions(+), 1 deletion(-)
 
 --- a/arch/arm64/boot/dts/qcom/ipq9574-rdp-common.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq9574-rdp-common.dtsi
-@@ -74,11 +74,155 @@
+@@ -74,11 +74,157 @@
  	status = "okay";
  
  	flash@0 {
@@ -159,6 +159,8 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
 +
 +				nvmem-layout {
 +					compatible = "fixed-layout";
++					#address-cells = <1>;
++					#size-cells = <1>;
 +
 +					aqr_fw: aqr-fw@0 {
 +						reg = <0x0 0x5fc02>;

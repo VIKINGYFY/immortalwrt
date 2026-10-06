@@ -1,0 +1,219 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+/* QCA8386 with four integrated PHYs and a PCS1 2.5G CPU link.
+ * Reset GPIOs, front-panel names, MAC cells and PAUSE are board wiring.
+ */
+#include <dt-bindings/clock/qcom,qca8k-nsscc.h>
+#include <dt-bindings/net/qcom,qca808x.h>
+#include <dt-bindings/reset/qcom,qca8k-nsscc.h>
+
+/ {
+	clocks {
+		qca8386_rx_312p5m: qca8386-rx-312p5m {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <312500000>;
+		};
+
+		qca8386_tx_312p5m: qca8386-tx-312p5m {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <312500000>;
+		};
+	};
+};
+
+&mdio {
+	clocks = <&gcc GCC_MDIO_AHB_CLK>,
+		 <&gcc GCC_UNIPHY0_AHB_CLK>,
+		 <&gcc GCC_UNIPHY0_SYS_CLK>,
+		 <&gcc GCC_UNIPHY1_AHB_CLK>,
+		 <&gcc GCC_UNIPHY1_SYS_CLK>;
+	clock-names = "gcc_mdio_ahb_clk",
+		      "uniphy0_ahb_clk", "uniphy0_sys_clk",
+		      "uniphy1_ahb_clk", "uniphy1_sys_clk";
+	mdio_clk_fixup;
+
+	qca8386_nsscc: clock-controller@18 {
+		compatible = "qcom,qca8386-nsscc", "qcom,qca8084-nsscc";
+		reg = <0x18>;
+		clocks = <&cmn_pll IPQ5332_ETH_50MHZ_CLK>,
+			 <0>, <0>,
+			 <&qca8386_rx_312p5m>, <&qca8386_tx_312p5m>,
+			 <&qca8386_rx_312p5m>, <&qca8386_tx_312p5m>;
+		#clock-cells = <1>;
+		#reset-cells = <1>;
+	};
+
+	qca8386_phy_package: ethernet-phy-package@1 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "qcom,qca8084-package";
+		reg = <1>;
+		clocks = <&qca8386_nsscc NSS_CC_APB_BRIDGE_CLK>,
+			 <&qca8386_nsscc NSS_CC_AHB_CLK>,
+			 <&qca8386_nsscc NSS_CC_SEC_CTRL_AHB_CLK>,
+			 <&qca8386_nsscc NSS_CC_TLMM_CLK>,
+			 <&qca8386_nsscc NSS_CC_TLMM_AHB_CLK>,
+			 <&qca8386_nsscc NSS_CC_CNOC_AHB_CLK>,
+			 <&qca8386_nsscc NSS_CC_MDIO_AHB_CLK>;
+		clock-names = "apb_bridge",
+			      "ahb",
+			      "sec_ctrl_ahb",
+			      "tlmm",
+			      "tlmm_ahb",
+			      "cnoc_ahb",
+			      "mdio_ahb";
+		resets = <&qca8386_nsscc NSS_CC_GEPHY_FULL_ARES>;
+		qcom,phy-addr-fixup = <1 2 3 4 5 6 7>;
+		qcom,package-mode = <QCA808X_PCS1_SGMII_MAC_PCS0_SGMII_MAC>;
+		qcom,pcs1-sgmii-plus;
+
+		qca8386_phy1: ethernet-phy@1 {
+			compatible = "ethernet-phy-id004d.d180";
+			reg = <1>;
+			clocks = <&qca8386_nsscc NSS_CC_GEPHY0_SYS_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC1_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC1_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC1_GEPHY0_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC1_GEPHY0_RX_CLK>;
+			clock-names = "phy", "mac_tx", "mac_rx",
+				      "gephy_tx", "gephy_rx";
+			resets = <&qca8386_nsscc NSS_CC_GEPHY0_SYS_ARES>;
+		};
+
+		qca8386_phy2: ethernet-phy@2 {
+			compatible = "ethernet-phy-id004d.d180";
+			reg = <2>;
+			clocks = <&qca8386_nsscc NSS_CC_GEPHY1_SYS_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC2_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC2_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC2_GEPHY1_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC2_GEPHY1_RX_CLK>;
+			clock-names = "phy", "mac_tx", "mac_rx",
+				      "gephy_tx", "gephy_rx";
+			resets = <&qca8386_nsscc NSS_CC_GEPHY1_SYS_ARES>;
+		};
+
+		qca8386_phy3: ethernet-phy@3 {
+			compatible = "ethernet-phy-id004d.d180";
+			reg = <3>;
+			clocks = <&qca8386_nsscc NSS_CC_GEPHY2_SYS_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC3_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC3_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC3_GEPHY2_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC3_GEPHY2_RX_CLK>;
+			clock-names = "phy", "mac_tx", "mac_rx",
+				      "gephy_tx", "gephy_rx";
+			resets = <&qca8386_nsscc NSS_CC_GEPHY2_SYS_ARES>;
+		};
+
+		qca8386_phy4: ethernet-phy@4 {
+			compatible = "ethernet-phy-id004d.d180";
+			reg = <4>;
+			clocks = <&qca8386_nsscc NSS_CC_GEPHY3_SYS_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC4_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC4_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC4_GEPHY3_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC4_GEPHY3_RX_CLK>;
+			clock-names = "phy", "mac_tx", "mac_rx",
+				      "gephy_tx", "gephy_rx";
+			resets = <&qca8386_nsscc NSS_CC_GEPHY3_SYS_ARES>;
+		};
+
+		/* PCS1 is the QCA8386 switch CPU SerDes (MDIO base + 5). */
+		qca8386_pcs1: pcs-phy@6 {
+			compatible = "qcom,qca8k-pcs-phy";
+			reg = <6>;
+			clocks = <&qca8386_nsscc NSS_CC_SRDS1_SYS_CLK>,
+				 <&qca8386_rx_312p5m>, <&qca8386_tx_312p5m>,
+				 <&qca8386_nsscc NSS_CC_MAC0_TX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC0_RX_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC0_TX_SRDS1_CLK>,
+				 <&qca8386_nsscc NSS_CC_MAC0_RX_SRDS1_CLK>;
+			clock-names = "pcs", "pcs_rx_root", "pcs_tx_root",
+				      "mac_tx", "mac_rx",
+				      "mac_tx_serdes", "mac_rx_serdes";
+			resets = <&qca8386_nsscc NSS_CC_SRDS1_SYS_ARES>,
+				 <&qca8386_nsscc NSS_CC_XPCS_ARES>;
+			reset-names = "pcs", "xpcs";
+		};
+	};
+
+	qca8386: switch@10 {
+		compatible = "qca,qca8386";
+		reg = <0x10>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				label = "cpu";
+				ethernet = <&ppe_qca8386>;
+				dsa-tag-protocol = "qca_4b";
+				phy-mode = "2500base-x";
+
+				fixed-link {
+					speed = <2500>;
+					full-duplex;
+					pause;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				phy-mode = "sgmii";
+				phy-handle = <&qca8386_phy1>;
+			};
+
+			port@2 {
+				reg = <2>;
+				phy-mode = "sgmii";
+				phy-handle = <&qca8386_phy2>;
+			};
+
+			port@3 {
+				reg = <3>;
+				phy-mode = "sgmii";
+				phy-handle = <&qca8386_phy3>;
+			};
+
+			port@4 {
+				reg = <4>;
+				phy-mode = "sgmii";
+				phy-handle = <&qca8386_phy4>;
+			};
+		};
+	};
+};
+
+&qcom_ppe {
+	ethernet-ports {
+		ppe_qca8386: port@1 {
+			reg = <1>;
+			label = "switch";
+			phy-mode = "2500base-x";
+			pcs-handle = <&pcs0_ch0>;
+			clocks = <&nsscc NSS_CC_PORT1_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT1_RX_CLK>,
+				 <&nsscc NSS_CC_PORT1_TX_CLK>;
+			clock-names = "mac",
+				      "rx",
+				      "tx";
+			resets = <&nsscc NSS_CC_PORT1_MAC_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT1_RX_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT1_TX_CLK_ARES>;
+			reset-names = "mac",
+				      "rx",
+				      "tx";
+
+			fixed-link {
+				speed = <2500>;
+				full-duplex;
+				pause;
+			};
+		};
+	};
+};

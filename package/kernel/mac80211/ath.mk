@@ -414,6 +414,7 @@ define KernelPackage/ath12k/config
        config ATH12K_THERMAL
                bool "Enable ath12k thermal sensor support"
                depends on PACKAGE_kmod-ath12k
+               default y if TARGET_qualcommbe
 
 endef
 

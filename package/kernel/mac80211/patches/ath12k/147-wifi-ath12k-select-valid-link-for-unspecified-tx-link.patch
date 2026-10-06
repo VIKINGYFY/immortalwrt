@@ -1,0 +1,32 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Subject: [PATCH] wifi: ath12k: select valid link for unspecified TX link
+
+Group frames without a STA and an explicit link can select a deflink
+storage slot which has been cleared after link removal. Use the first
+active driver-backed link so broadcasts are not dropped on another link.
+
+Adapted to the backports 7.2 ath12k shared MAC implementation from
+perceival/openwrt-flint3 commit 2365932733ca8ec3b346621d9cec2eb3df3b2cf3.
+
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+---
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -9589,12 +9589,17 @@
+ 	struct ieee80211_link_sta *link_sta;
+ 	struct ieee80211_bss_conf *bss_conf;
+ 	struct ath12k_sta *ahsta;
++	unsigned long links_map;
+ 
+ 	/* Use the link id passed or the default vif link */
+ 	if (!sta) {
+ 		if (link != IEEE80211_LINK_UNSPECIFIED)
+ 			return link;
+ 
++		links_map = vif->active_links & ahvif->links_map;
++		if (links_map)
++			return __ffs(links_map);
++
+ 		return ahvif->deflink.link_id;
+ 	}
+ 

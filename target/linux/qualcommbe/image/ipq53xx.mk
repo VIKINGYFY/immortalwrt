@@ -40,7 +40,7 @@ define Device/ubnt_u7-pro-xgs
 	DEVICE_DTS_CONFIG := config-a6a4
 	SOC := ipq5332
 	SUPPORTED_DEVICES += ubnt,u7-pro-xgs
-	DEVICE_PACKAGES := ipq-wifi-ubnt_u7-pro-xgs ath12k-firmware-qcn9274-ddwrt \
+	DEVICE_PACKAGES := ipq-wifi-ubnt_u7-pro-xgs \
 		kmod-phy-realtek rtl826x-firmware
 	KERNEL := kernel-bin | lzma
 	KERNEL_INITRAMFS := kernel-bin | lzma | \
@@ -60,30 +60,44 @@ define Device/glinet_gl-be6500
 	DEVICE_VENDOR := GL.iNet
 	DEVICE_MODEL := GL-BE6500
 	DEVICE_DTS_CONFIG := config@mi01.2
-	SOC := ipq5332
-	SUPPORTED_DEVICES += gl.inet,gl-be6500
+	KERNEL_INSTALL := 1
+	KERNEL_SIZE := 6144k
 	BLOCKSIZE := 256k
 	PAGESIZE := 4096
-	KERNEL_INSTALL := 1
-	KERNEL_SIZE := 6096k
-	IMAGE_SIZE := 25344k
+	SOC := ipq5322
 	BOOT_SCRIPT := glinet_gl-be6500.bootscript
+	SUPPORTED_DEVICES += gl.inet,gl-be6500
 	IMAGES += factory.bin
 	IMAGE/factory.bin := append-ubi | gl-ipq-factory-nand
-	DEVICE_PACKAGES := ipq-wifi-glinet_gl-be6500 ath12k-firmware-qcn9274-ddwrt \
+	DEVICE_PACKAGES := ipq-wifi-glinet_gl-be6500 \
 		kmod-hwmon-pwmfan kmod-dsa-rtl837x
 endef
 TARGET_DEVICES += glinet_gl-be6500
+
+define Device/jdcloud_re-cs-08
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := JDCloud
+	DEVICE_MODEL := RE-CS-08
+	DEVICE_DTS_CONFIG := config@mi01.6
+	KERNEL_SIZE := 6144k
+	SOC := ipq5322
+	SUPPORTED_DEVICES += jdcloud,re-cs-08
+	DEVICE_PACKAGES := -kmod-ath12k -wpad-openssl kmod-sfp \
+		kmod-phy-marvell kmod-phy-marvell-10g
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
+TARGET_DEVICES += jdcloud_re-cs-08
 
 define Device/xiaomi_be3600-pro-wired-common
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
 	DEVICE_VENDOR := Xiaomi
-	DEVICE_MODEL := BE3600 Pro
+	DEVICE_MODEL := BE3600 Pro wired
 	DEVICE_DTS_CONFIG := config@mi04.1-c2
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	SOC := ipq5332
+	SOC := ipq5300
 	DEVICE_PACKAGES := -kmod-ath12k -kmod-leds-gpio kmod-dsa-rtl837x luci-app-tmi-poe luci-i18n-tmi-poe-zh-cn
 endef
 
@@ -101,18 +115,17 @@ define Device/xiaomi_be3600-pro-wired-p8
 endef
 TARGET_DEVICES += xiaomi_be3600-pro-wired-p8
 
-define Device/jdcloud_re-cs-08
+define Device/xiaomi_be6500
 	$(call Device/FitImage)
-	$(call Device/EmmcImage)
-	DEVICE_VENDOR := JDCloud
-	DEVICE_MODEL := RE-CS-08
-	DEVICE_DTS := ipq5332-re-cs-08
-	DEVICE_DTS_CONFIG := config@mi01.6
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := Xiaomi
+	DEVICE_MODEL := BE6500
+	DEVICE_DTS_CONFIG := config@mi01.2
 	KERNEL_SIZE := 6144k
-	SOC := ipq5332
-	SUPPORTED_DEVICES += jdcloud,re-cs-08
-	DEVICE_PACKAGES := -kmod-ath12k -wpad-openssl kmod-sfp \
-		kmod-phy-marvell kmod-phy-marvell-10g
-	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	SOC := ipq5312
+	SUPPORTED_DEVICES += xiaomi,be6500
+	DEVICE_PACKAGES := ipq-wifi-xiaomi_be6500
 endef
-TARGET_DEVICES += jdcloud_re-cs-08
+TARGET_DEVICES += xiaomi_be6500

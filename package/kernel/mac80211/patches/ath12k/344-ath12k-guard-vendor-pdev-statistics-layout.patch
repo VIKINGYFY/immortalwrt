@@ -1,0 +1,119 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: guard vendor PDEV statistics layout
+
+Both BE6500 radios return 240-byte PDEV records, whereas the legacy
+parser consumes 176 bytes. Misaligned TX/RX fields report fictitious
+reset, timeout and illegal-rate counters. Keep the verified common
+channel prefix for survey and TX power, advance by the actual pure-array
+stride, and explicitly mark unknown TX/RX layouts unavailable. Preserve
+legacy decoding for its exact size and four-byte peer placeholder.
+
+The public wlan-fw-api header documents target-specific ABI variants;
+record size alone does not prove their internal offsets.
+
+Reference: android.googlesource.com/kernel/msm-modules/wlan-fw-api
+commit 9ab723333db68e4552672f9e2a5cc6f8e4027894, fw/wlan_defs.h.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -1225,6 +1225,8 @@
+ 
+ struct ath12k_fw_stats_pdev {
+ 	struct list_head list;
++	u32 record_len;
++	bool legacy_txrx;
+ 
+ 	/* PDEV stats */
+ 	s32 ch_noise_floor;
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -8431,8 +8431,15 @@
+ 
+ 	ath12k_wmi_fw_pdev_base_stats_dump(pdev, buf, &len,
+ 					   ar->ab->fw_soc_drop_count);
+-	ath12k_wmi_fw_pdev_tx_stats_dump(pdev, buf, &len);
+-	ath12k_wmi_fw_pdev_rx_stats_dump(pdev, buf, &len);
++	if (pdev->legacy_txrx) {
++		ath12k_wmi_fw_pdev_tx_stats_dump(pdev, buf, &len);
++		ath12k_wmi_fw_pdev_rx_stats_dump(pdev, buf, &len);
++	} else {
++		len += scnprintf(buf + len, ATH12K_FW_STATS_BUF_SIZE - len,
++				 "\nPDEV TX/RX layout unavailable: record=%u legacy=%zu; use HTT stats\n",
++				 pdev->record_len,
++				 sizeof(struct ath12k_wmi_pdev_stats_params));
++	}
+ 
+ 	*length = len;
+ }
+@@ -8588,6 +8595,7 @@
+ 	struct ath12k *ar;
+ 	struct ath12k_link_vif *arvif;
+ 	struct ath12k_link_sta *arsta;
++	u32 num_pdev, pdev_len;
+ 	int i, ret = 0;
+ 	const void *data = ptr;
+ 
+@@ -8665,28 +8673,55 @@
+ 		stats->stats_id = WMI_REQUEST_BCN_STAT;
+ 		list_add_tail(&dst->list, &stats->bcn);
+ 	}
+-	for (i = 0; i < le32_to_cpu(ev->num_pdev_stats); i++) {
++	num_pdev = le32_to_cpu(ev->num_pdev_stats);
++	pdev_len = sizeof(struct ath12k_wmi_pdev_stats_params);
++	/* A pure PDEV array has no unparsed sections after it. Its record
++	 * length can differ across vendor firmware ABIs even on one target.
++	 * Preserve the common channel counters, but never interpret a larger
++	 * vendor TX/RX block using legacy offsets. Mixed events keep the
++	 * existing layout because their remaining sections are not decoded.
++	 */
++	if (num_pdev && !le32_to_cpu(ev->num_peer_stats) &&
++	    !le32_to_cpu(ev->num_bcnflt_stats) &&
++	    !le32_to_cpu(ev->num_chan_stats) &&
++	    !le32_to_cpu(ev->num_mib_stats) &&
++	    !le32_to_cpu(ev->num_peer_extd_stats) &&
++	    !le32_to_cpu(ev->num_peer_extd2_stats)) {
++		if (len % num_pdev ||
++		    len / num_pdev < sizeof(struct ath12k_wmi_pdev_base_stats_params)) {
++			ret = -EPROTO;
++			goto exit;
++		}
++		pdev_len = len / num_pdev;
++	}
++	for (i = 0; i < num_pdev; i++) {
+ 		const struct ath12k_wmi_pdev_stats_params *src;
+ 		struct ath12k_fw_stats_pdev *dst;
+ 
+ 		src = data;
+-		if (len < sizeof(*src)) {
++		if (len < pdev_len) {
+ 			ret = -EPROTO;
+ 			goto exit;
+ 		}
+ 
+ 		stats->stats_id = WMI_REQUEST_PDEV_STAT;
+ 
+-		data += sizeof(*src);
+-		len -= sizeof(*src);
++		data += pdev_len;
++		len -= pdev_len;
+ 
+ 		dst = kzalloc_obj(*dst, GFP_ATOMIC);
+ 		if (!dst)
+ 			continue;
+ 
+ 		ath12k_wmi_pull_pdev_stats_base(&src->base, dst);
+-		ath12k_wmi_pull_pdev_stats_tx(&src->tx, dst);
+-		ath12k_wmi_pull_pdev_stats_rx(&src->rx, dst);
++		dst->record_len = pdev_len;
++		/* Legacy firmware may append its four-byte peer placeholder. */
++		dst->legacy_txrx = pdev_len == sizeof(*src) ||
++				     pdev_len == sizeof(*src) + sizeof(__le32);
++		if (dst->legacy_txrx) {
++			ath12k_wmi_pull_pdev_stats_tx(&src->tx, dst);
++			ath12k_wmi_pull_pdev_stats_rx(&src->rx, dst);
++		}
+ 		list_add_tail(&dst->list, &stats->pdevs);
+ 	}
+ 

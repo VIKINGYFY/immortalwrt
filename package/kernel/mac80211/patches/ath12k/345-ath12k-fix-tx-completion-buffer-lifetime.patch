@@ -1,0 +1,169 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: fix TX completion buffer lifetime
+
+An extension descriptor overwrites ti.paddr and ti.data_len. Error and
+ring-retry cleanup must unmap the payload using its saved skb mapping,
+clear a released extension mapping and not reuse a freed extension skb.
+Credit pending TX before publishing the producer index so a completion
+on another CPU cannot decrement an uncredited packet.
+
+Once a completion releases its descriptor, missing pdev state and an
+unexpected non-FW source must still release the owned DMA mappings and
+skb. Make the common release tolerate a retired pdev without requiring
+a surviving ieee80211_hw.
+
+Reset per-descriptor parsed status, honor the rate-valid bit, and count
+TQM reasons only for TQM sources. FW completions use different fields;
+mixing them gives misleading failure statistics during diagnosis.
+
+This closes source-proven failure paths. It does not establish that
+these paths explain the BE6500 public speedtest upload limitation.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/dp_tx.c
++++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
+@@ -250,6 +250,12 @@
+ 	guard(rcu)();
+ 
+ 	dp_pdev = ath12k_dp_to_pdev_dp(dp, pdev_idx);
++	if (!dp_pdev) {
++		/* The descriptor was already returned to its free list. */
++
++		dev_kfree_skb_any(msdu);
++		return;
++	}
+ 
+ 	ieee80211_free_txskb(ath12k_pdev_dp_to_hw(dp_pdev), msdu);
+ 
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
+@@ -316,6 +316,7 @@
+ 		/* hdr is pointing to a wrong place after alignment,
+ 		 * so refresh it for later use.
+ 		 */
++		skb_cb = ATH12K_SKB_CB(skb);
+ 		hdr = (void *)skb->data;
+ 	}
+ map:
+@@ -351,6 +352,8 @@
+ 	}
+ 
+ 	tx_desc->skb = skb;
++	tx_desc->skb_ext_desc = NULL;
++	skb_cb->paddr_ext_desc = 0;
+ 	tx_desc->mac_id = dp_link_vif->pdev_idx;
+ 	ti.desc_id = tx_desc->desc_id;
+ 	ti.data_len = skb->len;
+@@ -437,27 +440,30 @@
+ 
+ 	ath12k_wifi7_hal_tx_cmd_desc_setup(ab, hal_tcl_desc, &ti);
+ 
+-	ath12k_hal_srng_access_end(ab, tcl_ring);
+-
+-	spin_unlock_bh(&tcl_ring->lock);
+-
+ 	ath12k_dbg_dump(ab, ATH12K_DBG_DP_TX, NULL, "dp tx msdu: ",
+ 			skb->data, skb->len);
+ 
++	/* Completion on another CPU can run as soon as we publish. */
+ 	atomic_inc(&dp_pdev->num_tx_pending);
++	ath12k_hal_srng_access_end(ab, tcl_ring);
++
++	spin_unlock_bh(&tcl_ring->lock);
+ 
+ 	return 0;
+ 
+ fail_unmap_dma_ext:
+-	if (skb_cb->paddr_ext_desc)
++	if (skb_cb->paddr_ext_desc) {
+ 		dma_unmap_single(dp->dev, skb_cb->paddr_ext_desc,
+-				 skb_ext_desc->len,
+-				 DMA_TO_DEVICE);
++				 skb_ext_desc->len, DMA_TO_DEVICE);
++		skb_cb->paddr_ext_desc = 0;
++	}
+ fail_free_ext_skb:
+ 	kfree_skb(skb_ext_desc);
++	skb_ext_desc = NULL;
+ 
+ fail_unmap_dma:
+-	dma_unmap_single(dp->dev, ti.paddr, ti.data_len, DMA_TO_DEVICE);
++	/* ti may now describe the extension, not the payload mapping. */
++	dma_unmap_single(dp->dev, skb_cb->paddr, skb->len, DMA_TO_DEVICE);
+ 
+ fail_remove_tx_buf:
+ 	ath12k_dp_tx_release_txbuf(dp, tx_desc, pool_id);
+@@ -500,6 +506,7 @@
+ 	rcu_read_lock();
+ 	dp_pdev = ath12k_dp_to_pdev_dp(dp, pdev_id);
+ 	if (!dp_pdev) {
++		ath12k_dp_tx_free_txbuf(dp, tx_ring, desc_params);
+ 		rcu_read_unlock();
+ 		return;
+ 	}
+@@ -846,7 +853,8 @@
+ 	 * Might end up reporting it out-of-band from HTT stats.
+ 	 */
+ 
+-	ath12k_wifi7_dp_tx_update_txcompl(dp_pdev, ts);
++	if (ts->flags & HAL_TX_STATUS_FLAGS_RATE_STATS_VALID)
++		ath12k_wifi7_dp_tx_update_txcompl(dp_pdev, ts);
+ 
+ 	peer = ath12k_dp_link_peer_find_by_peerid(dp_pdev, ts->peer_id);
+ 	if (!peer || !peer->sta) {
+@@ -880,6 +888,8 @@
+ {
+ 	u32 info0 = le32_to_cpu(desc->rate_stats.info0);
+ 
++	/* A descriptor without rate stats must not inherit its predecessor. */
++	memset(ts, 0, sizeof(*ts));
+ 	ts->buf_rel_source =
+ 		le32_get_bits(desc->info0, HAL_WBM_COMPL_TX_INFO0_REL_SRC_MODULE);
+ 	if (ts->buf_rel_source != HAL_WBM_REL_SRC_MODULE_FW &&
+@@ -901,6 +911,7 @@
+ 				     HAL_WBM_COMPL_TX_INFO2_ACK_FRAME_RSSI);
+ 
+ 	if (info0 & HAL_TX_RATE_STATS_INFO0_VALID) {
++		ts->flags |= HAL_TX_STATUS_FLAGS_RATE_STATS_VALID;
+ 		ts->pkt_type = u32_get_bits(info0, HAL_TX_RATE_STATS_INFO0_PKT_TYPE);
+ 		ts->mcs = u32_get_bits(info0, HAL_TX_RATE_STATS_INFO0_MCS);
+ 		ts->sgi = u32_get_bits(info0, HAL_TX_RATE_STATS_INFO0_SGI);
+@@ -994,10 +1005,13 @@
+ 
+ 		rel_status = le32_get_bits(tx_status->info0,
+ 					   HAL_WBM_COMPL_TX_INFO0_TQM_RELEASE_REASON);
+-		if (likely(rel_status < MAX_TQM_RELEASE_REASON))
+-			dp->device_stats.tqm_rel_reason[rel_status]++;
+-		else
+-			WARN_ON_ONCE(1);
++		/* FW completions carry a different payload in these bits. */
++		if (buf_rel_source == HAL_WBM_REL_SRC_MODULE_TQM) {
++			if (likely(rel_status < MAX_TQM_RELEASE_REASON))
++				dp->device_stats.tqm_rel_reason[rel_status]++;
++			else
++				WARN_ON_ONCE(1);
++		}
+ 
+ 		/* Release descriptor as soon as extracting necessary info
+ 		 * to reduce contention
+@@ -1009,12 +1023,19 @@
+ 			continue;
+ 		}
+ 
++		if (unlikely(ts.buf_rel_source != HAL_WBM_REL_SRC_MODULE_TQM)) {
++
++			ath12k_dp_tx_free_txbuf(dp, tx_ring, &desc_params);
++			continue;
++		}
++
+ 		pdev_idx = ath12k_hw_mac_id_to_pdev_id(dp->hw_params, desc_params.mac_id);
+ 
+ 		rcu_read_lock();
+ 
+ 		dp_pdev = ath12k_dp_to_pdev_dp(dp, pdev_idx);
+ 		if (!dp_pdev) {
++			ath12k_dp_tx_free_txbuf(dp, tx_ring, &desc_params);
+ 			rcu_read_unlock();
+ 			continue;
+ 		}

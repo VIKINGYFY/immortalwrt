@@ -1,0 +1,44 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: allow low memory host datapath from DT
+
+IPQ5332 AHB selects the default QMI firmware mode even on a 512 MiB
+dual-radio board. Its host rings therefore use the large profile. Let
+boards opt into the existing 512 MiB datapath parameters without changing
+the fixed firmware memory contract, WMI peer/vdev capacity, or other boards.
+
+qcom,ath12k-low-memory is a local boolean DT extension. Store a per-base
+profile copy so the override is immutable after pre-init and shared static
+profiles are never modified.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1839,6 +1839,17 @@
+ 	const struct ath12k_mem_profile_based_param *param;
+ 
+ 	param = &ath12k_mem_profile_based_param[ab->target_mem_mode];
++	/* An integrated radio can have a fixed default-mode firmware layout
++	 * while sharing a small host with a discrete radio. Only reduce host
++	 * rings and descriptor pools; leave QMI and WMI capacity unchanged.
++	 */
++	if (of_property_read_bool(ab->dev->of_node,
++				  "qcom,ath12k-low-memory")) {
++		ab->host_profile_param = *param;
++		ab->host_profile_param.dp_params =
++			ath12k_mem_profile_based_param[ATH12K_QMI_MEMORY_MODE_LOW_512_M].dp_params;
++		param = &ab->host_profile_param;
++	}
+ 	ab->profile_param = param;
+ 	ath12k_fw_map(ab);
+ 
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -1170,6 +1170,7 @@
+ 	struct ath12k_reg_freq reg_freq_5ghz;
+ 	struct ath12k_reg_freq reg_freq_6ghz;
+ 	const struct ath12k_mem_profile_based_param *profile_param;
++	struct ath12k_mem_profile_based_param host_profile_param;
+ 	enum ath12k_qmi_mem_mode target_mem_mode;
+ 
+ 	/* FIXME: Define this field in a ag equivalent object available

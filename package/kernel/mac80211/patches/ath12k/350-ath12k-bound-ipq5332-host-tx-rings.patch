@@ -1,0 +1,51 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: bound IPQ5332 host TX to completing rings
+
+BE6500 IPQ5332 native group frames submitted on logical TCL ring 3 remain
+pending while the first three rings release them. Ordinary 2.4 GHz TCP
+also exhibits multi-second completion pauses on that ring and a CPU3
+controlled transfer times out. Bypass the unreliable fourth host ring
+on IPQ5332; keep QCN9274 and IPQ5424 ring counts unchanged.
+
+Limit AHB completion IRQ setup to allocated TX rings and guard the
+service routine against platform ring masks containing an unallocated
+TX ring. RX/error/refill groups continue to operate. This is a bounded
+host-path workaround; it does not establish the underlying firmware or
+hardware mapping defect, nor change device-tree or user configuration.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -680,7 +680,7 @@
+ 		.supports_shadow_regs = false,
+ 
+ 		.num_tcl_banks = 48,
+-		.max_tx_ring = 4,
++		.max_tx_ring = 3,
+ 
+ 		.wmi_init = &ath12k_wifi7_wmi_init_qcn9274,
+ 
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
+@@ -30,7 +30,8 @@
+ 
+ 	if (dp->hw_params->ring_mask->tx[grp_id]) {
+ 		i = fls(dp->hw_params->ring_mask->tx[grp_id]) - 1;
+-		ath12k_wifi7_dp_tx_completion_handler(dp, i);
++		if (i < dp->hw_params->max_tx_ring)
++			ath12k_wifi7_dp_tx_completion_handler(dp, i);
+ 	}
+ 
+ 	if (dp->hw_params->ring_mask->rx_err[grp_id]) {
+--- a/drivers/net/wireless/ath/ath12k/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/ahb.c
+@@ -685,7 +685,7 @@
+ 		/* TX masks use logical TCL ring indices.  WBM ring numbers are
+ 		 * hardware mappings and are not necessarily contiguous.
+ 		 */
+-		for (j = 0; j < DP_TCL_NUM_RING_MAX; j++) {
++		for (j = 0; j < ab->hw_params->max_tx_ring; j++) {
+ 			if (ring_mask->tx[i] & BIT(j) &&
+ 			    num_irq < ATH12K_EXT_IRQ_NUM_MAX) {
+ 				irq_grp->irqs[num_irq++] =

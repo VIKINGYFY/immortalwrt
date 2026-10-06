@@ -1,0 +1,57 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: use configured mitigation timers
+
+Program the validated RX and TX module parameters instead of always
+writing their default constants. Preserve defaults and existing bounds.
+Correct the RX parameter description and packet-counter error values so
+controlled interrupt-coalescing tests match the configured values.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
+@@ -197,13 +197,13 @@
+ 	if (edma_rx_mitigation_pkt_cnt < EDMA_RX_MITIGATION_PKT_CNT_MIN ||
+ 	    edma_rx_mitigation_pkt_cnt > EDMA_RX_MITIGATION_PKT_CNT_MAX) {
+ 		pr_err("Invalid Rx mitigation packet count configured:%d for ring:%d. Using the default packet counter value:%d\n",
+-		       edma_rx_mitigation_timer, rxdesc_ring->ring_id,
++		       edma_rx_mitigation_pkt_cnt, rxdesc_ring->ring_id,
+ 			EDMA_RX_MITIGATION_PKT_CNT_DEF);
+ 		edma_rx_mitigation_pkt_cnt = EDMA_RX_MITIGATION_PKT_CNT_DEF;
+ 	}
+ 
+ 	/* Configure the Mitigation timer */
+-	data = EDMA_MICROSEC_TO_TIMER_UNIT(EDMA_RX_MITIGATION_TIMER_DEF,
++	data = EDMA_MICROSEC_TO_TIMER_UNIT(edma_rx_mitigation_timer,
+ 					   ppe_dev->clk_rate / MHZ);
+ 	data = ((data & EDMA_RX_MOD_TIMER_INIT_MASK)
+ 			<< EDMA_RX_MOD_TIMER_INIT_SHIFT);
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
+@@ -188,13 +188,13 @@
+ 	if (edma_tx_mitigation_pkt_cnt < EDMA_TX_MITIGATION_PKT_CNT_MIN ||
+ 	    edma_tx_mitigation_pkt_cnt > EDMA_TX_MITIGATION_PKT_CNT_MAX) {
+ 		pr_err("Invalid Tx mitigation packet count configured:%d for ring:%d. Using the default packet counter value:%d\n",
+-		       edma_tx_mitigation_timer, txcmpl_ring->id,
++		       edma_tx_mitigation_pkt_cnt, txcmpl_ring->id,
+ 		       EDMA_TX_MITIGATION_PKT_CNT_DEF);
+ 		edma_tx_mitigation_pkt_cnt = EDMA_TX_MITIGATION_PKT_CNT_DEF;
+ 	}
+ 
+ 	/* Configure the Mitigation timer. */
+-	data = EDMA_MICROSEC_TO_TIMER_UNIT(EDMA_TX_MITIGATION_TIMER_DEF,
++	data = EDMA_MICROSEC_TO_TIMER_UNIT(edma_tx_mitigation_timer,
+ 					   ppe_dev->clk_rate / MHZ);
+ 	data = ((data & EDMA_TX_MOD_TIMER_INIT_MASK)
+ 		<< EDMA_TX_MOD_TIMER_INIT_SHIFT);
+--- a/drivers/net/ethernet/qualcomm/ppe/edma.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
+@@ -54,7 +54,7 @@
+ 
+ s32 edma_rx_mitigation_timer = EDMA_RX_MITIGATION_TIMER_DEF;
+ module_param(edma_rx_mitigation_timer, int, 0444);
+-MODULE_PARM_DESC(edma_dp_rx_mitigation_timer,
++MODULE_PARM_DESC(edma_rx_mitigation_timer,
+ 		 "Rx mitigation timer value in microseconds (default:25, min:0, max: 1000)");
+ 
+ int edma_tx_mitigation_timer = EDMA_TX_MITIGATION_TIMER_DEF;

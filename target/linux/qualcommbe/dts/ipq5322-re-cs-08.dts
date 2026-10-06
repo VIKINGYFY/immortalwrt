@@ -1,0 +1,274 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+/dts-v1/;
+
+#include "ipq5332-common.dtsi"
+#include "ipq5332-common-qca8386.dtsi"
+
+/ {
+	model = "JDCloud RE-CS-08";
+	compatible = "jdcloud,re-cs-08", "qcom,ipq5332";
+
+	aliases {
+		led-boot = &led_system_blue;
+		led-failsafe = &led_system_red;
+		led-running = &led_system_green;
+		led-upgrade = &led_system_red;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+		pinctrl-0 = <&button_pins>;
+		pinctrl-names = "default";
+
+		button-wps {
+			label = "wps";
+			gpios = <&tlmm 31 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+			debounce-interval = <60>;
+		};
+
+		button-reset {
+			label = "reset";
+			gpios = <&tlmm 32 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+			debounce-interval = <60>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-0 = <&led_pins>;
+		pinctrl-names = "default";
+
+		led_system_red: system-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 24 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_system_green: system-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 33 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_system_blue: system-blue {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 49 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		sfp-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WAN;
+			gpios = <&tlmm 36 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
+
+	/* QWRT identifies GPIO45 as RX_LOS and GPIO34 as TX_DISABLE. */
+	sfp0: sfp-0 {
+		compatible = "sff,sfp";
+		i2c-bus = <&blsp1_i2c1>;
+		pinctrl-0 = <&sfp_pins>;
+		pinctrl-names = "default";
+		los-gpios = <&tlmm 45 GPIO_ACTIVE_HIGH>;
+		tx-disable-gpios = <&tlmm 34 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&blsp1_i2c1 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	pinctrl-0 = <&i2c1_pins>;
+	pinctrl-names = "default";
+};
+
+&q6_region {
+	reg = <0x0 0x4a900000 0x0 0x800000>;
+};
+
+&ref_48mhz_clk {
+	clock-div = <1>;
+	clock-mult = <2>;
+};
+
+&xo_clk {
+	clock-frequency = <24000000>;
+};
+
+&mdio {
+	status = "okay";
+	phy-reset-gpios = <&tlmm 51 GPIO_ACTIVE_LOW>;
+};
+
+&qca8386 {
+	ports {
+		port@1 {
+			label = "wan";
+			nvmem-cells = <&wan_macaddr>;
+			nvmem-cell-names = "mac-address";
+		};
+
+		port@2 {
+			label = "lan1";
+		};
+
+		port@3 {
+			label = "lan2";
+		};
+
+		port@4 {
+			label = "lan3";
+		};
+	};
+};
+
+&qcom_ppe {
+	status = "okay";
+
+	ethernet-ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ppe_sfp: port@2 {
+			reg = <2>;
+			label = "sfp";
+			/* Match the factory SFP+ mode; phylink selects the module's
+			 * 1000BASE-X, 2500BASE-X or 10GBASE-R interface on insertion.
+			 */
+			phy-mode = "10gbase-r";
+			managed = "in-band-status";
+			sfp = <&sfp0>;
+			pcs-handle = <&pcs1_ch0>;
+			nvmem-cells = <&lan_macaddr 1>;
+			nvmem-cell-names = "mac-address";
+			clocks = <&nsscc NSS_CC_PORT2_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT2_RX_CLK>,
+				 <&nsscc NSS_CC_PORT2_TX_CLK>;
+			clock-names = "mac",
+				      "rx",
+				      "tx";
+			resets = <&nsscc NSS_CC_PORT2_MAC_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT2_RX_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT2_TX_CLK_ARES>;
+			reset-names = "mac",
+				      "rx",
+				      "tx";
+		};
+	};
+};
+
+&pcie1 {
+	status = "okay";
+
+	pinctrl-0 = <&pcie1_pins>;
+	pinctrl-names = "default";
+
+	/delete-property/ phys;
+	/delete-property/ phy-names;
+
+	pcie@0 {
+		phys = <&pcie1_phy>;
+		reset-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
+		wake-gpios = <&tlmm 48 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&pcie1_phy {
+	status = "okay";
+};
+
+&ppe_qca8386 {
+	nvmem-cells = <&lan_macaddr 0>;
+	nvmem-cell-names = "mac-address";
+};
+
+&sdhc {
+	status = "okay";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+	bus-width = <4>;
+	max-frequency = <192000000>;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	non-removable;
+	pinctrl-0 = <&sdc_pins>;
+	pinctrl-names = "default";
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+
+			partitions {
+				block-partition-factory {
+					partname = "factory";
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						lan_macaddr: macaddr@0 {
+							compatible = "mac-base";
+							reg = <0x0 0x6>;
+							#nvmem-cell-cells = <1>;
+						};
+
+						wan_macaddr: macaddr@6 {
+							reg = <0x6 0x6>;
+						};
+					};
+				};
+			};
+		};
+	};
+};
+
+&tlmm {
+	i2c1_pins: i2c1-state {
+		pins = "gpio29", "gpio30";
+		function = "blsp1_i2c0";
+		drive-strength = <16>;
+		bias-pull-up;
+	};
+
+	sfp_pins: sfp-default-state {
+		rx-pins {
+			pins = "gpio45";
+			function = "gpio";
+			bias-disable;
+		};
+
+		tx-disable-pins {
+			pins = "gpio34";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+
+	button_pins: button-pins {
+		pins = "gpio31", "gpio32";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+
+	led_pins: led-pins {
+		pins = "gpio24", "gpio33", "gpio36", "gpio49";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-down;
+	};
+};

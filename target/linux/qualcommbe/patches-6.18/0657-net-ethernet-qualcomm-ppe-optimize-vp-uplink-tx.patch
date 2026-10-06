@@ -1,0 +1,237 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: optimize VP uplink TX
+
+Declare EDMA features before registration so DSA and VLAN devices inherit
+scatter-gather and segmentation capabilities. Keep QCA4B checksum restrictions
+and later user feature changes intact.
+
+Batch software GSO producer publications with a 32-descriptor bound, retaining
+TX queue serialization, per-segment DMA ownership and BQL accounting. Publish
+pending packets before checking an insufficient descriptor cache and at the
+end of the list, including after mapping failures.
+
+Reuse the precomputed scatter-gather descriptor count within a batch.
+GSO failures retain the original skb for the software path.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
+@@ -160,6 +160,7 @@
+ 			txdesc_stats[i].dma_map_errors = stats->dma_map_errors;
+ 			txdesc_stats[i].queue_stops = stats->queue_stops;
+ 			txdesc_stats[i].queue_restarts = stats->queue_restarts;
++
+ 		} while (u64_stats_fetch_retry(&stats->syncp, start));
+ 	}
+ 
+@@ -220,6 +221,7 @@
+ 	return 0;
+ }
+ 
++
+ static int edma_debugfs_err_stats_show(struct seq_file *m,
+ 				       void __maybe_unused *p)
+ {
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+@@ -104,15 +104,6 @@
+ 	if (!port_priv)
+ 		return -EINVAL;
+ 
+-	/* Inform the Linux Networking stack about the hardware capability of
+-	 * checksum offloading and other features. Each port is
+-	 * responsible to maintain the feature set it supports.
+-	 */
+-	netdev->features |= EDMA_NETDEV_FEATURES | NETIF_F_HW_TC;
+-	netdev->hw_features |= EDMA_NETDEV_FEATURES | NETIF_F_HW_TC;
+-	netdev->vlan_features |= EDMA_NETDEV_FEATURES;
+-	netdev->wanted_features |= EDMA_NETDEV_FEATURES | NETIF_F_HW_TC;
+-
+ 	ppe_port  = port_priv->ppe_port;
+ 	port_id = ppe_port->port_id;
+ 
+@@ -543,6 +534,12 @@
+ 	netdev->watchdog_timeo = 5 * HZ;
+ 	netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
+ 	netdev->netdev_ops = &edma_port_netdev_ops;
++	/* DSA and VLAN devices inherit these at registration, before open.
++	 * Leave later feature changes, including user requests, intact.
++	 */
++	netdev->features |= EDMA_NETDEV_FEATURES | NETIF_F_HW_TC;
++	netdev->hw_features |= EDMA_NETDEV_FEATURES | NETIF_F_HW_TC;
++	netdev->vlan_features |= EDMA_NETDEV_FEATURES;
+ 	netdev->gso_max_segs = GSO_MAX_SEGS;
+ 	edma_set_ethtool_ops(netdev);
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+@@ -87,32 +87,6 @@
+ 	return EDMA_TX_GSO_SUCCEED;
+ }
+ 
+-/* Transmit a list of GSO segments on a ring, freeing and counting any
+- * the ring cannot take, and consuming the whole list. Shared by the port
+- * transmit and the virtual-port inject, which both software-segment a
+- * frame the hardware cannot.
+- */
+-void edma_tx_xmit_segs(struct net_device *dev, struct sk_buff *segs,
+-		       struct edma_txdesc_ring *txdesc_ring,
+-		       struct edma_port_tx_stats *stats, int src_vp)
+-{
+-	while (segs) {
+-		struct sk_buff *skb = segs;
+-
+-		segs = segs->next;
+-		skb->next = NULL;
+-		if (unlikely(edma_tx_ring_xmit(dev, skb, txdesc_ring, stats,
+-					       src_vp) != EDMA_TX_OK)) {
+-			dev_kfree_skb_any(skb);
+-			if (stats) {
+-				u64_stats_update_begin(&stats->syncp);
+-				++stats->tx_drops;
+-				u64_stats_update_end(&stats->syncp);
+-			}
+-		}
+-	}
+-}
+-
+ /**
+  * edma_tx_complete - Reap Tx completion descriptors.
+  * @work_to_do: Work to do.
+@@ -724,7 +698,7 @@
+ }
+ 
+ /**
+- * edma_tx_ring_xmit - Transmit a packet.
++ * edma_tx_ring_enqueue - Prepare a packet under its carrier TX queue lock.
+  * @netdev: Netdevice.
+  * @skb: Socket Buffer.
+  * @txdesc_ring: Tx Descriptor ring.
+@@ -735,21 +709,19 @@
+  *
+  * Return 0 on success, negative error code on failure.
+  */
+-enum edma_tx_status edma_tx_ring_xmit(struct net_device *netdev,
++static enum edma_tx_status edma_tx_ring_enqueue(struct net_device *netdev,
+ 				      struct sk_buff *skb, struct edma_txdesc_ring *txdesc_ring,
+-				struct edma_port_tx_stats *stats, int src_vp)
++				struct edma_port_tx_stats *stats, int src_vp,
++				      u32 num_tx_desc_needed)
+ {
+ 	struct edma_txdesc_stats *txdesc_stats = &txdesc_ring->txdesc_stats;
+ 	struct edma_port_priv *port_priv = netdev_priv(netdev);
+-	u32 num_tx_desc_needed = 0, num_desc_filled = 0;
+-	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
++	u32 num_desc_filled = 0;
+ 	struct ppe_port *port = port_priv->ppe_port;
+-	struct regmap *regmap = ppe_dev->regmap;
+ 	struct edma_txdesc_pri *txdesc = NULL;
+ 	struct netdev_queue *nq;
+ 	int port_id = port->port_id;
+ 	u32 hw_next_to_use = 0, start_idx, queue_id;
+-	u32 reg;
+ 
+ 	hw_next_to_use = txdesc_ring->prod_idx;
+ 	start_idx = hw_next_to_use;
+@@ -782,7 +754,6 @@
+ 		EDMA_TXDESC_ENDIAN_SET(txdesc);
+ 		num_desc_filled++;
+ 	} else {
+-		num_tx_desc_needed = edma_tx_num_descs_for_sg(skb);
+ 
+ 		/* HW does not support TSO for packets with more than 32 segments.
+ 		 * HW hangs up if it sees more than 32 segments. Kernel Perform GSO
+@@ -863,12 +834,79 @@
+ 		u64_stats_update_end(&stats->syncp);
+ 	}
+ 
++	return EDMA_TX_OK;
++}
++
++/* Publish only complete packets, after DMA mappings and BQL accounting.
++ * Callers hold the carrier TX queue lock across enqueue and publication.
++ */
++static void edma_tx_ring_publish(struct edma_txdesc_ring *ring)
++{
++	u32 reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_PROD_IDX(ring->id);
++
+ 	dsb(st);
++	regmap_write(edma_ctx->ppe_dev->regmap, reg, ring->prod_idx);
++}
+ 
+-	reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_PROD_IDX(txdesc_ring->id);
+-	regmap_write(regmap, reg, txdesc_ring->prod_idx);
++enum edma_tx_status edma_tx_ring_xmit(struct net_device *netdev,
++				      struct sk_buff *skb,
++				      struct edma_txdesc_ring *ring,
++				      struct edma_port_tx_stats *stats,
++				      int src_vp)
++{
++	enum edma_tx_status ret;
++
++	ret = edma_tx_ring_enqueue(netdev, skb, ring, stats, src_vp,
++				   skb_is_nonlinear(skb) ?
++				   edma_tx_num_descs_for_sg(skb) : 1);
++	if (ret == EDMA_TX_OK)
++		edma_tx_ring_publish(ring);
++	return ret;
++}
++
++/* Consume a software GSO list. Publish at most 32 descriptors at a time
++ * and before refreshing an insufficient cached descriptor count. A failed
++ * segment keeps its existing drop semantics; earlier successes still reach
++ * hardware, including when the last segment fails to map.
++ */
++#define EDMA_TX_BATCH_DESC_MAX 32
+ 
+-	return EDMA_TX_OK;
++void edma_tx_xmit_segs(struct net_device *dev, struct sk_buff *segs,
++		       struct edma_txdesc_ring *ring,
++		       struct edma_port_tx_stats *stats, int src_vp)
++{
++	u32 pending_descs = 0;
++
++	while (segs) {
++		struct sk_buff *skb = segs;
++		u32 needed = edma_tx_num_descs_for_sg(skb);
++		u32 start;
++
++		segs = segs->next;
++		skb->next = NULL;
++		if (pending_descs &&
++		    (pending_descs + needed > EDMA_TX_BATCH_DESC_MAX ||
++		     needed > ring->avail_desc)) {
++			edma_tx_ring_publish(ring);
++			pending_descs = 0;
++		}
++
++		start = ring->prod_idx;
++		if (unlikely(edma_tx_ring_enqueue(dev, skb, ring, stats,
++						  src_vp, needed) != EDMA_TX_OK)) {
++			dev_kfree_skb_any(skb);
++			if (stats) {
++				u64_stats_update_begin(&stats->syncp);
++				stats->tx_drops++;
++				u64_stats_update_end(&stats->syncp);
++			}
++			continue;
++		}
++		pending_descs += (ring->prod_idx - start) & EDMA_TX_RING_SIZE_MASK;
++	}
++
++	if (pending_descs)
++		edma_tx_ring_publish(ring);
+ }
+ 
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -1165,6 +1165,7 @@
+ }
+ DEFINE_SHOW_ATTRIBUTE(ppe_tbf_queues);
+ 
++
+ void ppe_debugfs_setup(struct ppe_device *ppe_dev)
+ {
+ 	struct ppe_debugfs_entry *entry;

@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 
-#include "ipq5332.dtsi"
-
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input.h>
-#include <dt-bindings/leds/common.h>
+#include "ipq5332-common.dtsi"
 
 / {
 	aliases {
-		serial0 = &blsp1_uart0;
 		i2c0 = &blsp1_i2c0;
 		led-boot = &led_system_blue;
 		led-failsafe = &led_system_orange;
@@ -18,7 +13,6 @@
 
 	chosen {
 		bootargs-append = " root=/dev/ubiblock0_1";
-		stdout-path = "serial0:115200n8";
 	};
 
 	keys {
@@ -62,17 +56,6 @@
 	pinctrl-names = "default";
 };
 
-&blsp1_uart0 {
-	status = "okay";
-
-	pinctrl-0 = <&serial_0_pins>;
-	pinctrl-names = "default";
-};
-
-&sleep_clk {
-	clock-frequency = <32000>;
-};
-
 &ref_48mhz_clk {
 	clock-div = <1>;
 	clock-mult = <1>;
@@ -80,11 +63,6 @@
 
 &xo_clk {
 	clock-frequency = <48000000>;
-};
-
-&xo_board {
-	clock-div = <2>;
-	clock-mult = <1>;
 };
 
 &pwm {
@@ -119,29 +97,6 @@
 		bias-pull-up;
 	};
 
-	qpic_snand_default_state: qpic-snand-default-state {
-		clock-pins {
-			pins = "gpio13";
-			function = "qspi_clk";
-			drive-strength = <8>;
-			bias-disable;
-		};
-
-		cs-pins {
-			pins = "gpio12";
-			function = "qspi_cs";
-			drive-strength = <8>;
-			bias-disable;
-		};
-
-		data-pins {
-			pins = "gpio8", "gpio9", "gpio10", "gpio11";
-			function = "qspi_data";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-	};
-
 	button_pins: button-pins {
 		pins = "gpio43";
 		function = "gpio";
@@ -154,18 +109,6 @@
 		function = "pwm1";
 		drive-strength = <8>;
 	};
-};
-
-&mdio {
-	status = "okay";
-};
-
-&pcs0 {
-	status = "okay";
-};
-
-&pcs1 {
-	status = "okay";
 };
 
 &qcom_ppe {
@@ -209,14 +152,10 @@
 	};
 };
 
-&qpic_bam {
-	status = "okay";
-};
-
 &qpic_nand {
 	status = "okay";
 
-	pinctrl-0 = <&qpic_snand_default_state>;
+	pinctrl-0 = <&qspi_pins>;
 	pinctrl-names = "default";
 
 	flash@0 {

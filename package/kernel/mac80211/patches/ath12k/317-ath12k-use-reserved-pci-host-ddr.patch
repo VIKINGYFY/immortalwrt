@@ -9,20 +9,18 @@ memory request.  An IPQ5332 partner requests that shared memory as one
 chunk, so the two devices then describe incompatible layouts.
 
 Follow the Qualcomm platform implementation and use named reserved memory
-directly for PCI QMI target-memory requests.  Keep MLO global memory in its
-own named region so all devices in the WSI group receive identical physical
-addresses.
+directly for PCI QMI target-memory requests, including the two 4 KiB
+AFC slots requested even by 5 GHz firmware. Reject oversized AFC requests
+and include the chunk in the existing remote-memory coredump TLV. Keep MLO
+global memory in its own named region so all devices in the WSI group
+receive identical physical addresses.
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
----
- drivers/net/wireless/ath/ath12k/core.c |  35 ++++++++
- drivers/net/wireless/ath/ath12k/core.h |   1 +
- drivers/net/wireless/ath/ath12k/qmi.c  | 104 +++++++++++++++++++++++-
- 3 files changed, 140 insertions(+), 2 deletions(-)
 
+---
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -664,6 +664,33 @@ struct reserved_mem *ath12k_core_get_res
+@@ -664,6 +664,33 @@
  	return rmem;
  }
  
@@ -56,7 +54,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static inline
  void ath12k_core_to_group_ref_get(struct ath12k_base *ab)
  {
-@@ -2367,6 +2394,14 @@ struct ath12k_base *ath12k_core_alloc(st
+@@ -2367,6 +2394,14 @@
  	ab->qmi.num_radios = U8_MAX;
  	ab->single_chip_mlo_support = false;
  
@@ -73,7 +71,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	 * In Intra-device MLO, only one device present in a group,
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -1307,6 +1307,7 @@ void ath12k_fw_stats_free(struct ath12k_
+@@ -1307,6 +1307,7 @@
  void ath12k_fw_stats_reset(struct ath12k *ar);
  struct reserved_mem *ath12k_core_get_reserved_mem(struct ath12k_base *ab,
  						  int index);
@@ -81,9 +79,19 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  enum ath12k_qmi_mem_mode ath12k_core_get_memory_mode(struct ath12k_base *ab);
  
  static inline const char *ath12k_scan_state_str(enum ath12k_scan_state state)
+--- a/drivers/net/wireless/ath/ath12k/coredump.c
++++ b/drivers/net/wireless/ath/ath12k/coredump.c
+@@ -15,6 +15,7 @@
+ 
+ 	switch (type) {
+ 	case HOST_DDR_REGION_TYPE:
++	case AFC_REGION_TYPE:
+ 		dump_type = FW_CRASH_DUMP_REMOTE_MEM_DATA;
+ 		break;
+ 	case M3_DUMP_REGION_TYPE:
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2660,8 +2660,7 @@ static int ath12k_qmi_get_mlo_reserved_m
+@@ -2660,8 +2660,7 @@
  
  		fixed_mem = true;
  
@@ -93,7 +101,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		if (*rmem)
  			return 0;
  	}
-@@ -2841,6 +2840,105 @@ err:
+@@ -2841,6 +2840,114 @@
  	return ret;
  }
  
@@ -125,6 +133,15 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +		chunk = &ab->qmi.target_mem[i];
 +
 +		switch (chunk->type) {
++		case AFC_REGION_TYPE:
++			if (chunk->size > AFC_MEM_SIZE) {
++				ath12k_err(ab,
++					   "AFC memory request size %u exceeds limit %u\n",
++					   chunk->size, AFC_MEM_SIZE);
++				ret = -EINVAL;
++				goto out;
++			}
++			fallthrough;
 +		case HOST_DDR_REGION_TYPE:
 +		case CALDB_MEM_REGION_TYPE:
 +		case PAGEABLE_MEM_REGION_TYPE:
@@ -199,7 +216,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
  {
  	struct target_mem_chunk *chunk;
-@@ -2850,6 +2948,10 @@ static int ath12k_qmi_assign_target_mem_
+@@ -2850,6 +2957,10 @@
  	int i, idx, mlo_idx, ret;
  	int mlo_size = 0;
  
@@ -210,3 +227,23 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	mutex_lock(&ag->mutex);
  
  	if (!ag->mlo_mem.init_done) {
+--- a/drivers/net/wireless/ath/ath12k/qmi.h
++++ b/drivers/net/wireless/ath/ath12k/qmi.h
+@@ -29,6 +29,9 @@
+ #define ATH12K_QMI_FW_MEM_REQ_SEGMENT_CNT	3
+ #define ATH12K_QMI_WLFW_MAX_DEV_MEM_NUM_V01 4
+ #define ATH12K_QMI_DEVMEM_CMEM_INDEX	0
++#define AFC_SLOT_SIZE			0x1000
++#define AFC_MAX_SLOT			2
++#define AFC_MEM_SIZE			(AFC_SLOT_SIZE * AFC_MAX_SLOT)
+ 
+ #define QMI_WLFW_REQUEST_MEM_IND_V01		0x0035
+ #define QMI_WLFW_FW_MEM_READY_IND_V01		0x0037
+@@ -178,6 +181,7 @@
+ 	CALDB_MEM_REGION_TYPE = 0x4,
+ 	MLO_GLOBAL_MEM_REGION_TYPE = 0x8,
+ 	PAGEABLE_MEM_REGION_TYPE = 0x9,
++	AFC_REGION_TYPE = 0xa,
+ 	LPASS_SHARED_V01_REGION_TYPE = 0xb,
+ };
+ 

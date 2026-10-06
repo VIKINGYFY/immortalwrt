@@ -65,7 +65,7 @@ Origin: https://github.com/tsg2k2/openwrt/commit/99236397e049dc52c2fa7be52f43511
 +				continue;
 +
 +			/* Channel numbers overlap between 2.4, 5 and 6 GHz. */
-+			if (!st->freq_cur || (uint32_t)(uint32_t)st->freq_cur == nla_get_u32(
++			if (!st->freq_cur || (uint32_t)st->freq_cur == nla_get_u32(
 +			    freqs[NL80211_FREQUENCY_ATTR_FREQ]))
  			{
 -				*dbm_max = (int)(0.01 * nla_get_u32(

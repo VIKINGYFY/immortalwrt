@@ -1,0 +1,64 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: use native encapsulation for IPQ5332 group frames
+
+IPQ5332 accepts unicast Ethernet data but loses DHCP broadcast downlink
+frames with multicast Ethernet encapsulation advertised. Authentication
+succeeds and the host queues repeated offers; converting broadcasts to
+unicasts makes the same client obtain DHCP and pass traffic immediately.
+
+Use the existing native-WiFi group-frame path for IPQ5332 while preserving
+Ethernet unicast encapsulation and RX decapsulation. Since vif offload
+flags are shared across MLO links, advertise multicast encapsulation only
+when every member of the hardware group supports it. Other groups retain
+the existing multicast Ethernet path. No user configuration is changed.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -10360,6 +10360,22 @@
+ 	return 0;
+ }
+ 
++static bool ath12k_mac_supports_mcast_encap(struct ath12k *ar)
++{
++	struct ath12k_hw_group *ag = ath12k_ab_to_ag(ar->ab);
++	int i;
++
++	/* Encapsulation flags belong to the shared vif. Every group member
++	 * must support Ethernet group frames before advertising the flag.
++	 */
++	for (i = 0; i < ag->num_devices; i++) {
++		if (ag->ab[i] && ag->ab[i]->hw_rev == ATH12K_HW_IPQ5332_HW10)
++			return false;
++	}
++
++	return true;
++}
++
+ static void ath12k_mac_update_vif_offload(struct ath12k_link_vif *arvif)
+ {
+ 	struct ath12k_vif *ahvif = arvif->ahvif;
+@@ -10369,6 +10385,7 @@
+ 	u32 param_id, param_value;
+ 	int ret;
+ 
++	vif->offload_flags &= ~IEEE80211_OFFLOAD_ENCAP_MCAST;
+ 	param_id = WMI_VDEV_PARAM_TX_ENCAP_TYPE;
+ 	if (vif->type != NL80211_IFTYPE_STATION &&
+ 	    vif->type != NL80211_IFTYPE_AP)
+@@ -10392,9 +10409,11 @@
+ 		vif->offload_flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
+ 	}
+ 
+-	if (vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED)
+-		vif->offload_flags |= (IEEE80211_OFFLOAD_ENCAP_MCAST |
+-				       IEEE80211_OFFLOAD_ENCAP_4ADDR);
++	if (vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {
++		vif->offload_flags |= IEEE80211_OFFLOAD_ENCAP_4ADDR;
++		if (ath12k_mac_supports_mcast_encap(ar))
++			vif->offload_flags |= IEEE80211_OFFLOAD_ENCAP_MCAST;
++	}
+ 
+ 	param_id = WMI_VDEV_PARAM_RX_DECAP_TYPE;
+ 	if (vif->offload_flags & IEEE80211_OFFLOAD_DECAP_ENABLED)

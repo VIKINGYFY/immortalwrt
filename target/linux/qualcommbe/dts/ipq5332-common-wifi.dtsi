@@ -1,0 +1,128 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+/ {
+	/*
+	 * WCSS/MLO layout for the SoC AHB radio.  The IPQ5332 WLAN firmware
+	 * has a fixed UserPD host-DDR contract at 0x4b500000.  Keep that
+	 * address through a bounded 12 MiB offset into the root WCSS
+	 * reservation inherited from ipq5332.dtsi. Both consumers reference
+	 * that one reservation; the host view must not reserve it again.
+	 *
+	 * The 5 GHz QCN6224 is exposed by ath12k as QCN9274 (PCI ID
+	 * 17cb:1109) and keeps its firmware in a separate host-DDR window.
+	 */
+	reserved-memory {
+		m3_dump: m3-dump@4d400000 {
+			reg = <0x0 0x4d400000 0x0 0x00100000>;
+			no-map;
+		};
+
+		q6_caldb: q6-caldb@4d500000 {
+			reg = <0x0 0x4d500000 0x0 0x00500000>;
+			no-map;
+		};
+
+		mlo_mem: mlo-global-mem@4db00000 {
+			reg = <0x0 0x4db00000 0x0 0x01200000>;
+			no-map;
+		};
+
+		qcn9274_host_ddr: qcn9274-host-ddr@4ed00000 {
+			/* Firmware mode 1 uses 0x02402000 bytes (log-02). Keep
+			 * almost 2 MiB headroom without reserving the old 50 MiB.
+			 */
+			reg = <0x0 0x4ed00000 0x0 0x02600000>;
+			no-map;
+		};
+	};
+};
+
+&pcie1 {
+	status = "okay";
+
+	pinctrl-0 = <&pcie1_pins>;
+	pinctrl-names = "default";
+
+	perst-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 48 GPIO_ACTIVE_LOW>;
+
+	pcie@0 {
+		wifi1: wifi@0 {
+			compatible = "pci17cb,1109";
+			reg = <0x00000000 0 0 0 0>;
+			memory-region = <&qcn9274_host_ddr>, <&mlo_mem>;
+			memory-region-names = "host-ddr-mem", "mlo-global-mem";
+			qcom,ath12k-fw-memory-mode = <1>;
+			qcom,ath12k-low-memory;
+			qcom,num-radios = <1>;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					wifi1_wsi_tx: endpoint {
+						remote-endpoint = <&wifi0_wsi_rx>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					wifi1_wsi_rx: endpoint {
+						remote-endpoint = <&wifi0_wsi_tx>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&pcie1_phy {
+	status = "okay";
+};
+
+&q6v5_wcss {
+	status = "okay";
+
+	firmware-name = "ath12k/IPQ5332/hw1.0/q6_fw0.mdt";
+	qcom,bootargs_smem = <507>;
+	qcom,bootargs_version = <2>;
+	upd-firmware-names = "ath12k/IPQ5332/hw1.0/q6_fw1.mdt";
+};
+
+&wifi0 {
+	status = "okay";
+
+	firmware-name = "ath12k/IPQ5332/hw1.0/q6_fw1.mdt", "ath12k/IPQ5332/hw1.0/iu_fw.mdt";
+	memory-region = <&q6_region>, <&q6_region>, <&m3_dump>, <&q6_caldb>, <&mlo_mem>;
+	memory-region-names = "q6-region", "host-ddr-mem", "m3-dump", "q6-caldb", "mlo-global-mem";
+	/* Reduce host rings only: the AHB firmware retains memory mode 0. */
+	qcom,ath12k-low-memory;
+	qcom,host-ddr-offset = <0x00c00000>;
+	qcom,rproc = <&q6v5_wcss>;
+	qcom,wsi-controller;
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			wifi0_wsi_tx: endpoint {
+				remote-endpoint = <&wifi1_wsi_rx>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+
+			wifi0_wsi_rx: endpoint {
+				remote-endpoint = <&wifi1_wsi_tx>;
+			};
+		};
+	};
+};

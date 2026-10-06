@@ -1,0 +1,280 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: protect VP uplink handoff
+
+Protect VP ingress metadata and use read-only network and transport
+header parsing. Keep IPv4/IPv6, VLAN identity and GSO/SG support while
+returning unsupported headers, expired hops and TCP teardown packets to
+software.
+
+Share a per-flow submission lease between readers and wait for it during
+withdrawal before hardware retirement. Cover destroy, replacement and
+failed publication without a global packet-path lock. This waits for
+software handoff and does not claim to drain the PPE hardware pipeline.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
+@@ -43,6 +43,8 @@
+ #include <linux/regmap.h>
+ #include <linux/seq_file.h>
+ #include <linux/skbuff.h>
++#include <linux/tcp.h>
++#include <linux/udp.h>
+ 
+ #include <net/dsa.h>
+ #include <net/dst_metadata.h>
+@@ -476,6 +478,74 @@
+ 	return ret;
+ }
+ 
++static bool ppe_vp_ingress_key(const struct sk_buff *skb,
++			       struct ppe_vp_flow_key *key)
++{
++	struct tcphdr tcp_buf;
++	struct udphdr udp_buf;
++	unsigned int offset, len;
++
++	if (skb->protocol == htons(ETH_P_IP)) {
++		struct iphdr ip_buf;
++		const struct iphdr *iph;
++
++		iph = skb_header_pointer(skb, 0, sizeof(ip_buf), &ip_buf);
++		if (!iph || iph->version != 4 || iph->ihl < 5 ||
++		    ip_is_fragment(iph) || iph->ttl <= 1)
++			return false;
++		offset = iph->ihl * 4;
++		len = iph_totlen(skb, iph);
++		key->sip.ip4 = iph->saddr;
++		key->dip.ip4 = iph->daddr;
++		key->protocol = iph->protocol;
++	} else {
++		struct ipv6hdr ip6_buf;
++		const struct ipv6hdr *ip6h;
++
++		ip6h = skb_header_pointer(skb, 0, sizeof(ip6_buf), &ip6_buf);
++		if (!ip6h || ip6h->version != 6 || ip6h->hop_limit <= 1)
++			return false;
++		offset = sizeof(*ip6h);
++		len = offset + ntohs(ip6h->payload_len);
++		key->sip.ip6 = ip6h->saddr;
++		key->dip.ip6 = ip6h->daddr;
++		key->protocol = ip6h->nexthdr;
++		key->is_ipv6 = true;
++	}
++
++	/* Allow Ethernet padding and GRO/GSO aggregates without copying or
++	 * pulling packet data. Unsupported IPv6 extension headers stay in software.
++	 */
++	if (len > skb->len || len < offset)
++		return false;
++	if (key->protocol == IPPROTO_TCP) {
++		const struct tcphdr *th;
++
++		if (len - offset < sizeof(tcp_buf))
++			return false;
++		th = skb_header_pointer(skb, offset, sizeof(tcp_buf), &tcp_buf);
++		if (!th || th->doff < 5 || th->doff * 4 > len - offset ||
++		    th->fin || th->rst)
++			return false;
++		key->sport = th->source;
++		key->dport = th->dest;
++	} else if (key->protocol == IPPROTO_UDP) {
++		const struct udphdr *uh;
++
++		if (len - offset < sizeof(udp_buf))
++			return false;
++		uh = skb_header_pointer(skb, offset, sizeof(udp_buf), &udp_buf);
++		if (!uh)
++			return false;
++		key->sport = uh->source;
++		key->dport = uh->dest;
++	} else {
++		return false;
++	}
++
++	return true;
++}
++
+ /* Netfilter ingress hook on a virtual port's bound device: offload the
+  * wireless->wired uplink. It runs on the receive path before the bridge,
+  * so it sees the frame with its L2 header already pulled and, for a routed
+@@ -496,11 +566,9 @@
+ 	struct ppe_vp_flow_key key = {};
+ 	struct ppe_vp_flow *flow;
+ 	const struct ethhdr *eth;
+-	__be16 ports[2];
+-	unsigned int offset;
+ 	u16 vlan_tci = 0;
+ 	bool tagged = false;
+-	int mac_len;
++	int mac_len, ret;
+ 
+ 	/* A hardware miss trips this VP's persistent fail-open circuit
+ 	 * breaker before its packet is returned to this receive path.
+@@ -513,6 +581,14 @@
+ 	 */
+ 	if (!atomic_read(&slot->nflows))
+ 		return NF_ACCEPT;
++	/* The hook restores L2 and may strip VLAN metadata. A shared skb
++	 * cannot be changed, even when its packet data is already linear.
++	 */
++	if (skb_shared(skb) || !skb_mac_header_was_set(skb))
++		return NF_ACCEPT;
++	mac_len = skb->data - skb_mac_header(skb);
++	if (mac_len < ETH_HLEN || (unsigned int)mac_len > skb_headroom(skb))
++		return NF_ACCEPT;
+ 	/* QCA4B hook entries are always VLAN-qualified. An untagged frame
+ 	 * cannot match any installed key, so leave it on the native path
+ 	 * without parsing its network and transport headers.
+@@ -548,40 +624,8 @@
+ 	    ether_addr_to_u64(eth->h_dest) != READ_ONCE(slot->host_mac))
+ 		return NF_ACCEPT;
+ 
+-	if (skb->protocol == htons(ETH_P_IP)) {
+-		const struct iphdr *iph;
+-
+-		if (!pskb_may_pull(skb, sizeof(*iph)))
+-			return NF_ACCEPT;
+-		iph = ip_hdr(skb);
+-		if (iph->ihl < 5 || ip_is_fragment(iph) ||
+-		    (iph->protocol != IPPROTO_TCP &&
+-		     iph->protocol != IPPROTO_UDP))
+-			return NF_ACCEPT;
+-		key.sip.ip4 = iph->saddr;
+-		key.dip.ip4 = iph->daddr;
+-		key.protocol = iph->protocol;
+-		offset = iph->ihl * 4;
+-	} else {
+-		const struct ipv6hdr *ip6h;
+-
+-		if (!pskb_may_pull(skb, sizeof(*ip6h)))
+-			return NF_ACCEPT;
+-		ip6h = ipv6_hdr(skb);
+-		if (ip6h->nexthdr != IPPROTO_TCP &&
+-		    ip6h->nexthdr != IPPROTO_UDP)
+-			return NF_ACCEPT;
+-		key.sip.ip6 = ip6h->saddr;
+-		key.dip.ip6 = ip6h->daddr;
+-		key.protocol = ip6h->nexthdr;
+-		key.is_ipv6 = true;
+-		offset = sizeof(*ip6h);
+-	}
+-
+-	if (skb_copy_bits(skb, offset, ports, sizeof(ports)))
++	if (!ppe_vp_ingress_key(skb, &key))
+ 		return NF_ACCEPT;
+-	key.sport = ports[0];
+-	key.dport = ports[1];
+ 	if (tagged) {
+ 		key.vlan_proto = skb->vlan_proto;
+ 		key.vlan_id = vlan_tci & VLAN_VID_MASK;
+@@ -594,12 +638,21 @@
+ 		rcu_read_unlock();
+ 		return NF_ACCEPT;
+ 	}
+-	rcu_read_unlock();
++	/* Keep the selected flow alive and share its submission lease with
++	 * other readers. Withdrawal waits for this software hand-off only;
++	 * the PPE hardware pipeline has its own lifetime.
++	 */
++	read_lock_bh(&flow->inject_lock);
++	/* Pair with miss notification before its punt re-enters RX. */
++	if (!flow->inserted || smp_load_acquire(&slot->miss_disabled)) {
++		read_unlock_bh(&flow->inject_lock);
++		rcu_read_unlock();
++		return NF_ACCEPT;
++	}
+ 
+ 	/* The PPE parses the ethernet header to route, so restore the L2
+ 	 * header the receive path pulled before handing the frame over.
+ 	 */
+-	mac_len = skb->data - skb_mac_header(skb);
+ 	skb_push(skb, mac_len);
+ 	if (tagged)
+ 		__vlan_hwaccel_clear_tag(skb);
+@@ -608,7 +661,10 @@
+ 	 * completion) and it must not continue up the stack. On any failure
+ 	 * restore the L2 header and let it fall back to the software path.
+ 	 */
+-	if (edma_tx_vp_inject(slot->vp, skb) == 0)
++	ret = edma_tx_vp_inject(slot->vp, skb);
++	read_unlock_bh(&flow->inject_lock);
++	rcu_read_unlock();
++	if (!ret)
+ 		return NF_STOLEN;
+ 
+ 	if (tagged)
+@@ -1125,12 +1181,15 @@
+ 			return -EOPNOTSUPP;
+ 	}
+ 
++	rwlock_init(&flow->inject_lock);
++	write_lock_bh(&flow->inject_lock);
+ 	ret = rhashtable_insert_fast(&vpt->slots[i].flows, &flow->node,
+ 				     ppe_vp_flow_params);
+ 	if (!ret) {
+ 		flow->inserted = true;
+ 		atomic_inc(&vpt->slots[i].nflows);
+ 	}
++	write_unlock_bh(&flow->inject_lock);
+ 	return ret;
+ }
+ 
+@@ -1143,10 +1202,16 @@
+ 	if (!flow->inserted || !vpt || i < 0 || i >= PPE_VP_SLOTS)
+ 		return;
+ 
++	/* Readers which already selected this key finish submitting before
++	 * hardware retirement. Late readers observe inserted=false under the
++	 * same lock and leave their original skb on the software path.
++	 */
++	write_lock_bh(&flow->inject_lock);
+ 	rhashtable_remove_fast(&vpt->slots[i].flows, &flow->node,
+ 			       ppe_vp_flow_params);
+ 	flow->inserted = false;
+ 	atomic_dec(&vpt->slots[i].nflows);
++	write_unlock_bh(&flow->inject_lock);
+ }
+ 
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
+@@ -8,6 +8,7 @@
+ 
+ #include <linux/in6.h>
+ #include <linux/rhashtable.h>
++#include <linux/spinlock.h>
+ 
+ struct ppe_device;
+ struct net_device;
+@@ -35,6 +36,7 @@
+ struct ppe_vp_flow {
+ 	struct rhash_head node;
+ 	struct ppe_vp_flow_key key;
++	rwlock_t inject_lock;	/* lookup-to-submit versus software withdrawal */
+ 	bool inserted;
+ };
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -2611,6 +2611,11 @@
+ {
+ 	int ret;
+ 
++	/* Cover destroy, replacement and failed publication before the first
++	 * hardware retirement operation or release of a stale owner's leases.
++	 */
++	ppe_vp_flow_del(ft->ppe_dev, flow->ivp, &flow->vp_flow);
++
+ 	if (flow->index < 0 ||
+ 	    flow->index >= ft->ppe_dev->variant->num_flow_entries ||
+ 	    ft->flow_owners[flow->index] != flow) {
+@@ -3891,7 +3896,6 @@
+ 
+ 	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
+ 	ppe_ft_flow_count_dec(ft, flow);
+-	ppe_vp_flow_del(ft->ppe_dev, flow->ivp, &flow->vp_flow);
+ 
+ 	if (ppe_ft_flow_hw_del(ft, flow)) {
+ 		ppe_ft_flow_deps_put(ft, flow);

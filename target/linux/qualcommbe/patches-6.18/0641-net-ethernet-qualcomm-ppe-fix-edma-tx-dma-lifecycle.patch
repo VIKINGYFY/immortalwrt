@@ -1,5 +1,5 @@
 From 4b41893c01963b681893fd705c6d22abf8ab86c1 Mon Sep 17 00:00:00 2001
-From: ViKing <vking@example.com>
+From: ViKing <vking@qq.com>
 Date: Mon, 31 Aug 2026 22:35:00 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: fix EDMA TX DMA lifecycle
 
@@ -9,14 +9,16 @@ using the matching API. This also covers every scatter-gather descriptor
 instead of leaking mappings whose completion carries the MORE bit.
 
 Pair descriptor and completion rings explicitly and account completions
-through BQL. Use the core stop/recheck/wake protocol to close the ring-full
-lost wakeup window. Expose bounded mapping and queue diagnostic counters.
+through BQL. Derive the charge queue from the descriptor ring even for VP
+injection, and account bytes before the producer doorbell so completion on
+another CPU cannot outrun the charge. Use the core stop/recheck/wake protocol to close the ring-full
+lost wakeup window. Retain error and queue-pressure counters.
 
-Signed-off-by: ViKing <vking@example.com>
+Signed-off-by: ViKing <vking@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-@@ -24,8 +24,8 @@ static void edma_cfg_txcmpl_ring_cleanup
+@@ -24,8 +24,8 @@
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct device *dev =  ppe_dev->dev;
  
@@ -27,7 +29,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Free Tx cmpl ring descriptors. */
  	dma_free_coherent(dev, sizeof(struct edma_txcmpl_desc)
-@@ -55,45 +55,33 @@ static int edma_cfg_txcmpl_ring_setup(st
+@@ -55,45 +55,33 @@
  static void edma_cfg_tx_desc_ring_cleanup(struct edma_txdesc_ring *txdesc_ring)
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
@@ -93,7 +95,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
  
  static int edma_cfg_tx_desc_ring_setup(struct edma_txdesc_ring *txdesc_ring)
-@@ -124,6 +112,24 @@ static int edma_cfg_tx_desc_ring_setup(s
+@@ -124,6 +112,24 @@
  		return -ENOMEM;
  	}
  
@@ -118,7 +120,7 @@ Signed-off-by: ViKing <vking@example.com>
  	return 0;
  }
  
-@@ -374,8 +380,15 @@ static int edma_cfg_tx_rings_setup(void)
+@@ -374,8 +380,15 @@
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
  	struct edma_ring_info *txcmpl = hw_info->txcmpl;
  	struct edma_ring_info *tx = hw_info->tx;
@@ -134,7 +136,7 @@ Signed-off-by: ViKing <vking@example.com>
  	/* Set Txdesc flow control group id, same as port number. */
  	for (i = 0; i < hw_info->max_ports; i++) {
  		for_each_possible_cpu(j) {
-@@ -390,7 +403,6 @@ static int edma_cfg_tx_rings_setup(void)
+@@ -390,7 +403,6 @@
  	/* Allocate TxDesc ring descriptors. */
  	for (i = 0; i < tx->num_rings; i++) {
  		struct edma_txdesc_ring *txdesc_ring = NULL;
@@ -142,7 +144,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  		txdesc_ring = &edma_ctx->tx_rings[i];
  		txdesc_ring->count = EDMA_TX_RING_SIZE;
-@@ -398,30 +410,30 @@ static int edma_cfg_tx_rings_setup(void)
+@@ -398,30 +410,30 @@
  
  		ret = edma_cfg_tx_desc_ring_setup(txdesc_ring);
  		if (ret) {
@@ -182,7 +184,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  			goto txcmpl_mem_alloc_fail;
  		}
-@@ -436,7 +448,7 @@ txcmpl_mem_alloc_fail:
+@@ -436,7 +448,7 @@
  	for (i = 0; i < tx->num_rings; i++)
  		edma_cfg_tx_desc_ring_cleanup(&edma_ctx->tx_rings[i]);
  
@@ -191,7 +193,7 @@ Signed-off-by: ViKing <vking@example.com>
  }
  
  /**
-@@ -449,6 +461,7 @@ int edma_cfg_tx_rings_alloc(void)
+@@ -449,6 +461,7 @@
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
  	struct edma_ring_info *txcmpl = hw_info->txcmpl;
  	struct edma_ring_info *tx = hw_info->tx;
@@ -199,7 +201,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	edma_ctx->tx_rings = kzalloc((sizeof(*edma_ctx->tx_rings) * tx->num_rings),
  				     GFP_KERNEL);
-@@ -466,7 +479,8 @@ int edma_cfg_tx_rings_alloc(void)
+@@ -466,7 +479,8 @@
  		txcmpl->num_rings, txcmpl->ring_start,
  		(txcmpl->ring_start + txcmpl->num_rings - 1));
  
@@ -209,7 +211,7 @@ Signed-off-by: ViKing <vking@example.com>
  		pr_err("Error in setting up tx rings\n");
  		goto tx_rings_setup_fail;
  	}
-@@ -481,7 +495,7 @@ txcmpl_ring_alloc_fail:
+@@ -481,7 +495,7 @@
  	kfree(edma_ctx->tx_rings);
  	edma_ctx->tx_rings = NULL;
  
@@ -220,7 +222,7 @@ Signed-off-by: ViKing <vking@example.com>
  /**
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
-@@ -154,6 +154,9 @@ static int edma_debugfs_tx_rings_stats_s
+@@ -154,6 +154,9 @@
  			start = u64_stats_fetch_begin(&stats->syncp);
  			txdesc_stats[i].no_desc_avail = stats->no_desc_avail;
  			txdesc_stats[i].tso_max_seg_exceed = stats->tso_max_seg_exceed;
@@ -230,33 +232,25 @@ Signed-off-by: ViKing <vking@example.com>
  		} while (u64_stats_fetch_retry(&stats->syncp, start));
  	}
  
-@@ -170,6 +173,10 @@ static int edma_debugfs_tx_rings_stats_s
+@@ -170,6 +173,8 @@
  			txcmpl_stats[i].errors = stats->errors;
  			txcmpl_stats[i].desc_with_more_bit = stats->desc_with_more_bit;
  			txcmpl_stats[i].no_pending_desc = stats->no_pending_desc;
 +			txcmpl_stats[i].invalid_map = stats->invalid_map;
-+			txcmpl_stats[i].dma_unmap_single = stats->dma_unmap_single;
-+			txcmpl_stats[i].dma_unmap_page = stats->dma_unmap_page;
-+			txcmpl_stats[i].queue_wakes = stats->queue_wakes;
++
  		} while (u64_stats_fetch_retry(&stats->syncp, start));
  	}
  
-@@ -186,6 +193,14 @@ static int edma_debugfs_tx_rings_stats_s
+@@ -186,6 +191,8 @@
  			   i + txcmpl->ring_start, txcmpl_stats[i].desc_with_more_bit);
  		seq_printf(m, "\t\t txcmpl[%d]:no_pending_desc = %llu\n",
  			   i + txcmpl->ring_start, txcmpl_stats[i].no_pending_desc);
 +		seq_printf(m, "\t\t txcmpl[%d]:invalid_map = %llu\n",
 +			   i + txcmpl->ring_start, txcmpl_stats[i].invalid_map);
-+		seq_printf(m, "\t\t txcmpl[%d]:dma_unmap_single = %llu\n",
-+			   i + txcmpl->ring_start, txcmpl_stats[i].dma_unmap_single);
-+		seq_printf(m, "\t\t txcmpl[%d]:dma_unmap_page = %llu\n",
-+			   i + txcmpl->ring_start, txcmpl_stats[i].dma_unmap_page);
-+		seq_printf(m, "\t\t txcmpl[%d]:queue_wakes = %llu\n",
-+			   i + txcmpl->ring_start, txcmpl_stats[i].queue_wakes);
  		seq_puts(m, "\n");
  	}
  
-@@ -196,6 +211,12 @@ static int edma_debugfs_tx_rings_stats_s
+@@ -196,6 +203,12 @@
  			   i + tx->ring_start, txdesc_stats[i].no_desc_avail);
  		seq_printf(m, "\t\t txdesc[%d]:tso_max_seg_exceed = %llu\n",
  			   i + tx->ring_start, txdesc_stats[i].tso_max_seg_exceed);
@@ -279,7 +273,7 @@ Signed-off-by: ViKing <vking@example.com>
  #include <net/pkt_cls.h>
  #include <linux/printk.h>
  
-@@ -209,10 +210,11 @@ static netdev_tx_t edma_port_xmit(struct
+@@ -209,10 +210,11 @@
  	struct edma_port_pcpu_stats *pcpu_stats;
  	struct edma_txdesc_ring *txdesc_ring;
  	struct edma_port_tx_stats *stats;
@@ -292,7 +286,7 @@ Signed-off-by: ViKing <vking@example.com>
  	int ret;
  
  	if (!skb || !dev)
-@@ -234,16 +236,33 @@ static netdev_tx_t edma_port_xmit(struct
+@@ -234,16 +236,33 @@
  	result = edma_tx_gso_segment(skb, dev, &segs);
  	if (likely(result == EDMA_TX_GSO_NOT_NEEDED)) {
  		/* Transmit the packet. */
@@ -337,7 +331,7 @@ Signed-off-by: ViKing <vking@example.com>
  #include <linux/regmap.h>
  
  #include "edma.h"
-@@ -120,18 +121,73 @@ void edma_tx_xmit_segs(struct net_device
+@@ -122,18 +123,73 @@
   *
   * Return the number descriptors for which Tx complete is done.
   */
@@ -410,11 +404,11 @@ Signed-off-by: ViKing <vking@example.com>
 +	u32 completed_pkts = 0, completed_bytes = 0;
  	struct netdev_queue *nq;
 -	struct sk_buff *skb;
-+	int wake;
++
  	u32 reg;
  
  	cons_idx = txcmpl_ring->cons_idx;
-@@ -161,52 +217,43 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -163,52 +219,37 @@
  
  	count = avail;
  
@@ -427,7 +421,7 @@ Signed-off-by: ViKing <vking@example.com>
 -		 */
 +		struct edma_tx_map *map;
 +		struct sk_buff *skb;
-+		u8 map_type;
++
 +
  		more_bit = EDMA_TXCMPL_MORE_BIT_GET(txcmpl);
  		if (unlikely(more_bit)) {
@@ -442,27 +436,20 @@ Signed-off-by: ViKing <vking@example.com>
 -		/* Find and free the skb for Tx completion. */
 -		skb = (struct sk_buff *)EDMA_TXCMPL_OPAQUE_GET(txcmpl);
 -		if (unlikely(!skb)) {
+-			if (net_ratelimit())
+-				dev_warn(dev, "Invalid cons_idx:%u prod_idx:%u word2:%x word3:%x\n",
+-					 cons_idx, prod_idx, txcmpl->word2, txcmpl->word3);
+-
 +		map = (struct edma_tx_map *)EDMA_TXCMPL_OPAQUE_GET(txcmpl);
 +		if (unlikely(!map || !edma_tx_map_valid(txdesc_ring, map))) {
-+			u64_stats_update_begin(&txcmpl_stats->syncp);
-+			++txcmpl_stats->invalid_map;
-+			u64_stats_update_end(&txcmpl_stats->syncp);
- 			if (net_ratelimit())
--				dev_warn(dev, "Invalid cons_idx:%u prod_idx:%u word2:%x word3:%x\n",
-+				dev_warn(dev, "Invalid Tx DMA map cons_idx:%u prod_idx:%u word2:%x word3:%x\n",
- 					 cons_idx, prod_idx, txcmpl->word2, txcmpl->word3);
--
-+		} else {
-+			map_type = map->type;
-+			skb = edma_tx_map_unmap(dev, map);
  			u64_stats_update_begin(&txcmpl_stats->syncp);
 -			++txcmpl_stats->invalid_buffer;
-+			if (map_type == EDMA_TX_MAP_SINGLE)
-+				++txcmpl_stats->dma_unmap_single;
-+			else
-+				++txcmpl_stats->dma_unmap_page;
++			++txcmpl_stats->invalid_map;
  			u64_stats_update_end(&txcmpl_stats->syncp);
--		} else {
++			if (net_ratelimit())
++				dev_warn(dev, "Invalid Tx DMA map cons_idx:%u prod_idx:%u word2:%x word3:%x\n",
++					 cons_idx, prod_idx, txcmpl->word2, txcmpl->word3);
+ 		} else {
 -			/* Retrieve pool id for unmapping.
 -			 * 0 for linear skb and (pool id - 1) represents nr_frag index.
 -			 */
@@ -472,9 +459,10 @@ Signed-off-by: ViKing <vking@example.com>
 -			} else {
 -				u8 frag_index = (EDMA_TXCOMP_POOL_ID_GET(txcmpl) - 1);
 -				skb_frag_t *frag = &skb_shinfo(skb)->frags[frag_index];
--
+ 
 -				dma_unmap_page(dev, virt_to_phys(frag),
 -					       PAGE_SIZE, DMA_TO_DEVICE);
++			skb = edma_tx_map_unmap(dev, map);
 +			if (unlikely(more_bit && skb)) {
 +				u64_stats_update_begin(&txcmpl_stats->syncp);
 +				++txcmpl_stats->invalid_buffer;
@@ -488,7 +476,7 @@ Signed-off-by: ViKing <vking@example.com>
  			txcmpl_errors = EDMA_TXCOMP_RING_ERROR_GET(txcmpl->word3);
  			if (unlikely(txcmpl_errors)) {
  				if (net_ratelimit())
-@@ -218,7 +265,15 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -220,7 +261,15 @@
  				u64_stats_update_end(&txcmpl_stats->syncp);
  			}
  
@@ -505,7 +493,7 @@ Signed-off-by: ViKing <vking@example.com>
  		}
  
  		cons_idx = ((cons_idx + 1) & EDMA_TX_RING_SIZE_MASK);
-@@ -233,9 +288,9 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -235,9 +284,9 @@
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CONS_IDX(txcmpl_ring->id);
  	regmap_write(regmap, reg, cons_idx);
  
@@ -518,7 +506,7 @@ Signed-off-by: ViKing <vking@example.com>
  	 *
  	 * The queue must be derived from the ring, not from the CPU running
  	 * this completion handler: Tx desc and Tx cmpl rings are paired
-@@ -243,17 +298,20 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -245,18 +294,16 @@
  	 * the IRQ is affine to. Waking the current CPU's queue leaves any
  	 * other stopped queue stopped forever once its ring fills.
  	 */
@@ -534,20 +522,17 @@ Signed-off-by: ViKing <vking@example.com>
 -			__netif_tx_lock(nq, smp_processor_id());
 -			netif_tx_wake_queue(nq);
 -			__netif_tx_unlock(nq);
-+		wake = __netif_txq_completed_wake(nq, completed_pkts,
+-		}
++		__netif_txq_completed_wake(nq, completed_pkts,
 +						  completed_bytes,
 +					   edma_tx_avail_desc(txdesc_ring),
 +					   EDMA_TX_TSO_SEG_MAX,
 +					   edma_ctx->tx_requeue_stop ||
 +					   !netif_carrier_ok(txcmpl_ring->napi.dev));
-+		if (!wake) {
-+			u64_stats_update_begin(&txcmpl_stats->syncp);
-+			++txcmpl_stats->queue_wakes;
-+			u64_stats_update_end(&txcmpl_stats->syncp);
- 		}
  	}
  
-@@ -277,7 +335,8 @@ int edma_tx_napi_poll(struct napi_struct
+ 	return count;
+@@ -279,7 +326,8 @@
  	u32 data, reg;
  
  	do {
@@ -557,7 +542,7 @@ Signed-off-by: ViKing <vking@example.com>
  		if (work_done >= budget)
  			return work_done;
  
-@@ -323,51 +382,58 @@ irqreturn_t edma_tx_handle_irq(int irq,
+@@ -325,51 +373,58 @@
  	return IRQ_HANDLED;
  }
  
@@ -649,7 +634,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  		buf_len = skb_frag_size(frag);
  
-@@ -375,11 +441,8 @@ static u32 edma_tx_skb_nr_frags(struct e
+@@ -377,11 +432,8 @@
  		 * process them. Zero size segment can happen during TSO operation
  		 * if there is nothing but header in the primary segment.
  		 */
@@ -662,7 +647,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  		/* Setting the MORE bit on the previous Tx descriptor.
  		 * Note: We will flush this descriptor as well later.
-@@ -387,15 +450,20 @@ static u32 edma_tx_skb_nr_frags(struct e
+@@ -389,15 +441,20 @@
  		EDMA_TXDESC_MORE_BIT_SET(txd, 1);
  		EDMA_TXDESC_ENDIAN_SET(txd);
  
@@ -688,7 +673,7 @@ Signed-off-by: ViKing <vking@example.com>
  		}
  
  		EDMA_TXDESC_BUFFER_ADDR_SET(txd, buff_addr);
-@@ -403,14 +471,10 @@ static u32 edma_tx_skb_nr_frags(struct e
+@@ -405,14 +462,10 @@
  		EDMA_TXDESC_POOL_ID_SET(txd, (i + 1));
  
  		*hw_next_to_use = ((*hw_next_to_use + 1) & EDMA_TX_RING_SIZE_MASK);
@@ -704,7 +689,7 @@ Signed-off-by: ViKing <vking@example.com>
  	*txdesc = txd;
  
  	return num_descs;
-@@ -509,17 +573,24 @@ static struct edma_txdesc_pri *edma_tx_s
+@@ -513,17 +566,24 @@
  	struct edma_txdesc_pri *txd = NULL;
  	struct device *dev = ppe_dev->dev;
  	dma_addr_t buff_addr;
@@ -732,7 +717,7 @@ Signed-off-by: ViKing <vking@example.com>
  		return NULL;
  	}
  
-@@ -534,99 +605,33 @@ static struct edma_txdesc_pri *edma_tx_s
+@@ -538,72 +598,22 @@
  	return txd;
  }
  
@@ -811,9 +796,10 @@ Signed-off-by: ViKing <vking@example.com>
 +			goto dma_err;
 +		num_descs += ret;
  
- 		u64_stats_update_begin(&stats->syncp);
- 		stats->tx_nr_frag_pkts++;
- 		u64_stats_update_end(&stats->syncp);
+ 		if (stats) {
+ 			u64_stats_update_begin(&stats->syncp);
+@@ -612,27 +622,11 @@
+ 		}
  	}
  
 -	/* Process skb if it has frag_list */
@@ -841,7 +827,7 @@ Signed-off-by: ViKing <vking@example.com>
  			buf_len = skb_headlen(iter_skb);
  			if (unlikely(buf_len == 0))
  				goto skip_primary;
-@@ -635,12 +640,21 @@ static u32 edma_tx_skb_sg_fill_desc(stru
+@@ -641,12 +635,21 @@
  			EDMA_TXDESC_MORE_BIT_SET(txd, 1);
  			EDMA_TXDESC_ENDIAN_SET(txd);
  
@@ -865,7 +851,7 @@ Signed-off-by: ViKing <vking@example.com>
  				goto dma_err;
  			}
  
-@@ -649,24 +663,18 @@ static u32 edma_tx_skb_sg_fill_desc(stru
+@@ -655,24 +658,18 @@
  			EDMA_TXDESC_POOL_ID_SET(txd, 0);
  
  			*hw_next_to_use = (*hw_next_to_use + 1) & EDMA_TX_RING_SIZE_MASK;
@@ -895,8 +881,8 @@ Signed-off-by: ViKing <vking@example.com>
 +				num_descs += ret;
  
  				/* Update fraglist with nr_frag stats. */
- 				u64_stats_update_begin(&stats->syncp);
-@@ -677,40 +685,22 @@ skip_primary:
+ 				if (stats) {
+@@ -685,12 +682,6 @@
  
  		EDMA_TXDESC_ENDIAN_SET(txd);
  
@@ -907,9 +893,10 @@ Signed-off-by: ViKing <vking@example.com>
 -			   EDMA_TX_RING_SIZE_MASK);
 -
  		/* Update frag_list stats. */
- 		u64_stats_update_begin(&stats->syncp);
- 		stats->tx_fraglist_pkts++;
- 		u64_stats_update_end(&stats->syncp);
+ 		if (stats) {
+ 			u64_stats_update_begin(&stats->syncp);
+@@ -699,28 +690,16 @@
+ 		}
  	}
  
 -	dev_dbg(dev, "skb:%pK num_descs_filled: %u, nr_frags %u, frag_list fragments %u\n",
@@ -938,7 +925,7 @@ Signed-off-by: ViKing <vking@example.com>
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	u32 data = 0, avail = 0, hw_next_to_clean = 0;
-@@ -722,7 +712,7 @@ static u32 edma_tx_avail_desc(struct edm
+@@ -732,7 +711,7 @@
  	hw_next_to_clean = data & EDMA_TXDESC_CONS_IDX_MASK;
  
  	avail = EDMA_DESC_AVAIL_COUNT(hw_next_to_clean - 1,
@@ -947,7 +934,7 @@ Signed-off-by: ViKing <vking@example.com>
  
  	return avail;
  }
-@@ -750,16 +740,16 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -760,16 +739,16 @@
  	struct ppe_port *port = port_priv->ppe_port;
  	struct regmap *regmap = ppe_dev->regmap;
  	struct edma_txdesc_pri *txdesc = NULL;
@@ -955,7 +942,7 @@ Signed-off-by: ViKing <vking@example.com>
 +	struct netdev_queue *nq;
  	int port_id = port->port_id;
 -	u32 hw_next_to_use = 0;
-+	u32 hw_next_to_use = 0, start_idx;
++	u32 hw_next_to_use = 0, start_idx, queue_id;
  	u32 reg;
  
  	hw_next_to_use = txdesc_ring->prod_idx;
@@ -968,7 +955,7 @@ Signed-off-by: ViKing <vking@example.com>
  		if (unlikely(!txdesc_ring->avail_desc)) {
  			netdev_dbg(netdev, "No available descriptors are present at %d ring\n",
  				   txdesc_ring->id);
-@@ -780,10 +770,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -790,10 +769,7 @@
  		if (unlikely(!txdesc)) {
  			netdev_dbg(netdev, "No descriptor available for ring %d\n",
  				   txdesc_ring->id);
@@ -980,7 +967,7 @@ Signed-off-by: ViKing <vking@example.com>
  		}
  
  		EDMA_TXDESC_ENDIAN_SET(txdesc);
-@@ -810,8 +797,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -822,8 +798,7 @@
  		}
  
  		if (unlikely(num_tx_desc_needed > txdesc_ring->avail_desc)) {
@@ -990,7 +977,7 @@ Signed-off-by: ViKing <vking@example.com>
  			if (num_tx_desc_needed > txdesc_ring->avail_desc) {
  				u64_stats_update_begin(&txdesc_stats->syncp);
  				++txdesc_stats->no_desc_avail;
-@@ -828,30 +814,22 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -840,30 +815,22 @@
  		if (unlikely(!txdesc)) {
  			netdev_dbg(netdev, "No non-linear descriptor available for ring %d\n",
  				   txdesc_ring->id);
@@ -1028,41 +1015,56 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Update producer index. */
  	txdesc_ring->prod_idx = hw_next_to_use & EDMA_TXDESC_PROD_IDX_MASK;
-@@ -865,6 +843,9 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -873,10 +840,14 @@
+ 		   netdev->name, skb, txdesc_ring->id, ntohs(skb->protocol),
+ 		 skb->len, port_id, hw_next_to_use, skb->ip_summed);
  
- 	reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_PROD_IDX(txdesc_ring->id);
- 	regmap_write(regmap, reg, txdesc_ring->prod_idx);
-+	nq = netdev_get_tx_queue(netdev, skb_get_queue_mapping(skb) &
-+					(num_possible_cpus() - 1));
+-	dsb(st);
+-
+-	reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_PROD_IDX(txdesc_ring->id);
+-	regmap_write(regmap, reg, txdesc_ring->prod_idx);
++	/* VP injection borrows a CPU-selected ring independently of the
++	 * wireless skb queue mapping. Charge the queue paired with this ring,
++	 * just as completion does, before publishing descriptors to hardware.
++	 */
++	queue_id = (txdesc_ring->id - edma_ctx->hw_info->tx->ring_start) %
++		   num_possible_cpus();
++	nq = netdev_get_tx_queue(netdev, queue_id);
 +	netdev_tx_sent_queue(nq, skb->len);
  
- 	u64_stats_update_begin(&stats->syncp);
- 	stats->tx_pkts++;
+ 	if (stats) {
+ 		u64_stats_update_begin(&stats->syncp);
+@@ -885,6 +856,11 @@
+ 		u64_stats_update_end(&stats->syncp);
+ 	}
+ 
++	dsb(st);
++
++	reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_PROD_IDX(txdesc_ring->id);
++	regmap_write(regmap, reg, txdesc_ring->prod_idx);
++
+ 	return EDMA_TX_OK;
+ }
+ 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-@@ -195,6 +195,10 @@ enum edma_tx_gso_status {
+@@ -195,6 +195,7 @@
   * @errors: Other Tx complete descriptor errors indicated by the hardware.
   * @desc_with_more_bit: Packet's segment transmit count.
   * @no_pending_desc: No descriptor is pending for processing.
 + * @invalid_map: Completion returned an invalid descriptor sidecar.
-+ * @dma_unmap_single: Linear DMA mappings released.
-+ * @dma_unmap_page: Page DMA mappings released.
-+ * @queue_wakes: Stopped transmit queues woken after completion.
   * @syncp: Synchronization pointer.
   */
  struct edma_txcmpl_stats {
-@@ -202,6 +206,10 @@ struct edma_txcmpl_stats {
+@@ -202,6 +203,7 @@
  	u64 errors;
  	u64 desc_with_more_bit;
  	u64 no_pending_desc;
 +	u64 invalid_map;
-+	u64 dma_unmap_single;
-+	u64 dma_unmap_page;
-+	u64 queue_wakes;
  	struct u64_stats_sync syncp;
  };
  
-@@ -209,14 +217,40 @@ struct edma_txcmpl_stats {
+@@ -209,14 +211,40 @@
   * struct edma_txdesc_stats - EDMA Tx descriptor ring statistics.
   * @no_desc_avail: No descriptor available to transmit.
   * @tso_max_seg_exceed: Packets extending EDMA_TX_TSO_SEG_MAX segments.
@@ -1103,7 +1105,7 @@ Signed-off-by: ViKing <vking@example.com>
  /**
   * struct edma_txdesc_pri - EDMA primary Tx descriptor.
   * @word0: Low 32-bit of buffer address.
-@@ -283,6 +317,7 @@ struct edma_txcmpl_desc {
+@@ -283,6 +311,7 @@
   * @pdesc: Primary descriptor ring virtual address
   * @pdma: Primary descriptor ring physical address
   * @sdesc: Secondary descriptor ring virtual address
@@ -1111,7 +1113,7 @@ Signed-off-by: ViKing <vking@example.com>
   * @tx_desc_stats: Tx descriptor ring statistics
   * @sdma: Secondary descriptor ring physical address
   * @count: Number of descriptors
-@@ -295,6 +330,7 @@ struct edma_txdesc_ring {
+@@ -295,6 +324,7 @@
  	struct edma_txdesc_pri *pdesc;
  	dma_addr_t pdma;
  	struct edma_txdesc_sec *sdesc;
@@ -1119,7 +1121,7 @@ Signed-off-by: ViKing <vking@example.com>
  	struct edma_txdesc_stats txdesc_stats;
  	dma_addr_t sdma;
  	u32 count;
-@@ -312,6 +348,7 @@ struct edma_txdesc_ring {
+@@ -312,6 +342,7 @@
   * @dma: Descriptor ring physical address
   * @count: Number of descriptors in the ring
   * @napi_added: Flag to indicate NAPI add status
@@ -1127,7 +1129,7 @@ Signed-off-by: ViKing <vking@example.com>
   */
  struct edma_txcmpl_ring {
  	struct napi_struct napi;
-@@ -323,6 +360,7 @@ struct edma_txcmpl_ring {
+@@ -323,6 +354,7 @@
  	dma_addr_t dma;
  	u32 count;
  	bool napi_added;
@@ -1135,7 +1137,7 @@ Signed-off-by: ViKing <vking@example.com>
  };
  
  extern int edma_tx_napi_budget;
-@@ -337,8 +375,10 @@ void edma_tx_xmit_segs(struct net_device
+@@ -337,8 +369,10 @@
  		       struct edma_txdesc_ring *txdesc_ring,
  		       struct edma_port_tx_stats *stats, int src_vp);
  int edma_tx_vp_inject(u32 vp_id, struct sk_buff *skb);

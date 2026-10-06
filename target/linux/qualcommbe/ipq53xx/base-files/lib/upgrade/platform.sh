@@ -1,7 +1,7 @@
 REQUIRE_IMAGE_METADATA=1
 RAMFS_COPY_BIN='fitblk fit_check_sign'
 
-gl_be6500_remove_oem_rootfs() {
+remove_oem_ubi_rootfs() {
 	local mtdnum
 	local ubidev
 	local ubivol
@@ -29,16 +29,13 @@ gl_be6500_remove_oem_rootfs() {
 
 platform_do_upgrade() {
 	case "$(board_name)" in
-	gl.inet,gl-be6500)
-		CI_UBIPART="rootfs"
-		gl_be6500_remove_oem_rootfs || return 1
-		nand_do_upgrade "$1"
-		;;
 	ubnt,u7-pro-xgs)
 		CI_KERNPART="kernel0"
 		fit_do_upgrade "$1"
 		;;
-	xiaomi,be3600-pro-wired-*)
+	gl.inet,gl-be6500)
+		CI_UBIPART="rootfs"
+		remove_oem_ubi_rootfs || return 1
 		nand_do_upgrade "$1"
 		;;
 	jdcloud,re-cs-08)
@@ -46,6 +43,10 @@ platform_do_upgrade() {
 		CI_ROOTPART="rootfs"
 		CI_DATAPART="rootfs_data"
 		emmc_do_upgrade "$1"
+		;;
+	xiaomi,be6500|\
+	xiaomi,be3600-pro-wired-*)
+		nand_do_upgrade "$1"
 		;;
 	*)
 		echo "Sysupgrade is not supported on your board yet."
@@ -58,13 +59,14 @@ platform_check_image() {
 	[ "$#" -gt 1 ] && return 1
 
 	case "$(board_name)" in
-	gl.inet,gl-be6500|\
-	jdcloud,re-cs-08|\
-	xiaomi,be3600-pro-wired-*)
-		return 0
-		;;
 	ubnt,u7-pro-xgs)
 		fit_check_image "$1"
+		;;
+	gl.inet,gl-be6500|\
+	jdcloud,re-cs-08|\
+	xiaomi,be3600-pro-wired-*|\
+	xiaomi,be6500)
+		return 0
 		;;
 	*)
 		echo "Sysupgrade is not supported on your board yet."
@@ -75,8 +77,8 @@ platform_check_image() {
 
 platform_copy_config() {
 	case "$(board_name)" in
-	jdcloud,re-cs-08|\
-	ubnt,u7-pro-xgs)
+	ubnt,u7-pro-xgs|\
+	jdcloud,re-cs-08)
 		emmc_copy_config
 		;;
 	esac

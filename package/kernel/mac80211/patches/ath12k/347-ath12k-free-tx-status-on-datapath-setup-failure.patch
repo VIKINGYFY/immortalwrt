@@ -1,0 +1,34 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: free TX status on datapath setup failure
+
+Release and clear already allocated TX status buffers when a later ring
+allocation or RX setup fails. The core caller does not deinitialize DP
+after unsuccessful setup, so these buffers otherwise lose their owner.
+The 512 MiB profile can retain up to 2 MiB per failed device setup.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/dp.c
++++ b/drivers/net/wireless/ath/ath12k/dp.c
+@@ -1573,9 +1573,6 @@
+ 		dp->tx_ring[i].tx_status = kmalloc(size, GFP_KERNEL);
+ 		if (!dp->tx_ring[i].tx_status) {
+ 			ret = -ENOMEM;
+-			/* FIXME: The allocated tx status is not freed
+-			 * properly here
+-			 */
+ 			goto fail_cmn_reoq_cleanup;
+ 		}
+ 	}
+@@ -1595,6 +1592,11 @@
+ 	ath12k_dp_rx_free(ab);
+ 
+ fail_cmn_reoq_cleanup:
++	for (i = 0; i < ab->hw_params->max_tx_ring; i++) {
++		kfree(dp->tx_ring[i].tx_status);
++		dp->tx_ring[i].tx_status = NULL;
++	}
++
+ 	ath12k_dp_reoq_lut_addr_reset(dp);
+ 	ath12k_dp_reoq_lut_cleanup(ab);
+ 

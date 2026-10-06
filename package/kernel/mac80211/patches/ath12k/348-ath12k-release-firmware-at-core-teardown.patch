@@ -1,0 +1,31 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: release firmware at core teardown
+
+Core pre-init maps the API2 container before PCI IRQ, MHI, HAL and CE
+setup can fail. PCI probe unwind and AHB removal both free the core
+without passing through the old PCI-only firmware release. Release the
+container with its core owner, after bus resources and workqueues stop.
+Keep firmware pointers valid for MHI teardown and recovery.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -2418,6 +2418,7 @@
+ 	ath12k_wmi_free();
+ 	destroy_workqueue(ab->workqueue_aux);
+ 	destroy_workqueue(ab->workqueue);
++	ath12k_fw_unmap(ab);
+ 	kfree(ab);
+ }
+ 
+--- a/drivers/net/wireless/ath/ath12k/pci.c
++++ b/drivers/net/wireless/ath/ath12k/pci.c
+@@ -1718,7 +1718,6 @@
+ 
+ qmi_fail:
+ 	ath12k_core_deinit(ab);
+-	ath12k_fw_unmap(ab);
+ 	ath12k_mhi_unregister(ab_pci);
+ 
+ 	ath12k_pci_free_irq(ab);

@@ -6,124 +6,78 @@ sys_class_net="${IPQ53XX_SYS_CLASS_NET:-/sys/class/net}"
 proc_interrupts="${IPQ53XX_PROC_INTERRUPTS:-/proc/interrupts}"
 proc_irq="${IPQ53XX_PROC_IRQ:-/proc/irq}"
 pci_devices="${IPQ53XX_PCI_DEVICES:-/sys/bus/pci/devices}"
-edma_state="${IPQ53XX_EDMA_STATE:-/var/run/ipq53xx-edma-affinity.done}"
 
-set_irq_cpu() {
-	local irq="$1"
-	local cpu="$2"
-
-	[ -n "$irq" ] || return 1
-	[ -w "$proc_irq/$irq/smp_affinity_list" ] || return 1
-	echo "$cpu" > "$proc_irq/$irq/smp_affinity_list"
-}
-
-set_named_irq_cpu() {
-	local name="$1"
-	local cpu="$2"
-	local irq
-
-	irq="$(awk -v name="$name" '$0 ~ name {
-		gsub(":", "", $1)
-		print $1
-		exit
-	}' "$proc_interrupts")"
-	set_irq_cpu "$irq" "$cpu"
-}
-
-configure_edma_irqs() {
-	local assigned=0
-	local ring
-
-	[ -e "$edma_state" ] && return
-
-	# Spread the receive and completion queues across all four IPQ5332 CPUs.
-	ring=4
-	while [ "$ring" -le 15 ]; do
-		if set_named_irq_cpu "txcmpl_${ring}$" "$(((ring - 4) % 4))"; then
-			assigned=$((assigned + 1))
-		fi
-		ring=$((ring + 1))
-	done
-
-	ring=12
-	while [ "$ring" -le 15 ]; do
-		if set_named_irq_cpu "rxdesc_${ring}$" "$((ring - 12))"; then
-			assigned=$((assigned + 1))
-		fi
-		ring=$((ring + 1))
-	done
-
-	# A later netdev event retries if EDMA was not fully registered yet.
-	[ "$assigned" -eq 16 ] && : > "$edma_state"
-}
-
-configure_integrated_wifi_irqs() {
-	local ring
-
-	ring=1
-	while [ "$ring" -le 4 ]; do
-		set_named_irq_cpu "reo2host-destination-ring${ring}$" "$((ring - 1))"
-		ring=$((ring + 1))
-	done
-
-	ring=1
-	while [ "$ring" -le 3 ]; do
-		set_named_irq_cpu "wbm2host-tx-completions-ring${ring}$" "$((ring - 1))"
-		ring=$((ring + 1))
-	done
-
-	set_named_irq_cpu 'reo2ost-exception$' 3
-	set_named_irq_cpu 'wbm2host-rx-release$' 3
-	set_named_irq_cpu 'reo2host-status$' 3
-}
-
-assign_pci_irqs() {
-	local name="$1"
-	local even_cpu="$2"
-	local odd_cpu="$3"
-	local index=0
-	local irq
-	local cpu
-
-	awk -v tag="PCI-MSI-$qcn_bdf" -v name="$name" \
-		'index($0, tag) && index($0, name) {
-			gsub(":", "", $1)
-			print $1
-		}' "$proc_interrupts" | while IFS= read -r irq; do
-		if [ "$((index % 2))" -eq 0 ]; then
-			cpu="$even_cpu"
-		else
-			cpu="$odd_cpu"
-		fi
-
-		set_irq_cpu "$irq" "$cpu"
-		index=$((index + 1))
-	done
-}
-
-configure_pci_wifi_irqs() {
-	local pci_dev
-
-	qcn_bdf=
+wifi=0
+qcn_bdfs=
+if [ -n "$DEVICENAME" ] && [ -L "$sys_class_net/$DEVICENAME/phy80211" ]; then
+	wifi=1
 	for pci_dev in "$pci_devices"/*; do
 		[ "$(cat "$pci_dev/vendor" 2>/dev/null)" = 0x17cb ] || continue
 		[ "$(cat "$pci_dev/device" 2>/dev/null)" = 0x1109 ] || continue
-		qcn_bdf="${pci_dev##*/}"
-		break
+		qcn_bdfs="$qcn_bdfs ${pci_dev##*/}"
 	done
+fi
 
-	[ -n "$qcn_bdf" ] || return
+# One snapshot per event. Recheck EDMA after driver reloads instead of keeping
+# a done marker that can outlive the IRQs. Unchanged affinities need no write.
+awk -v wifi="$wifi" -v bdfs="$qcn_bdfs" '
+	function assign(cpu) {
+		if (cpu in online)
+			print irq, cpu
+	}
+	BEGIN {
+		split(bdfs, devices, " ")
+		for (i in devices)
+			qcn[devices[i]] = 1
+	}
+	$1 ~ /^CPU[0-9]+$/ {
+		for (i = 1; i <= NF; i++) {
+			cpu = $i
+			sub(/^CPU/, "", cpu)
+			online[cpu] = 1
+		}
+		next
+	}
+	$1 !~ /^[0-9]+:$/ { next }
+	{
+		irq = $1
+		sub(/:$/, "", irq)
+		name = $NF
+		sub(/:$/, "", name)
+		if (name ~ /^txcmpl_([4-9]|1[0-5])$/) {
+			sub(/^txcmpl_/, "", name)
+			assign((name - 4) % 4)
+		} else if (name ~ /^rxdesc_1[2-5]$/) {
+			sub(/^rxdesc_/, "", name)
+			assign(name - 12)
+		} else if (wifi) {
+			if (name ~ /^reo2host-destination-ring[1-4]$/ ||
+			    name ~ /^wbm2host-tx-completions-ring[1-4]$/) {
+				assign(substr(name, length(name)) - 1)
+			} else if (name == "reo2ost-exception" ||
+			           name == "wbm2host-rx-release" || name == "reo2host-status") {
+				assign(3)
+			} else {
+				for (i = 2; i <= NF; i++) {
+					bdf = $i
+					if (!sub(/^.*PCI-MSI-/, "", bdf) || !(bdf in qcn))
+						continue
+					# Shared DP actions use one affinity per MSI vector.
+					if ($0 ~ /(^|[[:space:],])DP_EXT_IRQ([[:space:],]|$)/)
+						assign(2 + (dp[bdf]++ % 2))
+					else if ($0 ~ /(^|[[:space:],])ce[0-9]+([[:space:],]|$)/)
+						assign(2 + (ce[bdf]++ % 2))
+					break
+				}
+			}
+		}
+	}
+' "$proc_interrupts" 2>/dev/null | while read -r irq cpu; do
+	affinity="$proc_irq/$irq/smp_affinity_list"
+	[ -w "$affinity" ] || continue
+	read -r current < "$affinity" && [ "$current" = "$cpu" ] && continue
+	# Some MSI controllers reject affinity changes. Keep the kernel fallback.
+	{ echo "$cpu" > "$affinity"; } 2>/dev/null
+done
 
-	# Leave CPU0/1 available for PPE/EDMA and system work.
-	assign_pci_irqs ' ce' 2 3
-	assign_pci_irqs 'DP_EXT_IRQ' 2 3
-}
-
-# EDMA affinity is independent of ath12k and runs for ordinary netdev events.
-configure_edma_irqs
-
-[ -n "$DEVICENAME" ] || exit 0
-[ -L "$sys_class_net/$DEVICENAME/phy80211" ] || exit 0
-
-configure_integrated_wifi_irqs
-configure_pci_wifi_irqs
+exit 0

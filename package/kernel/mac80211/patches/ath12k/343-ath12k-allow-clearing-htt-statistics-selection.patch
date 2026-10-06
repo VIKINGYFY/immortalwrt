@@ -1,0 +1,41 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: allow clearing HTT statistics selection
+
+The default selector is zero, but a collector cannot restore this state
+because writes reject zero as if they issued a firmware reset. This file
+only stores a selection; the separate htt_stats_reset file sends resets.
+Accept zero so temporary statistics queries can leave the prior state
+unchanged, without clearing firmware counters. Keep a trailing NUL for
+a maximum-length write, and reject whitespace-only input (sscanf EOF)
+before it can use an uninitialized selector.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.c
++++ b/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.c
+@@ -6193,7 +6193,7 @@
+ 	if (count > size)
+ 		return -EINVAL;
+ 
+-	char *buf __free(kfree) = kzalloc(size, GFP_KERNEL);
++	char *buf __free(kfree) = kzalloc(size + 1, GFP_KERNEL);
+ 	if (!buf)
+ 		return -ENOMEM;
+ 
+@@ -6202,11 +6202,13 @@
+ 
+ 	num_args = sscanf(buf, "%u %u %u %u %u\n", &type, &cfg_param[0],
+ 			  &cfg_param[1], &cfg_param[2], &cfg_param[3]);
+-	if (!num_args || num_args > 5)
++	if (num_args < 1 || num_args > 5)
+ 		return -EINVAL;
+ 
+-	if (type == ATH12K_DBG_HTT_EXT_STATS_RESET ||
+-	    type >= ATH12K_DBG_HTT_NUM_EXT_STATS)
++	/* Zero restores the unselected state; only htt_stats_reset sends
++	 * a firmware counter reset. No request is sent by this selector.
++	 */
++	if (type >= ATH12K_DBG_HTT_NUM_EXT_STATS)
+ 		return -EINVAL;
+ 
+ 	wiphy_lock(ath12k_ar_to_hw(ar)->wiphy);

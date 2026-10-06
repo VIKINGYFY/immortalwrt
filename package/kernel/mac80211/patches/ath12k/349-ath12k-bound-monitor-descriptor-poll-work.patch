@@ -1,0 +1,55 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: bound monitor descriptor poll work
+
+The monitor loop debits its budget only at a valid end of PPDU, yet returns
+all consumed descriptors as NAPI work. Empty, invalid, flushed and partial
+PPDU entries can therefore run beyond the advertised poll weight and delay
+other data queues. Charge every descriptor once; the existing continuation
+state keeps partial PPDU parsing across polls.
+
+The existing continuation state preserves partial PPDU parsing when the
+descriptor budget ends.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
+@@ -3283,6 +3283,7 @@
+ 		spin_unlock_bh(&buf_ring->idr_lock);
+ 
+ 		if (unlikely(!skb)) {
++
+ 			ath12k_warn(ab, "monitor destination with invalid buf_id %d\n",
+ 				    buf_id);
+ 			goto move_next;
+@@ -3305,17 +3306,12 @@
+ 			ath12k_dbg(ab, ATH12K_DBG_DATA,
+ 				   "Monitor dest descriptor end reason %d", end_reason);
+ 			dev_kfree_skb_any(skb);
++
+ 			goto move_next;
+ 		}
+ 
+-		/* Calculate the budget when the ring descriptor with the
+-		 * HAL_MON_END_OF_PPDU to ensure that one PPDU worth of data is always
+-		 * reaped. This helps to efficiently utilize the NAPI budget.
+-		 */
+-		if (end_reason == HAL_MON_END_OF_PPDU) {
+-			*budget -= 1;
++		if (end_reason == HAL_MON_END_OF_PPDU)
+ 			rxcb->is_end_of_ppdu = true;
+-		}
+ 
+ 		end_offset = u32_get_bits(info0, HAL_MON_DEST_INFO0_END_OFFSET);
+ 		if (likely(end_offset <= DP_RX_BUFFER_SIZE)) {
+@@ -3330,6 +3326,10 @@
+ 		__skb_queue_tail(&skb_list, skb);
+ 
+ move_next:
++		/* Bound all ring work, including empty and discarded descriptors.
++		 * ppdu_continuation below preserves partial PPDU parsing across polls.
++		 */
++		*budget -= 1;
+ 		ath12k_dp_mon_buf_replenish(ab, buf_ring, 1);
+ 		ath12k_hal_srng_dst_get_next_entry(ab, srng);
+ 		num_buffs_reaped++;
