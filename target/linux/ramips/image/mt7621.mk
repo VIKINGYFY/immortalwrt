@@ -398,7 +398,7 @@ define Device/asus_rp-ac56
   DEVICE_MODEL := RP-AC56
   IMAGE_SIZE := 16000k
   DEVICE_PACKAGES := kmod-mt7603 kmod-mt76x2 \
-	kmod-sound-mt7620 -uboot-envtools
+	kmod-sound-mt7620 audio-support -uboot-envtools
   IMAGES += factory.bin
   IMAGE/factory.bin := append-kernel | append-rootfs | pad-rootfs | check-size
   IMAGE/sysupgrade.bin := append-kernel | append-rootfs | pad-rootfs | \
@@ -2256,7 +2256,7 @@ define Device/mediatek_ap-mt7621a-v60
   DEVICE_VENDOR := Mediatek
   DEVICE_MODEL := AP-MT7621A-V60 EVB
   DEVICE_PACKAGES := kmod-usb3 kmod-mmc-mtk kmod-sound-mt7620 \
-	-wpad-openssl -uboot-envtools
+	audio-support -wpad-openssl -uboot-envtools
 endef
 TARGET_DEVICES += mediatek_ap-mt7621a-v60
 
@@ -3161,7 +3161,7 @@ define Device/tplink_er605-v1
   DEVICE_ALT0_VENDOR := TP-Link
   DEVICE_ALT0_MODEL := TL-R605
   DEVICE_ALT0_VARIANT := v1
-  DEVICE_PACKAGES := -wpad-basic-mbedtls -uboot-envtools
+  DEVICE_PACKAGES := -wpad-openssl -uboot-envtools
   IMAGE_SIZE := 13760k
 endef
 TARGET_DEVICES += tplink_er605-v1
@@ -3198,6 +3198,21 @@ define Device/tplink_ex220-v1
   IMAGE_SIZE := 15744k
 endef
 TARGET_DEVICES += tplink_ex220-v1
+
+define Device/tplink_ex220-v1-nand
+  $(Device/nand)
+  DEVICE_VENDOR := TP-Link
+  DEVICE_MODEL := EX220
+  DEVICE_VARIANT := v1 (NAND)
+  DEVICE_DTS := mt7621_tplink_ex220-v1-nand
+  DEVICE_DTS_CONFIG := config@1
+  DEVICE_PACKAGES := kmod-mt7915-firmware -uboot-envtools
+  KERNEL_LOADADDR := 0x82000000
+  KERNEL := kernel-bin | relocate-kernel $(loadaddr-y) | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
+  IMAGE_SIZE := 39936k
+endef
+TARGET_DEVICES += tplink_ex220-v1-nand
 
 define Device/tplink_ex220-v2
   $(Device/dsa-migration)
