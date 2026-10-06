@@ -65,8 +65,8 @@ ipq50xx_setup_macs()
 		ucidef_set_interface_macaddr "lan" "$label_mac"
 		ucidef_set_interface_macaddr "wan" "$(macaddr_add "$label_mac" 1)"
 		ucidef_set_label_macaddr "$label_mac"
-		# gmac1 has no nvmem MAC source, so stmmac would randomise the
-		# DSA conduit's address on every boot - pin it to the label MAC
+		# dp2 has no nvmem MAC source, so pin the DSA conduit's
+		# address to the label MAC on every boot.
 		ucidef_set_network_device_mac "eth0" "$label_mac"
 		;;
 	tplink,eap650-outdoor-v1|\

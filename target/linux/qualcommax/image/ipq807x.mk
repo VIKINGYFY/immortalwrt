@@ -62,7 +62,7 @@ define Device/aliyun_ap8220
 	PAGESIZE := 2048
 	SOC := ipq8071
 	DEVICE_DTS_CONFIG := config@ac02
-	DEVICE_PACKAGES := ipq-wifi-aliyun_ap8220 kmod-hci-uart kmod-bluetooth kmod-bluetooth-6lowpan
+	DEVICE_PACKAGES := ipq-wifi-aliyun_ap8220 input-support kmod-hci-uart kmod-bluetooth kmod-bluetooth-6lowpan
 endef
 TARGET_DEVICES += aliyun_ap8220
 
@@ -214,7 +214,7 @@ define Device/linksys_mx
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq8072
-	DEVICE_PACKAGES := kmod-leds-pca963x kmod-hci-uart
+	DEVICE_PACKAGES := kmod-leds-pca963x input-support kmod-hci-uart
 	IMAGES += factory.bin
 	IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi | linksys-image type=$$$$(DEVICE_MODEL)
 endef
@@ -672,7 +672,7 @@ define Device/zyxel_nbg7815
 	DEVICE_MODEL := NBG7815
 	DEVICE_DTS_CONFIG := config@nbg7815
 	SOC := ipq8074
-	DEVICE_PACKAGES := ipq-wifi-zyxel_nbg7815 kmod-hci-uart kmod-hwmon-tmp103
+	DEVICE_PACKAGES := ipq-wifi-zyxel_nbg7815 input-support kmod-hci-uart kmod-hwmon-tmp103
 endef
 TARGET_DEVICES += zyxel_nbg7815
 

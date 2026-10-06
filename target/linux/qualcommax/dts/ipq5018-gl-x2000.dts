@@ -19,7 +19,7 @@
 	 * nvmem MAC addresses of both GMACs with invalid ones.
 	 */
 	aliases {
-		label-mac-device = &gmac0;
+		label-mac-device = &dp1;
 		led-boot = &led_system_power;
 		led-failsafe = &led_system_power;
 		led-running = &led_system_power;
@@ -188,15 +188,27 @@
 	};
 };
 
-&uniphy0 {
+&switch {
 	status = "okay";
+	switch_mac_mode = <MAC_MODE_SGMII_CHANNEL0>;
 
-	assigned-clocks = <&uniphy0 UNIPHY_CLK_REF>;
-	assigned-clock-rates = <UNIPHY_REFCLK_25MHZ>;
+	qcom,port_phyinfo {
+		port@1 {
+			port_id = <1>;
+			mdiobus = <&mdio0>;
+			phy_address = <7>;
+		};
+
+		port@2 {
+			port_id = <2>;
+			mdiobus = <&mdio1>;
+			phy_address = <4>;
+		};
+	};
 };
 
 // MAC0 ---MDI---> IPQ5018 GE PHY
-&gmac0 {
+&dp1 {
 	status = "okay";
 
 	label = "wan";
@@ -206,7 +218,7 @@
 };
 
 // MAC1 ---SGMII---> AR8031
-&gmac1 {
+&dp2 {
 	status = "okay";
 
 	phy-handle = <&ethernet_phy>;
