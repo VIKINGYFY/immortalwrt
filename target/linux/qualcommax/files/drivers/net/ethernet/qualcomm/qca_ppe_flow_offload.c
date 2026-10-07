@@ -2945,7 +2945,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		return ppe_flow_reject(priv, rule, PPE_REJECT_NAT_IPV6);
 
 	if (wifi_ingress) {
-		if (data.ivid || data.vlan_valid || data.pppoe_valid ||
+		if (data.ivid || data.vlan_valid ||
 		    data.odev->ieee80211_ptr ||
 		    (data.l4proto != IPPROTO_TCP && data.l4proto != IPPROTO_UDP))
 			return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_PORT);
