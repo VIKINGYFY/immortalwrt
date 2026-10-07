@@ -666,8 +666,16 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 		 * Exception CPU codes retain the normal DSA/slow path. */
 		if ((le32_to_cpu(rxph->rx_pre4) & 0xff) == QCA_PPE_WIFI_SERVICE_CODE &&
 		    !(le32_to_cpu(rxph->rx_pre4) >> 24)) {
-			if ((desc_status & (EDMA_RXDESC_L3_CSUM_OK | EDMA_RXDESC_L4_CSUM_OK)) !=
-			    (EDMA_RXDESC_L3_CSUM_OK | EDMA_RXDESC_L4_CSUM_OK)) {
+			const struct ethhdr *eh = (const void *)skb->data;
+			u32 csum_ok = EDMA_RXDESC_L4_CSUM_OK;
+
+			/* An IPv6 header carries no checksum, so the engine has
+			 * no L3 verdict to report and only the L4 one gates it.
+			 * edma_rx_csum() skips the L3 check for the same reason. */
+			if (skb_headlen(skb) < ETH_HLEN ||
+			    eh->h_proto != htons(ETH_P_IPV6))
+				csum_ok |= EDMA_RXDESC_L3_CSUM_OK;
+			if ((desc_status & csum_ok) != csum_ok) {
 				priv->stats.rx_ppe_csum_drop++;
 				dev_kfree_skb_any(skb);
 				netdev->stats.rx_dropped++;
