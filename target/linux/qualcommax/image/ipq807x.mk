@@ -62,7 +62,7 @@ define Device/aliyun_ap8220
 	PAGESIZE := 2048
 	SOC := ipq8071
 	DEVICE_DTS_CONFIG := config@ac02
-	DEVICE_PACKAGES := ipq-wifi-aliyun_ap8220 kmod-hci-uart kmod-bluetooth kmod-bluetooth-6lowpan
+	DEVICE_PACKAGES := ipq-wifi-aliyun_ap8220
 endef
 TARGET_DEVICES += aliyun_ap8220
 
@@ -758,7 +758,7 @@ define Device/verizon_cr1000a
 	DEVICE_MODEL := CR1000A
 	SOC := ipq8072
 	DEVICE_DTS_CONFIG := config@verizon_cr1000a
-	DEVICE_PACKAGES := ipq-wifi-verizon_cr1000a ath11k-firmware-qcn9074 \
+	DEVICE_PACKAGES := ipq-wifi-verizon_cr1000a ath11k-firmware-qcn9074-ddwrt \
 		kmod-dsa-rtl9303-spi cr1000a-recovery
 endef
 TARGET_DEVICES += verizon_cr1000a

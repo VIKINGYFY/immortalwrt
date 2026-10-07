@@ -4,6 +4,7 @@
  * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/bitfield.h>
 #include <linux/clk.h>
 #include <linux/ethtool.h>
 #include <linux/hash.h>
@@ -20,7 +21,6 @@
 #include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
-#include <linux/version.h>
 #include <net/netdev_queues.h>
 
 #include "qca_edma.h"
@@ -580,6 +580,20 @@ static void edma_rx_hash(struct net_device *netdev, struct sk_buff *skb,
 						     PKT_HASH_TYPE_L3);
 }
 
+/* The engine strips an outer C-tag into the preheader; a C-tag below an S-tag
+ * stays in the frame.
+ */
+static void edma_rx_vlan(struct net_device *netdev, struct sk_buff *skb,
+			 const struct edma_rx_preheader *rxph)
+{
+	u32 pre2 = le32_to_cpu(rxph->rx_pre2);
+	u16 tci = le32_to_cpu(rxph->rx_pre3) & EDMA_RXPH_CTAG_TCI;
+
+	if ((netdev->features & NETIF_F_HW_VLAN_CTAG_RX) &&
+	    (pre2 & EDMA_RXPH_CTAG_FLAG))
+		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), tci);
+}
+
 static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 			 struct edma_ring *rxdesc_ring)
 {
@@ -666,8 +680,15 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 		 * Exception CPU codes retain the normal DSA/slow path. */
 		if ((le32_to_cpu(rxph->rx_pre4) & 0xff) == QCA_PPE_WIFI_SERVICE_CODE &&
 		    !(le32_to_cpu(rxph->rx_pre4) >> 24)) {
-			if ((desc_status & (EDMA_RXDESC_L3_CSUM_OK | EDMA_RXDESC_L4_CSUM_OK)) !=
-			    (EDMA_RXDESC_L3_CSUM_OK | EDMA_RXDESC_L4_CSUM_OK)) {
+			const struct ethhdr *eh = (const void *)skb->data;
+			u32 csum_ok = EDMA_RXDESC_L4_CSUM_OK;
+
+			/* An IPv6 header carries no checksum, so the engine has
+			 * no L3 verdict to report and only the L4 one gates it.
+			 * edma_rx_csum() skips the L3 check for the same reason. */
+			if (skb_headlen(skb) < ETH_HLEN || eh->h_proto != htons(ETH_P_IPV6))
+				csum_ok |= EDMA_RXDESC_L3_CSUM_OK;
+			if ((desc_status & csum_ok) != csum_ok) {
 				priv->stats.rx_ppe_csum_drop++;
 				dev_kfree_skb_any(skb);
 				netdev->stats.rx_dropped++;
@@ -678,6 +699,7 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 			goto next;
 		}
 
+		edma_rx_vlan(netdev, skb, rxph);
 		frame = skb->data;
 		skb->protocol = eth_type_trans(skb, priv->netdev);
 		edma_rx_csum(netdev, skb, rxph, desc_status,
@@ -692,6 +714,8 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 			goto next;
 		}
 		tag_info->port = src_port;
+		tag_info->cpu_code = FIELD_GET(EDMA_RXPH_CPU_CODE,
+					       le32_to_cpu(rxph->rx_pre4));
 
 		dev_sw_netstats_rx_add(priv->netdev, pkt_len);
 		napi_gro_receive(&priv->rx_napi, skb);
@@ -799,6 +823,26 @@ static void edma_tx_csum(struct sk_buff *skb, struct edma_tx_preheader *txph,
 		txph->tx_pre6 |= EDMA_TX_PRE6_IP_CSUM_EN;
 }
 
+static void edma_tx_vlan(struct sk_buff *skb, struct edma_tx_preheader *txph)
+{
+	u16 tci = skb_vlan_tag_get(skb);
+
+	if (!skb_vlan_tag_present(skb))
+		return;
+
+	txph->tx_pre4 |= EDMA_TX_PRE4_ADV_OFFLOAD_EN;
+
+	if (skb->vlan_proto == htons(ETH_P_8021AD)) {
+		txph->tx_pre2 |= EDMA_TX_PRE2_STAG_FLAG;
+		txph->tx_pre3 = tci << EDMA_TX_PRE3_STAG_SHIFT;
+		txph->tx_pre4 |= EDMA_TX_PRE4_STAG_ADD;
+	} else {
+		txph->tx_pre2 |= EDMA_TX_PRE2_CTAG_FLAG;
+		txph->tx_pre3 = tci;
+		txph->tx_pre4 |= EDMA_TX_PRE4_CTAG_ADD;
+	}
+}
+
 /* Segmentation is one bit in every descriptor of the frame and the segment
  * size in the preheader. The engine writes the headers of each segment it
  * cuts, so the checksums it is already asked for cover what it produced.
@@ -813,6 +857,40 @@ static u32 edma_tx_tso(struct sk_buff *skb, struct edma_tx_preheader *txph)
 	return EDMA_TXDESC_TSO_EN;
 }
 
+/* A frame is described by its head, its fragments, then the head and
+ * fragments of every skb on its frag_list.
+ */
+static u16 edma_tx_ndesc(const struct sk_buff *skb)
+{
+	const struct sk_buff *seg;
+	u16 n = skb_shinfo(skb)->nr_frags + 1;
+
+	skb_walk_frags(skb, seg)
+		n += !!skb_headlen(seg) + skb_shinfo(seg)->nr_frags;
+
+	return n;
+}
+
+static bool edma_tx_map(struct device *dev, struct edma_ring *ring,
+			struct sk_buff *skb, u32 idx, u16 *n, u16 ndesc,
+			struct page *page, u32 off, u32 len, u32 tso)
+{
+	u32 fidx = (idx + *n) & (ring->count - 1);
+	struct edma_txdesc *txdesc;
+	dma_addr_t dma;
+
+	dma = dma_map_page(dev, page, off, len, DMA_TO_DEVICE);
+	if (dma_mapping_error(dev, dma))
+		return false;
+
+	ring->skb_store[fidx] = skb;
+	txdesc = EDMA_TXDESC_DESC(ring, fidx);
+	txdesc->buffer_addr = cpu_to_le32(dma);
+	txdesc->word1 = tso | (++*n < ndesc ? EDMA_TXDESC_MORE : 0) |
+			(len & EDMA_TXDESC_DATA_LENGTH_MASK);
+
+	return true;
+}
 
 static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *netdev,
 				  struct sk_buff *skb,
@@ -824,10 +902,11 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 	u16 mask = txdesc_ring->count - 1;
 	struct edma_tx_preheader *txph;
 	struct dsa_oob_tag_info *tag_info;
-	u16 ndesc = shinfo->nr_frags + 1;
+	u16 ndesc = edma_tx_ndesc(skb);
 	struct edma_txdesc *txdesc;
-	u16 prod, cons, dst_info;
+	u16 prod, cons, dst_info, n;
 	u32 val, idx, i, len, bytes, tso;
+	struct sk_buff *seg;
 	dma_addr_t head_dma;
 	bool taken = false;
 	__be16 proto;
@@ -885,6 +964,7 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 	} else {
 		txph->dst_info = dst_info;
 		edma_tx_csum(skb, txph, proto);
+		edma_tx_vlan(skb, txph);
 		tso = edma_tx_tso(skb, txph);
 	}
 
@@ -906,23 +986,29 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 			 << EDMA_TXDESC_DATA_OFFSET_SHIFT) |
 			(len & EDMA_TXDESC_DATA_LENGTH_MASK);
 
-	for (i = 0; i < shinfo->nr_frags; i++) {
-		const skb_frag_t *frag = &shinfo->frags[i];
-		u32 fidx = (idx + 1 + i) & mask;
-		dma_addr_t dma;
+	n = 1;
+	seg = skb;
+	do {
+		const struct skb_shared_info *si = skb_shinfo(seg);
 
-		len = skb_frag_size(frag);
-		dma = skb_frag_dma_map(dev, frag, 0, len, DMA_TO_DEVICE);
-		if (dma_mapping_error(dev, dma))
+		if (seg != skb && skb_headlen(seg) &&
+		    !edma_tx_map(dev, txdesc_ring, skb, idx, &n, ndesc,
+				 virt_to_page(seg->data),
+				 offset_in_page(seg->data), skb_headlen(seg),
+				 tso))
 			goto unmap;
 
-		txdesc_ring->skb_store[fidx] = skb;
-		txdesc = EDMA_TXDESC_DESC(txdesc_ring, fidx);
-		txdesc->buffer_addr = cpu_to_le32(dma);
-		txdesc->word1 = tso | (i + 1 < shinfo->nr_frags ?
-				       EDMA_TXDESC_MORE : 0) |
-				(len & EDMA_TXDESC_DATA_LENGTH_MASK);
-	}
+		for (i = 0; i < si->nr_frags; i++) {
+			const skb_frag_t *frag = &si->frags[i];
+
+			if (!edma_tx_map(dev, txdesc_ring, skb, idx, &n, ndesc,
+					 skb_frag_page(frag), skb_frag_off(frag),
+					 skb_frag_size(frag), tso))
+				goto unmap;
+		}
+
+		seg = seg == skb ? shinfo->frag_list : seg->next;
+	} while (seg);
 
 	prod = (prod + ndesc) & mask;
 	txdesc_ring->prod_idx = prod;
@@ -952,8 +1038,8 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 	return NETDEV_TX_OK;
 
 unmap:
-	while (i--) {
-		u32 fidx = (idx + 1 + i) & mask;
+	while (--n) {
+		u32 fidx = (idx + n) & mask;
 
 		txdesc = EDMA_TXDESC_DESC(txdesc_ring, fidx);
 		dma_unmap_page(dev, le32_to_cpu(txdesc->buffer_addr),
@@ -1075,7 +1161,7 @@ static void edma_configure_txdesc_ring(struct edma_priv *priv,
 	u32 val;
 
 	regmap_write(priv->regmap, EDMA_REG_TXDESC_BA(soc->txdesc_ring),
-		    (u32)txdesc_ring->dma);
+		     (u32)txdesc_ring->dma);
 
 	regmap_write(priv->regmap,
 		     EDMA_REG_TXDESC_RING_SIZE(soc->txdesc_ring),
@@ -1115,7 +1201,12 @@ static void edma_configure_txcmpl_ring(struct edma_priv *priv,
 	regmap_write(priv->regmap,
 		     EDMA_REG_TX_MOD_TIMER(soc->tx_int_base,
 					   soc->txcmpl_ring),
-		     EDMA_TX_MOD_TIMER);
+		     priv->tx_mod_timer);
+
+	regmap_write(priv->regmap,
+		     EDMA_REG_TXCMPL_UGT_THRE(soc->txcmpl_base,
+					      soc->txcmpl_ring),
+		     priv->tx_ugt_thre);
 
 	regmap_write(priv->regmap,
 		     EDMA_REG_TX_INT_CTRL(soc->tx_int_base,
@@ -1142,7 +1233,11 @@ static void edma_configure_rxdesc_ring(struct edma_priv *priv,
 
 	regmap_write(priv->regmap,
 		     EDMA_REG_RX_MOD_TIMER(soc->rxdesc_ring),
-		     EDMA_RX_MOD_TIMER_INIT);
+		     priv->rx_mod_timer);
+
+	regmap_write(priv->regmap,
+		     EDMA_REG_RXDESC_UGT_THRE(soc->rxdesc_ring),
+		     priv->rx_ugt_thre);
 
 	regmap_write(priv->regmap,
 		     EDMA_REG_RX_INT_CTRL(soc->rxdesc_ring),
@@ -1282,14 +1377,6 @@ static int edma_hw_init(struct edma_priv *priv)
 	return 0;
 }
 
-static void edma_get_drvinfo(struct net_device *netdev,
-			     struct ethtool_drvinfo *info)
-{
-	strscpy(info->driver, "qca-edma", sizeof(info->driver));
-	strscpy(info->bus_info, dev_name(netdev->dev.parent),
-		sizeof(info->bus_info));
-}
-
 static void edma_get_ringparam(struct net_device *netdev,
 			       struct ethtool_ringparam *ring,
 			       struct kernel_ethtool_ringparam *kernel_ring,
@@ -1336,6 +1423,78 @@ static int edma_set_ringparam(struct net_device *netdev,
 
 	return edma_reconfigure(priv, priv->rx_page_order, ring->tx_pending,
 				ring->rx_pending);
+}
+
+/* A ring interrupts once it holds more frames than its threshold, and its
+ * timer interrupts for fewer once they have waited that long. A threshold of
+ * zero interrupts on every frame, which leaves the timer nothing to do.
+ */
+static u32 edma_mod_timer_us(struct edma_priv *priv, u16 ticks)
+{
+	return DIV_ROUND_CLOSEST_ULL((u64)ticks * EDMA_MOD_TIMER_CYCLES *
+				     USEC_PER_SEC, priv->clk_rate);
+}
+
+static int edma_get_coalesce(struct net_device *netdev,
+			     struct ethtool_coalesce *ec,
+			     struct kernel_ethtool_coalesce *kernel_coal,
+			     struct netlink_ext_ack *extack)
+{
+	struct edma_priv *priv = netdev_priv(netdev);
+
+	ec->rx_coalesce_usecs = edma_mod_timer_us(priv, priv->rx_mod_timer);
+	ec->tx_coalesce_usecs = edma_mod_timer_us(priv, priv->tx_mod_timer);
+	ec->rx_max_coalesced_frames = priv->rx_ugt_thre + 1;
+	ec->tx_max_coalesced_frames = priv->tx_ugt_thre + 1;
+
+	return 0;
+}
+
+static int edma_set_coalesce(struct net_device *netdev,
+			     struct ethtool_coalesce *ec,
+			     struct kernel_ethtool_coalesce *kernel_coal,
+			     struct netlink_ext_ack *extack)
+{
+	struct edma_priv *priv = netdev_priv(netdev);
+	const struct edma_soc_data *soc = priv->soc;
+	u64 rx_ticks, tx_ticks;
+
+	rx_ticks = DIV_ROUND_CLOSEST_ULL((u64)ec->rx_coalesce_usecs *
+					 priv->clk_rate,
+					 EDMA_MOD_TIMER_CYCLES * USEC_PER_SEC);
+	tx_ticks = DIV_ROUND_CLOSEST_ULL((u64)ec->tx_coalesce_usecs *
+					 priv->clk_rate,
+					 EDMA_MOD_TIMER_CYCLES * USEC_PER_SEC);
+	if (rx_ticks > EDMA_MOD_TIMER_MAX || tx_ticks > EDMA_MOD_TIMER_MAX) {
+		NL_SET_ERR_MSG_MOD(extack, "longer than the moderation timer counts");
+		return -EINVAL;
+	}
+
+	if (!ec->rx_max_coalesced_frames || !ec->tx_max_coalesced_frames ||
+	    ec->rx_max_coalesced_frames > EDMA_UGT_THRE_MAX + 1 ||
+	    ec->tx_max_coalesced_frames > EDMA_UGT_THRE_MAX + 1) {
+		NL_SET_ERR_MSG_MOD(extack, "frames must be between 1 and 65536");
+		return -EINVAL;
+	}
+
+	priv->rx_mod_timer = rx_ticks;
+	priv->tx_mod_timer = tx_ticks;
+	priv->rx_ugt_thre = ec->rx_max_coalesced_frames - 1;
+	priv->tx_ugt_thre = ec->tx_max_coalesced_frames - 1;
+
+	regmap_write(priv->regmap, EDMA_REG_RX_MOD_TIMER(soc->rxdesc_ring),
+		     priv->rx_mod_timer);
+	regmap_write(priv->regmap, EDMA_REG_RXDESC_UGT_THRE(soc->rxdesc_ring),
+		     priv->rx_ugt_thre);
+	regmap_write(priv->regmap,
+		     EDMA_REG_TX_MOD_TIMER(soc->tx_int_base, soc->txcmpl_ring),
+		     priv->tx_mod_timer);
+	regmap_write(priv->regmap,
+		     EDMA_REG_TXCMPL_UGT_THRE(soc->txcmpl_base,
+					      soc->txcmpl_ring),
+		     priv->tx_ugt_thre);
+
+	return 0;
 }
 
 /* One ring in each direction with an interrupt and a NAPI of its own, and
@@ -1464,10 +1623,13 @@ static void edma_get_ethtool_stats(struct net_device *netdev,
 }
 
 static const struct ethtool_ops edma_ethtool_ops = {
+	.supported_coalesce_params = ETHTOOL_COALESCE_USECS |
+				     ETHTOOL_COALESCE_MAX_FRAMES,
+	.get_coalesce = edma_get_coalesce,
+	.set_coalesce = edma_set_coalesce,
 	.get_sset_count = edma_get_sset_count,
 	.get_strings = edma_get_strings,
 	.get_ethtool_stats = edma_get_ethtool_stats,
-	.get_drvinfo = edma_get_drvinfo,
 	.get_link = ethtool_op_get_link,
 	.get_ringparam = edma_get_ringparam,
 	.set_ringparam = edma_set_ringparam,
@@ -1475,6 +1637,23 @@ static const struct ethtool_ops edma_ethtool_ops = {
 	.get_regs = edma_get_regs,
 	.get_channels = edma_get_channels,
 };
+
+static void edma_rx_vlan_strip(struct edma_priv *priv,
+			       netdev_features_t features)
+{
+	regmap_assign_bits(priv->regmap,
+			   EDMA_REG_RXDESC_CTRL(priv->soc->rxdesc_ring),
+			   EDMA_RXDESC_CTAG_REMOVE_EN,
+			   features & NETIF_F_HW_VLAN_CTAG_RX);
+}
+
+static int edma_ndo_set_features(struct net_device *netdev,
+				 netdev_features_t features)
+{
+	edma_rx_vlan_strip(netdev_priv(netdev), features);
+
+	return 0;
+}
 
 static int edma_ndo_open(struct net_device *netdev)
 {
@@ -1493,6 +1672,7 @@ static int edma_ndo_open(struct net_device *netdev)
 	priv->stats.rx_pending_reopen += (prod - cons) &
 				       (priv->rxdesc_ring.count - 1);
 
+	edma_rx_vlan_strip(priv, netdev->features);
 	napi_enable(&priv->tx_napi);
 	napi_enable(&priv->rx_napi);
 	netif_start_queue(netdev);
@@ -1541,24 +1721,52 @@ static int edma_ndo_change_mtu(struct net_device *netdev, int new_mtu);
  */
 static bool edma_tx_needs_linearize(const struct sk_buff *skb)
 {
-	const struct skb_shared_info *shinfo = skb_shinfo(skb);
+	const struct sk_buff *seg = skb;
+	bool short_prev = false;
 	int i;
 
-	if (shinfo->nr_frags + 1 > EDMA_TX_MAX_SEGS)
+	if (edma_tx_ndesc(skb) > EDMA_TX_MAX_SEGS)
 		return true;
 
-	for (i = 0; i + 1 < shinfo->nr_frags; i++)
-		if (skb_frag_size(&shinfo->frags[i]) < EDMA_TX_MIN_SEG)
-			return true;
+	do {
+		const struct skb_shared_info *si = skb_shinfo(seg);
+
+		if (seg != skb && skb_headlen(seg)) {
+			if (short_prev)
+				return true;
+			short_prev = skb_headlen(seg) < EDMA_TX_MIN_SEG;
+		}
+
+		for (i = 0; i < si->nr_frags; i++) {
+			if (short_prev)
+				return true;
+			short_prev = skb_frag_size(&si->frags[i]) < EDMA_TX_MIN_SEG;
+		}
+
+		seg = seg == skb ? si->frag_list : seg->next;
+	} while (seg);
 
 	return false;
+}
+
+/* A GRO aggregate on its frag_list can need more descriptors than a frame
+ * may take; it is segmented in software rather than made linear.
+ */
+static netdev_features_t edma_ndo_features_check(struct sk_buff *skb,
+						 struct net_device *netdev,
+						 netdev_features_t features)
+{
+	if (skb_is_gso(skb) && edma_tx_needs_linearize(skb))
+		features &= ~NETIF_F_GSO_MASK;
+
+	return vlan_features_check(skb, features);
 }
 
 static netdev_tx_t edma_ndo_xmit(struct sk_buff *skb, struct net_device *netdev)
 {
 	struct edma_priv *priv = netdev_priv(netdev);
 	const struct edma_soc_data *soc = priv->soc;
-	u32 nhead, ntail;
+	u32 nhead;
 
 	if (skb->len < ETH_HLEN)
 		goto drop;
@@ -1571,17 +1779,15 @@ static netdev_tx_t edma_ndo_xmit(struct sk_buff *skb, struct net_device *netdev)
 	 * later head reallocation copies: the pad would be reallocated
 	 * uninitialised and transmitted.
 	 */
-	if (soc->tx_min_size && skb_put_padto(skb, soc->tx_min_size)) {
+	if (skb_put_padto(skb, soc->tx_min_size)) {
 		netdev->stats.tx_dropped++;
 		return NETDEV_TX_OK;
 	}
 
 	nhead = netdev->needed_headroom;
-	ntail = netdev->needed_tailroom;
 
-	if ((skb_cloned(skb) || skb_headroom(skb) < nhead ||
-	     skb_tailroom(skb) < ntail) &&
-	    pskb_expand_head(skb, nhead, ntail, GFP_ATOMIC))
+	if ((skb_cloned(skb) || skb_headroom(skb) < nhead) &&
+	    pskb_expand_head(skb, nhead, 0, GFP_ATOMIC))
 		goto drop;
 
 	return edma_ring_xmit(priv, netdev, skb, &priv->txdesc_ring, false);
@@ -1612,6 +1818,8 @@ static const struct net_device_ops edma_netdev_ops = {
 	.ndo_open = edma_ndo_open,
 	.ndo_stop = edma_ndo_stop,
 	.ndo_start_xmit = edma_ndo_xmit,
+	.ndo_features_check = edma_ndo_features_check,
+	.ndo_set_features = edma_ndo_set_features,
 	.ndo_change_mtu = edma_ndo_change_mtu,
 	.ndo_set_mac_address = eth_mac_addr,
 	.ndo_validate_addr = eth_validate_addr,
@@ -1826,6 +2034,7 @@ static int edma_probe(struct platform_device *pdev)
 {
 	struct clk_bulk_data *clks;
 	struct device *dev = &pdev->dev;
+	int i, num_clks;
 	struct reset_control *rst;
 	struct net_device *netdev;
 	struct edma_priv *priv;
@@ -1833,9 +2042,9 @@ static int edma_probe(struct platform_device *pdev)
 	void __iomem *base;
 	int ret;
 
-	ret = devm_clk_bulk_get_all_enabled(dev, &clks);
-	if (ret < 0)
-		return ret;
+	num_clks = devm_clk_bulk_get_all_enabled(dev, &clks);
+	if (num_clks < 0)
+		return num_clks;
 
 	rst = devm_reset_control_get(dev, EDMA_HW_RESET_ID);
 	if (IS_ERR(rst))
@@ -1872,6 +2081,18 @@ static int edma_probe(struct platform_device *pdev)
 
 	priv->tx_ring_size = EDMA_TX_RING_SIZE;
 	priv->rx_ring_size = EDMA_RX_RING_SIZE;
+	for (i = 0; i < num_clks; i++)
+		if (!strcmp(clks[i].id, "nss_edma_clk"))
+			priv->clk_rate = clk_get_rate(clks[i].clk);
+	if (!priv->clk_rate)
+		return dev_err_probe(dev, -EINVAL, "no nss_edma_clk rate");
+	priv->tx_mod_timer = EDMA_TX_MOD_TIMER;
+	priv->rx_mod_timer = DIV_ROUND_CLOSEST_ULL((u64)EDMA_RX_COAL_US *
+						   priv->clk_rate,
+						   EDMA_MOD_TIMER_CYCLES *
+						   USEC_PER_SEC);
+	priv->rx_ugt_thre = EDMA_COAL_FRAMES - 1;
+	priv->tx_ugt_thre = EDMA_COAL_FRAMES - 1;
 	priv->rx_page_order = edma_rx_page_order(netdev->mtu);
 	priv->rx_buffer_size = edma_rx_buffer_size(priv->rx_page_order);
 	priv->page_pool = edma_page_pool_create(priv, priv->rx_page_order,
@@ -1888,7 +2109,9 @@ static int edma_probe(struct platform_device *pdev)
 	netdev->netdev_ops = &edma_netdev_ops;
 	netdev->hw_features = NETIF_F_RXCSUM | NETIF_F_IP_CSUM |
 			      NETIF_F_IPV6_CSUM | NETIF_F_SG | NETIF_F_TSO |
-			      NETIF_F_TSO6 | NETIF_F_RXHASH;
+			      NETIF_F_TSO6 | NETIF_F_RXHASH | NETIF_F_FRAGLIST |
+			      NETIF_F_HW_VLAN_CTAG_RX | NETIF_F_HW_VLAN_CTAG_TX |
+			      NETIF_F_HW_VLAN_STAG_TX;
 	/* Some external-switch paths forward a GSO aggregate through PPE as a
 	 * single frame. Let those boards keep CPU traffic MTU-sized without
 	 * changing the EDMA feature set for every IPQ60xx/IPQ807x device.
@@ -1897,9 +2120,8 @@ static int edma_probe(struct platform_device *pdev)
 		netdev->hw_features &= ~(NETIF_F_TSO | NETIF_F_TSO6);
 	netdev->features = NETIF_F_GRO | netdev->hw_features;
 	/* A DSA user port takes its features from the conduit's vlan_features. */
-	netdev->vlan_features = netdev->hw_features;
+	netdev->vlan_features = netdev->hw_features & ~NETIF_F_HW_VLAN_CTAG_RX;
 	netdev->pcpu_stat_type = NETDEV_PCPU_STAT_TSTATS;
-	netdev->watchdog_timeo = 5 * HZ;
 	netdev->max_mtu = EDMA_MAX_MTU;
 	netdev->needed_headroom = EDMA_TX_PREHDR_SIZE;
 	netdev->ethtool_ops = &edma_ethtool_ops;
@@ -1922,11 +2144,7 @@ static int edma_probe(struct platform_device *pdev)
 		goto err_irq;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	ret = dev_set_threaded(netdev, NETDEV_NAPI_THREADED_ENABLED);
-#else
-	ret = dev_set_threaded(netdev, true);
-#endif
 	if (ret)
 		dev_warn(dev, "failed to enable threaded NAPI: %d\n", ret);
 

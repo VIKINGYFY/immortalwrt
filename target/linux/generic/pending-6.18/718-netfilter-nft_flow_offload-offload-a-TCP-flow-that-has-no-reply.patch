@@ -1,32 +1,32 @@
 From: Gary Dotzler <geldot@protonmail.com>
 Date: Wed, 9 Sep 2026 23:10:06 +0200
-Subject: [PATCH] netfilter: nft_flow_offload: offload a TCP flow that has no reply
+Subject: [PATCH] netfilter: nft_flow_offload: offload a TCP flow that has no
+ reply
 
-A connection whose reply never reaches the host cannot become assured,
-and only assured TCP connections are offered to the flowtable, so every
-packet of it stays on the classic path.
+A TCP connection picked up without a reply is not assured, so it is not
+offloaded. Offload it in the original direction; if a reply arrives and
+the connection becomes assured, the reply direction follows.
 
-Offer such a connection to the flowtable in the original direction. The
-reply direction follows once conntrack has seen a reply, so a flow that
-starts one-directional picks it up if the path turns symmetric.
+When such a flow leaves the flowtable, cap the conntrack timeout at
+UNACK, as nf_conntrack_tcp_packet() does without a reply.
 
 Signed-off-by: Gary Dotzler <geldot@protonmail.com>
+Assisted-by: Claude:claude-opus-5
 Co-developed-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
-Assisted-by: Claude:claude-opus-5
+[imm-owrt: refresh against the 6.18 patch stack.]
 ---
- include/net/netfilter/nf_conntrack_l4proto.h | 7 +++++++
- net/netfilter/nft_flow_offload.c             | 6 ++++--
- 2 files changed, 11 insertions(+), 2 deletions(-)
 
 --- a/include/net/netfilter/nf_conntrack_l4proto.h
 +++ b/include/net/netfilter/nf_conntrack_l4proto.h
-@@ -215,6 +215,13 @@ static inline bool nf_conntrack_tcp_esta
+@@ -215,6 +215,15 @@
  	return ct->proto.tcp.state == TCP_CONNTRACK_ESTABLISHED &&
  	       test_bit(IPS_ASSURED_BIT, &ct->status);
  }
 +
-+/* A flow picked up without its reply cannot become assured. */
++/* Picked up mid-stream, no reply seen yet. Caller must check
++ * nf_ct_protonum(ct) is IPPROTO_TCP.
++ */
 +static inline bool nf_conntrack_tcp_unreplied(const struct nf_conn *ct)
 +{
 +	return ct->proto.tcp.state == TCP_CONNTRACK_ESTABLISHED &&
@@ -35,9 +35,23 @@ Assisted-by: Claude:claude-opus-5
  #endif
  
  #ifdef CONFIG_NF_CT_PROTO_SCTP
+--- a/net/netfilter/nf_flow_table_core.c
++++ b/net/netfilter/nf_flow_table_core.c
+@@ -219,6 +219,11 @@
+ 			tcp_state = READ_ONCE(ct->proto.tcp.state);
+ 			flow_offload_fixup_tcp(ct, tcp_state);
+ 			timeout = READ_ONCE(tn->timeouts[tcp_state]);
++			if (nf_conntrack_tcp_unreplied(ct)) {
++				u32 unack = READ_ONCE(tn->timeouts[TCP_CONNTRACK_UNACK]);
++
++				timeout = min_t(s32, timeout, unack);
++			}
+ 			expired = nf_flow_has_expired(flow);
+ 		}
+ 		offload_timeout = READ_ONCE(tn->offload_timeout);
 --- a/net/netfilter/nft_flow_offload.c
 +++ b/net/netfilter/nft_flow_offload.c
-@@ -77,7 +77,8 @@ static void nft_flow_offload_eval(const
+@@ -77,7 +77,8 @@
  		tcph = skb_header_pointer(pkt->skb, thoff, sizeof(_tcph),
  					  &_tcph);
  		if (unlikely(!tcph || tcph->fin || tcph->rst ||
@@ -47,12 +61,12 @@ Assisted-by: Claude:claude-opus-5
  			goto out;
  		break;
  	case IPPROTO_UDP:
-@@ -132,7 +133,8 @@ static void nft_flow_offload_eval(const
- 	 */
+@@ -129,7 +130,8 @@
+ 
  	flow->priority = pkt->skb->priority;
  
 -	__set_bit(NF_FLOW_HW_BIDIRECTIONAL, &flow->flags);
-+	if (!tcph || !nf_conntrack_tcp_unreplied(ct))
++	if (!tcph || test_bit(IPS_ASSURED_BIT, &ct->status))
 +		__set_bit(NF_FLOW_HW_BIDIRECTIONAL, &flow->flags);
  	ret = flow_offload_add(flowtable, flow);
  	if (ret < 0)

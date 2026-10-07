@@ -11,6 +11,7 @@
 # applied to every packet including the offloaded ones.
 
 START=25
+USE_PROCD=1
 
 PARAM_DIR=/sys/module/qca_ppe/parameters
 
@@ -102,15 +103,10 @@ wan_port() {
 	[ -n "$dev" ] && [ -s "/sys/class/net/$dev/phys_switch_id" ] && echo "$dev"
 }
 
-# One flower filter. $1=port $2=protocol $3=ip_proto $4=match $5=tos byte
-#                    $6=internal priority, empty where the map has none
+# One flower filter per ECN codepoint. $1=port $2=protocol $3=ip_proto
+# $4=match $5=tos byte $6=internal priority, empty where the map has none
 add_filter() {
-	local mangle prio=""
-
-	case "$2" in
-	ip) mangle="munge ip tos set $5" ;;
-	*)  mangle="munge ip6 traffic_class set $5" ;;
-	esac
+	local mangle prio="" ecn
 
 	# The mark alone does not pick the queue: the engine ranks the ACL above
 	# the DSCP map, and the map reads the header as it arrived - bleached, on
@@ -119,16 +115,24 @@ add_filter() {
 	# reach the driver as 16 and lose the whole filter, mark included.
 	[ -n "$6" ] && prio="action skbedit priority $(printf '%x' "$6")"
 
+	# The engine rewrites the whole traffic-class byte, so each filter
+	# matches one ECN codepoint and writes it back, keeping ECT and CE.
 	# skip_sw: if the switch cannot take the rule, fail here rather than
 	# quietly classifying on the CPU, which an offloaded flow never reaches.
-	if tc filter add dev "$1" parent ffff: pref $PREF protocol "$2" flower \
-		skip_sw ip_proto "$3" $4 \
-		action pedit ex $mangle $prio >/dev/null 2>&1 ; then
-		INSTALLED=$((INSTALLED + 1))
-	else
-		SKIPPED=$((SKIPPED + 1))
-		logger -t ppe-qos "port $1: switch refused $2/$3 $4"
-	fi
+	for ecn in 0 1 2 3; do
+		case "$2" in
+		ip) mangle="munge ip tos set $(($5 | ecn))" ;;
+		*)  mangle="munge ip6 traffic_class set $(($5 | ecn))" ;;
+		esac
+		if tc filter add dev "$1" parent ffff: pref $PREF protocol "$2" \
+			flower skip_sw ip_proto "$3" ip_tos $ecn/0x3 $4 \
+			action pedit ex $mangle $prio >/dev/null 2>&1 ; then
+			INSTALLED=$((INSTALLED + 1))
+		else
+			SKIPPED=$((SKIPPED + 1))
+			logger -t ppe-qos "port $1: switch refused $2/$3 $4"
+		fi
+	done
 }
 
 # Address list restricted to one family; a list with no member of that family
@@ -219,8 +223,6 @@ apply_rule() {
 		return 0
 	}
 
-	# The engine rewrites the whole traffic-class byte or none of it, so the
-	# two ECN bits go to zero with the mark. Nothing here negotiates ECN.
 	tos=$((dscp * 4))
 
 	# What the dscp map would resolve this mark to, taken here because the
@@ -241,7 +243,7 @@ apply_rule() {
 
 # Remove only what this script put on a shared ingress block: the prefs it
 # owns, read back from the block rather than swept blindly, since the range is
-# a thousand wide and every delete is a netlink round trip.
+# 255 wide and every delete is a netlink round trip.
 flush_filters() {
 	local p n
 	for p in $(switch_ports); do
@@ -382,9 +384,10 @@ apply() {
 	config_foreach apply_rule rule
 
 	# The classifier is a fixed 512 entries shared by every port, and a rule
-	# costs one entry per port it is installed on - more where it matches an
-	# IPv6 address, which does not fit in a single entry. Say what fitted, so
-	# that a rule quietly missing from half the ports is visible.
+	# costs four entries per port it is installed on, one per ECN codepoint -
+	# more where it matches an IPv6 address, which does not fit in a single
+	# entry. Say what fitted, so that a rule quietly missing from half the
+	# ports is visible.
 	logger -t ppe-qos "marking rules: $INSTALLED filters installed, $SKIPPED refused"
 	[ "$SKIPPED" = 0 ] ||
 		logger -t ppe-qos "the switch classifier is full; disable rules or narrow their port lists"
@@ -393,7 +396,7 @@ apply() {
 EXTRA_COMMANDS="wifi_dev"
 EXTRA_HELP="\twifi_dev <netdev>  apply the small-packet egress stamp to one Wi-Fi netdev"
 
-start() {
+start_service() {
 	apply
 }
 
@@ -412,8 +415,12 @@ wifi_dev() {
 	wifi_small_pkt "$dev" "$prio"
 }
 
-reload() {
+reload_service() {
 	apply
+}
+
+service_triggers() {
+	procd_add_reload_trigger "ppe-qos"
 }
 
 # The egress block on an AP netdev is shared with whatever else is on the
@@ -431,6 +438,6 @@ teardown() {
 	done
 }
 
-stop() {
+stop_service() {
 	teardown
 }

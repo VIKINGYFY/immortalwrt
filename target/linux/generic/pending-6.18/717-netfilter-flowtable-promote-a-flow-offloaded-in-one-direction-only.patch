@@ -1,29 +1,43 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
 Date: Wed, 9 Sep 2026 23:09:44 +0200
-Subject: [PATCH] netfilter: flowtable: promote a flow offloaded in one direction only
+Subject: [PATCH] netfilter: flowtable: promote a flow offloaded in one
+ direction only
 
-A flow offloaded in the original direction alone carries a reply tuple
-that conntrack has never seen a packet for. Leave that direction on the
-classic path, so conntrack tracks it, and offload it as well once the
-connection is assured.
+The next patch offloads TCP flows without a reply in the original
+direction only. Keep the reply direction of such a flow on the classic
+path until the connection is assured, then offload it too, as act_ct
+does for UDP. The XDP flowtable lookup does not return that reply tuple
+either.
 
-act_ct promotes its unidirectional UDP flows on the same condition.
-
-Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Assisted-by: Claude:claude-opus-5
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 ---
- net/netfilter/nf_flow_table_ip.c | 26 ++++++++++++++++++++++++++
- 1 file changed, 26 insertions(+)
+ net/netfilter/nf_flow_table_bpf.c |  4 ++++
+ net/netfilter/nf_flow_table_ip.c  | 26 ++++++++++++++++++++++++++
+ 2 files changed, 30 insertions(+)
 
+--- a/net/netfilter/nf_flow_table_bpf.c
++++ b/net/netfilter/nf_flow_table_bpf.c
+@@ -50,6 +50,10 @@ bpf_xdp_flow_tuple_lookup(struct net_dev
+ 
+ 	nf_flow = container_of(tuplehash, struct flow_offload,
+ 			       tuplehash[tuplehash->tuple.dir]);
++	if (tuplehash->tuple.dir == FLOW_OFFLOAD_DIR_REPLY &&
++	    !test_bit(NF_FLOW_HW_BIDIRECTIONAL, &nf_flow->flags))
++		return ERR_PTR(-ENOENT);
++
+ 	flow_offload_refresh(nf_flow_table, nf_flow, false);
+ 
+ 	return tuplehash;
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -379,6 +379,26 @@ nf_flow_offload_lookup(struct nf_flowtab
+@@ -376,6 +376,26 @@ nf_flow_offload_lookup(struct nf_flowtab
  	return flow_offload_lookup(flow_table, &tuple);
  }
  
 +/* The reply direction of a flow offloaded in one direction only stays on the
-+ * classic path so that conntrack sees it. Once conntrack has, the flow is
-+ * offloaded in both directions.
++ * classic path so that conntrack sees it. Once the connection is assured, that
++ * direction is offloaded too.
 + */
 +static bool nf_flow_reply_unoffloaded(struct nf_flowtable *flow_table,
 +				      struct flow_offload *flow,
@@ -44,7 +58,7 @@ Assisted-by: Claude:claude-opus-5
  static int nf_flow_offload_forward(struct nf_flowtable_ctx *ctx,
  				   struct nf_flowtable *flow_table,
  				   struct flow_offload_tuple_rhash *tuplehash,
-@@ -392,6 +412,9 @@ static int nf_flow_offload_forward(struc
+@@ -389,6 +409,9 @@ static int nf_flow_offload_forward(struc
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  
@@ -54,7 +68,7 @@ Assisted-by: Claude:claude-opus-5
  	mtu = flow->tuplehash[dir].tuple.mtu + ctx->offset;
  	if (unlikely(nf_flow_exceeds_mtu(skb, mtu)))
  		return 0;
-@@ -684,6 +707,9 @@ static int nf_flow_offload_ipv6_forward(
+@@ -681,6 +704,9 @@ static int nf_flow_offload_ipv6_forward(
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  

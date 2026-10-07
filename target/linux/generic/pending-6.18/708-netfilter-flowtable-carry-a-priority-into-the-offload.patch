@@ -2,31 +2,20 @@ From: Julius Bairaktaris <julius@bairaktaris.de>
 Date: Fri, 21 Aug 2026 08:00:00 +0200
 Subject: [PATCH] netfilter: flowtable: carry a priority into the offload
 
-The packets the flowtable forwards bypass the rules that classified
-the connection, so a priority set by "meta priority set" ahead of
-"flow add" reaches the qdisc only on the packets that traversed the
-ruleset before the flow existed; the rest keep the priority they
-arrived with, which for a forwarded packet is normally none. A flow
-rule handed to a driver has the same gap: it describes NAT,
-encapsulation and the output device, but not how the flow should be
-treated on the way out, so hardware with priority queues can only
-fall back on the DSCP the packet carries.
+Packets forwarded by the flowtable skip the ruleset, so a priority set
+by "meta priority set" before "flow add" only applies to the first
+packets of a connection, and drivers never see it.
 
-Store skb->priority of the packet that created the flow. The software
-fast path applies it to the packets it forwards; the hardware path
-emits it as FLOW_ACTION_PRIORITY, the action act_skbedit already
-emits on the tc path, so the rule handed to the driver describes what
-the software path does. A flow without a priority emits no action and
-leaves skb->priority of the packets it forwards alone.
+Store skb->priority of the packet that creates the flow, apply it in
+the software fast path and emit it as FLOW_ACTION_PRIORITY, the action
+act_skbedit uses. Flows without a priority are unchanged. On IPv4,
+ip_forward() derives a priority from the TOS by default, so a flow can
+carry one without a rule. The priority applies to both directions.
 
-Of the in-tree consumers of these rules, mtk and airoha ignore the new
-action as they do FLOW_ACTION_CSUM. mlx5 has no parser for it and
-rejects the rule, so a flow with a priority stays on the software path
-there, as a flow with PPPoE encapsulation already does.
-
-The flowtable holds one flow for both directions and the expression
-runs once, so the priority applies to both; per-direction
-classification is not carried.
+airoha and mtk ignore it like FLOW_ACTION_CSUM (on 6.18 airoha takes the
+QoS queue of a flow from its DSCP), and mlx5 ignores it on flowtable
+flows (previous patch). airoha and mtk parse tc flower rules in the same
+function, so they now also accept skbedit priority there.
 
 Assisted-by: Claude:claude-opus-5
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
@@ -63,13 +52,10 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	for (i = 0; i < tuple->encap_num; i++) {
 --- a/net/netfilter/nft_flow_offload.c
 +++ b/net/netfilter/nft_flow_offload.c
-@@ -127,6 +127,11 @@ static void nft_flow_offload_eval(const
+@@ -116,6 +116,8 @@ static void nft_flow_offload_eval(const
  	if (tcph)
  		flow_offload_ct_tcp(ct);
  
-+	/* The packets the flow forwards in its place bypass the rules that
-+	 * classified this one; carry the result with the flow.
-+	 */
 +	flow->priority = pkt->skb->priority;
 +
  	__set_bit(NF_FLOW_HW_BIDIRECTIONAL, &flow->flags);
@@ -112,7 +98,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  TCP RST and FIN packets are also passed up to the classic IP forwarding path to
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -1073,6 +1073,7 @@ static int airoha_ppe_flow_offload_repla
+@@ -1078,6 +1078,7 @@ static int airoha_ppe_flow_offload_repla
  		case FLOW_ACTION_REDIRECT:
  			odev = act->dev;
  			break;
@@ -122,7 +108,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  		case FLOW_ACTION_VLAN_PUSH:
 --- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
-@@ -369,6 +369,7 @@ mtk_flow_offload_replace(struct mtk_eth
+@@ -374,6 +374,7 @@ mtk_flow_offload_replace(struct mtk_eth
  		case FLOW_ACTION_REDIRECT:
  			odev = act->dev;
  			break;

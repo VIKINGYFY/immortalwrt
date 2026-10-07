@@ -2,6 +2,6 @@
 # Copyright (C) 2024 ViKing <viking.yfy@qq.com>
 
 read -r usr sys < <(top -bn1 | awk '/^CPU:/ {print $2, $4; exit}')
-ppe="$(awk '$1 == "live_entries" {print $2; exit}' /sys/kernel/debug/3a000000.ppe/offload 2>/dev/null)"
+read -r ipv4 ipv6 total < /sys/kernel/debug/3a000000.ppe/active_flows 2>/dev/null
 
-echo -n "USR: ${usr:-N/A} SYS: ${sys:-N/A} PPE: ${ppe:-N/A}"
+echo -n "USR: ${usr:-N/A} SYS: ${sys:-N/A} PPE: ${total:-N/A} (IPv4: ${ipv4:-N/A} IPv6: ${ipv6:-N/A})"

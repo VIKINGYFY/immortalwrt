@@ -23,6 +23,9 @@
 #include <linux/module.h>
 #include <linux/hashtable.h>
 #include <linux/jhash.h>
+#include <linux/in6.h>
+#include <linux/ipv6.h>
+#include <linux/socket.h>
 #include <net/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
@@ -37,6 +40,7 @@
 #include <net/flow_offload.h>
 #include <net/netfilter/nf_flow_table.h>
 #include <net/pkt_cls.h>
+#include <net/tcp.h>
 
 #include "qca_ppe.h"
 
@@ -90,13 +94,15 @@ struct ppe_flow_data {
 };
 
 /* Direction-specific identity: downlink post-edit, uplink pre-edit.
- * Padding is zeroed before hashing. */
+ * Padding is zeroed before hashing.  IPv4 and IPv6 addresses are kept in
+ * separate fields and the one selected by family alone is populated, so a
+ * key never aliases across address families. */
 struct ppe_wifi_key {
 	__be32 src, dst;
+	struct in6_addr src6, dst6;
 	__be16 sport, dport;
-	u8 proto, iport;
+	u8 proto, iport, family;
 	u8 dmac[ETH_ALEN], smac[ETH_ALEN];
-	u16 reserved;
 };
 
 enum ppe_flow_state {
@@ -128,8 +134,9 @@ struct ppe_flow_entry {
 	int l3_if;
 	int eg_l3_if;
 	int pub_ip;
-	int wan_port;
-	int wan_iport;
+	int uplink;
+	int in_uplink;
+	int session;
 	u8 iport;
 	u8 oport;
 	bool wifi_egress;
@@ -186,36 +193,73 @@ void qca_ppe_wifi_inject_unregister(const struct qca_ppe_wifi_inject_ops *ops)
 }
 EXPORT_SYMBOL_GPL(qca_ppe_wifi_inject_unregister);
 
-/* Header guards must not pull, expand or otherwise change a shared RX skb. */
-static bool ppe_wifi_ingress_key(struct sk_buff *skb, struct ppe_wifi_key *key)
+/* Extract the L3/L4 tuple that names a Wi-Fi flow.  l3_off is the offset of
+ * the IP header from skb->data.  Header guards must not pull, expand or
+ * otherwise change a shared RX skb, so the fixed header is read through
+ * skb_header_pointer and the ports through skb_copy_bits.  IPv4 options,
+ * IPv6 extension headers, fragments and payloads other than TCP/UDP are
+ * declined and stay on the software path.  When forward is set the packet
+ * is still on its way into the router, so a TTL the hardware could only
+ * answer with ICMP keeps the flow in software.  The caller owns a zeroed
+ * key. */
+static bool ppe_wifi_key_parse(struct sk_buff *skb, unsigned int l3_off,
+			       struct ppe_wifi_key *key, bool forward)
 {
-	struct iphdr ip_buf;
 	const struct iphdr *iph;
+	const struct ipv6hdr *iph6;
+	struct iphdr iph_buf;
+	struct ipv6hdr iph6_buf;
 	__be16 ports[2];
+	unsigned int l4_off, hlen, tot;
+	u8 proto, first;
 
-	iph = skb_header_pointer(skb, 0, sizeof(ip_buf), &ip_buf);
-	if (!iph || iph->version != 4 || iph->ihl != 5 || ip_is_fragment(iph) ||
-	    iph->ttl <= 1 || ntohs(iph->tot_len) > skb->len ||
-	    ntohs(iph->tot_len) < sizeof(*iph) + sizeof(struct udphdr))
+	if (l3_off >= skb->len || skb_copy_bits(skb, l3_off, &first, 1))
 		return false;
-	if (iph->protocol == IPPROTO_TCP) {
+
+	if ((first >> 4) == 4) {
+		iph = skb_header_pointer(skb, l3_off, sizeof(*iph), &iph_buf);
+		if (!iph || iph->ihl != 5 || ip_is_fragment(iph) ||
+		    (forward && iph->ttl <= 1))
+			return false;
+		hlen = sizeof(*iph);
+		tot = ntohs(iph->tot_len);
+		proto = iph->protocol;
+		key->src = iph->saddr;
+		key->dst = iph->daddr;
+		key->family = AF_INET;
+	} else if ((first >> 4) == 6) {
+		iph6 = skb_header_pointer(skb, l3_off, sizeof(*iph6), &iph6_buf);
+		if (!iph6 || (forward && iph6->hop_limit <= 1) ||
+		    (iph6->nexthdr != IPPROTO_TCP && iph6->nexthdr != IPPROTO_UDP))
+			return false;
+		hlen = sizeof(*iph6);
+		tot = hlen + ntohs(iph6->payload_len);
+		proto = iph6->nexthdr;
+		key->src6 = iph6->saddr;
+		key->dst6 = iph6->daddr;
+		key->family = AF_INET6;
+	} else {
+		return false;
+	}
+
+	if (tot < hlen + sizeof(struct udphdr) || tot > skb->len - l3_off)
+		return false;
+
+	l4_off = l3_off + hlen;
+	if (proto == IPPROTO_TCP) {
 		struct tcphdr tcp_buf;
 		const struct tcphdr *th;
 
-		th = skb_header_pointer(skb, sizeof(*iph), sizeof(tcp_buf), &tcp_buf);
+		th = skb_header_pointer(skb, l4_off, sizeof(tcp_buf), &tcp_buf);
 		if (!th || th->fin || th->rst || th->doff < 5 ||
-		    sizeof(*iph) + th->doff * 4 > ntohs(iph->tot_len))
+		    hlen + th->doff * 4 > tot)
 			return false;
-	} else if (iph->protocol != IPPROTO_UDP) {
-		return false;
 	}
-	if (skb_copy_bits(skb, sizeof(*iph), ports, sizeof(ports)))
+	if (skb_copy_bits(skb, l4_off, ports, sizeof(ports)))
 		return false;
-	key->src = iph->saddr;
-	key->dst = iph->daddr;
 	key->sport = ports[0];
 	key->dport = ports[1];
-	key->proto = iph->protocol;
+	key->proto = proto;
 	return true;
 }
 
@@ -305,7 +349,9 @@ static unsigned int ppe_wifi_ingress_hook(void *data, struct sk_buff *skb,
 	if (atomic_read(&slot->returning))
 		return NF_ACCEPT;
 	if (READ_ONCE(slot->disabled) ||
-	    !atomic_read(&slot->flows) || skb->protocol != htons(ETH_P_IP) ||
+	    !atomic_read(&slot->flows) ||
+	    (skb->protocol != htons(ETH_P_IP) &&
+	     skb->protocol != htons(ETH_P_IPV6)) ||
 	    skb_mac_header(skb) + ETH_HLEN != skb->data ||
 	    !ether_addr_equal(eth_hdr(skb)->h_dest, slot->mac))
 		return NF_ACCEPT;
@@ -313,7 +359,7 @@ static unsigned int ppe_wifi_ingress_hook(void *data, struct sk_buff *skb,
 		return NF_ACCEPT;
 	if (skb_vlan_tag_present(skb))
 		return NF_ACCEPT;
-	if (!ppe_wifi_ingress_key(skb, &key))
+	if (!ppe_wifi_key_parse(skb, 0, &key, true))
 		return NF_ACCEPT;
 	key.iport = slot - ppe_wifi_ingress;
 
@@ -387,7 +433,6 @@ bool qca_ppe_wifi_ingress_return(struct sk_buff *skb, u8 source_port)
 	struct ppe_wifi_key key = {};
 	struct vlan_ethhdr *eth;
 	struct net_device *dev;
-	const struct iphdr *iph;
 	u16 vid;
 
 	if (skb_headlen(skb) < sizeof(*eth))
@@ -400,20 +445,10 @@ bool qca_ppe_wifi_ingress_return(struct sk_buff *skb, u8 source_port)
 	    vid >= QCA_PPE_WIFI_INGRESS_VID_BASE + QCA_PPE_WIFI_INGRESS_SLOTS)
 		return false;
 	slot = &ppe_wifi_ingress[vid - QCA_PPE_WIFI_INGRESS_VID_BASE];
-	if (eth->h_vlan_encapsulated_proto == htons(ETH_P_IP) &&
-	    pskb_may_pull(skb, sizeof(*eth) + sizeof(*iph) + 4)) {
-		iph = (const void *)(skb->data + sizeof(*eth));
-		if (iph->version == 4 && iph->ihl == 5 && !ip_is_fragment(iph) &&
-		    (iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP)) {
-			key.src = iph->saddr;
-			key.dst = iph->daddr;
-			memcpy(&key.sport, iph + 1, sizeof(key.sport));
-			memcpy(&key.dport, (const u8 *)(iph + 1) + 2,
-			       sizeof(key.dport));
-			key.proto = iph->protocol;
-			key.iport = slot - ppe_wifi_ingress;
-		}
-	}
+	if ((eth->h_vlan_encapsulated_proto == htons(ETH_P_IP) ||
+	     eth->h_vlan_encapsulated_proto == htons(ETH_P_IPV6)) &&
+	    ppe_wifi_key_parse(skb, sizeof(*eth), &key, false))
+		key.iport = slot - ppe_wifi_ingress;
 	/* Release clears dev before waiting for these readers; neither the slot
 	 * nor its hook may be reused until synchronous receive has completed.
 	 */
@@ -470,39 +505,19 @@ void qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
 	struct ppe_flow_entry *entry;
 	struct net_device *dev = NULL;
 	const struct ethhdr *eth;
-	const struct iphdr *iph;
-	unsigned int iplen;
-	__be16 ports[2];
+	bool v6;
 
 	/* Called only for the PPE service marker.  Already edited packets must
 	 * never enter IP forwarding again if the binding disappeared. */
-	if (skb_headlen(skb) < ETH_HLEN + sizeof(*iph) + sizeof(ports))
+	if (skb_headlen(skb) < ETH_HLEN)
 		goto drop;
 	eth = (const struct ethhdr *)skb->data;
-	iph = (const struct iphdr *)(skb->data + ETH_HLEN);
-	if (eth->h_proto != htons(ETH_P_IP) || iph->version != 4 ||
-	    iph->ihl != 5 || ip_is_fragment(iph) || !iph->ttl)
+	if (eth->h_proto != htons(ETH_P_IP) &&
+	    eth->h_proto != htons(ETH_P_IPV6))
 		goto drop;
-	iplen = ntohs(iph->tot_len);
-	if (iplen + ETH_HLEN > skb->len || iplen < sizeof(*iph) + sizeof(ports))
+	if (!ppe_wifi_key_parse(skb, ETH_HLEN, &key, false))
 		goto drop;
-	if (iph->protocol == IPPROTO_TCP) {
-		const struct tcphdr *th = (const void *)(iph + 1);
-
-		if (iplen < sizeof(*iph) + sizeof(*th) ||
-		    skb_headlen(skb) < ETH_HLEN + sizeof(*iph) + sizeof(*th) ||
-		    th->doff < 5 || sizeof(*iph) + th->doff * 4 > iplen)
-			goto drop;
-	} else if (iph->protocol != IPPROTO_UDP ||
-		   iplen < sizeof(*iph) + sizeof(struct udphdr)) {
-		goto drop;
-	}
-	memcpy(ports, iph + 1, sizeof(ports));
-	key.src = iph->saddr;
-	key.dst = iph->daddr;
-	key.sport = ports[0];
-	key.dport = ports[1];
-	key.proto = iph->protocol;
+	v6 = key.family == AF_INET6;
 	key.iport = iport;
 	ether_addr_copy(key.dmac, eth->h_dest);
 	ether_addr_copy(key.smac, eth->h_source);
@@ -527,8 +542,9 @@ void qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
 	skb->dev = dev;
 	skb_reset_mac_header(skb);
 	skb_set_network_header(skb, ETH_HLEN);
-	skb_set_transport_header(skb, ETH_HLEN + sizeof(*iph));
-	skb->protocol = htons(ETH_P_IP);
+	skb_set_transport_header(skb, ETH_HLEN +
+				 (v6 ? sizeof(struct ipv6hdr) : sizeof(struct iphdr)));
+	skb->protocol = v6 ? htons(ETH_P_IPV6) : htons(ETH_P_IP);
 	skb->ip_summed = CHECKSUM_NONE;
 	dev_queue_xmit(skb);
 	dev_put(dev);
@@ -659,7 +675,7 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 
 	seq_puts(s, "cookie index src_if iport oport wifi ivid ovid dsa_service dsa_vid "
 		 "nexthop nh_type nh_port nh_stag_fmt nh_svid nh_ctag_fmt nh_cvid "
-		 "l3_if eg_l3_if wan_port wan_iport packets bytes nh_words "
+		 "l3_if eg_l3_if uplink in_uplink packets bytes nh_words "
 		 "wifi_ifindex wifi_dev sw_sc hw_read hw_sc fwd port_valid "
 		 "key_src key_sport key_dst key_dport key_proto key_smac key_dmac key_stage "
 		 "wifi_ingress_dev wifi_ingress_vsi wifi_ingress_failed stats_read\n");
@@ -707,7 +723,7 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 						 PPE_NEXTHOP_CVID_LEN));
 		}
 		seq_printf(s, "%d %d %d %d ", entry->l3_if,
-			   entry->eg_l3_if, entry->wan_port, entry->wan_iport);
+			   entry->eg_l3_if, entry->uplink, entry->in_uplink);
 		if (stats_ret)
 			seq_puts(s, "- - ");
 		else
@@ -721,7 +737,7 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 			 (stats_ret ? stats_ret :
 			  ppe_flow_entry_read(priv, entry->index, hw, entry->nwords)) :
 			 -EOPNOTSUPP;
-		seq_printf(s, " %d %s %u %d %u %u %u %pI4 %u %pI4 %u %u %pM %pM",
+		seq_printf(s, " %d %s %u %d %u %u %u",
 			   entry->wifi_dev ? entry->wifi_dev->ifindex : 0,
 			   entry->wifi_dev ? entry->wifi_dev->name : "none",
 			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_SERVICE_CODE_OFF,
@@ -731,11 +747,21 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_FWD_TYPE_OFF,
 					      PPE_FLOW_E_FWD_TYPE_LEN),
 			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_PORT_VALID_OFF,
-					      PPE_FLOW_E_PORT_VALID_LEN),
-			   &entry->wifi_key.src, ntohs(entry->wifi_key.sport),
-			   &entry->wifi_key.dst, ntohs(entry->wifi_key.dport),
-			   entry->wifi_key.proto, entry->wifi_key.smac,
-			   entry->wifi_key.dmac);
+					      PPE_FLOW_E_PORT_VALID_LEN));
+		if (entry->wifi_key.family == AF_INET6)
+			seq_printf(s, " %pI6 %u %pI6 %u",
+				   &entry->wifi_key.src6,
+				   ntohs(entry->wifi_key.sport),
+				   &entry->wifi_key.dst6,
+				   ntohs(entry->wifi_key.dport));
+		else
+			seq_printf(s, " %pI4 %u %pI4 %u",
+				   &entry->wifi_key.src,
+				   ntohs(entry->wifi_key.sport),
+				   &entry->wifi_key.dst,
+				   ntohs(entry->wifi_key.dport));
+		seq_printf(s, " %u %pM %pM", entry->wifi_key.proto,
+			   entry->wifi_key.smac, entry->wifi_key.dmac);
 		seq_printf(s, " %s %s %d %u %d\n", entry->wifi_ingress ? "ingress" :
 			   entry->wifi_egress ? "post" : "none", entry->wifi_ingress ?
 			   entry->wifi_ingress->dev->name : "none",
@@ -746,6 +772,30 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 	return 0;
 }
 DEFINE_SHOW_ATTRIBUTE(ppe_offload_entries);
+
+static int ppe_active_flows_show(struct seq_file *s, void *data)
+{
+	struct qca_ppe_priv *priv = s->private;
+	struct ppe_flow_entry *entry;
+	u32 ipv4 = 0, ipv6 = 0;
+
+	/* Count published, directional rules without touching hardware or aging
+	 * entries. Failed additions and unpublished retirement are not active.
+	 */
+	guard(mutex)(&priv->flow_lock);
+	list_for_each_entry(entry, &priv->flow_list, list) {
+		if (entry->words[0] & PPE_FLOW_E_TYPE_IPV6)
+			ipv6++;
+		else
+			ipv4++;
+	}
+
+	seq_printf(s, "%u %u %u/%u\n", ipv4, ipv6, ipv4 + ipv6,
+		   priv->data->num_flow_entries);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(ppe_active_flows);
 
 /* The downlink service retains L2/L3 editing and publishes its marker. */
 static int ppe_wifi_service_program(struct qca_ppe_priv *priv)
@@ -782,6 +832,8 @@ static int ppe_wifi_service_program(struct qca_ppe_priv *priv)
 
 void ppe_flow_offload_debugfs_init(struct qca_ppe_priv *priv)
 {
+	debugfs_create_file("active_flows", 0400, priv->debugfs, priv,
+			    &ppe_active_flows_fops);
 	debugfs_create_file("wifi_endpoint_hw", 0400, priv->debugfs, priv,
 			    &ppe_wifi_service_hw_fops);
 	debugfs_create_file("wifi_ingress_hw", 0400, priv->debugfs, priv,
@@ -1103,7 +1155,7 @@ ppe_wifi_ingress_get(struct qca_ppe_priv *priv, int ifindex, int priority)
 	slot->cpu_egress_core = true;
 	ppe_vsi_member_set(priv, vsi, GENMASK(priv->data->num_ports - 1, 0));
 	regmap_write(priv->regmap, PPE_IN_L3_IF_TBL(vsi),
-		     PPE_L3_IF_IPV4_ROUTE_EN);
+		     PPE_L3_IF_IPV4_ROUTE_EN | PPE_L3_IF_IPV6_ROUTE_EN);
 	regmap_write(priv->regmap, PPE_IN_L3_IF_TBL(vsi) + 4,
 		     FIELD_PREP(PPE_L3_IF_TTL_EXCEED_CMD, PPE_L3_IF_TTL_EXCEED_TO_CPU) |
 		     FIELD_PREP(PPE_L3_IF_MAC_BITMAP, GENMASK(7, 0)));
@@ -1540,52 +1592,55 @@ static void ppe_dsa_service_put(struct qca_ppe_priv *priv, int index)
 	service->xlt = -1;
 }
 
-/* Make a tagged PPPoE WAN port route its ingress traffic in hardware, so the
- * download direction of an offloaded connection reaches the flow lookup on its
- * inner tuple.
+static int ppe_uplink_find(struct qca_ppe_priv *priv, int port, u16 vid)
+{
+	int i;
+
+	for (i = 0; i < PPE_PPPOE_SESSIONS; i++)
+		if (priv->uplink[i].ref && priv->uplink[i].port == port &&
+		    priv->uplink[i].vid == vid)
+			return i;
+
+	return -ENOENT;
+}
+
+/* Make an uplink route its ingress traffic in hardware, so the download
+ * direction of an offloaded connection reaches the flow lookup on its inner
+ * tuple.
  *
  * A dedicated VSI keeps the uplink out of any L2 domain: the ingress VLAN is
- * classified into it with the 802.1Q tag stripped, the VSI carries a route-
- * and PPPoE-terminating L3 interface holding the router's MAC, and the PPPoE
- * session id is recognised so the header is parsed through to the inner IP.
- * Everything is shared by every flow on the port and torn down with the last
- * of them. A frame that misses the flow table is still forwarded to the CPU,
- * with the tag the hardware stripped re-added on that path, so the software
- * PPPoE stack sees on-wire frames throughout.
+ * classified into it with the 802.1Q tag stripped, and the VSI carries a routing
+ * L3 interface holding the router's MAC. A frame that misses the flow table is
+ * still forwarded to the CPU, with the tag the hardware stripped re-added on
+ * that path, so the software stack sees on-wire frames throughout. The MRU
+ * leaves room for the tag and a PPPoE header whether or not either is there.
  */
-static int ppe_wan_ingress_get(struct qca_ppe_priv *priv, int port, u16 sid,
-			       bool vlan_valid, u16 vlan_id, const u8 *mac,
-			       u32 mtu)
+static int ppe_uplink_get(struct qca_ppe_priv *priv, int port, u16 vid,
+			  const u8 *mac, u32 mtu)
 {
 	u32 words[PPE_MY_MAC_WORDS] = {};
-	int vsi, xlt = -1, ret;
+	struct ppe_uplink *up;
+	int i, vsi, xlt = -1, ret;
 
-	if (priv->wan_ref[port]++) {
-		/* A re-dialled session has a new id, and an ingress still
-		 * keyed to the dead one silently un-offloads every download on
-		 * this uplink: the entries stay valid and correct, the frame
-		 * is never parsed through to the tuple they key on, and the
-		 * flow lookup is never reached. It is cheaper to write the
-		 * session on every install than to keep a copy of it that
-		 * could be wrong.
-		 */
-		regmap_write(priv->regmap, PPE_PPPOE_SESSION(port),
-			     FIELD_PREP(PPE_PPPOE_SESSION_ID, sid) |
-			     FIELD_PREP(PPE_PPPOE_SESSION_PORT_BMP, BIT(port)) |
-			     FIELD_PREP(PPE_PPPOE_SESSION_L3_IF,
-					priv->wan_vsi[port]));
-		return 0;
+	i = ppe_uplink_find(priv, port, vid);
+	if (i >= 0) {
+		priv->uplink[i].ref++;
+		return i;
 	}
+
+	for (i = 0; i < PPE_PPPOE_SESSIONS && priv->uplink[i].ref; i++)
+		;
+	if (i == PPE_PPPOE_SESSIONS)
+		return -ENOSPC;
+	up = &priv->uplink[i];
 
 	/* The translation rule shares one table with the bridge VLANs, so its
 	 * index comes from the allocator they share.
 	 */
-	if (vlan_valid) {
+	if (vid) {
 		xlt = ppe_routed_xlt_idx_alloc(priv);
-		if (xlt < 0) {
-			priv->wan_ref[port]--;
+		if (xlt < 0)
 			return xlt;
-		}
 	}
 
 	vsi = ppe_vsi_alloc(priv);
@@ -1593,8 +1648,6 @@ static int ppe_wan_ingress_get(struct qca_ppe_priv *priv, int port, u16 sid,
 		ret = vsi;
 		goto err_xlt;
 	}
-	priv->wan_vsi[port] = vsi;
-	priv->wan_vid[port] = vlan_valid ? vlan_id : 0;
 	ppe_vsi_member_set(priv, vsi, BIT(port) | BIT(QCA_PPE_CPU_PORT));
 
 	ppe_entry_set(words, PPE_MY_MAC_ADDR_OFF, PPE_MY_MAC_ADDR_LEN,
@@ -1604,7 +1657,7 @@ static int ppe_wan_ingress_get(struct qca_ppe_priv *priv, int port, u16 sid,
 			  PPE_MY_MAC_WORDS);
 	if (ret < 0)
 		goto err_vsi;
-	priv->wan_mymac[port] = ret;
+	up->mymac = ret;
 	if (priv->my_mac[ret].refcount == 1)
 		ppe_tbl_write(priv, PPE_MY_MAC_TBL(ret), words, PPE_MY_MAC_WORDS);
 
@@ -1614,29 +1667,19 @@ static int ppe_wan_ingress_get(struct qca_ppe_priv *priv, int port, u16 sid,
 		     FIELD_PREP(PPE_L3_IF_TTL_EXCEED_CMD,
 				PPE_L3_IF_TTL_EXCEED_TO_CPU) |
 		     PPE_L3_IF_TTL_EXCEED_DEACCEL |
-		     FIELD_PREP(PPE_L3_IF_MAC_BITMAP, GENMASK(7, 0)) |
-		     PPE_L3_IF_PPPOE_EN);
-	ppe_l3_if_mtu_set(priv, vsi, mtu);
+		     FIELD_PREP(PPE_L3_IF_MAC_BITMAP, GENMASK(7, 0)));
+	ppe_l3_if_mtu_set(priv, vsi, mtu + VLAN_ETH_HLEN + PPPOE_SES_HLEN);
 	regmap_write(priv->regmap, PPE_L3_VSI_TBL(vsi),
 		     PPE_L3_VSI_IF_VALID | FIELD_PREP(PPE_L3_VSI_IF_INDEX, vsi));
 
-	regmap_write(priv->regmap, PPE_PPPOE_SESSION(port),
-		     FIELD_PREP(PPE_PPPOE_SESSION_ID, sid) |
-		     FIELD_PREP(PPE_PPPOE_SESSION_PORT_BMP, BIT(port)) |
-		     FIELD_PREP(PPE_PPPOE_SESSION_L3_IF, vsi));
-	regmap_write(priv->regmap, PPE_PPPOE_SESSION_EXT(port),
-		     PPE_PPPOE_EXT_L3_IF_VALID | PPE_PPPOE_EXT_UC_VALID);
-
-	if (vlan_valid) {
-		priv->wan_xlt[port] = xlt;
-
+	if (vid) {
 		/* The L3 stage does not parse through a residual 802.1Q tag:
-		 * the PPPoE session is only recognised, and the inner tuple
+		 * a PPPoE session is only recognised, and the inner tuple
 		 * only reaches the flow lookup, once the rule also strips the
 		 * tag. The hardware re-adds it toward the CPU (below), so a
 		 * frame that misses the flow table still reaches the software
-		 * PPPoE stack in its on-wire form. Action and re-tag are in
-		 * place before the rule goes live.
+		 * stack in its on-wire form. Action and re-tag are in place
+		 * before the rule goes live.
 		 */
 		regmap_write(priv->regmap, PPE_XLT_ACTION_TBL(xlt),
 			     FIELD_PREP(PPE_XLT_CVID_CMD, PPE_XLT_CVID_DEL));
@@ -1651,7 +1694,7 @@ static int ppe_wan_ingress_get(struct qca_ppe_priv *priv, int port, u16 sid,
 		regmap_write(priv->regmap, PPE_EG_XLT_ACTION(xlt),
 			     FIELD_PREP(PPE_EG_XLT_CVID_CMD,
 					PPE_EG_XLT_CVID_ADD) |
-			     FIELD_PREP(PPE_EG_XLT_CVID, vlan_id));
+			     FIELD_PREP(PPE_EG_XLT_CVID, vid));
 		regmap_write(priv->regmap, PPE_EG_XLT_ACTION_W1(xlt), 0);
 		regmap_write(priv->regmap, PPE_EG_XLT_RULE(xlt),
 			     PPE_EG_XLT_VALID |
@@ -1679,28 +1722,32 @@ static int ppe_wan_ingress_get(struct qca_ppe_priv *priv, int port, u16 sid,
 			     FIELD_PREP(PPE_XLT_CKEY_FMT_1,
 					PPE_XLT_CKEY_TAGGED >> 1) |
 			     PPE_XLT_CKEY_VID_INCL |
-			     FIELD_PREP(PPE_XLT_CKEY_VID, vlan_id));
+			     FIELD_PREP(PPE_XLT_CKEY_VID, vid));
 		regmap_write(priv->regmap, PPE_XLT_RULE_TBL(xlt) + 8, 0);
 	}
 
-	return 1;
+	up->ref = 1;
+	up->port = port;
+	up->vid = vid;
+	up->vsi = vsi;
+	up->xlt = xlt;
+
+	return i;
 
 err_vsi:
 	ppe_vsi_free(priv, vsi);
-	priv->wan_vsi[port] = -1;
 err_xlt:
 	if (xlt >= 0)
 		ppe_xlt_idx_free(priv, &xlt);
-	priv->wan_ref[port]--;
 	return ret;
 }
 
-static void ppe_wan_ingress_put(struct qca_ppe_priv *priv, int port)
+static void ppe_uplink_put(struct qca_ppe_priv *priv, int i)
 {
-	int xlt = priv->wan_xlt[port];
-	u32 vsi = priv->wan_vsi[port];
+	struct ppe_uplink *up = &priv->uplink[i];
+	int xlt = up->xlt;
 
-	if (--priv->wan_ref[port])
+	if (--up->ref)
 		return;
 
 	if (xlt >= 0) {
@@ -1711,25 +1758,78 @@ static void ppe_wan_ingress_put(struct qca_ppe_priv *priv, int port)
 		 * the action's, since a key left live over a zeroed action
 		 * blackholes every frame it matches.
 		 */
-		ppe_xlt_idx_free(priv, &priv->wan_xlt[port]);
+		ppe_xlt_idx_free(priv, &up->xlt);
 		ppe_eg_xlt_clear(priv, xlt);
 	}
-	regmap_write(priv->regmap, PPE_PPPOE_SESSION(port), 0);
-	regmap_write(priv->regmap, PPE_PPPOE_SESSION_EXT(port), 0);
-	regmap_write(priv->regmap, PPE_L3_VSI_TBL(vsi), 0);
-	ppe_tbl_clear(priv, PPE_IN_L3_IF_TBL(vsi), PPE_L3_IF_WORDS);
-	if (ppe_res_put(priv->my_mac, priv->wan_mymac[port]))
-		ppe_tbl_clear(priv, PPE_MY_MAC_TBL(priv->wan_mymac[port]),
+	regmap_write(priv->regmap, PPE_L3_VSI_TBL(up->vsi), 0);
+	ppe_tbl_clear(priv, PPE_IN_L3_IF_TBL(up->vsi), PPE_L3_IF_WORDS);
+	if (ppe_res_put(priv->my_mac, up->mymac))
+		ppe_tbl_clear(priv, PPE_MY_MAC_TBL(up->mymac),
 			      PPE_MY_MAC_WORDS);
-	ppe_vsi_free(priv, vsi);
-	priv->wan_vsi[port] = -1;
+	ppe_vsi_free(priv, up->vsi);
 }
 
-/* The VSI the ingress classification puts this rule's packets in - the routing
- * domain the flow belongs to, and the one ingress identifier its hardware entry
- * can carry. A domain that cannot be named is declined rather than encoded as
- * the bare tuple, which would let the flow forward traffic from another VLAN.
+/* Recognise a PPPoE session on its uplink, so the header is parsed through to
+ * the inner IP. A re-dialled session has a new id and gets an entry of its own;
+ * the old one goes with the last flow that used it. The uplink terminates PPPoE
+ * from its first session on.
  */
+static int ppe_pppoe_session_get(struct qca_ppe_priv *priv, int up, u16 sid)
+{
+	int port = priv->uplink[up].port;
+	u32 vsi = priv->uplink[up].vsi;
+	u32 w[PPE_L3_IF_WORDS];
+	int i, free = -1;
+
+	for (i = 0; i < PPE_PPPOE_SESSIONS; i++) {
+		struct ppe_pppoe_session *s = &priv->pppoe[i];
+
+		if (!s->ref) {
+			if (free < 0)
+				free = i;
+			continue;
+		}
+		if (s->sid != sid || priv->uplink[s->uplink].port != port)
+			continue;
+		/* The same id on another VLAN of the port would match the
+		 * same entry.
+		 */
+		if (s->uplink != up)
+			return -ENOSPC;
+		s->ref++;
+		return i;
+	}
+
+	if (free < 0)
+		return -ENOSPC;
+
+	for (i = 0; i < PPE_L3_IF_WORDS; i++)
+		regmap_read(priv->regmap, PPE_IN_L3_IF_TBL(vsi) + i * 4, &w[i]);
+	w[1] |= PPE_L3_IF_PPPOE_EN;
+	ppe_tbl_write(priv, PPE_IN_L3_IF_TBL(vsi), w, PPE_L3_IF_WORDS);
+
+	priv->pppoe[free].ref = 1;
+	priv->pppoe[free].sid = sid;
+	priv->pppoe[free].uplink = up;
+	regmap_write(priv->regmap, PPE_PPPOE_SESSION(free),
+		     FIELD_PREP(PPE_PPPOE_SESSION_ID, sid) |
+		     FIELD_PREP(PPE_PPPOE_SESSION_PORT_BMP, BIT(port)) |
+		     FIELD_PREP(PPE_PPPOE_SESSION_L3_IF, vsi));
+	regmap_write(priv->regmap, PPE_PPPOE_SESSION_EXT(free),
+		     PPE_PPPOE_EXT_L3_IF_VALID | PPE_PPPOE_EXT_UC_VALID);
+
+	return free;
+}
+
+static void ppe_pppoe_session_put(struct qca_ppe_priv *priv, int i)
+{
+	if (--priv->pppoe[i].ref)
+		return;
+
+	regmap_write(priv->regmap, PPE_PPPOE_SESSION(i), 0);
+	regmap_write(priv->regmap, PPE_PPPOE_SESSION_EXT(i), 0);
+}
+
 /* A port's PVID only classifies while the bridge enforces its VLANs; until
  * then the bridge VLANs are recorded and name no port.
  */
@@ -1738,18 +1838,16 @@ static u16 ppe_port_pvid(struct qca_ppe_priv *priv, int port)
 	return priv->vlan_filtering & BIT(port) ? priv->port_pvid[port] : 0;
 }
 
+/* The VSI the ingress classification puts this rule's packets in - the routing
+ * domain the flow belongs to, and the one ingress identifier its hardware entry
+ * can carry. A domain that cannot be named is declined rather than encoded as
+ * the bare tuple, which would let the flow forward traffic from another VLAN.
+ */
 static int ppe_flow_ingress_vsi(struct qca_ppe_priv *priv, int iport, u16 vid)
 {
 	struct qca_ppe_vlan_entry *vlan;
 
 	lockdep_assert_held(&priv->vlan_lock);
-
-	/* A PPPoE uplink is classified into a VSI of its own, and only the
-	 * VLAN and session id that classification names reach it.
-	 */
-	if (priv->wan_ref[iport])
-		return vid && vid != priv->wan_vid[iport] ? -EOPNOTSUPP :
-							    priv->wan_vsi[iport];
 
 	/* A VLAN-filtering bridge classifies a tagged frame into its VLAN's
 	 * VSI and an untagged one into the PVID's, so the port's own VSI
@@ -1788,6 +1886,19 @@ static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
 
 	lockdep_assert_held(&priv->vlan_lock);
 
+	/* An uplink's ingress interface belongs to the uplink, so take a
+	 * reference rather than programming anything: a sibling flow going away
+	 * must not pull the classification out from under this one.
+	 */
+	ret = dsa_service ? -ENOENT : ppe_uplink_find(priv, iport, vid);
+	if (ret >= 0) {
+		priv->uplink[ret].ref++;
+		entry->in_uplink = ret;
+		entry->src_if = priv->uplink[ret].vsi;
+		entry->ivid = vid;
+		return 0;
+	}
+
 	if (dsa_service) {
 		entry->dsa_service = ppe_dsa_service_get(priv, iport, vid);
 		if (entry->dsa_service < 0)
@@ -1801,18 +1912,7 @@ static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
 
 	entry->src_if = vsi;
 	entry->ivid = dsa_service ? 0 :
-		      priv->wan_ref[iport] ? priv->wan_vid[iport] :
 		      vid ? vid : ppe_port_pvid(priv, iport);
-
-	/* A PPPoE uplink's ingress interface belongs to the uplink, so take a
-	 * reference rather than programming anything: a sibling flow going away
-	 * must not pull the classification out from under this one.
-	 */
-	if (priv->wan_ref[iport]) {
-		priv->wan_ref[iport]++;
-		entry->wan_iport = iport;
-		return 0;
-	}
 
 	/* The address the packet is sent to is the address of the device that
 	 * routes for this port, which is the bridge when there is one. That
@@ -1918,9 +2018,10 @@ static void ppe_flow_l3_mtu_set(struct qca_ppe_priv *priv, int port, int mtu)
 
 	lockdep_assert_held(&priv->vlan_lock);
 
-	if (priv->wan_ref[port])
-		ppe_l3_if_mtu_set(priv, priv->wan_vsi[port],
-				  mtu + VLAN_ETH_HLEN + PPPOE_SES_HLEN);
+	for (i = 0; i < PPE_PPPOE_SESSIONS; i++)
+		if (priv->uplink[i].ref && priv->uplink[i].port == port)
+			ppe_l3_if_mtu_set(priv, priv->uplink[i].vsi,
+					  mtu + VLAN_ETH_HLEN + PPPOE_SES_HLEN);
 
 	vsi = ppe_port_l3_vsi(priv, port);
 	if (priv->l3_if_ref[vsi])
@@ -2049,8 +2150,8 @@ static void ppe_flow_free_ingress(struct qca_ppe_priv *priv,
 	if (entry->wifi_ingress) {
 		ppe_wifi_ingress_unbind(entry);
 		entry->wifi_ingress->refs--;
-	} else if (entry->wan_iport >= 0) {
-		ppe_wan_ingress_put(priv, entry->wan_iport);
+	} else if (entry->in_uplink >= 0) {
+		ppe_uplink_put(priv, entry->in_uplink);
 	} else {
 		if (entry->l3_if >= 0 && !--priv->l3_if_ref[entry->l3_if]) {
 			regmap_write(priv->regmap, PPE_L3_VSI_TBL(entry->l3_if), 0);
@@ -2105,17 +2206,19 @@ void ppe_flow_purge_vsi(struct qca_ppe_priv *priv, u32 vsi)
 	}
 }
 
-/* A flow that ingresses on this port and was installed before the uplink had a
- * classification named the port's plain VSI, and can never match now that one
- * exists. Drop those entries: the flowtable reinstalls whatever is still live.
+/* A flow that ingresses on the uplink's port and VLAN and was installed before
+ * the uplink had a classification named the port's plain VSI, and can never
+ * match now that one exists. Drop those entries: the flowtable reinstalls
+ * whatever is still live.
  */
-static void ppe_flow_purge_ingress(struct qca_ppe_priv *priv, int iport,
-				   u8 wan_vsi)
+static void ppe_flow_purge_ingress(struct qca_ppe_priv *priv,
+				   const struct ppe_uplink *up)
 {
 	struct ppe_flow_entry *entry, *tmp;
 
 	list_for_each_entry_safe(entry, tmp, &priv->flow_list, list) {
-		if (entry->iport != iport || entry->src_if == wan_vsi)
+		if (entry->iport != up->port || entry->ivid != up->vid ||
+		    entry->src_if == up->vsi)
 			continue;
 
 		ppe_flow_drop(priv, entry);
@@ -2139,7 +2242,8 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 
 	if (wifi) {
 		if (!net_eq(dev_net(data->odev), &init_net) ||
-		    data->addr_type != FLOW_DISSECTOR_KEY_IPV4_ADDRS ||
+		    (data->addr_type != FLOW_DISSECTOR_KEY_IPV4_ADDRS &&
+		     data->addr_type != FLOW_DISSECTOR_KEY_IPV6_ADDRS) ||
 		    (data->l4proto != IPPROTO_TCP && data->l4proto != IPPROTO_UDP) ||
 		    data->vlan_valid || data->pppoe_valid ||
 		    !netif_running(data->odev))
@@ -2152,8 +2256,15 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 		entry->oport = QCA_PPE_CPU_PORT;
 		entry->ovid = 0;
 		entry->wifi_dev = data->odev;
-		entry->wifi_key.src = data->v4_src_new;
-		entry->wifi_key.dst = data->v4_dst_new;
+		if (data->addr_type == FLOW_DISSECTOR_KEY_IPV6_ADDRS) {
+			entry->wifi_key.family = AF_INET6;
+			entry->wifi_key.src6 = data->v6_src;
+			entry->wifi_key.dst6 = data->v6_dst;
+		} else {
+			entry->wifi_key.family = AF_INET;
+			entry->wifi_key.src = data->v4_src_new;
+			entry->wifi_key.dst = data->v4_dst_new;
+		}
 		entry->wifi_key.sport = data->sport_new;
 		entry->wifi_key.dport = data->dport_new;
 		entry->wifi_key.proto = data->l4proto;
@@ -2281,37 +2392,32 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 		ppe_tbl_write(priv, PPE_IN_NEXTHOP_TBL(ret), words,
 			      PPE_NEXTHOP_WORDS);
 
-	/* The reverse of a flow that egresses PPPoE arrives PPPoE-encapsulated
-	 * on this same port; set the port up to route it so that direction
-	 * offloads too.
+	/* The reverse of a flow that egresses PPPoE, or a VLAN of a port no
+	 * bridge classifies, arrives the same way on this port; set the port up
+	 * to route it so that direction offloads too.
 	 */
-	if (data->pppoe_valid && !wifi) {
-		struct dsa_port *odp = dsa_to_port(&priv->ds, port);
-		u8 wan_vsi;
-
-		ret = ppe_wan_ingress_get(priv, port, data->pppoe_sid,
-					  data->vlan_valid, data->vlan_id,
-					  odp->user->dev_addr,
-					  odp->user->mtu + VLAN_ETH_HLEN +
-					  PPPOE_SES_HLEN);
-		wan_vsi = priv->wan_vsi[port];
+	if (!wifi && (data->pppoe_valid ||
+	    (data->vlan_valid && !priv->port_br_dev[port]))) {
+		ret = ppe_uplink_get(priv, port,
+				     data->vlan_valid ? data->vlan_id : 0,
+				     odp->user->dev_addr, odp->user->mtu);
 		if (ret < 0)
 			goto err_nexthop;
-		entry->wan_port = port;
+		entry->uplink = ret;
+	}
 
-		if (ret == 1)
-			ppe_flow_purge_ingress(priv, port, wan_vsi);
+	if (data->pppoe_valid) {
+		ret = ppe_pppoe_session_get(priv, entry->uplink,
+					    data->pppoe_sid);
+		if (ret < 0)
+			goto err_uplink;
+		entry->session = ret;
 	}
 
 	if (data->egress_svid_valid && !wifi) {
 		ret = ppe_dsa_core_port_get(priv, port, false);
-		if (ret) {
-			if (entry->wan_port >= 0) {
-				ppe_wan_ingress_put(priv, entry->wan_port);
-				entry->wan_port = -1;
-			}
-			goto err_nexthop;
-		}
+		if (ret)
+			goto err_session;
 		entry->dsa_egress_port = port;
 	}
 
@@ -2325,7 +2431,7 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 				    sizeof(entry->wifi_key))) {
 				spin_unlock_bh(&ppe_wifi_lock);
 				ret = -EEXIST;
-				goto err_nexthop;
+				goto err_session;
 			}
 		}
 		hash_add(ppe_wifi_flows, &entry->wifi_node, hash);
@@ -2333,8 +2439,19 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 		spin_unlock_bh(&ppe_wifi_lock);
 	}
 
+	if (entry->uplink >= 0 && priv->uplink[entry->uplink].ref == 1)
+		ppe_flow_purge_ingress(priv, &priv->uplink[entry->uplink]);
+
 	return 0;
 
+err_session:
+	if (entry->dsa_egress_port >= 0)
+		ppe_dsa_core_port_put(priv, entry->dsa_egress_port, false);
+	if (entry->session >= 0)
+		ppe_pppoe_session_put(priv, entry->session);
+err_uplink:
+	if (entry->uplink >= 0)
+		ppe_uplink_put(priv, entry->uplink);
 err_nexthop:
 	if (ppe_res_put(priv->nexthop, entry->nexthop))
 		ppe_tbl_clear(priv, PPE_IN_NEXTHOP_TBL(entry->nexthop),
@@ -2372,8 +2489,10 @@ static void ppe_flow_free_egress(struct qca_ppe_priv *priv,
 			      PPE_L3_IF_WORDS);
 	}
 
-	if (entry->wan_port >= 0)
-		ppe_wan_ingress_put(priv, entry->wan_port);
+	if (entry->session >= 0)
+		ppe_pppoe_session_put(priv, entry->session);
+	if (entry->uplink >= 0)
+		ppe_uplink_put(priv, entry->uplink);
 	if (entry->dsa_egress_port >= 0)
 		ppe_dsa_core_port_put(priv, entry->dsa_egress_port, false);
 }
@@ -2784,6 +2903,18 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	if (ppe_flow_proto(data.l4proto) < 0)
 		return ppe_flow_reject(priv, rule, PPE_REJECT_PROTO);
 
+	/* The entry matches any flags; a flag the rule excludes is only
+	 * honoured if its exception takes it to the CPU.
+	 */
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_TCP)) {
+		struct flow_match_tcp match;
+
+		flow_rule_match_tcp(rule, &match);
+		if (match.key->flags & match.mask->flags ||
+		    match.mask->flags & ~htons(PPE_FLOW_TCP_TRAP))
+			return ppe_flow_reject(priv, rule, PPE_REJECT_KEY);
+	}
+
 	flow_action_for_each(i, act, &rule->action) {
 		switch (act->id) {
 		case FLOW_ACTION_MANGLE:
@@ -2910,7 +3041,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		return ppe_flow_reject(priv, rule, PPE_REJECT_NAT_IPV6);
 
 	if (wifi_ingress) {
-		if (v6 || data.ivid || data.vlan_valid || data.pppoe_valid ||
+		if (data.ivid || data.vlan_valid ||
 		    data.odev->ieee80211_ptr ||
 		    (data.l4proto != IPPROTO_TCP && data.l4proto != IPPROTO_UDP))
 			return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_PORT);
@@ -2933,8 +3064,9 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	entry->pub_ip = -1;
 	entry->my_mac = -1;
 	entry->l3_if = -1;
-	entry->wan_port = -1;
-	entry->wan_iport = -1;
+	entry->uplink = -1;
+	entry->in_uplink = -1;
+	entry->session = -1;
 	entry->dsa_service = -1;
 	entry->dsa_egress_port = -1;
 	entry->iport = iport;
@@ -2943,8 +3075,15 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 
 	if (entry->wifi_ingress) {
 		entry->src_if = entry->wifi_ingress->vsi;
-		entry->wifi_key.src = data.v4_src;
-		entry->wifi_key.dst = data.v4_dst;
+		if (v6) {
+			entry->wifi_key.family = AF_INET6;
+			entry->wifi_key.src6 = data.v6_src;
+			entry->wifi_key.dst6 = data.v6_dst;
+		} else {
+			entry->wifi_key.family = AF_INET;
+			entry->wifi_key.src = data.v4_src;
+			entry->wifi_key.dst = data.v4_dst;
+		}
 		entry->wifi_key.sport = data.sport;
 		entry->wifi_key.dport = data.dport;
 		entry->wifi_key.proto = data.l4proto;
@@ -3502,7 +3641,7 @@ static void ppe_sparse_work(struct work_struct *work)
 int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 {
 	struct device *dev = priv->ds.dev;
-	int i, ret;
+	int ret;
 
 	priv->eg_l3_if = devm_kcalloc(dev, PPE_EG_L3_IF_ENTRIES,
 				      sizeof(*priv->eg_l3_if), GFP_KERNEL);
@@ -3519,12 +3658,6 @@ int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 	if (!priv->host_retired || !priv->eg_l3_if || !priv->pub_ip || !priv->nexthop ||
 	    !priv->host_ref || !priv->my_mac)
 		return -ENOMEM;
-
-	for (i = 0; i < QCA_PPE_MAX_PORTS; i++) {
-		priv->wan_vsi[i] = -1;
-		priv->wan_mymac[i] = -1;
-		priv->wan_xlt[i] = -1;
-	}
 
 	INIT_LIST_HEAD(&priv->flow_list);
 	INIT_LIST_HEAD(&priv->flow_retire_list);
