@@ -3,8 +3,12 @@
 #ifndef _OTTO_L3_H
 #define _OTTO_L3_H
 
+#include "l3_limits.h"
 #include "rtl-otto.h"
 
+struct fib6_info;
+
+#define MAX_SMACS 64
 #define MAX_HOST_ROUTES		1536
 #define MAX_ROUTES		512
 
@@ -71,13 +75,16 @@ struct otto_l3_nexthop {
 };
 
 struct otto_l3_route {
-	u32 gw_ip;			/* IP of the route's gateway */
+	struct fib6_info *f6i;		/* FIB entry to report the offload on */
+	struct in6_addr gw_ip;		/* Gateway of the route, IPv4 v4-mapped */
+	int gw_ifindex;			/* Device the gateway is reached on */
 	u32 dst_ip;			/* IP of the destination net */
 	struct in6_addr dst_ip6;
 	int prefix_len;			/* Network prefix len of the destination net */
 	bool is_host_route;
 	int id;				/* ID number of this route */
 	int row;			/* Row it occupies in the prefix route table */
+	unsigned int members;		/* FIB entries a trap row stands for */
 	struct rhlist_head linkage;
 	struct list_head list;		/* all routes, for lookups by destination */
 	u32 tb_id;			/* routing table the route came from */
@@ -123,6 +130,7 @@ struct otto_l3_ctrl {
 	unsigned long route_use_bm[MAX_ROUTES / 32];
 	unsigned long host_route_use_bm[MAX_HOST_ROUTES / 32];
 	struct otto_l3_intf interfaces[MAX_SMACS];
+	bool prefix_rows_stale;	/* a move failed, the rows are not where we say */
 	struct mutex *lock; /* protect register access */
 };
 
