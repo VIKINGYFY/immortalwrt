@@ -23,6 +23,9 @@
 #include <linux/module.h>
 #include <linux/hashtable.h>
 #include <linux/jhash.h>
+#include <linux/in6.h>
+#include <linux/ipv6.h>
+#include <linux/socket.h>
 #include <net/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
@@ -90,13 +93,15 @@ struct ppe_flow_data {
 };
 
 /* Direction-specific identity: downlink post-edit, uplink pre-edit.
- * Padding is zeroed before hashing. */
+ * Padding is zeroed before hashing.  IPv4 and IPv6 addresses are kept in
+ * separate fields and the one selected by family alone is populated, so a
+ * key never aliases across address families. */
 struct ppe_wifi_key {
 	__be32 src, dst;
+	struct in6_addr src6, dst6;
 	__be16 sport, dport;
-	u8 proto, iport;
+	u8 proto, iport, family;
 	u8 dmac[ETH_ALEN], smac[ETH_ALEN];
-	u16 reserved;
 };
 
 enum ppe_flow_state {
@@ -186,36 +191,76 @@ void qca_ppe_wifi_inject_unregister(const struct qca_ppe_wifi_inject_ops *ops)
 }
 EXPORT_SYMBOL_GPL(qca_ppe_wifi_inject_unregister);
 
-/* Header guards must not pull, expand or otherwise change a shared RX skb. */
-static bool ppe_wifi_ingress_key(struct sk_buff *skb, struct ppe_wifi_key *key)
+/* Extract the L3/L4 tuple that names a Wi-Fi flow.  l3_off is the offset of
+ * the IP header from skb->data.  Header guards must not pull, expand or
+ * otherwise change a shared RX skb, so the fixed header is read through
+ * skb_header_pointer and the ports through skb_copy_bits.  IPv4 options,
+ * IPv6 extension headers, fragments and payloads other than TCP/UDP are
+ * declined and stay on the software path.  When forward is set the packet
+ * is still on its way into the router, so a TTL the hardware could only
+ * answer with ICMP keeps the flow in software.  The key is zeroed here and
+ * only the fields of the detected address family are filled. */
+static bool ppe_wifi_key_parse(struct sk_buff *skb, unsigned int l3_off,
+			       struct ppe_wifi_key *key, bool forward)
 {
-	struct iphdr ip_buf;
 	const struct iphdr *iph;
+	const struct ipv6hdr *iph6;
+	struct iphdr iph_buf;
+	struct ipv6hdr iph6_buf;
 	__be16 ports[2];
+	unsigned int l4_off, hlen, tot;
+	u8 proto, first;
 
-	iph = skb_header_pointer(skb, 0, sizeof(ip_buf), &ip_buf);
-	if (!iph || iph->version != 4 || iph->ihl != 5 || ip_is_fragment(iph) ||
-	    iph->ttl <= 1 || ntohs(iph->tot_len) > skb->len ||
-	    ntohs(iph->tot_len) < sizeof(*iph) + sizeof(struct udphdr))
+	memset(key, 0, sizeof(*key));
+
+	if (l3_off >= skb->len || skb_copy_bits(skb, l3_off, &first, 1))
 		return false;
-	if (iph->protocol == IPPROTO_TCP) {
+
+	if ((first >> 4) == 4) {
+		iph = skb_header_pointer(skb, l3_off, sizeof(*iph), &iph_buf);
+		if (!iph || iph->ihl != 5 || ip_is_fragment(iph) ||
+		    (forward && iph->ttl <= 1) ||
+		    (iph->protocol != IPPROTO_TCP && iph->protocol != IPPROTO_UDP))
+			return false;
+		hlen = sizeof(*iph);
+		tot = ntohs(iph->tot_len);
+		proto = iph->protocol;
+		key->src = iph->saddr;
+		key->dst = iph->daddr;
+		key->family = AF_INET;
+	} else if ((first >> 4) == 6) {
+		iph6 = skb_header_pointer(skb, l3_off, sizeof(*iph6), &iph6_buf);
+		if (!iph6 || (forward && iph6->hop_limit <= 1) ||
+		    (iph6->nexthdr != IPPROTO_TCP && iph6->nexthdr != IPPROTO_UDP))
+			return false;
+		hlen = sizeof(*iph6);
+		tot = hlen + ntohs(iph6->payload_len);
+		proto = iph6->nexthdr;
+		key->src6 = iph6->saddr;
+		key->dst6 = iph6->daddr;
+		key->family = AF_INET6;
+	} else {
+		return false;
+	}
+
+	if (tot < hlen + sizeof(struct udphdr) || tot > skb->len - l3_off)
+		return false;
+
+	l4_off = l3_off + hlen;
+	if (proto == IPPROTO_TCP) {
 		struct tcphdr tcp_buf;
 		const struct tcphdr *th;
 
-		th = skb_header_pointer(skb, sizeof(*iph), sizeof(tcp_buf), &tcp_buf);
+		th = skb_header_pointer(skb, l4_off, sizeof(tcp_buf), &tcp_buf);
 		if (!th || th->fin || th->rst || th->doff < 5 ||
-		    sizeof(*iph) + th->doff * 4 > ntohs(iph->tot_len))
+		    hlen + th->doff * 4 > tot)
 			return false;
-	} else if (iph->protocol != IPPROTO_UDP) {
-		return false;
 	}
-	if (skb_copy_bits(skb, sizeof(*iph), ports, sizeof(ports)))
+	if (skb_copy_bits(skb, l4_off, ports, sizeof(ports)))
 		return false;
-	key->src = iph->saddr;
-	key->dst = iph->daddr;
 	key->sport = ports[0];
 	key->dport = ports[1];
-	key->proto = iph->protocol;
+	key->proto = proto;
 	return true;
 }
 
@@ -305,7 +350,9 @@ static unsigned int ppe_wifi_ingress_hook(void *data, struct sk_buff *skb,
 	if (atomic_read(&slot->returning))
 		return NF_ACCEPT;
 	if (READ_ONCE(slot->disabled) ||
-	    !atomic_read(&slot->flows) || skb->protocol != htons(ETH_P_IP) ||
+	    !atomic_read(&slot->flows) ||
+	    (skb->protocol != htons(ETH_P_IP) &&
+	     skb->protocol != htons(ETH_P_IPV6)) ||
 	    skb_mac_header(skb) + ETH_HLEN != skb->data ||
 	    !ether_addr_equal(eth_hdr(skb)->h_dest, slot->mac))
 		return NF_ACCEPT;
@@ -313,7 +360,7 @@ static unsigned int ppe_wifi_ingress_hook(void *data, struct sk_buff *skb,
 		return NF_ACCEPT;
 	if (skb_vlan_tag_present(skb))
 		return NF_ACCEPT;
-	if (!ppe_wifi_ingress_key(skb, &key))
+	if (!ppe_wifi_key_parse(skb, 0, &key, true))
 		return NF_ACCEPT;
 	key.iport = slot - ppe_wifi_ingress;
 
@@ -387,7 +434,6 @@ bool qca_ppe_wifi_ingress_return(struct sk_buff *skb, u8 source_port)
 	struct ppe_wifi_key key = {};
 	struct vlan_ethhdr *eth;
 	struct net_device *dev;
-	const struct iphdr *iph;
 	u16 vid;
 
 	if (skb_headlen(skb) < sizeof(*eth))
@@ -400,20 +446,10 @@ bool qca_ppe_wifi_ingress_return(struct sk_buff *skb, u8 source_port)
 	    vid >= QCA_PPE_WIFI_INGRESS_VID_BASE + QCA_PPE_WIFI_INGRESS_SLOTS)
 		return false;
 	slot = &ppe_wifi_ingress[vid - QCA_PPE_WIFI_INGRESS_VID_BASE];
-	if (eth->h_vlan_encapsulated_proto == htons(ETH_P_IP) &&
-	    pskb_may_pull(skb, sizeof(*eth) + sizeof(*iph) + 4)) {
-		iph = (const void *)(skb->data + sizeof(*eth));
-		if (iph->version == 4 && iph->ihl == 5 && !ip_is_fragment(iph) &&
-		    (iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP)) {
-			key.src = iph->saddr;
-			key.dst = iph->daddr;
-			memcpy(&key.sport, iph + 1, sizeof(key.sport));
-			memcpy(&key.dport, (const u8 *)(iph + 1) + 2,
-			       sizeof(key.dport));
-			key.proto = iph->protocol;
-			key.iport = slot - ppe_wifi_ingress;
-		}
-	}
+	if ((eth->h_vlan_encapsulated_proto == htons(ETH_P_IP) ||
+	     eth->h_vlan_encapsulated_proto == htons(ETH_P_IPV6)) &&
+	    ppe_wifi_key_parse(skb, sizeof(*eth), &key, false))
+		key.iport = slot - ppe_wifi_ingress;
 	/* Release clears dev before waiting for these readers; neither the slot
 	 * nor its hook may be reused until synchronous receive has completed.
 	 */
@@ -470,39 +506,19 @@ void qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
 	struct ppe_flow_entry *entry;
 	struct net_device *dev = NULL;
 	const struct ethhdr *eth;
-	const struct iphdr *iph;
-	unsigned int iplen;
-	__be16 ports[2];
+	bool v6;
 
 	/* Called only for the PPE service marker.  Already edited packets must
 	 * never enter IP forwarding again if the binding disappeared. */
-	if (skb_headlen(skb) < ETH_HLEN + sizeof(*iph) + sizeof(ports))
+	if (skb_headlen(skb) < ETH_HLEN)
 		goto drop;
 	eth = (const struct ethhdr *)skb->data;
-	iph = (const struct iphdr *)(skb->data + ETH_HLEN);
-	if (eth->h_proto != htons(ETH_P_IP) || iph->version != 4 ||
-	    iph->ihl != 5 || ip_is_fragment(iph) || !iph->ttl)
+	if (eth->h_proto != htons(ETH_P_IP) &&
+	    eth->h_proto != htons(ETH_P_IPV6))
 		goto drop;
-	iplen = ntohs(iph->tot_len);
-	if (iplen + ETH_HLEN > skb->len || iplen < sizeof(*iph) + sizeof(ports))
+	if (!ppe_wifi_key_parse(skb, ETH_HLEN, &key, false))
 		goto drop;
-	if (iph->protocol == IPPROTO_TCP) {
-		const struct tcphdr *th = (const void *)(iph + 1);
-
-		if (iplen < sizeof(*iph) + sizeof(*th) ||
-		    skb_headlen(skb) < ETH_HLEN + sizeof(*iph) + sizeof(*th) ||
-		    th->doff < 5 || sizeof(*iph) + th->doff * 4 > iplen)
-			goto drop;
-	} else if (iph->protocol != IPPROTO_UDP ||
-		   iplen < sizeof(*iph) + sizeof(struct udphdr)) {
-		goto drop;
-	}
-	memcpy(ports, iph + 1, sizeof(ports));
-	key.src = iph->saddr;
-	key.dst = iph->daddr;
-	key.sport = ports[0];
-	key.dport = ports[1];
-	key.proto = iph->protocol;
+	v6 = key.family == AF_INET6;
 	key.iport = iport;
 	ether_addr_copy(key.dmac, eth->h_dest);
 	ether_addr_copy(key.smac, eth->h_source);
@@ -527,8 +543,9 @@ void qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
 	skb->dev = dev;
 	skb_reset_mac_header(skb);
 	skb_set_network_header(skb, ETH_HLEN);
-	skb_set_transport_header(skb, ETH_HLEN + sizeof(*iph));
-	skb->protocol = htons(ETH_P_IP);
+	skb_set_transport_header(skb, ETH_HLEN +
+				 (v6 ? sizeof(struct ipv6hdr) : sizeof(struct iphdr)));
+	skb->protocol = v6 ? htons(ETH_P_IPV6) : htons(ETH_P_IP);
 	skb->ip_summed = CHECKSUM_NONE;
 	dev_queue_xmit(skb);
 	dev_put(dev);
@@ -721,7 +738,7 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 			 (stats_ret ? stats_ret :
 			  ppe_flow_entry_read(priv, entry->index, hw, entry->nwords)) :
 			 -EOPNOTSUPP;
-		seq_printf(s, " %d %s %u %d %u %u %u %pI4 %u %pI4 %u %u %pM %pM",
+		seq_printf(s, " %d %s %u %d %u %u %u",
 			   entry->wifi_dev ? entry->wifi_dev->ifindex : 0,
 			   entry->wifi_dev ? entry->wifi_dev->name : "none",
 			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_SERVICE_CODE_OFF,
@@ -731,11 +748,21 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_FWD_TYPE_OFF,
 					      PPE_FLOW_E_FWD_TYPE_LEN),
 			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_PORT_VALID_OFF,
-					      PPE_FLOW_E_PORT_VALID_LEN),
-			   &entry->wifi_key.src, ntohs(entry->wifi_key.sport),
-			   &entry->wifi_key.dst, ntohs(entry->wifi_key.dport),
-			   entry->wifi_key.proto, entry->wifi_key.smac,
-			   entry->wifi_key.dmac);
+					      PPE_FLOW_E_PORT_VALID_LEN));
+		if (entry->wifi_key.family == AF_INET6)
+			seq_printf(s, " %pI6 %u %pI6 %u",
+				   &entry->wifi_key.src6,
+				   ntohs(entry->wifi_key.sport),
+				   &entry->wifi_key.dst6,
+				   ntohs(entry->wifi_key.dport));
+		else
+			seq_printf(s, " %pI4 %u %pI4 %u",
+				   &entry->wifi_key.src,
+				   ntohs(entry->wifi_key.sport),
+				   &entry->wifi_key.dst,
+				   ntohs(entry->wifi_key.dport));
+		seq_printf(s, " %u %pM %pM", entry->wifi_key.proto,
+			   entry->wifi_key.smac, entry->wifi_key.dmac);
 		seq_printf(s, " %s %s %d %u %d\n", entry->wifi_ingress ? "ingress" :
 			   entry->wifi_egress ? "post" : "none", entry->wifi_ingress ?
 			   entry->wifi_ingress->dev->name : "none",
@@ -1103,7 +1130,7 @@ ppe_wifi_ingress_get(struct qca_ppe_priv *priv, int ifindex, int priority)
 	slot->cpu_egress_core = true;
 	ppe_vsi_member_set(priv, vsi, GENMASK(priv->data->num_ports - 1, 0));
 	regmap_write(priv->regmap, PPE_IN_L3_IF_TBL(vsi),
-		     PPE_L3_IF_IPV4_ROUTE_EN);
+		     PPE_L3_IF_IPV4_ROUTE_EN | PPE_L3_IF_IPV6_ROUTE_EN);
 	regmap_write(priv->regmap, PPE_IN_L3_IF_TBL(vsi) + 4,
 		     FIELD_PREP(PPE_L3_IF_TTL_EXCEED_CMD, PPE_L3_IF_TTL_EXCEED_TO_CPU) |
 		     FIELD_PREP(PPE_L3_IF_MAC_BITMAP, GENMASK(7, 0)));
@@ -2139,7 +2166,8 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 
 	if (wifi) {
 		if (!net_eq(dev_net(data->odev), &init_net) ||
-		    data->addr_type != FLOW_DISSECTOR_KEY_IPV4_ADDRS ||
+		    (data->addr_type != FLOW_DISSECTOR_KEY_IPV4_ADDRS &&
+		     data->addr_type != FLOW_DISSECTOR_KEY_IPV6_ADDRS) ||
 		    (data->l4proto != IPPROTO_TCP && data->l4proto != IPPROTO_UDP) ||
 		    data->vlan_valid || data->pppoe_valid ||
 		    !netif_running(data->odev))
@@ -2152,8 +2180,15 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 		entry->oport = QCA_PPE_CPU_PORT;
 		entry->ovid = 0;
 		entry->wifi_dev = data->odev;
-		entry->wifi_key.src = data->v4_src_new;
-		entry->wifi_key.dst = data->v4_dst_new;
+		if (data->addr_type == FLOW_DISSECTOR_KEY_IPV6_ADDRS) {
+			entry->wifi_key.family = AF_INET6;
+			entry->wifi_key.src6 = data->v6_src;
+			entry->wifi_key.dst6 = data->v6_dst;
+		} else {
+			entry->wifi_key.family = AF_INET;
+			entry->wifi_key.src = data->v4_src_new;
+			entry->wifi_key.dst = data->v4_dst_new;
+		}
 		entry->wifi_key.sport = data->sport_new;
 		entry->wifi_key.dport = data->dport_new;
 		entry->wifi_key.proto = data->l4proto;
@@ -2910,7 +2945,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		return ppe_flow_reject(priv, rule, PPE_REJECT_NAT_IPV6);
 
 	if (wifi_ingress) {
-		if (v6 || data.ivid || data.vlan_valid || data.pppoe_valid ||
+		if (data.ivid || data.vlan_valid || data.pppoe_valid ||
 		    data.odev->ieee80211_ptr ||
 		    (data.l4proto != IPPROTO_TCP && data.l4proto != IPPROTO_UDP))
 			return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_PORT);
@@ -2943,8 +2978,15 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 
 	if (entry->wifi_ingress) {
 		entry->src_if = entry->wifi_ingress->vsi;
-		entry->wifi_key.src = data.v4_src;
-		entry->wifi_key.dst = data.v4_dst;
+		if (v6) {
+			entry->wifi_key.family = AF_INET6;
+			entry->wifi_key.src6 = data.v6_src;
+			entry->wifi_key.dst6 = data.v6_dst;
+		} else {
+			entry->wifi_key.family = AF_INET;
+			entry->wifi_key.src = data.v4_src;
+			entry->wifi_key.dst = data.v4_dst;
+		}
 		entry->wifi_key.sport = data.sport;
 		entry->wifi_key.dport = data.dport;
 		entry->wifi_key.proto = data.l4proto;
