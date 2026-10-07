@@ -15,7 +15,7 @@ Signed-off-by: Kamil Bienkiewicz <perceivalpercy@gmail.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -338,7 +338,15 @@ static void edma_enable_misc_interrupt(v
+@@ -316,7 +316,15 @@ static void edma_enable_misc_interrupt(v
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
@@ -32,7 +32,7 @@ Signed-off-by: Kamil Bienkiewicz <perceivalpercy@gmail.com>
  
  	reg = EDMA_BASE_OFFSET + EDMA_REG_MISC_INT_MASK_ADDR;
  	regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_misc);
-@@ -421,6 +429,12 @@ static irqreturn_t edma_misc_handle_irq(
+@@ -399,6 +407,12 @@ static irqreturn_t edma_misc_handle_irq(
  		u64_stats_update_end(&stats->syncp);
  	}
  

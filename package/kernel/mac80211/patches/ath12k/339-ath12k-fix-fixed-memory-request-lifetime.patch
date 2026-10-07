@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2721,11 +2721,82 @@
+@@ -2721,11 +2721,82 @@ clear_chunk:
  	chunk->size = 0;
  }
  
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
  		if (ab->qmi.target_mem[i].type == MLO_GLOBAL_MEM_REGION_TYPE) {
  			if (ab->qmi.target_mem[i].paddr)
-@@ -2734,9 +2805,7 @@
+@@ -2734,9 +2805,7 @@ static void ath12k_qmi_free_target_mem_c
  							      mlo_idx);
  			mlo_idx++;
  		} else {
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				ab->qmi.target_mem[i].v.ioaddr = NULL;
  			} else {
  				if (!ab->qmi.target_mem[i].v.addr)
-@@ -2751,6 +2820,11 @@
+@@ -2751,6 +2820,11 @@ static void ath12k_qmi_free_target_mem_c
  	}
  
  	if (!ag->num_started && ag->mlo_mem.init_done) {
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ag->mlo_mem.init_done = false;
  		ag->mlo_mem.mlo_mem_size = 0;
  		ag->mlo_mem.fixed_mem = false;
-@@ -3014,6 +3088,7 @@
+@@ -3014,6 +3088,7 @@ static int ath12k_qmi_assign_pci_target_
  		return -ENODEV;
  
  	mutex_lock(&ag->mutex);
@@ -130,7 +130,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!ag->mlo_mem.init_done) {
  		memset(ag->mlo_mem.chunk, 0, sizeof(ag->mlo_mem.chunk));
-@@ -3049,12 +3124,11 @@
+@@ -3049,12 +3124,11 @@ static int ath12k_qmi_assign_pci_target_
  				goto out;
  			}
  
@@ -147,7 +147,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			host_offset += chunk->size;
  			break;
  		case MLO_GLOBAL_MEM_REGION_TYPE:
-@@ -3094,13 +3168,14 @@
+@@ -3094,13 +3168,14 @@ static int ath12k_qmi_assign_pci_target_
  		goto out;
  	}
  
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_qmi_free_target_mem_chunk(ab);
  	mutex_unlock(&ag->mutex);
  	return ret;
-@@ -3111,7 +3186,8 @@
+@@ -3111,7 +3186,8 @@ static int ath12k_qmi_assign_target_mem_
  	struct target_mem_chunk *chunk;
  	struct ath12k_hw_group *ag = ab->ag;
  	struct reserved_mem *rmem;
@@ -174,7 +174,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int i, idx, mlo_idx, ret;
  	int mlo_size = 0;
  
-@@ -3120,6 +3196,7 @@
+@@ -3120,6 +3196,7 @@ static int ath12k_qmi_assign_target_mem_
  		return ath12k_qmi_assign_pci_target_mem_chunk(ab);
  
  	mutex_lock(&ag->mutex);
@@ -182,7 +182,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!ag->mlo_mem.init_done) {
  		memset(ag->mlo_mem.chunk, 0, sizeof(ag->mlo_mem.chunk));
-@@ -3129,101 +3206,37 @@
+@@ -3129,101 +3206,37 @@ static int ath12k_qmi_assign_target_mem_
  	}
  
  	for (i = 0, idx = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
@@ -309,7 +309,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			idx++;
  			break;
  		case MLO_GLOBAL_MEM_REGION_TYPE:
-@@ -3248,48 +3261,12 @@
+@@ -3248,48 +3261,12 @@ caldb_done:
  			idx++;
  			mlo_idx++;
  			break;
@@ -358,7 +358,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  	ab->qmi.mem_seg_count = idx;
  
-@@ -3303,10 +3280,12 @@
+@@ -3303,10 +3280,12 @@ caldb_done:
  		goto out;
  	}
  
@@ -371,7 +371,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_qmi_free_target_mem_chunk(ab);
  	mutex_unlock(&ag->mutex);
  	return ret;
-@@ -4290,9 +4269,11 @@
+@@ -4290,9 +4269,11 @@ static void ath12k_qmi_msg_mem_request_c
  	ath12k_dbg(ab, ATH12K_DBG_QMI, "qmi firmware request memory request\n");
  
  	if (msg->mem_seg_len == 0 ||
@@ -386,7 +386,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/qmi.h
 +++ b/drivers/net/wireless/ath/ath12k/qmi.h
-@@ -135,6 +135,17 @@
+@@ -135,6 +135,17 @@ struct dev_mem_info {
  	u64 size;
  };
  
@@ -404,7 +404,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct ath12k_qmi {
  	struct ath12k_base *ab;
  	struct qmi_handle handle;
-@@ -145,6 +156,7 @@
+@@ -145,6 +156,7 @@ struct ath12k_qmi {
  	spinlock_t event_lock; /* spinlock for qmi event list */
  	struct ath12k_qmi_ce_cfg ce_cfg;
  	struct target_mem_chunk target_mem[ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01];
@@ -423,7 +423,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "core.h"
  #include "dp_tx.h"
  #include "debug.h"
-@@ -1212,13 +1214,28 @@
+@@ -1212,13 +1214,28 @@ static const struct file_operations fops
  	.llseek = default_llseek,
  };
  

@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -3191,7 +3191,8 @@
+@@ -3186,7 +3186,8 @@ static int ath12k_qmi_assign_target_mem_
  	struct target_mem_chunk *chunk;
  	struct ath12k_hw_group *ag = ab->ag;
  	struct reserved_mem *rmem;
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const char *name;
  	int i, idx, mlo_idx, ret;
  	int mlo_size = 0;
-@@ -3200,6 +3201,10 @@
+@@ -3195,6 +3196,10 @@ static int ath12k_qmi_assign_target_mem_
  	    test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags))
  		return ath12k_qmi_assign_pci_target_mem_chunk(ab);
  
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_lock(&ag->mutex);
  	ath12k_qmi_begin_fixed_request(ab);
  
-@@ -3221,6 +3226,8 @@
+@@ -3216,6 +3221,8 @@ static int ath12k_qmi_assign_target_mem_
  			name = type == CALDB_MEM_REGION_TYPE ? "q6-caldb" :
  			       type == M3_DUMP_REGION_TYPE ? "m3-dump" :
  			       "host-ddr-mem";
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			rmem = ath12k_core_get_rmem_by_name(ab, name);
  			if (!rmem && type == CALDB_MEM_REGION_TYPE) {
  				/* Preserve the optional CALDB zero-address contract. */
-@@ -3233,11 +3240,13 @@
+@@ -3228,11 +3235,13 @@ static int ath12k_qmi_assign_target_mem_
  					ret = -ENODEV;
  					goto out;
  				}

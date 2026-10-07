@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -10360,6 +10360,22 @@
+@@ -10360,6 +10360,22 @@ static int ath12k_mac_setup_vdev_create_
  	return 0;
  }
  
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath12k_mac_update_vif_offload(struct ath12k_link_vif *arvif)
  {
  	struct ath12k_vif *ahvif = arvif->ahvif;
-@@ -10369,6 +10385,7 @@
+@@ -10369,6 +10385,7 @@ static void ath12k_mac_update_vif_offloa
  	u32 param_id, param_value;
  	int ret;
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	param_id = WMI_VDEV_PARAM_TX_ENCAP_TYPE;
  	if (vif->type != NL80211_IFTYPE_STATION &&
  	    vif->type != NL80211_IFTYPE_AP)
-@@ -10392,9 +10409,11 @@
+@@ -10392,9 +10409,11 @@ static void ath12k_mac_update_vif_offloa
  		vif->offload_flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
  	}
  

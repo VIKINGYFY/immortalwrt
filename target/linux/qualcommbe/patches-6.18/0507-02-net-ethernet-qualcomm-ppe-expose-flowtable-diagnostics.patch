@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "ppe_regs.h"
  
  #define PPE_PKT_CNT_TBL_SIZE				3
-@@ -920,6 +921,8 @@
+@@ -920,6 +921,8 @@ void ppe_debugfs_setup(struct ppe_device
  		return;
  	}
  
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/flow_offload.h>
  #include <net/ipv6.h>
  #include <net/tcp.h>
-@@ -130,6 +132,8 @@
+@@ -130,6 +132,8 @@ struct ppe_flowtable {
  	struct mutex lock;
  	struct rhashtable flows;
  	struct list_head zombies;
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	atomic_long_t replace_calls;
  	atomic_long_t replace_unsupported;
  	atomic_long_t replace_failed;
-@@ -741,12 +745,12 @@
+@@ -741,12 +745,12 @@ static int ppe_ft_flow_replace(struct pp
  		if (ret)
  			goto err_my_mac;
  
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ret)
  			goto err_my_mac;
  	}
-@@ -917,6 +921,171 @@
+@@ -917,6 +921,171 @@ static int ppe_ft_flow_stats(struct ppe_
  	return ret;
  }
  
@@ -241,7 +241,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_ft_block_cb(enum tc_setup_type type, void *type_data,
  			   void *cb_priv)
  {
-@@ -1058,6 +1227,8 @@
+@@ -1058,6 +1227,8 @@ void ppe_flowtable_destroy(struct ppe_de
  	WARN_ON(!list_empty(&ft->block_cb_list));
  	ppe_ft_flow_drain(ft);
  
@@ -252,7 +252,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	list_for_each_entry_safe(flow, flow_tmp, &ft->zombies, zombie_node) {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.h
-@@ -12,4 +12,5 @@
+@@ -12,4 +12,5 @@ struct ppe_device;
  int ppe_flowtable_setup(struct ppe_device *ppe_dev);
  void ppe_flowtable_destroy(struct ppe_device *ppe_dev);
  int ppe_flowtable_setup_tc(struct net_device *dev, void *type_data);

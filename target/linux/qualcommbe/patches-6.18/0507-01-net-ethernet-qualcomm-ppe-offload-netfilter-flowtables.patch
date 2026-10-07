@@ -66,7 +66,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o edma_ethtool.o
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -325,7 +325,8 @@
+@@ -325,7 +325,8 @@ static int edma_port_set_mac_address(str
  
  	ret = ppe_port_set_mac_address(port_priv->ppe_port, addr->sa_data);
  	if (ret) {
@@ -76,7 +76,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		return ret;
  	}
  
-@@ -473,7 +474,8 @@
+@@ -473,7 +474,8 @@ int edma_port_setup(struct ppe_port *por
  			    port_id, netdev->dev_addr);
  	}
  
@@ -96,7 +96,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include "ppe_port.h"
  
  #define PPE_PORT_MAX		8
-@@ -269,6 +270,15 @@
+@@ -269,6 +270,15 @@ static int qcom_ppe_probe(struct platfor
  				     "PPE bridge offload setup failed\n");
  	}
  
@@ -112,7 +112,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
  
-@@ -281,6 +291,12 @@
+@@ -281,6 +291,12 @@ static void qcom_ppe_remove(struct platf
  
  	ppe_dev = platform_get_drvdata(pdev);
  	ppe_port_mac_deinit(ppe_dev);
@@ -127,7 +127,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	edma_destroy(ppe_dev);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -16,6 +16,7 @@
+@@ -16,6 +16,7 @@ struct dentry;
  
  struct ppe_ports;
  struct ppe_bridge;
@@ -135,7 +135,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  /* Per-SoC PPE parameters. The PPE register layer is shared between the
   * HPPE (IPQ807x) and APPE (IPQ9574) generations; this collects the few
-@@ -58,6 +59,7 @@
+@@ -58,6 +59,7 @@ struct ppe_variant {
   * @debugfs_root: Debugfs root entry.
   * @ports: PPE MAC ports.
   * @bridge: PPE bridge offload private data.
@@ -143,7 +143,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @fdb_lock: Lock to serialize the hardware FDB operation registers.
   * @fdb_cmd_id: Rolling command ID of the last issued FDB operation.
   * @flow_lock: Lock to serialize the L3 flow operation registers.
-@@ -78,7 +80,7 @@
+@@ -78,7 +80,7 @@ struct ppe_device {
  	struct dentry *debugfs_root;
  	struct ppe_ports *ports;
  	struct ppe_bridge *bridge;
@@ -154,7 +154,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	/* Serialize the L3 flow operation registers. */
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-@@ -64,8 +64,8 @@
+@@ -64,8 +64,8 @@ int ppe_my_mac_set(struct ppe_device *pp
  		   bool valid);
  int ppe_l3_if_set(struct ppe_device *ppe_dev, int index, const u8 *addr,
  		  int mtu);

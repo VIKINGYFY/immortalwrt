@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -47,6 +47,7 @@
+@@ -47,6 +47,7 @@ ath12k_mem_profile_based_param ath12k_me
  		.max_client_dbs = 128,
  		.max_client_dbs_sbs = 128,
  		.dp_params = {
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.tx_comp_ring_size = 32768,
  			.rxdma_monitor_buf_ring_size = 4096,
  			.rxdma_monitor_dst_ring_size = 8192,
-@@ -61,6 +62,7 @@
+@@ -61,6 +62,7 @@ ath12k_mem_profile_based_param ath12k_me
  		.max_client_dbs = 64,
  		.max_client_dbs_sbs = 64,
  		.dp_params = {
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.tx_comp_ring_size = 16384,
  			.rxdma_monitor_buf_ring_size = 256,
  			.rxdma_monitor_dst_ring_size = 512,
-@@ -1848,6 +1850,11 @@
+@@ -1848,6 +1850,11 @@ int ath12k_core_pre_init(struct ath12k_b
  		ab->host_profile_param = *param;
  		ab->host_profile_param.dp_params =
  			ath12k_mem_profile_based_param[ATH12K_QMI_MEMORY_MODE_LOW_512_M].dp_params;
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ab->profile_param = param;
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -945,6 +945,7 @@
+@@ -945,6 +945,7 @@ struct ath12k_wsi_info {
  };
  
  struct ath12k_dp_profile_params {
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 tx_comp_ring_size;
  	u32 rxdma_monitor_buf_ring_size;
  	u32 rxdma_monitor_dst_ring_size;
-@@ -1171,6 +1172,7 @@
+@@ -1171,6 +1172,7 @@ struct ath12k_base {
  	struct ath12k_reg_freq reg_freq_6ghz;
  	const struct ath12k_mem_profile_based_param *profile_param;
  	struct ath12k_mem_profile_based_param host_profile_param;
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	enum ath12k_qmi_mem_mode target_mem_mode;
  
  	/* FIXME: Define this field in a ag equivalent object available
-@@ -1281,6 +1283,20 @@
+@@ -1281,6 +1283,20 @@ struct ath12k_fw_stats_pdev {
  	s32 mpdu_errs;
  };
  
@@ -91,7 +91,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ath12k_core_pre_init(struct ath12k_base *ab);
 --- a/drivers/net/wireless/ath/ath12k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
-@@ -114,15 +114,15 @@
+@@ -114,15 +114,15 @@ int ath12k_dp_rx_bufs_replenish(struct a
  	}
  
  	while (num_remain > 0) {
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				 skb->data);
  		}
  
-@@ -138,13 +138,13 @@
+@@ -138,13 +138,13 @@ int ath12k_dp_rx_bufs_replenish(struct a
  		if (!rx_desc)
  			goto fail_dma_unmap;
  
@@ -125,7 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		list_del(&rx_desc->list);
  		ATH12K_SKB_RXCB(skb)->paddr = paddr;
  
-@@ -1702,7 +1702,7 @@
+@@ -1702,7 +1702,7 @@ int ath12k_dp_rx_alloc(struct ath12k_bas
  	ret = ath12k_dp_srng_setup(ab,
  				   &dp->rx_refill_buf_ring.refill_buf_ring,
  				   HAL_RXDMA_BUF, 0, 0,
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
 --- a/drivers/net/wireless/ath/ath12k/ce.c
 +++ b/drivers/net/wireless/ath/ath12k/ce.c
-@@ -69,7 +69,7 @@
+@@ -69,7 +69,7 @@ static int ath12k_ce_rx_post_pipe(struct
  
  	spin_lock_bh(&ab->ce.ce_lock);
  	while (pipe->rx_buf_needed) {
@@ -147,7 +147,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			goto exit;
 --- a/drivers/net/wireless/ath/ath12k/dp_mon.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_mon.c
-@@ -44,15 +44,15 @@
+@@ -44,15 +44,15 @@ struct sk_buff
  	struct sk_buff *skb;
  	dma_addr_t paddr;
  
@@ -166,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	paddr = dma_map_single(ab->dev, skb->data,
-@@ -601,14 +601,14 @@
+@@ -601,14 +601,14 @@ int ath12k_dp_mon_buf_replenish(struct a
  	ath12k_hal_srng_access_begin(ab, srng);
  
  	while (req_entries > 0) {
@@ -185,7 +185,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		paddr = dma_map_single(ab->dev, skb->data,
-@@ -690,15 +690,15 @@
+@@ -690,15 +690,15 @@ int ath12k_dp_mon_status_bufs_replenish(
  	num_remain = req_entries;
  
  	while (num_remain > 0) {

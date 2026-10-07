@@ -20,7 +20,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -664,6 +664,33 @@
+@@ -664,6 +664,33 @@ struct reserved_mem *ath12k_core_get_res
  	return rmem;
  }
  
@@ -54,7 +54,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static inline
  void ath12k_core_to_group_ref_get(struct ath12k_base *ab)
  {
-@@ -2367,6 +2394,14 @@
+@@ -2367,6 +2394,14 @@ struct ath12k_base *ath12k_core_alloc(st
  	ab->qmi.num_radios = U8_MAX;
  	ab->single_chip_mlo_support = false;
  
@@ -71,7 +71,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	 * In Intra-device MLO, only one device present in a group,
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -1307,6 +1307,7 @@
+@@ -1307,6 +1307,7 @@ void ath12k_fw_stats_free(struct ath12k_
  void ath12k_fw_stats_reset(struct ath12k *ar);
  struct reserved_mem *ath12k_core_get_reserved_mem(struct ath12k_base *ab,
  						  int index);
@@ -81,7 +81,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static inline const char *ath12k_scan_state_str(enum ath12k_scan_state state)
 --- a/drivers/net/wireless/ath/ath12k/coredump.c
 +++ b/drivers/net/wireless/ath/ath12k/coredump.c
-@@ -15,6 +15,7 @@
+@@ -15,6 +15,7 @@ ath12k_fw_crash_dump_type ath12k_coredum
  
  	switch (type) {
  	case HOST_DDR_REGION_TYPE:
@@ -91,7 +91,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	case M3_DUMP_REGION_TYPE:
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2660,8 +2660,7 @@
+@@ -2660,8 +2660,7 @@ static int ath12k_qmi_get_mlo_reserved_m
  
  		fixed_mem = true;
  
@@ -101,7 +101,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		if (*rmem)
  			return 0;
  	}
-@@ -2841,6 +2840,114 @@
+@@ -2841,6 +2840,114 @@ err:
  	return ret;
  }
  
@@ -216,7 +216,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
  {
  	struct target_mem_chunk *chunk;
-@@ -2850,6 +2957,10 @@
+@@ -2850,6 +2957,10 @@ static int ath12k_qmi_assign_target_mem_
  	int i, idx, mlo_idx, ret;
  	int mlo_size = 0;
  
@@ -239,7 +239,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  #define QMI_WLFW_REQUEST_MEM_IND_V01		0x0035
  #define QMI_WLFW_FW_MEM_READY_IND_V01		0x0037
-@@ -178,6 +181,7 @@
+@@ -178,6 +181,7 @@ enum ath12k_qmi_target_mem {
  	CALDB_MEM_REGION_TYPE = 0x4,
  	MLO_GLOBAL_MEM_REGION_TYPE = 0x8,
  	PAGEABLE_MEM_REGION_TYPE = 0x9,

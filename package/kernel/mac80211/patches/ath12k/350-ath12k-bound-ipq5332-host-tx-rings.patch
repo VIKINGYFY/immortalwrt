@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -680,7 +680,7 @@
+@@ -679,7 +679,7 @@ static const struct ath12k_hw_params ath
  		.supports_shadow_regs = false,
  
  		.num_tcl_banks = 48,
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
-@@ -30,7 +30,8 @@
+@@ -30,7 +30,8 @@ static int ath12k_wifi7_dp_service_srng(
  
  	if (dp->hw_params->ring_mask->tx[grp_id]) {
  		i = fls(dp->hw_params->ring_mask->tx[grp_id]) - 1;
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (dp->hw_params->ring_mask->rx_err[grp_id]) {
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -685,7 +685,7 @@
+@@ -685,7 +685,7 @@ static int ath12k_ahb_config_ext_irq(str
  		/* TX masks use logical TCL ring indices.  WBM ring numbers are
  		 * hardware mappings and are not necessarily contiguous.
  		 */

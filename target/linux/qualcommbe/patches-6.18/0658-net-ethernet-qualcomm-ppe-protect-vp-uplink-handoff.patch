@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #include <net/dsa.h>
  #include <net/dst_metadata.h>
-@@ -476,6 +478,74 @@
+@@ -476,6 +478,74 @@ out:
  	return ret;
  }
  
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Netfilter ingress hook on a virtual port's bound device: offload the
   * wireless->wired uplink. It runs on the receive path before the bridge,
   * so it sees the frame with its L2 header already pulled and, for a routed
-@@ -496,11 +566,9 @@
+@@ -496,11 +566,9 @@ static unsigned int ppe_vp_ingress(void
  	struct ppe_vp_flow_key key = {};
  	struct ppe_vp_flow *flow;
  	const struct ethhdr *eth;
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* A hardware miss trips this VP's persistent fail-open circuit
  	 * breaker before its packet is returned to this receive path.
-@@ -513,6 +581,14 @@
+@@ -513,6 +581,14 @@ static unsigned int ppe_vp_ingress(void
  	 */
  	if (!atomic_read(&slot->nflows))
  		return NF_ACCEPT;
@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* QCA4B hook entries are always VLAN-qualified. An untagged frame
  	 * cannot match any installed key, so leave it on the native path
  	 * without parsing its network and transport headers.
-@@ -548,40 +624,8 @@
+@@ -548,40 +624,8 @@ static unsigned int ppe_vp_ingress(void
  	    ether_addr_to_u64(eth->h_dest) != READ_ONCE(slot->host_mac))
  		return NF_ACCEPT;
  
@@ -169,7 +169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tagged) {
  		key.vlan_proto = skb->vlan_proto;
  		key.vlan_id = vlan_tci & VLAN_VID_MASK;
-@@ -594,12 +638,21 @@
+@@ -594,12 +638,21 @@ static unsigned int ppe_vp_ingress(void
  		rcu_read_unlock();
  		return NF_ACCEPT;
  	}
@@ -193,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	skb_push(skb, mac_len);
  	if (tagged)
  		__vlan_hwaccel_clear_tag(skb);
-@@ -608,7 +661,10 @@
+@@ -608,7 +661,10 @@ static unsigned int ppe_vp_ingress(void
  	 * completion) and it must not continue up the stack. On any failure
  	 * restore the L2 header and let it fall back to the software path.
  	 */
@@ -205,7 +205,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return NF_STOLEN;
  
  	if (tagged)
-@@ -1125,12 +1181,15 @@
+@@ -1125,12 +1181,15 @@ int ppe_vp_flow_add(struct ppe_device *p
  			return -EOPNOTSUPP;
  	}
  
@@ -221,7 +221,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -1143,10 +1202,16 @@
+@@ -1143,10 +1202,16 @@ void ppe_vp_flow_del(struct ppe_device *
  	if (!flow->inserted || !vpt || i < 0 || i >= PPE_VP_SLOTS)
  		return;
  
@@ -248,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  struct ppe_device;
  struct net_device;
-@@ -35,6 +36,7 @@
+@@ -35,6 +36,7 @@ struct ppe_vp_flow_key {
  struct ppe_vp_flow {
  	struct rhash_head node;
  	struct ppe_vp_flow_key key;
@@ -258,7 +258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2611,6 +2611,11 @@
+@@ -2611,6 +2611,11 @@ static bool ppe_ft_flow_hw_del(struct pp
  {
  	int ret;
  
@@ -270,7 +270,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (flow->index < 0 ||
  	    flow->index >= ft->ppe_dev->variant->num_flow_entries ||
  	    ft->flow_owners[flow->index] != flow) {
-@@ -3891,7 +3896,6 @@
+@@ -3891,7 +3896,6 @@ static int ppe_ft_flow_destroy(struct pp
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
  	ppe_ft_flow_count_dec(ft, flow);

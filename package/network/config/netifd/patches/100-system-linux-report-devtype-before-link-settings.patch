@@ -21,7 +21,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 
 --- a/system-linux.c
 +++ b/system-linux.c
-@@ -3520,6 +3520,11 @@ system_if_dump_info(struct device *dev,
+@@ -3522,6 +3522,11 @@ system_if_dump_info(struct device *dev,
  	void *c, *d;
  	char *s;
  
@@ -33,7 +33,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	system_get_ethtool_pause(dev, &rx_pause, &tx_pause, &pause_autoneg);
  
  	memset(&ecmd, 0, sizeof(ecmd));
-@@ -3599,8 +3604,6 @@ system_if_dump_info(struct device *dev,
+@@ -3603,8 +3608,6 @@ system_if_dump_info(struct device *dev,
  	blobmsg_add_u8(b, "hw-tc-offload",
  		ethtool_feature_value(dev->ifname, "hw-tc-offload"));
  
@@ -42,5 +42,3 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	/* Add PSE (PoE) status if available */
  	{
  		struct pse_reply_data pse_data;
--- 
-2.51.0

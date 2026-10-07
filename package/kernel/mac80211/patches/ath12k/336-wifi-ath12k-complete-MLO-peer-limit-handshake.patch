@@ -30,7 +30,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  };
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -15371,6 +15371,8 @@ static int __ath12k_mac_mlo_setup(struct
+@@ -15376,6 +15376,8 @@ static int __ath12k_mac_mlo_setup(struct
  	struct ath12k_base *partner_ab, *ab = ar->ab;
  	struct ath12k_hw_group *ag = ab->ag;
  	struct wmi_mlo_setup_arg mlo = {};
@@ -39,7 +39,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct ath12k_pdev *pdev;
  	unsigned long time_left;
  	int i, j, ret;
-@@ -15382,6 +15384,10 @@ static int __ath12k_mac_mlo_setup(struct
+@@ -15387,6 +15389,10 @@ static int __ath12k_mac_mlo_setup(struct
  	for (i = 0; i < ag->num_devices; i++) {
  		partner_ab = ag->ab[i];
  
@@ -50,7 +50,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		for (j = 0; j < partner_ab->num_radios; j++) {
  			pdev = &partner_ab->pdevs[j];
  
-@@ -15403,9 +15409,13 @@ static int __ath12k_mac_mlo_setup(struct
+@@ -15408,9 +15414,13 @@ static int __ath12k_mac_mlo_setup(struct
  	mlo.group_id = cpu_to_le32(ag->id);
  	mlo.partner_link_id = partner_link_id;
  	mlo.num_partner_links = num_link;

@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-@@ -197,13 +197,13 @@
+@@ -181,13 +181,13 @@ static void edma_cfg_rx_desc_ring_config
  	if (edma_rx_mitigation_pkt_cnt < EDMA_RX_MITIGATION_PKT_CNT_MIN ||
  	    edma_rx_mitigation_pkt_cnt > EDMA_RX_MITIGATION_PKT_CNT_MAX) {
  		pr_err("Invalid Rx mitigation packet count configured:%d for ring:%d. Using the default packet counter value:%d\n",
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			<< EDMA_RX_MOD_TIMER_INIT_SHIFT);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-@@ -188,13 +188,13 @@
+@@ -188,13 +188,13 @@ static void edma_cfg_txcmpl_ring_configu
  	if (edma_tx_mitigation_pkt_cnt < EDMA_TX_MITIGATION_PKT_CNT_MIN ||
  	    edma_tx_mitigation_pkt_cnt > EDMA_TX_MITIGATION_PKT_CNT_MAX) {
  		pr_err("Invalid Tx mitigation packet count configured:%d for ring:%d. Using the default packet counter value:%d\n",
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		<< EDMA_TX_MOD_TIMER_INIT_SHIFT);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -54,7 +54,7 @@
+@@ -54,7 +54,7 @@ MODULE_PARM_DESC(edma_rx_mitigation_pkt_
  
  s32 edma_rx_mitigation_timer = EDMA_RX_MITIGATION_TIMER_DEF;
  module_param(edma_rx_mitigation_timer, int, 0444);

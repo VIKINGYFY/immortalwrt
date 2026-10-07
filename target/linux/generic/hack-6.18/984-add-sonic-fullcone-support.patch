@@ -589,7 +589,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  	h = hash_by_src(nf_ct_net(ct), nf_ct_zone(ct), &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
  	spin_lock_bh(&nf_nat_locks[h % CONNTRACK_LOCKS]);
-@@ -1338,12 +1642,28 @@ static int __init nf_nat_init(void)
+@@ -1352,12 +1656,28 @@ static int __init nf_nat_init(void)
  	if (!nf_nat_bysource)
  		return -ENOMEM;
  
@@ -619,7 +619,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  		return ret;
  	}
  
-@@ -1360,6 +1680,9 @@ static int __init nf_nat_init(void)
+@@ -1374,6 +1694,9 @@ static int __init nf_nat_init(void)
  		nf_ct_helper_expectfn_destroy(&follow_master_nat);
  		unregister_pernet_subsys(&nat_net_ops);
  		kvfree(nf_nat_bysource);
@@ -629,7 +629,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  	}
  
  	return ret;
-@@ -1377,6 +1700,9 @@ static void __exit nf_nat_cleanup(void)
+@@ -1391,6 +1714,9 @@ static void __exit nf_nat_cleanup(void)
  	synchronize_net();
  	nf_ct_helper_expectfn_destroy(&follow_master_nat);
  	kvfree(nf_nat_bysource);

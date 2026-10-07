@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
-@@ -3283,6 +3283,7 @@
+@@ -3283,6 +3283,7 @@ ath12k_wifi7_dp_mon_srng_process(struct
  		spin_unlock_bh(&buf_ring->idr_lock);
  
  		if (unlikely(!skb)) {
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ath12k_warn(ab, "monitor destination with invalid buf_id %d\n",
  				    buf_id);
  			goto move_next;
-@@ -3305,17 +3306,12 @@
+@@ -3305,17 +3306,12 @@ ath12k_wifi7_dp_mon_srng_process(struct
  			ath12k_dbg(ab, ATH12K_DBG_DATA,
  				   "Monitor dest descriptor end reason %d", end_reason);
  			dev_kfree_skb_any(skb);
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		end_offset = u32_get_bits(info0, HAL_MON_DEST_INFO0_END_OFFSET);
  		if (likely(end_offset <= DP_RX_BUFFER_SIZE)) {
-@@ -3330,6 +3326,10 @@
+@@ -3330,6 +3326,10 @@ ath12k_wifi7_dp_mon_srng_process(struct
  		__skb_queue_tail(&skb_list, skb);
  
  move_next:

@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/dp.c
-@@ -1573,9 +1573,6 @@
+@@ -1573,9 +1573,6 @@ static int ath12k_dp_setup(struct ath12k
  		dp->tx_ring[i].tx_status = kmalloc(size, GFP_KERNEL);
  		if (!dp->tx_ring[i].tx_status) {
  			ret = -ENOMEM;
@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			goto fail_cmn_reoq_cleanup;
  		}
  	}
-@@ -1595,6 +1592,11 @@
+@@ -1595,6 +1592,11 @@ fail_dp_rx_free:
  	ath12k_dp_rx_free(ab);
  
  fail_cmn_reoq_cleanup:

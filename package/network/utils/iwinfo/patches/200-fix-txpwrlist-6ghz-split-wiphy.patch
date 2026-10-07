@@ -14,7 +14,7 @@ Origin: https://github.com/tsg2k2/openwrt/commit/99236397e049dc52c2fa7be52f43511
 
 --- a/iwinfo_nl80211.c
 +++ b/iwinfo_nl80211.c
-@@ -2554,10 +2554,15 @@
+@@ -2554,10 +2554,15 @@ static int nl80211_get_assoclist(const c
  	return -1;
  }
  
@@ -32,7 +32,7 @@ Origin: https://github.com/tsg2k2/openwrt/commit/99236397e049dc52c2fa7be52f43511
  
  	struct nlattr **attr = nl80211_parse(msg);
  	struct nlattr *bands[NL80211_BAND_ATTR_MAX + 1];
-@@ -2573,29 +2578,34 @@
+@@ -2573,29 +2578,34 @@ static int nl80211_get_txpwrlist_cb(stru
  		[NL80211_FREQUENCY_ATTR_MAX_TX_POWER] = { .type = NLA_U32  },
  	};
  
@@ -78,7 +78,7 @@ Origin: https://github.com/tsg2k2/openwrt/commit/99236397e049dc52c2fa7be52f43511
  			}
  		}
  	}
-@@ -2605,41 +2615,41 @@
+@@ -2605,41 +2615,41 @@ static int nl80211_get_txpwrlist_cb(stru
  
  static int nl80211_get_txpwrlist(const char *ifname, char *buf, int *len)
  {

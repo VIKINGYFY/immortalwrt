@@ -10,7 +10,7 @@ Signed-off-by: ViKing <vking@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -1106,6 +1106,10 @@
+@@ -1106,6 +1106,10 @@ int ath11k_dp_alloc(struct ath11k_base *
  	return 0;
  
  fail_cmn_srng_cleanup:
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <vking@qq.com>
  fail_link_desc_cleanup:
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -378,7 +378,7 @@
+@@ -378,7 +378,7 @@ int ath11k_dp_rxbufs_replenish(struct at
  
  		if (!IS_ALIGNED((unsigned long)skb->data,
  				DP_RX_BUFFER_ALIGN_SIZE)) {
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <vking@qq.com>
  				 PTR_ALIGN(skb->data, DP_RX_BUFFER_ALIGN_SIZE) -
  				 skb->data);
  		}
-@@ -2875,7 +2875,7 @@
+@@ -2875,7 +2875,7 @@ static struct sk_buff *ath11k_dp_rx_allo
  
  	if (!IS_ALIGNED((unsigned long)skb->data,
  			DP_RX_BUFFER_ALIGN_SIZE)) {
@@ -43,33 +43,32 @@ Signed-off-by: ViKing <vking@qq.com>
  
 --- a/drivers/net/wireless/ath/ath11k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
-@@ -256,16 +256,18 @@
+@@ -256,17 +256,19 @@ tcl_ring_sel:
  	ath11k_hal_tx_cmd_desc_setup(ab, hal_tcl_desc +
  					 sizeof(struct hal_tlv_hdr), &ti);
  
--	ath11k_hal_srng_access_end(ab, tcl_ring);
--
--	ath11k_dp_shadow_start_timer(ab, tcl_ring, &dp->tx_ring_timer[ti.ring_id]);
--
--	spin_unlock_bh(&tcl_ring->lock);
--
 +	/* Completion may run on another CPU as soon as the source ring is
 +	 * published. Finish skb reads and credit pending before that point.
 +	 */
- 	ath11k_dbg_dump(ab, ATH11K_DBG_DP_TX, NULL, "dp tx msdu: ",
- 			skb->data, skb->len);
--
- 	atomic_inc(&ar->dp.num_tx_pending);
++	ath11k_dbg_dump(ab, ATH11K_DBG_DP_TX, NULL, "dp tx msdu: ",
++			skb->data, skb->len);
++	atomic_inc(&ar->dp.num_tx_pending);
 +
-+	ath11k_hal_srng_access_end(ab, tcl_ring);
-+
-+	ath11k_dp_shadow_start_timer(ab, tcl_ring, &dp->tx_ring_timer[ti.ring_id]);
-+
-+	spin_unlock_bh(&tcl_ring->lock);
+ 	ath11k_hal_srng_access_end(ab, tcl_ring);
  
+ 	ath11k_dp_shadow_start_timer(ab, tcl_ring, &dp->tx_ring_timer[ti.ring_id]);
+ 
+ 	spin_unlock_bh(&tcl_ring->lock);
+ 
+-	ath11k_dbg_dump(ab, ATH11K_DBG_DP_TX, NULL, "dp tx msdu: ",
+-			skb->data, skb->len);
+-
+-	atomic_inc(&ar->dp.num_tx_pending);
+-
  	return 0;
  
-@@ -657,6 +659,9 @@
+ fail_unmap_dma:
+@@ -657,6 +659,9 @@ static inline void ath11k_dp_tx_status_p
  					     struct hal_wbm_release_ring *desc,
  					     struct hal_tx_status *ts)
  {

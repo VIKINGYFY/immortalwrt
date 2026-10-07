@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -2418,6 +2418,7 @@
+@@ -2368,6 +2368,7 @@ void ath12k_core_free(struct ath12k_base
  	ath12k_wmi_free();
  	destroy_workqueue(ab->workqueue_aux);
  	destroy_workqueue(ab->workqueue);
@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
-@@ -1718,7 +1718,6 @@
+@@ -1718,7 +1718,6 @@ static void ath12k_pci_remove(struct pci
  
  qmi_fail:
  	ath12k_core_deinit(ab);

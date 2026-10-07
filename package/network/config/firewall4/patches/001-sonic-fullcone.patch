@@ -95,7 +95,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  
  return {
  	read_kernel_version: function() {
-@@ -1475,6 +1498,7 @@ return {
+@@ -1511,6 +1534,7 @@ return {
  			"dnat",
  			"snat",
  			"masquerade",
@@ -103,7 +103,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  			"accept",
  			"reject",
  			"drop"
-@@ -1946,6 +1970,7 @@ return {
+@@ -1982,6 +2006,7 @@ return {
  		}
  
  		let defs = this.parse_options(data, {
@@ -111,7 +111,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  			input: [ "policy", "drop" ],
  			output: [ "policy", "drop" ],
  			forward: [ "policy", "drop" ],
-@@ -1980,6 +2005,13 @@ return {
+@@ -2016,6 +2041,13 @@ return {
  
  		delete defs.syn_flood;
  
@@ -125,7 +125,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  		this.state.defaults = defs;
  	},
  
-@@ -2005,6 +2037,8 @@ return {
+@@ -2041,6 +2073,8 @@ return {
  
  			masq6: [ "bool" ],
  
@@ -134,7 +134,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  			extra: [ "string", null, UNSUPPORTED ],
  			extra_src: [ "string", null, UNSUPPORTED ],
  			extra_dest: [ "string", null, UNSUPPORTED ],
-@@ -2036,6 +2070,8 @@ return {
+@@ -2072,6 +2106,8 @@ return {
  			}
  		}
  
@@ -143,7 +143,7 @@ restrictions to mapping creation, and keep explicit DNAT rules first.
  		if (zone.mtu_fix && this.kernel < 0x040a0000) {
  			this.warn_section(data, "option 'mtu_fix' requires kernel 4.10 or later");
  			return;
-@@ -2205,8 +2241,17 @@ return {
+@@ -2241,8 +2277,17 @@ return {
  		zone.related_subnets = related_subnets;
  		zone.related_physdevs = related_physdevs;
  

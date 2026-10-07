@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
-@@ -160,6 +160,7 @@
+@@ -160,6 +160,7 @@ static int edma_debugfs_tx_rings_stats_s
  			txdesc_stats[i].dma_map_errors = stats->dma_map_errors;
  			txdesc_stats[i].queue_stops = stats->queue_stops;
  			txdesc_stats[i].queue_restarts = stats->queue_restarts;
@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		} while (u64_stats_fetch_retry(&stats->syncp, start));
  	}
  
-@@ -220,6 +221,7 @@
+@@ -220,6 +221,7 @@ static int edma_debugfs_tx_rings_stats_s
  	return 0;
  }
  
@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -104,15 +104,6 @@
+@@ -104,15 +104,6 @@ static int edma_port_open(struct net_dev
  	if (!port_priv)
  		return -EINVAL;
  
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_port  = port_priv->ppe_port;
  	port_id = ppe_port->port_id;
  
-@@ -543,6 +534,12 @@
+@@ -543,6 +534,12 @@ int edma_port_setup(struct ppe_port *por
  	netdev->watchdog_timeo = 5 * HZ;
  	netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
  	netdev->netdev_ops = &edma_port_netdev_ops;
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-@@ -87,32 +87,6 @@
+@@ -87,32 +87,6 @@ enum edma_tx_gso_status edma_tx_gso_segm
  	return EDMA_TX_GSO_SUCCEED;
  }
  
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * edma_tx_complete - Reap Tx completion descriptors.
   * @work_to_do: Work to do.
-@@ -724,7 +698,7 @@
+@@ -724,7 +698,7 @@ u32 edma_tx_avail_desc(struct edma_txdes
  }
  
  /**
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @netdev: Netdevice.
   * @skb: Socket Buffer.
   * @txdesc_ring: Tx Descriptor ring.
-@@ -735,21 +709,19 @@
+@@ -735,21 +709,19 @@ u32 edma_tx_avail_desc(struct edma_txdes
   *
   * Return 0 on success, negative error code on failure.
   */
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	hw_next_to_use = txdesc_ring->prod_idx;
  	start_idx = hw_next_to_use;
-@@ -782,7 +754,6 @@
+@@ -782,7 +754,6 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		EDMA_TXDESC_ENDIAN_SET(txdesc);
  		num_desc_filled++;
  	} else {
@@ -142,7 +142,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		/* HW does not support TSO for packets with more than 32 segments.
  		 * HW hangs up if it sees more than 32 segments. Kernel Perform GSO
-@@ -863,12 +834,79 @@
+@@ -863,12 +834,79 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		u64_stats_update_end(&stats->syncp);
  	}
  
@@ -227,7 +227,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-@@ -1165,6 +1165,7 @@
+@@ -1165,6 +1165,7 @@ static int ppe_tbf_queues_show(struct se
  }
  DEFINE_SHOW_ATTRIBUTE(ppe_tbf_queues);
  

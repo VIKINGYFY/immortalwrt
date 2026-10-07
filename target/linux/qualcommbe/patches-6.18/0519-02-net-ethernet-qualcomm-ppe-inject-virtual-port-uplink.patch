@@ -55,7 +55,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include "edma_cfg_tx.h"
  #include "edma_cfg_rx.h"
  #include "ppe_regs.h"
-@@ -258,6 +259,7 @@
+@@ -258,6 +259,7 @@ void edma_err_stats_free(void)
  		free_percpu(edma_ctx->err_stats);
  		edma_ctx->err_stats = NULL;
  	}
@@ -63,7 +63,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  /**
-@@ -894,6 +896,7 @@
+@@ -894,6 +896,7 @@ int edma_setup(struct ppe_device *ppe_de
  
  	edma_ctx->ppe_dev = ppe_dev;
  	edma_ctx->has_vports = ppe_dev->variant->has_vports;
@@ -73,7 +73,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	edma_ctx->tx_requeue_stop = false;
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
-@@ -127,6 +127,8 @@
+@@ -127,6 +127,8 @@ struct edma_intr_info {
   * @rx_buf_size: Rx buffer size for Jumbo MRU
   * @tx_requeue_stop: Tx requeue stop enabled or disabled
   * @has_vports: Virtual ports exist, cached from the PPE variant
@@ -82,7 +82,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   */
  struct edma_context {
  	struct net_device **netdev_arr;
-@@ -144,8 +146,12 @@
+@@ -144,8 +146,12 @@ struct edma_context {
  	u32 rx_buf_size;
  	bool tx_requeue_stop;
  	bool has_vports;
@@ -97,7 +97,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -234,7 +234,7 @@
+@@ -234,7 +234,7 @@ static netdev_tx_t edma_port_xmit(struct
  	result = edma_tx_gso_segment(skb, dev, &segs);
  	if (likely(result == EDMA_TX_GSO_NOT_NEEDED)) {
  		/* Transmit the packet. */
@@ -106,7 +106,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  		if (unlikely(ret == EDMA_TX_FAIL_NO_DESC)) {
  			if (likely(!edma_ctx->tx_requeue_stop)) {
-@@ -271,19 +271,7 @@
+@@ -271,19 +271,7 @@ static netdev_tx_t edma_port_xmit(struct
  	u64_stats_update_end(&stats->syncp);
  
  	dev_kfree_skb_any(skb);
@@ -129,7 +129,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-@@ -86,6 +86,32 @@
+@@ -86,6 +86,32 @@ enum edma_tx_gso_status edma_tx_gso_segm
  	return EDMA_TX_GSO_SUCCEED;
  }
  
@@ -162,7 +162,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /**
   * edma_tx_complete - Reap Tx completion descriptors.
   * @work_to_do: Work to do.
-@@ -394,7 +420,7 @@
+@@ -394,7 +420,7 @@ static u32 edma_tx_skb_nr_frags(struct e
  
  static void edma_tx_fill_desc(struct edma_port_priv *port_priv,
  			      struct edma_txdesc_pri *txd, struct sk_buff *skb,
@@ -171,7 +171,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  {
  	struct ppe_port *port = port_priv->ppe_port;
  	int port_id = port->port_id;
-@@ -409,6 +435,20 @@
+@@ -409,6 +435,20 @@ static void edma_tx_fill_desc(struct edm
  	/* Check if the packet needs TSO
  	 * This will be mostly true for SG packets.
  	 */
@@ -192,7 +192,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (unlikely(skb_is_gso(skb))) {
  		if ((skb_shinfo(skb)->gso_type == SKB_GSO_TCPV4) ||
  		    (skb_shinfo(skb)->gso_type == SKB_GSO_TCPV6)) {
-@@ -427,9 +467,11 @@
+@@ -427,9 +467,11 @@ static void edma_tx_fill_desc(struct edm
  			EDMA_TXDESC_MSS_SET(txd, mss);
  
  			/* Update tso stats. */
@@ -207,7 +207,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		}
  	}
  
-@@ -464,7 +506,8 @@
+@@ -464,7 +506,8 @@ static void edma_tx_fill_desc(struct edm
  static struct edma_txdesc_pri *edma_tx_skb_first_desc(struct edma_port_priv *port_priv,
  						      struct edma_txdesc_ring *txdesc_ring,
  						      struct sk_buff *skb, u32 *hw_next_to_use,
@@ -217,7 +217,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct edma_txdesc_pri *txd = NULL;
-@@ -486,7 +529,7 @@
+@@ -486,7 +529,7 @@ static struct edma_txdesc_pri *edma_tx_s
  
  	EDMA_TXDESC_BUFFER_ADDR_SET(txd, buff_addr);
  	EDMA_TXDESC_POOL_ID_SET(txd, 0);
@@ -226,7 +226,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	/* Set packet length in the descriptor. */
  	EDMA_TXDESC_DATA_LEN_SET(txd, buf_len);
-@@ -562,9 +605,11 @@
+@@ -562,9 +605,11 @@ static u32 edma_tx_skb_sg_fill_desc(stru
  			return num_descs;
  		}
  
@@ -241,7 +241,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
  
  	/* Process skb if it has frag_list */
-@@ -630,9 +675,11 @@
+@@ -630,9 +675,11 @@ skip_primary:
  				num_sg_frag_list += num_nr_frag;
  
  				/* Update fraglist with nr_frag stats. */
@@ -256,7 +256,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			}
  		}
  
-@@ -645,9 +692,11 @@
+@@ -645,9 +692,11 @@ skip_primary:
  			   EDMA_TX_RING_SIZE_MASK);
  
  		/* Update frag_list stats. */
@@ -271,7 +271,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
  
  	dev_dbg(dev, "skb:%pK num_descs_filled: %u, nr_frags %u, frag_list fragments %u\n",
-@@ -702,7 +751,7 @@
+@@ -702,7 +751,7 @@ static u32 edma_tx_avail_desc(struct edm
   */
  enum edma_tx_status edma_tx_ring_xmit(struct net_device *netdev,
  				      struct sk_buff *skb, struct edma_txdesc_ring *txdesc_ring,
@@ -280,7 +280,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  {
  	struct edma_txdesc_stats *txdesc_stats = &txdesc_ring->txdesc_stats;
  	struct edma_port_priv *port_priv = netdev_priv(netdev);
-@@ -737,7 +786,7 @@
+@@ -737,7 +786,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
  	 */
  	if (likely(!skb_is_nonlinear(skb))) {
  		txdesc = edma_tx_skb_first_desc(port_priv, txdesc_ring, skb,
@@ -289,7 +289,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		if (unlikely(!txdesc)) {
  			netdev_dbg(netdev, "No descriptor available for ring %d\n",
  				   txdesc_ring->id);
-@@ -763,9 +812,11 @@
+@@ -763,9 +812,11 @@ enum edma_tx_status edma_tx_ring_xmit(st
  			++txdesc_stats->tso_max_seg_exceed;
  			u64_stats_update_end(&txdesc_stats->syncp);
  
@@ -304,7 +304,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  			return EDMA_TX_FAIL;
  		}
-@@ -785,7 +836,7 @@
+@@ -785,7 +836,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		}
  
  		txdesc = edma_tx_skb_first_desc(port_priv, txdesc_ring, skb,
@@ -313,7 +313,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		if (unlikely(!txdesc)) {
  			netdev_dbg(netdev, "No non-linear descriptor available for ring %d\n",
  				   txdesc_ring->id);
-@@ -827,10 +878,121 @@
+@@ -827,10 +878,121 @@ enum edma_tx_status edma_tx_ring_xmit(st
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_PROD_IDX(txdesc_ring->id);
  	regmap_write(regmap, reg, txdesc_ring->prod_idx);
  
@@ -477,7 +477,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #define EDMA_TXDESC_TSO_ENABLE_MASK		BIT(24)
  #define EDMA_TXDESC_TSO_ENABLE_SET(desc, x)	((desc)->word5 |= \
  				FIELD_PREP(EDMA_TXDESC_TSO_ENABLE_MASK, x))
-@@ -303,7 +332,11 @@
+@@ -303,7 +332,11 @@ extern int edma_tx_mitigation_pkt_cnt;
  enum edma_tx_status edma_tx_ring_xmit(struct net_device *netdev,
  				      struct sk_buff *skb,
  			       struct edma_txdesc_ring *txdesc_ring,
