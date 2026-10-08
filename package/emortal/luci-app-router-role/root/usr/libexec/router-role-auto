@@ -1,0 +1,41 @@
+#!/usr/bin/ucode
+'use strict';
+import { cursor } from 'uci';
+import { readfile, open, mkdir, stat, writefile } from 'fs';
+import { connect } from 'ubus';
+import { openlog, syslog, closelog, LOG_PID, LOG_DAEMON, LOG_WARNING } from 'log';
+import { synchronize } from '/usr/share/router-role/auto.uc';
+
+let lock = open('/var/lock/router-role.lock', 'a');
+if (!lock || !lock.lock('x')) die('Cannot lock router role configuration');
+// LuCI uses session-specific deltas. Also avoid consuming unapplied CLI edits.
+for (let config in [ 'network', 'dhcp', 'firewall' ])
+	if (stat('/tmp/.uci/' + config)?.size) exit(0);
+mkdir('/var/run/router-role-delta', 0700);
+let uci = cursor('/etc/config', '/var/run/router-role-delta', '');
+let globals = null;
+uci.foreach('network', 'globals', section => { if (globals == null) globals = section['.name']; });
+if (uci.get('network', globals, 'router_role_ap') == '1' &&
+	!uci.get('network', globals, 'router_role_ap_state')) {
+	let marker = '/var/run/router-role-ap-warning';
+	// Interface events may be frequent; warn at most once per boot.
+	if (!stat(marker)) {
+		writefile(marker, '1\n');
+		openlog('router-role', LOG_PID, LOG_DAEMON);
+		syslog(LOG_WARNING, '%s', 'AP mode flag is set without a saved LuCI snapshot; automatic AP conversion is skipped');
+		closelog();
+	}
+}
+let upstream = [];
+try {
+	let bus = connect();
+	let status = bus?.call('network.interface.wan', 'status', {});
+	upstream = map(status?.['ipv4-address'] || [], address => `${address.address}/${address.mask}`);
+	bus?.disconnect();
+}
+catch (e) {}
+let data = json(readfile('/usr/share/router-role/auto.json'));
+let changed = synchronize(uci, data, upstream);
+for (let config in changed)
+	if (!uci.commit(config)) die(`Unable to commit router role settings in ${config}`);
+if (length(changed)) print(join(' ', changed), '\n');

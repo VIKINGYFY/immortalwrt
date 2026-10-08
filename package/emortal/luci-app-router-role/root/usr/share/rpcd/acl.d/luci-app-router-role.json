@@ -1,0 +1,14 @@
+{
+	"luci-app-router-role": {
+		"description": "Read board Ethernet port assignments for router role presets",
+		"read": {
+			"file": {
+				"/etc/board.json": [ "read" ],
+				"/usr/share/router-role/auto.json": [ "read" ]
+			},
+			"ubus": {
+				"file": [ "read" ]
+			}
+		}
+	}
+}

@@ -1,0 +1,170 @@
+{
+	"common": {
+		"network": {
+			"wan": {
+				"ipv6": "1",
+				"delegate": "1"
+			},
+			"wan6": {
+				"proto": "dhcpv6",
+				"device": "@wan",
+				"reqaddress": "try",
+				"reqprefix": "auto",
+				"delegate": "1",
+				"defaultroute": "1",
+				"peerdns": "1",
+				"noslaaconly": "0",
+				"forceprefix": "0",
+				"disabled": null,
+				"auto": "1"
+			},
+			"lan": {
+				"ip6assign": "60",
+				"ip6hint": null,
+				"ip6class": [
+					"wan6",
+					"local"
+				],
+				"ip6ifaceid": "::1",
+				"delegate": "1"
+			}
+		},
+		"dhcp": {
+			"wan": {
+				"interface": "wan",
+				"ignore": "1",
+				"dhcpv4": "disabled",
+				"master": "0",
+				"ra": "disabled",
+				"dhcpv6": "disabled",
+				"ndp": "disabled",
+				"ndproxy_routing": null
+			},
+			"wan6": {
+				"interface": "wan6",
+				"ignore": "1",
+				"dhcpv4": "disabled"
+			},
+			"lan": {
+				"interface": "lan",
+				"master": "0",
+				"ra_slaac": "1",
+				"ra_default": "0",
+				"ra_flags": [
+					"managed-config",
+					"other-config"
+				],
+				"ra_management": null,
+				"dhcpv6_pd": "1",
+				"dhcpv6_na": "1"
+			}
+		}
+	},
+	"roles": {
+		"main": {
+			"dhcp": {
+				"lan": {
+					"ra": "server",
+					"dhcpv6": "server",
+					"ndp": "disabled",
+					"ndproxy_routing": null
+				},
+				"wan6": {
+					"master": "0",
+					"ra": "disabled",
+					"dhcpv6": "disabled",
+					"ndp": "disabled",
+					"ndproxy_routing": null
+				}
+			}
+		},
+		"sub": {
+			"dhcp": {
+				"lan": {
+					"ra": "hybrid",
+					"dhcpv6": "hybrid",
+					"ndp": "hybrid",
+					"ndproxy_routing": "1"
+				},
+				"wan6": {
+					"master": "1",
+					"ra": "hybrid",
+					"dhcpv6": "hybrid",
+					"ndp": "hybrid",
+					"ndproxy_routing": "1"
+				}
+			}
+		}
+	},
+	"firewall": {
+		"zones": {
+			"lan": {
+				"input": "ACCEPT",
+				"output": "ACCEPT",
+				"forward": "ACCEPT",
+				"masq": "0",
+				"masq6": "0"
+			},
+			"wan": {
+				"input": "REJECT",
+				"output": "ACCEPT",
+				"forward": "REJECT",
+				"masq": "1",
+				"masq6": "0",
+				"mtu_fix": "1"
+			}
+		},
+		"rules": {
+			"Allow-DHCP-Renew": {
+				"proto": "udp",
+				"dest_port": "68",
+				"family": "ipv4"
+			},
+			"Allow-DHCPv6": {
+				"proto": "udp",
+				"dest_port": "546",
+				"family": "ipv6"
+			},
+			"Allow-ICMPv6-Input": {
+				"proto": "icmp",
+				"family": "ipv6",
+				"icmp_type": [
+					"echo-request",
+					"echo-reply",
+					"destination-unreachable",
+					"packet-too-big",
+					"time-exceeded",
+					"bad-header",
+					"unknown-header-type",
+					"router-solicitation",
+					"router-advertisement",
+					"neighbour-solicitation",
+					"neighbour-advertisement",
+					"130/0",
+					"131/0",
+					"132/0",
+					"143/0"
+				]
+			},
+			"Allow-ICMPv6-Forward": {
+				"proto": "icmp",
+				"family": "ipv6",
+				"dest": "*",
+				"icmp_type": [
+					"echo-request",
+					"echo-reply",
+					"destination-unreachable",
+					"packet-too-big",
+					"time-exceeded",
+					"bad-header",
+					"unknown-header-type"
+				]
+			},
+			"Router-Role-DHCPv6-Relay": {
+				"proto": "udp",
+				"dest_port": "547",
+				"family": "ipv6"
+			}
+		}
+	}
+}

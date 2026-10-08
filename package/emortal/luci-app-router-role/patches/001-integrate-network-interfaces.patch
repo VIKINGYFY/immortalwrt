@@ -1,0 +1,46 @@
+--- a/htdocs/luci-static/resources/view/network/interfaces-router-role.js
++++ b/htdocs/luci-static/resources/view/network/interfaces-router-role.js
+@@ -9,6 +9,7 @@
+ 'require form';
+ 'require network';
+ 'require firewall';
++'require tools.router-role as routerrole';
+ 'require tools.widgets as widgets';
+ 'require tools.network as nettools';
+ 
+@@ -498,6 +499,7 @@
+ 		m = new form.Map('network');
+ 		m.tabbed = true;
+ 		m.chain('dhcp');
++		routerrole.attach(m);
+ 
+ 		s = m.section(form.GridSection, 'interface', _('Interfaces'));
+ 		s.anonymous = true;
+@@ -590,6 +592,7 @@
+ 		};
+ 
+ 		s.addModalOptions = function(s) {
++			routerrole.attach(s.map);
+ 			const protoval = uci.get('network', s.section, 'proto') || 'none';
+ 			let o, proto_select, proto_switch, ss, so;
+ 
+@@ -1607,6 +1610,7 @@
+ 		};
+ 
+ 		s.addModalOptions = function(s) {
++			routerrole.attach(s.map);
+ 			const isNew = (uci.get('network', s.section, 'name') == null);
+ 			const dev = getDevice(s.section);
+ 			const devName = dev ? dev.getName() : null;
+@@ -1852,6 +1856,8 @@
+ 		s.addremove = false;
+ 		s.anonymous = true;
+ 
++		routerrole.addGlobal(s);
++
+ 		o = s.option(form.Value, 'ula_prefix', _('IPv6 ULA-Prefix'),
+ 			_('Unique Local Address (%s) - prefix <code>fd00::/8</code> (the L bit is always 1).').format('<a href="%s" target="_blank">RFC4193</a>').format('https://datatracker.ietf.org/doc/html/rfc4193#section-3') + ' ' +
+ 			_('ULA for IPv6 is analogous to IPv4 private network addressing.') + ' ' +
+ 			_('This prefix is randomly generated at first install.'));
+ 		o.datatype = 'cidr6';
+ 
