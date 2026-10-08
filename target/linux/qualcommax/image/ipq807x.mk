@@ -214,7 +214,7 @@ define Device/linksys_mx
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq8072
-	DEVICE_PACKAGES := kmod-leds-pca963x kmod-hci-uart
+	DEVICE_PACKAGES := kmod-leds-pca963x input-support kmod-hci-uart
 	IMAGES += factory.bin
 	IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi | linksys-image type=$$$$(DEVICE_MODEL)
 endef
@@ -259,7 +259,7 @@ TARGET_DEVICES += linksys_mx5300
 define Device/linksys_mx8500
 	$(call Device/linksys_mx)
 	DEVICE_MODEL := MX8500
-	DEVICE_PACKAGES += ipq-wifi-linksys_mx8500 ath11k-firmware-qcn9074-ddwrt kmod-hci-uart
+	DEVICE_PACKAGES += ipq-wifi-linksys_mx8500 ath11k-firmware-qcn9074-ddwrt input-support kmod-hci-uart
 endef
 TARGET_DEVICES += linksys_mx8500
 
@@ -672,7 +672,7 @@ define Device/zyxel_nbg7815
 	DEVICE_MODEL := NBG7815
 	DEVICE_DTS_CONFIG := config@nbg7815
 	SOC := ipq8074
-	DEVICE_PACKAGES := ipq-wifi-zyxel_nbg7815 kmod-hci-uart kmod-hwmon-tmp103
+	DEVICE_PACKAGES := ipq-wifi-zyxel_nbg7815 input-support kmod-hci-uart kmod-hwmon-tmp103
 endef
 TARGET_DEVICES += zyxel_nbg7815
 
