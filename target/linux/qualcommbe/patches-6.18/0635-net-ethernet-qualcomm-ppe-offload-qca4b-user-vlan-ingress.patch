@@ -1,5 +1,4 @@
-From 0f4ae8e2a63733706de96029bb4f4cf1b5a30a77 Mon Sep 17 00:00:00 2001
-From: VIKINGYFY <vikingyfy@gmail.com>
+From: ViKing <viking.yfy@qq.com>
 Date: Mon, 31 Aug 2026 00:32:29 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe offload QCA4B user VLAN ingress
 
@@ -24,12 +23,11 @@ VLANs onto the persistent QCA4B VP. QCA 802.1Q DSA still rejects a second
 VLAN layer because its transport tag and user tag cannot be distinguished
 by the single VLAN dissector key.
 
-Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -1991,6 +1991,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1994,6 +1994,7 @@ static int ppe_ft_flow_replace(struct pp
  	int vlan_pops = 0;
  	struct in6_addr lwt_local = {}, lwt_remote = {};
  	u8 lwt_hop_limit = 0;
@@ -37,7 +35,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
  	int i, nexthop, ret, redirects = 0, vlan_pushes = 0;
  	int pppoe_pushes = 0, csums = 0;
-@@ -2409,17 +2410,23 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2412,17 +2413,23 @@ static int ppe_ft_flow_replace(struct pp
  				goto put_idev;
  			}
  
@@ -65,7 +63,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  				if (vp_ret >= 0)
  					flow->ivp = vp_ret;
  			} else {
-@@ -2445,7 +2452,8 @@ put_idev:
+@@ -2448,7 +2455,8 @@ put_idev:
  			goto err_prelock_ivp;
  		}
  
@@ -75,7 +73,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  			ret = -EOPNOTSUPP;
  			goto err_prelock_ivp;
  		}
-@@ -2471,7 +2479,8 @@ put_idev:
+@@ -2474,7 +2482,8 @@ put_idev:
  				goto err_prelock_ivp;
  			}
  			if (dsa_mode == PPE_FT_DSA_QCA4B) {
@@ -85,7 +83,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  				if (ret < 0)
  					goto err_prelock_ivp;
  				flow->vp = ret;
-@@ -2526,6 +2535,10 @@ put_idev:
+@@ -2529,6 +2538,10 @@ put_idev:
  			flow->vp_flow.key.sip.ip4 = flow->entry.sip.ip4;
  			flow->vp_flow.key.dip.ip4 = flow->entry.dip.ip4;
  		}
@@ -96,7 +94,7 @@ Signed-off-by: VIKINGYFY <vikingyfy@gmail.com>
  	}
  
  	if (tunnel_flow && !lwt_tunnel) {
-@@ -2663,7 +2676,7 @@ put_idev:
+@@ -2666,7 +2679,7 @@ put_idev:
  			goto err_ingress_my_mac;
  	}
  

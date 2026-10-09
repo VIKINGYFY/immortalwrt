@@ -1,4 +1,3 @@
-From 6ecaaef1a16147685e68ee25f86f812582c74e03 Mon Sep 17 00:00:00 2001
 From: George Moussalem <george.moussalem@outlook.com>
 Date: Mon, 3 Aug 2026 14:23:32 +0400
 Subject: [PATCH v3 03/10] arm64: dts: qcom: ipq5018: Flatten usb controller
@@ -10,13 +9,16 @@ flattened driver approach.
 In addition, set the right UTMI clock rate and override any clock
 rate inherited from the bootloader.
 
+Include the earlier wrapper interrupt correction in the flattened
+IPQ5018 USB node. Preserve the final interrupt list and controller
+layout without first changing the wrapper that is later removed.
+
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
 Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@oss.qualcomm.com>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- .../arm64/boot/dts/qcom/ipq5018-rdp432-c2.dts |  6 +--
- arch/arm64/boot/dts/qcom/ipq5018.dtsi         | 51 +++++++++----------
- 2 files changed, 25 insertions(+), 32 deletions(-)
-
 --- a/arch/arm64/boot/dts/qcom/ipq5018-rdp432-c2.dts
 +++ b/arch/arm64/boot/dts/qcom/ipq5018-rdp432-c2.dts
 @@ -108,11 +108,9 @@
@@ -35,7 +37,7 @@ Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
  &usbphy0 {
 --- a/arch/arm64/boot/dts/qcom/ipq5018.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5018.dtsi
-@@ -590,16 +590,9 @@
+@@ -590,12 +590,9 @@
  			status = "disabled";
  		};
  
@@ -43,19 +45,15 @@ Reviewed-by: Konrad Dybcio <konrad.dybcio@oss.qualcomm.com>
 -			compatible = "qcom,ipq5018-dwc3", "qcom,dwc3";
 -			reg = <0x08af8800 0x400>;
 -
--			interrupts = <GIC_SPI 134 IRQ_TYPE_LEVEL_HIGH>,
--				     <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>,
--				     <GIC_SPI 120 IRQ_TYPE_LEVEL_HIGH>;
--			interrupt-names = "pwr_event",
--					  "dp_hs_phy_irq",
--					  "dm_hs_phy_irq";
+-			interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
+-			interrupt-names = "hs_phy_irq";
 +		usb: usb@8a00000 {
 +			compatible = "qcom,ipq5018-dwc3", "qcom,snps-dwc3";
 +			reg = <0x08a00000 0xfc100>;
  
  			clocks = <&gcc GCC_USB0_MASTER_CLK>,
  				 <&gcc GCC_SYS_NOC_USB0_AXI_CLK>,
-@@ -609,30 +602,32 @@
+@@ -605,30 +602,32 @@
  				      "iface",
  				      "sleep",
  				      "mock_utmi";

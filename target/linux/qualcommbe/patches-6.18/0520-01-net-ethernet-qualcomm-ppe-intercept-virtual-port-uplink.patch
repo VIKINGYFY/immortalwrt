@@ -87,7 +87,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	u8 eport;
  	u32 packets;
  	u64 bytes;
-@@ -1138,13 +1141,14 @@ static bool ppe_ft_lwt_encap(const struc
+@@ -1140,13 +1143,14 @@ static bool ppe_ft_lwt_encap(const struc
  static bool ppe_ft_lwt_decap(const struct flow_rule *rule,
  			     const struct flow_action_entry *act,
  			     struct in6_addr *local,
@@ -104,7 +104,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ENC_CONTROL) ||
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ENC_KEYID) ||
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ENC_IPV6_ADDRS))
-@@ -1165,7 +1169,8 @@ static bool ppe_ft_lwt_decap(const struc
+@@ -1167,7 +1171,8 @@ static bool ppe_ft_lwt_decap(const struc
  	*remote = ipv6.key->src;
  	*local = ipv6.key->dst;
  
@@ -114,7 +114,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  static int ppe_ft_tunnel_underlay_get(struct ppe_flowtable *ft, int port,
-@@ -1407,18 +1412,24 @@ out_dst:
+@@ -1410,18 +1415,24 @@ out_dst:
  	return ret;
  }
  
@@ -145,7 +145,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	       ether_addr_equal(tunnel->local_mac, path->local_mac) &&
  	       ether_addr_equal(tunnel->remote_mac, path->remote_mac);
  }
-@@ -1453,11 +1464,17 @@ static int ppe_ft_tunnel_get(struct ppe_
+@@ -1456,11 +1467,17 @@ static int ppe_ft_tunnel_get(struct ppe_
  	ret = ppe_ft_tunnel_resolve(ft, dev, link, local, remote, &path);
  	if (ret)
  		return ret;
@@ -165,7 +165,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		ppe_ft_tunnel_path_put(ft, &path);
  		ft->tunnels[i].ref.refcnt++;
  		return i;
-@@ -1476,8 +1493,8 @@ static int ppe_ft_tunnel_get(struct ppe_
+@@ -1479,8 +1496,8 @@ static int ppe_ft_tunnel_get(struct ppe_
  	tunnel->dev = dev;
  	tunnel->local = *local;
  	tunnel->remote = *remote;
@@ -176,7 +176,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	tunnel->encap_id = -1;
  	tunnel->decap_index = -1;
  	tunnel->vp = -1;
-@@ -1709,9 +1726,10 @@ static bool ppe_ft_flow_hw_del(struct pp
+@@ -1712,9 +1729,10 @@ static bool ppe_ft_flow_hw_del(struct pp
  	return false;
  }
  
@@ -190,7 +190,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   */
  static void ppe_ft_flow_quarantine(struct ppe_flowtable *ft,
  				   struct ppe_ft_flow *flow)
-@@ -1743,7 +1761,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1746,7 +1764,9 @@ static int ppe_ft_flow_replace(struct pp
  	struct in6_addr lwt_local = {}, lwt_remote = {};
  	u8 lwt_hop_limit = 0;
  	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
@@ -201,7 +201,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	/* nf_flow_offload_refresh() re-sends FLOW_CLS_REPLACE for as long
  	 * as the flow's packets traverse the software path, and the core
-@@ -1766,6 +1786,13 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1769,6 +1789,13 @@ static int ppe_ft_flow_replace(struct pp
  	if (tunnel_flow && !ft->ppe_dev->variant->has_tunnel_engine)
  		return -EOPNOTSUPP;
  
@@ -215,7 +215,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (rule->match.dissector->used_keys &
  	    ~(BIT_ULL(FLOW_DISSECTOR_KEY_META) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_CONTROL) |
-@@ -1789,6 +1816,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1792,6 +1819,7 @@ static int ppe_ft_flow_replace(struct pp
  	flow->vlan = -1;
  	flow->tunnel = -1;
  	flow->vp = -1;
@@ -223,7 +223,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	nh.vid = -1;
  	data.pppoe_sid = -1;
  	data.ingress_vid = -1;
-@@ -1833,6 +1861,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1836,6 +1864,7 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -231,7 +231,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		flow_rule_match_ipv6_addrs(rule, &match);
  		if (memchr_inv(&match.mask->src, 0xff,
  			       sizeof(match.mask->src)) ||
-@@ -1850,6 +1879,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1853,6 +1882,7 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -239,7 +239,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		flow_rule_match_ipv4_addrs(rule, &match);
  		if (match.mask->src != htonl(0xffffffff) ||
  		    match.mask->dst != htonl(0xffffffff)) {
-@@ -1873,6 +1903,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1876,6 +1906,9 @@ static int ppe_ft_flow_replace(struct pp
  		flow->entry.dport = match.key->dst;
  	}
  
@@ -249,7 +249,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
  		struct flow_match_vlan match;
  
-@@ -1885,7 +1918,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1888,7 +1921,9 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -259,7 +259,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -1906,11 +1941,12 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1909,11 +1944,12 @@ static int ppe_ft_flow_replace(struct pp
  
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL)) {
  		struct flow_match_control match;
@@ -275,7 +275,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		    match.mask->addr_type != 0xffff || match.mask->thoff ||
  		    match.mask->flags) {
  			ret = -EOPNOTSUPP;
-@@ -1975,7 +2011,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1978,7 +2014,8 @@ static int ppe_ft_flow_replace(struct pp
  				goto err_free;
  			break;
  		case FLOW_ACTION_VLAN_PUSH:
@@ -285,7 +285,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			    nh.vid >= 0) {
  				ret = -EOPNOTSUPP;
  				goto err_free;
-@@ -1989,10 +2026,25 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1992,10 +2029,25 @@ static int ppe_ft_flow_replace(struct pp
  			}
  			break;
  		case FLOW_ACTION_PPPOE_PUSH:
@@ -312,7 +312,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		case FLOW_ACTION_TUNNEL_ENCAP:
  			if (lwt_tunnel ||
  			    !ppe_ft_lwt_encap(act, &lwt_local, &lwt_remote,
-@@ -2006,7 +2058,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2009,7 +2061,7 @@ static int ppe_ft_flow_replace(struct pp
  		case FLOW_ACTION_TUNNEL_DECAP:
  			if (lwt_tunnel ||
  			    !ppe_ft_lwt_decap(rule, act, &lwt_local,
@@ -321,7 +321,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  				ret = -EOPNOTSUPP;
  				goto err_free;
  			}
-@@ -2050,7 +2102,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2053,7 +2105,8 @@ static int ppe_ft_flow_replace(struct pp
  			dev_hold(tdev);
  	}
  
@@ -331,7 +331,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	    is_zero_ether_addr(data.eth.dst)) {
  		ret = -EOPNOTSUPP;
  		goto err_tdev;
-@@ -2070,16 +2123,19 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2073,16 +2126,19 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_tdev;
  	}
  
@@ -355,7 +355,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		}
  
  		if (edma_port_dev_check(idev)) {
-@@ -2087,12 +2143,23 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2090,12 +2146,23 @@ static int ppe_ft_flow_replace(struct pp
  
  			iport = ipriv->ppe_port->port_id;
  			imtu = idev->mtu;
@@ -381,7 +381,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		}
  	}
  
-@@ -2102,9 +2169,10 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2105,9 +2172,10 @@ static int ppe_ft_flow_replace(struct pp
  			nh.port = port_priv->ppe_port->port_id;
  			nh.l3_if = nh.port;
  		} else {
@@ -394,7 +394,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  			flow->vp = ret;
  			nh.port = ret;
  			nh.l3_if = ppe_ft_vp_l3_if(ft, ret);
-@@ -2113,6 +2181,22 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2116,6 +2184,22 @@ static int ppe_ft_flow_replace(struct pp
  		ether_addr_copy(nh.mac, data.eth.dst);
  	}
  
@@ -417,7 +417,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (tunnel_flow && !lwt_tunnel) {
  		struct ip6_tnl_flow_offload_key key = {
  			.addr = tunnel_encap ? flow->entry.dip.ip4 :
-@@ -2322,6 +2406,16 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2325,6 +2409,16 @@ static int ppe_ft_flow_replace(struct pp
  	if (ret)
  		goto err_hw_flow;
  
@@ -434,7 +434,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	set_bit(nexthop, ft->nexthop_used);
  	mutex_unlock(&ft->lock);
  	if (tdev)
-@@ -2355,12 +2449,20 @@ err_pub_ip:
+@@ -2358,12 +2452,20 @@ err_pub_ip:
  err_vp:
  	if (flow->vp >= 0)
  		ppe_vp_put(ft->ppe_dev, flow->vp);
@@ -455,7 +455,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  err_free:
  	kfree_rcu(flow, rcu);
  
-@@ -2381,6 +2483,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2384,6 +2486,7 @@ static int ppe_ft_flow_destroy(struct pp
  	}
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
@@ -463,7 +463,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
  		ppe_ft_host_put(ft, &flow->entry);
-@@ -2391,6 +2494,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2394,6 +2497,7 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
  		ppe_ft_tunnel_put(ft, flow->tunnel);
  		ppe_vp_put(ft->ppe_dev, flow->vp);
@@ -471,7 +471,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2778,11 +2882,17 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -2781,11 +2885,17 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;

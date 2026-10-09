@@ -34,46 +34,40 @@ properties:
 
   clocks:
     minItems: 4
-    maxItems: 12
+    maxItems: 13
     description: |
-      Core clocks (AHB, SYS) are always required. Per-channel RX/TX clock
-      pairs are provided for each port the UNIPHY instance serves. Instances
-      serving a single port have 4 clocks, PSGMII instances serving 5 ports
-      have 12. The CMN PLL CC provides a 50MHz reference clock to the UNIPHY
-      PCS which gates and divides it to pass through either a 25 MHz or 50 MHz
-      clock to an attached Ethernet PHY or a switch.
-    items:
-        - description: ahb clock
-        - description: sys clock
-        - description: port1_rx or port5_rx or port6_rx clock
-        - description: port1_tx or port5_tx or port6_tx clock
-        - description: port2_rx clock
-        - description: port2_tx clock
-        - description: port3_rx clock
-        - description: port3_tx clock
-        - description: port4_rx clock
-        - description: port4_tx clock
-        - description: port5_rx clock
-        - description: port5_tx clock
-        - description: CMN PLL reference clock
+      AHB and SYS clocks followed by per-port RX/TX pairs. Single-port
+      instances use four clocks, PSGMII instances use twelve. An optional
+      CMN PLL reference clock follows the per-port pairs.
 
   clock-names:
-    minItems: 4
-    maxItems: 12
-    items:
-        - const: ahb
-        - const: sys
-        - enum: [port1_rx, port5_rx, port6_rx]
-        - enum: [port1_tx, port5_tx, port6_tx]
-        - const: port2_rx
-        - const: port2_tx
-        - const: port3_rx
-        - const: port3_tx
-        - const: port4_rx
-        - const: port4_tx
-        - const: port5_rx
-        - const: port5_tx
-        - const: ref
+    oneOf:
+      - minItems: 4
+        items:
+          - const: ahb
+          - const: sys
+          - enum: [port1_rx, port5_rx, port6_rx]
+          - enum: [port1_tx, port5_tx, port6_tx]
+          - const: ref
+      - minItems: 12
+        items:
+          - const: ahb
+          - const: sys
+          - const: port1_rx
+          - const: port1_tx
+          - const: port2_rx
+          - const: port2_tx
+          - const: port3_rx
+          - const: port3_tx
+          - const: port4_rx
+          - const: port4_tx
+          - const: port5_rx
+          - const: port5_tx
+          - const: ref
+
+  qcom,psgmii:
+    type: boolean
+    description: Use the five-port PSGMII mode.
 
   clock-output-names:
     description: Name of the uniphy GCC clock for TX and RX.
@@ -96,12 +90,22 @@ properties:
     items:
       - description: soft reset
       - description: xpcs reset
+      - description: port1 reset
+      - description: port2 reset
+      - description: port3 reset
+      - description: port4 reset
+      - description: port5 reset
 
   reset-names:
     minItems: 1
     items:
       - const: soft
       - const: xpcs
+      - const: port1
+      - const: port2
+      - const: port3
+      - const: port4
+      - const: port5
 
 required:
   - compatible

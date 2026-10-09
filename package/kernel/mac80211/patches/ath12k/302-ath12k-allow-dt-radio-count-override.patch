@@ -9,14 +9,17 @@ the second WMI service in the HTC setup path, causing the host to connect to
 WMI_CONTROL_MAC1 and fail before WMI service ready.
 
 Allow board DTS to provide qcom,num-radios and cap both the QMI phy count
-and the HTC WMI endpoint count to that value.
+and the HTC WMI endpoint count to that value. Apply the same cap
+to service-ready parsing and WMI initialization so firmware does not
+receive resources for an unwired second radio. Keep the override local
+to each device; MLO between separate devices remains available.
+
+Consolidate the QMI, HTC and WMI stages of the existing board override
+at its first definition without changing the final driver code.
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- drivers/net/wireless/ath/ath12k/htc.c | 10 ++++++++++
- drivers/net/wireless/ath/ath12k/qmi.c |  8 ++++++++
- 2 files changed, 18 insertions(+)
-
 --- a/drivers/net/wireless/ath/ath12k/htc.c
 +++ b/drivers/net/wireless/ath/ath12k/htc.c
 @@ -5,6 +5,7 @@
@@ -74,3 +77,34 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	ath12k_dbg(ab, ATH12K_DBG_QMI,
  		   "phy capability resp valid %d single_chip_mlo_support %d valid %d num_phy %d valid %d board_id %d\n",
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -4849,17 +4849,27 @@ static int ath12k_wmi_ext_soc_hal_reg_ca
+ 	struct ath12k_wmi_svc_rdy_ext_parse *svc_rdy_ext = data;
+ 	u8 hw_mode_id = le32_to_cpu(svc_rdy_ext->pref_hw_mode_caps.hw_mode_id);
+ 	u32 phy_id_map;
++	u32 max_radios = MAX_RADIOS;
++	u32 num_radios;
+ 	int pdev_index = 0;
+ 	int ret;
+ 
+ 	svc_rdy_ext->soc_hal_reg_caps = ptr;
+ 	svc_rdy_ext->arg.num_phy = le32_to_cpu(svc_rdy_ext->soc_hal_reg_caps->num_phy);
++	if (!of_property_read_u32(soc->dev->of_node, "qcom,num-radios",
++				  &num_radios) && num_radios) {
++		max_radios = min_t(u32, num_radios, soc->hw_params->max_radios);
++		svc_rdy_ext->arg.num_phy = min_t(u32, svc_rdy_ext->arg.num_phy,
++						 max_radios);
++		ath12k_info(soc, "limiting service ready radios to %u\n",
++			    max_radios);
++	}
+ 
+ 	soc->num_radios = 0;
+ 	phy_id_map = le32_to_cpu(svc_rdy_ext->pref_hw_mode_caps.phy_id_map);
+ 	soc->fw_pdev_count = 0;
+ 
+-	while (phy_id_map && soc->num_radios < MAX_RADIOS) {
++	while (phy_id_map && soc->num_radios < max_radios) {
+ 		ret = ath12k_pull_mac_phy_cap_svc_ready_ext(wmi_handle,
+ 							    svc_rdy_ext,
+ 							    hw_mode_id, soc->num_radios,

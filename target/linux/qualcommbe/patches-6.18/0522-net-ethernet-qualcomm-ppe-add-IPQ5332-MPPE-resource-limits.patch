@@ -185,7 +185,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct dentry *debugfs_reasons;
  	atomic_long_t replace_calls;
  	atomic_long_t replace_unsupported;
-@@ -2375,8 +2376,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2378,8 +2379,8 @@ static int ppe_ft_flow_replace(struct pp
  	}
  
  	nexthop = find_first_zero_bit(ft->nexthop_used,
@@ -196,7 +196,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		ret = -ENOSPC;
  		goto err_my_mac;
  	}
-@@ -2737,6 +2738,20 @@ static int ppe_ft_flows_show(struct seq_
+@@ -2740,6 +2741,20 @@ static int ppe_ft_flows_show(struct seq_
  }
  DEFINE_SHOW_ATTRIBUTE(ppe_ft_flows);
  
@@ -217,7 +217,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  /**
   * ppe_flowtable_debugfs_init - Expose the flowtable state in debugfs
   * @ppe_dev: PPE device
-@@ -2755,8 +2770,10 @@ void ppe_flowtable_debugfs_init(struct p
+@@ -2758,8 +2773,10 @@ void ppe_flowtable_debugfs_init(struct p
  	ft->debugfs = debugfs_create_file("flows", 0400,
  					  ppe_dev->debugfs_root, ft,
  					  &ppe_ft_flows_fops);
@@ -230,7 +230,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	ft->debugfs_reasons = debugfs_create_file("reason_counters", 0400,
  						  ppe_dev->debugfs_root, ft,
  						  &ppe_ft_reason_counters_fops);
-@@ -2969,6 +2986,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -2972,6 +2989,7 @@ void ppe_flowtable_destroy(struct ppe_de
  	mutex_unlock(&ft->lock);
  
  	debugfs_remove(ft->debugfs_reasons);

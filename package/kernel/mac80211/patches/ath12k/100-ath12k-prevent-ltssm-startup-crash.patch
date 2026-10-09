@@ -1,8 +1,17 @@
-Fix ltssm crashes on BPI-Rx boards.
-Seems read32/write32 using wrong address which
-is not a problem on x86/64 PCI controllers.
-But have issues on BPI-Rx boards.
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: retain PCI LTSSM startup workaround
 
+Retain the existing downstream workaround for startup crashes on BPI-Rx
+boards. The original patch reported incorrect register addresses on those
+PCI controllers and carried no author metadata.
+
+The early return bypasses LTSSM setup for every device using this PCI
+reset path. It is not restricted to BPI boards and requires platform
+validation before it can be narrowed or removed. This patch header update
+keeps the previously compiled driver code unchanged.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
 @@ -249,6 +249,9 @@ static void ath12k_pci_enable_ltssm(stru

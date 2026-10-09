@@ -7,6 +7,9 @@ prepare actions before publishing keys and verify withdrawals before
 releasing dependencies. Flowtable ownership is introduced by the later
 lifecycle patch.
 
+Fold the earlier explicit VID zero match into the dual-tag transaction
+implementation. Preserve priority-tagged VID zero and the combined
+untagged/priority-tagged PVID match for both tag roles.
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
@@ -246,7 +249,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	rule[0] |= FIELD_PREP(PPE_XLT_RULE_W0_SKEY_FMT, sfmt);
  
 -	if (vid >= 0) {
--		fmt = vid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
+-		fmt = PPE_XLT_FMT_TAGGED;
 +	if (cvid >= 0) {
 +		cfmt = cvid ? PPE_XLT_FMT_TAGGED : PPE_XLT_FMT_PRIO_TAGGED;
  		rule[1] |= PPE_XLT_RULE_W1_CKEY_VID_INCL;

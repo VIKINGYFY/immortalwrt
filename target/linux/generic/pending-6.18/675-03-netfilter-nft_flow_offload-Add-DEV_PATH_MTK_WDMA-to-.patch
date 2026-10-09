@@ -11,22 +11,23 @@ to DSA: stop iterating through the device path stack.
 Based on commit ad3380141cf7 from ericwoud/bpir-nftflow-nf-next-20260707.
 
 Co-authored-by: Eric Woudstra <ericwouds@gmail.com>
-Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
----
- net/netfilter/nf_flow_table_path.c | 5 +++++
- 1 file changed, 5 insertions(+)
 
+Refresh against the Linux 6.18 application point without changing behavior.
+
+Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/net/netfilter/nf_flow_table_path.c
 +++ b/net/netfilter/nf_flow_table_path.c
-@@ -103,6 +103,7 @@ static void nft_dev_path_info(const stru
- 		switch (path->type) {
+@@ -110,6 +110,7 @@ static int nft_dev_path_info(const struc
  		case DEV_PATH_ETHERNET:
+ 		case DEV_PATH_IEEE80211:
  		case DEV_PATH_DSA:
 +		case DEV_PATH_MTK_WDMA:
  		case DEV_PATH_VLAN:
  		case DEV_PATH_PPPOE:
  			info->indev = path->dev;
-@@ -115,6 +116,10 @@ static void nft_dev_path_info(const stru
+@@ -123,6 +124,10 @@ static int nft_dev_path_info(const struc
  				i = stack->num_paths;
  				break;
  			}
@@ -36,4 +37,4 @@ Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
 +			}
  
  			/* DEV_PATH_VLAN and DEV_PATH_PPPOE */
- 			if (info->num_encaps >= NF_FLOW_TABLE_ENCAP_MAX) {
+ 			if (info->num_encaps >= NF_FLOW_TABLE_ENCAP_MAX)

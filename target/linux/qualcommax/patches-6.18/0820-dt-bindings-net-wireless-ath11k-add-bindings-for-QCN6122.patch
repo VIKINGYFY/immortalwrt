@@ -18,11 +18,15 @@ downstream patch:
 https://git.codelinaro.org/clo/qsdk/oss/system/feeds/wlan-open/-/ \
 blob/NHSS.QSDK.12.4.5.r2/mac80211/patches/232-ath11k-qcn6122-support.patch
 
+Document the existing downstream firmware memory properties without
+changing their device-tree ABI.
+
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/Documentation/devicetree/bindings/net/wireless/qcom,ath11k.yaml
 +++ b/Documentation/devicetree/bindings/net/wireless/qcom,ath11k.yaml
-@@ -21,6 +21,7 @@ properties:
+@@ -21,12 +21,13 @@ properties:
        - qcom,ipq6018-wifi
        - qcom,wcn6750-wifi
        - qcom,ipq5018-wifi
@@ -30,7 +34,50 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  
    reg:
      maxItems: 1
-@@ -268,6 +269,29 @@ allOf:
+ 
+   interrupts:
+-    minItems: 32
++    minItems: 13
+     maxItems: 52
+ 
+   interrupt-names:
+@@ -41,6 +42,23 @@ properties:
+         * reg
+         * reg-names
+ 
++  qcom,ath11k-fw-memory-mode:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    enum: [0, 1, 2]
++    description: Firmware memory profile, with reduced peer limits in modes 1 and 2.
++
++  qcom,bdf-addr:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description: Physical address of the reserved firmware board data buffer.
++
++  qcom,caldb-addr:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description: Physical address of the reserved calibration database buffer.
++
++  qcom,m3-dump-addr:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description: Physical address of the reserved firmware M3 image buffer.
++
+   qcom,calibration-variant:
+     $ref: /schemas/types.yaml#/definitions/string
+     description:
+@@ -79,8 +97,9 @@ properties:
+     $ref: /schemas/types.yaml#/definitions/phandle-array
+     description: State bits used by the AP to signal the WLAN Q6.
+     items:
+-      - description: Signal bits used to enable/disable low power mode
+-                     on WCN6750 in the case of WoW (Wake on Wireless).
++      - items:
++          - description: SMP2P state provider
++          - description: State bit used for WCN6750 low-power mode during WoW
+ 
+   qcom,smem-state-names:
+     description: The names of the state bits used for SMP2P output.
+@@ -268,6 +287,29 @@ allOf:
              - description: interrupt event for ring DP20
              - description: interrupt event for ring DP21
              - description: interrupt event for ring DP22

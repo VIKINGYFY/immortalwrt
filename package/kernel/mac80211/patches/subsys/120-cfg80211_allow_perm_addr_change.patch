@@ -3,13 +3,12 @@ Date: Thu, 11 Dec 2014 00:00:00 +0100
 Subject: [PATCH] cfg80211: add support for changing the device mac address via
  sysfs
 
+Reject invalid unicast MAC addresses and serialize writes with the wiphy lock.
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- net/wireless/sysfs.c | 27 ++++++++++++++++++++++-----
- 1 file changed, 22 insertions(+), 5 deletions(-)
-
 --- a/net/wireless/sysfs.c
 +++ b/net/wireless/sysfs.c
-@@ -24,18 +24,35 @@ static inline struct cfg80211_registered
+@@ -24,18 +24,41 @@ static inline struct cfg80211_registered
  	return container_of(dev, struct cfg80211_registered_device, wiphy.dev);
  }
  
@@ -33,15 +32,21 @@ Subject: [PATCH] cfg80211: add support for changing the device mac address via
 +{
 +	u8 mac[ETH_ALEN];
 +
-+	if (!mac_pton(buf, mac))
++	if (len != 3 * ETH_ALEN - 1 &&
++	    (len != 3 * ETH_ALEN || buf[len - 1] != '\n'))
++		return -EINVAL;
++
++	if (!mac_pton(buf, mac) || !is_valid_ether_addr(mac))
 +		return -EINVAL;
 +
 +	if (buf[3 * ETH_ALEN - 1] && buf[3 * ETH_ALEN - 1] != '\n')
 +		return -EINVAL;
 +
++	wiphy_lock(&dev_to_rdev(dev)->wiphy);
 +	memcpy(dev_to_rdev(dev)->wiphy.perm_addr, mac, ETH_ALEN);
++	wiphy_unlock(&dev_to_rdev(dev)->wiphy);
 +
-+	return strnlen(buf, len);
++	return len;
 +}
 +
 +SHOW_FMT(index, "%d", wiphy_idx, RO);

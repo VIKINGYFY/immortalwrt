@@ -52,7 +52,7 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  
  /**
   * struct userpd_boot_info_header - header of user pd bootinfo
-@@ -95,6 +99,7 @@ struct userpd {
+@@ -97,6 +101,7 @@ struct userpd {
  struct wcss_data {
  	u32 pasid;
  	bool share_upd_info_to_q6;
@@ -60,7 +60,7 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  };
  
  /**
-@@ -299,10 +304,13 @@ static void *q6_wcss_da_to_va(struct rpr
+@@ -327,10 +332,13 @@ static void *q6_wcss_da_to_va(struct rpr
  static int share_upd_bootinfo_to_q6(struct rproc *rproc)
  {
  	int i, ret;
@@ -74,7 +74,7 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  	struct userpd *upd;
  	struct userpd_boot_info upd_bootinfo = {0};
  	const struct firmware *fw;
-@@ -324,10 +332,47 @@ static int share_upd_bootinfo_to_q6(stru
+@@ -352,10 +360,47 @@ static int share_upd_bootinfo_to_q6(stru
  	}
  
  	/*Version*/
@@ -123,7 +123,7 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  	for (i = 0; i < ARRAY_SIZE(wcss->upd); i++)
  		if (wcss->upd[i])
  			cnt++;
-@@ -383,12 +428,14 @@ static int q6_wcss_load(struct rproc *rp
+@@ -411,12 +456,14 @@ static int q6_wcss_load(struct rproc *rp
  
  	/* Share user pd boot info to Q6 remote processor */
  	if (desc->share_upd_info_to_q6) {
@@ -144,7 +144,7 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  		}
  	}
  
-@@ -797,13 +844,15 @@ static void q6_wcss_remove(struct platfo
+@@ -867,13 +914,15 @@ static void q6_wcss_remove(struct platfo
  
  static const struct wcss_data q6_ipq5018_res_init = {
  	.pasid = MPD_WCNSS_PAS_ID,

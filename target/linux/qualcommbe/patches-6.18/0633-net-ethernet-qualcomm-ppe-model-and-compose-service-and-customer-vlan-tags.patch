@@ -6,6 +6,7 @@ service tag with user VLAN actions on egress so ingress matching and
 egress programming stay consistent for VLAN-aware DSA ports.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 @@ -633,9 +633,13 @@ int ppe_nexthop_set(struct ppe_device *p
@@ -57,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	       slot->key.pub_ip_index == nh->pub_ip_index &&
  	       slot->key.dnat_ip == nh->dnat_ip;
  }
-@@ -2049,7 +2049,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2052,7 +2052,8 @@ static int ppe_ft_flow_replace(struct pp
  	flow->tunnel = -1;
  	flow->vp = -1;
  	flow->ivp = -1;
@@ -67,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	data.pppoe_sid = -1;
  	data.ingress_vid = -1;
  	data.ingress_dsa = false;
-@@ -2247,11 +2248,11 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2250,11 +2251,11 @@ static int ppe_ft_flow_replace(struct pp
  		case FLOW_ACTION_VLAN_PUSH:
  			if (vlan_pushes++ ||
  			    act->vlan.proto != htons(ETH_P_8021Q) ||
@@ -81,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			break;
  		case FLOW_ACTION_VLAN_POP:
  			if (vlan_pops++) {
-@@ -2310,7 +2311,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2313,7 +2314,8 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -91,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    data.ingress_vid >= 0) {
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -2459,14 +2461,10 @@ put_idev:
+@@ -2462,14 +2464,10 @@ put_idev:
  			struct dsa_port *dp;
  			int dsa_ovid, dsa_mode;
  
@@ -109,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			dsa_mode = ppe_ft_dsa_resolve(odev, &dp, &dsa_ovid);
  			if (dsa_mode < 0) {
  				ret = dsa_mode;
-@@ -2484,7 +2482,19 @@ put_idev:
+@@ -2487,7 +2485,19 @@ put_idev:
  				port_priv = netdev_priv(dsa_port_to_conduit(dp));
  				nh.port = port_priv->ppe_port->port_id;
  				nh.l3_if = nh.port;
@@ -130,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			}
  			flow->egress_dev = odev;
  			flow->egress_vid = dsa_ovid;
-@@ -2690,7 +2700,8 @@ put_idev:
+@@ -2693,7 +2703,8 @@ put_idev:
  
  		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
  					       data.eth.dst, data.eth.src,

@@ -1,4 +1,4 @@
-From: VKing <noreply@openwrt.local>
+From: ViKing <viking.yfy@qq.com>
 Date: Mon, 24 Aug 2026 16:03:46 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: share identical next hops
 
@@ -16,7 +16,7 @@ Report the flow-table depth as the nominal active-flow ceiling after
 sharing. Add resource_stats diagnostics for live next-hop occupancy and
 cumulative allocation, reuse and release counts.
 
-Signed-off-by: VKing <noreply@openwrt.local>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
@@ -136,7 +136,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  /* Get a refcounted public IP slot for the address, programming the
   * hardware entry on first use. Must be called with the flowtable lock
   * held.
-@@ -2573,23 +2651,18 @@ put_idev:
+@@ -2574,23 +2652,18 @@ put_idev:
  			goto err_my_mac;
  	}
  
@@ -164,7 +164,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  
  	ret = ppe_flow_entry_add(ft->ppe_dev, &flow->entry);
  	if (ret < 0)
-@@ -2615,7 +2688,6 @@ put_idev:
+@@ -2616,7 +2689,6 @@ put_idev:
  		}
  	}
  
@@ -172,7 +172,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	mutex_unlock(&ft->lock);
  	if (tdev)
  		dev_put(tdev);
-@@ -2624,19 +2696,19 @@ put_idev:
+@@ -2625,19 +2697,19 @@ put_idev:
  
  err_hw_flow:
  	if (!ppe_ft_flow_hw_del(ft, flow)) {
@@ -197,7 +197,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  err_my_mac:
  	ppe_ft_my_mac_put(ft, flow->my_mac);
  err_pppoe:
-@@ -2692,7 +2764,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2693,7 +2765,7 @@ static int ppe_ft_flow_destroy(struct pp
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
  		ppe_ft_host_put(ft, &flow->entry);
@@ -206,7 +206,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		ppe_ft_my_mac_put(ft, flow->my_mac);
  		ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
  		ppe_ft_pppoe_put(ft, flow->pppoe);
-@@ -2963,15 +3035,30 @@ static int ppe_ft_active_flows_show(stru
+@@ -2964,15 +3036,30 @@ static int ppe_ft_active_flows_show(stru
  	struct ppe_flowtable *ft = seq->private;
  	unsigned int capacity;
  
@@ -240,7 +240,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  /**
   * ppe_flowtable_debugfs_init - Expose the flowtable state in debugfs
   * @ppe_dev: PPE device
-@@ -2997,6 +3084,9 @@ void ppe_flowtable_debugfs_init(struct p
+@@ -2998,6 +3085,9 @@ void ppe_flowtable_debugfs_init(struct p
  	ft->debugfs_reasons = debugfs_create_file("reason_counters", 0400,
  						  ppe_dev->debugfs_root, ft,
  						  &ppe_ft_reason_counters_fops);
@@ -250,7 +250,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  }
  
  static int ppe_ft_block_cb(enum tc_setup_type type, void *type_data,
-@@ -3126,13 +3216,20 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3127,13 +3217,20 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -272,7 +272,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		kfree(ft);
  		return -ERANGE;
  	}
-@@ -3143,6 +3240,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3144,6 +3241,7 @@ int ppe_flowtable_setup(struct ppe_devic
  
  	ret = rhashtable_init(&ft->flows, &ppe_ft_params);
  	if (ret) {
@@ -280,7 +280,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		kfree(ft);
  		return ret;
  	}
-@@ -3155,6 +3253,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3156,6 +3254,7 @@ int ppe_flowtable_setup(struct ppe_devic
  	if (ret) {
  		ppe_dev->flowtable = NULL;
  		rhashtable_destroy(&ft->flows);
@@ -288,7 +288,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		kfree(ft);
  		return ret;
  	}
-@@ -3212,6 +3311,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3213,6 +3312,7 @@ void ppe_flowtable_destroy(struct ppe_de
  	}
  	mutex_unlock(&ft->lock);
  
@@ -296,7 +296,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	debugfs_remove(ft->debugfs_reasons);
  	debugfs_remove(ft->debugfs_active);
  	debugfs_remove(ft->debugfs);
-@@ -3231,5 +3331,6 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3232,5 +3332,6 @@ void ppe_flowtable_destroy(struct ppe_de
  		if (ft->tunnels[i].dev)
  			dev_put(ft->tunnels[i].dev);
  

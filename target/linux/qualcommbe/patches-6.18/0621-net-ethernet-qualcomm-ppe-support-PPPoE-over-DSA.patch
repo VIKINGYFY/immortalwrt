@@ -1,4 +1,4 @@
-From: VKing <noreply@openwrt.local>
+From: ViKing <viking.yfy@qq.com>
 Date: Wed, 26 Aug 2026 12:44:00 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: support PPPoE over DSA
 
@@ -17,7 +17,7 @@ The DSA helper returns the positive standalone VID on success.  Clear
 that value after storing it instead of returning it as a lifecycle
 failure.
 
-Signed-off-by: VKing <noreply@openwrt.local>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
@@ -29,7 +29,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  
  static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
  			     struct ppe_ft_pppoe_topo *topo)
-@@ -731,6 +732,20 @@ static int ppe_ft_pppoe_path(struct net_
+@@ -733,6 +734,20 @@ static int ppe_ft_pppoe_path(struct net_
  			topo->vid = path->encap.id;
  			topo->vlan_mtu = path->dev->mtu;
  			break;
@@ -50,7 +50,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		case DEV_PATH_ETHERNET: {
  			struct edma_port_priv *port_priv;
  
-@@ -740,7 +755,8 @@ static int ppe_ft_pppoe_path(struct net_
+@@ -742,7 +757,8 @@ static int ppe_ft_pppoe_path(struct net_
  			}
  			port_priv = netdev_priv(path->dev);
  			topo->port = port_priv->ppe_port->port_id;

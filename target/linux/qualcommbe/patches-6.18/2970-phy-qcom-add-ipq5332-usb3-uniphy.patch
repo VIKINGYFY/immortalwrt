@@ -1,15 +1,15 @@
+From: ViKing <viking.yfy@qq.com>
 Subject: [PATCH] phy: qcom: add IPQ5332 USB3 22ULL UNIPHY
 
 Add the open-source Qualcomm 22ULL SuperSpeed USB UNIPHY driver used by
 IPQ5332.  The PCIe0 combo PHY can then provide the USB3 PIPE clock and
 PHY for the DWC3 controller while the TCSR mux selects the USB path.
 
----
- drivers/phy/qualcomm/Kconfig                |  10 +
- drivers/phy/qualcomm/Makefile               |   1 +
- drivers/phy/qualcomm/phy-qcom-uniphy-usb.c  | 258 ++++++++++++++++++++
- 3 files changed, 269 insertions(+)
+Keep the original Qualcomm copyright and GPL-2.0-only license
+for the driver adapted to the IPQ5332 platform.
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/drivers/phy/qualcomm/Kconfig
 +++ b/drivers/phy/qualcomm/Kconfig
 @@ -168,6 +168,16 @@ config PHY_QCOM_M31_EUSB

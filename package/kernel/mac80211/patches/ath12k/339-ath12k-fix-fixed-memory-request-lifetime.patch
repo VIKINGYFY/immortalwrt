@@ -12,8 +12,59 @@ invalid segment count before changing the old request.
 Preserve existing SoC diagnostic files across firmware recovery; create
 only missing entries to avoid duplicate registration warnings.
 
+Include the named AHB HOST/BDF/CALDB/M3 lookup from the earlier
+board-layout patch in the owner-based request implementation. Keep
+the optional CALDB zero-address contract and all lifetime safeguards.
+The final QMI assignment and teardown code remains unchanged.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
+--- a/drivers/net/wireless/ath/ath12k/debugfs.c
++++ b/drivers/net/wireless/ath/ath12k/debugfs.c
+@@ -4,6 +4,8 @@
+  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+  */
+ 
++#include <linux/seq_file.h>
++
+ #include "core.h"
+ #include "dp_tx.h"
+ #include "debug.h"
+@@ -1212,13 +1214,28 @@ static const struct file_operations fops
+ 	.llseek = default_llseek,
+ };
+ 
++static void ath12k_debugfs_create_base_file(struct ath12k_base *ab,
++					   const char *name, umode_t mode,
++					   const struct file_operations *fops)
++{
++	struct dentry *existing;
++
++	/* SoC files outlive a firmware recovery and keep the same base owner. */
++	existing = debugfs_lookup(name, ab->debugfs_soc);
++	if (existing) {
++		dput(existing);
++		return;
++	}
++
++	debugfs_create_file(name, mode, ab->debugfs_soc, ab, fops);
++}
++
+ void ath12k_debugfs_pdev_create(struct ath12k_base *ab)
+ {
+-	debugfs_create_file("simulate_fw_crash", 0600, ab->debugfs_soc, ab,
+-			    &fops_simulate_fw_crash);
+-
+-	debugfs_create_file("device_dp_stats", 0400, ab->debugfs_soc, ab,
+-			    &fops_device_dp_stats);
++	ath12k_debugfs_create_base_file(ab, "simulate_fw_crash", 0600,
++				       &fops_simulate_fw_crash);
++	ath12k_debugfs_create_base_file(ab, "device_dp_stats", 0400,
++				       &fops_device_dp_stats);
+ }
+ 
+ void ath12k_debugfs_soc_create(struct ath12k_base *ab)
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
 @@ -2721,11 +2721,82 @@ clear_chunk:
@@ -182,18 +233,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!ag->mlo_mem.init_done) {
  		memset(ag->mlo_mem.chunk, 0, sizeof(ag->mlo_mem.chunk));
-@@ -3129,101 +3206,37 @@ static int ath12k_qmi_assign_target_mem_
+@@ -3129,77 +3206,37 @@ static int ath12k_qmi_assign_target_mem_
  	}
  
  	for (i = 0, idx = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
--		int assigned_idx = idx;
--
 -		switch (ab->qmi.target_mem[i].type) {
 +		type = ab->qmi.target_mem[i].type;
 +		size = ab->qmi.target_mem[i].size;
 +		switch (type) {
  		case HOST_DDR_REGION_TYPE:
--			rmem = ath12k_core_get_rmem_by_name(ab, "host-ddr-mem");
+-			rmem = ath12k_core_get_reserved_mem(ab, 0);
 -			if (!rmem) {
 -				ret = -ENODEV;
 -				goto out;
@@ -223,13 +272,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			idx++;
 -			break;
  		case BDF_MEM_REGION_TYPE:
--			rmem = ath12k_core_get_rmem_by_name(ab, "host-ddr-mem");
+-			rmem = ath12k_core_get_reserved_mem(ab, 0);
 -			if (!rmem) {
 -				ret = -ENODEV;
 -				goto out;
 -			}
 -
--			avail_rmem_size = rmem->size;
+-			avail_rmem_size = rmem->size - ab->hw_params->bdf_addr_offset;
 -			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
 -				ath12k_dbg(ab, ATH12K_DBG_QMI,
 -					   "failed to assign mem type %u req size %u avail size %zu\n",
@@ -239,7 +288,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -				ret = -EINVAL;
 -				goto out;
 -			}
--			ab->qmi.target_mem[idx].paddr = rmem->base;
+-			ab->qmi.target_mem[idx].paddr =
+-				rmem->base + ab->hw_params->bdf_addr_offset;
 -			ab->qmi.target_mem[idx].v.ioaddr =
 -				ioremap(ab->qmi.target_mem[idx].paddr,
 -					ab->qmi.target_mem[i].size);
@@ -252,11 +302,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			idx++;
 -			break;
  		case CALDB_MEM_REGION_TYPE:
--			/* The named CALDB region is optional. Keep the upstream
--			 * zero-address contract when the firmware does not use it.
+-			/* Cold boot calibration is not enabled in Ath12k. Hence,
+-			 * assign paddr = 0.
+-			 * Once cold boot calibration is enabled add support to
+-			 * assign reserved memory from DT.
 -			 */
--			rmem = ath12k_core_get_rmem_by_name(ab, "q6-caldb");
--			if (!rmem) {
+-			ab->qmi.target_mem[idx].paddr = 0;
+-			ab->qmi.target_mem[idx].v.ioaddr = NULL;
+-			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
+-			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
 +		case M3_DUMP_REGION_TYPE:
 +			name = type == CALDB_MEM_REGION_TYPE ? "q6-caldb" :
 +			       type == M3_DUMP_REGION_TYPE ? "m3-dump" :
@@ -264,29 +318,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			rmem = ath12k_core_get_rmem_by_name(ab, name);
 +			if (!rmem && type == CALDB_MEM_REGION_TYPE) {
 +				/* Preserve the optional CALDB zero-address contract. */
- 				ab->qmi.target_mem[idx].paddr = 0;
- 				ab->qmi.target_mem[idx].v.ioaddr = NULL;
--				goto caldb_done;
--			}
--
--			avail_rmem_size = rmem->size;
--			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
--				ath12k_dbg(ab, ATH12K_DBG_QMI,
--					   "failed to assign mem type %u req size %u avail size %zu\n",
--					   ab->qmi.target_mem[i].type,
--					   ab->qmi.target_mem[i].size,
--					   avail_rmem_size);
--				ret = -EINVAL;
--				goto out;
--			}
--
--			ab->qmi.target_mem[idx].paddr = rmem->base;
--			ab->qmi.target_mem[idx].v.ioaddr =
--				ioremap(ab->qmi.target_mem[idx].paddr,
--					ab->qmi.target_mem[i].size);
--			if (!ab->qmi.target_mem[idx].v.ioaddr) {
--				ret = -EIO;
--				goto out;
++				ab->qmi.target_mem[idx].paddr = 0;
++				ab->qmi.target_mem[idx].v.ioaddr = NULL;
 +				ab->qmi.target_mem[idx].size = size;
 +				ab->qmi.target_mem[idx].type = type;
 +			} else {
@@ -302,19 +335,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +							     size, type);
 +				if (ret)
 +					goto out;
- 			}
--caldb_done:
--			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
--			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
++			}
  			idx++;
  			break;
  		case MLO_GLOBAL_MEM_REGION_TYPE:
-@@ -3248,48 +3261,12 @@ caldb_done:
+@@ -3224,41 +3261,12 @@ static int ath12k_qmi_assign_target_mem_
  			idx++;
  			mlo_idx++;
  			break;
 -		case M3_DUMP_REGION_TYPE:
--			rmem = ath12k_core_get_rmem_by_name(ab, "m3-dump");
+-			rmem = ath12k_core_get_reserved_mem(ab, 1);
 -			if (!rmem) {
 -				ret = -EINVAL;
 -				goto out;
@@ -348,17 +378,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				    ab->qmi.target_mem[i].type);
  			break;
  		}
- 
--		if (idx > assigned_idx)
--			ath12k_info(ab,
--				    "QMI fixed memory type %u addr %pa size %u\n",
--				    ab->qmi.target_mem[idx - 1].type,
--				    &ab->qmi.target_mem[idx - 1].paddr,
--				    ab->qmi.target_mem[idx - 1].size);
++
  	}
  	ab->qmi.mem_seg_count = idx;
  
-@@ -3303,10 +3280,12 @@ caldb_done:
+@@ -3272,10 +3280,12 @@ static int ath12k_qmi_assign_target_mem_
  		goto out;
  	}
  
@@ -371,7 +395,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_qmi_free_target_mem_chunk(ab);
  	mutex_unlock(&ag->mutex);
  	return ret;
-@@ -4290,9 +4269,11 @@ static void ath12k_qmi_msg_mem_request_c
+@@ -4259,9 +4269,11 @@ static void ath12k_qmi_msg_mem_request_c
  	ath12k_dbg(ab, ATH12K_DBG_QMI, "qmi firmware request memory request\n");
  
  	if (msg->mem_seg_len == 0 ||
@@ -412,48 +436,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 mem_seg_count;
  	u32 target_mem_mode;
  	bool target_mem_delayed;
---- a/drivers/net/wireless/ath/ath12k/debugfs.c
-+++ b/drivers/net/wireless/ath/ath12k/debugfs.c
-@@ -4,6 +4,8 @@
-  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-  */
- 
-+#include <linux/seq_file.h>
-+
- #include "core.h"
- #include "dp_tx.h"
- #include "debug.h"
-@@ -1212,13 +1214,28 @@ static const struct file_operations fops
- 	.llseek = default_llseek,
- };
- 
-+static void ath12k_debugfs_create_base_file(struct ath12k_base *ab,
-+					   const char *name, umode_t mode,
-+					   const struct file_operations *fops)
-+{
-+	struct dentry *existing;
-+
-+	/* SoC files outlive a firmware recovery and keep the same base owner. */
-+	existing = debugfs_lookup(name, ab->debugfs_soc);
-+	if (existing) {
-+		dput(existing);
-+		return;
-+	}
-+
-+	debugfs_create_file(name, mode, ab->debugfs_soc, ab, fops);
-+}
-+
- void ath12k_debugfs_pdev_create(struct ath12k_base *ab)
- {
--	debugfs_create_file("simulate_fw_crash", 0600, ab->debugfs_soc, ab,
--			    &fops_simulate_fw_crash);
--
--	debugfs_create_file("device_dp_stats", 0400, ab->debugfs_soc, ab,
--			    &fops_device_dp_stats);
-+	ath12k_debugfs_create_base_file(ab, "simulate_fw_crash", 0600,
-+				       &fops_simulate_fw_crash);
-+	ath12k_debugfs_create_base_file(ab, "device_dp_stats", 0400,
-+				       &fops_device_dp_stats);
- }
- 
- void ath12k_debugfs_soc_create(struct ath12k_base *ab)

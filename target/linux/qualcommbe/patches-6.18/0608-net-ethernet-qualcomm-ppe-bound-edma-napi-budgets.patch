@@ -1,4 +1,4 @@
-From: VKing <noreply@openwrt.local>
+From: ViKing <viking.yfy@qq.com>
 Subject: [PATCH] net: ethernet: qualcomm: ppe: bound EDMA NAPI budgets
 
 Linux 6.18 reports an error when a NAPI weight exceeds NAPI_POLL_WEIGHT. The
@@ -7,7 +7,7 @@ existing module parameter validation did not affect the values passed to
 netif_napi_add_weight(). Keep the profile values as the automatic defaults,
 cap them at the kernel limit, and honor explicit valid module values.
 
-Signed-off-by: VKing <noreply@openwrt.local>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c

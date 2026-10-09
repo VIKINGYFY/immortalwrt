@@ -1,4 +1,3 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
 Date: Thu, 27 Aug 2026 17:06:00 +0800
 Subject: [PATCH] net: phy: qca8084: configure QCA8386 switch clocks and PCS1
@@ -11,11 +10,6 @@ remaining opt-in through device tree.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- drivers/net/phy/qcom/qca8084_serdes.c | 160 ++++++++++++++++++++++++--
- drivers/net/phy/qcom/qca8084_serdes.h |   1 +
- drivers/net/phy/qcom/qca808x.c        |  84 +++++++++++++-
- 3 files changed, 234 insertions(+), 11 deletions(-)
-
 --- a/drivers/net/phy/qcom/qca8084_serdes.c
 +++ b/drivers/net/phy/qcom/qca8084_serdes.c
 @@ -57,6 +57,11 @@

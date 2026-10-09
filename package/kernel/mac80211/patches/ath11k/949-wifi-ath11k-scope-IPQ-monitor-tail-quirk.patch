@@ -1,0 +1,77 @@
+From: Ruslan Isaev <legale.legale@gmail.com>
+Date: Thu, 8 Oct 2026 21:19:52 +0800
+Subject: [PATCH] wifi: ath11k: scope the IPQ60xx and IPQ807x monitor tail quirk
+
+Keep the existing eight-byte correction only on IPQ6018/IPQ8074
+single-MSDU captures. Apply it where raw/native frames are reconstructed,
+retain normal FCS handling on other chips and MSDU chains, and remove the
+unconditional per-frame warning. Guard trim and tailroom before mutation.
+
+The firmware-specific capture formats still require hardware pcap validation.
+
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -4909,10 +4909,16 @@ ath11k_dp_rx_mon_merg_msdus(struct ath11
+ 	struct ieee80211_hdr_3addr *wh;
+ 	struct rx_attention *rx_attention;
+ 	u32 err_bitmap;
++	bool extra_tail;
+ 
+ 	if (!head_msdu)
+ 		goto err_merge_fail;
+ 
++	/* These AHB firmwares append an extra tail to single-MSDU captures. */
++	extra_tail = head_msdu == last_msdu &&
++		     (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
++		      ab->hw_rev == ATH11K_HW_IPQ6018_HW10);
++
+ 	rx_desc = (struct hal_rx_desc *)head_msdu->data;
+ 	rx_attention = ath11k_dp_rx_get_attention(ab, rx_desc);
+ 	err_bitmap = ath11k_dp_rx_h_attn_mpdu_err(rx_attention);
+@@ -4942,7 +4948,10 @@ ath11k_dp_rx_mon_merg_msdus(struct ath11
+ 
+ 		prev_buf->next = NULL;
+ 
+-		skb_trim(prev_buf, prev_buf->len - HAL_RX_FCS_LEN);
++		if (prev_buf->len < HAL_RX_FCS_LEN * (extra_tail ? 2 : 1))
++			goto err_merge_fail;
++		skb_trim(prev_buf, prev_buf->len -
++			 HAL_RX_FCS_LEN * (extra_tail ? 2 : 1));
+ 	} else if (decap_format == DP_RX_DECAP_TYPE_NATIVE_WIFI) {
+ 		u8 qos_pkt = 0;
+ 
+@@ -4968,9 +4977,15 @@ ath11k_dp_rx_mon_merg_msdus(struct ath11
+ 			prev_buf = msdu;
+ 			msdu = msdu->next;
+ 		}
+-		dest = skb_put(prev_buf, HAL_RX_FCS_LEN);
+-		if (!dest)
+-			goto err_merge_fail;
++		if (extra_tail) {
++			if (prev_buf->len < 2 * HAL_RX_FCS_LEN)
++				goto err_merge_fail;
++			skb_trim(prev_buf, prev_buf->len - 2 * HAL_RX_FCS_LEN);
++		} else {
++			if (skb_tailroom(prev_buf) < HAL_RX_FCS_LEN)
++				goto err_merge_fail;
++			skb_put_zero(prev_buf, HAL_RX_FCS_LEN);
++		}
+ 
+ 		ath11k_dbg(ab, ATH11K_DBG_DATA,
+ 			   "mpdu_buf %p mpdu_buf->len %u",
+@@ -5096,10 +5111,10 @@ static int ath11k_dp_rx_mon_deliver(stru
+ 
+ 	header = mon_skb;
+ 
+-	rxs->flag = 0;
++	rxs->flag = RX_FLAG_ONLY_MONITOR;
+ 
+ 	if (fcs_err)
+-		rxs->flag = RX_FLAG_FAILED_FCS_CRC;
++		rxs->flag |= RX_FLAG_FAILED_FCS_CRC;
+ 
+ 	do {
+ 		skb_next = mon_skb->next;

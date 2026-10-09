@@ -29,7 +29,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
-@@ -147,6 +147,8 @@ struct flow_offload_tuple {
+@@ -149,6 +149,8 @@ struct flow_offload_tuple {
  		struct {
  			u32		ifidx;
  			u32		hw_ifidx;
@@ -38,7 +38,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  			u8		h_source[ETH_ALEN];
  			u8		h_dest[ETH_ALEN];
  		} out;
-@@ -213,6 +215,8 @@ struct nf_flow_route {
+@@ -215,6 +217,8 @@ struct nf_flow_route {
  		struct {
  			u32			ifindex;
  			u32			hw_ifindex;
@@ -113,7 +113,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  		teardown = true;
 --- a/net/netfilter/nf_flow_table_path.c
 +++ b/net/netfilter/nf_flow_table_path.c
-@@ -89,6 +89,7 @@ struct nft_forward_info {
+@@ -92,6 +92,7 @@ struct nft_forward_info {
  		__be16	proto;
  	} encap[NF_FLOW_TABLE_ENCAP_MAX];
  	u8 num_encaps;
@@ -121,7 +121,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	u8 ingress_vlans;
  	u8 h_source[ETH_ALEN];
  	u8 h_dest[ETH_ALEN];
-@@ -163,6 +164,10 @@ static int nft_dev_path_info(const struc
+@@ -181,6 +182,10 @@ static int nft_dev_path_info(const struc
  			case DEV_PATH_BR_VLAN_KEEP:
  				break;
  			}
@@ -132,7 +132,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  			info->xmit_type = FLOW_OFFLOAD_XMIT_DIRECT;
  			break;
  		default:
-@@ -231,6 +236,8 @@ static int nft_dev_forward_path(struct n
+@@ -249,6 +254,8 @@ static int nft_dev_forward_path(struct n
  		memcpy(route->tuple[dir].out.h_source, info.h_source, ETH_ALEN);
  		memcpy(route->tuple[dir].out.h_dest, info.h_dest, ETH_ALEN);
  		route->tuple[dir].out.hw_ifindex = info.hw_outdev->ifindex;

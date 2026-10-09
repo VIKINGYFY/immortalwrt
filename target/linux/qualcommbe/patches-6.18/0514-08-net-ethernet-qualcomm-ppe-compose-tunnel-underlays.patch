@@ -7,7 +7,12 @@ one outer 802.1Q tag and an optional PPPoE session.  Share the tunnel L3
 interface at the physical port for Ethernet/VLAN underlays, or attach it to
 the existing lifecycle-owned PPPoE session as the vendor transaction does.
 
+Use the forward-path context API supplied by the 6.18 backport.
+Select the routed egress device in a zero-initialized context.
+
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -189,6 +189,10 @@ struct ppe_ft_tunnel {
@@ -48,7 +53,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct notifier_block ppp_nb;
  	struct list_head block_cb_list;
  };
-@@ -640,6 +653,33 @@ static int ppe_ft_pppoe_get(struct ppe_f
+@@ -642,6 +655,33 @@ static int ppe_ft_pppoe_get(struct ppe_f
  	return -ENOENT;
  }
  
@@ -82,7 +87,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static void ppe_ft_pppoe_put(struct ppe_flowtable *ft, int index)
  {
  	int vlan;
-@@ -1011,14 +1051,63 @@ static bool ppe_ft_rule_is_tunnel(const
+@@ -1013,14 +1053,63 @@ static bool ppe_ft_rule_is_tunnel(const
  	return is_tunnel;
  }
  
@@ -149,7 +154,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (underlay->refcnt) {
  		if (underlay->poisoned)
  			return -EIO;
-@@ -1036,8 +1125,24 @@ static int ppe_ft_tunnel_underlay_get(st
+@@ -1038,8 +1127,24 @@ static int ppe_ft_tunnel_underlay_get(st
  				   PPE_TUNNEL_L3_IPIP6_VALUE);
  	if (ret)
  		goto err_id;
@@ -176,7 +181,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (ret)
  		goto err_row;
  
-@@ -1056,20 +1161,35 @@ err_ref:
+@@ -1058,20 +1163,35 @@ err_ref:
  	return ret;
  }
  
@@ -217,21 +222,21 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		underlay->poisoned = true;
  		underlay->refcnt = 1;
  		WARN_ONCE(1, "quarantining an undeletable tunnel underlay\n");
-@@ -1086,6 +1206,7 @@ static int ppe_ft_tunnel_resolve(struct
+@@ -1088,6 +1208,8 @@ static int ppe_ft_tunnel_resolve(struct
  				 const struct in6_addr *remote,
  				 struct ppe_ft_tunnel *tunnel)
  {
++	struct net_device_path_ctx ctx = {};
 +	struct net_device_path_stack stack = {};
  	struct flowi6 fl6 = {
  		.flowi6_oif = link,
  		.saddr = *local,
-@@ -1093,39 +1214,123 @@ static int ppe_ft_tunnel_resolve(struct
+@@ -1095,39 +1217,123 @@ static int ppe_ft_tunnel_resolve(struct
  	};
  	struct neighbour *neigh;
  	struct dst_entry *dst;
 -	struct edma_port_priv *priv;
 -	int ret = 0;
-+	u8 daddr[ETH_ALEN] = {};
 +	u8 peer[ETH_ALEN] = {};
 +	bool have_pppoe = false;
 +	u16 sid = 0;
@@ -250,8 +255,9 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 -	if (!edma_port_dev_check(dst->dev)) {
 -		ret = -EOPNOTSUPP;
 -		goto out_dst;
++	ctx.dev = dst->dev;
 +	rcu_read_lock();
-+	ret = dev_fill_forward_path(dst->dev, daddr, &stack);
++	ret = dev_fill_forward_path(&ctx, &stack);
 +	if (ret)
 +		goto out_unlock;
 +
@@ -369,7 +375,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  out_dst:
  	dst_release(dst);
  	return ret;
-@@ -1134,41 +1339,70 @@ out_dst:
+@@ -1136,41 +1342,70 @@ out_dst:
  static bool ppe_ft_tunnel_match(const struct ppe_ft_tunnel *tunnel,
  				const struct net_device *dev,
  				const struct in6_addr *local,
@@ -447,7 +453,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	tunnel->ref.refcnt = 1;
  	tunnel->dev = dev;
  	tunnel->local = *local;
-@@ -1179,10 +1413,8 @@ static int ppe_ft_tunnel_get(struct ppe_
+@@ -1181,10 +1416,8 @@ static int ppe_ft_tunnel_get(struct ppe_
  	tunnel->decap_index = -1;
  	tunnel->vp = -1;
  
@@ -460,7 +466,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	if (l3_if < 0) {
  		ret = l3_if;
  		goto err_clear;
-@@ -1205,6 +1437,10 @@ static int ppe_ft_tunnel_get(struct ppe_
+@@ -1207,6 +1440,10 @@ static int ppe_ft_tunnel_get(struct ppe_
  	ipip6.hop_limit = tunnel->hop_limit;
  	ipip6.vp = tunnel->vp;
  	ipip6.l3_if = l3_if;
@@ -471,7 +477,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ppe_tunnel_ipip6_decap_build(&decap, &ipip6);
  	ppe_tunnel_ipip6_encap_build(&encap, &ipip6);
  
-@@ -1261,8 +1497,9 @@ err_decap:
+@@ -1263,8 +1500,9 @@ err_decap:
  err_encap_id:
  	ppe_tunnel_id_free(ft->ppe_dev, tunnel->encap_id);
  err_underlay:
@@ -482,7 +488,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	memset(tunnel, 0, sizeof(*tunnel));
  	return ret;
  }
-@@ -1302,7 +1539,8 @@ static void ppe_ft_tunnel_put(struct ppe
+@@ -1304,7 +1542,8 @@ static void ppe_ft_tunnel_put(struct ppe
  
  	ppe_tunnel_vp_free(ft->ppe_dev, tunnel->vp);
  	ppe_tunnel_id_free(ft->ppe_dev, tunnel->encap_id);

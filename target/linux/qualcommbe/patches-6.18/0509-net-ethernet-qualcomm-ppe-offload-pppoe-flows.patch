@@ -41,7 +41,11 @@ deliberate exception: the hardware forwards FIN/RST packets instead
 of punting them, which only delays the flow teardown until the flow
 idles out.
 
+Use the forward-path context API supplied by the 6.18 backport.
+Keep its zero-initialized destination address for PPPoE lookup.
+
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
@@ -352,7 +356,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  };
  
  static int ppe_ft_mangle_eth(const struct flow_action_entry *act, void *eth)
-@@ -402,6 +445,282 @@ static void ppe_ft_pub_ip_put(struct ppe
+@@ -402,6 +445,284 @@ static void ppe_ft_pub_ip_put(struct ppe
  	ppe_ft_ref_put(ft->pub_ips, sizeof(*ft->pub_ips), index);
  }
  
@@ -381,15 +385,17 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
 +			     struct ppe_ft_pppoe_path *topo)
 +{
++	struct net_device_path_ctx ctx = {
++		.dev = ppp_dev,
++	};
 +	struct net_device_path_stack stack = {};
-+	u8 daddr[ETH_ALEN] = {};
 +	bool have_pppoe = false;
 +	int i, ret;
 +
 +	topo->port = -1;
 +	topo->mtu = ppp_dev->mtu;
 +	rcu_read_lock();
-+	ret = dev_fill_forward_path(ppp_dev, daddr, &stack);
++	ret = dev_fill_forward_path(&ctx, &stack);
 +	if (ret)
 +		goto out_unlock;
 +
@@ -635,7 +641,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  /* Hash key of a flow's source IP for the host refcount table. */
  static u32 ppe_ft_host_key(const struct ppe_flow_entry *flow)
  {
-@@ -565,7 +884,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -565,7 +886,9 @@ static int ppe_ft_flow_replace(struct pp
  	flow->cookie = f->cookie;
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
@@ -645,7 +651,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	{
  		struct flow_match_basic match;
-@@ -736,6 +1057,9 @@ static int ppe_ft_flow_replace(struct pp
+@@ -736,6 +1059,9 @@ static int ppe_ft_flow_replace(struct pp
  			}
  			nh.vid = act->vlan.vid;
  			break;
@@ -655,7 +661,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		case FLOW_ACTION_CSUM:
  			break;
  		default:
-@@ -750,6 +1074,14 @@ static int ppe_ft_flow_replace(struct pp
+@@ -750,6 +1076,14 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_free;
  	}
  
@@ -670,7 +676,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	port_priv = netdev_priv(odev);
  	nh.port = port_priv->ppe_port->port_id;
  	nh.l3_if = nh.port;
-@@ -801,25 +1133,50 @@ static int ppe_ft_flow_replace(struct pp
+@@ -801,25 +1135,50 @@ static int ppe_ft_flow_replace(struct pp
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
  	}
  
@@ -731,7 +737,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  		ret = ppe_l3_if_my_mac_set(ft->ppe_dev, nh.l3_if,
  					   flow->my_mac, true);
-@@ -881,6 +1238,8 @@ err_host:
+@@ -881,6 +1240,8 @@ err_host:
  	ppe_ft_host_put(ft, &flow->entry);
  err_my_mac:
  	ppe_ft_my_mac_put(ft, flow->my_mac);
@@ -740,7 +746,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  err_pub_ip:
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
  err_unlock:
-@@ -910,6 +1269,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -910,6 +1271,7 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_host_put(ft, &flow->entry);
  		clear_bit(flow->nexthop, ft->nexthop_used);
  		ppe_ft_my_mac_put(ft, flow->my_mac);
@@ -748,7 +754,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
-@@ -1289,6 +1649,7 @@ int ppe_flowtable_setup_tc(struct net_de
+@@ -1289,6 +1651,7 @@ int ppe_flowtable_setup_tc(struct net_de
   */
  int ppe_flowtable_setup(struct ppe_device *ppe_dev)
  {
@@ -756,7 +762,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	struct ppe_flowtable *ft;
  	int ret;
  
-@@ -1297,6 +1658,11 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -1297,6 +1660,11 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -768,7 +774,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	mutex_init(&ft->lock);
  	INIT_LIST_HEAD(&ft->block_cb_list);
  	INIT_LIST_HEAD(&ft->zombies);
-@@ -1308,8 +1674,30 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -1308,8 +1676,30 @@ int ppe_flowtable_setup(struct ppe_devic
  	}
  
  	hash_init(ft->hosts);
@@ -799,7 +805,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	return 0;
  }
  
-@@ -1337,7 +1725,17 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -1337,7 +1727,17 @@ void ppe_flowtable_destroy(struct ppe_de
  		return;
  
  	WARN_ON(!list_empty(&ft->block_cb_list));

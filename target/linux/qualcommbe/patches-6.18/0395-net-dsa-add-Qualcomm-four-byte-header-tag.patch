@@ -1,4 +1,3 @@
-From c4bb40d9d6bd3f1e5e8830bca1aa55985a3cfa5f Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
 Date: Fri, 28 Aug 2026 19:38:14 +0800
 Subject: [PATCH] net: dsa: add Qualcomm four-byte header tag
@@ -11,14 +10,6 @@ Disable checksum offload while the four-byte header is present.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- Documentation/devicetree/bindings/net/dsa/dsa-port.yaml |  1 +
- drivers/net/dsa/qca/qca8k-8xxx.c |  3 ++
- include/linux/dsa/tag_qca.h      |  4 ++
- include/net/dsa.h                |  4 +-
- net/dsa/tag_qca.c                | 87 +++++++++++++++++++++++++++-----
- net/dsa/user.c                   |  3 ++
- 6 files changed, 89 insertions(+), 13 deletions(-)
-
 --- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 @@ -55,6 +55,7 @@ properties:
@@ -229,7 +220,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +module_dsa_tag_drivers(qca_tag_drivers);
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -2720,6 +2720,9 @@ void dsa_user_setup_tagger(struct net_de
+@@ -2847,6 +2847,9 @@ void dsa_user_setup_tagger(struct net_de
  		user->features &= ~(NETIF_F_SG | NETIF_F_FRAGLIST);
  	if (ds->needs_standalone_vlan_filtering)
  		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;

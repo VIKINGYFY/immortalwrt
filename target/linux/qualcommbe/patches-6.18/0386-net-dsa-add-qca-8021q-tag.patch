@@ -1,4 +1,3 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
 Date: Fri, 28 Aug 2026 01:06:43 +0800
 Subject: [PATCH] net: dsa: add QCA 802.1Q tag protocol
@@ -11,14 +10,6 @@ Keep this protocol separate from the native QCA 2-byte header tag.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- .../devicetree/bindings/net/dsa/dsa-port.yaml |  1 +
- include/linux/dsa/8021q.h                     |  1 +
- include/net/dsa.h                             |  2 +
- net/dsa/Makefile                              |  1 +
- net/dsa/tag_qca_8021q.c                       | 76 +++++++++++++++++++
- 5 files changed, 81 insertions(+)
- create mode 100644 net/dsa/tag_qca_8021q.c
-
 --- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 @@ -55,6 +55,7 @@ properties:

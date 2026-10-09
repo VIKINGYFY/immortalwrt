@@ -1,5 +1,4 @@
-From 6c3eb359715e272fbdc62bf9ecfb8f82a1baac7a Mon Sep 17 00:00:00 2001
-From: ViKing <vking@qq.com>
+From: ViKing <viking.yfy@qq.com>
 Date: Mon, 31 Aug 2026 23:20:00 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: fix EDMA resource lifecycle
 
@@ -20,7 +19,7 @@ Respect napi_complete_done() before rearming and serialize completion, IRQ
 scheduling and interrupt enable/disable under a per-ring lock. Stop cannot
 be undone by the polling tail.
 
-Signed-off-by: ViKing <vking@qq.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c

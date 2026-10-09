@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 9 Oct 2026 00:58:00 +0800
+Subject: [PATCH] wifi: ath11k: name IPQ8074 hardware revision explicitly
+
+The IPQ8074 ath11k parameters and firmware directory are for hardware
+revision 2.0. Give the enum the same explicit revision suffix used by
+IPQ6018 so future hardware revisions cannot share an ambiguous ID.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/core.h
++++ b/drivers/net/wireless/ath/ath11k/core.h
+@@ -146,7 +146,7 @@ struct ath11k_skb_rxcb {
+ };
+ 
+ enum ath11k_hw_rev {
+-	ATH11K_HW_IPQ8074,
++	ATH11K_HW_IPQ8074_HW20,
+ 	ATH11K_HW_QCA6390_HW20,
+ 	ATH11K_HW_IPQ6018_HW10,
+ 	ATH11K_HW_QCN9074_HW10,
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -40,7 +40,7 @@ MODULE_PARM_DESC(ftm_mode, "Boots up in
+ 
+ static const struct ath11k_hw_params ath11k_hw_params[] = {
+ 	{
+-		.hw_rev = ATH11K_HW_IPQ8074,
++		.hw_rev = ATH11K_HW_IPQ8074_HW20,
+ 		.name = "ipq8074 hw2.0",
+ 		.fw = {
+ 			.dir = "IPQ8074/hw2.0",
+--- a/drivers/net/wireless/ath/ath11k/ahb.c
++++ b/drivers/net/wireless/ath/ath11k/ahb.c
+@@ -26,7 +26,7 @@ static const struct of_device_id ath11k_
+ 	 * to one that ath10k uses?
+ 	 */
+ 	{ .compatible = "qcom,ipq8074-wifi",
+-	  .data = (void *)ATH11K_HW_IPQ8074,
++	  .data = (void *)ATH11K_HW_IPQ8074_HW20,
+ 	},
+ 	{ .compatible = "qcom,ipq6018-wifi",
+ 	  .data = (void *)ATH11K_HW_IPQ6018_HW10,
+@@ -1184,7 +1184,7 @@ static int ath11k_ahb_probe(struct platf
+ 	hw_rev = (uintptr_t)device_get_match_data(&pdev->dev);
+ 
+ 	switch (hw_rev) {
+-	case ATH11K_HW_IPQ8074:
++	case ATH11K_HW_IPQ8074_HW20:
+ 	case ATH11K_HW_IPQ6018_HW10:
+ 	case ATH11K_HW_IPQ5018_HW10:
+ 		hif_ops = &ath11k_ahb_hif_ops_ipq8074;

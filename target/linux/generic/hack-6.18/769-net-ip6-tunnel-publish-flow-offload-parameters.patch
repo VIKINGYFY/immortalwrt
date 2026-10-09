@@ -14,7 +14,10 @@ walk its FMR list without exposing its lifetime to hardware drivers.  A
 netdevice operation avoids a link-time dependency from a built-in offload
 driver to the possibly modular IPv6 tunnel implementation.
 
+Refresh against the Linux 6.18 application point without changing behavior.
+
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/include/linux/netdevice.h
 +++ b/include/linux/netdevice.h
@@ -27,7 +30,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  struct macsec_context;
  struct macsec_ops;
  struct netdev_config;
-@@ -1393,6 +1395,11 @@ struct netdev_net_notifier {
+@@ -1396,6 +1398,11 @@ struct netdev_net_notifier {
   *	The caller must be under RCU read context.
   * int (*ndo_fill_forward_path)(struct net_device_path_ctx *ctx, struct net_device_path *path);
   *     Get the forwarding path to reach the real device from the HW destination address
@@ -39,7 +42,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * ktime_t (*ndo_get_tstamp)(struct net_device *dev,
   *			     const struct skb_shared_hwtstamps *hwtstamps,
   *			     bool cycles);
-@@ -1648,6 +1655,10 @@ struct net_device_ops {
+@@ -1651,6 +1658,10 @@ struct net_device_ops {
  	struct net_device *	(*ndo_get_peer_dev)(struct net_device *dev);
  	int                     (*ndo_fill_forward_path)(struct net_device_path_ctx *ctx,
                                                           struct net_device_path *path);
@@ -50,9 +53,9 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	ktime_t			(*ndo_get_tstamp)(struct net_device *dev,
  						  const struct skb_shared_hwtstamps *hwtstamps,
  						  bool cycles);
-@@ -3375,6 +3386,9 @@ int dev_fill_bridge_path(struct net_devi
+@@ -3378,6 +3389,9 @@ int dev_fill_bridge_path(struct net_devi
  			 struct net_device_path_stack *stack);
- int dev_fill_forward_path(const struct net_device *dev, const u8 *daddr,
+ int dev_fill_forward_path(struct net_device_path_ctx *ctx,
  			  struct net_device_path_stack *stack);
 +int dev_ip6_tnl_flow_offload(struct net_device *dev,
 +			     const struct ip6_tnl_flow_offload_key *key,

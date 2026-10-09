@@ -23,11 +23,14 @@ Align the USXGMII configuration sequence with the SSDK:
 
 Other interface modes keep the previous behaviour.
 
-Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
----
- drivers/net/pcs/pcs-qcom-ipq9574.c | 104 ++++++++++++++++++++++++-----
- 1 file changed, 91 insertions(+), 13 deletions(-)
+Fold the earlier PLL delay adjustment into this configuration sequence.
+Preserve the 20 ms delay for other modes and the existing USXGMII
+assert/release timing. This consolidation preserves the final source.
 
+Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+Signed-off-by: Mantas Pucka <mantas@8devices.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
 @@ -71,6 +71,12 @@
@@ -135,7 +138,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +		if (ret)
 +			goto err_clk;
  
--	fsleep(20000);
+-	fsleep(1000);
 -	ret = regmap_set_bits(qpcs->regmap, PCS_PLL_RESET, PCS_ANA_SW_RESET);
 -	if (ret)
 -		return ret;

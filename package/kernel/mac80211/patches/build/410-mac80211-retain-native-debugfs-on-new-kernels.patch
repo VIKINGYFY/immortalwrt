@@ -1,3 +1,13 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 8 Oct 2026 21:19:52 +0800
+Subject: [PATCH] wifi: mac80211: retain native debugfs operations on new kernels
+
+
+Use native debugfs_short_fops on Linux 6.14 and later. Keep the previous
+file_operations and simple_open expansion on older kernels; leave shared
+driver and backport API compatibility in patch 400 intact.
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/net/mac80211/debugfs.c
 +++ b/net/mac80211/debugfs.c
 @@ -42,8 +42,9 @@ static ssize_t name## _read(struct file
@@ -5,9 +15,9 @@
  
  #define DEBUGFS_READONLY_FILE_OPS(name)			\
 -static const struct debugfs_short_fops name## _ops = {				\
-+static const struct file_operations name## _ops = {			\
++static const struct IEEE80211_DEBUGFS_FOPS name## _ops = {			\
  	.read = name## _read,						\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  };
  
@@ -16,10 +26,10 @@
  }
  
 -static const struct debugfs_short_fops aqm_ops = {
-+static const struct file_operations aqm_ops = {
++static const struct IEEE80211_DEBUGFS_FOPS aqm_ops = {
  	.write = aqm_write,
  	.read = aqm_read,
-+	.open = simple_open,
++	IEEE80211_DEBUGFS_SIMPLE_OPEN
  	.llseek = default_llseek,
  };
  
@@ -28,10 +38,10 @@
  }
  
 -static const struct debugfs_short_fops airtime_flags_ops = {
-+static const struct file_operations airtime_flags_ops = {
++static const struct IEEE80211_DEBUGFS_FOPS airtime_flags_ops = {
  	.write = airtime_flags_write,
  	.read = airtime_flags_read,
-+	.open = simple_open,
++	IEEE80211_DEBUGFS_SIMPLE_OPEN
  	.llseek = default_llseek,
  };
  
@@ -40,9 +50,9 @@
  }
  
 -static const struct debugfs_short_fops aql_pending_ops = {
-+static const struct file_operations aql_pending_ops = {
++static const struct IEEE80211_DEBUGFS_FOPS aql_pending_ops = {
  	.read = aql_pending_read,
-+	.open = simple_open,
++	IEEE80211_DEBUGFS_SIMPLE_OPEN
  	.llseek = default_llseek,
  };
  
@@ -51,10 +61,10 @@
  }
  
 -static const struct debugfs_short_fops aql_txq_limit_ops = {
-+static const struct file_operations aql_txq_limit_ops = {
++static const struct IEEE80211_DEBUGFS_FOPS aql_txq_limit_ops = {
  	.write = aql_txq_limit_write,
  	.read = aql_txq_limit_read,
-+	.open = simple_open,
++	IEEE80211_DEBUGFS_SIMPLE_OPEN
  	.llseek = default_llseek,
  };
  
@@ -63,10 +73,10 @@
  }
  
 -static const struct debugfs_short_fops aql_enable_ops = {
-+static const struct file_operations aql_enable_ops = {
++static const struct IEEE80211_DEBUGFS_FOPS aql_enable_ops = {
  	.write = aql_enable_write,
  	.read = aql_enable_read,
-+	.open = simple_open,
++	IEEE80211_DEBUGFS_SIMPLE_OPEN
  	.llseek = default_llseek,
  };
  
@@ -75,10 +85,10 @@
  }
  
 -static const struct debugfs_short_fops force_tx_status_ops = {
-+static const struct file_operations force_tx_status_ops = {
++static const struct IEEE80211_DEBUGFS_FOPS force_tx_status_ops = {
  	.write = force_tx_status_write,
  	.read = force_tx_status_read,
-+	.open = simple_open,
++	IEEE80211_DEBUGFS_SIMPLE_OPEN
  	.llseek = default_llseek,
  };
  
@@ -87,9 +97,9 @@
  }
  
 -static const struct debugfs_short_fops reset_ops = {
-+static const struct file_operations reset_ops = {
++static const struct IEEE80211_DEBUGFS_FOPS reset_ops = {
  	.write = reset_write,
-+	.open = simple_open,
++	IEEE80211_DEBUGFS_SIMPLE_OPEN
  	.llseek = noop_llseek,
  };
  #endif
@@ -98,12 +108,29 @@
  }									\
  									\
 -static const struct debugfs_short_fops stats_ ##name## _ops = {			\
-+static const struct file_operations stats_ ##name## _ops = {		\
++static const struct IEEE80211_DEBUGFS_FOPS stats_ ##name## _ops = {		\
  	.read = stats_ ##name## _read,					\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  };
  
+--- a/net/mac80211/debugfs.h
++++ b/net/mac80211/debugfs.h
+@@ -4,6 +4,14 @@
+ 
+ #include "ieee80211_i.h"
+ 
++#if LINUX_VERSION_IS_LESS(6, 14, 0)
++#define IEEE80211_DEBUGFS_FOPS file_operations
++#define IEEE80211_DEBUGFS_SIMPLE_OPEN .open = simple_open,
++#else
++#define IEEE80211_DEBUGFS_FOPS debugfs_short_fops
++#define IEEE80211_DEBUGFS_SIMPLE_OPEN
++#endif
++
+ #ifdef CPTCFG_MAC80211_DEBUGFS
+ void debugfs_hw_add(struct ieee80211_local *local);
+ int __printf(4, 5) mac80211_format_buffer(char __user *userbuf, size_t count,
 --- a/net/mac80211/debugfs_key.c
 +++ b/net/mac80211/debugfs_key.c
 @@ -26,15 +26,17 @@ static ssize_t key_##name##_read(struct
@@ -111,18 +138,18 @@
  
  #define KEY_OPS(name)							\
 -static const struct debugfs_short_fops key_ ##name## _ops = {		\
-+static const struct file_operations key_ ##name## _ops = {		\
++static const struct IEEE80211_DEBUGFS_FOPS key_ ##name## _ops = {		\
  	.read = key_##name##_read,					\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  }
  
  #define KEY_OPS_W(name)							\
 -static const struct debugfs_short_fops key_ ##name## _ops = {		\
-+static const struct file_operations key_ ##name## _ops = {		\
++static const struct IEEE80211_DEBUGFS_FOPS key_ ##name## _ops = {		\
  	.read = key_##name##_read,					\
  	.write = key_##name##_write,					\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  }
  
@@ -131,9 +158,9 @@
  
  #define KEY_CONF_OPS(name)						\
 -static const struct debugfs_short_fops key_ ##name## _ops = {		\
-+static const struct file_operations key_ ##name## _ops = {		\
++static const struct IEEE80211_DEBUGFS_FOPS key_ ##name## _ops = {		\
  	.read = key_conf_##name##_read,					\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  }
  
@@ -144,10 +171,10 @@
  
  #define _IEEE80211_IF_FILE_OPS(name, _read, _write)			\
 -static const struct debugfs_short_fops name##_ops = {				\
-+static const struct file_operations name##_ops = {			\
++static const struct IEEE80211_DEBUGFS_FOPS name##_ops = {			\
  	.read = (_read),						\
  	.write = (_write),						\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  }
  
@@ -158,18 +185,18 @@
  
  #define STA_OPS(name)							\
 -static const struct debugfs_short_fops sta_ ##name## _ops = {		\
-+static const struct file_operations sta_ ##name## _ops = {		\
++static const struct IEEE80211_DEBUGFS_FOPS sta_ ##name## _ops = {		\
  	.read = sta_##name##_read,					\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  }
  
  #define STA_OPS_RW(name)						\
 -static const struct debugfs_short_fops sta_ ##name## _ops = {		\
-+static const struct file_operations sta_ ##name## _ops = {		\
++static const struct IEEE80211_DEBUGFS_FOPS sta_ ##name## _ops = {		\
  	.read = sta_##name##_read,					\
  	.write = sta_##name##_write,					\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  }
  
@@ -178,9 +205,9 @@
  /* link sta attributes */
  #define LINK_STA_OPS(name)						\
 -static const struct debugfs_short_fops link_sta_ ##name## _ops = {		\
-+static const struct file_operations link_sta_ ##name## _ops = {		\
++static const struct IEEE80211_DEBUGFS_FOPS link_sta_ ##name## _ops = {		\
  	.read = link_sta_##name##_read,					\
-+	.open = simple_open,						\
++	IEEE80211_DEBUGFS_SIMPLE_OPEN						\
  	.llseek = generic_file_llseek,					\
  }
  
@@ -191,20 +218,28 @@
  }
  
 -const struct debugfs_short_fops rcname_ops = {
-+const struct file_operations rcname_ops = {
++const struct IEEE80211_DEBUGFS_FOPS rcname_ops = {
  	.read = rcname_read,
-+	.open = simple_open,
++	IEEE80211_DEBUGFS_SIMPLE_OPEN
  	.llseek = default_llseek,
  };
  #endif
 --- a/net/mac80211/rate.h
 +++ b/net/mac80211/rate.h
-@@ -62,7 +62,7 @@ static inline void rate_control_add_sta_
+@@ -14,6 +14,7 @@
+ #include <linux/types.h>
+ #include <net/mac80211.h>
+ #include "ieee80211_i.h"
++#include "debugfs.h"
+ #include "sta_info.h"
+ #include "driver-ops.h"
+ 
+@@ -62,7 +63,7 @@ static inline void rate_control_add_sta_
  #endif
  }
  
 -extern const struct debugfs_short_fops rcname_ops;
-+extern const struct file_operations rcname_ops;
++extern const struct IEEE80211_DEBUGFS_FOPS rcname_ops;
  
  static inline void rate_control_add_debugfs(struct ieee80211_local *local)
  {

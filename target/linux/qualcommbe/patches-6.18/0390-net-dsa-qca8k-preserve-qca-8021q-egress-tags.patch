@@ -1,4 +1,3 @@
-From 7f190abcbd604f5c6a14e9279c1e22bdac3432cc Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
 Date: Fri, 28 Aug 2026 11:25:11 +0800
 Subject: [PATCH] net: dsa: qca8k: preserve QCA 802.1Q egress tags
@@ -15,11 +14,6 @@ register programming failures remain visible as errors.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- drivers/net/dsa/qca/qca8k-8xxx.c   |  3 ---
- drivers/net/dsa/qca/qca8k-common.c | 37 ++++++++++++++++++++++++++++++++++++-
- drivers/net/dsa/qca/qca8k.h        |  5 +++++
- 3 files changed, 41 insertions(+), 4 deletions(-)
-
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
 @@ -1934,9 +1934,6 @@ static int qca8k_change_tag_protocol(str

@@ -1,4 +1,4 @@
-From: VKing <noreply@openwrt.local>
+From: ViKing <viking.yfy@qq.com>
 Subject: [PATCH] net: preserve routed marks for bridge flowtable egress
 
 The ingress flowtable hook can run before the bridge receive path clears
@@ -16,12 +16,12 @@ Clear it for standalone and other routed egress devices across the direct,
 neighbour and XFRM paths. The common nf_flow_queue_xmit() handles both
 direct and neighbour egress. Keep the independent L3 forwarding mark intact.
 
-Signed-off-by: VKing <noreply@openwrt.local>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -385,6 +385,24 @@ struct nf_flow_xmit {
- 	const struct flow_offload_tuple *in_tuple;
+@@ -343,6 +343,24 @@ struct nf_flow_xmit {
+ 	struct net_device	*outdev;
  };
  
 +static bool nf_flow_bridge_egress(const struct net_device *dev)
@@ -45,7 +45,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  static unsigned int nf_flow_queue_xmit(struct net *net, struct sk_buff *skb,
  				       struct nf_flow_xmit *xmit)
  {
-@@ -397,6 +415,8 @@ static unsigned int nf_flow_queue_xmit(s
+@@ -355,6 +373,8 @@ static unsigned int nf_flow_queue_xmit(s
  			return NF_STOLEN;
  	}
  
@@ -54,7 +54,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  	skb->dev = dev;
  	dev_hard_header(skb, dev, ntohs(skb->protocol),
  			xmit->dest, xmit->source, skb->len);
-@@ -527,6 +547,8 @@ nf_flow_offload_ip_hook(void *priv, stru
+@@ -531,6 +551,8 @@ nf_flow_offload_ip_hook(void *priv, stru
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rtable(tuplehash->tuple.dst_cache);
@@ -63,7 +63,7 @@ Signed-off-by: VKing <noreply@openwrt.local>
  		memset(skb->cb, 0, sizeof(struct inet_skb_parm));
  		IPCB(skb)->iif = skb->dev->ifindex;
  		IPCB(skb)->flags = IPSKB_FORWARDED;
-@@ -842,6 +864,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
+@@ -850,6 +872,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rt6_info(tuplehash->tuple.dst_cache);

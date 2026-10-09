@@ -851,7 +851,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ppe_flow_hw_init(struct ppe_device *ppe_dev);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2300,6 +2300,14 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2303,6 +2303,14 @@ static int ppe_ft_flow_replace(struct pp
  			}
  			lwt_tunnel = true;
  			break;
@@ -866,7 +866,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		default:
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -3165,8 +3173,9 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3168,8 +3176,9 @@ static int ppe_ft_flows_show(struct seq_
  	rhashtable_walk_enter(&ft->flows, &iter);
  	rhashtable_walk_start(&iter);
  	while ((flow = rhashtable_walk_next(&iter))) {
@@ -877,7 +877,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (IS_ERR(flow)) {
  			if (PTR_ERR(flow) == -EAGAIN)
-@@ -3174,9 +3183,17 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3177,9 +3186,17 @@ static int ppe_ft_flows_show(struct seq_
  			break;
  		}
  
@@ -898,7 +898,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  
  		if (flow->entry.is_ipv6)
-@@ -3192,10 +3209,13 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3195,10 +3212,13 @@ static int ppe_ft_flows_show(struct seq_
  				   &flow->entry.dip.ip4,
  				   be16_to_cpu(flow->entry.dport));
  		seq_printf(seq,

@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The mangle words of an offloaded rule, collected before translation.
   * The Ethernet buffer overlays the destination and source addresses as
   * they appear in the header.
-@@ -2677,6 +2697,7 @@ put_idev:
+@@ -2678,6 +2698,7 @@ put_idev:
  					    ppe_ft_params);
  	if (ret)
  		goto err_hw_flow;
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (flow->ivp >= 0) {
  		ret = ppe_vp_flow_add(ft->ppe_dev, flow->ivp,
-@@ -2684,6 +2705,7 @@ put_idev:
+@@ -2685,6 +2706,7 @@ put_idev:
  		if (ret) {
  			rhashtable_remove_fast(&ft->flows, &flow->node,
  					       ppe_ft_params);
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			goto err_hw_flow;
  		}
  	}
-@@ -2760,6 +2782,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2761,6 +2783,7 @@ static int ppe_ft_flow_destroy(struct pp
  	}
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_vp_flow_del(ft->ppe_dev, flow->ivp, &flow->vp_flow);
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
-@@ -3034,10 +3057,14 @@ static int ppe_ft_active_flows_show(stru
+@@ -3035,10 +3058,14 @@ static int ppe_ft_active_flows_show(stru
  {
  	struct ppe_flowtable *ft = seq->private;
  	unsigned int capacity;
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -3235,6 +3262,8 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3236,6 +3263,8 @@ int ppe_flowtable_setup(struct ppe_devic
  	}
  
  	mutex_init(&ft->lock);
