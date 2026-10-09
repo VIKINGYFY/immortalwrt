@@ -14,7 +14,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
 
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -4864,6 +4864,10 @@ static bool ieee80211_check_mcast_offloa
+@@ -4887,6 +4887,10 @@ static bool ieee80211_check_mcast_offloa
  	return true;
  }
  
@@ -25,7 +25,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  static void __ieee80211_subif_start_xmit_8023(struct sk_buff *skb,
  					      struct net_device *dev)
  {
-@@ -4914,6 +4918,11 @@ static void __ieee80211_subif_start_xmit
+@@ -4937,6 +4941,11 @@ static void __ieee80211_subif_start_xmit
  	if (key && (!(key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE)))
  		goto skip_offload;
  
@@ -37,7 +37,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  	sk_pacing_shift_update(skb->sk, sdata->local->hw.tx_sk_pacing_shift);
  tx_offload:
  	ieee80211_8023_xmit(sdata, dev, sta, key, skb);
-@@ -4925,6 +4934,67 @@ out:
+@@ -4948,6 +4957,67 @@ out:
  	rcu_read_unlock();
  }
  

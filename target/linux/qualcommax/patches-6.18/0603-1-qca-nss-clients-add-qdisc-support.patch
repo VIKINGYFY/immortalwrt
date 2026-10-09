@@ -365,7 +365,7 @@
 +++ b/net/sched/sch_generic.c
 @@ -1110,6 +1110,7 @@ static void __qdisc_destroy(struct Qdisc
  
- 	call_rcu(&qdisc->rcu, qdisc_free_cb);
+ 	qdisc_free_rcu(qdisc);
  }
 +EXPORT_SYMBOL(qdisc_destroy);
  

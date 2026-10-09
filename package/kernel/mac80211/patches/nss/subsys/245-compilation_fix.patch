@@ -20,7 +20,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
 
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -222,6 +222,7 @@ enum ieee80211_rx_flags {
+@@ -223,6 +223,7 @@ enum ieee80211_rx_flags {
  };
  
  struct ieee80211_rx_data {
@@ -30,7 +30,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	struct ieee80211_local *local;
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -4758,21 +4758,21 @@ static void ieee80211_8023_xmit(struct i
+@@ -4771,21 +4771,21 @@ static void ieee80211_8023_xmit(struct i
  
  	ieee80211_aggr_check(sdata, sta, skb);
  
@@ -65,7 +65,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	}
  
  	skb = ieee80211_tx_skb_fixup(skb, ieee80211_sdata_netdev_features(sdata));
-@@ -4853,7 +4853,7 @@ static void __ieee80211_subif_start_xmit
+@@ -4876,7 +4876,7 @@ static void __ieee80211_subif_start_xmit
  	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
  	struct ethhdr *ehdr = (struct ethhdr *)skb->data;
  	struct ieee80211_link_data *link;
@@ -74,7 +74,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	struct sta_info *sta;
  
  	rcu_read_lock();
-@@ -4863,6 +4863,12 @@ static void __ieee80211_subif_start_xmit
+@@ -4886,6 +4886,12 @@ static void __ieee80211_subif_start_xmit
  		goto out;
  	}
  
@@ -87,7 +87,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	/*
  	 * If STA is invalid, use the multicast offload path when applicable.
  	 * In AP mode, drop the frame if there are no associated stations;
-@@ -4892,6 +4898,7 @@ static void __ieee80211_subif_start_xmit
+@@ -4915,6 +4921,7 @@ static void __ieee80211_subif_start_xmit
  		goto skip_offload;
  
  	sk_pacing_shift_update(skb->sk, sdata->local->hw.tx_sk_pacing_shift);
@@ -95,7 +95,7 @@ Signed-off-by: Gautham Kumar Senthilkumaran <quic_gauthamk@quicinc.com>
  	ieee80211_8023_xmit(sdata, dev, sta, key, skb);
  	goto out;
  
-@@ -6667,13 +6674,7 @@ int ieee80211_tx_control_port(struct wip
+@@ -6690,13 +6697,7 @@ int ieee80211_tx_control_port(struct wip
  
  start_xmit:
  	local_bh_disable();

@@ -200,7 +200,7 @@
  void fib_del_ifaddr(struct in_ifaddr *, struct in_ifaddr *);
 --- a/net/bridge/br_private.h
 +++ b/net/bridge/br_private.h
-@@ -2345,4 +2345,6 @@ void br_do_suppress_nd(struct sk_buff *s
+@@ -2349,4 +2349,6 @@ void br_do_suppress_nd(struct sk_buff *s
  		       u16 vid, struct net_bridge_port *p, struct nd_msg *msg);
  struct nd_msg *br_is_nd_neigh_msg(const struct sk_buff *skb, struct nd_msg *m);
  bool br_is_neigh_suppress_enabled(const struct net_bridge_port *p, u16 vid);
@@ -318,7 +318,7 @@
  	skb = nlmsg_new(fdb_nlmsg_size(), GFP_ATOMIC);
  	if (skb == NULL)
  		goto errout;
-@@ -540,6 +573,22 @@ out:
+@@ -541,6 +574,22 @@ out:
  	spin_unlock_bh(&br->hash_lock);
  }
  
@@ -341,7 +341,7 @@
  void br_fdb_cleanup(struct work_struct *work)
  {
  	struct net_bridge *br = container_of(work, struct net_bridge,
-@@ -1002,6 +1051,7 @@ void br_fdb_update(struct net_bridge *br
+@@ -1003,6 +1052,7 @@ void br_fdb_update(struct net_bridge *br
  		   const unsigned char *addr, u16 vid, unsigned long flags)
  {
  	struct net_bridge_fdb_entry *fdb;
@@ -349,7 +349,7 @@
  
  	/* some users want to always flood. */
  	if (hold_time(br) == 0)
-@@ -1027,6 +1077,12 @@ void br_fdb_update(struct net_bridge *br
+@@ -1028,6 +1078,12 @@ void br_fdb_update(struct net_bridge *br
  			if (unlikely(source != READ_ONCE(fdb->dst) &&
  				     !test_bit(BR_FDB_STICKY, &fdb->flags))) {
  				br_switchdev_fdb_notify(br, fdb, RTM_DELNEIGH);
@@ -362,7 +362,7 @@
  				WRITE_ONCE(fdb->dst, source);
  				fdb_modified = true;
  				/* Take over HW learned entry */
-@@ -1039,6 +1095,12 @@ void br_fdb_update(struct net_bridge *br
+@@ -1040,6 +1096,12 @@ void br_fdb_update(struct net_bridge *br
  				 */
  				if (unlikely(test_bit(BR_FDB_LOCKED, &fdb->flags)))
  					clear_bit(BR_FDB_LOCKED, &fdb->flags);
@@ -375,7 +375,7 @@
  			}
  
  			if (unlikely(test_bit(BR_FDB_ADDED_BY_USER, &flags))) {
-@@ -1066,6 +1128,70 @@ void br_fdb_update(struct net_bridge *br
+@@ -1067,6 +1129,70 @@ void br_fdb_update(struct net_bridge *br
  	}
  }
  
@@ -681,7 +681,7 @@
  	fib_release_info(fa_to_delete->fa_info);
  	alias_free_mem_rcu(fa_to_delete);
  	return 0;
-@@ -2381,6 +2390,20 @@ void __init fib_trie_init(void)
+@@ -2385,6 +2394,20 @@ void __init fib_trie_init(void)
  					   0, SLAB_PANIC | SLAB_ACCOUNT, NULL);
  }
  
@@ -714,7 +714,7 @@
  		   const struct in6_addr *daddr)
 --- a/net/ipv6/route.c
 +++ b/net/ipv6/route.c
-@@ -196,6 +196,9 @@ static void rt6_uncached_list_flush_dev(
+@@ -197,6 +197,9 @@ static void rt6_uncached_list_flush_dev(
  	}
  }
  
@@ -724,7 +724,7 @@
  static inline const void *choose_neigh_daddr(const struct in6_addr *p,
  					     struct sk_buff *skb,
  					     const void *daddr)
-@@ -3978,6 +3981,10 @@ int ip6_route_add(struct fib6_config *cf
+@@ -3988,6 +3991,10 @@ int ip6_route_add(struct fib6_config *cf
  		return err;
  
  	err = __ip6_ins_rt(rt, &cfg->fc_nlinfo, extack);
@@ -735,7 +735,7 @@
  	fib6_info_release(rt);
  
  	return err;
-@@ -3999,6 +4006,9 @@ static int __ip6_del_rt(struct fib6_info
+@@ -4009,6 +4016,9 @@ static int __ip6_del_rt(struct fib6_info
  	err = fib6_del(rt, info);
  	spin_unlock_bh(&table->tb6_lock);
  
@@ -745,7 +745,7 @@
  out:
  	fib6_info_release(rt);
  	return err;
-@@ -6537,6 +6547,20 @@ static int ip6_route_dev_notify(struct n
+@@ -6550,6 +6560,20 @@ static int ip6_route_dev_notify(struct n
  	return NOTIFY_OK;
  }
  
@@ -776,7 +776,7 @@
  	}
  #undef N
  	return "UNKNOWN_NETDEV_EVENT";
-@@ -13054,7 +13055,7 @@ static void __init net_dev_struct_check(
+@@ -13047,7 +13048,7 @@ static void __init net_dev_struct_check(
  #ifdef CONFIG_NET_XGRESS
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_tx, tcx_egress);
  #endif
@@ -785,7 +785,7 @@
  
  	/* TXRX read-mostly hotpath */
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, lstats);
-@@ -13063,7 +13064,7 @@ static void __init net_dev_struct_check(
+@@ -13056,7 +13057,7 @@ static void __init net_dev_struct_check(
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, hard_header_len);
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, features);
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_txrx, ip6_ptr);
@@ -794,7 +794,7 @@
  
  	/* RX read-mostly hotpath */
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_rx, ptype_specific);
-@@ -13081,7 +13082,7 @@ static void __init net_dev_struct_check(
+@@ -13074,7 +13075,7 @@ static void __init net_dev_struct_check(
  #ifdef CONFIG_NET_XGRESS
  	CACHELINE_ASSERT_GROUP_MEMBER(struct net_device, net_device_read_rx, tcx_ingress);
  #endif
@@ -873,7 +873,7 @@
  #endif /* _UAPI_LINUX_IN_H */
 --- a/net/netfilter/nf_conntrack_ecache.c
 +++ b/net/netfilter/nf_conntrack_ecache.c
-@@ -278,7 +278,6 @@ void nf_conntrack_register_notifier(stru
+@@ -306,7 +306,6 @@ void nf_conntrack_register_notifier(stru
  	mutex_lock(&nf_ct_ecache_mutex);
  	notify = rcu_dereference_protected(net->ct.nf_conntrack_event_cb,
  					   lockdep_is_held(&nf_ct_ecache_mutex));
@@ -883,7 +883,7 @@
  }
 --- a/include/net/netns/conntrack.h
 +++ b/include/net/netns/conntrack.h
-@@ -23,6 +23,7 @@ struct nf_tcp_net {
+@@ -24,6 +24,7 @@ struct nf_tcp_net {
  	unsigned int timeouts[TCP_CONNTRACK_TIMEOUT_MAX];
  	u8 tcp_loose;
  	u8 tcp_be_liberal;
@@ -991,7 +991,7 @@
  
 --- a/net/ipv6/ip6_gre.c
 +++ b/net/ipv6/ip6_gre.c
-@@ -1901,6 +1901,7 @@ static void ip6gre_tap_setup(struct net_
+@@ -1905,6 +1905,7 @@ static void ip6gre_tap_setup(struct net_
  	dev->pcpu_stat_type = NETDEV_PCPU_STAT_TSTATS;
  	dev->priv_flags &= ~IFF_TX_SKB_SHARING;
  	dev->priv_flags |= IFF_LIVE_ADDR_CHANGE;

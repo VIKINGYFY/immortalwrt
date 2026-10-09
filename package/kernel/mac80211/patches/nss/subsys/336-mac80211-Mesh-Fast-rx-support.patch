@@ -20,7 +20,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -2208,6 +2208,8 @@ static void sta_apply_mesh_params(struct
+@@ -2218,6 +2218,8 @@ static void sta_apply_mesh_params(struct
  			/* init at low value */
  			ewma_mesh_tx_rate_avg_add(&sta->mesh->tx_rate_avg, 10);
  
@@ -29,7 +29,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			break;
  		case NL80211_PLINK_LISTEN:
  		case NL80211_PLINK_BLOCKED:
-@@ -2222,6 +2224,7 @@ static void sta_apply_mesh_params(struct
+@@ -2232,6 +2234,7 @@ static void sta_apply_mesh_params(struct
  			ieee80211_mps_sta_status_update(sta);
  			changed |= ieee80211_mps_set_sta_local_pm(sta,
  					NL80211_MESH_POWER_UNKNOWN);

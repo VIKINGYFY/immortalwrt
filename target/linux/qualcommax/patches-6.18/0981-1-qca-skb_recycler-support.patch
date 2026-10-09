@@ -72,7 +72,7 @@
  
  int skb_append_pagefrags(struct sk_buff *skb, struct page *page,
  			 int offset, size_t size, size_t max_frags);
-@@ -3497,6 +3520,9 @@ static inline void *netdev_alloc_frag_al
+@@ -3485,6 +3508,9 @@ static inline void *netdev_alloc_frag_al
  struct sk_buff *__netdev_alloc_skb(struct net_device *dev, unsigned int length,
  				   gfp_t gfp_mask);
  
@@ -656,7 +656,7 @@
  }
  
  static int
-@@ -6788,6 +7013,7 @@ static int pskb_carve_inside_header(stru
+@@ -6826,6 +7051,7 @@ static int pskb_carve_inside_header(stru
  	if (skb_pfmemalloc(skb))
  		gfp_mask |= __GFP_MEMALLOC;
  
@@ -664,7 +664,7 @@
  	data = kmalloc_reserve(&size, gfp_mask, NUMA_NO_NODE, NULL);
  	if (!data)
  		return -ENOMEM;
-@@ -6818,7 +7044,7 @@ static int pskb_carve_inside_header(stru
+@@ -6856,7 +7082,7 @@ static int pskb_carve_inside_header(stru
  			skb_frag_ref(skb, i);
  		if (skb_has_frag_list(skb))
  			skb_clone_fraglist(skb);
@@ -673,7 +673,7 @@
  	} else {
  		/* we can reuse existing recount- all we did was
  		 * relocate values
-@@ -6910,6 +7136,7 @@ static int pskb_carve_inside_nonlinear(s
+@@ -6948,6 +7174,7 @@ static int pskb_carve_inside_nonlinear(s
  	if (skb_pfmemalloc(skb))
  		gfp_mask |= __GFP_MEMALLOC;
  
@@ -681,7 +681,7 @@
  	data = kmalloc_reserve(&size, gfp_mask, NUMA_NO_NODE, NULL);
  	if (!data)
  		return -ENOMEM;
-@@ -6964,7 +7191,7 @@ static int pskb_carve_inside_nonlinear(s
+@@ -7002,7 +7229,7 @@ static int pskb_carve_inside_nonlinear(s
  	}
  	if (skb_zcopy(skb))
  		net_zcopy_get(skb_zcopy(skb));

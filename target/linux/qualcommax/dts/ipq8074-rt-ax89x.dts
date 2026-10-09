@@ -459,6 +459,28 @@
 				compatible = "linux,ubi";
 				label = "UBI_DEV";
 				reg = <0x00400000 0xfc00000>;
+
+				volumes {
+					ubi-volume-factory {
+						volname = "Factory";
+
+						nvmem-layout {
+							compatible = "fixed-layout";
+							#address-cells = <1>;
+							#size-cells = <1>;
+
+							caldata: calibration@0x1000 {
+								reg = <0x1000 0x20000>;
+							};
+
+							macaddr: macaddr@1014 {
+								compatible = "mac-base";
+								reg = <0x100e 0x6>;
+								#nvmem-cell-cells = <1>;
+							};
+						};
+					};
+				};
 			};
 		};
 	};
@@ -567,30 +589,40 @@
 				reg = <1>;
 				label = "lan7";
 				phy-handle = <&qca8337_0>;
+				nvmem-cells = <&macaddr 1>;
+				nvmem-cell-names = "mac-address";
 			};
 
 			ethernet-port@2 {
 				reg = <2>;
 				label = "lan6";
 				phy-handle = <&qca8337_1>;
+				nvmem-cells = <&macaddr 1>;
+				nvmem-cell-names = "mac-address";
 			};
 
 			ethernet-port@3 {
 				reg = <3>;
 				label = "lan5";
 				phy-handle = <&qca8337_2>;
+				nvmem-cells = <&macaddr 1>;
+				nvmem-cell-names = "mac-address";
 			};
 
 			ethernet-port@4 {
 				reg = <4>;
 				label = "lan4";
 				phy-handle = <&qca8337_3>;
+				nvmem-cells = <&macaddr 1>;
+				nvmem-cell-names = "mac-address";
 			};
 
 			ethernet-port@5 {
 				reg = <5>;
 				label = "lan3";
 				phy-handle = <&qca8337_4>;
+				nvmem-cells = <&macaddr 1>;
+				nvmem-cell-names = "mac-address";
 			};
 
 			ethernet-port@6 {
@@ -600,6 +632,8 @@
 				phy-handle = <&qca8033>;
 				managed = "in-band-status";
 				qca,sgmii-enable-pll;
+				nvmem-cells = <&macaddr 1>;
+				nvmem-cell-names = "mac-address";
 			};
 		};
 	};
@@ -695,6 +729,8 @@
 	phy-mode = "qsgmii";
 	phy-handle = <&qca8075_8>;
 	label = "switch";
+	nvmem-cells = <&macaddr 1>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp2 {
@@ -702,6 +738,8 @@
 	phy-mode = "qsgmii";
 	phy-handle = <&qca8075_9>;
 	label = "lan2";
+	nvmem-cells = <&macaddr 1>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp3 {
@@ -709,6 +747,8 @@
 	phy-mode = "qsgmii";
 	phy-handle = <&qca8075_a>;
 	label = "lan1";
+	nvmem-cells = <&macaddr 1>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp4 {
@@ -716,21 +756,29 @@
 	phy-mode = "qsgmii";
 	phy-handle = <&qca8075_b>;
 	label = "wan";
+	nvmem-cells = <&macaddr 1>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp5_syn {
 	status = "okay";
 	phy-handle = <&sfp>;
 	label = "10g-sfp";
+	nvmem-cells = <&macaddr 1>;
+	nvmem-cell-names = "mac-address";
 };
 
 &dp6_syn {
 	status = "okay";
 	phy-handle = <&aqr113c>;
 	label = "10g-copper";
+	nvmem-cells = <&macaddr 1>;
+	nvmem-cell-names = "mac-address";
 };
 
 &wifi {
 	status = "okay";
 	qcom,ath11k-calibration-variant = "Asus-RT-AX89X";
+	nvmem-cell-names = "calibration";
+	nvmem-cells = <&caldata>;
 };

@@ -12,7 +12,7 @@ without filling the normal ring buffer.
 
 --- a/mc_wifi_events.c
 +++ b/mc_wifi_events.c
-@@ -97,20 +97,20 @@ static void mc_sta_leave_event(struct ne
+@@ -99,20 +99,20 @@ static void mc_sta_leave_event(struct ne
  	pdev = netdev_master_upper_dev_get(dev);
  	if (!pdev) {
  		rtnl_unlock();
@@ -36,7 +36,7 @@ without filling the normal ring buffer.
  		return;
  	}
  
-@@ -537,7 +537,7 @@ static int mc_event_handler(void *buf, i
+@@ -540,7 +540,7 @@ static int mc_event_handler(void *buf, i
  		hdr = NLMSG_DATA(nlh);
  		switch (hdr->cmd) {
  		case NL80211_CMD_DEL_STATION:
