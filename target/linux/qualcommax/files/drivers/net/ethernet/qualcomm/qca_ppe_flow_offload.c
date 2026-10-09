@@ -23,6 +23,7 @@
 #include <linux/module.h>
 #include <linux/hashtable.h>
 #include <linux/jhash.h>
+#include <linux/ktime.h>
 #include <linux/in6.h>
 #include <linux/ipv6.h>
 #include <linux/socket.h>
@@ -2792,6 +2793,35 @@ static int ppe_flow_reject(struct qca_ppe_priv *priv, struct flow_rule *rule,
 	return -EOPNOTSUPP;
 }
 
+static void ppe_flow_reject_hw(struct qca_ppe_priv *priv,
+			       struct flow_rule *rule, int error)
+{
+	struct ppe_flow_failure *event;
+	u64 sequence = priv->flow_failure_sequence++;
+	int bucket;
+
+	ppe_flow_reject(priv, rule, PPE_REJECT_HW_OP);
+	switch (error) {
+	case -ENOENT: bucket = 0; break;
+	case -ENOSPC: bucket = 1; break;
+	case -ENOMEM: bucket = 2; break;
+	case -EIO: bucket = 3; break;
+	case -ETIMEDOUT: bucket = 4; break;
+	default: bucket = 5; break;
+	}
+	priv->flow_hw_errors[bucket]++;
+	event = &priv->flow_failures[sequence % PPE_FLOW_FAILURE_HISTORY];
+	event->rule = priv->flow_reject_info[PPE_REJECT_HW_OP];
+	event->sequence = sequence;
+	event->boottime_ns = ktime_get_boottime_ns();
+	event->error = error;
+	event->command_id = priv->flow_op_cmd_id;
+	event->result_reg = priv->flow_op_rslt_reg;
+	event->result_valid = priv->flow_op_result_valid;
+	event->result = event->result_valid ? priv->flow_op_result : 0;
+	event->pending = priv->flow_op_busy;
+}
+
 static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 				    struct flow_cls_offload *f)
 {
@@ -3150,7 +3180,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	ret = ppe_flow_op(priv, PPE_TBL_OP_ADD, fw, nfw, hw, nhw, &entry->index,
 			  &entry->host_index);
 	if (ret) {
-		ppe_flow_reject(priv, rule, PPE_REJECT_HW_OP);
+		ppe_flow_reject_hw(priv, rule, ret);
 		if (priv->flow_op_busy) {
 			/* A returned index is not yet an acquired host lease. */
 			entry->host_index = U32_MAX;

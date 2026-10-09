@@ -24,10 +24,13 @@ Firmware has reported an unusable RSSI value for XRETRY events in
 practice, so preserve the last datapath RSSI and rate together with the
 cumulative retry, failure and TX airtime counters.  Use the same HW
 DB2DBM/noise-floor conversion as station statistics so debug output reports
-an actual dBm value rather than the encoded combined RSSI.  Warning level
-is reserved for rejected stale or mismatched events.
+an actual dBm value rather than the encoded combined RSSI.  Add a bounded,
+rate-limited warning with the accepted firmware reason and TX queue state
+so station loss remains diagnosable without enabling per-packet WMI debug.
+The event handling and hostapd policy are unchanged.
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
@@ -109,7 +112,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	spin_lock_bh(&ab->base_lock);
  
  	arsta = ath12k_link_sta_find_by_addr(ab, arg.mac_addr);
-@@ -7646,9 +7706,51 @@ static void ath12k_peer_sta_kickout_even
+@@ -7646,9 +7706,61 @@ static void ath12k_peer_sta_kickout_even
  	ahsta = arsta->ahsta;
  	sta = ath12k_ahsta_to_sta(ahsta);
  
@@ -160,6 +163,16 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +		    dp_assoc_status, rssi_comb, signal, signal_avg_dbm,
 +		    tx_retries, tx_failed, tx_duration, txrate.flags, txrate.mcs, txrate.nss,
 +		    txrate.bw);
++
++
++	/* This is a station-loss event, not a per-packet trace. ath12k_warn()
++	 * is rate limited and remains available with the WMI debug mask off. */
++	ath12k_warn(ab,
++		    "peer kickout vdev %u link %u mlo %u reason %u fw-rssi %d dp-valid %u signal %d retries-total %u failed-total %u tx-pending %d rate-flags 0x%x mcs %u nss %u bw %u\n",
++		    arvif->vdev_id, arsta->link_id, sta->mlo, arg.reason,
++		    (s32)arg.rssi, dp_stats_valid, signal, tx_retries, tx_failed,
++		    atomic_read(&ar->dp.num_tx_pending), txrate.flags,
++		    txrate.mcs, txrate.nss, txrate.bw);
  
  	switch (arg.reason) {
  	case WMI_PEER_STA_KICKOUT_REASON_INACTIVITY:

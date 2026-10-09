@@ -27,6 +27,7 @@ def get_initial_output(image_info):
         profiles = json.loads(output_path.read_text())
         if (
             profiles["version_code"] == image_info["version_code"]
+            and profiles.get("version_number") == image_info["version_number"]
             and profiles["target"] == image_info["target"]
         ):
             return profiles

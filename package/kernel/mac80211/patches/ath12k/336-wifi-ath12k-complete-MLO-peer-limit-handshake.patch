@@ -88,7 +88,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		break;
  	case WMI_TAG_ARRAY_FIXED_STRUCT:
  		addr_list = (struct ath12k_wmi_mac_addr_params *)ptr;
-@@ -11706,14 +11720,17 @@ int ath12k_wmi_mlo_setup(struct ath12k *
+@@ -11716,14 +11730,17 @@ int ath12k_wmi_mlo_setup(struct ath12k *
  	struct wmi_mlo_setup_cmd *cmd;
  	struct ath12k_wmi_pdev *wmi = ar->wmi;
  	u32 *partner_links, num_links;
@@ -108,7 +108,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	skb = ath12k_wmi_alloc_skb(wmi->wmi_ab, buf_len);
  	if (!skb)
-@@ -11721,10 +11738,13 @@ int ath12k_wmi_mlo_setup(struct ath12k *
+@@ -11731,10 +11748,13 @@ int ath12k_wmi_mlo_setup(struct ath12k *
  
  	cmd = (struct wmi_mlo_setup_cmd *)skb->data;
  	cmd->tlv_header = ath12k_wmi_tlv_cmd_hdr(WMI_TAG_MLO_SETUP_CMD,

@@ -72,6 +72,10 @@ int ppe_flow_op(struct qca_ppe_priv *priv, u32 op_type,
 	lockdep_assert_held(&priv->flow_lock);
 	if (priv->flow_op_busy || priv->host_retire_pending)
 		return -EBUSY;
+	/* A staging error must not expose the previous command's result. */
+	priv->flow_op_result_valid = false;
+	priv->flow_op_rslt_reg = 0;
+	priv->flow_op_cmd_id = 0;
 
 	for (i = 0; i < nhost; i++) {
 		ret = regmap_write(priv->regmap, PPE_FLOW_HOST_TBL_OP_DATA(i),
@@ -112,7 +116,7 @@ int ppe_flow_op(struct qca_ppe_priv *priv, u32 op_type,
  */
 int ppe_flow_op_finish(struct qca_ppe_priv *priv, u32 *index, u32 *host_index)
 {
-	u32 rslt, val, idx;
+	u32 rslt, val, idx, host = 0;
 	int ret;
 
 	lockdep_assert_held(&priv->flow_lock);
@@ -134,15 +138,19 @@ int ppe_flow_op_finish(struct qca_ppe_priv *priv, u32 *index, u32 *host_index)
 	idx = FIELD_GET(PPE_FLOW_RSLT_ENTRY_IDX, rslt);
 	if ((index || host_index) && idx >= priv->data->num_flow_entries)
 		return -EIO;
-	if (index)
-		*index = idx;
 	if (host_index) {
 		ret = regmap_read(priv->regmap, PPE_IN_FLOW_TBL(idx), &val);
 		if (ret)
 			return ret;
-		*host_index = ppe_entry_get(&val, PPE_FLOW_E_HOST_IDX_OFF,
-					    PPE_FLOW_E_HOST_IDX_LEN);
+		host = ppe_entry_get(&val, PPE_FLOW_E_HOST_IDX_OFF,
+				     PPE_FLOW_E_HOST_IDX_LEN);
+		if (host >= priv->data->num_host_entries)
+			return -EIO;
 	}
+	if (index)
+		*index = idx;
+	if (host_index)
+		*host_index = host;
 	priv->flow_op_busy = false;
 	return 0;
 }
@@ -161,6 +169,8 @@ int ppe_flow_entry_read(struct qca_ppe_priv *priv, u32 index, u32 *words,
 	lockdep_assert_held(&priv->flow_lock);
 	if (priv->flow_op_busy)
 		return -EBUSY;
+	if (index >= priv->data->num_flow_entries)
+		return -EINVAL;
 	if (nwords <= 0 || nwords > PPE_FLOW_ENTRY_WORDS_V6)
 		return -EINVAL;
 
@@ -180,6 +190,9 @@ int ppe_flow_entry_read(struct qca_ppe_priv *priv, u32 index, u32 *words,
 
 	if (rslt & PPE_FLOW_RSLT_FAIL)
 		return -ENOENT;
+	/* A delayed result from another index cannot authorize retirement. */
+	if (FIELD_GET(PPE_FLOW_RSLT_ENTRY_IDX, rslt) != index)
+		return -EIO;
 
 	for (i = 0; i < nwords; i++) {
 		ret = regmap_read(priv->regmap, PPE_FLOW_TBL_RD_RSLT_DATA(i),
@@ -203,6 +216,8 @@ int ppe_flow_entry_delete(struct qca_ppe_priv *priv, u32 index)
 	lockdep_assert_held(&priv->flow_lock);
 	if (priv->flow_op_busy)
 		return -EBUSY;
+	if (index >= priv->data->num_flow_entries)
+		return -EINVAL;
 	cmd_id = ppe_flow_next_cmd_id(priv);
 	ret = regmap_write(priv->regmap, PPE_FLOW_TBL_OP,
 		     FIELD_PREP(PPE_FLOW_OP_CMD_ID, cmd_id) |
@@ -230,6 +245,8 @@ int ppe_host_del(struct qca_ppe_priv *priv, u32 index)
 	lockdep_assert_held(&priv->flow_lock);
 	if (priv->flow_op_busy)
 		return -EBUSY;
+	if (index >= priv->data->num_host_entries)
+		return -EINVAL;
 	cmd_id = ppe_flow_next_cmd_id(priv);
 	ret = regmap_write(priv->regmap, PPE_HOST_TBL_OP,
 		     FIELD_PREP(PPE_HOST_OP_CMD_ID, cmd_id) |
@@ -366,6 +383,10 @@ static const char * const ppe_flow_reject_name[] = {
 static int ppe_offload_show(struct seq_file *s, void *data)
 {
 	struct qca_ppe_priv *priv = s->private;
+	static const char * const hw_errors[] = {
+		"hardware_enoent", "hardware_enospc", "hardware_enomem",
+		"hardware_eio", "hardware_timeout", "hardware_other",
+	};
 	int i;
 
 	guard(mutex)(&priv->flow_lock);
@@ -393,6 +414,8 @@ static int ppe_offload_show(struct seq_file *s, void *data)
 	for (i = 0; i < PPE_REJECT_MAX; i++)
 		seq_printf(s, "%-24s %u\n", ppe_flow_reject_name[i],
 			   priv->flow_reject[i]);
+	for (i = 0; i < ARRAY_SIZE(hw_errors); i++)
+		seq_printf(s, "%s %u\n", hw_errors[i], priv->flow_hw_errors[i]);
 
 	return 0;
 }
@@ -422,6 +445,31 @@ static int ppe_offload_rejects_show(struct seq_file *s, void *data)
 	return 0;
 }
 DEFINE_SHOW_ATTRIBUTE(ppe_offload_rejects);
+
+static int ppe_offload_failures_show(struct seq_file *s, void *data)
+{
+	struct qca_ppe_priv *priv = s->private;
+	u64 first, sequence;
+
+	guard(mutex)(&priv->flow_lock);
+	first = priv->flow_failure_sequence > PPE_FLOW_FAILURE_HISTORY ?
+		priv->flow_failure_sequence - PPE_FLOW_FAILURE_HISTORY : 0;
+	seq_puts(s, "sequence boottime_ns errno cookie generation iif oif l3 l4 command_id result_reg result_valid result pending\n");
+	for (sequence = first; sequence < priv->flow_failure_sequence; sequence++) {
+		const struct ppe_flow_failure *event =
+			&priv->flow_failures[sequence % PPE_FLOW_FAILURE_HISTORY];
+		const struct ppe_flow_reject_info *rule = &event->rule;
+
+		seq_printf(s, "%llu %llu %d %lx %llu %d %d %04x %u %u %08x %u %08x %u\n",
+			   event->sequence, event->boottime_ns, event->error,
+			   rule->cookie, rule->generation, rule->ingress_ifindex,
+			   rule->egress_ifindex, rule->n_proto, rule->ip_proto,
+			   event->command_id, event->result_reg,
+			   event->result_valid, event->result, event->pending);
+	}
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(ppe_offload_failures);
 
 static int ppe_dsa_services_show(struct seq_file *s, void *data)
 {
@@ -547,6 +595,8 @@ void ppe_flow_debugfs_init(struct qca_ppe_priv *priv)
 			    &ppe_offload_fops);
 	debugfs_create_file("offload_rejects", 0400, priv->debugfs, priv,
 			    &ppe_offload_rejects_fops);
+	debugfs_create_file("offload_failures", 0400, priv->debugfs, priv,
+			    &ppe_offload_failures_fops);
 	debugfs_create_file("dsa_services", 0400, priv->debugfs, priv,
 			    &ppe_dsa_services_fops);
 	debugfs_create_file("pipeline_state", 0400, priv->debugfs, priv,

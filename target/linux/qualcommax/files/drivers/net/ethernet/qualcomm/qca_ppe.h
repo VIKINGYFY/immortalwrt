@@ -1391,6 +1391,21 @@ struct ppe_flow_reject_info {
 	u64 actions;
 };
 
+#define PPE_FLOW_FAILURE_HISTORY	32
+
+/* Bounded control-plane failures. Never retain rule or netdevice pointers. */
+struct ppe_flow_failure {
+	struct ppe_flow_reject_info rule;
+	u64 sequence;
+	u64 boottime_ns;
+	int error;
+	u32 command_id;
+	u32 result_reg;
+	u32 result;
+	bool result_valid;
+	bool pending;
+};
+
 /* One slot of a reference-counted hardware side table. */
 struct ppe_res {
 	u32 words[PPE_NEXTHOP_WORDS];
@@ -1555,6 +1570,9 @@ struct qca_ppe_priv {
 	u32 dsa_core_egress_base;
 	u32 flow_reject[PPE_REJECT_MAX];
 	struct ppe_flow_reject_info flow_reject_info[PPE_REJECT_MAX];
+	u64 flow_failure_sequence;
+	struct ppe_flow_failure flow_failures[PPE_FLOW_FAILURE_HISTORY];
+	u32 flow_hw_errors[6];
 	u32 flow_offloaded;
 	u32 flow_reinstalled;
 	u32 flow_destroy_miss;

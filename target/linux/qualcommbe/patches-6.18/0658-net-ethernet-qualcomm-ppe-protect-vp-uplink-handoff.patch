@@ -258,7 +258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2614,6 +2614,11 @@ static bool ppe_ft_flow_hw_del(struct pp
+@@ -2664,6 +2664,11 @@ static bool ppe_ft_flow_hw_del(struct pp
  {
  	int ret;
  
@@ -270,7 +270,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (flow->index < 0 ||
  	    flow->index >= ft->ppe_dev->variant->num_flow_entries ||
  	    ft->flow_owners[flow->index] != flow) {
-@@ -3894,7 +3899,6 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -3947,7 +3952,6 @@ static int ppe_ft_flow_destroy(struct pp
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
  	ppe_ft_flow_count_dec(ft, flow);
