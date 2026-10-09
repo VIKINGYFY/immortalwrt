@@ -49,8 +49,29 @@
 		key-reset {
 			label = "reset";
 			linux,code = <KEY_RESTART>;
-			/* The reset key is connected to active-low GPIO0. */
-			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
+			/*
+			 * The reset key drives GPIO35 low, i.e. GPIO_DATA1 bit 3.
+			 * Keep this in sync with the U-Boot copy, which starts
+			 * HTTP recovery when the key is held during boot. GPIO0 is
+			 * the uart1_txd pin and never sees the key.
+			 */
+			gpios = <&en7581_pinctrl 35 GPIO_ACTIVE_LOW>;
+			debounce-interval = <60>;
+		};
+
+		/* Handled by /etc/rc.button/wps. */
+		key-wps {
+			label = "wps";
+			linux,code = <KEY_WPS_BUTTON>;
+			gpios = <&en7581_pinctrl 4 GPIO_ACTIVE_LOW>;
+			debounce-interval = <60>;
+		};
+
+		/* Handled by /etc/rc.button/rfkill, toggles the WLAN radio. */
+		key-rfkill {
+			label = "rfkill";
+			linux,code = <KEY_RFKILL>;
+			gpios = <&en7581_pinctrl 3 GPIO_ACTIVE_LOW>;
 			debounce-interval = <60>;
 		};
 	};
@@ -58,7 +79,13 @@
 	leds {
 		compatible = "gpio-leds";
 
-		/* The active-low power LED is connected to GPIO13. */
+		/*
+		 * All panel LEDs are active low. The CU variant is green and
+		 * the CT variant is blue, so every LED is named blue here:
+		 * only the sysfs name differs, not the wiring.
+		 */
+
+		/* Active-low power LED on GPIO13. */
 		led_power_blue: led-0 {
 			color = <LED_COLOR_ID_BLUE>;
 			function = LED_FUNCTION_POWER;
@@ -79,6 +106,76 @@
 			function = LED_FUNCTION_WAN;
 			gpios = <&en7581_pinctrl 16 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "pon0-los";
+		};
+
+		/* Internet / broadband, follows the xPON online state. */
+		led-internet {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WAN_ONLINE;
+			gpios = <&en7581_pinctrl 5 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "pon0-online";
+		};
+
+		/* Lit while the WLAN radio is up. */
+		led-wlan {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WLAN;
+			gpios = <&en7581_pinctrl 15 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "phy0radio";
+		};
+
+		/* POTS line indicator. */
+		led-phone {
+			label = "blue:phone";
+			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
+		};
+
+		/* USB2.0 port, marked USB1 on the silkscreen. */
+		led-usb1 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_USB;
+			function-enumerator = <1>;
+			gpios = <&en7581_pinctrl 6 GPIO_ACTIVE_LOW>;
+		};
+
+		/* USB3.0 port, marked USB2 on the silkscreen. */
+		led-usb2 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_USB;
+			function-enumerator = <2>;
+			gpios = <&en7581_pinctrl 8 GPIO_ACTIVE_LOW>;
+		};
+
+		/*
+		 * Four panel GE ports. The netdev trigger needs a device name,
+		 * so it is set in board.d/01_leds instead.
+		 */
+		led-lan1 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_LAN;
+			function-enumerator = <1>;
+			gpios = <&en7581_pinctrl 43 GPIO_ACTIVE_LOW>;
+		};
+
+		led-lan2 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_LAN;
+			function-enumerator = <2>;
+			gpios = <&en7581_pinctrl 44 GPIO_ACTIVE_LOW>;
+		};
+
+		led-lan3 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_LAN;
+			function-enumerator = <3>;
+			gpios = <&en7581_pinctrl 45 GPIO_ACTIVE_LOW>;
+		};
+
+		led-lan4 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_LAN;
+			function-enumerator = <4>;
+			gpios = <&en7581_pinctrl 46 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
@@ -104,7 +201,12 @@
 
 	pnand_pins: pnand-pins {
 		mux {
-			/* Parallel NAND uses GPIO4-7 and GPIO30-42. */
+			/*
+			 * Parallel NAND claims pins 4-7 (spi_cs0/clk/mosi/miso,
+			 * no GPIO number) and pins 30-42. With the gpio-ranges
+			 * offset of 13 below, that is GPIO17-29 - not GPIO4-7
+			 * and GPIO30-42. GPIO3/4/35 stay free for the keys.
+			 */
 			function = "pnand";
 			groups = "pnand";
 		};

@@ -32,12 +32,12 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  					num_uppers:3;
  	u16				mtu;
 +	u8				dscp;
- 	u32				upper_ifidx[NF_FLOW_TABLE_UPPER_MAX];
  	union {
  		struct {
+ 			struct dst_entry *dst_cache;
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -452,6 +452,7 @@ static int nf_flow_offload_forward(struc
+@@ -451,6 +451,7 @@ static int nf_flow_offload_forward(struc
  	struct flow_offload *flow;
  	unsigned int thoff, mtu;
  	struct iphdr *iph;
@@ -45,7 +45,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
-@@ -484,6 +485,12 @@ static int nf_flow_offload_forward(struc
+@@ -483,6 +484,12 @@ static int nf_flow_offload_forward(struc
  	iph = ip_hdr(skb);
  	nf_flow_nat_ip(flow, skb, thoff, dir, iph);
  
@@ -58,7 +58,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	ip_decrease_ttl(iph);
  	skb_clear_tstamp(skb);
  
-@@ -751,6 +758,7 @@ static int nf_flow_offload_ipv6_forward(
+@@ -754,6 +761,7 @@ static int nf_flow_offload_ipv6_forward(
  	struct flow_offload *flow;
  	unsigned int thoff, mtu;
  	struct ipv6hdr *ip6h;
@@ -66,7 +66,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
-@@ -782,6 +790,12 @@ static int nf_flow_offload_ipv6_forward(
+@@ -785,6 +793,12 @@ static int nf_flow_offload_ipv6_forward(
  	ip6h = ipv6_hdr(skb);
  	nf_flow_nat_ipv6(flow, skb, dir, ip6h);
  

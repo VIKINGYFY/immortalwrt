@@ -29,7 +29,6 @@ define Device/airoha_an7583-evb
   DEVICE_PACKAGES += -kmod-airoha-pon-frontend -kmod-airoha-xpon \
     -airoha-ponctl -airoha-pond -luci-app-pon -luci-i18n-pon-zh-cn
   DEVICE_DTS := an7583-evb
-  DEVICE_DTS_CONFIG := config@1
   IMAGE/sysupgrade.bin := append-kernel | pad-to 128k | append-rootfs | \
 	pad-rootfs | append-metadata
   ARTIFACT/preloader.bin := an7583-preloader rfb
@@ -67,7 +66,6 @@ endef
 define Device/nokia_xg-040g-mf
   $(call Device/nokia_xg-040g-mf-common)
   DEVICE_DTS := an7583-nokia_xg-040g-mf
-  DEVICE_DTS_CONFIG := config@1
   IMAGE_SIZE := 131968k
   KERNEL_SIZE := 8192k
   IMAGES += factory-kernel.bin factory-rootfs.bin

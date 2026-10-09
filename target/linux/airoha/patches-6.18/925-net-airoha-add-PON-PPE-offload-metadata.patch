@@ -114,7 +114,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  #include <linux/ip.h>
  #include <linux/ipv6.h>
  #include <linux/of_platform.h>
-@@ -339,18 +340,99 @@ static void airoha_ppe_foe_set_bridge_ad
+@@ -344,18 +345,99 @@ static void airoha_ppe_foe_set_bridge_ad
  	br->src_mac_lo = get_unaligned_be32(eh->h_source + 2);
  }
  
@@ -215,7 +215,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  	val = FIELD_PREP(AIROHA_FOE_IB1_BIND_STATE, AIROHA_FOE_STATE_BIND) |
  	      FIELD_PREP(AIROHA_FOE_IB1_BIND_PACKET_TYPE, type) |
-@@ -378,10 +460,12 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -383,10 +465,12 @@ static int airoha_ppe_foe_entry_prepare(
  		} else {
  			struct airoha_gdm_dev *dev = netdev_priv(netdev);
  			struct airoha_gdm_port *port;
@@ -228,7 +228,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  			port = dev->port;
  			if (dsa_port >= 0 || airoha_is_lan_gdm_dev(dev))
-@@ -396,8 +480,17 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -401,8 +485,17 @@ static int airoha_ppe_foe_entry_prepare(
  			 * channel according to the DSA user port index, rely
  			 * on port id otherwise.
  			 */
@@ -248,7 +248,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  			priority = rt_tos2priority(dsfield);
  			priority = priority % AIROHA_NUM_QOS_QUEUES;
  			qdata |= FIELD_PREP(AIROHA_FOE_CHANNEL, channel) |
-@@ -414,6 +507,9 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -419,6 +512,9 @@ static int airoha_ppe_foe_entry_prepare(
  			if (dsa_port >= 0)
  				val |= FIELD_PREP(AIROHA_FOE_IB2_NBQ,
  						  dsa_port);
@@ -258,7 +258,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  			smac_id = port->id;
  		}
-@@ -473,6 +569,13 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -478,6 +574,13 @@ static int airoha_ppe_foe_entry_prepare(
  	} else if (dsa_port >= 0) {
  		l2->etype = BIT(dsa_port);
  		l2->etype |= !data->vlan.num ? BIT(15) : 0;
@@ -272,7 +272,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	} else if (data->pppoe.num) {
  		l2->etype = ETH_P_PPP_SES;
  	}
-@@ -852,6 +955,43 @@ static void airoha_ppe_foe_flow_remove_e
+@@ -857,6 +960,43 @@ static void airoha_ppe_foe_flow_remove_e
  	spin_unlock_bh(&ppe_lock);
  }
  
@@ -316,7 +316,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  static int
  airoha_ppe_foe_commit_subflow_entry(struct airoha_ppe *ppe,
  				    struct airoha_flow_table_entry *e,
-@@ -1092,6 +1232,7 @@ static int airoha_ppe_flow_offload_repla
+@@ -1097,6 +1237,7 @@ static int airoha_ppe_flow_offload_repla
  {
  	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
  	struct airoha_flow_table_entry *e;
@@ -324,7 +324,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	struct airoha_flow_data data = {};
  	struct net_device *odev = NULL;
  	struct flow_action_entry *act;
-@@ -1201,9 +1342,15 @@ static int airoha_ppe_flow_offload_repla
+@@ -1206,9 +1347,15 @@ static int airoha_ppe_flow_offload_repla
  		return -EINVAL;
  
  	err = airoha_ppe_foe_entry_prepare(eth, &hwe, odev, offload_type,
@@ -342,7 +342,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS)) {
  		struct flow_match_ports ports;
-@@ -1273,7 +1420,9 @@ static int airoha_ppe_flow_offload_repla
+@@ -1278,7 +1425,9 @@ static int airoha_ppe_flow_offload_repla
  	if (!e)
  		return -ENOMEM;
  
