@@ -16,7 +16,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
-@@ -29,6 +29,7 @@
+@@ -30,6 +30,7 @@
   * is 16 bytes (INODE_TXRX_REG_ADDR). Keep headroom for future commands.
   */
  #define AIROHA_NPU_MBOX_SIZE			256
@@ -24,7 +24,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  #define REG_NPU_LOCAL_SRAM		0x0
  
-@@ -202,7 +203,7 @@ static int __airoha_npu_send_msg(struct
+@@ -203,7 +204,7 @@ static int __airoha_npu_send_msg(struct
  	ret = regmap_read_poll_timeout_atomic(npu->regmap,
  					      REG_CR_MBQ0_CTRL(3) + offset,
  					      val, (val & MBOX_MSG_DONE),
@@ -33,7 +33,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	if (!ret && FIELD_GET(MBOX_MSG_STATUS, val) != NPU_MBOX_SUCCESS)
  		ret = -EINVAL;
  
-@@ -212,6 +213,11 @@ static int __airoha_npu_send_msg(struct
+@@ -213,6 +214,11 @@ static int __airoha_npu_send_msg(struct
  
  	spin_unlock_bh(&core->lock);
  
