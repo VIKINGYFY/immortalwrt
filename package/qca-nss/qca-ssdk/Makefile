@@ -29,7 +29,10 @@ define KernelPackage/qca-ssdk
   TITLE:=Qualcomm SSDK switch driver
   DEPENDS:=@TARGET_qualcommax \
 	+kmod-dsa
-  FILES:=$(PKG_BUILD_DIR)/build/bin/qca-ssdk.ko
+  FILES:=$(PKG_BUILD_DIR)/build/bin/qca-ssdk.ko \
+  $(LINUX_DIR)/drivers/net/mdio/mdio-bitbang.ko \
+  $(LINUX_DIR)/drivers/net/mdio/mdio-i2c.ko
+
   AUTOLOAD:=$(call AutoLoad,30,qca-ssdk)
 endef
 
