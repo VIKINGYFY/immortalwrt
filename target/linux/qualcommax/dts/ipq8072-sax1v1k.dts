@@ -9,6 +9,7 @@
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/leds/common.h>
 
 / {
@@ -64,9 +65,61 @@
 			function = LED_FUNCTION_STATUS;
 		};
 	};
+
+	/*
+	 * The fan has no dedicated PWM input: its speed is set by switching
+	 * GPIO 27 on and off, so drive it with the software PWM driver.
+	 * The tachometer output is on GPIO 29 and gives 2 pulses per turn.
+	 */
+	fan_pwm: pwm {
+		compatible = "pwm-gpio";
+		#pwm-cells = <3>;
+
+		pinctrl-0 = <&fan_pwm_pins>;
+		pinctrl-names = "default";
+
+		gpios = <&tlmm 27 GPIO_ACTIVE_HIGH>;
+	};
+
+	fan: pwm-fan {
+		compatible = "pwm-fan";
+
+		/*
+		 * 1 kHz, the period the stock firmware uses. The pin is
+		 * toggled from a hrtimer, so keep the frequency low.
+		 */
+		pwms = <&fan_pwm 0 1000000 0>;
+
+		/* off, 20 %, 30 % */
+		cooling-levels = <0 51 77>;
+		#cooling-cells = <2>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <29 IRQ_TYPE_EDGE_FALLING>;
+		pulses-per-revolution = <2>;
+
+		pinctrl-0 = <&fan_tach_pins>;
+		pinctrl-names = "default";
+	};
 };
 
 &tlmm {
+	fan_pwm_pins: fan-pwm-state {
+		pins = "gpio27";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-disable;
+		/* keep the fan at full speed until the PWM takes over */
+		output-high;
+	};
+
+	fan_tach_pins: fan-tach-state {
+		pins = "gpio29";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
 	mdio_pins: mdio-pins {
 		mdc {
 			pins = "gpio68";
@@ -232,4 +285,154 @@
 &wifi {
 	qcom,ath11k-calibration-variant = "Spectrum-SAX1V1K";
 	status = "okay";
+};
+
+/*
+ * The fan stays off below 70 °C and then runs at 20 % and 30 % of its
+ * speed, which keeps it quiet. It is deliberately not spun up further:
+ * the CPU is still throttled by the passive trips in ipq8074-hk-cpu.dtsi
+ * from 95 °C on and the critical trip at 110 °C shuts the router down, so
+ * the fan is not the only protection against overheating. The hysteresis
+ * matches the 3 °C margin the fan is only slowed down with again.
+ * Attaching it to the CPU and cluster zones, as the other IPQ8074 boards
+ * do, makes the thermal core drive the fan from the hottest of them.
+ */
+&cpu0_thermal {
+	trips {
+		cpu0_fan_low: fan-low {
+			temperature = <70000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		cpu0_fan_high: fan-high {
+			temperature = <80000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+	};
+
+	cooling-maps {
+		fan-active-low {
+			trip = <&cpu0_fan_low>;
+			cooling-device = <&fan 1 1>;
+		};
+
+		fan-active-high {
+			trip = <&cpu0_fan_high>;
+			cooling-device = <&fan 2 2>;
+		};
+	};
+};
+
+&cpu1_thermal {
+	trips {
+		cpu1_fan_low: fan-low {
+			temperature = <70000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		cpu1_fan_high: fan-high {
+			temperature = <80000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+	};
+
+	cooling-maps {
+		fan-active-low {
+			trip = <&cpu1_fan_low>;
+			cooling-device = <&fan 1 1>;
+		};
+
+		fan-active-high {
+			trip = <&cpu1_fan_high>;
+			cooling-device = <&fan 2 2>;
+		};
+	};
+};
+
+&cpu2_thermal {
+	trips {
+		cpu2_fan_low: fan-low {
+			temperature = <70000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		cpu2_fan_high: fan-high {
+			temperature = <80000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+	};
+
+	cooling-maps {
+		fan-active-low {
+			trip = <&cpu2_fan_low>;
+			cooling-device = <&fan 1 1>;
+		};
+
+		fan-active-high {
+			trip = <&cpu2_fan_high>;
+			cooling-device = <&fan 2 2>;
+		};
+	};
+};
+
+&cpu3_thermal {
+	trips {
+		cpu3_fan_low: fan-low {
+			temperature = <70000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		cpu3_fan_high: fan-high {
+			temperature = <80000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+	};
+
+	cooling-maps {
+		fan-active-low {
+			trip = <&cpu3_fan_low>;
+			cooling-device = <&fan 1 1>;
+		};
+
+		fan-active-high {
+			trip = <&cpu3_fan_high>;
+			cooling-device = <&fan 2 2>;
+		};
+	};
+};
+
+&cluster_thermal {
+	trips {
+		cluster_fan_low: fan-low {
+			temperature = <70000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		cluster_fan_high: fan-high {
+			temperature = <80000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+	};
+
+	cooling-maps {
+		fan-active-low {
+			trip = <&cluster_fan_low>;
+			cooling-device = <&fan 1 1>;
+		};
+
+		fan-active-high {
+			trip = <&cluster_fan_high>;
+			cooling-device = <&fan 2 2>;
+		};
+	};
 };
