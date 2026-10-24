@@ -93,18 +93,14 @@
 		reg = <7>;
 	};
 
-	// RTL8261N bring-up is deferred; retain its wiring for later testing.
-	// rtl8261n: ethernet-phy@8 {
-	// 	compatible = "ethernet-phy-ieee802.3-c45";
-	// 	reg = <8>;
-	// 	/* Bounded bring-up snapshots; no per-operation logging. */
-	// 	realtek,init-debug;
-	// 	/* OEM global GPIO464 = TLMM17. */
-	// 	reset-gpios = <&tlmm 17 GPIO_ACTIVE_LOW>;
-	// 	reset-assert-us = <200000>;
-	// 	reset-deassert-us = <150000>;
-	// 	reset-before-id-read;
-	// };
+	rtl8261n: ethernet-phy@8 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <8>;
+		reset-gpios = <&tlmm 17 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <200000>;
+		reset-deassert-us = <150000>;
+		reset-before-id-read;
+	};
 };
 
 &pcie2 {
@@ -167,13 +163,8 @@
 	status = "okay";
 };
 
-// RTL8261N uses UNIPHY2; keep it inactive with the deferred 10G port.
-// &pcs2 {
-// 	status = "okay";
-// };
-
 &pcs2 {
-	status = "disabled";
+	status = "okay";
 };
 
 &qcom_ppe {
@@ -186,6 +177,8 @@
 		port@1 {
 			reg = <1>;
 			label = "lan3";
+			nvmem-cells = <&macaddr_ri 4>;
+			nvmem-cell-names = "mac-address";
 			phy-mode = "qsgmii";
 			phy-handle = <&qca8075_0>;
 			pcs-handle = <&pcs0_ch0>;
@@ -203,6 +196,8 @@
 		port@2 {
 			reg = <2>;
 			label = "lan2";
+			nvmem-cells = <&macaddr_ri 3>;
+			nvmem-cell-names = "mac-address";
 			phy-mode = "qsgmii";
 			phy-handle = <&qca8075_1>;
 			pcs-handle = <&pcs0_ch1>;
@@ -219,8 +214,9 @@
 
 		port@5 {
 			reg = <5>;
-			/* Physical LAN1 is the WAN until RTL8261N bring-up resumes. */
-			label = "wan";
+			label = "lan1";
+			nvmem-cells = <&macaddr_ri 2>;
+			nvmem-cell-names = "mac-address";
 			phy-mode = "2500base-x";
 			phy-handle = <&rtl8221b>;
 			pcs-handle = <&pcs1_ch0>;
@@ -234,22 +230,24 @@
 			reset-names = "mac", "rx", "tx";
 		};
 
-		// port@6 {
-		// 	reg = <6>;
-		// 	label = "wan";
-		// 	phy-mode = "usxgmii";
-		// 	phy-handle = <&rtl8261n>;
-		// 	pcs-handle = <&pcs2_ch0>;
-		// 	managed = "in-band-status";
-		// 	clocks = <&nsscc NSS_CC_PORT6_MAC_CLK>,
-		// 		 <&nsscc NSS_CC_PORT6_RX_CLK>,
-		// 		 <&nsscc NSS_CC_PORT6_TX_CLK>;
-		// 	clock-names = "mac", "rx", "tx";
-		// 	resets = <&nsscc PORT6_MAC_ARES>,
-		// 		 <&nsscc PORT6_RX_ARES>,
-		// 		 <&nsscc PORT6_TX_ARES>;
-		// 	reset-names = "mac", "rx", "tx";
-		// };
+		port@6 {
+			reg = <6>;
+			label = "wan";
+			nvmem-cells = <&macaddr_ri 1>;
+			nvmem-cell-names = "mac-address";
+			phy-mode = "usxgmii";
+			phy-handle = <&rtl8261n>;
+			pcs-handle = <&pcs2_ch0>;
+			managed = "in-band-status";
+			clocks = <&nsscc NSS_CC_PORT6_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT6_RX_CLK>,
+				 <&nsscc NSS_CC_PORT6_TX_CLK>;
+			clock-names = "mac", "rx", "tx";
+			resets = <&nsscc PORT6_MAC_ARES>,
+				 <&nsscc PORT6_RX_ARES>,
+				 <&nsscc PORT6_TX_ARES>;
+			reset-names = "mac", "rx", "tx";
+		};
 	};
 };
 
@@ -270,6 +268,8 @@
 };
 
 &sdhc_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
 	bus-width = <8>;
 	max-frequency = <384000000>;
 	mmc-ddr-1_8v;
@@ -280,6 +280,31 @@
 	pinctrl-0 = <&sdc_default_state>;
 	pinctrl-names = "default";
 	status = "okay";
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		partitions {
+			compatible = "gpt-partitions";
+
+			partition-ri {
+				partname = "RI";
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					macaddr_ri: mac-address@440 {
+						compatible = "mac-base";
+						reg = <0x440 0x11>;
+						#nvmem-cell-cells = <1>;
+					};
+				};
+			};
+		};
+	};
 };
 
 &tlmm {

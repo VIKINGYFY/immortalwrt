@@ -70,7 +70,7 @@ define Device/nokia_beacon10
 	SUPPORTED_DEVICES += nokia,beacon10
 	DEVICE_PACKAGES := -kmod-ath12k kmod-ath11k-ahb kmod-ath11k-pci \
 		ath11k-firmware-ipq9574-ddwrt ath11k-firmware-qcn9074-ddwrt \
-		ipq-wifi-nokia_beacon10 kmod-phy-realtek
+		ipq-wifi-nokia_beacon10 kmod-phy-realtek rtl826x-firmware
 	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
 endef
 TARGET_DEVICES += nokia_beacon10
