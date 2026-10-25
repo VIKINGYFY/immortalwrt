@@ -1,0 +1,354 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: scope topology invalidation
+
+Keep direct path and bypassed-upper dependencies for each flow.
+Retire only flows affected by a device event, including routed
+wireless VP rules. Reject publication across a topology change.
+Walk the locked owner array once instead of restarting hash walks;
+preserve the existing delete, quarantine and hardware lease rules.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -278,6 +278,7 @@
+ 	u8 iport;
+ 	u8 eport;
+ 	struct net_device *egress_dev;
++	struct net_device *path_dev[2];
+ 	s16 egress_vid;
+ 	u32 packets;
+ 	u64 bytes;
+@@ -421,6 +422,8 @@
+ 	struct rhashtable flows;
+ 	struct list_head zombies;
+ 	struct ppe_ft_flow **flow_owners;
++	u64 topology_seq;
++	u64 topology_invalidated;
+ 	struct dentry *debugfs;
+ 	struct dentry *debugfs_active;
+ 	struct dentry *debugfs_reasons;
+@@ -2575,6 +2578,19 @@
+ 		ft->flow_owners[flow->index] = NULL;
+ }
+ 
++/* These references describe topology, not hardware table ownership. */
++static void ppe_ft_path_put(struct ppe_ft_flow *flow)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(flow->path_dev); i++) {
++		if (!flow->path_dev[i])
++			continue;
++		dev_put(flow->path_dev[i]);
++		flow->path_dev[i] = NULL;
++	}
++}
++
+ static void ppe_ft_flow_deps_put(struct ppe_flowtable *ft,
+ 				 struct ppe_ft_flow *flow)
+ {
+@@ -2590,6 +2606,7 @@
+ 	ppe_ft_tunnel_put(ft, flow->tunnel);
+ 	ppe_vp_put(ft->ppe_dev, flow->vp);
+ 	ppe_vp_put(ft->ppe_dev, flow->ivp);
++	ppe_ft_path_put(flow);
+ 	ppe_flow_account_put(&flow->rx_account);
+ 	ppe_flow_account_put(&flow->tx_account);
+ 	if (flow->egress_dev) {
+@@ -2671,6 +2688,7 @@
+ 	/* Statistics are not hardware dependencies and must not pin an upper
+ 	 * behind a quarantined row that has no further stats callbacks.
+ 	 */
++	ppe_ft_path_put(flow);
+ 	ppe_flow_account_put(&flow->rx_account);
+ 	ppe_flow_account_put(&flow->tx_account);
+ 
+@@ -2687,6 +2705,7 @@
+ 
+ static void ppe_ft_flow_release(struct ppe_ft_flow *flow)
+ {
++	ppe_ft_path_put(flow);
+ 	ppe_flow_account_put(&flow->rx_account);
+ 	ppe_flow_account_put(&flow->tx_account);
+ 	if (flow->egress_dev)
+@@ -2824,10 +2843,15 @@
+ 	bool ingress_vp_vlan = false;
+ 	bool bridge_rtnl = false;
+ 	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
++	u64 topology_seq;
+ 	int i, nexthop, ret, cleanup_ret, redirects = 0, vlan_pushes = 0;
+ 	int pppoe_pushes = 0, csums = 0;
+ 	int iport = -1, imtu = 0, egress_core_port = -1;
+ 
++	mutex_lock(&ft->lock);
++	topology_seq = ft->topology_seq;
++	mutex_unlock(&ft->lock);
++
+ 	/* Padding is included in the normalized request comparison below. */
+ 	memset(&data, 0, sizeof(data));
+ 	memset(&nh, 0, sizeof(nh));
+@@ -3235,6 +3259,8 @@
+ 		goto err_tdev;
+ 	}
+ 
++	flow->path_dev[1] = odev;
++	dev_hold(odev);
+ 	flow->entry.pmtu = odev->mtu;
+ 
+ 	/* The PPPoE L3 interface carries the session ID, so it needs
+@@ -3306,6 +3332,8 @@
+ 		ether_addr_copy(data.eth.ingress,
+ 				master ? master->dev_addr : idev->dev_addr);
+ 		rcu_read_unlock();
++		flow->path_dev[0] = idev;
++		dev_hold(idev);
+ 		imtu = idev->mtu;
+ 		if (!tunnel_flow)
+ 			ppe_flow_account_bind(&flow->rx_account, idev,
+@@ -3495,6 +3523,16 @@
+ 	flow->rule.priority = f->common.prio;
+ 
+ 	mutex_lock(&ft->lock);
++	/* Reject paths sampled across a notifier, including an unregister that
++	 * ran before this flow became visible. A future request can resample.
++	 */
++	if (topology_seq != ft->topology_seq ||
++	    READ_ONCE(odev->reg_state) != NETREG_REGISTERED ||
++	    (flow->path_dev[0] && READ_ONCE(flow->path_dev[0]->reg_state) !=
++	     NETREG_REGISTERED)) {
++		ret = -EAGAIN;
++		goto err_vp;
++	}
+ 	ppe_flow_account_prune(&flow->rx_account, NULL);
+ 	ppe_flow_account_prune(&flow->tx_account, NULL);
+ 	ret = ppe_ft_flow_refresh(ft, flow, tunnel_flow);
+@@ -3986,6 +4024,7 @@
+ 	if (ret)
+ 		atomic_long_inc(&ft->rejects[reject_reason]);
+ 	if (flow) {
++		ppe_ft_path_put(flow);
+ 		ppe_flow_account_put(&flow->rx_account);
+ 		ppe_flow_account_put(&flow->tx_account);
+ 	}
+@@ -4060,51 +4099,42 @@
+ 	rhashtable_walk_exit(&iter);
+ }
+ 
+-/* Invalidate every flow which references a virtual port after its MAC,
+- * MTU or bridge topology changes. Reuse the ordinary destroy transaction so
+- * hardware rows and all dependent PPE references are released together.
++static void ppe_ft_invalidate_locked(struct ppe_flowtable *ft,
++				     struct ppe_ft_flow *flow)
++{
++	lockdep_assert_held(&ft->lock);
++	if (ppe_ft_flow_hw_del(ft, flow)) {
++		ppe_ft_flow_forget(ft, flow);
++	} else {
++		rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
++		ppe_ft_flow_count_dec(ft, flow);
++		ppe_ft_flow_quarantine(ft, flow);
++	}
++	ft->topology_invalidated++;
++}
++
++/* The owner array is stable under ft->lock. A bounded indexed walk avoids
++ * restarting a mutable hash walk after every deletion. Quarantine entries
++ * keep their hardware leases but are never retired a second time here.
+  */
+ void ppe_flowtable_vp_invalidate(struct ppe_device *ppe_dev, int vp)
+ {
+ 	struct ppe_flowtable *ft = ppe_dev->flowtable;
+-	struct rhashtable_iter iter;
+ 	struct ppe_ft_flow *flow;
+-	unsigned long cookie;
+-	bool found;
++	int i;
+ 
+ 	if (!ft || vp < 0)
+ 		return;
+-
+-	/* Restart after each removal: mutating a rhashtable during a walk can
+-	 * otherwise skip the entry following the deleted node.
+-	 */
+-	do {
+-		found = false;
+-		rhashtable_walk_enter(&ft->flows, &iter);
+-		rhashtable_walk_start(&iter);
+-		while ((flow = rhashtable_walk_next(&iter))) {
+-			if (IS_ERR(flow)) {
+-				if (PTR_ERR(flow) == -EAGAIN)
+-					continue;
+-				break;
+-			}
+-			if (flow->vp != vp && flow->ivp != vp)
+-				continue;
+-			cookie = flow->cookie;
+-			found = true;
+-			break;
+-		}
+-		rhashtable_walk_stop(&iter);
+-		rhashtable_walk_exit(&iter);
+-
+-		if (found) {
+-			struct flow_cls_offload f = {
+-				.cookie = cookie,
+-			};
+-
+-			ppe_ft_flow_destroy(ft, &f);
+-		}
+-	} while (found);
++	mutex_lock(&ft->lock);
++	ft->topology_seq++;
++	for (i = 0; i < ppe_dev->variant->num_flow_entries; i++) {
++		flow = ft->flow_owners[i];
++		if (!flow || !list_empty(&flow->zombie_node) ||
++		    (flow->vp != vp && flow->ivp != vp))
++			continue;
++		ppe_ft_invalidate_locked(ft, flow);
++	}
++	mutex_unlock(&ft->lock);
+ }
+ 
+ static int ppe_ft_flow_stats(struct ppe_flowtable *ft,
+@@ -4277,7 +4307,7 @@
+  * its hardware row index, the live VALID bit and the hit counters read
+  * back from the hardware. The walk runs under RCU (flows are freed
+  * through kfree_rcu) and the reads use the non-sleeping MMIO regmap.
+- * The brief zombie-count snapshot takes the flowtable mutex.
++ * The brief zombie-count and topology snapshots take the flowtable mutex.
+  */
+ static int ppe_ft_flows_show(struct seq_file *seq, void *data)
+ {
+@@ -4285,11 +4315,14 @@
+ 	struct rhashtable_iter iter;
+ 	struct ppe_ft_flow *flow;
+ 	struct list_head *pos;
++	u64 topology_seq, topology_invalidated;
+ 	int i, zombies = 0;
+ 
+ 	mutex_lock(&ft->lock);
+ 	list_for_each(pos, &ft->zombies)
+ 		zombies++;
++	topology_seq = ft->topology_seq;
++	topology_invalidated = ft->topology_invalidated;
+ 	mutex_unlock(&ft->lock);
+ 
+ 	seq_printf(seq,
+@@ -4304,6 +4337,9 @@
+ 		   atomic_long_read(&ft->flow_stale_replaces),
+ 		   atomic_long_read(&ft->flow_stale_stats),
+ 		   atomic_long_read(&ft->flow_stale_destroys));
++	seq_printf(seq, "topology seq:%llu invalidated:%llu\n",
++		   (unsigned long long)topology_seq,
++		   (unsigned long long)topology_invalidated);
+ 	seq_puts(seq, "reject");
+ 	for (i = 0; i < PPE_FT_REJECT_MAX; i++)
+ 		seq_printf(seq, " %s:%ld", ppe_ft_reject_names[i],
+@@ -4623,45 +4659,41 @@
+ 	}
+ }
+ 
+-/* Withdraw native bridge entries before a changed topology can reuse the
+- * ports. Restart the walk after every deletion, as for VP invalidation.
+- * Routed/NAT entries keep their independent lifetime.
++/* Match retained path devices and accounting uppers before withdrawing
++ * flows across a topology change. The bounded owner walk covers bridge,
++ * routed and NAT entries without disturbing unrelated device paths.
+  */
+-static void ppe_ft_bridge_invalidate(struct ppe_flowtable *ft)
++static bool ppe_ft_path_uses(const struct ppe_ft_flow *flow,
++			     const struct net_device *dev)
++{
++	int i;
++
++	if (flow->path_dev[0] == dev || flow->path_dev[1] == dev)
++		return true;
++	for (i = 0; i < flow->rx_account.count; i++)
++		if (flow->rx_account.upper[i] == dev)
++			return true;
++	for (i = 0; i < flow->tx_account.count; i++)
++		if (flow->tx_account.upper[i] == dev)
++			return true;
++	return false;
++}
++
++static void ppe_ft_dev_invalidate(struct ppe_flowtable *ft,
++				  const struct net_device *dev)
+ {
+-	struct rhashtable_iter iter;
+ 	struct ppe_ft_flow *flow;
+-	bool found;
++	int i;
+ 
+ 	mutex_lock(&ft->lock);
+-	do {
+-		found = false;
+-		rhashtable_walk_enter(&ft->flows, &iter);
+-		rhashtable_walk_start(&iter);
+-		while ((flow = rhashtable_walk_next(&iter))) {
+-			if (IS_ERR(flow)) {
+-				if (PTR_ERR(flow) == -EAGAIN)
+-					continue;
+-				break;
+-			}
+-			if (flow->entry.fwd_type != PPE_FLOW_FWD_TYPE_BRIDGE)
+-				continue;
+-			found = true;
+-			break;
+-		}
+-		rhashtable_walk_stop(&iter);
+-		rhashtable_walk_exit(&iter);
+-		if (found) {
+-			if (ppe_ft_flow_hw_del(ft, flow)) {
+-				ppe_ft_flow_forget(ft, flow);
+-			} else {
+-				rhashtable_remove_fast(&ft->flows, &flow->node,
+-						       ppe_ft_params);
+-				ppe_ft_flow_count_dec(ft, flow);
+-				ppe_ft_flow_quarantine(ft, flow);
+-			}
+-		}
+-	} while (found);
++	ft->topology_seq++;
++	for (i = 0; i < ft->ppe_dev->variant->num_flow_entries; i++) {
++		flow = ft->flow_owners[i];
++		if (!flow || !list_empty(&flow->zombie_node) ||
++		    !ppe_ft_path_uses(flow, dev))
++			continue;
++		ppe_ft_invalidate_locked(ft, flow);
++	}
+ 	mutex_unlock(&ft->lock);
+ }
+ 
+@@ -4681,7 +4713,7 @@
+ 	case NETDEV_CHANGEADDR:
+ 	case NETDEV_CHANGEMTU:
+ 	case NETDEV_CHANGEINFODATA:
+-		ppe_ft_bridge_invalidate(ft);
++		ppe_ft_dev_invalidate(ft, dev);
+ 		break;
+ 	}
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
+@@ -1407,8 +1407,7 @@
+ 			    ppe_vp_master_is(bound, dev)) {
+ 				WRITE_ONCE(vp->slots[i].host_mac,
+ 					   ppe_vp_host_mac(bound));
+-				if (vp->slots[i].type == PPE_VP_SLOT_QCA4B)
+-					invalidate_mask |= BIT(i);
++				invalidate_mask |= BIT(i);
+ 			}
+ 			continue;
+ 		}
+@@ -1427,8 +1426,7 @@
+ 					   ppe_vp_host_mac(bound));
+ 			if ((event == NETDEV_CHANGEADDR ||
+ 			     event == NETDEV_CHANGEMTU ||
+-			     event == NETDEV_CHANGEUPPER) &&
+-			    vp->slots[i].type == PPE_VP_SLOT_QCA4B)
++			     event == NETDEV_CHANGEUPPER))
+ 				invalidate_mask |= BIT(i);
+ 			if (event == NETDEV_CHANGEMTU) {
+ 				int ret;

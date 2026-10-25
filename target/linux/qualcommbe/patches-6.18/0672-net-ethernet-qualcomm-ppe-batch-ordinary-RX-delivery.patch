@@ -1,0 +1,102 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: batch ordinary RX delivery
+
+Collect ordinary non-GRO linear frames within one NAPI reap.
+Flush before GRO, VP and scatter delivery and at the end of the
+batch. Preserve checksum, DSA and forwarding metadata. Prefetch
+only the next coherent descriptor, never a raw hardware address.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
+@@ -551,9 +551,16 @@
+ 	dev_kfree_skb_any(skb);
+ }
+ 
++static void edma_rx_flush_list(struct list_head *list)
++{
++	if (!list_empty(list))
++		netif_receive_skb_list(list);
++}
++
+ static bool edma_rx_handle_linear_packets(struct edma_rxdesc_ring *rxdesc_ring,
+ 					  struct edma_rxdesc_pri *rxdesc_pri,
+-					  struct sk_buff *skb)
++					  struct sk_buff *skb,
++					  struct list_head *rx_list)
+ {
+ 	bool page_mode = rxdesc_ring->rxfill->page_mode;
+ 	struct edma_port_pcpu_stats *pcpu_stats;
+@@ -606,14 +613,18 @@
+ 	/* A packet forwarded to a virtual port is transmitted out its
+ 	 * bound device instead of being received up the stack.
+ 	 */
++	if (edma_rx_info_vp(EDMA_RXDESC_DST_INFO_GET(rxdesc_pri)) >= 0)
++		edma_rx_flush_list(rx_list);
+ 	if (edma_rx_deliver_vp(rxdesc_pri, skb))
+ 		return true;
+ 
+ 	skb->protocol = eth_type_trans(skb, skb->dev);
+-	if (skb->dev->features & NETIF_F_GRO)
++	if (skb->dev->features & NETIF_F_GRO) {
++		edma_rx_flush_list(rx_list);
+ 		napi_gro_receive(&rxdesc_ring->napi, skb);
+-	else
+-		netif_receive_skb(skb);
++	} else {
++		list_add_tail(&skb->list, rx_list);
++	}
+ 
+ 	return true;
+ }
+@@ -689,6 +700,7 @@
+ 	u32 work_to_do, work_done = 0;
+ 	struct sk_buff *next_skb;
+ 	u32 work_leftover, reg;
++	LIST_HEAD(rx_list);
+ 
+ 	/* Get Rx ring producer and consumer indices. */
+ 	cons_idx = rxdesc_ring->cons_idx;
+@@ -736,6 +748,7 @@
+ 		 */
+ 		next_rxdesc_pri = EDMA_RXDESC_PRI_DESC(rxdesc_ring, cons_idx);
+ 		next_skb = (struct sk_buff *)EDMA_RXDESC_OPAQUE_GET(next_rxdesc_pri);
++		prefetch(next_rxdesc_pri);
+ 
+ 		/* Handle linear packets or initial segments first. */
+ 		if (likely(!(rxdesc_ring->head))) {
+@@ -765,6 +778,7 @@
+ 			src_info = EDMA_RXDESC_SRC_INFO_GET(rxdesc_pri);
+ 			src_vp = edma_rx_info_vp(src_info);
+ 			if (unlikely(src_vp >= 0)) {
++				edma_rx_flush_list(&rx_list);
+ 				if (likely(!EDMA_RXDESC_MORE_BIT_GET(rxdesc_pri))) {
+ 					edma_rx_vp_punt_single(rxdesc_ring,
+ 							       rxdesc_pri, skb,
+@@ -795,7 +809,8 @@
+ 				/* Handle linear packets. */
+ 				if (likely(!EDMA_RXDESC_MORE_BIT_GET(rxdesc_pri))) {
+ 					delivered = edma_rx_handle_linear_packets(rxdesc_ring,
+-										  rxdesc_pri, skb);
++										  rxdesc_pri, skb,
++										  &rx_list);
+ 					if (unlikely(!delivered))
+ 						dev_kfree_skb_any(skb);
+ 
+@@ -804,6 +819,7 @@
+ 			}
+ 		}
+ 
++		edma_rx_flush_list(&rx_list);
+ 		/* Handle scatter frame processing for first/middle/last segments. */
+ 		page_mode ? edma_rx_handle_nr_frags(rxdesc_ring, rxdesc_pri, skb) :
+ 			edma_rx_handle_frag_list(rxdesc_ring, rxdesc_pri, skb);
+@@ -833,6 +849,7 @@
+ 		edma_rx_alloc_buffer_list(rxdesc_ring->rxfill, work_leftover);
+ 	}
+ 
++	edma_rx_flush_list(&rx_list);
+ 	return work_done;
+ }
+ 

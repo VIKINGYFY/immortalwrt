@@ -1,0 +1,218 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: bound and index legacy DS source repair
+
+Limit each IRQ-off legacy metadata pass to 128 descriptors and
+request another provider NAPI pass when a validated prefix remains.
+Cache immutable firmware eligibility and index DS peers by address
+under the existing peer lock; retain live peer/vdev/authorization
+checks and conservative DMA synchronization. Count batch work on
+demand in debugfs without per-packet logging.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
+@@ -8,6 +8,7 @@
+  * normal completions recycle buffers without passing payloads to mac80211.
+  */
+ #include <linux/module.h>
++#include <linux/hashtable.h>
+ #include <linux/delay.h>
+ #include <linux/debugfs.h>
+ #include <linux/seq_file.h>
+@@ -47,6 +48,7 @@
+ #define ATH12K_DS_BUFFER_COUNT 2048
+ #define ATH12K_DS_BUFFER_SIZE 2048
+ #define ATH12K_DS_VP_COUNT 8
++#define ATH12K_DS_REPAIR_BUDGET 128
+ #define ATH12K_DS_VP_TABLE 0x00a44194
+ 
+ enum ath12k_ds_fallback {
+@@ -76,6 +78,7 @@
+ 
+ struct ath12k_ds_peer {
+ 	struct list_head list;
++	struct hlist_node hash;
+ 	struct ath12k *ar;
+ 	struct ath12k_vif *vif;
+ 	u32 vdev;
+@@ -98,6 +101,7 @@
+ 	/* Serialize peer/VP control, shutdown and fault handling. */
+ 	struct mutex control_lock;
+ 	struct list_head peers;
++	DECLARE_HASHTABLE(peer_vps, 6);
+ 	/* Completion-side exception lookup cannot take the control mutex. */
+ 	spinlock_t peer_lock;
+ 	struct ath12k_ds_vp vps[ATH12K_DS_VP_COUNT];
+@@ -116,6 +120,9 @@
+ 	bool tcl_ready, reo_ready, complete_ready;
+ 	bool stopped, faulted, started;
+ 	bool quarantined;
++	bool hw1_compat, hw1_pending;
++	u64 hw1_batches, hw1_scanned, hw1_repaired, hw1_yields;
++	u32 hw1_max_batch;
+ 	int stop_control_error;
+ 	unsigned long fault_flags;
+ 	atomic64_t tx_completed, rx_recycled, bad_cookie, tx_exception;
+@@ -321,7 +328,8 @@
+ 		return -ENOENT;
+ 
+ 	spin_lock(&ds->peer_lock);
+-	list_for_each_entry(peer, &ds->peers, list) {
++	hash_for_each_possible(ds->peer_vps, peer, hash,
++			       ether_addr_to_u64(source)) {
+ 		if (peer->ar->ab != owner->ab || peer->vdev != vdev ||
+ 		    !READ_ONCE(peer->enabled) || !READ_ONCE(peer->authorized) ||
+ 		    !ether_addr_equal(peer->addr, source))
+@@ -352,7 +360,8 @@
+ 	struct rx_msdu_end_qcn9274 *msdu;
+ 	struct hal_rx_desc *desc;
+ 	unsigned long flags;
+-	unsigned int index = ds->hw1_reo, count, size, offset, length;
++	unsigned int index = ds->hw1_reo, count, repaired = 0;
++	unsigned int size, offset, length;
+ 	dma_addr_t paddr;
+ 	__le32 *entry;
+ 	u32 word4, info5, info6, info13, info14;
+@@ -360,7 +369,7 @@
+ 	int port;
+ 	bool failed = false;
+ 
+-	if (!ath12k_wifi7_ds_hw1_compat(ds->dp->ab)) {
++	if (!ds->hw1_compat) {
+ 		ds->hw1_reo = producer;
+ 		return producer;
+ 	}
+@@ -369,7 +378,8 @@
+ 
+ 	dma_rmb();
+ 	spin_lock_irqsave(&ds->rx_lock, flags);
+-	for (count = 0; index != producer && count < srng->num_entries;
++	for (count = 0; index != producer &&
++	     count < min_t(u32, srng->num_entries, ATH12K_DS_REPAIR_BUDGET);
+ 	     count++, index = (index + 1) % srng->num_entries) {
+ 		entry = (void *)(srng->ring_base_vaddr + index * srng->entry_size);
+ 		word4 = le32_to_cpu(READ_ONCE(entry[4]));
+@@ -433,6 +443,7 @@
+ 			break;
+ 		}
+ 		WRITE_ONCE(entry[4], cpu_to_le32(word4 | 0x2000 | port));
++		repaired++;
+ 	}
+ 	/* Publish only the validated prefix. A rejected descriptor and all
+ 	 * following entries stay withheld while fault_work restores CPU RX.
+@@ -440,6 +451,12 @@
+ 	 * already published prefix without consuming untrusted source data.
+ 	 */
+ 	ds->hw1_reo = index;
++	WRITE_ONCE(ds->hw1_pending, index != producer && !failed);
++	ds->hw1_batches++;
++	ds->hw1_scanned += count;
++	ds->hw1_repaired += repaired;
++	ds->hw1_max_batch = max_t(u32, ds->hw1_max_batch, count);
++	ds->hw1_yields += READ_ONCE(ds->hw1_pending);
+ 	dma_wmb();
+ 	spin_unlock_irqrestore(&ds->rx_lock, flags);
+ 	if (failed)
+@@ -447,7 +464,6 @@
+ 	return index;
+ }
+ 
+-/* Capture at most 32 validated entries without modifying packet descriptors. */
+ static void ath12k_ds_flush_rx(struct ath12k_ds *ds)
+ {
+ 	struct ath12k_rx_desc_info *rx;
+@@ -522,7 +538,15 @@
+ 	ath12k_ds_fault(priv);
+ }
+ 
++static bool ath12k_ds_more_reo(void *priv)
++{
++	struct ath12k_ds *ds = priv;
++
++	return READ_ONCE(ds->hw1_pending);
++}
++
+ static const struct qcom_ppe_ds_ops ath12k_ds_ops = {
++	.more_reo = ath12k_ds_more_reo,
+ 	.set_start_indices = ath12k_ds_start_indices,
+ 	.get_tcl_cons = ath12k_ds_tcl_cons,
+ 	.set_tcl_prod = ath12k_ds_tcl_prod,
+@@ -552,6 +576,10 @@
+ 		   READ_ONCE(ds->quarantined), ds->stop_control_error);
+ 	seq_printf(seq, "route_direct:%llu route_cpu:%llu\n",
+ 		   ds->route_direct, ds->route_cpu);
++	seq_printf(seq, "hw1_repair batches:%llu scanned:%llu repaired:%llu yields:%llu max_batch:%u pending:%u\n",
++		   READ_ONCE(ds->hw1_batches), READ_ONCE(ds->hw1_scanned),
++		   READ_ONCE(ds->hw1_repaired), READ_ONCE(ds->hw1_yields),
++		   READ_ONCE(ds->hw1_max_batch), READ_ONCE(ds->hw1_pending));
+ 	seq_puts(seq, "fallback_events");
+ 	for (i = 1; i < ATH12K_DS_FALLBACK_MAX; i++)
+ 		seq_printf(seq, " %s:%llu", ath12k_ds_fallback_names[i],
+@@ -674,7 +702,8 @@
+ 	dma_sync_single_for_cpu(ds->dp->dev, buffer->paddr,
+ 				ATH12K_DS_BUFFER_SIZE, DMA_BIDIRECTIONAL);
+ 	spin_lock_irqsave(&ds->peer_lock, flags);
+-	list_for_each_entry(peer, &ds->peers, list) {
++	hash_for_each_possible(ds->peer_vps, peer, hash,
++			       ether_addr_to_u64(data)) {
+ 		if (!READ_ONCE(peer->enabled) || !ether_addr_equal(data, peer->addr))
+ 			continue;
+ 		if (dev && dev != peer->dev) {
+@@ -1059,6 +1088,7 @@
+ 	dev_hold(peer->dev);
+ 	spin_lock_bh(&ds->peer_lock);
+ 	list_add_tail(&peer->list, &ds->peers);
++	hash_add(ds->peer_vps, &peer->hash, ether_addr_to_u64(peer->addr));
+ 	spin_unlock_bh(&ds->peer_lock);
+ 	if (fallback) {
+ 		ds->fallback_events[fallback]++;
+@@ -1132,6 +1162,7 @@
+ 				ret = error;
+ 			spin_lock_bh(&ds->peer_lock);
+ 			list_del(&peer->list);
++			hash_del(&peer->hash);
+ 			spin_unlock_bh(&ds->peer_lock);
+ 			dev_put(peer->dev);
+ 			kfree(peer);
+@@ -1171,6 +1202,7 @@
+ 					continue;
+ 				spin_lock_bh(&ds->peer_lock);
+ 				list_del(&peer->list);
++				hash_del(&peer->hash);
+ 				spin_unlock_bh(&ds->peer_lock);
+ 				dev_put(peer->dev);
+ 				kfree(peer);
+@@ -1199,6 +1231,7 @@
+ 					fault = true;
+ 				spin_lock_bh(&ds->peer_lock);
+ 				list_del(&peer->list);
++				hash_del(&peer->hash);
+ 				spin_unlock_bh(&ds->peer_lock);
+ 				dev_put(peer->dev);
+ 				kfree(peer);
+@@ -1366,6 +1399,7 @@
+ 	WRITE_ONCE(ds->stopped, true);
+ 	list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
+ 		list_del(&peer->list);
++		hash_del(&peer->hash);
+ 		dev_put(peer->dev);
+ 		kfree(peer);
+ 	}
+@@ -1391,6 +1425,7 @@
+ quarantine:
+ 	list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
+ 		list_del(&peer->list);
++		hash_del(&peer->hash);
+ 		dev_put(peer->dev);
+ 		kfree(peer);
+ 	}
+@@ -1429,6 +1464,8 @@
+ 	mutex_init(&ds->control_lock);
+ 	spin_lock_init(&ds->peer_lock);
+ 	INIT_LIST_HEAD(&ds->peers);
++	hash_init(ds->peer_vps);
++	ds->hw1_compat = ath12k_wifi7_ds_hw1_compat(dp->ab);
+ 	INIT_WORK(&ds->fault_work, ath12k_ds_fault_work);
+ 	spin_lock_init(&ds->tx_lock);
+ 	spin_lock_init(&ds->rx_lock);

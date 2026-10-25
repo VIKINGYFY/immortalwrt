@@ -1,0 +1,32 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: continue bounded DS producers
+
+Let a WLAN producer request another budgeted NAPI pass after
+publishing a bounded prefix. Preserve progress without a permanent
+timer and without relaxing descriptor or DMA validation.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
+@@ -377,7 +377,8 @@
+ 		spin_unlock_irqrestore(&ppe_ds_fault_lock, flags);
+ 		return 0;
+ 	}
+-	if (done == budget || (filled == budget && !ds->refill_short))
++	if (done == budget || (filled == budget && !ds->refill_short) ||
++	    (ds->cfg.ops->more_reo && ds->cfg.ops->more_reo(ds->cfg.priv)))
+ 		return budget;
+ 
+ 	if (napi_complete_done(napi, done)) {
+--- a/include/linux/soc/qcom/ppe-ds.h
++++ b/include/linux/soc/qcom/ppe-ds.h
+@@ -25,6 +25,8 @@
+ 	u16 (*get_tcl_cons)(void *priv);
+ 	void (*set_tcl_prod)(void *priv, u16 index);
+ 	u16 (*get_reo_prod)(void *priv);
++	/* Request another bounded NAPI pass for unpublished WLAN entries. */
++	bool (*more_reo)(void *priv);
+ 	void (*set_reo_cons)(void *priv, u16 index);
+ 	unsigned int (*refill)(void *priv, struct qcom_ppe_ds_buffer *buffers,
+ 			       unsigned int count, unsigned int size);

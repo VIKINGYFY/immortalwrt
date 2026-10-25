@@ -1,0 +1,423 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] wifi: ath12k: separate DS control and DMA stop errors
+
+Check peer routing submissions without skipping hardware draining.
+Report control failures independently of proven DMA quiescence.
+On unsafe DMA, detach all shared-engine callbacks before freeing
+parents, retain DMA and bank/VP leases, and drop software VIF/dev
+references so teardown cannot wait forever on the quarantine.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath12k/dp.c
++++ b/drivers/net/wireless/ath/ath12k/dp.c
+@@ -1168,10 +1168,10 @@
+ 	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
+ 	int i;
+ 
+-	if (dp->ds_quarantined)
+-		return;
+ 	if (dp->ops->ds_cleanup && dp->ops->ds_cleanup(dp))
+ 		return;
++	if (dp->ds_quarantined)
++		return;
+ 
+ 	ath12k_dp_link_peer_rhash_tbl_destroy(dp);
+ 
+@@ -1657,9 +1657,30 @@
+ 	return ret;
+ }
+ 
++void ath12k_dp_ds_quarantine_group(struct ath12k_hw_group *ag)
++{
++	struct ath12k_dp *dp;
++	int i;
++
++	if (!ag)
++		return;
++	/* Every partner's RX pool can be referenced by the shared engine. */
++	set_bit(ATH12K_GROUP_FLAG_DS_QUARANTINED, &ag->flags);
++	for (i = 0; i < ATH12K_MAX_DEVICES; i++) {
++		dp = ag->dp_hw_grp.dp[i];
++		if (!dp)
++			continue;
++		dp->ds_quarantined = true;
++		if (dp->ops->ds_quarantine)
++			dp->ops->ds_quarantine(dp);
++	}
++}
++EXPORT_SYMBOL_GPL(ath12k_dp_ds_quarantine_group);
++
+ int ath12k_dp_ds_stop_group(struct ath12k_hw_group *ag)
+ {
+ 	struct ath12k_dp *dp;
++	bool dma_failed = false;
+ 	int i, ret = 0, err;
+ 
+ 	if (!ag)
+@@ -1669,18 +1690,15 @@
+ 		if (!dp || !dp->ds || !dp->ops->ds_stop)
+ 			continue;
+ 		err = dp->ops->ds_stop(dp);
+-		if (err)
++		if (!err)
++			continue;
++		if (!ret)
+ 			ret = err;
++		if (!dp->ops->ds_dma_stopped || !dp->ops->ds_dma_stopped(dp))
++			dma_failed = true;
+ 	}
+-	if (!ret)
+-		return 0;
+-	/* A shared engine can still reach every partner's RX pool. Hold all
+-	 * mappings in the group, rather than only the failing WLAN's rings.
+-	 */
+-	set_bit(ATH12K_GROUP_FLAG_DS_QUARANTINED, &ag->flags);
+-	for (i = 0; i < ATH12K_MAX_DEVICES; i++)
+-		if (ag->dp_hw_grp.dp[i])
+-			ag->dp_hw_grp.dp[i]->ds_quarantined = true;
++	if (dma_failed)
++		ath12k_dp_ds_quarantine_group(ag);
+ 	return ret;
+ }
+ 
+--- a/drivers/net/wireless/ath/ath12k/dp.h
++++ b/drivers/net/wireless/ath/ath12k/dp.h
+@@ -395,6 +395,8 @@
+ 	int (*ds_setup)(struct ath12k_dp *dp);
+ 	int (*ds_cleanup)(struct ath12k_dp *dp);
+ 	int (*ds_stop)(struct ath12k_dp *dp);
++	bool (*ds_dma_stopped)(struct ath12k_dp *dp);
++	void (*ds_quarantine)(struct ath12k_dp *dp);
+ 	int (*ds_peer_setup)(struct ath12k *ar, struct ath12k_link_vif *arvif,
+ 			     struct ath12k_link_sta *arsta);
+ 	int (*ds_sta_state)(struct ath12k *ar, struct ath12k_link_vif *arvif,
+@@ -697,6 +699,7 @@
+ 
+ void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif);
+ int ath12k_dp_ds_stop_group(struct ath12k_hw_group *ag);
++void ath12k_dp_ds_quarantine_group(struct ath12k_hw_group *ag);
+ void ath12k_dp_partner_cc_init(struct ath12k_base *ab);
+ int ath12k_dp_pdev_alloc(struct ath12k_base *ab);
+ void ath12k_dp_pdev_pre_alloc(struct ath12k *ar);
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
+@@ -160,6 +160,8 @@
+ 	.ds_setup = ath12k_wifi7_ds_setup,
+ 	.ds_cleanup = ath12k_wifi7_ds_cleanup,
+ 	.ds_stop = ath12k_wifi7_ds_stop,
++	.ds_dma_stopped = ath12k_wifi7_ds_dma_stopped,
++	.ds_quarantine = ath12k_wifi7_ds_quarantine,
+ 	.ds_peer_setup = ath12k_wifi7_ds_peer_setup,
+ 	.ds_sta_state = ath12k_wifi7_ds_sta_state,
+ 	.ds_vif_remove = ath12k_wifi7_ds_vif_remove,
+@@ -205,7 +207,13 @@
+ void ath12k_wifi7_dp_device_free(struct ath12k_dp *dp)
+ {
+ 	/* An unquiesced DMA client retains its descriptor and buffer context. */
+-	if (dp->ds || dp->ds_quarantined)
++	if (dp->ds || dp->ds_quarantined) {
++		/* Quarantine has detached callbacks and released software owners.
++		 * These are inert DMA allocations, not a retained parent lifetime.
++		 */
++		dp->ab = NULL;
++		dp->hal = NULL;
+ 		return;
++	}
+ 	kfree(dp);
+ }
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
+@@ -115,6 +115,8 @@
+ 	unsigned long reo_mapped;
+ 	bool tcl_ready, reo_ready, complete_ready;
+ 	bool stopped, faulted, started;
++	bool quarantined;
++	int stop_control_error;
+ 	unsigned long fault_flags;
+ 	atomic64_t tx_completed, rx_recycled, bad_cookie, tx_exception;
+ 	atomic64_t tx_acked, tx_dropped;
+@@ -125,6 +127,8 @@
+ static void ath12k_ds_fault(struct ath12k_ds *ds)
+ {
+ 	WRITE_ONCE(ds->faulted, true);
++	if (READ_ONCE(ds->quarantined))
++		return;
+ 	/* RX service may still run while a failed stop quarantines the rings.
+ 	 * Notify once per registration, including when fault_work is running;
+ 	 * otherwise those calls can continuously requeue the same teardown.
+@@ -137,16 +141,9 @@
+ {
+ 	struct ath12k_ds *ds = container_of(work, struct ath12k_ds, fault_work);
+ 
+-	ath12k_warn(ds->dp->ab, "Direct Switch fault; stop DMA and restore CPU delivery\n");
+-	if (ath12k_wifi7_ds_stop(ds->dp)) {
+-		struct ath12k_hw_group *ag = ds->dp->ab->ag;
+-		int i;
+-
+-		set_bit(ATH12K_GROUP_FLAG_DS_QUARANTINED, &ag->flags);
+-		for (i = 0; i < ATH12K_MAX_DEVICES; i++)
+-			if (ag->dp_hw_grp.dp[i])
+-				ag->dp_hw_grp.dp[i]->ds_quarantined = true;
+-	}
++	ath12k_warn(ds->dp->ab, "Direct Switch fault; stopping DMA and CPU routing\n");
++	if (ath12k_wifi7_ds_stop(ds->dp) && !READ_ONCE(ds->stopped))
++		ath12k_dp_ds_quarantine_group(ds->dp->ab->ag);
+ }
+ 
+ static struct hal_srng *ath12k_ds_srng(struct ath12k_ds *ds,
+@@ -551,6 +548,8 @@
+ 		   ds->started, READ_ONCE(ds->stopped), READ_ONCE(ds->faulted), peers);
+ 	/* WMI reports command submission, not a firmware routing ACK. */
+ 	seq_printf(seq, "peer_submission_only:1 tracked:%d\n", tracked);
++	seq_printf(seq, "quarantined:%u stop_control_error:%d\n",
++		   READ_ONCE(ds->quarantined), ds->stop_control_error);
+ 	seq_printf(seq, "route_direct:%llu route_cpu:%llu\n",
+ 		   ds->route_direct, ds->route_cpu);
+ 	seq_puts(seq, "fallback_events");
+@@ -727,7 +726,8 @@
+ 	int done = 0;
+ 	int quota;
+ 
+-	if (!ds || !ds->complete_ready || READ_ONCE(ds->stopped) || budget <= 0)
++	if (!ds || !ds->complete_ready || READ_ONCE(ds->stopped) ||
++	    READ_ONCE(ds->quarantined) || budget <= 0)
+ 		return 0;
+ 	/* QSDK charges four lightweight PPE completions per NAPI budget unit.
+ 	 * Bound each batch and round its cost up so a full batch requests
+@@ -966,23 +966,30 @@
+ 	return found;
+ }
+ 
++static int ath12k_ds_peer_disable(struct ath12k_ds_peer *peer)
++{
++	int ret;
++
++	if (!peer->enabled ||
++	    test_bit(ATH12K_FLAG_CRASH_FLUSH, &peer->ar->ab->dev_flags))
++		return 0;
++	ret = ath12k_wmi_config_peer_ds(peer->ar, peer->addr, peer->vdev, 0, false);
++	if (!ret)
++		WRITE_ONCE(peer->enabled, false);
++	return ret;
++}
++
+ static int ath12k_ds_peer_cpu(struct ath12k_ds *ds,
+ 			      struct ath12k_ds_peer *peer)
+ {
+-	int ret, error = 0;
++	int ret, error;
+ 
+-	/* Repoint the VP before revoking its firmware peer route. */
+ 	ret = ath12k_ds_route_vif(ds, peer->vif, false);
+-	if (peer->enabled) {
+-		if (!test_bit(ATH12K_FLAG_CRASH_FLUSH, &peer->ar->ab->dev_flags))
+-			error = ath12k_wmi_config_peer_ds(peer->ar, peer->addr,
+-							peer->vdev, 0, false);
+-		if (error) {
+-			ath12k_ds_fault(ds);
+-			if (!ret)
+-				ret = error;
+-		}
+-		WRITE_ONCE(peer->enabled, false);
++	error = ath12k_ds_peer_disable(peer);
++	if (error) {
++		ath12k_ds_fault(ds);
++		if (!ret)
++			ret = error;
+ 	}
+ 	return ret;
+ }
+@@ -1155,17 +1162,40 @@
+ 		ds = dp->ds;
+ 		fault = false;
+ 		mutex_lock(&ds->control_lock);
++		if (ds->quarantined) {
++			/* Keep hardware bank/VP leases and all DMA, but do not pin a
++			 * netdevice or mac80211 vif behind an inert quarantine.
++			 */
++			list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
++				if (peer->vif != arvif->ahvif)
++					continue;
++				spin_lock_bh(&ds->peer_lock);
++				list_del(&peer->list);
++				spin_unlock_bh(&ds->peer_lock);
++				dev_put(peer->dev);
++				kfree(peer);
++			}
++			for (i = 0; i < ATH12K_DS_VP_COUNT; i++) {
++				vp = &ds->vps[i];
++				if (vp->vif != arvif->ahvif)
++					continue;
++				vp->vif = NULL;
++				vp->closing = true;
++				if (vp->dev) {
++					dev_put(vp->dev);
++					vp->dev = NULL;
++				}
++			}
++			mutex_unlock(&ds->control_lock);
++			continue;
++		}
+ 		if (before) {
+ 			if (ath12k_ds_route_vif(ds, arvif->ahvif, false))
+ 				fault = true;
+ 			list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
+ 				if (peer->vif != arvif->ahvif)
+ 					continue;
+-				if (peer->enabled &&
+-				    !test_bit(ATH12K_FLAG_CRASH_FLUSH,
+-					      &peer->ar->ab->dev_flags) &&
+-				    ath12k_wmi_config_peer_ds(peer->ar, peer->addr,
+-							      peer->vdev, 0, false))
++				if (ath12k_ds_peer_disable(peer))
+ 					fault = true;
+ 				spin_lock_bh(&ds->peer_lock);
+ 				list_del(&peer->list);
+@@ -1222,23 +1252,34 @@
+ {
+ 	struct ath12k_ds *ds = READ_ONCE(dp->ds);
+ 	struct ath12k_ds_peer *peer;
+-	int i, ret = 0;
++	int i, err, control_error = 0, ret = 0;
+ 
+ 	if (!ds)
+ 		return 0;
+ 	if (current_work() != &ds->fault_work)
+ 		cancel_work_sync(&ds->fault_work);
+ 	mutex_lock(&ds->control_lock);
+-	if (ds->stopped)
++	if (ds->quarantined) {
++		ret = -ESHUTDOWN;
+ 		goto unlock;
++	}
++	if (ds->stopped) {
++		ret = ds->stop_control_error;
++		goto unlock;
++	}
+ 	for (i = 0; i < ATH12K_DS_VP_COUNT; i++)
+-		if (ds->vps[i].dev)
+-			qcom_ppe_ds_vp_route(ds->handle, ds->vps[i].port, false);
++		if (ds->vps[i].dev) {
++			err = qcom_ppe_ds_vp_route(ds->handle, ds->vps[i].port, false);
++			if (err)
++				ath12k_warn(dp->ab,
++					    "DS VP CPU route failed: %d; stop will retry\n", err);
++		}
+ 	list_for_each_entry(peer, &ds->peers, list) {
+-		if (peer->enabled &&
+-		    !test_bit(ATH12K_FLAG_CRASH_FLUSH, &peer->ar->ab->dev_flags))
+-			ath12k_wmi_config_peer_ds(peer->ar, peer->addr, peer->vdev, 0, false);
++		err = ath12k_ds_peer_disable(peer);
++		if (err && !control_error)
++			control_error = err;
+ 	}
++	ds->stop_control_error = control_error;
+ 	if (ds->reo_ready) {
+ 		ath12k_wifi7_hal_ds_disable(dp->ab, ath12k_ds_srng(ds, &ds->reo));
+ 		/* Observe the final DMA head writeback before EDMA drains. */
+@@ -1268,11 +1309,37 @@
+ 		}
+ 		ds->reo_mapped = 0;
+ 	}
++	if (control_error) {
++		ath12k_warn(dp->ab, "DS CPU peer routing unconfirmed: %d\n", control_error);
++		if (!ret)
++			ret = control_error;
++	}
+ unlock:
+ 	mutex_unlock(&ds->control_lock);
+ 	return ret;
+ }
+ 
++bool ath12k_wifi7_ds_dma_stopped(struct ath12k_dp *dp)
++{
++	struct ath12k_ds *ds = READ_ONCE(dp->ds);
++
++	return !ds || READ_ONCE(ds->stopped);
++}
++
++void ath12k_wifi7_ds_quarantine(struct ath12k_dp *dp)
++{
++	struct ath12k_ds *ds = READ_ONCE(dp->ds);
++
++	if (!ds)
++		return;
++	mutex_lock(&ds->control_lock);
++	if (ds->handle)
++		qcom_ppe_ds_detach(ds->handle);
++	WRITE_ONCE(ds->faulted, true);
++	WRITE_ONCE(ds->quarantined, true);
++	mutex_unlock(&ds->control_lock);
++}
++
+ int ath12k_wifi7_ds_cleanup(struct ath12k_dp *dp)
+ {
+ 	struct ath12k_ds *ds = dp->ds;
+@@ -1284,10 +1351,16 @@
+ 	cancel_work_sync(&ds->fault_work);
+ 	debugfs_remove(ds->debugfs);
+ 	ds->debugfs = NULL;
++	if (ds->quarantined)
++		goto quarantine;
+ 	if (ds->handle) {
+ 		ret = qcom_ppe_ds_unregister(ds->handle);
+-		if (ret)
+-			return ret;
++		if (ret) {
++			ath12k_dp_ds_quarantine_group(dp->ab->ag);
++			ath12k_wifi7_ds_quarantine(dp);
++			dp->ds_quarantined = true;
++			goto quarantine;
++		}
+ 		ds->handle = NULL;
+ 	}
+ 	WRITE_ONCE(ds->stopped, true);
+@@ -1315,6 +1388,20 @@
+ 	dp->ds = NULL;
+ 	kfree(ds);
+ 	return 0;
++quarantine:
++	list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
++		list_del(&peer->list);
++		dev_put(peer->dev);
++		kfree(peer);
++	}
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++) {
++		if (ds->vps[i].dev)
++			dev_put(ds->vps[i].dev);
++		ds->vps[i].dev = NULL;
++		ds->vps[i].vif = NULL;
++	}
++	ds->dp = NULL;
++	return -EIO;
+ }
+ 
+ int ath12k_wifi7_ds_setup(struct ath12k_dp *dp)
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.h
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.h
+@@ -17,6 +17,8 @@
+ 				    struct hal_srng *srng, u16 index);
+ void ath12k_wifi7_hal_ds_disable(struct ath12k_base *ab, struct hal_srng *srng);
+ int ath12k_wifi7_ds_stop(struct ath12k_dp *dp);
++bool ath12k_wifi7_ds_dma_stopped(struct ath12k_dp *dp);
++void ath12k_wifi7_ds_quarantine(struct ath12k_dp *dp);
+ void ath12k_wifi7_ds_vif_remove(struct ath12k_link_vif *arvif,
+ 			       bool before, bool deleted);
+ int ath12k_wifi7_ds_peer_setup(struct ath12k *ar, struct ath12k_link_vif *arvif,
+@@ -42,6 +44,15 @@
+ {
+ }
+ 
++static inline bool ath12k_wifi7_ds_dma_stopped(struct ath12k_dp *dp)
++{
++	return true;
++}
++
++static inline void ath12k_wifi7_ds_quarantine(struct ath12k_dp *dp)
++{
++}
++
+ static inline int ath12k_wifi7_ds_stop(struct ath12k_dp *dp)
+ {
+ 	return 0;
