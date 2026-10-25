@@ -218,6 +218,21 @@
 		line-name = "qca8075-reset-n";
 	};
 
+	/*
+	 * RTL8261BE 10G PHY reset, same rationale as qca8075_reset_hog above:
+	 * the kernel reads the PHY ID in mdiobus_scan(), before reset-gpios
+	 * assert/deassert runs (that happens in phy_probe). This board holds
+	 * the reset line asserted at power-on, so phy_id reads back 0x00000000,
+	 * the driver binds the Generic Clause 45 PHY and WAN never comes up.
+	 * Release it from a gpio-hog, applied when the tlmm gpiochip registers.
+	 */
+	rtl8261be_reset_hog {
+		gpio-hog;
+		gpios = <41 GPIO_ACTIVE_LOW>;
+		output-low;
+		line-name = "rtl8261be-reset-n";
+	};
+
 	gpio_keys_default: gpio-keys-default-state {
 		pins = "gpio54";
 		function = "gpio";
@@ -338,12 +353,9 @@
 &mdio {
 	status = "okay";
 
-	rtl8261be_0: ethernet-phy@5 {
+	rtl8261be_0: ethernet-phy@0 {
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <0>;
-		reset-gpios = <&tlmm 41 GPIO_ACTIVE_LOW>;
-		reset-assert-us = <40000>;
-		reset-deassert-us = <150000>;
 	};
 
 	ethernet-phy-package@16 {
