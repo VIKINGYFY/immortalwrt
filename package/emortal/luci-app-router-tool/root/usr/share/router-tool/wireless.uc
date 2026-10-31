@@ -54,21 +54,26 @@ function default_ssid(uci, board, suffix, custom_ssid) {
 
 export function synchronize_wireless(uci, board) {
 	if (type(board?.wlan) != 'object') return false;
-	let defaults = uci.get_all('router-tool', 'defaults');
-	if (defaults && defaults['.type'] != 'wireless') die('Invalid router-tool.defaults wireless section');
-	let custom_ssid = defaults?.ssid;
-	let custom_key = defaults?.key;
-	let use_custom = type(custom_ssid) == 'string' && type(custom_key) == 'string' &&
-		length(custom_ssid) && length(custom_key);
-	if (use_custom && (length(custom_ssid) > 32 || match(custom_ssid, /[[:cntrl:]]/)))
-		die('Wireless SSID must contain 1 to 32 bytes without control characters');
-	if (use_custom && (length(custom_key) < 8 || length(custom_key) > 63 || match(custom_key, /[^ -~]/)))
-		die('Wireless password must contain 8 to 63 printable ASCII characters');
-	if (!use_custom) {
-		custom_ssid = null;
-		custom_key = '12345678';
-	}
+	let defaults_loaded = false, custom_ssid, custom_key;
 	let radios = [], interfaces = [], changed = {};
+	function load_defaults() {
+		if (defaults_loaded) return;
+		defaults_loaded = true;
+		let defaults = uci.get_all('router-tool', 'defaults');
+		if (defaults && defaults['.type'] != 'wireless') die('Invalid router-tool.defaults wireless section');
+		custom_ssid = defaults?.ssid;
+		custom_key = defaults?.key;
+		let use_custom = type(custom_ssid) == 'string' && type(custom_key) == 'string' &&
+			length(custom_ssid) && length(custom_key);
+		if (use_custom && (length(custom_ssid) > 32 || match(custom_ssid, /[[:cntrl:]]/)))
+			die('Wireless SSID must contain 1 to 32 bytes without control characters');
+		if (use_custom && (length(custom_key) < 8 || length(custom_key) > 63 || match(custom_key, /[^ -~]/)))
+			die('Wireless password must contain 8 to 63 printable ASCII characters');
+		if (!use_custom) {
+			custom_ssid = null;
+			custom_key = '12345678';
+		}
+	}
 	uci.foreach('wireless', 'wifi-device', section => push(radios, section));
 	uci.foreach('wireless', 'wifi-iface', section => push(interfaces, section));
 	function set(config, sid, values) {
@@ -93,13 +98,11 @@ export function synchronize_wireless(uci, board) {
 		// Decide once as soon as a radio has interfaces. Custom SSIDs and
 		// station/mesh/WDS backhauls are explicit user configuration.
 		if (!length(attached)) continue;
-		let has_ap = length(filter(attached, iface => iface.mode == 'ap')) > 0;
 		if (length(filter(attached, iface => iface.mode != 'ap' || iface.wds == '1' || length(array(iface.device)) != 1 || iface.mlo == '1'))) {
 			mark_done(radio['.name']);
 			continue;
 		}
 		let aps = attached;
-		if (!has_ap) { mark_done(radio['.name']); continue; }
 		if (length(filter(aps, iface => iface.ssid != 'OWRT' || iface.key != '12345678' || iface.encryption != 'psk2+ccmp'))) {
 			mark_done(radio['.name']);
 			continue;
@@ -117,6 +120,7 @@ export function synchronize_wireless(uci, board) {
 		else { suffix = '5.2G'; channel = '36'; width = 160; }
 		let mode = htmode(caps, width);
 		if (!mode) { mark_done(radio['.name']); continue; }
+		load_defaults();
 		set('wireless', radio['.name'], { country: 'US', channel, htmode: mode });
 		for (let ap in aps)
 			set('wireless', ap['.name'], { ssid: default_ssid(uci, board, suffix, custom_ssid), key: custom_key, encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });

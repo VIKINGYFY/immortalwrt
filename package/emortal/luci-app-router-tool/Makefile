@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-router-tool
 PKG_VERSION:=20261031
-PKG_RELEASE:=7
+PKG_RELEASE:=9
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 PKG_LICENSE:=GPL-2.0-only
 

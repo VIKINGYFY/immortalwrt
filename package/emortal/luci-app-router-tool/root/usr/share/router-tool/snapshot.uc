@@ -32,13 +32,6 @@ export function option_equal(option, a, b) {
 	return equal(optional ? a ?? '0' : a, optional ? b ?? '0' : b);
 }
 
-export function section_equal(section, a, b) {
-	if (type(a) != 'object' || type(b) != 'object') return false;
-	for (let key in uniq([ ...keys(a), ...keys(b) ]))
-		if (!option_equal({ ...section, key }, a[key], b[key])) return false;
-	return true;
-}
-
 export function read_snapshot(text, mode) {
 	let state;
 	try { state = json(text || 'null'); } catch (e) {}
