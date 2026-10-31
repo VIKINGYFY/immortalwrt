@@ -11,6 +11,10 @@ import { configuration, transaction, save_transaction, commit_transaction } from
 
 const transaction_path = '/etc/router-tool/pending.json';
 
+function format_addresses(value) {
+	return type(value) == 'array' ? join(', ', value) : value == null ? 'null' : value;
+}
+
 // Keep interface events quiet unless the state or the failure changes.
 function log_once(priority, key, message) {
 	let path = '/var/run/router-tool-log-' + key;
@@ -126,7 +130,7 @@ try {
 		log_once(LOG_INFO, 'update', 'Applying configuration updates: ' + join(' ', changed));
 		let next_lan = uci.get('network', 'lan', 'ipaddr');
 		if (sprintf('%J', previous_lan) != sprintf('%J', next_lan))
-			log_once(LOG_NOTICE, 'lan', sprintf('LAN subnet overlaps WAN; changing %J to %J', previous_lan, next_lan));
+			log_once(LOG_NOTICE, 'lan', sprintf('LAN subnet overlaps WAN; changing %s to %s', format_addresses(previous_lan), format_addresses(next_lan)));
 	}
 	if (length(changed)) {
 		stage = 'transaction persistence';
@@ -139,8 +143,8 @@ try {
 		lan_proto: uci.get('network', 'lan', 'proto'), lan_address: uci.get('network', 'lan', 'ipaddr') });
 	if (readfile('/var/run/router-tool-status') != status) {
 		if (!missing_snapshot)
-			syslog(LOG_INFO, '%s', sprintf('Configuration mode: %s; LAN protocol: %s; LAN IPv4: %J',
-				mode, uci.get('network', 'lan', 'proto'), uci.get('network', 'lan', 'ipaddr')));
+			syslog(LOG_INFO, '%s', sprintf('Configuration mode: %s; LAN protocol: %s; LAN IPv4: %s',
+				mode, uci.get('network', 'lan', 'proto'), format_addresses(uci.get('network', 'lan', 'ipaddr'))));
 		writefile('/var/run/router-tool-status', status);
 	}
 	if (readfile('/var/run/router-tool-log-error'))
