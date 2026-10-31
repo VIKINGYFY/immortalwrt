@@ -100,11 +100,6 @@ case "$FIRMWARE" in
 		# ART ends at 0x40000. The OEM pads this radio's 0x19800-byte
 		# calibration record to the 0x20000-byte QCN9074 transfer size.
 		caldata_extract_mmc "0:ART" 0x26800 0x19800
-		calfile="/lib/firmware/$FIRMWARE"
-		[ "$(wc -c < "$calfile")" -eq $((0x19800)) ] || \
-			caldata_die "incomplete CR1000A QCN9074 calibration"
-		dd if=/dev/zero bs=1024 count=26 >> "$calfile" 2>/dev/null || \
-			caldata_die "failed to pad CR1000A QCN9074 calibration"
 		;;
 	xiaomi,ax9000|\
 	xiaomi,ax9000-stock)
