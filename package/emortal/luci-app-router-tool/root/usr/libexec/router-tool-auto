@@ -12,7 +12,9 @@ import { configuration, transaction, save_transaction, commit_transaction } from
 const transaction_path = '/etc/router-tool/pending.json';
 
 function format_addresses(value) {
-	return type(value) == 'array' ? join(', ', value) : value == null ? 'null' : value;
+	if (type(value) == 'array')
+		return join(', ', map(value, address => sprintf('%J', address)));
+	return sprintf('%J', value);
 }
 
 // Keep interface events quiet unless the state or the failure changes.
