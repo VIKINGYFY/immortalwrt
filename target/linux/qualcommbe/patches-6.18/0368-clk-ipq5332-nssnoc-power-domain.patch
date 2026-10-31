@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/regmap.h>
  
  #include <dt-bindings/clock/qcom,ipq5332-nsscc.h>
-@@ -1024,6 +1025,10 @@
+@@ -1024,6 +1025,10 @@ static const struct qcom_cc_desc nss_cc_
  	.icc_first_node_id = IPQ_NSSCC_ID,
  };
  
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct of_device_id nss_cc_ipq5332_match_table[] = {
  	{ .compatible = "qcom,ipq5332-nsscc" },
  	{ }
-@@ -1032,7 +1037,65 @@
+@@ -1032,7 +1037,65 @@ MODULE_DEVICE_TABLE(of, nss_cc_ipq5332_m
  
  static int nss_cc_ipq5332_probe(struct platform_device *pdev)
  {
@@ -139,7 +139,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static struct platform_driver nss_cc_ipq5332_driver = {
-@@ -1040,6 +1103,7 @@
+@@ -1040,6 +1103,7 @@ static struct platform_driver nss_cc_ipq
  	.driver = {
  		.name = "qcom,ipq5332-nsscc",
  		.of_match_table = nss_cc_ipq5332_match_table,

@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
-@@ -55,6 +55,7 @@
+@@ -55,6 +55,7 @@ properties:
        - edsa
        - ocelot
        - ocelot-8021q
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
        - rtl8_4t
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -1908,6 +1908,8 @@
+@@ -1908,6 +1908,8 @@ static int qca8k_change_tag_protocol(str
  		hdr_val = 0;
  		rx_mode = QCA8K_PORT_HDR_CTRL_ALL;
  		tx_mode = QCA8K_PORT_HDR_CTRL_ALL;
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (proto != DSA_TAG_PROTO_QCA_8021Q) {
  		return -EOPNOTSUPP;
  	}
-@@ -2094,6 +2096,7 @@
+@@ -2094,6 +2096,7 @@ static int qca8k_connect_tag_protocol(st
  		tagger_data->mib_autocast_handler = qca8k_mib_autocast_handler;
  
  		break;
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
 --- a/include/linux/dsa/tag_qca.h
 +++ b/include/linux/dsa/tag_qca.h
-@@ -9,7 +9,10 @@
+@@ -9,7 +9,10 @@ struct dsa_switch;
  struct sk_buff;
  
  #define QCA_HDR_LEN	2
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define QCA_HDR_RECV_VERSION		GENMASK(15, 14)
  #define QCA_HDR_RECV_PRIORITY		GENMASK(13, 11)
-@@ -27,6 +30,7 @@
+@@ -27,6 +30,7 @@ struct sk_buff;
  #define QCA_HDR_XMIT_CONTROL		GENMASK(10, 8)
  #define QCA_HDR_XMIT_FROM_CPU		BIT(7)
  #define QCA_HDR_XMIT_DP_BIT		GENMASK(6, 0)
@@ -62,7 +62,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define QCA_HDR_XMIT_TYPE_NORMAL	0x0
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -58,6 +58,7 @@
+@@ -58,6 +58,7 @@ struct tc_action;
  #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
  #define DSA_TAG_PROTO_QCA_8021Q_VALUE		32
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
  #define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
  
-@@ -95,6 +96,7 @@
+@@ -95,6 +96,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
  	DSA_TAG_PROTO_QCA_8021Q		= DSA_TAG_PROTO_QCA_8021Q_VALUE,
@@ -142,7 +142,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct qca_tagger_data *tagger_data;
  	struct dsa_port *dp = dev->dsa_ptr;
-@@ -43,14 +68,20 @@
+@@ -43,14 +68,20 @@ static struct sk_buff *qca_tag_rcv(struc
  	int port;
  	u16 hdr;
  
@@ -165,7 +165,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	hdr = ntohs(*phdr);
  
  	/* Make sure the version is correct */
-@@ -83,12 +114,23 @@
+@@ -83,12 +114,23 @@ static struct sk_buff *qca_tag_rcv(struc
  		return NULL;
  
  	/* Remove QCA tag and recalculate checksum */
@@ -191,7 +191,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int qca_tag_connect(struct dsa_switch *ds)
  {
  	struct qca_tagger_data *tagger_data;
-@@ -123,4 +165,25 @@
+@@ -123,4 +165,25 @@ MODULE_DESCRIPTION("DSA tag driver for Q
  MODULE_LICENSE("GPL");
  MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_QCA, QCA_NAME);
  
@@ -220,7 +220,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +module_dsa_tag_drivers(qca_tag_drivers);
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -2849,6 +2849,9 @@
+@@ -2849,6 +2849,9 @@ void dsa_user_setup_tagger(struct net_de
  		user->features &= ~(NETIF_F_SG | NETIF_F_FRAGLIST);
  	if (ds->needs_standalone_vlan_filtering)
  		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;

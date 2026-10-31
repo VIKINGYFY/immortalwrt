@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -1919,7 +1919,7 @@
+@@ -1919,7 +1919,7 @@ static int ieee80211_start_ap(struct wip
  	}
  
  	tsf = drv_get_tsf(local, sdata);
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ieee80211_recalc_sb_count(sdata, tsf);
 --- a/net/mac80211/debugfs_netdev.c
 +++ b/net/mac80211/debugfs_netdev.c
-@@ -603,7 +603,7 @@
+@@ -603,7 +603,7 @@ IEEE80211_IF_FILE_RW(tdls_wider_bw);
  /* AP attributes */
  IEEE80211_IF_FILE(num_mcast_sta, u.ap.num_mcast_sta, ATOMIC);
  IEEE80211_IF_FILE(num_sta_ps, u.ap.ps.num_sta_ps, ATOMIC);
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  IEEE80211_IF_FILE(num_mcast_sta_vlan, u.vlan.num_mcast_sta, ATOMIC);
  
  static ssize_t ieee80211_if_fmt_num_buffered_multicast(
-@@ -704,7 +704,7 @@
+@@ -704,7 +704,7 @@ static ssize_t ieee80211_if_parse_tsf(
  		}
  	}
  
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return buflen;
  }
  IEEE80211_IF_FILE_RW(tsf);
-@@ -854,7 +854,6 @@
+@@ -854,7 +854,6 @@ static void add_ap_files(struct ieee8021
  {
  	DEBUGFS_ADD(num_mcast_sta);
  	DEBUGFS_ADD(num_sta_ps);
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	DEBUGFS_ADD(num_buffered_multicast);
  	DEBUGFS_ADD_MODE(tkip_mic_test, 0200);
  	DEBUGFS_ADD_MODE(multicast_to_unicast, 0600);
-@@ -992,6 +991,9 @@
+@@ -992,6 +991,9 @@ static void add_link_files(struct ieee80
  	case NL80211_IFTYPE_STATION:
  		DEBUGFS_ADD_MODE(dentry, smps, 0600);
  		break;
@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1100,6 +1100,8 @@
+@@ -1100,6 +1100,8 @@ struct ieee80211_link_data_ap {
  
  	/* to be used after channel switch. */
  	struct cfg80211_beacon_data *next_beacon;
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct ieee80211_link_data {
-@@ -2872,7 +2874,7 @@
+@@ -2872,7 +2874,7 @@ void ieee80211_dfs_radar_detected_work(s
  int ieee80211_send_action_csa(struct ieee80211_sub_if_data *sdata,
  			      struct cfg80211_csa_settings *csa_settings);
  void ieee80211_recalc_sb_count(struct ieee80211_sub_if_data *sdata, u64 tsf);
@@ -97,7 +97,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const struct cfg80211_chan_def *chandef;
 --- a/net/mac80211/mesh.c
 +++ b/net/mac80211/mesh.c
-@@ -1189,7 +1189,7 @@
+@@ -1189,7 +1189,7 @@ int ieee80211_start_mesh(struct ieee8021
  		return -ENOMEM;
  	}
  
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	netif_carrier_on(sdata->dev);
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -5228,6 +5228,10 @@
+@@ -5228,6 +5228,10 @@ static void __ieee80211_beacon_add_tim(s
  	bool mcast_traffic = false, have_bits = false;
  	struct ieee80211_bss_conf *link_conf = link->conf;
  	bool s1g = ieee80211_get_link_sband(link)->band == NL80211_BAND_S1GHZ;
@@ -119,7 +119,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Generate bitmap for TIM only if there are any STAs in power save
  	 * mode. */
-@@ -5238,19 +5242,19 @@
+@@ -5238,19 +5242,19 @@ static void __ieee80211_beacon_add_tim(s
  					  IEEE80211_MAX_AID + 1);
  
  	if (!is_template) {
@@ -144,7 +144,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mcast_traffic = true;
  
  	ps->dtim_bc_mc = mcast_traffic;
-@@ -6353,6 +6357,7 @@
+@@ -6353,6 +6357,7 @@ ieee80211_get_buffered_bc(struct ieee802
  	struct ps_data *ps;
  	struct ieee80211_tx_info *info;
  	struct ieee80211_chanctx_conf *chanctx_conf;
@@ -152,7 +152,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	sdata = vif_to_sdata(vif);
  
-@@ -6370,13 +6375,15 @@
+@@ -6370,13 +6375,15 @@ ieee80211_get_buffered_bc(struct ieee802
  			goto out;
  
  		ps = &sdata->u.ap.ps;
@@ -171,7 +171,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	while (1) {
 --- a/net/mac80211/util.c
 +++ b/net/mac80211/util.c
-@@ -4095,25 +4095,30 @@
+@@ -4095,25 +4095,30 @@ int ieee80211_parse_p2p_noa(const struct
  }
  EXPORT_SYMBOL(ieee80211_parse_p2p_noa);
  
@@ -210,7 +210,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else {
  		return;
  	}
-@@ -4131,7 +4136,7 @@
+@@ -4131,7 +4136,7 @@ void ieee80211_recalc_dtim(struct ieee80
  	else
  		dtim_count = dtim_period - bcns_from_dtim;
  

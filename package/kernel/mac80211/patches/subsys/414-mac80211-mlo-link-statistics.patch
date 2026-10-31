@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/virtual/mac80211_hwsim_i.h
 +++ b/drivers/net/wireless/virtual/mac80211_hwsim_i.h
-@@ -24,11 +24,23 @@
+@@ -24,11 +24,23 @@ struct hwsim_sta_nan_sched {
  	} maps[CFG80211_NAN_MAX_PEER_MAPS];
  };
  
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
 --- a/drivers/net/wireless/virtual/mac80211_hwsim_main.c
 +++ b/drivers/net/wireless/virtual/mac80211_hwsim_main.c
-@@ -2255,6 +2255,39 @@
+@@ -2255,6 +2255,39 @@ static void mac80211_hwsim_tx_rate_fill(
  		mac80211_hwsim_tx_ht(rate, peer, bw);
  }
  
@@ -126,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void mac80211_hwsim_tx(struct ieee80211_hw *hw,
  			      struct ieee80211_tx_control *control,
  			      struct sk_buff *skb)
-@@ -2268,6 +2301,8 @@
+@@ -2268,6 +2301,8 @@ static void mac80211_hwsim_tx(struct iee
  	struct ieee80211_vif *vif = txi->control.vif;
  	struct ieee80211_link_sta *peer =
  		control->sta ? &control->sta->deflink : NULL;
@@ -135,7 +135,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool ack, unicast_data;
  	enum nl80211_chan_width confbw = NL80211_CHAN_WIDTH_20_NOHT;
  	u32 _portid, i;
-@@ -2328,8 +2363,10 @@
+@@ -2328,8 +2363,10 @@ static void mac80211_hwsim_tx(struct iee
  								 hdr, &link_sta);
  		}
  
@@ -147,7 +147,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (unlikely(!bss_conf)) {
  			/* if it's an MLO STA, it might have deactivated all
-@@ -2424,6 +2461,10 @@
+@@ -2424,6 +2461,10 @@ static void mac80211_hwsim_tx(struct iee
  			return;
  	}
  
@@ -158,7 +158,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* wmediumd mode check */
  	_portid = READ_ONCE(data->wmediumd);
  
-@@ -3030,6 +3071,7 @@
+@@ -3030,6 +3071,7 @@ static int mac80211_hwsim_sta_add(struct
  		     sta->valid_links);
  		sp->active_links_rx = sta->valid_links;
  	}
@@ -166,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	spin_lock_init(&sp->nan_sched.lock);
  
-@@ -3740,15 +3782,59 @@
+@@ -3740,15 +3782,59 @@ static int mac80211_hwsim_change_sta_lin
  					   u16 old_links, u16 new_links)
  {
  	struct hwsim_sta_priv *sp = (void *)sta->drv_priv;
@@ -226,7 +226,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int mac80211_hwsim_send_pmsr_ftm_request_peer(struct sk_buff *msg,
  						     struct cfg80211_pmsr_ftm_request_peer *request)
  {
-@@ -4513,6 +4599,7 @@
+@@ -4513,6 +4599,7 @@ static const struct ieee80211_ops mac802
  	HWSIM_CHANCTX_OPS
  	.change_vif_links = mac80211_hwsim_change_vif_links,
  	.change_sta_links = mac80211_hwsim_change_sta_links,
@@ -236,7 +236,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -5625,6 +5625,17 @@
+@@ -5625,6 +5625,17 @@ void ieee80211_tx_rate_update(struct iee
  			      struct ieee80211_tx_info *info);
  
  /**
@@ -256,7 +256,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * Call this function for all transmitted frames after they have been
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -964,9 +964,9 @@
+@@ -964,9 +964,9 @@ static int ieee80211_config_default_beac
  	return 0;
  }
  
@@ -269,7 +269,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	rinfo->flags = 0;
  	if (rate->flags & IEEE80211_TX_RC_MCS) {
-@@ -977,11 +977,9 @@
+@@ -977,11 +977,9 @@ void sta_set_rate_info_tx(struct sta_inf
  		rinfo->mcs = ieee80211_rate_get_vht_mcs(rate);
  		rinfo->nss = ieee80211_rate_get_vht_nss(rate);
  	} else {
@@ -283,7 +283,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			rinfo->legacy = sband->bitrates[rate->idx].bitrate;
  	}
  	if (rate->flags & IEEE80211_TX_RC_40_MHZ_WIDTH)
-@@ -995,6 +993,15 @@
+@@ -995,6 +993,15 @@ void sta_set_rate_info_tx(struct sta_inf
  	if (rate->flags & IEEE80211_TX_RC_SHORT_GI)
  		rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
  }
@@ -301,7 +301,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				  int idx, u8 *mac, struct station_info *sinfo)
 --- a/net/mac80211/sta_info.c
 +++ b/net/mac80211/sta_info.c
-@@ -364,31 +364,57 @@
+@@ -364,31 +364,57 @@ static void sta_link_free_rcu(struct rcu
  	kfree(alloc);
  }
  
@@ -366,7 +366,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sta->rem_link_stats.rx_dropped_misc += link_sta->rx_stats.dropped;
  
  	thr = sta_get_expected_throughput(sta);
-@@ -421,7 +447,7 @@
+@@ -421,7 +447,7 @@ static void sta_accumulate_removed_link_
  }
  
  static void sta_remove_link(struct sta_info *sta, unsigned int link_id,
@@ -375,7 +375,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct sta_link_alloc *alloc = NULL;
  	struct link_sta_info *link_sta;
-@@ -444,7 +470,7 @@
+@@ -444,7 +470,7 @@ static void sta_remove_link(struct sta_i
  	sta->sta.valid_links &= ~BIT(link_id);
  
  	/* store removed link info for accumulated stats consistency */
@@ -384,7 +384,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	RCU_INIT_POINTER(sta->link[link_id], NULL);
  	RCU_INIT_POINTER(sta->sta.link[link_id], NULL);
-@@ -476,7 +502,7 @@
+@@ -476,7 +502,7 @@ void sta_info_free(struct ieee80211_loca
  		if (!link_sta)
  			continue;
  
@@ -393,7 +393,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	/*
-@@ -3009,8 +3035,9 @@
+@@ -3009,8 +3035,9 @@ static void sta_set_link_sinfo(struct st
  
  	if (!(link_sinfo->filled & BIT_ULL(NL80211_STA_INFO_TX_BITRATE)) &&
  	    ieee80211_rate_valid(&link_sta_info->tx_stats.last_rate)) {
@@ -405,7 +405,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		link_sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
  	}
  
-@@ -3443,7 +3470,7 @@
+@@ -3443,7 +3470,7 @@ void ieee80211_sta_free_link(struct sta_
  
  	WARN_ON(!test_sta_flag(sta, WLAN_STA_INSERTED));
  
@@ -414,7 +414,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  int ieee80211_sta_activate_link(struct sta_info *sta, unsigned int link_id)
-@@ -3484,7 +3511,7 @@
+@@ -3484,7 +3511,7 @@ int ieee80211_sta_activate_link(struct s
  				   old_links, new_links);
  	if (ret) {
  		sta->sta.valid_links = old_links;
@@ -423,7 +423,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -3494,20 +3521,60 @@
+@@ -3494,20 +3521,60 @@ hash:
  	return 0;
  }
  
@@ -487,7 +487,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static u8 ieee80211_sta_nss_capability(struct link_sta_info *link_sta)
 --- a/net/wireless/nl80211.c
 +++ b/net/wireless/nl80211.c
-@@ -8241,6 +8241,22 @@
+@@ -8241,6 +8241,22 @@ nla_put_failure:
  	return -EMSGSIZE;
  }
  
@@ -510,7 +510,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int nl80211_send_station(struct sk_buff *msg, u32 cmd, u32 portid,
  				u32 seq, int flags,
  				struct cfg80211_registered_device *rdev,
-@@ -8276,16 +8292,8 @@
+@@ -8276,16 +8292,8 @@ static int nl80211_send_station(struct s
  		    sinfo->assoc_resp_ies))
  		goto nla_put_failure;
  
@@ -529,7 +529,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	cfg80211_sinfo_release_content(sinfo);
  	genlmsg_end(msg, hdr);
-@@ -8302,6 +8310,7 @@
+@@ -8302,6 +8310,7 @@ static void cfg80211_sta_set_mld_sinfo(s
  	struct link_station_info *link_sinfo;
  	int link_id, init = 0;
  	u32 link_inactive_time;
@@ -537,7 +537,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	sinfo->signal = -99;
  
-@@ -8428,31 +8437,27 @@
+@@ -8428,31 +8437,27 @@ static void cfg80211_sta_set_mld_sinfo(s
  		/* Update MLO rates as per last updated link rate */
  		if ((link_sinfo->filled &
  		     BIT_ULL(NL80211_STA_INFO_TX_BITRATE)) &&
@@ -575,7 +575,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			sinfo->rx_duration += link_sinfo->rx_duration;
  			sinfo->filled |=
  				BIT_ULL(NL80211_STA_INFO_RX_DURATION);
-@@ -8683,6 +8688,8 @@
+@@ -8683,6 +8688,8 @@ static int nl80211_dump_station(struct s
  		switch (ctx->phase) {
  		case NL80211_DUMP_STA_PHASE_AGGREGATED:
  			ret = nl80211_put_sta_info_common(skb, rdev, &ctx->sinfo);

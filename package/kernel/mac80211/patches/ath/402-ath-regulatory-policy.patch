@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/Kconfig
 +++ b/drivers/net/wireless/ath/Kconfig
-@@ -24,6 +24,9 @@
+@@ -24,6 +24,9 @@ config WLAN_VENDOR_ATH
  
  if WLAN_VENDOR_ATH
  
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /*
   * This is a set of common rules used by our world regulatory domains.
-@@ -43,7 +44,8 @@
+@@ -43,7 +44,8 @@ static int __ath_regd_init(struct ath_re
  					 NL80211_RRF_NO_OFDM)
  
  /* We allow IBSS on these on a case by case basis by regulatory domain */
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					 NL80211_RRF_NO_IR)
  #define ATH_5GHZ_5470_5850	REG_RULE(5470-10, 5850+10, 80, 0, 30,\
  					 NL80211_RRF_NO_IR)
-@@ -61,64 +63,79 @@
+@@ -61,64 +63,79 @@ static int __ath_regd_init(struct ath_re
  #define ATH_5GHZ_NO_MIDBAND	ATH_5GHZ_5150_5350, \
  				ATH_5GHZ_5725_5850
  
@@ -141,7 +141,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	switch (reg->country_code) {
  	case CTRY_UNITED_STATES:
  	case CTRY_JAPAN1:
-@@ -188,6 +205,8 @@
+@@ -188,6 +205,8 @@ static bool dynamic_country_user_possibl
  
  static bool ath_reg_dyn_country_user_allow(struct ath_regulatory *reg)
  {
@@ -150,7 +150,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!IS_ENABLED(CPTCFG_ATH_REG_DYNAMIC_USER_REG_HINTS))
  		return false;
  	if (!dynamic_country_user_possible(reg))
-@@ -202,11 +221,6 @@
+@@ -202,11 +221,6 @@ static inline bool is_wwr_sku(u16 regd)
  		(regd == WORLD));
  }
  
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  bool ath_is_world_regd(struct ath_regulatory *reg)
  {
  	return is_wwr_sku(ath_regd_get_eepromRD(reg));
-@@ -345,6 +359,9 @@
+@@ -345,6 +359,9 @@ ath_reg_apply_beaconing_flags(struct wip
  	struct ieee80211_channel *ch;
  	unsigned int i;
  
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (band = 0; band < NUM_NL80211_BANDS; band++) {
  		if (!wiphy->bands[band])
  			continue;
-@@ -379,6 +396,9 @@
+@@ -379,6 +396,9 @@ ath_reg_apply_ir_flags(struct wiphy *wip
  {
  	struct ieee80211_supported_band *sband;
  
@@ -182,7 +182,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sband = wiphy->bands[NL80211_BAND_2GHZ];
  	if (!sband)
  		return;
-@@ -408,6 +428,9 @@
+@@ -408,6 +428,9 @@ static void ath_reg_apply_radar_flags(st
  	struct ieee80211_channel *ch;
  	unsigned int i;
  
@@ -192,7 +192,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!wiphy->bands[NL80211_BAND_5GHZ])
  		return;
  
-@@ -640,6 +663,13 @@
+@@ -640,6 +663,13 @@ ath_regd_init_wiphy(struct ath_regulator
  	const struct ieee80211_regdomain *regd;
  
  	wiphy->reg_notifier = reg_notifier;
@@ -208,7 +208,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/regd_common.h
 +++ b/drivers/net/wireless/ath/regd_common.h
-@@ -32,6 +32,7 @@
+@@ -32,6 +32,7 @@ enum EnumRd {
  	FCC2_WORLD = 0x21,
  	FCC2_ETSIC = 0x22,
  	FCC6_WORLD = 0x23,
@@ -216,7 +216,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	FRANCE_RES = 0x31,
  	FCC3_FCCA = 0x3A,
  	FCC3_WORLD = 0x3B,
-@@ -173,6 +174,7 @@
+@@ -173,6 +174,7 @@ static struct reg_dmn_pair_mapping regDo
  	{FCC2_WORLD, CTL_FCC, CTL_ETSI},
  	{FCC2_ETSIC, CTL_FCC, CTL_ETSI},
  	{FCC3_FCCA, CTL_FCC, CTL_FCC},
@@ -224,7 +224,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	{FCC3_WORLD, CTL_FCC, CTL_ETSI},
  	{FCC3_ETSIC, CTL_FCC, CTL_ETSI},
  	{FCC4_FCCA, CTL_FCC, CTL_FCC},
-@@ -486,6 +488,7 @@
+@@ -486,6 +488,7 @@ static struct country_code_to_enum_rd al
  	{CTRY_UAE, NULL1_WORLD, "AE"},
  	{CTRY_UNITED_KINGDOM, ETSI1_WORLD, "GB"},
  	{CTRY_UNITED_STATES, FCC3_FCCA, "US"},
@@ -234,7 +234,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* This "PS" is for US public safety actually... to support this we
 --- a/local-symbols
 +++ b/local-symbols
-@@ -93,6 +93,7 @@
+@@ -93,6 +93,7 @@ ADM8211=
  ATH_COMMON=
  WLAN_VENDOR_ATH=
  ATH_DEBUG=
@@ -244,7 +244,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ATH_REG_DYNAMIC_USER_CERT_TESTING=
 --- a/net/wireless/reg.c
 +++ b/net/wireless/reg.c
-@@ -3352,6 +3352,8 @@
+@@ -3352,6 +3352,8 @@ void regulatory_hint_country_ie(struct w
  	enum environment_cap env = ENVIRON_ANY;
  	struct regulatory_request *request = NULL, *lr;
  
@@ -253,7 +253,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* IE len must be evenly divisible by 2 */
  	if (country_ie_len & 0x01)
  		return;
-@@ -3601,6 +3603,7 @@
+@@ -3601,6 +3603,7 @@ static bool is_wiphy_all_set_reg_flag(en
  
  void regulatory_hint_disconnect(void)
  {

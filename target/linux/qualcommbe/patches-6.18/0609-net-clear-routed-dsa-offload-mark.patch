@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -343,6 +343,24 @@
+@@ -343,6 +343,24 @@ struct nf_flow_xmit {
  	struct net_device	*outdev;
  };
  
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static unsigned int nf_flow_queue_xmit(struct net *net, struct sk_buff *skb,
  				       struct nf_flow_xmit *xmit)
  {
-@@ -355,6 +373,8 @@
+@@ -355,6 +373,8 @@ static unsigned int nf_flow_queue_xmit(s
  			return NF_STOLEN;
  	}
  
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	skb->dev = dev;
  	dev_hard_header(skb, dev, ntohs(skb->protocol),
  			xmit->dest, xmit->source, skb->len);
-@@ -537,6 +557,8 @@
+@@ -537,6 +557,8 @@ nf_flow_offload_ip_hook(void *priv, stru
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rtable(tuplehash->tuple.dst_cache);
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		memset(skb->cb, 0, sizeof(struct inet_skb_parm));
  		IPCB(skb)->iif = skb->dev->ifindex;
  		IPCB(skb)->flags = IPSKB_FORWARDED;
-@@ -858,6 +880,8 @@
+@@ -858,6 +880,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rt6_info(tuplehash->tuple.dst_cache);

@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -37,6 +37,9 @@
+@@ -37,6 +37,9 @@ static const struct of_device_id ath11k_
  	{ .compatible = "qcom,ipq5018-wifi",
  	  .data = (void *)ATH11K_HW_IPQ5018_HW10,
  	},
@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	{ }
  };
  
-@@ -435,6 +438,7 @@
+@@ -435,6 +438,7 @@ static void ath11k_ahb_init_qmi_ce_confi
  	cfg->svc_to_ce_map_len = ab->hw_params.svc_to_ce_map_len;
  	cfg->svc_to_ce_map = ab->hw_params.svc_to_ce_map;
  	ab->qmi.service_ins_id = ab->hw_params.qmi_service_ins_id;
@@ -62,7 +62,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void ath11k_ahb_free_ext_irq(struct ath11k_base *ab)
-@@ -768,6 +772,18 @@
+@@ -768,6 +772,18 @@ static int ath11k_ahb_hif_resume(struct
  	return 0;
  }
  
@@ -81,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct ath11k_hif_ops ath11k_ahb_hif_ops_ipq8074 = {
  	.start = ath11k_ahb_start,
  	.stop = ath11k_ahb_stop,
-@@ -800,6 +816,24 @@
+@@ -800,6 +816,24 @@ static const struct ath11k_hif_ops ath11
  	.ce_irq_disable = ath11k_pci_disable_ce_irqs_except_wake_irq,
  };
  
@@ -106,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath11k_core_get_rproc(struct ath11k_base *ab)
  {
  	struct ath11k_ahb *ab_ahb = ath11k_ahb_priv(ab);
-@@ -1076,6 +1110,27 @@
+@@ -1076,6 +1110,27 @@ err_unregister:
  	return ret;
  }
  
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath11k_ahb_fw_resource_deinit(struct ath11k_base *ab)
  {
  	struct ath11k_ahb *ab_ahb = ath11k_ahb_priv(ab);
-@@ -1117,7 +1172,7 @@
+@@ -1117,7 +1172,7 @@ static int ath11k_ahb_probe(struct platf
  	const struct ath11k_hif_ops *hif_ops;
  	const struct ath11k_pci_ops *pci_ops;
  	enum ath11k_hw_rev hw_rev;
@@ -143,7 +143,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	hw_rev = (uintptr_t)device_get_match_data(&pdev->dev);
  
-@@ -1132,11 +1187,16 @@
+@@ -1132,11 +1187,16 @@ static int ath11k_ahb_probe(struct platf
  		hif_ops = &ath11k_ahb_hif_ops_wcn6750;
  		pci_ops = &ath11k_ahb_pci_ops_wcn6750;
  		break;
@@ -160,7 +160,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
  	if (ret) {
  		dev_err(&pdev->dev, "failed to set 32-bit consistent dma\n");
-@@ -1153,6 +1213,7 @@
+@@ -1153,6 +1213,7 @@ static int ath11k_ahb_probe(struct platf
  	ab->hif.ops = hif_ops;
  	ab->pdev = pdev;
  	ab->hw_rev = hw_rev;
@@ -170,7 +170,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -926,6 +926,68 @@
+@@ -926,6 +926,68 @@ static const struct ath11k_hw_params ath
  		.cfr_num_stream_bufs = 255,
  		.cfr_stream_buf_size = 8200,
  	},
@@ -251,7 +251,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* SMBIOS type containing Board Data File Name Extension */
  #define ATH11K_SMBIOS_BDF_EXT_TYPE 0xF8
  
-@@ -153,6 +156,7 @@
+@@ -153,6 +156,7 @@ enum ath11k_hw_rev {
  	ATH11K_HW_IPQ5018_HW10,
  	ATH11K_HW_QCA2066_HW21,
  	ATH11K_HW_QCA6698AQ_HW21,
@@ -259,7 +259,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  enum ath11k_firmware_mode {
-@@ -986,6 +990,7 @@
+@@ -986,6 +990,7 @@ struct ath11k_base {
  	struct list_head peers;
  	wait_queue_head_t peer_mapping_wq;
  	u8 mac_addr[ETH_ALEN];
@@ -269,7 +269,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ath11k_targ_cap target_caps;
 --- a/drivers/net/wireless/ath/ath11k/hif.h
 +++ b/drivers/net/wireless/ath/ath11k/hif.h
-@@ -32,6 +32,7 @@
+@@ -32,6 +32,7 @@ struct ath11k_hif_ops {
  	void (*ce_irq_disable)(struct ath11k_base *ab);
  	void (*get_ce_msi_idx)(struct ath11k_base *ab, u32 ce_id, u32 *msi_idx);
  	void (*coredump_download)(struct ath11k_base *ab);
@@ -277,7 +277,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  static inline void ath11k_hif_ce_irq_enable(struct ath11k_base *ab)
-@@ -159,4 +160,12 @@
+@@ -159,4 +160,12 @@ static inline void ath11k_hif_coredump_d
  		ab->hif.ops->coredump_download(ab);
  }
  
@@ -292,7 +292,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* _HIF_H_ */
 --- a/drivers/net/wireless/ath/ath11k/hw.c
 +++ b/drivers/net/wireless/ath/ath11k/hw.c
-@@ -2070,6 +2070,43 @@
+@@ -2070,6 +2070,43 @@ const struct ath11k_hw_ring_mask ath11k_
  	},
  };
  
@@ -336,7 +336,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Target firmware's Copy Engine configuration for IPQ5018 */
  const struct ce_pipe_config ath11k_target_ce_config_wlan_ipq5018[] = {
  	/* CE0: host->target HTC control and raw streams */
-@@ -2836,6 +2873,81 @@
+@@ -2836,6 +2873,81 @@ const struct ath11k_hw_hal_params ath11k
  	.num_tx_rings = ARRAY_SIZE(ath11k_hw_tcl2wbm_rbm_map_ipq5018),
  };
  
@@ -420,7 +420,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.tcl2wbm_rbm_map = ath11k_hw_tcl2wbm_rbm_map_ipq8074,
 --- a/drivers/net/wireless/ath/ath11k/hw.h
 +++ b/drivers/net/wireless/ath/ath11k/hw.h
-@@ -293,6 +293,7 @@
+@@ -293,6 +293,7 @@ extern const struct ath11k_hw_ring_mask
  extern const struct ath11k_hw_ring_mask ath11k_hw_ring_mask_qca6390;
  extern const struct ath11k_hw_ring_mask ath11k_hw_ring_mask_qcn9074;
  extern const struct ath11k_hw_ring_mask ath11k_hw_ring_mask_wcn6750;
@@ -428,7 +428,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  extern const struct ce_ie_addr ath11k_ce_ie_addr_ipq8074;
  extern const struct ce_ie_addr ath11k_ce_ie_addr_ipq5018;
-@@ -430,6 +431,7 @@
+@@ -430,6 +431,7 @@ extern const struct ath11k_hw_regs qcn90
  extern const struct ath11k_hw_regs wcn6855_regs;
  extern const struct ath11k_hw_regs wcn6750_regs;
  extern const struct ath11k_hw_regs ipq5018_regs;
@@ -438,7 +438,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/drivers/net/wireless/ath/ath11k/pci.c
 +++ b/drivers/net/wireless/ath/ath11k/pci.c
-@@ -413,6 +413,8 @@
+@@ -413,6 +413,8 @@ static void ath11k_pci_init_qmi_ce_confi
  	} else
  		ab->qmi.service_ins_id = ab->hw_params.qmi_service_ins_id;
  
@@ -449,7 +449,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath11k/pcic.c
 +++ b/drivers/net/wireless/ath/ath11k/pcic.c
-@@ -138,6 +138,15 @@
+@@ -138,6 +138,15 @@ static const struct ath11k_msi_config at
  		},
  		.hw_rev = ATH11K_HW_QCA6698AQ_HW21,
  	},
@@ -467,7 +467,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ath11k_pcic_init_msi_config(struct ath11k_base *ab)
 --- a/drivers/net/wireless/ath/ath11k/qmi.c
 +++ b/drivers/net/wireless/ath/ath11k/qmi.c
-@@ -2193,6 +2193,8 @@
+@@ -2193,6 +2193,8 @@ static int ath11k_qmi_request_device_inf
  	if (!ab->hw_params.ce_remap)
  		ab->mem_ce = ab->mem;
  

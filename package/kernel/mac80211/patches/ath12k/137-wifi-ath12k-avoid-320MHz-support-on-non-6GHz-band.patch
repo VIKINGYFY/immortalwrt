@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  1 file changed, 16 insertions(+), 1 deletion(-)
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -5177,6 +5177,7 @@
+@@ -5177,6 +5177,7 @@ static void ath12k_wmi_eht_caps_parse(st
  				       __le32 cap_info_internal)
  {
  	struct ath12k_band_cap *cap_band = &pdev->cap.band[band];
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 support_320mhz;
  	u8 i;
  
-@@ -5190,8 +5191,22 @@
+@@ -5190,8 +5191,22 @@ static void ath12k_wmi_eht_caps_parse(st
  	for (i = 0; i < WMI_MAX_EHTCAP_PHY_SIZE; i++)
  		cap_band->eht_cap_phy_info[i] = le32_to_cpu(cap_phy_info[i]);
  

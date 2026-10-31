@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "ppe_regs.h"
  
  /* Number of netdev queues. */
-@@ -168,13 +169,28 @@
+@@ -168,13 +169,28 @@ static int edma_port_ioctl(struct net_de
  static int edma_port_change_mtu(struct net_device *netdev, int mtu)
  {
  	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static netdev_features_t edma_port_feature_check(__maybe_unused struct sk_buff *skb,
-@@ -299,9 +315,18 @@
+@@ -299,9 +315,18 @@ static int edma_port_set_mac_address(str
  	if (ret)
  		return ret;
  
@@ -97,7 +97,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	eth_commit_mac_addr_change(netdev, addr);
-@@ -362,10 +387,20 @@
+@@ -362,10 +387,20 @@ void edma_port_destroy(struct ppe_port *
  {
  	int port_id = port->port_id;
  	struct net_device *netdev = edma_ctx->netdev_arr[port_id - 1];
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	free_netdev(netdev);
  	ppe_port_phylink_destroy(port);
  	edma_ctx->netdev_arr[port_id - 1] = NULL;
-@@ -438,10 +473,29 @@
+@@ -438,10 +473,29 @@ int edma_port_setup(struct ppe_port *por
  			    port_id, netdev->dev_addr);
  	}
  
@@ -149,7 +149,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	/* We expect 'port_id' to correspond to ports numbers on SoC.
-@@ -475,7 +529,10 @@
+@@ -475,7 +529,10 @@ port_phylink_setup_fail:
  	edma_port_deconfigure(netdev);
  	edma_ctx->netdev_arr[port_id - 1] = NULL;
  	edma_port_stats_free(netdev);
@@ -171,7 +171,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "ppe_port.h"
  
  #define PPE_PORT_MAX		8
-@@ -245,6 +246,10 @@
+@@ -245,6 +246,10 @@ static int qcom_ppe_probe(struct platfor
  	if (ret)
  		return dev_err_probe(dev, ret, "PPE HW config failed\n");
  
@@ -184,7 +184,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return dev_err_probe(dev, ret, "EDMA setup failed\n");
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -60,6 +60,8 @@
+@@ -60,6 +60,8 @@ struct ppe_variant {
   * @bridge: PPE bridge offload private data.
   * @fdb_lock: Lock to serialize the hardware FDB operation registers.
   * @fdb_cmd_id: Rolling command ID of the last issued FDB operation.
@@ -193,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @num_icc_paths: Number of interconnect paths.
   * @icc_paths: Interconnect path array.
   *
-@@ -79,6 +81,9 @@
+@@ -79,6 +81,9 @@ struct ppe_device {
  	/* Serialize indirect FDB table operations. */
  	struct mutex fdb_lock;
  	u8 fdb_cmd_id;
@@ -802,7 +802,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#endif
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -561,6 +561,7 @@
+@@ -561,6 +561,7 @@ int ppe_port_set_mac_address(struct ppe_
  {
  	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
  	int port = ppe_port->port_id;
@@ -810,7 +810,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 reg, val;
  	int ret;
  
-@@ -584,7 +585,53 @@
+@@ -584,7 +585,53 @@ int ppe_port_set_mac_address(struct ppe_
  		return ret;
  
  	val = (addr[3] << 24) | (addr[2] << 16) | (addr[1] << 8) | addr[0];
@@ -867,7 +867,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-@@ -95,5 +95,6 @@
+@@ -95,5 +95,6 @@ void ppe_port_get_ethtool_stats(struct p
  void ppe_port_get_stats64(struct ppe_port *ppe_port,
  			  struct rtnl_link_stats64 *s);
  int ppe_port_set_mac_address(struct ppe_port *ppe_port, const u8 *addr);

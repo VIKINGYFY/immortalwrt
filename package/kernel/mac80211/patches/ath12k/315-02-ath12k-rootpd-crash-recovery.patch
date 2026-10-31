@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -357,6 +357,7 @@
+@@ -357,6 +357,7 @@ static int ath12k_ahb_power_up(struct at
  	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
  	char fw_name[ATH12K_USERPD_FW_NAME_LEN];
  	char fw2_name[ATH12K_USERPD_FW_NAME_LEN];
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct device *dev = ab->dev;
  	const struct firmware *fw, *fw2;
  	struct reserved_mem *rmem = NULL;
-@@ -453,6 +454,9 @@
+@@ -453,6 +454,9 @@ static int ath12k_ahb_power_up(struct at
  		}
  	}
  
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Instruct Q6 to spawn userPD thread */
  	ret = qcom_smem_state_update_bits(ab_ahb->spawn_state, BIT(ab_ahb->spawn_bit),
  					  BIT(ab_ahb->spawn_bit));
-@@ -460,6 +464,7 @@
+@@ -460,6 +464,7 @@ static int ath12k_ahb_power_up(struct at
  		ath12k_err(ab, "Failed to update spawn state %d\n", ret);
  		goto err_fw2;
  	}
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	time_left = wait_for_completion_timeout(&ab_ahb->userpd_spawned,
  						ATH12K_USERPD_SPAWN_TIMEOUT);
-@@ -477,11 +482,13 @@
+@@ -477,11 +482,13 @@ static int ath12k_ahb_power_up(struct at
  		goto err_fw2;
  	}
  
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	release_firmware(fw2);
  err_fw:
  	release_firmware(fw);
-@@ -495,6 +502,10 @@
+@@ -495,6 +502,10 @@ static void ath12k_ahb_power_down(struct
  	u32 pasid;
  	int ret;
  
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	qcom_smem_state_update_bits(ab_ahb->stop_state, BIT(ab_ahb->stop_bit),
  				    BIT(ab_ahb->stop_bit));
  
-@@ -809,18 +820,85 @@
+@@ -809,18 +820,85 @@ static int ath12k_ahb_config_rproc_irq(s
  	return 0;
  }
  
@@ -173,7 +173,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath12k_ahb_register_rproc_notifier(struct ath12k_base *ab)
 --- a/drivers/net/wireless/ath/ath12k/ahb.h
 +++ b/drivers/net/wireless/ath/ath12k/ahb.h
-@@ -69,6 +69,7 @@
+@@ -69,6 +69,7 @@ struct ath12k_ahb {
  	const struct ath12k_ahb_ops *ahb_ops;
  	const struct ath12k_ahb_device_family_ops *device_family_ops;
  	bool scm_auth_enabled;

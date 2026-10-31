@@ -258,7 +258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
 --- a/drivers/remoteproc/Kconfig
 +++ b/drivers/remoteproc/Kconfig
-@@ -254,6 +254,25 @@
+@@ -254,6 +254,25 @@ config QCOM_Q6V5_WCSS
  	  Hexagon V5 based WCSS remote processors on e.g. IPQ8074.  This is
  	  a non-TrustZone wireless subsystem.
  
@@ -286,7 +286,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	depends on RPMSG
 --- a/drivers/remoteproc/Makefile
 +++ b/drivers/remoteproc/Makefile
-@@ -28,6 +28,7 @@
+@@ -28,6 +28,7 @@ obj-$(CONFIG_QCOM_Q6V5_ADSP)		+= qcom_q6
  obj-$(CONFIG_QCOM_Q6V5_MSS)		+= qcom_q6v5_mss.o
  obj-$(CONFIG_QCOM_Q6V5_PAS)		+= qcom_q6v5_pas.o
  obj-$(CONFIG_QCOM_Q6V5_WCSS)		+= qcom_q6v5_wcss.o
@@ -705,7 +705,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +MODULE_LICENSE("GPL");
 --- a/include/linux/remoteproc.h
 +++ b/include/linux/remoteproc.h
-@@ -204,6 +204,7 @@
+@@ -204,6 +204,7 @@ enum rproc_dump_mechanism {
   * @node:	list node related to the rproc segment list
   * @da:		device address of the segment
   * @size:	size of the segment
@@ -713,7 +713,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @priv:	private data associated with the dump_segment
   * @dump:	custom dump function to fill device memory segment associated
   *		with coredump
-@@ -215,6 +216,7 @@
+@@ -215,6 +216,7 @@ struct rproc_dump_segment {
  	dma_addr_t da;
  	size_t size;
  

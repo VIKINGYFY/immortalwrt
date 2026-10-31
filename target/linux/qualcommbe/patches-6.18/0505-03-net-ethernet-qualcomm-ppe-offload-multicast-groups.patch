@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -75,6 +75,8 @@
+@@ -75,6 +75,8 @@ struct ppe_bridge_vsi {
   * bound to a VSI, the ingress translation rules assign one per VLAN.
   * @pvid: PVID of the port on a VLAN-aware bridge, 0 when none.
   * @flags: Offloaded bridge port flags of the port.
@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  struct ppe_bridge_port {
  	struct net_device *bridge;
-@@ -82,6 +84,7 @@
+@@ -82,6 +84,7 @@ struct ppe_bridge_port {
  	int vsi;
  	u16 pvid;
  	unsigned long flags;
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /* The bridge port flags the offload supports, matching the defaults of
-@@ -103,6 +106,7 @@
+@@ -103,6 +106,7 @@ struct ppe_bridge_port {
   * @fdb_ht: Shadow of the dynamic hardware FDB entries reported to the
   * bridge, to tell new and aged-out entries apart while walking the
   * hardware table.
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @xlt_used: Allocation bitmap of the ingress VLAN translation rules.
   * @shutdown: Tear-down in progress, stops the FDB synchronization from
   * rescheduling itself.
-@@ -122,6 +126,7 @@
+@@ -122,6 +126,7 @@ struct ppe_bridge {
  	struct workqueue_struct *fdb_wq;
  	struct delayed_work fdb_sync;
  	DECLARE_HASHTABLE(fdb_ht, 8);
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	DECLARE_BITMAP(xlt_used, PPE_XLT_RULE_TBL_ENTRIES);
  	bool shutdown;
  	struct ppe_bridge_vsi vsis[PPE_VSI_TBL_ENTRIES];
-@@ -255,6 +260,12 @@
+@@ -255,6 +260,12 @@ static int ppe_bridge_vsi_hw_update(stru
  
  		if (pb->ports[i].flags & BR_FLOOD)
  			uuc |= BIT(i);
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (pb->ports[i].flags & BR_MCAST_FLOOD)
  			umc |= BIT(i);
  		if (pb->ports[i].flags & BR_BCAST_FLOOD)
-@@ -441,6 +452,107 @@
+@@ -441,6 +452,107 @@ static void ppe_bridge_fdb_shadow_purge(
  	}
  }
  
@@ -166,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Release a VSI which lost its last member port: drop its translation
   * rules, park it back to the CPU-only state the PPE core initialized,
   * and flush its FDB entries, including the CPU-directed entries which
-@@ -471,7 +583,10 @@
+@@ -471,7 +583,10 @@ static int ppe_bridge_vsi_release(struct
  	ret = ppe_fdb_vsi_flush(pb->ppe_dev, vsi);
  	if (ret && !err)
  		err = ret;
@@ -178,7 +178,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (err) {
  		v->poisoned = true;
-@@ -667,6 +782,7 @@
+@@ -667,6 +782,7 @@ static int ppe_bridge_port_join(struct p
  	pb->ports[port].vsi = vsi;
  	pb->ports[port].pvid = 0;
  	pb->ports[port].flags = PPE_BRIDGE_SUPPORTED_FLAGS;
@@ -186,7 +186,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!vlan_aware) {
  		pb->vsis[vsi].members |= BIT(port);
-@@ -727,6 +843,7 @@
+@@ -727,6 +843,7 @@ err_state:
  	pb->ports[port].dev = NULL;
  	pb->ports[port].vsi = -1;
  	pb->ports[port].flags = 0;
@@ -194,7 +194,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return ret;
  }
-@@ -771,6 +888,7 @@
+@@ -771,6 +888,7 @@ static void ppe_bridge_port_leave(struct
  	pb->ports[port].dev = NULL;
  	pb->ports[port].vsi = -1;
  	pb->ports[port].flags = 0;
@@ -202,7 +202,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* The bridge leaves the port in the disabled spanning tree
  	 * state, restore the forwarding of the now standalone port.
-@@ -955,6 +1073,96 @@
+@@ -955,6 +1073,96 @@ static int ppe_bridge_port_vlan_del(stru
  	return err;
  }
  
@@ -299,7 +299,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_bridge_stp_state_set(struct ppe_bridge *pb,
  				    struct net_device *dev, u8 state)
  {
-@@ -1059,6 +1267,59 @@
+@@ -1059,6 +1267,59 @@ static int ppe_bridge_ageing_time_set(st
  	return 0;
  }
  
@@ -359,7 +359,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_bridge_attr_set(struct net_device *dev, const void *ctx,
  			       const struct switchdev_attr *attr,
  			       struct netlink_ext_ack *extack)
-@@ -1079,6 +1340,11 @@
+@@ -1079,6 +1340,11 @@ static int ppe_bridge_attr_set(struct ne
  		return 0;
  	case SWITCHDEV_ATTR_ID_PORT_BRIDGE_FLAGS:
  		return ppe_bridge_flags_set(pb, dev, attr->u.brport_flags);
@@ -371,7 +371,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case SWITCHDEV_ATTR_ID_BRIDGE_AGEING_TIME:
  		return ppe_bridge_ageing_time_set(pb, dev,
  						  attr->u.ageing_time);
-@@ -1283,7 +1549,9 @@
+@@ -1283,7 +1549,9 @@ static int ppe_bridge_obj_add(struct net
  	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
  
  	/* VLANs of the bridge device itself terminate at the CPU port,
@@ -382,7 +382,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 */
  	if (netif_is_bridge_master(obj->orig_dev))
  		return 0;
-@@ -1293,6 +1561,9 @@
+@@ -1293,6 +1561,9 @@ static int ppe_bridge_obj_add(struct net
  		return ppe_bridge_port_vlan_add(pb, dev,
  						SWITCHDEV_OBJ_PORT_VLAN(obj),
  						extack);
@@ -392,7 +392,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -1311,6 +1582,9 @@
+@@ -1311,6 +1582,9 @@ static int ppe_bridge_obj_del(struct net
  	case SWITCHDEV_OBJ_ID_PORT_VLAN:
  		return ppe_bridge_port_vlan_del(pb, dev,
  						SWITCHDEV_OBJ_PORT_VLAN(obj));
@@ -402,7 +402,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -1379,6 +1653,7 @@
+@@ -1379,6 +1653,7 @@ int ppe_bridge_setup(struct ppe_device *
  		pb->ports[i].vsi = -1;
  
  	hash_init(pb->fdb_ht);
@@ -410,7 +410,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	INIT_DELAYED_WORK(&pb->fdb_sync, ppe_bridge_fdb_sync_work);
  
  	pb->fdb_wq = alloc_ordered_workqueue("ppe_bridge_fdb", 0);
-@@ -1457,6 +1732,8 @@
+@@ -1457,6 +1732,8 @@ void ppe_bridge_destroy(struct ppe_devic
  		kfree(fdb);
  	}
  
@@ -421,7 +421,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_dev->bridge = NULL;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1855,9 +1855,16 @@
+@@ -1855,9 +1855,16 @@ static void ppe_fdb_entry_pack(const str
  {
  	u32 dst_info;
  
@@ -441,7 +441,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	val[0] = (u32)entry->addr[2] << 24 | entry->addr[3] << 16 |
  		 entry->addr[4] << 8 | entry->addr[5];
-@@ -1904,10 +1911,14 @@
+@@ -1904,10 +1911,14 @@ static void ppe_fdb_entry_unpack(const u
  	dst_info |= FIELD_PREP(PPE_FDB_DST_INFO_HI,
  			       FIELD_GET(PPE_FDB_W2_DST_INFO_HI, val[2]));
  	if (FIELD_GET(PPE_FDB_DST_INFO_TYPE, dst_info) ==
@@ -460,7 +460,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	entry->is_static = entry->age == PPE_FDB_HIT_AGE_STATIC;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -311,7 +311,11 @@
+@@ -311,7 +311,11 @@ enum ppe_stp_state {
   * struct ppe_fdb_entry - PPE hardware FDB entry.
   * @addr: MAC address.
   * @vsi: VSI (bridge domain) the MAC address belongs to.
@@ -473,7 +473,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @is_static: Entry is excluded from hardware aging.
   * @age: Age value of a dynamic entry (PPE_FDB_HIT_AGE_*).
   */
-@@ -319,6 +323,7 @@
+@@ -319,6 +323,7 @@ struct ppe_fdb_entry {
  	u8 addr[ETH_ALEN];
  	u8 vsi;
  	u8 port;

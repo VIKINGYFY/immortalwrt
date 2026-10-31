@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "edma_port.h"
  #include "edma_cfg_tx.h"
  #include "edma_cfg_rx.h"
-@@ -358,6 +359,15 @@
+@@ -358,6 +359,15 @@ static irqreturn_t edma_misc_handle_irq(
  	regmap_read(regmap, reg, &data);
  	misc_intr_status = data & edma_ctx->intr_info.intr_mask_misc;
  
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "ppe_flow.h"
  #include "ppe_tunnel.h"
  #include "ppe_flowtable.h"
-@@ -300,6 +301,9 @@
+@@ -300,6 +301,9 @@ static int qcom_ppe_probe(struct platfor
  	}
  
  	ppe_debugfs_setup(ppe_dev);
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	platform_set_drvdata(pdev, ppe_dev);
  
  	return 0;
-@@ -325,6 +329,7 @@
+@@ -325,6 +329,7 @@ static void qcom_ppe_remove(struct platf
  	ppe_vp_teardown(ppe_dev);
  	ppe_bridge_destroy(ppe_dev);
  	ppe_debugfs_teardown(ppe_dev);
@@ -130,7 +130,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	edma_destroy(ppe_dev);
  }
  
-@@ -363,6 +368,8 @@
+@@ -363,6 +368,8 @@ static struct platform_driver qcom_ppe_d
  	.driver = {
  		.name = "qcom_ppe",
  		.of_match_table = qcom_ppe_of_match,
@@ -1264,7 +1264,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define EDMA_RX_RING_ID_QUEUE2_MASK	GENMASK(23, 16)
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
-@@ -1080,6 +1080,42 @@
+@@ -1080,6 +1080,42 @@ void ppe_vp_put(struct ppe_device *ppe_d
  	mutex_unlock(&vpt->lock);
  }
  
@@ -1309,7 +1309,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @ppe_dev: PPE device
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
-@@ -63,6 +63,7 @@
+@@ -63,6 +63,7 @@ int ppe_vp_get_qca4b(struct ppe_device *
  		     int priority, bool need_hook);
  int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port);
  void ppe_vp_put(struct ppe_device *ppe_dev, int vp);

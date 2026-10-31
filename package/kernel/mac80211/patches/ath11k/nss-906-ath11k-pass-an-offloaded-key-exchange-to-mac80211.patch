@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -2726,17 +2726,27 @@
+@@ -2726,17 +2726,27 @@ void ath11k_dp_rx_from_nss(struct ath11k
  /* The NSS firmware hands up a frame the hardware did not decapsulate, such
   * as a block ack request, on the same path as ethernet. It goes to mac80211
   * as on the host's own receive path.
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -11031,6 +11031,18 @@
+@@ -11031,6 +11031,18 @@ static int __ath11k_mac_register(struct
  	    ab->hw_params.bios_sar_capa)
  		ar->hw->wiphy->sar_capa = ab->hw_params.bios_sar_capa;
  

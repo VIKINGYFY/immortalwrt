@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -546,14 +546,13 @@
+@@ -546,14 +546,13 @@ rollback:
  int ppe_vsi_l3_if_set(struct ppe_device *ppe_dev, int vsi, int l3_if)
  {
  	u32 reg = PPE_L3_VSI_ADDR + PPE_L3_VSI_INC * vsi;
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -569,13 +568,20 @@
+@@ -569,13 +568,20 @@ int ppe_port_l3_if_set(struct ppe_device
  	u32 reg = PPE_L3_VP_PORT_TBL_ADDR + PPE_L3_VP_PORT_TBL_INC * port;
  	u32 mask = PPE_L3_VP_PORT_W0_L3_IF_VALID |
  		   PPE_L3_VP_PORT_W0_L3_IF_INDEX;
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/etherdevice.h>
  #include <linux/hashtable.h>
  #include <linux/if_arp.h>
-@@ -160,6 +161,8 @@
+@@ -160,6 +161,8 @@ static_assert(offsetof(struct ppe_ft_vla
   * @pppoe: PPPoE session slot held by the flow, negative when none.
   * @vlan: VLAN uplink slot held by the flow, negative when none.
   * @eport: Egress PPE port of the flow.
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @packets: Hit packet count at the last stats read.
   * @bytes: Hit byte count at the last stats read.
   */
-@@ -181,6 +184,8 @@
+@@ -181,6 +184,8 @@ struct ppe_ft_flow {
  	int ivp;
  	struct ppe_vp_flow vp_flow;
  	u8 eport;
@@ -96,7 +96,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 packets;
  	u64 bytes;
  };
-@@ -1780,6 +1785,42 @@
+@@ -1780,6 +1785,42 @@ static void ppe_ft_flow_quarantine(struc
  	list_add_tail(&flow->zombie_node, &ft->zombies);
  }
  
@@ -139,7 +139,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
  			       struct flow_cls_offload *f)
  {
-@@ -2149,6 +2190,7 @@
+@@ -2149,6 +2190,7 @@ static int ppe_ft_flow_replace(struct pp
  	}
  	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
  	if (!tunnel_encap && !edma_port_dev_check(odev) &&
@@ -147,7 +147,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    (!ft->ppe_dev->variant->has_vports ||
  	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
  		ret = -EOPNOTSUPP;
-@@ -2171,6 +2213,7 @@
+@@ -2171,6 +2213,7 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	if (data.ingress_ifindex) {
  		struct net_device *idev;
@@ -155,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct net_device *master;
  		int vp_ret = 0;
  
-@@ -2195,6 +2238,29 @@
+@@ -2195,6 +2238,29 @@ static int ppe_ft_flow_replace(struct pp
  			struct edma_port_priv *ipriv = netdev_priv(idev);
  
  			iport = ipriv->ppe_port->port_id;
@@ -185,7 +185,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
  			reject_reason = PPE_FT_REJECT_INGRESS_VP;
-@@ -2203,6 +2269,7 @@
+@@ -2203,6 +2269,7 @@ static int ppe_ft_flow_replace(struct pp
  			if (vp_ret >= 0)
  				flow->ivp = vp_ret;
  		}
@@ -193,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		dev_put(idev);
  
  		if (vp_ret < 0) {
-@@ -2222,6 +2289,30 @@
+@@ -2222,6 +2289,30 @@ static int ppe_ft_flow_replace(struct pp
  			port_priv = netdev_priv(odev);
  			nh.port = port_priv->ppe_port->port_id;
  			nh.l3_if = nh.port;
@@ -224,7 +224,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		} else {
  			ret = ppe_vp_get(ft->ppe_dev, odev,
  					 f->common.prio);
-@@ -2558,6 +2649,8 @@
+@@ -2558,6 +2649,8 @@ err_prelock_ivp:
  err_free:
  	if (ret)
  		atomic_long_inc(&ft->rejects[reject_reason]);
@@ -233,7 +233,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	kfree_rcu(flow, rcu);
  
  	return ret;
-@@ -2590,6 +2683,8 @@
+@@ -2590,6 +2683,8 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_tunnel_put(ft, flow->tunnel);
  		ppe_vp_put(ft->ppe_dev, flow->vp);
  		ppe_vp_put(ft->ppe_dev, flow->ivp);
@@ -242,7 +242,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2656,6 +2751,13 @@
+@@ -2656,6 +2751,13 @@ static int ppe_ft_flow_stats(struct ppe_
  		return -ENOENT;
  	}
  
@@ -256,7 +256,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Hardware-forwarded packets never revalidate the route in
  	 * software, and the hit counter of a flow counts at ingress
  	 * lookup whether or not egress delivery still works: a flow
-@@ -3050,7 +3152,7 @@
+@@ -3050,7 +3152,7 @@ int ppe_flowtable_setup(struct ppe_devic
  
  static void ppe_ft_flow_free(void *ptr, void *arg)
  {
@@ -265,7 +265,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -3092,7 +3194,7 @@
+@@ -3092,7 +3194,7 @@ void ppe_flowtable_destroy(struct ppe_de
  	rhashtable_free_and_destroy(&ft->flows, ppe_ft_flow_free, NULL);
  	list_for_each_entry_safe(flow, flow_tmp, &ft->zombies, zombie_node) {
  		list_del(&flow->zombie_node);

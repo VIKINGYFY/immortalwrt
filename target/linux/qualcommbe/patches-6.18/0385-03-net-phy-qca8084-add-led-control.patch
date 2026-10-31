@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  MODULE_DESCRIPTION("Qualcomm Atheros QCA808X PHY driver");
  MODULE_AUTHOR("Matus Ujhelyi, Luo Jie");
  MODULE_LICENSE("GPL");
-@@ -180,6 +183,7 @@
+@@ -180,6 +183,7 @@ enum {
  struct qca808x_priv {
  	int led_polarity_mode;
  	int channel_id;
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct qcom_phy_hw_stats hw_stats;
  	struct clk *mac_tx_clk;
  	struct clk *mac_rx_clk;
-@@ -189,6 +193,7 @@
+@@ -189,6 +193,7 @@ struct qca808x_priv {
  
  struct qca808x_shared_priv {
  	int package_mode;
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct clk *clk[PACKAGE_CLK_MAX];
  	struct mdio_device *mdiodev[2];	/* PCS and XPCS mdio device */
  };
-@@ -724,17 +729,6 @@
+@@ -724,17 +729,6 @@ static int qca808x_led_hw_control_set(st
  			      offload_trigger);
  }
  
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int qca808x_led_hw_control_get(struct phy_device *phydev, u8 index,
  				      unsigned long *rules)
  {
-@@ -744,13 +738,20 @@
+@@ -744,13 +738,20 @@ static int qca808x_led_hw_control_get(st
  	if (index > 2)
  		return -EINVAL;
  
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (val & QCA808X_LED_TX_BLINK)
  		set_bit(TRIGGER_NETDEV_TX, rules);
  	if (val & QCA808X_LED_RX_BLINK)
-@@ -825,6 +826,8 @@
+@@ -825,6 +826,8 @@ static int qca808x_led_polarity_set(stru
  
  	for_each_set_bit(mode, &modes, __PHY_LED_MODES_NUM) {
  		switch (mode) {
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		case PHY_LED_ACTIVE_LOW:
  			active_low = true;
  			break;
-@@ -852,6 +855,73 @@
+@@ -852,6 +855,73 @@ static int qca808x_led_polarity_set(stru
  			      active_low ? 0 : QCA808X_LED_ACTIVE_HIGH);
  }
  
@@ -161,7 +161,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int qca808x_update_stats(struct phy_device *phydev)
  {
  	struct qca808x_priv *priv = phydev->priv;
-@@ -1190,6 +1260,7 @@
+@@ -1190,6 +1260,7 @@ static int qca8084_phy_package_probe_onc
  		return ret;
  
  	shared_priv = phy_package_get_priv(phydev);
@@ -169,7 +169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < ARRAY_SIZE(qca8084_package_clk_name); i++) {
  		clk = of_clk_get_by_name(np, qca8084_package_clk_name[i]);
  		if (IS_ERR(clk)) {
-@@ -1257,7 +1328,7 @@
+@@ -1257,7 +1328,7 @@ static int qca8084_probe(struct phy_devi
  	struct device *dev = &phydev->mdio.dev;
  	struct reset_control *rstc;
  	struct clk *clk;
@@ -178,7 +178,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = devm_of_phy_package_join(dev, phydev, sizeof(*shared_priv));
  	if (ret)
-@@ -1273,6 +1344,13 @@
+@@ -1273,6 +1344,13 @@ static int qca8084_probe(struct phy_devi
  	if (ret)
  		return ret;
  	priv = phydev->priv;
@@ -192,7 +192,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Enable clock of PHY device, so that the PHY register
  	 * can be accessed to get PHY features.
-@@ -1371,6 +1449,12 @@
+@@ -1371,6 +1449,12 @@ static struct phy_driver qca808x_driver[
  	.link_change_notify	= qca8084_link_change_notify,
  	.probe			= qca8084_probe,
  	.remove			= qca8084_remove,

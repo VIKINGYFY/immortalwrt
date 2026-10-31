@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @poisoned: Hardware teardown failed; never allocate this slot again.
   */
  struct ppe_bridge_vsi {
-@@ -57,6 +61,7 @@
+@@ -57,6 +61,7 @@ struct ppe_bridge_vsi {
  	unsigned int pvids;
  	int xlt_tagged;
  	int xlt_pvid;
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool poisoned;
  };
  
-@@ -93,7 +98,8 @@
+@@ -93,7 +98,8 @@ struct ppe_bridge_port {
   * @switchdev_blocking_nb: Notifier for blocking switchdev events.
   * @fdb_wq: Ordered workqueue processing the deferred FDB events.
   * @fdb_sync: Delayed work synchronizing hardware-learned FDB entries
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @fdb_ht: Shadow of the dynamic hardware FDB entries reported to the
   * bridge, to tell new and aged-out entries apart while walking the
   * hardware table.
-@@ -123,11 +129,17 @@
+@@ -123,11 +129,17 @@ struct ppe_bridge {
  };
  
  /* Interval of the synchronization of hardware-learned FDB entries to
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * struct ppe_bridge_fdb - Shadow of a dynamic hardware FDB entry.
   * @node: Hash table node, hashed by MAC address and VSI.
-@@ -135,6 +147,8 @@
+@@ -135,6 +147,8 @@ struct ppe_bridge {
   * @vsi: VSI of the entry.
   * @port: Destination PPE port of the entry.
   * @seen: Entry was found in the current hardware table walk.
@@ -88,7 +88,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  struct ppe_bridge_fdb {
  	struct hlist_node node;
-@@ -142,6 +156,7 @@
+@@ -142,6 +156,7 @@ struct ppe_bridge_fdb {
  	u8 vsi;
  	u8 port;
  	bool seen;
@@ -96,7 +96,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /**
-@@ -211,6 +226,7 @@
+@@ -211,6 +226,7 @@ static int ppe_bridge_vsi_get(struct ppe
  		pb->vsis[i].pvids = 0;
  		pb->vsis[i].xlt_tagged = -1;
  		pb->vsis[i].xlt_pvid = -1;
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		return i;
  	}
-@@ -467,10 +483,14 @@
+@@ -467,10 +483,14 @@ static int ppe_bridge_vsi_release(struct
  	return err;
  }
  
@@ -123,7 +123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  static void ppe_bridge_fdb_sync_work(struct work_struct *work)
  {
-@@ -517,6 +537,7 @@
+@@ -517,6 +537,7 @@ static void ppe_bridge_fdb_sync_work(str
  			ether_addr_copy(fdb->addr, entry.addr);
  			fdb->vsi = entry.vsi;
  			fdb->port = entry.port;
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			hash_add(pb->fdb_ht, &fdb->node,
  				 ppe_bridge_fdb_key(fdb->addr, fdb->vsi));
  			ppe_bridge_fdb_notify(pb, SWITCHDEV_FDB_ADD_TO_BRIDGE,
-@@ -531,6 +552,30 @@
+@@ -531,6 +552,30 @@ static void ppe_bridge_fdb_sync_work(str
  		}
  
  		fdb->seen = true;
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	hash_for_each_safe(pb->fdb_ht, bkt, tmp, fdb, node) {
-@@ -994,6 +1039,26 @@
+@@ -994,6 +1039,26 @@ rollback:
  	return ret;
  }
  
@@ -189,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_bridge_attr_set(struct net_device *dev, const void *ctx,
  			       const struct switchdev_attr *attr,
  			       struct netlink_ext_ack *extack)
-@@ -1014,6 +1079,9 @@
+@@ -1014,6 +1079,9 @@ static int ppe_bridge_attr_set(struct ne
  		return 0;
  	case SWITCHDEV_ATTR_ID_PORT_BRIDGE_FLAGS:
  		return ppe_bridge_flags_set(pb, dev, attr->u.brport_flags);
@@ -201,7 +201,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		 * first port joined, refuse changing it mid-flight.
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1872,7 +1872,8 @@
+@@ -1872,7 +1872,8 @@ static void ppe_fdb_entry_pack(const str
  	val[2] |= FIELD_PREP(PPE_FDB_W2_SA_CMD, PPE_ACTION_FORWARD);
  	val[2] |= FIELD_PREP(PPE_FDB_W2_DA_CMD, PPE_ACTION_FORWARD);
  	val[2] |= FIELD_PREP(PPE_FDB_W2_HIT_AGE,
@@ -211,7 +211,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* Unpack the 3-word layout of the FDB table and the FDB operation result
-@@ -1908,8 +1909,8 @@
+@@ -1908,8 +1909,8 @@ static void ppe_fdb_entry_unpack(const u
  	else
  		entry->port = PPE_FDB_PORT_NONE;
  
@@ -224,7 +224,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Issue a command to the FDB operation registers and wait for its result.
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -313,12 +313,14 @@
+@@ -313,12 +313,14 @@ enum ppe_stp_state {
   * @vsi: VSI (bridge domain) the MAC address belongs to.
   * @port: Destination PPE port of the MAC address.
   * @is_static: Entry is excluded from hardware aging.

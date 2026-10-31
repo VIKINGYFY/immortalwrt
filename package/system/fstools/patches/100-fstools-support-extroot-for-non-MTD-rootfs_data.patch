@@ -36,7 +36,7 @@ Signed-off-by: Qi Liu <liuqi_colin@msn.com>
  #include "probe.h"
  
  #define AUTOFS_MOUNT_PATH       "/tmp/run/blockd/"
-@@ -441,6 +444,18 @@ static struct uci_package * config_try_l
+@@ -537,6 +540,18 @@ static struct uci_package * config_try_l
  	return pkg;
  }
  
@@ -55,7 +55,7 @@ Signed-off-by: Qi Liu <liuqi_colin@msn.com>
  static int config_load(char *cfg)
  {
  	struct uci_context *ctx = uci_alloc_context();
-@@ -452,11 +467,13 @@ static int config_load(char *cfg)
+@@ -548,11 +563,13 @@ static int config_load(char *cfg)
  
  	if (cfg) {
  		snprintf(path, sizeof(path), "%s/upper/etc/config/fstab", cfg);
@@ -71,7 +71,7 @@ Signed-off-by: Qi Liu <liuqi_colin@msn.com>
  		}
  	}
  
-@@ -1753,6 +1770,46 @@ static int main_extroot(int argc, char *
+@@ -2158,6 +2175,46 @@ static int main_extroot(int argc, char *
         }
  #endif
  

@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_debugfs.c
-@@ -160,6 +160,7 @@
+@@ -160,6 +160,7 @@ static int edma_debugfs_tx_rings_stats_s
  			txdesc_stats[i].dma_map_errors = stats->dma_map_errors;
  			txdesc_stats[i].queue_stops = stats->queue_stops;
  			txdesc_stats[i].queue_restarts = stats->queue_restarts;
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		} while (u64_stats_fetch_retry(&stats->syncp, start));
  	}
  
-@@ -220,6 +221,7 @@
+@@ -220,6 +221,7 @@ static int edma_debugfs_tx_rings_stats_s
  	return 0;
  }
  
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -104,15 +104,6 @@
+@@ -104,15 +104,6 @@ static int edma_port_open(struct net_dev
  	if (!port_priv)
  		return -EINVAL;
  
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_port  = port_priv->ppe_port;
  	port_id = ppe_port->port_id;
  
-@@ -122,7 +113,8 @@
+@@ -122,7 +113,8 @@ static int edma_port_open(struct net_dev
  	edma_cfg_tx_napi_enable(port_id);
  	edma_cfg_tx_enable_interrupts(port_id);
  
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -136,9 +128,15 @@
+@@ -136,9 +128,15 @@ static int edma_port_close(struct net_de
  	if (!port_priv)
  		return -EINVAL;
  
@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	msleep(20);
  
  	ppe_port  = port_priv->ppe_port;
-@@ -543,6 +541,12 @@
+@@ -543,6 +541,12 @@ int edma_port_setup(struct ppe_port *por
  	netdev->watchdog_timeo = 5 * HZ;
  	netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
  	netdev->netdev_ops = &edma_port_netdev_ops;
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.h
-@@ -84,6 +84,7 @@
+@@ -84,6 +84,7 @@ struct edma_port_pcpu_stats {
   * @txr_map: Tx ring per-core mapping
   * @br_offload: Port is bridged in hardware, written under RTNL and read
   * in the Rx path to mark received packets as hardware forwarded
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @flags: Feature flags
   */
  /* Bridge flood bitmaps of the port for the TX forwarding offload,
-@@ -102,6 +103,7 @@
+@@ -102,6 +103,7 @@ struct edma_port_priv {
  	struct edma_port_pcpu_stats pcpu_stats;
  	struct edma_txdesc_ring *txr_map[EDMA_PORT_MAX_CORE];
  	bool br_offload;
@@ -126,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct sk_buff *edma_rx_alloc_skb(unsigned int len)
  {
  	struct sk_buff *skb;
-@@ -461,6 +463,7 @@
+@@ -461,6 +463,7 @@ static bool edma_rx_deliver_vp(struct ed
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct net_device *dev;
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int vp;
  
  	if (!edma_ctx->has_vports)
-@@ -478,9 +481,27 @@
+@@ -478,9 +481,27 @@ static bool edma_rx_deliver_vp(struct ed
  		return true;
  	}
  
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-@@ -87,32 +87,6 @@
+@@ -87,32 +87,6 @@ enum edma_tx_gso_status edma_tx_gso_segm
  	return EDMA_TX_GSO_SUCCEED;
  }
  
@@ -197,7 +197,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * edma_tx_complete - Reap Tx completion descriptors.
   * @work_to_do: Work to do.
-@@ -303,6 +277,7 @@
+@@ -303,6 +277,7 @@ u32 edma_tx_complete(u32 work_to_do, str
  					   edma_tx_avail_desc(txdesc_ring),
  					   EDMA_TX_TSO_SEG_MAX,
  					   edma_ctx->tx_requeue_stop ||
@@ -205,7 +205,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					   !netif_carrier_ok(txcmpl_ring->napi.dev));
  	}
  
-@@ -724,7 +699,7 @@
+@@ -724,7 +699,7 @@ u32 edma_tx_avail_desc(struct edma_txdes
  }
  
  /**
@@ -214,7 +214,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @netdev: Netdevice.
   * @skb: Socket Buffer.
   * @txdesc_ring: Tx Descriptor ring.
-@@ -735,21 +710,19 @@
+@@ -735,21 +710,19 @@ u32 edma_tx_avail_desc(struct edma_txdes
   *
   * Return 0 on success, negative error code on failure.
   */
@@ -240,7 +240,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	hw_next_to_use = txdesc_ring->prod_idx;
  	start_idx = hw_next_to_use;
-@@ -782,7 +755,6 @@
+@@ -782,7 +755,6 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		EDMA_TXDESC_ENDIAN_SET(txdesc);
  		num_desc_filled++;
  	} else {
@@ -248,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		/* HW does not support TSO for packets with more than 32 segments.
  		 * HW hangs up if it sees more than 32 segments. Kernel Perform GSO
-@@ -863,12 +835,79 @@
+@@ -863,12 +835,79 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		u64_stats_update_end(&stats->syncp);
  	}
  
@@ -331,7 +331,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -959,9 +998,18 @@
+@@ -959,9 +998,18 @@ int edma_tx_vp_inject(u32 vp_id, struct
  			rcu_read_unlock();
  			return -ENOMEM;
  		}
@@ -352,7 +352,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		edma_tx_xmit_segs(dev, segs, txdesc_ring, NULL, vp_id);
  		__netif_tx_unlock(txq);
  
-@@ -973,6 +1021,12 @@
+@@ -973,6 +1021,12 @@ int edma_tx_vp_inject(u32 vp_id, struct
  	 * exactly as the stack serialises ndo_start_xmit.
  	 */
  	__netif_tx_lock(txq, cpu);
@@ -367,7 +367,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-@@ -1165,6 +1165,7 @@
+@@ -1165,6 +1165,7 @@ static int ppe_tbf_queues_show(struct se
  }
  DEFINE_SHOW_ATTRIBUTE(ppe_tbf_queues);
  
@@ -377,7 +377,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ppe_debugfs_entry *entry;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2622,6 +2622,11 @@
+@@ -2622,6 +2622,11 @@ static bool ppe_ft_flow_hw_del(struct pp
  {
  	int ret;
  
@@ -389,7 +389,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (flow->index < 0 ||
  	    flow->index >= ft->ppe_dev->variant->num_flow_entries ||
  	    ft->flow_owners[flow->index] != flow) {
-@@ -3913,7 +3918,6 @@
+@@ -3913,7 +3918,6 @@ static int ppe_ft_flow_destroy(struct pp
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
  	ppe_ft_flow_count_dec(ft, flow);
@@ -408,7 +408,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #include <net/dsa.h>
  #include <net/dst_metadata.h>
-@@ -476,6 +478,74 @@
+@@ -476,6 +478,74 @@ out:
  	return ret;
  }
  
@@ -483,7 +483,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Netfilter ingress hook on a virtual port's bound device: offload the
   * wireless->wired uplink. It runs on the receive path before the bridge,
   * so it sees the frame with its L2 header already pulled and, for a routed
-@@ -496,11 +566,9 @@
+@@ -496,11 +566,9 @@ static unsigned int ppe_vp_ingress(void
  	struct ppe_vp_flow_key key = {};
  	struct ppe_vp_flow *flow;
  	const struct ethhdr *eth;
@@ -496,7 +496,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* A hardware miss trips this VP's persistent fail-open circuit
  	 * breaker before its packet is returned to this receive path.
-@@ -513,6 +581,14 @@
+@@ -513,6 +581,14 @@ static unsigned int ppe_vp_ingress(void
  	 */
  	if (!atomic_read(&slot->nflows))
  		return NF_ACCEPT;
@@ -511,7 +511,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* QCA4B hook entries are always VLAN-qualified. An untagged frame
  	 * cannot match any installed key, so leave it on the native path
  	 * without parsing its network and transport headers.
-@@ -548,40 +624,8 @@
+@@ -548,40 +624,8 @@ static unsigned int ppe_vp_ingress(void
  	    ether_addr_to_u64(eth->h_dest) != READ_ONCE(slot->host_mac))
  		return NF_ACCEPT;
  
@@ -553,7 +553,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tagged) {
  		key.vlan_proto = skb->vlan_proto;
  		key.vlan_id = vlan_tci & VLAN_VID_MASK;
-@@ -594,12 +638,21 @@
+@@ -594,12 +638,21 @@ static unsigned int ppe_vp_ingress(void
  		rcu_read_unlock();
  		return NF_ACCEPT;
  	}
@@ -577,7 +577,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	skb_push(skb, mac_len);
  	if (tagged)
  		__vlan_hwaccel_clear_tag(skb);
-@@ -608,7 +661,10 @@
+@@ -608,7 +661,10 @@ static unsigned int ppe_vp_ingress(void
  	 * completion) and it must not continue up the stack. On any failure
  	 * restore the L2 header and let it fall back to the software path.
  	 */
@@ -589,7 +589,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return NF_STOLEN;
  
  	if (tagged)
-@@ -1125,12 +1181,15 @@
+@@ -1125,12 +1181,15 @@ int ppe_vp_flow_add(struct ppe_device *p
  			return -EOPNOTSUPP;
  	}
  
@@ -605,7 +605,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -1143,10 +1202,16 @@
+@@ -1143,10 +1202,16 @@ void ppe_vp_flow_del(struct ppe_device *
  	if (!flow->inserted || !vpt || i < 0 || i >= PPE_VP_SLOTS)
  		return;
  
@@ -632,7 +632,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  struct ppe_device;
  struct net_device;
-@@ -35,6 +36,7 @@
+@@ -35,6 +36,7 @@ struct ppe_vp_flow_key {
  struct ppe_vp_flow {
  	struct rhash_head node;
  	struct ppe_vp_flow_key key;

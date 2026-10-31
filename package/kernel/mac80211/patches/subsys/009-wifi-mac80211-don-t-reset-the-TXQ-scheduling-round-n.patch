@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1459,6 +1459,7 @@
+@@ -1459,6 +1459,7 @@ struct ieee80211_local {
  	spinlock_t active_txq_lock[IEEE80211_NUM_ACS];
  	struct list_head active_txqs[IEEE80211_NUM_ACS];
  	u16 schedule_round[IEEE80211_NUM_ACS];
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spinlock_t handle_wake_tx_queue_lock;
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -4142,7 +4142,7 @@
+@@ -4142,7 +4142,7 @@ struct ieee80211_txq *ieee80211_next_txq
  
  	spin_lock_bh(&local->active_txq_lock[ac]);
  
@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto out;
  
   begin:
-@@ -4346,12 +4346,12 @@
+@@ -4346,12 +4346,12 @@ void ieee80211_txq_schedule_start(struct
  
  	spin_lock_bh(&local->active_txq_lock[ac]);
  

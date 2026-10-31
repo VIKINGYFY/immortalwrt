@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -38,6 +38,22 @@
+@@ -38,6 +38,22 @@ bool ath11k_ftm_mode;
  module_param_named(ftm_mode, ath11k_ftm_mode, bool, 0444);
  MODULE_PARM_DESC(ftm_mode, "Boots up in factory test mode");
  
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct ath11k_hw_params ath11k_hw_params[] = {
  	{
  		.hw_rev = ATH11K_HW_IPQ9574_HW10,
-@@ -2786,6 +2802,28 @@
+@@ -2786,6 +2802,28 @@ static int ath11k_init_hw_params(struct
  
  	ab->hw_params = *hw_params;
  
@@ -101,7 +101,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define ATH11K_SCAN_TIMEOUT_HZ (20 * HZ)
  
-@@ -1012,6 +1016,13 @@
+@@ -1012,6 +1016,13 @@ struct ath11k_base {
  
  	struct ath11k_hw_params hw_params;
  
@@ -117,7 +117,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Below regd's are protected by ab->data_lock */
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -55,9 +55,17 @@
+@@ -55,9 +55,17 @@ int ath11k_dp_peer_setup(struct ath11k *
  
  	/* NOTE: reo_dest ring id starts from 1 unlike mac_id which starts from 0 */
  	reo_dest = ar->dp.mac_id + 1;
@@ -138,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_warn(ab, "failed to set default routing %d peer :%pM vdev_id :%d\n",
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -660,9 +660,12 @@
+@@ -660,9 +660,12 @@ static int ath11k_dp_rxdma_pdev_buf_setu
  	struct dp_rxdma_ring *rx_ring = &dp->rx_refill_buf_ring;
  	int i, ret;
  
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		rx_ring = &dp->rxdma_mon_buf_ring;
 --- a/drivers/net/wireless/ath/ath11k/hw.c
 +++ b/drivers/net/wireless/ath/ath11k/hw.c
-@@ -126,6 +126,15 @@
+@@ -126,6 +126,15 @@ static void ath11k_hw_ipq8074_reo_setup(
  		HAL_HASH_ROUTING_RING_SW2 << 15 |
  		HAL_HASH_ROUTING_RING_SW3 << 18 |
  		HAL_HASH_ROUTING_RING_SW4 << 21;
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_GEN_ENABLE);
  
-@@ -147,7 +156,7 @@
+@@ -147,7 +156,7 @@ static void ath11k_hw_ipq8074_reo_setup(
  
  	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_0,
  			   FIELD_PREP(HAL_REO_DEST_RING_CTRL_HASH_RING_MAP,
@@ -183,7 +183,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				      ring_hash_map));
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6550,6 +6550,12 @@
+@@ -6550,6 +6550,12 @@ static int ath11k_mac_tx(struct ieee8021
  		return ret;
  	}
  

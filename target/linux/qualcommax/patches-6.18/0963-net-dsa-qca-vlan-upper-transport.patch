@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -1811,6 +1811,9 @@
+@@ -1811,6 +1811,9 @@ static int qca8k_tag_8021q_set(struct ds
  			return ret;
  	}
  
@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #include "qca8k.h"
  
-@@ -1106,6 +1107,100 @@
+@@ -1106,6 +1107,100 @@ static int qca8k_port_commit_pvid(struct
  			   QCA8K_PORT_VLAN_SVID(vid));
  }
  
@@ -151,7 +151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int qca8k_port_vlan_filtering(struct dsa_switch *ds, int port,
  			      bool vlan_filtering,
  			      struct netlink_ext_ack *extack)
-@@ -1123,10 +1218,18 @@
+@@ -1123,10 +1218,18 @@ int qca8k_port_vlan_filtering(struct dsa
  				QCA8K_PORT_LOOKUP_VLAN_MODE_NONE);
  	}
  
@@ -173,7 +173,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  int qca8k_port_vlan_add(struct dsa_switch *ds, int port,
-@@ -1136,17 +1239,28 @@
+@@ -1136,17 +1239,28 @@ int qca8k_port_vlan_add(struct dsa_switc
  	bool untagged = vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED;
  	bool pvid = vlan->flags & BRIDGE_VLAN_INFO_PVID;
  	struct qca8k_priv *priv = ds->priv;
@@ -204,7 +204,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	ret = qca8k_vlan_add(priv, port, vlan->vid, untagged);
-@@ -1172,6 +1286,11 @@
+@@ -1172,6 +1286,11 @@ int qca8k_port_vlan_del(struct dsa_switc
  	struct qca8k_priv *priv = ds->priv;
  	int ret;
  
@@ -218,7 +218,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		dev_err(priv->dev, "Failed to delete VLAN from port %d (%d)", port, ret);
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -411,6 +411,9 @@
+@@ -411,6 +411,9 @@ struct dsa_switch {
  	/* Keep VLAN filtering enabled on ports not offloading any upper */
  	u32			needs_standalone_vlan_filtering:1;
  
@@ -238,7 +238,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #include "tag.h"
  #include "tag_8021q.h"
-@@ -181,15 +182,26 @@
+@@ -181,15 +182,26 @@ static const struct dsa_device_ops qca_e
  
  DSA_TAG_DRIVER(qca_etype_netdev_ops);
  
@@ -266,7 +266,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (skb->offload_fwd_mark) {
  		struct net_device *br = dsa_port_bridge_dev_get(dp);
-@@ -198,11 +210,40 @@
+@@ -198,11 +210,40 @@ static struct sk_buff *qca_8021q_tag_xmi
  			return skb;
  
  		tx_vid = dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
@@ -307,7 +307,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct sk_buff *qca_8021q_tag_rcv(struct sk_buff *skb,
  					 struct net_device *dev)
  {
-@@ -219,8 +260,11 @@
+@@ -219,8 +260,11 @@ static struct sk_buff *qca_8021q_tag_rcv
  
  	dsa_8021q_rcv(skb, &src_port, &switch_id, &vbid, &vid);
  
@@ -323,7 +323,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -614,6 +614,16 @@
+@@ -614,6 +614,16 @@ static int dsa_user_port_attr_set(struct
  		ret = dsa_port_vlan_filtering(dp, attr->u.vlan_filtering,
  					      extack);
  		break;
@@ -340,7 +340,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case SWITCHDEV_ATTR_ID_BRIDGE_AGEING_TIME:
  		if (!dsa_port_offloads_bridge_dev(dp, attr->orig_dev))
  			return -EOPNOTSUPP;
-@@ -1850,6 +1860,9 @@
+@@ -1850,6 +1860,9 @@ static int dsa_user_vlan_rx_add_vid(stru
  		if (extack._msg)
  			netdev_err(dev, "CPU port %d: %s\n", dp->cpu_dp->index,
  				   extack._msg);
@@ -350,7 +350,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -2001,8 +2014,16 @@
+@@ -2001,8 +2014,16 @@ static int dsa_user_clear_vlan(struct ne
  int dsa_user_manage_vlan_filtering(struct net_device *user,
  				   bool vlan_filtering)
  {
@@ -367,7 +367,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (vlan_filtering) {
  		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
  
-@@ -2869,7 +2890,8 @@
+@@ -2869,7 +2890,8 @@ void dsa_user_setup_tagger(struct net_de
  	    cpu_dp->tag_ops->needed_tailroom)
  		user->features &= ~(NETIF_F_HW_VLAN_CTAG_TX |
  				    NETIF_F_HW_VLAN_STAG_TX);

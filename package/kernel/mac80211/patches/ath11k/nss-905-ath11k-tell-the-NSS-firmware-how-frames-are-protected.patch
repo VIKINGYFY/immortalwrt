@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/cfg80211.h>
  #include <linux/etherdevice.h>
  #include <linux/bitfield.h>
-@@ -4507,6 +4508,7 @@
+@@ -4507,6 +4508,7 @@ static int ath11k_mac_op_set_key(struct
  	const u8 *peer_addr;
  	int ret = 0;
  	u32 flags = 0;
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* BIP needs to be done in software */
  	if (key->cipher == WLAN_CIPHER_SUITE_AES_CMAC ||
-@@ -4620,6 +4622,10 @@
+@@ -4620,6 +4622,10 @@ static int ath11k_mac_op_set_key(struct
  	spin_lock_bh(&ab->base_lock);
  	peer = ath11k_peer_find(ab, arvif->vdev_id, peer_addr);
  	if (peer && cmd == SET_KEY) {
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		peer->keys[key->keyidx] = key;
  		if (key->flags & IEEE80211_KEY_FLAG_PAIRWISE) {
  			peer->ucast_keyidx = key->keyidx;
-@@ -4660,6 +4666,33 @@
+@@ -4660,6 +4666,33 @@ static int ath11k_mac_op_set_key(struct
  
  	spin_unlock_bh(&ab->base_lock);
  
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  exit:
  	mutex_unlock(&ar->conf_mutex);
  	return ret;
-@@ -10121,6 +10154,7 @@
+@@ -10121,6 +10154,7 @@ static int ath11k_mac_op_sta_state(struc
  	enum ieee80211_ap_reg_power power_type;
  	struct cur_regulatory_info *reg_info;
  	struct ath11k_peer *peer;
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret = 0;
  
  	/* cancel must be done outside the mutex to avoid deadlock */
-@@ -10189,9 +10223,18 @@
+@@ -10189,9 +10223,18 @@ static int ath11k_mac_op_sta_state(struc
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  		if (peer)
  			peer->is_authorized = true;
@@ -114,7 +114,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (vif->type == NL80211_IFTYPE_STATION && arvif->is_up) {
  			ret = ath11k_wmi_set_peer_param(ar, sta->addr,
  							arvif->vdev_id,
-@@ -10231,8 +10274,12 @@
+@@ -10231,8 +10274,12 @@ static int ath11k_mac_op_sta_state(struc
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  		if (peer)
  			peer->is_authorized = false;

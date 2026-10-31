@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static const char *irq_name[ATH12K_IRQ_NUM_MAX] = {
  	"misc-pulse1",
-@@ -358,6 +363,7 @@
+@@ -358,6 +363,7 @@ static int ath12k_ahb_power_up(struct at
  	char fw_name[ATH12K_USERPD_FW_NAME_LEN];
  	char fw2_name[ATH12K_USERPD_FW_NAME_LEN];
  	bool spawn_requested = false;
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct device *dev = ab->dev;
  	const struct firmware *fw, *fw2;
  	struct reserved_mem *rmem = NULL;
-@@ -368,18 +374,26 @@
+@@ -368,18 +374,26 @@ static int ath12k_ahb_power_up(struct at
  	u32 pasid;
  	int ret;
  
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = ath12k_ahb_get_firmware_name(ab, 0, fw_name, sizeof(fw_name));
  	if (ret) {
-@@ -406,12 +420,14 @@
+@@ -406,12 +420,14 @@ static int ath12k_ahb_power_up(struct at
  		ATH12K_AHB_UPD_SWID;
  
  	/* Load FW image to a reserved memory location */
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		ath12k_err(ab, "Failed to load MDT segments: %d\n", ret);
  		goto err_fw;
-@@ -483,6 +499,7 @@
+@@ -483,6 +499,7 @@ static int ath12k_ahb_power_up(struct at
  	}
  
  	ab_ahb->rootpd_crashed = false;
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_dbg(ab, ATH12K_DBG_AHB, "UserPD%d is now UP\n", ab_ahb->userpd_id);
  
  err_fw2:
-@@ -492,6 +509,15 @@
+@@ -492,6 +509,15 @@ err_fw2:
  	release_firmware(fw2);
  err_fw:
  	release_firmware(fw);
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -505,15 +531,18 @@
+@@ -505,15 +531,18 @@ static void ath12k_ahb_power_down(struct
  	if (ab_ahb->rootpd_crashed)
  		return;
  
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	qcom_smem_state_update_bits(ab_ahb->stop_state, BIT(ab_ahb->stop_bit), 0);
-@@ -754,6 +783,38 @@
+@@ -754,6 +783,38 @@ static const struct ath12k_hif_ops ath12
  	.power_down = ath12k_ahb_power_down,
  };
  
@@ -201,7 +201,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static irqreturn_t ath12k_userpd_irq_handler(int irq, void *data)
  {
  	struct ath12k_base *ab = data;
-@@ -765,6 +826,8 @@
+@@ -765,6 +826,8 @@ static irqreturn_t ath12k_userpd_irq_han
  		complete(&ab_ahb->userpd_ready);
  	} else if (irq == ab_ahb->userpd_irq_num[ATH12K_USERPD_STOP_ACK_IRQ])	{
  		complete(&ab_ahb->userpd_stopped);
@@ -212,7 +212,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return IRQ_NONE;
 --- a/drivers/net/wireless/ath/ath12k/ahb.h
 +++ b/drivers/net/wireless/ath/ath12k/ahb.h
-@@ -39,6 +39,7 @@
+@@ -39,6 +39,7 @@ enum ath12k_ahb_userpd_irq {
  	ATH12K_USERPD_SPAWN_IRQ,
  	ATH12K_USERPD_READY_IRQ,
  	ATH12K_USERPD_STOP_ACK_IRQ,
@@ -220,7 +220,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ATH12K_USERPD_MAX_IRQ,
  };
  
-@@ -54,6 +55,9 @@
+@@ -54,6 +55,9 @@ struct ath12k_ahb {
  	struct ath12k_base *ab;
  	struct rproc *tgt_rproc;
  	struct clk *xo_clk;
@@ -230,7 +230,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct completion rootpd_ready;
  	struct notifier_block root_pd_nb;
  	void *root_pd_notifier;
-@@ -70,6 +74,7 @@
+@@ -70,6 +74,7 @@ struct ath12k_ahb {
  	const struct ath12k_ahb_device_family_ops *device_family_ops;
  	bool scm_auth_enabled;
  	bool rootpd_crashed;

@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/Kconfig
 +++ b/drivers/net/ethernet/qualcomm/Kconfig
-@@ -65,6 +65,7 @@
+@@ -65,6 +65,7 @@ config QCOM_PPE
  	depends on COMMON_CLK && HAS_IOMEM && OF
  	depends on ARCH_QCOM || COMPILE_TEST
  	depends on BRIDGE || BRIDGE=n
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	select PCS_QCOM_IPQ9574
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-@@ -623,6 +623,7 @@
+@@ -623,6 +623,7 @@ static int edma_cfg_rx_rings_setup(void)
  		rxdesc_ring = &edma_ctx->rx_rings[ring_idx];
  		rxdesc_ring->count = EDMA_RX_RING_SIZE;
  		rxdesc_ring->ring_id = rx->ring_start + ring_idx;
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			pr_err("Invalid queue_id: %d\n", queue_id);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
-@@ -156,6 +156,72 @@
+@@ -156,6 +156,72 @@ static inline uint8_t edma_rx_checksum_v
  	return skb->ip_summed;
  }
  
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void edma_rx_process_last_segment(struct edma_rxdesc_ring *rxdesc_ring,
  					 struct edma_rxdesc_pri *rxdesc_pri)
  {
-@@ -170,6 +236,16 @@
+@@ -170,6 +236,16 @@ static void edma_rx_process_last_segment
  	pkt_length = EDMA_RXDESC_PACKET_LEN_GET(rxdesc_pri);
  
  	skb_head = rxdesc_ring->head;
@@ -133,7 +133,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dev = skb_head->dev;
  
  	/* Check Rx checksum offload status. */
-@@ -187,9 +263,7 @@
+@@ -187,9 +263,7 @@ static void edma_rx_process_last_segment
  			 * in addition to the SKB linked to current descriptor.
  			 */
  			dev_kfree_skb_any(skb_head);
@@ -144,7 +144,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  			u64_stats_update_begin(&rx_stats->syncp);
  			rx_stats->rx_nr_frag_headroom_err++;
-@@ -201,9 +275,7 @@
+@@ -201,9 +275,7 @@ static void edma_rx_process_last_segment
  
  	if (unlikely(!pskb_pull(skb_head, EDMA_RXDESC_DATA_OFFSET_GET(rxdesc_ring->pdesc_head)))) {
  		dev_kfree_skb_any(skb_head);
@@ -155,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		u64_stats_update_begin(&rx_stats->syncp);
  		rx_stats->rx_nr_frag_headroom_err++;
-@@ -226,9 +298,7 @@
+@@ -226,9 +298,7 @@ static void edma_rx_process_last_segment
  	 * bound device instead of being received up the stack.
  	 */
  	if (edma_rx_deliver_vp(rxdesc_ring->pdesc_head, skb_head)) {
@@ -166,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  	}
  
-@@ -240,9 +310,7 @@
+@@ -240,9 +310,7 @@ static void edma_rx_process_last_segment
  	else
  		netif_receive_skb(skb_head);
  
@@ -177,7 +177,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void edma_rx_handle_frag_list(struct edma_rxdesc_ring *rxdesc_ring,
-@@ -390,6 +458,49 @@
+@@ -390,6 +458,49 @@ static bool edma_rx_deliver_vp(struct ed
  	return true;
  }
  
@@ -227,7 +227,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static bool edma_rx_handle_linear_packets(struct edma_rxdesc_ring *rxdesc_ring,
  					  struct edma_rxdesc_pri *rxdesc_pri,
  					  struct sk_buff *skb)
-@@ -458,10 +569,8 @@
+@@ -458,10 +569,8 @@ send_to_stack:
  }
  
  static struct net_device *edma_rx_get_src_dev(struct edma_rxdesc_stats *rxdesc_stats,
@@ -239,7 +239,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
  	struct net_device *ndev = NULL;
  	u8 src_port_num;
-@@ -589,32 +698,67 @@
+@@ -589,32 +698,67 @@ static int edma_rx_reap(struct edma_rxde
  		/* Handle linear packets or initial segments first. */
  		if (likely(!(rxdesc_ring->head))) {
  			struct edma_port_priv *port_priv;
@@ -332,7 +332,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-@@ -281,6 +281,7 @@
+@@ -281,6 +281,7 @@ struct edma_rxdesc_ring {
  	dma_addr_t sdma;
  	struct sk_buff *head;
  	struct sk_buff *last;
@@ -342,7 +342,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  extern int edma_rx_napi_budget;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
-@@ -305,6 +305,11 @@
+@@ -305,6 +305,11 @@ static void qcom_ppe_remove(struct platf
  	struct ppe_device *ppe_dev;
  
  	ppe_dev = platform_get_drvdata(pdev);
@@ -364,7 +364,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/flow_offload.h>
  #include <net/ip6_tunnel.h>
  #include <net/ip6_route.h>
-@@ -175,6 +176,8 @@
+@@ -175,6 +176,8 @@ struct ppe_ft_flow {
  	int vlan;
  	int tunnel;
  	int vp;
@@ -373,7 +373,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 eport;
  	u32 packets;
  	u64 bytes;
-@@ -1140,13 +1143,14 @@
+@@ -1140,13 +1143,14 @@ static bool ppe_ft_lwt_encap(const struc
  static bool ppe_ft_lwt_decap(const struct flow_rule *rule,
  			     const struct flow_action_entry *act,
  			     struct in6_addr *local,
@@ -390,7 +390,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ENC_CONTROL) ||
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ENC_KEYID) ||
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ENC_IPV6_ADDRS))
-@@ -1167,7 +1171,8 @@
+@@ -1167,7 +1171,8 @@ static bool ppe_ft_lwt_decap(const struc
  	*remote = ipv6.key->src;
  	*local = ipv6.key->dst;
  
@@ -400,7 +400,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_ft_tunnel_underlay_get(struct ppe_flowtable *ft, int port,
-@@ -1410,18 +1415,24 @@
+@@ -1410,18 +1415,24 @@ out_dst:
  	return ret;
  }
  
@@ -431,7 +431,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	       ether_addr_equal(tunnel->local_mac, path->local_mac) &&
  	       ether_addr_equal(tunnel->remote_mac, path->remote_mac);
  }
-@@ -1456,11 +1467,17 @@
+@@ -1456,11 +1467,17 @@ static int ppe_ft_tunnel_get(struct ppe_
  	ret = ppe_ft_tunnel_resolve(ft, dev, link, local, remote, &path);
  	if (ret)
  		return ret;
@@ -451,7 +451,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ppe_ft_tunnel_path_put(ft, &path);
  		ft->tunnels[i].ref.refcnt++;
  		return i;
-@@ -1479,8 +1496,8 @@
+@@ -1479,8 +1496,8 @@ static int ppe_ft_tunnel_get(struct ppe_
  	tunnel->dev = dev;
  	tunnel->local = *local;
  	tunnel->remote = *remote;
@@ -462,7 +462,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	tunnel->encap_id = -1;
  	tunnel->decap_index = -1;
  	tunnel->vp = -1;
-@@ -1712,9 +1729,10 @@
+@@ -1712,9 +1729,10 @@ static bool ppe_ft_flow_hw_del(struct pp
  	return false;
  }
  
@@ -476,7 +476,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  static void ppe_ft_flow_quarantine(struct ppe_flowtable *ft,
  				   struct ppe_ft_flow *flow)
-@@ -1746,7 +1764,9 @@
+@@ -1746,7 +1764,9 @@ static int ppe_ft_flow_replace(struct pp
  	struct in6_addr lwt_local = {}, lwt_remote = {};
  	u8 lwt_hop_limit = 0;
  	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
@@ -487,7 +487,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* nf_flow_offload_refresh() re-sends FLOW_CLS_REPLACE for as long
  	 * as the flow's packets traverse the software path, and the core
-@@ -1769,6 +1789,13 @@
+@@ -1769,6 +1789,13 @@ static int ppe_ft_flow_replace(struct pp
  	if (tunnel_flow && !ft->ppe_dev->variant->has_tunnel_engine)
  		return -EOPNOTSUPP;
  
@@ -501,7 +501,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (rule->match.dissector->used_keys &
  	    ~(BIT_ULL(FLOW_DISSECTOR_KEY_META) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_CONTROL) |
-@@ -1792,6 +1819,7 @@
+@@ -1792,6 +1819,7 @@ static int ppe_ft_flow_replace(struct pp
  	flow->vlan = -1;
  	flow->tunnel = -1;
  	flow->vp = -1;
@@ -509,7 +509,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	nh.vid = -1;
  	data.pppoe_sid = -1;
  	data.ingress_vid = -1;
-@@ -1836,6 +1864,7 @@
+@@ -1836,6 +1864,7 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -517,7 +517,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		flow_rule_match_ipv6_addrs(rule, &match);
  		if (memchr_inv(&match.mask->src, 0xff,
  			       sizeof(match.mask->src)) ||
-@@ -1853,6 +1882,7 @@
+@@ -1853,6 +1882,7 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -525,7 +525,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		flow_rule_match_ipv4_addrs(rule, &match);
  		if (match.mask->src != htonl(0xffffffff) ||
  		    match.mask->dst != htonl(0xffffffff)) {
-@@ -1876,6 +1906,9 @@
+@@ -1876,6 +1906,9 @@ static int ppe_ft_flow_replace(struct pp
  		flow->entry.dport = match.key->dst;
  	}
  
@@ -535,7 +535,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
  		struct flow_match_vlan match;
  
-@@ -1888,7 +1921,9 @@
+@@ -1888,7 +1921,9 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -545,7 +545,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -1909,11 +1944,12 @@
+@@ -1909,11 +1944,12 @@ static int ppe_ft_flow_replace(struct pp
  
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL)) {
  		struct flow_match_control match;
@@ -561,7 +561,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    match.mask->addr_type != 0xffff || match.mask->thoff ||
  		    match.mask->flags) {
  			ret = -EOPNOTSUPP;
-@@ -1978,7 +2014,8 @@
+@@ -1978,7 +2014,8 @@ static int ppe_ft_flow_replace(struct pp
  				goto err_free;
  			break;
  		case FLOW_ACTION_VLAN_PUSH:
@@ -571,7 +571,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			    nh.vid >= 0) {
  				ret = -EOPNOTSUPP;
  				goto err_free;
-@@ -1992,10 +2029,25 @@
+@@ -1992,10 +2029,25 @@ static int ppe_ft_flow_replace(struct pp
  			}
  			break;
  		case FLOW_ACTION_PPPOE_PUSH:
@@ -598,7 +598,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		case FLOW_ACTION_TUNNEL_ENCAP:
  			if (lwt_tunnel ||
  			    !ppe_ft_lwt_encap(act, &lwt_local, &lwt_remote,
-@@ -2009,7 +2061,7 @@
+@@ -2009,7 +2061,7 @@ static int ppe_ft_flow_replace(struct pp
  		case FLOW_ACTION_TUNNEL_DECAP:
  			if (lwt_tunnel ||
  			    !ppe_ft_lwt_decap(rule, act, &lwt_local,
@@ -607,7 +607,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				ret = -EOPNOTSUPP;
  				goto err_free;
  			}
-@@ -2053,7 +2105,8 @@
+@@ -2053,7 +2105,8 @@ static int ppe_ft_flow_replace(struct pp
  			dev_hold(tdev);
  	}
  
@@ -617,7 +617,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    is_zero_ether_addr(data.eth.dst)) {
  		ret = -EOPNOTSUPP;
  		goto err_tdev;
-@@ -2073,16 +2126,19 @@
+@@ -2073,16 +2126,19 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_tdev;
  	}
  
@@ -641,7 +641,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		if (edma_port_dev_check(idev)) {
-@@ -2090,12 +2146,23 @@
+@@ -2090,12 +2146,23 @@ static int ppe_ft_flow_replace(struct pp
  
  			iport = ipriv->ppe_port->port_id;
  			imtu = idev->mtu;
@@ -667,7 +667,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -2105,9 +2172,10 @@
+@@ -2105,9 +2172,10 @@ static int ppe_ft_flow_replace(struct pp
  			nh.port = port_priv->ppe_port->port_id;
  			nh.l3_if = nh.port;
  		} else {
@@ -680,7 +680,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			flow->vp = ret;
  			nh.port = ret;
  			nh.l3_if = ppe_ft_vp_l3_if(ft, ret);
-@@ -2116,6 +2184,22 @@
+@@ -2116,6 +2184,22 @@ static int ppe_ft_flow_replace(struct pp
  		ether_addr_copy(nh.mac, data.eth.dst);
  	}
  
@@ -703,7 +703,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tunnel_flow && !lwt_tunnel) {
  		struct ip6_tnl_flow_offload_key key = {
  			.addr = tunnel_encap ? flow->entry.dip.ip4 :
-@@ -2325,6 +2409,16 @@
+@@ -2325,6 +2409,16 @@ static int ppe_ft_flow_replace(struct pp
  	if (ret)
  		goto err_hw_flow;
  
@@ -720,7 +720,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	set_bit(nexthop, ft->nexthop_used);
  	mutex_unlock(&ft->lock);
  	if (tdev)
-@@ -2358,12 +2452,20 @@
+@@ -2358,12 +2452,20 @@ err_pub_ip:
  err_vp:
  	if (flow->vp >= 0)
  		ppe_vp_put(ft->ppe_dev, flow->vp);
@@ -741,7 +741,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_free:
  	kfree_rcu(flow, rcu);
  
-@@ -2384,6 +2486,7 @@
+@@ -2384,6 +2486,7 @@ static int ppe_ft_flow_destroy(struct pp
  	}
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
@@ -749,7 +749,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
  		ppe_ft_host_put(ft, &flow->entry);
-@@ -2394,6 +2497,7 @@
+@@ -2394,6 +2497,7 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
  		ppe_ft_tunnel_put(ft, flow->tunnel);
  		ppe_vp_put(ft->ppe_dev, flow->vp);
@@ -757,7 +757,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2781,11 +2885,17 @@
+@@ -2781,11 +2885,17 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -856,7 +856,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Program or tear down the L2_VP_PORT_TBL entry and unicast queue map
   * of a virtual port. The field set mirrors the vendor driver's
   * ppe_drv_port_alloc() for a wireless virtual port.
-@@ -103,10 +140,213 @@
+@@ -103,10 +140,213 @@ static int ppe_vp_hw_set(struct ppe_devi
  					EDMA_CPU_PORT_PROFILE_ID);
  }
  
@@ -1070,7 +1070,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * Return the PPE port id of a virtual port bound to @dev, allocating
   * and programming one on first use and refcounting shared use. Must be
-@@ -115,7 +355,8 @@
+@@ -115,7 +355,8 @@ static int ppe_vp_hw_set(struct ppe_devi
   * Return: PPE port id (>= PPE_VP_PORT_BASE) on success, negative error
   * code on failure.
   */
@@ -1080,7 +1080,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ppe_vp *vp = ppe_dev->vp;
  	int free = -1, i, ret;
-@@ -124,14 +365,27 @@
+@@ -124,14 +365,27 @@ int ppe_vp_get(struct ppe_device *ppe_de
  		return -EOPNOTSUPP;
  
  	mutex_lock(&vp->lock);
@@ -1109,7 +1109,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !vp->slots[i].refcnt)
  			free = i;
  	}
-@@ -147,8 +401,19 @@
+@@ -147,8 +401,19 @@ int ppe_vp_get(struct ppe_device *ppe_de
  		return ret;
  	}
  
@@ -1129,7 +1129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&vp->lock);
  
  	/* Seed the carrier state so a flow to a down VAP is not reported
-@@ -179,23 +444,110 @@
+@@ -179,23 +444,110 @@ void ppe_vp_put(struct ppe_device *ppe_d
  	mutex_lock(&vpt->lock);
  
  	/* Drop a reference. The device may already have unregistered (dev NULL,
@@ -1247,7 +1247,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * ppe_vp_dev - Resolve a virtual port to its net device
   * @ppe_dev: PPE device
   * @vp: PPE port id of a virtual port
-@@ -225,6 +577,8 @@
+@@ -225,6 +577,8 @@ static int ppe_vp_netdev_event(struct no
  	switch (event) {
  	case NETDEV_UNREGISTER:
  	case NETDEV_CHANGE:
@@ -1256,7 +1256,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case NETDEV_UP:
  	case NETDEV_DOWN:
  		break;
-@@ -234,20 +588,29 @@
+@@ -234,20 +588,29 @@ static int ppe_vp_netdev_event(struct no
  
  	mutex_lock(&vp->lock);
  	for (i = 0; i < PPE_VP_SLOTS; i++) {
@@ -1294,7 +1294,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			carrier = PPE_VP_PORT_BASE + i;
  			carrier_up = netif_carrier_ok(dev);
  		}
-@@ -255,16 +618,8 @@
+@@ -255,16 +618,8 @@ static int ppe_vp_netdev_event(struct no
  	}
  	mutex_unlock(&vp->lock);
  
@@ -1312,7 +1312,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (cleared)
  		synchronize_rcu();
  
-@@ -274,7 +629,7 @@
+@@ -274,7 +629,7 @@ static int ppe_vp_netdev_event(struct no
  int ppe_vp_setup(struct ppe_device *ppe_dev)
  {
  	struct ppe_vp *vp;
@@ -1321,7 +1321,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Virtual ports are an APPE feature; nothing to do without them. */
  	if (!ppe_dev->variant->has_vports)
-@@ -287,16 +642,45 @@
+@@ -287,16 +642,45 @@ int ppe_vp_setup(struct ppe_device *ppe_
  	vp->ppe_dev = ppe_dev;
  	mutex_init(&vp->lock);
  	vp->notifier.notifier_call = ppe_vp_netdev_event;
@@ -1371,7 +1371,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  void ppe_vp_teardown(struct ppe_device *ppe_dev)
-@@ -310,13 +694,23 @@
+@@ -310,13 +694,23 @@ void ppe_vp_teardown(struct ppe_device *
  	ppe_dev->vp = NULL;
  	unregister_netdevice_notifier(&vp->notifier);
  
@@ -1435,7 +1435,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /* Virtual ports bind a non-PPE net device (a wireless VAP) to a PPE
   * port number, so the L3 flow engine can forward to it and the packet
-@@ -23,10 +48,19 @@
+@@ -23,10 +48,19 @@ struct net_device;
  #define PPE_VP_SLOTS		8
  
  int ppe_vp_setup(struct ppe_device *ppe_dev);

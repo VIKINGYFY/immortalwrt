@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -443,6 +443,7 @@
+@@ -443,6 +443,7 @@ struct ieee80211_vif_chanctx_switch {
   * @BSS_CHANGED_TPE: transmit power envelope changed
   * @BSS_CHANGED_NAN_LOCAL_SCHED: NAN local schedule changed (NAN mode only)
   * @BSS_CHANGED_NPCA: NPCA parameters changed
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  enum ieee80211_bss_change {
  	BSS_CHANGED_ASSOC		= 1<<0,
-@@ -482,6 +483,7 @@
+@@ -482,6 +483,7 @@ enum ieee80211_bss_change {
  	BSS_CHANGED_TPE			= BIT_ULL(35),
  	BSS_CHANGED_NAN_LOCAL_SCHED	= BIT_ULL(36),
  	BSS_CHANGED_NPCA		= BIT_ULL(37),
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* when adding here, make sure to change ieee80211_reconfig */
  };
-@@ -781,6 +783,7 @@
+@@ -781,6 +783,7 @@ struct ieee80211_bss_npca_params {
   * @ftm_responder: whether to enable or disable fine timing measurement FTM
   *	responder functionality.
   * @ftmr_params: configurable lci/civic parameter when enabling FTM responder.
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @nontransmitted: this BSS is a nontransmitted BSS profile
   * @tx_bss_conf: Pointer to the BSS configuration of transmitting interface
   *	if MBSSID is enabled. This pointer is RCU-protected due to CSA finish
-@@ -913,6 +916,7 @@
+@@ -913,6 +916,7 @@ struct ieee80211_bss_conf {
  	bool protected_keep_alive;
  	bool ftm_responder;
  	struct ieee80211_ftm_responder_params *ftmr_params;
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ieee80211_bss_conf __rcu *tx_bss_conf;
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -3428,6 +3428,8 @@
+@@ -3428,6 +3428,8 @@ static int ieee80211_change_bss(struct w
  		else
  			sdata->flags &= ~IEEE80211_SDATA_DONT_BRIDGE_PACKETS;
  		ieee80211_check_fast_rx_iface(sdata);
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (params->ht_opmode >= 0) {
 --- a/net/mac80211/util.c
 +++ b/net/mac80211/util.c
-@@ -2189,6 +2189,9 @@
+@@ -2189,6 +2189,9 @@ int ieee80211_reconfig(struct ieee80211_
  			if (sdata->vif.type == NL80211_IFTYPE_AP) {
  				changed |= BSS_CHANGED_AP_PROBE_RESP;
  

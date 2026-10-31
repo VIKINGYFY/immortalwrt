@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /**
   * struct userpd_boot_info_header - header of user pd bootinfo
-@@ -78,6 +82,8 @@
+@@ -78,6 +82,8 @@ struct q6_wcss {
  	phys_addr_t mem_reloc;
  	void *mem_region;
  	size_t mem_size;
@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const struct wcss_data *desc;
  	const char **firmware;
  	struct userpd *upd[MAX_UPD];
-@@ -89,11 +95,13 @@
+@@ -89,11 +95,13 @@ struct userpd {
  	struct qcom_rproc_ssr ssr_subdev;
  	struct qcom_q6v5 q6;
  	void *irq_group;
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /**
-@@ -139,43 +147,70 @@
+@@ -139,43 +147,70 @@ static int q6_wcss_start(struct rproc *r
  
  static int q6_wcss_spawn_pd(struct rproc *rproc)
  {
@@ -148,7 +148,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -185,6 +220,12 @@
+@@ -185,6 +220,12 @@ static int q6_wcss_stop(struct rproc *rp
  	const struct wcss_data *desc = wcss->desc;
  	int ret;
  
@@ -161,7 +161,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = qcom_scm_pas_shutdown(desc->pasid);
  	if (ret) {
  		dev_err(wcss->dev, "not able to shutdown\n");
-@@ -224,6 +265,7 @@
+@@ -224,6 +265,7 @@ static int wcss_pd_stop(struct rproc *rp
  {
  	struct userpd *upd = rproc->priv;
  	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
@@ -169,7 +169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
  	int ret;
  
-@@ -235,13 +277,24 @@
+@@ -235,13 +277,24 @@ static int wcss_pd_stop(struct rproc *rp
  		}
  	}
  
@@ -195,7 +195,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -279,10 +332,13 @@
+@@ -279,10 +332,13 @@ static void *q6_wcss_da_to_va(struct rpr
  static int share_upd_bootinfo_to_q6(struct rproc *rproc)
  {
  	int i, ret;
@@ -209,7 +209,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct userpd *upd;
  	struct userpd_boot_info upd_bootinfo = {0};
  	const struct firmware *fw;
-@@ -304,10 +360,47 @@
+@@ -304,10 +360,47 @@ static int share_upd_bootinfo_to_q6(stru
  	}
  
  	/*Version*/
@@ -258,7 +258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < ARRAY_SIZE(wcss->upd); i++)
  		if (wcss->upd[i])
  			cnt++;
-@@ -363,12 +456,14 @@
+@@ -363,12 +456,14 @@ static int q6_wcss_load(struct rproc *rp
  
  	/* Share user pd boot info to Q6 remote processor */
  	if (desc->share_upd_info_to_q6) {
@@ -279,7 +279,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -436,17 +531,21 @@
+@@ -436,17 +531,21 @@ static int wcss_pd_load(struct rproc *rp
  	struct userpd *upd = rproc->priv;
  	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
  	struct q6_wcss *wcss = rpd_rproc->priv;
@@ -306,7 +306,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static unsigned long q6_wcss_panic(struct rproc *rproc)
-@@ -757,6 +856,11 @@
+@@ -757,6 +856,11 @@ static int q6_wcss_probe(struct platform
  	if (ret)
  		goto free_rproc;
  
@@ -318,7 +318,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
  			     WCSS_CRASH_REASON, NULL, NULL);
  	if (ret)
-@@ -808,9 +912,17 @@
+@@ -808,9 +912,17 @@ static void q6_wcss_remove(struct platfo
  	platform_set_drvdata(pdev, NULL);
  }
  
@@ -336,7 +336,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  static const struct wcss_data q6_ipq9574_res_init = {
-@@ -818,6 +930,7 @@
+@@ -818,6 +930,7 @@ static const struct wcss_data q6_ipq9574
  };
  
  static const struct of_device_id q6_wcss_of_match[] = {

@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -1010,17 +1010,21 @@
+@@ -1010,17 +1010,21 @@ void ath11k_dp_vdev_tx_attach(struct ath
  	ath11k_dp_update_vdev_search(arvif);
  }
  
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  void ath11k_dp_free(struct ath11k_base *ab)
-@@ -1037,9 +1041,8 @@
+@@ -1037,9 +1041,8 @@ void ath11k_dp_free(struct ath11k_base *
  
  	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
  		spin_lock_bh(&dp->tx_ring[i].tx_idr_lock);
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		spin_unlock_bh(&dp->tx_ring[i].tx_idr_lock);
  		kfree(dp->tx_ring[i].tx_status);
  		dp->tx_ring[i].tx_status = NULL;
-@@ -1088,7 +1091,9 @@
+@@ -1088,7 +1091,9 @@ int ath11k_dp_alloc(struct ath11k_base *
  	size = sizeof(struct hal_wbm_release_ring) * DP_TX_COMP_RING_SIZE;
  
  	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		spin_lock_init(&dp->tx_ring[i].tx_idr_lock);
  		spin_lock_init(&dp->tx_ring[i].wake_tx_lock);
  		dp->tx_ring[i].tcl_data_ring_id = i;
-@@ -1111,6 +1116,7 @@
+@@ -1111,6 +1116,7 @@ int ath11k_dp_alloc(struct ath11k_base *
  
  fail_cmn_srng_cleanup:
  	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -7346,15 +7346,20 @@
+@@ -7346,15 +7346,20 @@ err:
  	return ret;
  }
  
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void ath11k_mac_op_remove_interface(struct ieee80211_hw *hw,
-@@ -7420,8 +7425,7 @@
+@@ -7420,8 +7425,7 @@ err_vdev_del:
  
  	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
  		spin_lock_bh(&ab->dp.tx_ring[i].tx_idr_lock);
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath11k/dp_tx.h
 +++ b/drivers/net/wireless/ath/ath11k/dp_tx.h
-@@ -21,6 +21,8 @@
+@@ -21,6 +21,8 @@ void ath11k_dp_tx_update_txcompl(struct
  int ath11k_dp_tx_htt_h2t_ver_req_msg(struct ath11k_base *ab);
  int ath11k_dp_tx(struct ath11k *ar, struct ath11k_vif *arvif,
  		 struct ath11k_sta *arsta, struct sk_buff *skb, int held_ring);
@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_dp_tx_free_pending(struct ath11k_base *ab);
 --- a/drivers/net/wireless/ath/ath11k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
-@@ -79,6 +79,71 @@
+@@ -79,6 +79,71 @@ enum hal_encrypt_type ath11k_dp_tx_get_e
  	}
  }
  
@@ -199,7 +199,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* A caller that passes @held_ring holds that TCL ring's lock with an access
   * open, and ends the access itself once it has queued its last frame; the frame
   * goes on that ring or not at all.
-@@ -128,8 +193,7 @@
+@@ -128,8 +193,7 @@ tcl_ring_sel:
  	tx_ring = &dp->tx_ring[ti.ring_id];
  
  	spin_lock_bh(&tx_ring->tx_idr_lock);
@@ -209,7 +209,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spin_unlock_bh(&tx_ring->tx_idr_lock);
  
  	if (unlikely(ret < 0)) {
-@@ -290,8 +354,8 @@
+@@ -290,8 +354,8 @@ fail_unmap_dma:
  
  fail_remove_idr:
  	spin_lock_bh(&tx_ring->tx_idr_lock);
@@ -220,7 +220,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spin_unlock_bh(&tx_ring->tx_idr_lock);
  
  	if (tcl_ring_retry)
-@@ -310,7 +374,7 @@
+@@ -310,7 +374,7 @@ static void ath11k_dp_tx_free_txbuf(stru
  	struct ath11k_skb_cb *skb_cb;
  
  	spin_lock(&tx_ring->tx_idr_lock);
@@ -229,7 +229,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spin_unlock(&tx_ring->tx_idr_lock);
  
  	if (unlikely(!msdu)) {
-@@ -353,9 +417,11 @@
+@@ -353,9 +417,11 @@ void ath11k_dp_tx_free_pending(struct at
  		tx_ring = &ab->dp.tx_ring[i];
  
  		spin_lock_bh(&tx_ring->tx_idr_lock);
@@ -244,7 +244,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  		spin_unlock_bh(&tx_ring->tx_idr_lock);
  	}
-@@ -382,7 +448,7 @@
+@@ -382,7 +448,7 @@ ath11k_dp_tx_htt_tx_complete_buf(struct
  	struct ath11k_peer *peer;
  
  	spin_lock(&tx_ring->tx_idr_lock);
@@ -253,7 +253,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spin_unlock(&tx_ring->tx_idr_lock);
  
  	if (unlikely(!msdu)) {
-@@ -836,7 +902,7 @@
+@@ -836,7 +902,7 @@ int ath11k_dp_tx_completion_handler(stru
  		}
  
  		spin_lock(&tx_ring->tx_idr_lock);
@@ -264,7 +264,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				    msdu_id);
 --- a/drivers/net/wireless/ath/ath11k/dp.h
 +++ b/drivers/net/wireless/ath/ath11k/dp.h
-@@ -89,8 +89,11 @@
+@@ -89,8 +89,11 @@ struct dp_tx_ring {
  	u8 tcl_data_ring_id;
  	struct dp_srng tcl_data_ring;
  	struct dp_srng tcl_comp_ring;

@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.h
-@@ -86,12 +86,23 @@
+@@ -86,12 +86,23 @@ struct edma_port_pcpu_stats {
   * in the Rx path to mark received packets as hardware forwarded
   * @flags: Feature flags
   */
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/kernel.h>
  #include <linux/netdevice.h>
  #include <linux/platform_device.h>
-@@ -434,6 +435,29 @@
+@@ -434,6 +435,29 @@ static void edma_tx_fill_desc(struct edm
  
  	/* Set destination information in the descriptor. */
  	EDMA_TXDESC_SERVICE_CODE_SET(txd, PPE_EDMA_SC_BYPASS_ID);
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				FIELD_PREP(EDMA_TXDESC_TSO_ENABLE_MASK, x))
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -77,6 +77,8 @@
+@@ -77,6 +77,8 @@ struct ppe_bridge_vsi {
   * @flags: Offloaded bridge port flags of the port.
   * @mrouter: Port leads to a multicast router and is included in the
   * bitmap of every offloaded multicast group of its bridge.
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  struct ppe_bridge_port {
  	struct net_device *bridge;
-@@ -85,6 +87,7 @@
+@@ -85,6 +87,7 @@ struct ppe_bridge_port {
  	u16 pvid;
  	unsigned long flags;
  	bool mrouter;
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /* The bridge port flags the offload supports, matching the defaults of
-@@ -239,6 +242,8 @@
+@@ -239,6 +242,8 @@ static int ppe_bridge_vsi_get(struct ppe
  	return -ENOSPC;
  }
  
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Update the member and flood bitmaps of a VSI from its members and
   * their bridge port flags. The CPU port is always a member and a flood
   * target, so that packets without a hit on a hardware FDB entry reach
-@@ -272,6 +277,8 @@
+@@ -272,6 +277,8 @@ static int ppe_bridge_vsi_hw_update(stru
  			bc |= BIT(i);
  	}
  
@@ -130,7 +130,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ppe_vsi_members_set(pb->ppe_dev, vsi, member, uuc, umc, bc);
  }
  
-@@ -553,6 +560,68 @@
+@@ -553,6 +560,68 @@ static int ppe_bridge_mdb_purge(struct p
  	return err;
  }
  
@@ -199,7 +199,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Release a VSI which lost its last member port: drop its translation
   * rules, park it back to the CPU-only state the PPE core initialized,
   * and flush its FDB entries, including the CPU-directed entries which
-@@ -783,6 +852,10 @@
+@@ -783,6 +852,10 @@ static int ppe_bridge_port_join(struct p
  	pb->ports[port].pvid = 0;
  	pb->ports[port].flags = PPE_BRIDGE_SUPPORTED_FLAGS;
  	pb->ports[port].mrouter = false;
@@ -210,7 +210,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!vlan_aware) {
  		pb->vsis[vsi].members |= BIT(port);
-@@ -817,10 +890,15 @@
+@@ -817,10 +890,15 @@ static int ppe_bridge_port_join(struct p
  
  	ppe_bridge_port_offload_mark_set(dev, true);
  
@@ -227,7 +227,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		goto err_offload;
  
-@@ -831,6 +909,7 @@
+@@ -831,6 +909,7 @@ static int ppe_bridge_port_join(struct p
  
  err_offload:
  	ppe_bridge_port_offload_mark_set(dev, false);
@@ -235,7 +235,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_port_bridge_txmac_set(ppe_dev, port, false);
  err_datapath:
  	if (!vlan_aware)
-@@ -866,6 +945,7 @@
+@@ -866,6 +945,7 @@ static void ppe_bridge_port_leave(struct
  					&pb->switchdev_blocking_nb);
  
  	ppe_bridge_port_offload_mark_set(dev, false);
@@ -243,7 +243,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_port_bridge_txmac_set(ppe_dev, port, false);
  
  	if (!vlan_aware)
-@@ -1121,9 +1201,12 @@
+@@ -1121,9 +1201,12 @@ static int ppe_bridge_port_mdb_add(struc
  			hash_del(&mdb->node);
  			kfree(mdb);
  		}
@@ -257,7 +257,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_bridge_port_mdb_del(struct ppe_bridge *pb,
-@@ -1149,18 +1232,19 @@
+@@ -1149,18 +1232,19 @@ static int ppe_bridge_port_mdb_del(struc
  		ret = ppe_bridge_mdb_hw_update(pb, mdb);
  		if (ret)
  			mdb->ports |= BIT(port);
@@ -287,7 +287,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_bridge_stp_state_set(struct ppe_bridge *pb,
-@@ -1193,6 +1277,10 @@
+@@ -1193,6 +1277,10 @@ static int ppe_bridge_stp_state_set(stru
  	if (ret)
  		return ret;
  
@@ -298,7 +298,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (stp_state != PPE_STP_STATE_FORWARDING)
  		ret = ppe_fdb_port_flush(ppe_dev, port, false);
  
-@@ -1314,8 +1402,19 @@
+@@ -1314,8 +1402,19 @@ static int ppe_bridge_mc_disabled_set(st
  	int port = ppe_bridge_port_id(dev);
  	struct net_device *br = pb->ports[port].bridge;
  

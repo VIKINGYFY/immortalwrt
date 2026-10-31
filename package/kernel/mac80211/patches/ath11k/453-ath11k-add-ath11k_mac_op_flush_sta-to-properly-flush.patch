@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -8650,6 +8650,23 @@
+@@ -8650,6 +8650,23 @@ static void ath11k_mac_op_flush(struct i
  	ath11k_mac_flush_tx_complete(ar);
  }
  
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static bool
  ath11k_mac_has_single_legacy_rate(struct ath11k *ar,
  				  enum nl80211_band band,
-@@ -10103,6 +10120,7 @@
+@@ -10103,6 +10120,7 @@ static const struct ieee80211_ops ath11k
  	.set_bitrate_mask		= ath11k_mac_op_set_bitrate_mask,
  	.get_survey			= ath11k_mac_op_get_survey,
  	.flush				= ath11k_mac_op_flush,

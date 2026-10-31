@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  2 files changed, 53 insertions(+), 14 deletions(-)
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -918,6 +918,7 @@
+@@ -918,6 +918,7 @@ static void ath12k_wifi7_mac_op_tx(struc
  	struct ethhdr *eth;
  	bool is_prb_rsp;
  	u16 mcbc_gsn;
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 link_id;
  	int ret;
  	struct ath12k_dp *tmp_dp;
-@@ -1016,8 +1017,13 @@
+@@ -1016,8 +1017,13 @@ static void ath12k_wifi7_mac_op_tx(struc
  	    ieee80211_has_protected(hdr->frame_control))
  		is_dvlan = true;
  
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    test_bit(ATH12K_FLAG_RAW_MODE, &ar->ab->dev_flags)) {
  		ret = ath12k_wifi7_dp_tx(dp_pdev, arvif, arsta, skb, false, 0, is_mcast);
  		if (unlikely(ret)) {
-@@ -1029,6 +1035,7 @@
+@@ -1029,6 +1035,7 @@ static void ath12k_wifi7_mac_op_tx(struc
  		mcbc_gsn = atomic_inc_return(&ahvif->dp_vif.mcbc_gsn) & 0xfff;
  
  		links_map = ahvif->links_map;
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		for_each_set_bit(link_id, &links_map,
  				 IEEE80211_MLD_MAX_NUM_LINKS) {
  			tmp_arvif = rcu_dereference(ahvif->link[link_id]);
-@@ -1036,21 +1043,45 @@
+@@ -1036,21 +1043,45 @@ static void ath12k_wifi7_mac_op_tx(struc
  				continue;
  
  			tmp_ar = tmp_arvif->ar;
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  			skb_cb = ATH12K_SKB_CB(msdu_copied);
  			skb_cb->link_id = link_id;
-@@ -1066,7 +1097,6 @@
+@@ -1066,7 +1097,6 @@ static void ath12k_wifi7_mac_op_tx(struc
  			if (unlikely(!ahvif->dp_vif.key_cipher))
  				goto skip_peer_find;
  
@@ -130,7 +130,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			spin_lock_bh(&tmp_dp->dp_lock);
  			peer = ath12k_dp_link_peer_find_by_addr(tmp_dp,
  								tmp_arvif->bssid);
-@@ -1085,11 +1115,16 @@
+@@ -1085,11 +1115,16 @@ static void ath12k_wifi7_mac_op_tx(struc
  				skb_cb->cipher = key->cipher;
  				skb_cb->flags |= ATH12K_SKB_CIPHER_SET;
  
@@ -149,7 +149,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  skip_peer_find:
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -10167,7 +10167,8 @@
+@@ -10167,7 +10167,8 @@ static void ath12k_mac_update_vif_offloa
  	if (vif->type != NL80211_IFTYPE_STATION &&
  	    vif->type != NL80211_IFTYPE_AP)
  		vif->offload_flags &= ~(IEEE80211_OFFLOAD_ENCAP_ENABLED |
@@ -159,7 +159,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {
  		ahvif->dp_vif.tx_encap_type = ATH12K_HW_TXRX_ETHERNET;
-@@ -10186,6 +10187,9 @@
+@@ -10186,6 +10187,9 @@ static void ath12k_mac_update_vif_offloa
  		vif->offload_flags &= ~IEEE80211_OFFLOAD_ENCAP_ENABLED;
  	}
  

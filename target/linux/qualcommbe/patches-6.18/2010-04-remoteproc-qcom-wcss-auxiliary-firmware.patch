@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  struct wcss_sec {
  	struct device *dev;
-@@ -42,6 +43,7 @@
+@@ -42,6 +43,7 @@ struct wcss_sec {
  	void *mem_region;
  	size_t mem_size;
  	const struct wcss_data *desc;
@@ -170,7 +170,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct wcss_data {
-@@ -244,7 +246,8 @@
+@@ -244,7 +246,8 @@ static int wcss_sec_load(struct rproc *r
  {
  	struct wcss_sec *wcss = rproc->priv;
  	struct device *dev = wcss->dev;
@@ -180,7 +180,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = wcss_sec_prepare_userpd_bootargs(rproc);
  	if (ret) {
-@@ -257,6 +260,24 @@
+@@ -257,6 +260,24 @@ static int wcss_sec_load(struct rproc *r
  	if (ret)
  		return ret;
  
@@ -205,7 +205,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	qcom_pil_info_store("wcss", wcss->mem_phys, wcss->mem_size);
  
  	return 0;
-@@ -373,20 +394,26 @@
+@@ -373,20 +394,26 @@ static int wcss_sec_alloc_memory_region(
  static int wcss_sec_probe(struct platform_device *pdev)
  {
  	const struct wcss_data *desc = of_device_get_match_data(&pdev->dev);
@@ -236,7 +236,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!rproc) {
  		dev_err(&pdev->dev, "failed to allocate rproc\n");
  		return -ENOMEM;
-@@ -395,6 +422,7 @@
+@@ -395,6 +422,7 @@ static int wcss_sec_probe(struct platfor
  	wcss = rproc->priv;
  	wcss->dev = &pdev->dev;
  	wcss->desc = desc;

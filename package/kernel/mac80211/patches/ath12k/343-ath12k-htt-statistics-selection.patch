@@ -13,7 +13,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -1225,6 +1225,8 @@
+@@ -1225,6 +1225,8 @@ struct ath12k_fw_stats_bcn {
  
  struct ath12k_fw_stats_pdev {
  	struct list_head list;
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	s32 ch_noise_floor;
 --- a/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.c
 +++ b/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.c
-@@ -6193,7 +6193,7 @@
+@@ -6193,7 +6193,7 @@ static ssize_t ath12k_write_htt_stats_ty
  	if (count > size)
  		return -EINVAL;
  
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!buf)
  		return -ENOMEM;
  
-@@ -6202,11 +6202,13 @@
+@@ -6202,11 +6202,13 @@ static ssize_t ath12k_write_htt_stats_ty
  
  	num_args = sscanf(buf, "%u %u %u %u %u\n", &type, &cfg_param[0],
  			  &cfg_param[1], &cfg_param[2], &cfg_param[3]);
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wiphy_lock(ath12k_ar_to_hw(ar)->wiphy);
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -8382,8 +8382,15 @@
+@@ -8382,8 +8382,15 @@ ath12k_wmi_fw_pdev_stats_dump(struct ath
  
  	ath12k_wmi_fw_pdev_base_stats_dump(pdev, buf, &len,
  					   ar->ab->fw_soc_drop_count);
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	*length = len;
  }
-@@ -8539,6 +8546,7 @@
+@@ -8539,6 +8546,7 @@ static int ath12k_wmi_tlv_fw_stats_data_
  	struct ath12k *ar;
  	struct ath12k_link_vif *arvif;
  	struct ath12k_link_sta *arsta;
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int i, ret = 0;
  	const void *data = ptr;
  
-@@ -8616,28 +8624,55 @@
+@@ -8616,28 +8624,55 @@ static int ath12k_wmi_tlv_fw_stats_data_
  		stats->stats_id = WMI_REQUEST_BCN_STAT;
  		list_add_tail(&dst->list, &stats->bcn);
  	}

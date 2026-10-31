@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -207,6 +207,8 @@
+@@ -207,6 +207,8 @@ static const struct ath12k_wmi_tlv_polic
  		.min_len = sizeof(struct wmi_per_chain_rssi_stat_params) },
  	[WMI_TAG_OBSS_COLOR_COLLISION_EVT] = {
  		.min_len = sizeof(struct wmi_obss_color_collision_event) },
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  __le32 ath12k_wmi_tlv_hdr(u32 cmd, u32 len)
-@@ -374,6 +376,13 @@
+@@ -374,6 +376,13 @@ ath12k_wmi_tlv_parse(struct ath12k_base
  	return tb;
  }
  
@@ -73,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath12k_wmi_cmd_send_nowait(struct ath12k_wmi_pdev *wmi, struct sk_buff *skb,
  				      u32 cmd_id)
  {
-@@ -4754,14 +4763,16 @@
+@@ -4754,14 +4763,16 @@ static int ath12k_wmi_mac_phy_caps_parse
  	if (svc_rdy_ext->n_mac_phy_caps >= svc_rdy_ext->tot_phy_id)
  		return -ENOBUFS;
  
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	memcpy(svc_rdy_ext->mac_phy_caps + svc_rdy_ext->n_mac_phy_caps, ptr, len);
  	svc_rdy_ext->n_mac_phy_caps++;
  	return 0;
-@@ -9042,12 +9053,19 @@
+@@ -9042,12 +9053,19 @@ ath12k_wmi_process_csa_switch_count_even
  					  const u32 *vdev_ids)
  {
  	u32 current_switch_count = le32_to_cpu(ev->current_switch_count);
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	rcu_read_lock();
  	for (i = 0; i < num_vdevs; i++) {
  		arvif = ath12k_mac_get_arvif_by_vdev_id(ab, vdev_ids[i]);
-@@ -9937,6 +9955,7 @@
+@@ -9937,6 +9955,7 @@ static void ath12k_wmi_process_tpc_stats
  	void *ptr = skb->data;
  	struct ath12k *ar;
  	u16 tlv_tag;
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 event_count;
  	int ret;
  
-@@ -9952,6 +9971,7 @@
+@@ -9952,6 +9971,7 @@ static void ath12k_wmi_process_tpc_stats
  
  	tlv = (struct wmi_tlv *)ptr;
  	tlv_tag = le32_get_bits(tlv->header, WMI_TLV_TAG);
@@ -129,7 +129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ptr += sizeof(*tlv);
  
  	if (tlv_tag != WMI_TAG_HALPHY_CTRL_PATH_EVENT_FIXED_PARAM) {
-@@ -9959,6 +9979,12 @@
+@@ -9959,6 +9979,12 @@ static void ath12k_wmi_process_tpc_stats
  		return;
  	}
  
@@ -142,7 +142,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	fixed_param = (struct ath12k_wmi_pdev_tpc_stats_event_fixed_params *)ptr;
  	rcu_read_lock();
  	ar = ath12k_mac_get_ar_by_pdev_id(ab, le32_to_cpu(fixed_param->pdev_id) + 1);
-@@ -10265,12 +10291,12 @@
+@@ -10265,12 +10291,12 @@ static void ath12k_wmi_op_rx(struct ath1
  	struct wmi_cmd_hdr *cmd_hdr;
  	enum wmi_tlv_event_id id;
  

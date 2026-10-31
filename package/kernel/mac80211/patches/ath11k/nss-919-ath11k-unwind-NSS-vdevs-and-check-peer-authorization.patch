@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -7126,6 +7126,18 @@
+@@ -7126,6 +7126,18 @@ static const struct nss_wifi_mesh_ops at
  	.rx = ath11k_nss_mesh_rx,
  };
  
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The firmware owns the radio's rings, so an interface it does not take
   * cannot carry data at all and is refused.
   */
-@@ -7618,6 +7630,7 @@
+@@ -7618,6 +7630,7 @@ static int ath11k_mac_op_add_interface(s
  	return 0;
  
  err_peer_del:
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (arvif->vdev_type == WMI_VDEV_TYPE_AP) {
  		fbret = ath11k_peer_delete(ar, arvif->vdev_id, vif->addr);
  		if (fbret) {
-@@ -7628,6 +7641,7 @@
+@@ -7628,6 +7641,7 @@ err_peer_del:
  	}
  
  err_vdev_del:
@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath11k_mac_vdev_delete(ar, arvif);
  	spin_lock_bh(&ar->data_lock);
  	list_del(&arvif->list);
-@@ -7690,13 +7704,7 @@
+@@ -7690,13 +7704,7 @@ static void ath11k_mac_op_remove_interfa
  	/* Before the vdev goes, so the firmware stops naming an interface
  	 * whose peers are already gone.
  	 */
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = ath11k_mac_vdev_delete(ar, arvif);
  	if (ret) {
-@@ -10303,6 +10311,7 @@
+@@ -10303,6 +10311,7 @@ static int ath11k_mac_op_sta_state(struc
  	struct cur_regulatory_info *reg_info;
  	struct ath11k_peer *peer;
  	u16 peer_id;
@@ -73,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret = 0;
  
  	/* cancel must be done outside the mutex to avoid deadlock */
-@@ -10369,8 +10378,7 @@
+@@ -10369,8 +10378,7 @@ static int ath11k_mac_op_sta_state(struc
  		spin_lock_bh(&ar->ab->base_lock);
  
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		peer_id = peer ? peer->peer_id : 0;
  
  		spin_unlock_bh(&ar->ab->base_lock);
-@@ -10380,8 +10388,21 @@
+@@ -10380,8 +10388,21 @@ static int ath11k_mac_op_sta_state(struc
  		 * than its keys: an open network installs none, and a key is
  		 * installed before the exchange that proves it has finished.
  		 */
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (vif->type == NL80211_IFTYPE_STATION && arvif->is_up) {
  			ret = ath11k_wmi_set_peer_param(ar, sta->addr,
-@@ -10422,12 +10443,20 @@
+@@ -10422,12 +10443,20 @@ static int ath11k_mac_op_sta_state(struc
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  		if (peer)
  			peer->is_authorized = false;
@@ -130,7 +130,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (old_state == IEEE80211_STA_ASSOC &&
  		   new_state == IEEE80211_STA_AUTH &&
  		   (vif->type == NL80211_IFTYPE_AP ||
-@@ -10439,6 +10468,7 @@
+@@ -10439,6 +10468,7 @@ static int ath11k_mac_op_sta_state(struc
  				    sta->addr);
  	}
  
@@ -140,7 +140,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -43,11 +43,15 @@
+@@ -43,11 +43,15 @@ module_param_named(nss_offload, ath11k_n
  MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
  
  bool ath11k_nss_host_tx;
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  MODULE_PARM_DESC(nss_keep_mask, "Leave the ring mask alone while offloading");
  
  bool ath11k_nss_hash;
-@@ -55,7 +59,9 @@
+@@ -55,7 +59,9 @@ module_param_named(nss_hash, ath11k_nss_
  MODULE_PARM_DESC(nss_hash, "Keep hash-based receive steering while offloading");
  
  bool ath11k_nss_prefill;
@@ -166,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  MODULE_PARM_DESC(nss_prefill, "Fill the receive-DMA ring from here as well");
  
  static const struct ath11k_hw_params ath11k_hw_params[] = {
-@@ -2819,6 +2825,14 @@
+@@ -2819,6 +2825,14 @@ static int ath11k_init_hw_params(struct
  			  (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
  			   ab->hw_rev == ATH11K_HW_IPQ6018_HW10 ||
  			   ab->hw_rev == ATH11K_HW_QCN9074_HW10);

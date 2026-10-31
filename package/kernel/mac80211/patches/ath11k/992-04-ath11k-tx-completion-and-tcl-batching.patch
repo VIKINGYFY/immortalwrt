@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6505,7 +6505,7 @@
+@@ -6505,7 +6505,7 @@ static int ath11k_mac_mgmt_tx(struct ath
  
  static int ath11k_mac_tx(struct ieee80211_hw *hw,
  			 struct ieee80211_tx_control *control,
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ath11k_skb_cb *skb_cb = ATH11K_SKB_CB(skb);
  	struct ath11k *ar = hw->priv;
-@@ -6543,7 +6543,7 @@
+@@ -6543,7 +6543,7 @@ static int ath11k_mac_tx(struct ieee8021
  	if (control->sta)
  		arsta = ath11k_sta_to_arsta(control->sta);
  
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (unlikely(ret)) {
  		ath11k_warn(ar->ab, "failed to transmit frame %d\n", ret);
  		ieee80211_free_txskb(ar->hw, skb);
-@@ -6556,7 +6556,7 @@
+@@ -6556,7 +6556,7 @@ static void ath11k_mac_op_tx(struct ieee
  			     struct ieee80211_tx_control *control,
  			     struct sk_buff *skb)
  {
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  void ath11k_mac_drain_tx(struct ath11k *ar)
-@@ -10124,7 +10124,7 @@
+@@ -10124,7 +10124,7 @@ static int ath11k_mac_tx_push_txq(struct
  	struct hal_srng *tcl_ring;
  	struct sk_buff *skb;
  	u32 ring_selector;
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  	u8 ring_id;
  
-@@ -10137,38 +10137,55 @@
+@@ -10137,38 +10137,55 @@ static int ath11k_mac_tx_push_txq(struct
  	 * selection ends where that limit binds or the queue empties. A full
  	 * TCL ring ends the whole round, and so does a frame the hardware
  	 * refuses, as long as a frame in flight will restart it.
@@ -144,7 +144,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
 --- a/drivers/net/wireless/ath/ath11k/dp_tx.h
 +++ b/drivers/net/wireless/ath/ath11k/dp_tx.h
-@@ -20,7 +20,7 @@
+@@ -20,7 +20,7 @@ struct ath11k_dp_htt_wbm_tx_status {
  void ath11k_dp_tx_update_txcompl(struct ath11k *ar, struct hal_tx_status *ts);
  int ath11k_dp_tx_htt_h2t_ver_req_msg(struct ath11k_base *ab);
  int ath11k_dp_tx(struct ath11k *ar, struct ath11k_vif *arvif,
@@ -155,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_dp_tx_free_pending(struct ath11k_base *ab);
 --- a/drivers/net/wireless/ath/ath11k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
-@@ -79,8 +79,12 @@
+@@ -79,8 +79,12 @@ enum hal_encrypt_type ath11k_dp_tx_get_e
  	}
  }
  
@@ -169,7 +169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ath11k_base *ab = ar->ab;
  	struct ath11k_dp *dp = &ab->dp;
-@@ -108,7 +112,10 @@
+@@ -108,7 +112,10 @@ int ath11k_dp_tx(struct ath11k *ar, stru
  
  	pool_id = skb_get_queue_mapping(skb) & (ATH11K_HW_MAX_QUEUES - 1);
  
@@ -181,7 +181,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  tcl_ring_sel:
  	tcl_ring_retry = false;
-@@ -126,7 +133,7 @@
+@@ -126,7 +133,7 @@ tcl_ring_sel:
  	spin_unlock_bh(&tx_ring->tx_idr_lock);
  
  	if (unlikely(ret < 0)) {
@@ -190,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !ab->hw_params.tcl_ring_retry) {
  			atomic_inc(&ab->soc_stats.tx_err.misc_fail);
  			return -ENOSPC;
-@@ -225,11 +232,17 @@
+@@ -225,11 +232,17 @@ tcl_ring_sel:
  	hal_ring_id = tx_ring->tcl_data_ring.ring_id;
  	tcl_ring = &ab->hal.srng_list[hal_ring_id];
  
@@ -211,7 +211,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (unlikely(!hal_tcl_desc)) {
  		/* NOTE: It is highly unlikely we'll be running out of tcl_ring
  		 * desc because the desc is directly enqueued onto hw queue.
-@@ -263,11 +276,12 @@
+@@ -263,11 +276,12 @@ tcl_ring_sel:
  			skb->data, skb->len);
  	atomic_inc(&ar->dp.num_tx_pending);
  
@@ -229,7 +229,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  
-@@ -600,9 +614,20 @@
+@@ -600,9 +614,20 @@ err_out:
  	spin_unlock_bh(&ab->base_lock);
  }
  
@@ -251,7 +251,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ieee80211_tx_status status = {};
  	struct ieee80211_rate_status status_rate = {};
-@@ -610,8 +635,6 @@
+@@ -610,8 +635,6 @@ static void ath11k_dp_tx_complete_msdu(s
  	struct ieee80211_tx_info *info;
  	struct ath11k_skb_cb *skb_cb;
  	struct ath11k_peer *peer;
@@ -260,7 +260,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (WARN_ON_ONCE(ts->buf_rel_source != HAL_WBM_REL_SRC_MODULE_TQM)) {
  		/* Must not happen */
-@@ -678,30 +701,34 @@
+@@ -678,30 +701,34 @@ static void ath11k_dp_tx_complete_msdu(s
  		ath11k_dp_tx_cache_peer_stats(ar, msdu, ts);
  	}
  
@@ -305,7 +305,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ieee80211_tx_status_ext(ar->hw, &status);
  }
  
-@@ -749,6 +776,8 @@
+@@ -749,6 +776,8 @@ int ath11k_dp_tx_completion_handler(stru
  	struct sk_buff *msdu;
  	struct hal_tx_status ts = {};
  	struct dp_tx_ring *tx_ring = &dp->tx_ring[ring_id];
@@ -314,7 +314,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned long push = 0;
  	int done = 0;
  	u32 *desc;
-@@ -779,6 +808,8 @@
+@@ -779,6 +808,8 @@ int ath11k_dp_tx_completion_handler(stru
  
  	spin_unlock_bh(&status_ring->lock);
  
@@ -323,7 +323,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	while (done < budget &&
  	       ATH11K_TX_COMPL_NEXT(tx_ring->tx_status_tail) !=
  	       tx_ring->tx_status_head) {
-@@ -822,8 +853,14 @@
+@@ -822,8 +853,14 @@ int ath11k_dp_tx_completion_handler(stru
  		if (atomic_dec_and_test(&ar->dp.num_tx_pending))
  			wake_up(&ar->dp.tx_empty_waitq);
  

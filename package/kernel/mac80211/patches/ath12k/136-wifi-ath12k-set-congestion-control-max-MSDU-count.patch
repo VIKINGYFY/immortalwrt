@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  4 files changed, 21 insertions(+)
 --- a/drivers/net/wireless/ath/ath12k/hw.h
 +++ b/drivers/net/wireless/ath/ath12k/hw.h
-@@ -196,6 +196,7 @@
+@@ -196,6 +196,7 @@ struct ath12k_hw_params {
  	bool supports_shadow_regs:1;
  	bool supports_aspm:1;
  	bool current_cc_support:1;
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 max_tx_ring;
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -1083,6 +1083,7 @@
+@@ -1083,6 +1083,7 @@ enum wmi_tlv_pdev_param {
  	WMI_PDEV_PARAM_RADIO_CHAN_STATS_ENABLE,
  	WMI_PDEV_PARAM_RADIO_DIAGNOSIS_ENABLE,
  	WMI_PDEV_PARAM_MESH_MCAST_ENABLE,
@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	WMI_PDEV_PARAM_ENABLE_SR_PROHIBIT = 0xc6,
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -393,6 +393,7 @@
+@@ -393,6 +393,7 @@ static const struct ath12k_hw_params ath
  					BIT(NL80211_IFTYPE_MESH_POINT) |
  					BIT(NL80211_IFTYPE_AP_VLAN),
  		.supports_monitor = false,
@@ -62,7 +62,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		.idle_ps = false,
  		.download_calib = true,
-@@ -485,6 +486,7 @@
+@@ -485,6 +486,7 @@ static const struct ath12k_hw_params ath
  				   BIT(NL80211_IFTYPE_P2P_CLIENT) |
  				   BIT(NL80211_IFTYPE_P2P_GO),
  		.supports_monitor = true,
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		.idle_ps = true,
  		.download_calib = false,
-@@ -575,6 +577,7 @@
+@@ -575,6 +577,7 @@ static const struct ath12k_hw_params ath
  					BIT(NL80211_IFTYPE_MESH_POINT) |
  					BIT(NL80211_IFTYPE_AP_VLAN),
  		.supports_monitor = true,
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		.idle_ps = false,
  		.download_calib = true,
-@@ -663,6 +666,7 @@
+@@ -663,6 +666,7 @@ static const struct ath12k_hw_params ath
  				   BIT(NL80211_IFTYPE_AP) |
  				   BIT(NL80211_IFTYPE_MESH_POINT),
  		.supports_monitor = true,
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		.idle_ps = false,
  		.download_calib = true,
-@@ -749,6 +753,7 @@
+@@ -749,6 +753,7 @@ static const struct ath12k_hw_params ath
  				   BIT(NL80211_IFTYPE_P2P_CLIENT) |
  				   BIT(NL80211_IFTYPE_P2P_GO),
  		.supports_monitor = true,
@@ -94,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		.idle_ps = true,
  		.download_calib = false,
-@@ -839,6 +844,7 @@
+@@ -839,6 +844,7 @@ static const struct ath12k_hw_params ath
  				   BIT(NL80211_IFTYPE_AP) |
  				   BIT(NL80211_IFTYPE_MESH_POINT),
  		.supports_monitor = true,
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.download_calib = true,
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -9772,6 +9772,19 @@
+@@ -9772,6 +9772,19 @@ static int ath12k_mac_start(struct ath12
  		goto err;
  	}
  

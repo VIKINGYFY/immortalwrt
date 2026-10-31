@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/cfg80211.h
 +++ b/include/net/cfg80211.h
-@@ -3728,6 +3728,7 @@
+@@ -3728,6 +3728,7 @@ enum wiphy_params_flags {
  /* The per TXQ device queue limit in airtime */
  #define IEEE80211_DEFAULT_AQL_TXQ_LIMIT_L	5000
  #define IEEE80211_DEFAULT_AQL_TXQ_LIMIT_H	12000
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define IEEE80211_AQL_THRESHOLD			24000
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -1354,8 +1354,8 @@
+@@ -1354,8 +1354,8 @@ struct ieee80211_tx_info {
  	    status_data_idr:1,
  	    status_data:13,
  	    hw_queue:4,
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	union {
  		struct {
-@@ -6877,6 +6877,17 @@
+@@ -6877,6 +6877,17 @@ bool
  ieee80211_txq_airtime_check(struct ieee80211_hw *hw, struct ieee80211_txq *txq);
  
  /**
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @vif: virtual interface to iterate, may be %NULL for all
 --- a/net/mac80211/debugfs.c
 +++ b/net/mac80211/debugfs.c
-@@ -213,11 +213,13 @@
+@@ -213,11 +213,13 @@ static ssize_t aql_pending_read(struct f
  			"VI     %u us\n"
  			"BE     %u us\n"
  			"BK     %u us\n"
@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			atomic_read(&local->aql_total_pending_airtime));
  	return simple_read_from_buffer(user_buf, count, ppos,
  				       buf, len);
-@@ -243,7 +245,8 @@
+@@ -243,7 +245,8 @@ static ssize_t aql_txq_limit_read(struct
  			"VO	%u		%u\n"
  			"VI	%u		%u\n"
  			"BE	%u		%u\n"
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			local->aql_txq_limit_low[IEEE80211_AC_VO],
  			local->aql_txq_limit_high[IEEE80211_AC_VO],
  			local->aql_txq_limit_low[IEEE80211_AC_VI],
-@@ -251,7 +254,8 @@
+@@ -251,7 +254,8 @@ static ssize_t aql_txq_limit_read(struct
  			local->aql_txq_limit_low[IEEE80211_AC_BE],
  			local->aql_txq_limit_high[IEEE80211_AC_BE],
  			local->aql_txq_limit_low[IEEE80211_AC_BK],
@@ -97,7 +97,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return simple_read_from_buffer(user_buf, count, ppos,
  				       buf, len);
  }
-@@ -277,6 +281,11 @@
+@@ -277,6 +281,11 @@ static ssize_t aql_txq_limit_write(struc
  	else
  		buf[count] = '\0';
  
@@ -111,7 +111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1467,10 +1467,12 @@
+@@ -1467,10 +1467,12 @@ struct ieee80211_local {
  	spinlock_t handle_wake_tx_queue_lock;
  
  	u16 airtime_flags;
@@ -126,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const struct ieee80211_ops *ops;
 --- a/net/mac80211/main.c
 +++ b/net/mac80211/main.c
-@@ -988,6 +988,7 @@
+@@ -988,6 +988,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_
  	spin_lock_init(&local->rx_path_lock);
  	spin_lock_init(&local->queue_stop_reason_lock);
  
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		spin_lock_init(&local->active_txq_lock[i]);
 --- a/net/mac80211/sta_info.c
 +++ b/net/mac80211/sta_info.c
-@@ -2492,13 +2492,28 @@
+@@ -2492,13 +2492,28 @@ EXPORT_SYMBOL(ieee80211_sta_recalc_aggre
  
  void ieee80211_sta_update_pending_airtime(struct ieee80211_local *local,
  					  struct sta_info *sta, u8 ac,
@@ -168,7 +168,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			atomic_add(tx_airtime,
 --- a/net/mac80211/sta_info.h
 +++ b/net/mac80211/sta_info.h
-@@ -147,7 +147,8 @@
+@@ -147,7 +147,8 @@ struct airtime_info {
  
  void ieee80211_sta_update_pending_airtime(struct ieee80211_local *local,
  					  struct sta_info *sta, u8 ac,
@@ -180,7 +180,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/mac80211/status.c
 +++ b/net/mac80211/status.c
-@@ -774,7 +774,7 @@
+@@ -774,7 +774,7 @@ static void ieee80211_report_used_skb(st
  		ieee80211_sta_update_pending_airtime(local, sta,
  						     skb_get_queue_mapping(skb),
  						     tx_time_est,
@@ -189,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		rcu_read_unlock();
  	}
  
-@@ -1186,10 +1186,11 @@
+@@ -1186,10 +1186,11 @@ void ieee80211_tx_status_ext(struct ieee
  		/* Do this here to avoid the expensive lookup of the sta
  		 * in ieee80211_report_used_skb().
  		 */
@@ -204,7 +204,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -2623,7 +2623,7 @@
+@@ -2623,7 +2623,7 @@ static u16 ieee80211_store_ack_skb(struc
  
  		spin_lock_irqsave(&local->ack_status_lock, flags);
  		id = idr_alloc(&local->ack_status_frames, ack_skb,
@@ -213,7 +213,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		spin_unlock_irqrestore(&local->ack_status_lock, flags);
  
  		if (id >= 0) {
-@@ -4108,20 +4108,20 @@
+@@ -4108,20 +4108,20 @@ begin:
  encap_out:
  	info->control.vif = vif;
  
@@ -244,7 +244,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return skb;
-@@ -4173,6 +4173,7 @@
+@@ -4173,6 +4173,7 @@ struct ieee80211_txq *ieee80211_next_txq
  	struct ieee80211_txq *ret = NULL;
  	struct txq_info *txqi = NULL, *head = NULL;
  	bool found_eligible_txq = false;
@@ -252,7 +252,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	spin_lock_bh(&local->active_txq_lock[ac]);
  
-@@ -4196,26 +4197,26 @@
+@@ -4196,26 +4197,26 @@ struct ieee80211_txq *ieee80211_next_txq
  	if (!head)
  		head = txqi;
  
@@ -291,7 +291,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (txqi->schedule_round == local->schedule_round[ac])
  		goto out;
  
-@@ -4282,7 +4283,8 @@
+@@ -4282,7 +4283,8 @@ bool ieee80211_txq_airtime_check(struct
  		return true;
  
  	if (!txq->sta)
@@ -301,7 +301,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (unlikely(txq->tid == IEEE80211_NUM_TIDS))
  		return true;
-@@ -4302,6 +4304,24 @@
+@@ -4302,6 +4304,24 @@ bool ieee80211_txq_airtime_check(struct
  }
  EXPORT_SYMBOL(ieee80211_txq_airtime_check);
  
@@ -326,7 +326,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static bool
  ieee80211_txq_schedule_airtime_check(struct ieee80211_local *local, u8 ac)
  {
-@@ -4331,15 +4351,15 @@
+@@ -4331,15 +4351,15 @@ bool ieee80211_txq_may_transmit(struct i
  
  	spin_lock_bh(&local->active_txq_lock[ac]);
  

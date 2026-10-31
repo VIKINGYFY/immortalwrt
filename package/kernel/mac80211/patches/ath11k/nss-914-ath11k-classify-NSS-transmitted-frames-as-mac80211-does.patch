@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/hal_tx.c
 +++ b/drivers/net/wireless/ath/ath11k/hal_tx.c
-@@ -34,6 +34,22 @@
+@@ -34,6 +34,22 @@ static const u8 dscp_tid_map[DSCP_TID_MA
  	7, 7, 7, 7, 7, 7, 7, 7,
  };
  
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_hal_tx_cmd_desc_setup(struct ath11k_base *ab, void *cmd,
  				  struct hal_tx_info *ti)
  {
-@@ -82,6 +98,7 @@
+@@ -82,6 +98,7 @@ void ath11k_hal_tx_cmd_desc_setup(struct
  
  void ath11k_hal_tx_set_dscp_tid_map(struct ath11k_base *ab, int id)
  {
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 ctrl_reg_val;
  	u32 addr;
  	u8 hw_map_val[HAL_DSCP_TID_TBL_SIZE];
-@@ -104,21 +121,21 @@
+@@ -104,21 +121,21 @@ void ath11k_hal_tx_set_dscp_tid_map(stru
  	 */
  	for (i = 0; i < DSCP_TID_MAP_TBL_ENTRY_SIZE; i += 8) {
  		value = FIELD_PREP(HAL_TCL1_RING_FIELD_DSCP_TID_MAP0,

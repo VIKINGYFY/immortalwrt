@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/phy/sfp.c
 +++ b/drivers/net/phy/sfp.c
-@@ -426,6 +426,12 @@
+@@ -426,6 +426,12 @@ static void sfp_fixup_nokia(struct sfp *
  	sfp_fixup_ignore_los(sfp);
  }
  
@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  // For 10GBASE-T short-reach modules
  static void sfp_fixup_10gbaset_30m(struct sfp *sfp)
  {
-@@ -687,6 +693,7 @@
+@@ -687,6 +693,7 @@ static const struct sfp_quirk sfp_quirks
  
  	SFP_QUIRK_S("ZOERAX", "SFP-2.5G-T", sfp_quirk_oem_2_5g),
  	SFP_QUIRK_S("TP-LINK", "TL-SM410U", sfp_quirk_tp_link_sm410u),

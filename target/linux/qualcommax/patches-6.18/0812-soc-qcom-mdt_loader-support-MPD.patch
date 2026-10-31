@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static bool mdt_header_valid(const struct firmware *fw)
  {
-@@ -100,6 +110,56 @@
+@@ -100,6 +110,56 @@ static ssize_t mdt_load_split_segment(vo
  	return ret;
  }
  
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * qcom_mdt_get_size() - acquire size of the memory region needed to load mdt
   * @fw:		firmware object for the mdt file
-@@ -335,7 +395,8 @@
+@@ -335,7 +395,8 @@ static bool qcom_mdt_bins_are_split(cons
  static int __qcom_mdt_load(struct device *dev, const struct firmware *fw,
  			   const char *fw_name, void *mem_region,
  			   phys_addr_t mem_phys, size_t mem_size,
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	const struct elf32_phdr *phdrs;
  	const struct elf32_phdr *phdr;
-@@ -392,6 +453,14 @@
+@@ -392,6 +453,14 @@ static int __qcom_mdt_load(struct device
  		if (!mdt_phdr_loadable(phdr))
  			continue;
  
@@ -115,7 +115,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		offset = phdr->p_paddr - mem_reloc;
  		if (offset < 0 || offset + phdr->p_memsz > mem_size) {
  			dev_err(dev, "segment outside memory range\n");
-@@ -409,7 +478,11 @@
+@@ -409,7 +478,11 @@ static int __qcom_mdt_load(struct device
  
  		ptr = mem_region + offset;
  
@@ -128,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			/* Firmware is large enough to be non-split */
  			if (phdr->p_offset + phdr->p_filesz > fw->size) {
  				dev_err(dev, "file %s segment %d would be truncated\n",
-@@ -426,7 +499,7 @@
+@@ -426,7 +499,7 @@ static int __qcom_mdt_load(struct device
  				break;
  		}
  
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			memset(ptr + phdr->p_filesz, 0, phdr->p_memsz - phdr->p_filesz);
  	}
  
-@@ -461,7 +534,7 @@
+@@ -461,7 +534,7 @@ int qcom_mdt_load(struct device *dev, co
  		return ret;
  
  	return __qcom_mdt_load(dev, fw, firmware, mem_region, mem_phys,
@@ -146,7 +146,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  EXPORT_SYMBOL_GPL(qcom_mdt_load);
  
-@@ -482,9 +555,37 @@
+@@ -482,9 +555,37 @@ int qcom_mdt_load_no_init(struct device
  			  size_t mem_size, phys_addr_t *reloc_base)
  {
  	return __qcom_mdt_load(dev, fw, firmware, mem_region, mem_phys,
@@ -187,7 +187,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  MODULE_LICENSE("GPL v2");
 --- a/include/linux/soc/qcom/mdt_loader.h
 +++ b/include/linux/soc/qcom/mdt_loader.h
-@@ -30,6 +30,11 @@
+@@ -30,6 +30,11 @@ int qcom_mdt_load_no_init(struct device
  void *qcom_mdt_read_metadata(const struct firmware *fw, size_t *data_len,
  			     const char *fw_name, struct device *dev);
  

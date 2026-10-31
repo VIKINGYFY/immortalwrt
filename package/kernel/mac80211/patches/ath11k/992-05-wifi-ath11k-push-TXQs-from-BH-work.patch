@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -721,6 +721,9 @@
+@@ -721,6 +721,9 @@ struct ath11k {
  	spinlock_t txq_lock[IEEE80211_NUM_ACS];
  	/* access categories whose round ended for lack of room */
  	unsigned long txq_starved;
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* should never be NULL; needed for regular htt rx */
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6774,6 +6774,9 @@
+@@ -6774,6 +6774,9 @@ static void ath11k_mac_op_stop(struct ie
  	cancel_work_sync(&ar->channel_update_work);
  	cancel_work_sync(&ar->regd_update_work);
  	cancel_work_sync(&ar->ab->update_11d_work);
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (ar->state_11d == ATH11K_11D_PREPARING) {
  		ar->state_11d = ATH11K_11D_IDLE;
-@@ -10211,10 +10214,32 @@
+@@ -10211,10 +10214,32 @@ static void ath11k_mac_schedule_txq(stru
  	spin_unlock_bh(&ar->txq_lock[ac]);
  }
  
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  void ath11k_mac_tx_push_pending(struct ath11k *ar, u8 ac)
-@@ -10954,6 +10979,7 @@
+@@ -10954,6 +10979,7 @@ int ath11k_mac_allocate(struct ath11k_ba
  
  		for (j = 0; j < IEEE80211_NUM_ACS; j++)
  			spin_lock_init(&ar->txq_lock[j]);
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mutex_init(&ar->conf_mutex);
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2478,7 +2478,7 @@
+@@ -2478,7 +2478,7 @@ err_firmware_stop:
  
  static int ath11k_core_reconfigure_on_crash(struct ath11k_base *ab)
  {
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	mutex_lock(&ab->core_lock);
  	ath11k_thermal_unregister(ab);
-@@ -2492,6 +2492,15 @@
+@@ -2492,6 +2492,15 @@ static int ath11k_core_reconfigure_on_cr
  		ath11k_hif_ce_irq_disable(ab);
  	}
  

@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/phy/phy_package.c
 +++ b/drivers/net/phy/phy_package.c
-@@ -178,6 +178,12 @@
+@@ -178,6 +178,12 @@ bool phy_package_probe_once(struct phy_d
  }
  EXPORT_SYMBOL_GPL(phy_package_probe_once);
  
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @phydev: target phy_device struct
 --- a/drivers/net/phy/phylib.h
 +++ b/drivers/net/phy/phylib.h
-@@ -23,6 +23,7 @@
+@@ -23,6 +23,7 @@ int __phy_package_write_mmd(struct phy_d
  			    u32 regnum, u16 val);
  bool phy_package_init_once(struct phy_device *phydev);
  bool phy_package_probe_once(struct phy_device *phydev);
@@ -897,7 +897,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "qcom.h"
  
  /* ADC threshold */
-@@ -172,12 +173,14 @@
+@@ -172,12 +173,14 @@ enum {
  
  struct qca808x_priv {
  	int led_polarity_mode;
@@ -912,7 +912,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  static const char *const qca8084_package_clk_name[PACKAGE_CLK_MAX] = {
-@@ -355,6 +358,8 @@
+@@ -355,6 +358,8 @@ static int qca808x_probe(struct phy_devi
  {
  	struct device *dev = &phydev->mdio.dev;
  	struct qca808x_priv *priv;
@@ -921,7 +921,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
  	if (!priv)
-@@ -363,6 +368,14 @@
+@@ -363,6 +368,14 @@ static int qca808x_probe(struct phy_devi
  	/* Init LED polarity mode to -1 */
  	priv->led_polarity_mode = -1;
  
@@ -936,7 +936,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	phydev->priv = priv;
  
  	return 0;
-@@ -934,6 +947,14 @@
+@@ -934,6 +947,14 @@ static int qca8084_phy_package_config_in
  
  	usleep_range(10000, 11000);
  
@@ -951,7 +951,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Initialize the PHY package clock and reset, which is the
  	 * necessary config sequence after GPIO reset on the PHY package.
  	 */
-@@ -976,6 +997,7 @@
+@@ -976,6 +997,7 @@ static int qca8084_config_init(struct ph
  
  static void qca8084_link_change_notify(struct phy_device *phydev)
  {
@@ -959,7 +959,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  
  	/* Assert the FIFO between PHY and MAC. */
-@@ -1007,14 +1029,25 @@
+@@ -1007,14 +1029,25 @@ static void qca8084_link_change_notify(s
  		}
  	}
  
@@ -987,7 +987,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* QCA8084 is a four-port PHY, which integrates the clock controller,
-@@ -1033,6 +1066,7 @@
+@@ -1033,6 +1066,7 @@ static int qca8084_phy_package_probe_onc
  	struct device_node *np = phy_package_get_node(phydev);
  	struct qca808x_shared_priv *shared_priv;
  	struct reset_control *rstc;
@@ -995,7 +995,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int i, ret, clear, set;
  	struct clk *clk;
  
-@@ -1093,6 +1127,26 @@
+@@ -1093,6 +1127,26 @@ static int qca8084_phy_package_probe_onc
  	if (ret && ret != -EINVAL)
  		return ret;
  
@@ -1022,7 +1022,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	rstc = of_reset_control_get_exclusive(np, NULL);
  	if (IS_ERR(rstc))
  		return dev_err_probe(&phydev->mdio.dev, PTR_ERR(rstc),
-@@ -1102,6 +1156,14 @@
+@@ -1102,6 +1156,14 @@ static int qca8084_phy_package_probe_onc
  	return reset_control_deassert(rstc);
  }
  
@@ -1037,7 +1037,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int qca8084_probe(struct phy_device *phydev)
  {
  	struct qca808x_shared_priv *shared_priv;
-@@ -1120,6 +1182,10 @@
+@@ -1120,6 +1182,10 @@ static int qca8084_probe(struct phy_devi
  			return ret;
  	}
  
@@ -1048,7 +1048,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Enable clock of PHY device, so that the PHY register
  	 * can be accessed to get PHY features.
  	 */
-@@ -1137,6 +1203,15 @@
+@@ -1137,6 +1203,15 @@ static int qca8084_probe(struct phy_devi
  	return reset_control_deassert(rstc);
  }
  
@@ -1064,7 +1064,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct phy_driver qca808x_driver[] = {
  {
  	/* Qualcomm QCA8081 */
-@@ -1190,6 +1265,7 @@
+@@ -1190,6 +1265,7 @@ static struct phy_driver qca808x_driver[
  	.config_init		= qca8084_config_init,
  	.link_change_notify	= qca8084_link_change_notify,
  	.probe			= qca8084_probe,

@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -3512,6 +3512,36 @@
+@@ -3512,6 +3512,36 @@ static bool ath11k_mac_supports_station_
  		chandef->chan->band == NL80211_BAND_6GHZ;
  }
  
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_mac_op_bss_info_changed(struct ieee80211_hw *hw,
  					   struct ieee80211_vif *vif,
  					   struct ieee80211_bss_conf *info,
-@@ -3871,6 +3901,9 @@
+@@ -3871,6 +3901,9 @@ static void ath11k_mac_op_bss_info_chang
  			   vif->addr, arvif->arp_ns_offload.ipv4_addr);
  	}
  
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ar->conf_mutex);
  }
  
-@@ -7124,6 +7157,11 @@
+@@ -7124,6 +7157,11 @@ static int ath11k_nss_vdev_register(stru
  
  	arvif->nss_ifnum = ret;
  

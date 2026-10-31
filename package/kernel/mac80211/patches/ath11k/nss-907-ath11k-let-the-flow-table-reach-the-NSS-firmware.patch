@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -10451,6 +10451,53 @@
+@@ -10451,6 +10451,53 @@ void ath11k_mac_tx_push_pending(struct a
  	rcu_read_unlock();
  }
  
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct ieee80211_ops ath11k_ops = {
  	.tx				= ath11k_mac_op_tx,
  	.wake_tx_queue			= ath11k_mac_op_wake_tx_queue,
-@@ -10488,6 +10535,8 @@
+@@ -10488,6 +10535,8 @@ static const struct ieee80211_ops ath11k
  	.flush				= ath11k_mac_op_flush,
  	.flush_sta			= ath11k_mac_op_flush_sta,
  	.sta_statistics			= ath11k_mac_op_sta_statistics,

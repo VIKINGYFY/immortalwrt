@@ -13,7 +13,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
-@@ -315,6 +315,7 @@
+@@ -315,6 +315,7 @@ static void qcom_ppe_remove(struct platf
  
  	ppe_dev = platform_get_drvdata(pdev);
  
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 */
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
-@@ -70,6 +70,7 @@
+@@ -70,6 +70,7 @@ struct ppe_ds_provider {
  	struct ppe_device *ppe_dev;
  	struct qcom_ppe_ds *nodes[PPE_DS_NODES];
  	int irqs[PPE_DS_NODES][PPE_DS_IRQ_COUNT];
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct qcom_ppe_ds {
-@@ -95,6 +96,7 @@
+@@ -95,6 +96,7 @@ struct qcom_ppe_ds {
  	u8 allocated_vps;
  	bool running, faulted, ever_started, stopped, napi_enabled;
  	bool refill_short;
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	atomic64_t down_desc, up_desc, refilled, released;
  	atomic64_t index_updates, refill_failures;
  	atomic64_t poll_retries, refill_wakes, tx_deferred;
-@@ -115,7 +117,7 @@
+@@ -115,7 +117,7 @@ bool qcom_ppe_ds_available(void)
  	bool available;
  
  	mutex_lock(&ppe_ds_lock);
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ppe_ds_lock);
  	return available;
  }
-@@ -371,11 +373,14 @@
+@@ -371,11 +373,14 @@ static int ppe_ds_poll(struct napi_struc
  	if (done < 0 || filled < 0 || READ_ONCE(ds->faulted)) {
  		ppe_ds_mask(ds);
  		napi_complete_done(napi, 0);
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return budget;
  
  	if (napi_complete_done(napi, done)) {
-@@ -621,7 +626,7 @@
+@@ -621,7 +626,7 @@ struct qcom_ppe_ds *qcom_ppe_ds_register
  		return ERR_PTR(-EINVAL);
  	mutex_lock(&ppe_ds_lock);
  	provider = ppe_ds_provider;
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto unlock;
  	dev = provider->ppe_dev->dev;
  	if (!ppe_ds_identity_dma(dev) || !ppe_ds_identity_dma(cfg->wlan_dev)) {
-@@ -760,14 +765,62 @@
+@@ -760,14 +765,62 @@ unlock:
  }
  EXPORT_SYMBOL_GPL(qcom_ppe_ds_start);
  
@@ -138,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ds->stopped || !ds->ever_started)
  		goto unlock;
  	/* Keep installed flows functional through the CPU while quiescing DS. */
-@@ -900,7 +953,7 @@
+@@ -900,7 +953,7 @@ int qcom_ppe_ds_vp_alloc(struct qcom_ppe
  	int vp;
  
  	mutex_lock(&ds->lock);
@@ -147,7 +147,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		vp = -ESHUTDOWN;
  		goto unlock;
  	}
-@@ -929,7 +982,9 @@
+@@ -929,7 +982,9 @@ int qcom_ppe_ds_vp_route(struct qcom_ppe
  	if (i < 0 || i >= PPE_VP_SLOTS)
  		return -EINVAL;
  	mutex_lock(&ds->lock);
@@ -158,7 +158,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = -ENOENT;
  	else if (direct && (!ds->running || ds->faulted))
  		ret = -ESHUTDOWN;
-@@ -948,6 +1003,10 @@
+@@ -948,6 +1003,10 @@ int qcom_ppe_ds_vp_free(struct qcom_ppe_
  	if (i < 0 || i >= PPE_VP_SLOTS)
  		return -EINVAL;
  	mutex_lock(&ds->lock);
@@ -169,7 +169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!(ds->allocated_vps & BIT(i))) {
  		ret = -ENOENT;
  		goto unlock;
-@@ -1068,29 +1127,54 @@
+@@ -1068,29 +1127,54 @@ free_provider:
  	return ret;
  }
  
@@ -246,7 +246,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/include/linux/soc/qcom/ppe-ds.h
 +++ b/include/linux/soc/qcom/ppe-ds.h
-@@ -25,6 +25,8 @@
+@@ -25,6 +25,8 @@ struct qcom_ppe_ds_ops {
  	u16 (*get_tcl_cons)(void *priv);
  	void (*set_tcl_prod)(void *priv, u16 index);
  	u16 (*get_reo_prod)(void *priv);
@@ -255,7 +255,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	void (*set_reo_cons)(void *priv, u16 index);
  	unsigned int (*refill)(void *priv, struct qcom_ppe_ds_buffer *buffers,
  			       unsigned int count, unsigned int size);
-@@ -57,6 +59,10 @@
+@@ -57,6 +59,10 @@ bool qcom_ppe_ds_available(void);
  int qcom_ppe_ds_start(struct qcom_ppe_ds *ds);
  int qcom_ppe_ds_stop(struct qcom_ppe_ds *ds);
  int qcom_ppe_ds_unregister(struct qcom_ppe_ds *ds);

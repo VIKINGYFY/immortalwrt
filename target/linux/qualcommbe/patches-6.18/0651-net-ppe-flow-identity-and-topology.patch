@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	u32 val, cmd_id;
  	int ret;
-@@ -41,6 +43,10 @@
+@@ -41,6 +43,10 @@ static int ppe_flow_op_issue(struct ppe_
  		val |= PPE_FLOW_OP_MODE |
  		       FIELD_PREP(PPE_FLOW_OP_ENTRY_INDEX, index);
  
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = regmap_write(ppe_dev->regmap, PPE_FLOW_TBL_OP_ADDR, val);
  	if (ret)
  		return ret;
-@@ -62,8 +68,15 @@
+@@ -62,8 +68,15 @@ static int ppe_flow_op_issue(struct ppe_
  			FIELD_GET(PPE_FLOW_OP_RSLT_VALID_CNT, val), 10, 10000);
  	if (ret)
  		return ret;
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val);
  }
  
-@@ -105,7 +118,8 @@
+@@ -105,7 +118,8 @@ static int ppe_flow_read_op_issue(struct
  }
  
  static int ppe_host_op_issue(struct ppe_device *ppe_dev, u32 op_type,
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	u32 val, cmd_id;
  	int ret;
-@@ -119,6 +133,10 @@
+@@ -119,6 +133,10 @@ static int ppe_host_op_issue(struct ppe_
  		val |= PPE_HOST_OP_MODE |
  		       FIELD_PREP(PPE_HOST_OP_ENTRY_INDEX, index);
  
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = regmap_write(ppe_dev->regmap, PPE_HOST_TBL_OP_ADDR, val);
  	if (ret)
  		return ret;
-@@ -136,8 +154,15 @@
+@@ -136,8 +154,15 @@ static int ppe_host_op_issue(struct ppe_
  			FIELD_GET(PPE_HOST_OP_RSLT_VALID_CNT, val), 10, 10000);
  	if (ret)
  		return ret;
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return FIELD_GET(PPE_HOST_OP_RSLT_ENTRY_INDEX, val);
  }
  
-@@ -182,6 +207,10 @@
+@@ -182,6 +207,10 @@ static void ppe_flow_entry_pack(const st
  	val[0] |= FIELD_PREP(PPE_FLOW_W0_HOST_INDEX, flow->host_index);
  	val[0] |= FIELD_PREP(PPE_FLOW_W0_PROTOCOL_TYPE, flow->proto);
  	val[0] |= FIELD_PREP(PPE_FLOW_W0_AGE, 3);
@@ -106,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	val[0] |= FIELD_PREP(PPE_FLOW_W0_FWD_TYPE, flow->fwd_type);
  	val[1] = FIELD_PREP(PPE_FLOW_W1_NEXT_HOP, flow->nexthop);
  	val[1] |= FIELD_PREP(PPE_FLOW_W1_L4_PORT,
-@@ -225,20 +254,26 @@
+@@ -225,20 +254,26 @@ static void ppe_flow_entry_pack(const st
  }
  
  int ppe_host_entry_add(struct ppe_device *ppe_dev,
@@ -135,7 +135,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -250,43 +285,44 @@
+@@ -250,43 +285,44 @@ int ppe_host_entry_del(struct ppe_device
  		return -EINVAL;
  
  	mutex_lock(&ppe_dev->flow_lock);
@@ -195,7 +195,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  	mutex_unlock(&ppe_dev->flow_lock);
  	if (ret >= ppe_dev->variant->num_flow_entries)
-@@ -397,7 +433,7 @@
+@@ -397,7 +433,7 @@ int ppe_flow_entry_del(struct ppe_device
  		return -EINVAL;
  
  	mutex_lock(&ppe_dev->flow_lock);
@@ -204,7 +204,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret >= 0 || ret == -ENOENT) {
  		reg = PPE_QOS_MAPPING_TBL_ADDR +
  		      PPE_QOS_MAPPING_TBL_INC * index;
-@@ -457,14 +493,12 @@
+@@ -457,14 +493,12 @@ int ppe_my_mac_set(struct ppe_device *pp
  		   bool valid)
  {
  	u32 reg = PPE_MY_MAC_TBL_ADDR + PPE_MY_MAC_TBL_INC * index;
@@ -219,7 +219,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (valid) {
  		val[0] = (u32)addr[2] << 24 | addr[3] << 16 |
  			 addr[4] << 8 | addr[5];
-@@ -476,10 +510,7 @@
+@@ -476,10 +510,7 @@ int ppe_my_mac_set(struct ppe_device *pp
  		 * interface which used its previous address.
  		 */
  		for (i = 0; i < PPE_IN_L3_IF_TBL_ENTRIES; i++) {
@@ -231,7 +231,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (ret)
  				return ret;
  		}
-@@ -568,16 +599,39 @@
+@@ -568,16 +599,39 @@ int ppe_l3_if_set(struct ppe_device *ppe
  int ppe_l3_if_my_mac_set(struct ppe_device *ppe_dev, int index, int my_mac,
  			 bool enable)
  {
@@ -277,7 +277,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  int ppe_l3_if_clear(struct ppe_device *ppe_dev, int index)
-@@ -603,15 +657,16 @@
+@@ -603,15 +657,16 @@ int ppe_l3_if_clear(struct ppe_device *p
   * @sid: PPPoE session ID
   * @peer: PPPoE peer/server MAC address
   * @l3_if: L3 interface assigned to the terminated packets
@@ -298,7 +298,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	u32 ext2_mask = PPE_PPPOE_SESSION_EXT2_L3_IF_VALID |
  			PPE_PPPOE_SESSION_EXT2_L3_IF;
-@@ -619,7 +674,13 @@
+@@ -619,7 +674,13 @@ int ppe_pppoe_session_set(struct ppe_dev
  	u32 val, ext, ext1, ext2;
  	int ret = 0, err;
  
@@ -313,7 +313,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EINVAL;
  
  	base_reg = PPE_PPPOE_SESSION_ADDR + PPE_PPPOE_SESSION_INC * index;
-@@ -646,9 +707,12 @@
+@@ -646,9 +707,12 @@ int ppe_pppoe_session_set(struct ppe_dev
  		return ret;
  	}
  
@@ -329,7 +329,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ext = PPE_PPPOE_SESSION_EXT_MC_VALID |
  	      PPE_PPPOE_SESSION_EXT_UC_VALID |
  	      PPE_PPPOE_SESSION_EXT_SMAC_VALID |
-@@ -694,13 +758,26 @@
+@@ -694,13 +758,26 @@ rollback:
  int ppe_vsi_l3_if_set(struct ppe_device *ppe_dev, int vsi, int l3_if)
  {
  	u32 reg = PPE_L3_VSI_ADDR + PPE_L3_VSI_INC * vsi;
@@ -358,7 +358,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -716,9 +793,13 @@
+@@ -716,9 +793,13 @@ int ppe_port_l3_if_set(struct ppe_device
  	u32 reg = PPE_L3_VP_PORT_TBL_ADDR + PPE_L3_VP_PORT_TBL_INC * port;
  	u32 mask = PPE_L3_VP_PORT_W0_L3_IF_VALID |
  		   PPE_L3_VP_PORT_W0_L3_IF_INDEX;
@@ -373,7 +373,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
  	if (ret)
  		return ret;
-@@ -729,7 +810,14 @@
+@@ -729,7 +810,14 @@ int ppe_port_l3_if_set(struct ppe_device
  		val[0] |= PPE_L3_VP_PORT_W0_L3_IF_VALID |
  			  FIELD_PREP(PPE_L3_VP_PORT_W0_L3_IF_INDEX, l3_if);
  
@@ -407,7 +407,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * struct ppe_flow_nexthop - Next hop configuration of a flow.
   * @port: Egress PPE port.
-@@ -55,6 +64,8 @@
+@@ -55,6 +64,8 @@ struct ppe_flow_nexthop {
   * @pmtu: Path MTU of the egress device of the flow.
   * @priority: Internal priority selected by the flow QoS result.
   * @priority_valid: Whether the rule carries an explicit priority action.
@@ -416,7 +416,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  struct ppe_flow_entry {
  	union {
-@@ -72,6 +83,8 @@
+@@ -72,6 +83,8 @@ struct ppe_flow_entry {
  	u16 pmtu;
  	u8 priority;
  	bool priority_valid;
@@ -425,7 +425,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  int ppe_flow_hw_init(struct ppe_device *ppe_dev);
-@@ -85,15 +98,18 @@
+@@ -85,15 +98,18 @@ int ppe_l3_if_clear(struct ppe_device *p
  int ppe_vsi_l3_if_set(struct ppe_device *ppe_dev, int vsi, int l3_if);
  int ppe_port_l3_if_set(struct ppe_device *ppe_dev, int port, int l3_if);
  int ppe_pppoe_session_set(struct ppe_device *ppe_dev, int index,
@@ -457,7 +457,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/rcupdate.h>
  #include <linux/regmap.h>
  #include <linux/rhashtable.h>
-@@ -109,16 +110,26 @@
+@@ -109,16 +110,26 @@ static_assert(offsetof(struct ppe_ft_nex
   * @peer: PPPoE peer/server MAC address.
   * @local: Local/router MAC owned by the PPPoE L3 interface.
   * @mtu: MTU/MRU owned by the PPPoE L3 interface.
@@ -490,7 +490,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  struct ppe_ft_pppoe {
  	struct ppe_ft_ref ref;
-@@ -126,10 +137,20 @@
+@@ -126,10 +137,20 @@ struct ppe_ft_pppoe {
  	u8 peer[ETH_ALEN];
  	u8 local[ETH_ALEN];
  	u16 mtu;
@@ -511,7 +511,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool poisoned;
  };
  
-@@ -140,9 +161,13 @@
+@@ -140,9 +161,13 @@ static_assert(offsetof(struct ppe_ft_ppp
  /**
   * struct ppe_ft_vlan - A refcounted VLAN uplink of an ingress port.
   * @ref: Reference count of the uplink.
@@ -526,7 +526,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * A VLAN uplink owns one of the reserved top ingress translation
   * rules, VSIs and an L3 interface, all of its slot index: the rule
-@@ -153,12 +178,56 @@
+@@ -153,13 +178,57 @@ static_assert(offsetof(struct ppe_ft_ppp
   */
  struct ppe_ft_vlan {
  	struct ppe_ft_ref ref;
@@ -541,7 +541,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  static_assert(offsetof(struct ppe_ft_vlan, ref) == 0);
-+
+ 
 +/* A physical port's L3 binding overrides the L3 interface of a VLAN VSI.
 + * Retain its untagged path while tagged uplinks select L3 through their VSI.
 + * References count VLAN slots, not individual flows.
@@ -581,10 +581,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	int output_ifindex;
 +	int priority;
 +};
- 
++
  /**
   * struct ppe_ft_flow - An offloaded flow.
-@@ -171,7 +240,9 @@
+  * @node: Hash table node, keyed by the flow cookie.
+@@ -171,7 +240,9 @@ static_assert(offsetof(struct ppe_ft_vla
   * @my_mac: Router MAC slot held by the flow, negative when none.
   * @pub_ip: Public IP slot held by the flow, negative when none.
   * @pppoe: PPPoE session slot held by the flow, negative when none.
@@ -594,7 +595,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @eport: Egress PPE port of the flow.
   * @egress_dev: DSA user netdev held for carrier and topology checks.
   * @egress_vid: tag_8021q VID programmed for DSA egress.
-@@ -184,6 +255,7 @@
+@@ -184,6 +255,7 @@ struct ppe_ft_flow {
  	struct rcu_head rcu;
  	unsigned long cookie;
  	struct flow_block *block;
@@ -602,7 +603,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int index;
  	struct ppe_flow_entry entry;
  	u16 nexthop;
-@@ -191,14 +263,17 @@
+@@ -191,14 +263,17 @@ struct ppe_ft_flow {
  	int my_mac;
  	int pub_ip;
  	int pppoe;
@@ -621,7 +622,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 packets;
  	u64 bytes;
  };
-@@ -253,6 +328,7 @@
+@@ -253,6 +328,7 @@ enum ppe_ft_reject_reason {
  	PPE_FT_REJECT_EGRESS_VP,
  	PPE_FT_REJECT_NAT,
  	PPE_FT_REJECT_PPPOE,
@@ -629,14 +630,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	PPE_FT_REJECT_RESOURCE,
  	PPE_FT_REJECT_MAX,
  };
-@@ -267,7 +343,35 @@
+@@ -267,9 +343,37 @@ static const char * const ppe_ft_reject_
  	[PPE_FT_REJECT_EGRESS_VP] = "output_vp",
  	[PPE_FT_REJECT_NAT] = "nat",
  	[PPE_FT_REJECT_PPPOE] = "pppoe",
 +	[PPE_FT_REJECT_INGRESS_L3] = "input_l3",
  	[PPE_FT_REJECT_RESOURCE] = "resource",
-+};
-+
+ };
+ 
 +enum ppe_ft_resource_stage {
 +	PPE_FT_RES_CORE,
 +	PPE_FT_RES_L3_SETUP,
@@ -662,10 +663,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	[PPE_FT_RES_FLOW_READBACK] = "flow_readback",
 +	[PPE_FT_RES_FLOW_PUBLISH] = "flow_publish",
 +	[PPE_FT_RES_VP_PUBLISH] = "vp_publish",
- };
- 
++};
++
  /* Refcounted hardware host entry. Its hardware-selected index is
-@@ -295,6 +399,9 @@
+  * carried explicitly by every flow which references it.
+  */
+@@ -295,6 +399,9 @@ struct ppe_ft_host {
   * @pub_ips: Refcounted public IP slots.
   * @pppoe: Refcounted PPPoE session slots.
   * @vlans: Refcounted VLAN uplink slots.
@@ -675,7 +678,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @ppp_nb: PPP channel lifecycle notifier.
   * @block_cb_list: Flow block callbacks bound to the PPE ports.
   * @hosts: Refcount of the flows sharing a source host entry.
-@@ -319,9 +426,13 @@
+@@ -319,9 +426,13 @@ struct ppe_flowtable {
  	atomic_long_t flow_index_conflicts;
  	atomic_long_t flow_readback_failures;
  	atomic_long_t flow_stale_replaces;
@@ -689,7 +692,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	DECLARE_HASHTABLE(hosts, PPE_FT_HOST_HASH_BITS);
  	struct ppe_ft_nexthop *nexthops;
  	unsigned int nexthop_active;
-@@ -332,6 +443,9 @@
+@@ -332,6 +443,9 @@ struct ppe_flowtable {
  	struct ppe_ft_pub_ip pub_ips[PPE_PUB_IP_TBL_ENTRIES];
  	struct ppe_ft_pppoe pppoe[PPE_FT_PPPOE_SESSIONS];
  	struct ppe_ft_vlan vlans[PPE_L3_VLAN_UPLINKS];
@@ -699,7 +702,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ppe_ft_tunnel tunnels[PPE_FT_TUNNELS];
  	struct ppe_ft_tunnel_underlay tunnel_underlays[PPE_FT_TUNNEL_UNDERLAYS];
  	struct ppe_ft_tunnel_pppoe_port tunnel_pppoe_ports[PPE_PORT_ID_COUNT];
-@@ -352,6 +466,42 @@
+@@ -352,6 +466,42 @@ static const struct rhashtable_params pp
  	.automatic_shrinking = true,
  };
  
@@ -742,7 +745,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ppe_ft_flow_count_inc(struct ppe_flowtable *ft,
  				  const struct ppe_ft_flow *flow)
  {
-@@ -374,22 +524,6 @@
+@@ -374,22 +524,6 @@ static void ppe_ft_flow_count_dec(struct
   * The Ethernet buffer overlays the destination and source addresses as
   * they appear in the header.
   */
@@ -765,7 +768,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_ft_mangle_eth(const struct flow_action_entry *act, void *eth)
  {
  	const void *src = &act->mangle.val;
-@@ -545,11 +679,11 @@
+@@ -545,11 +679,11 @@ static int ppe_ft_my_mac_get(struct ppe_
  			   PPE_MY_MAC_TBL_ENTRIES, ppe_ft_my_mac_match,
  			   addr, &is_new);
  	if (i < 0 || !is_new)
@@ -779,7 +782,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ether_addr_copy(ft->my_macs[i].addr, addr);
  	ft->my_macs[i].ref.refcnt = 1;
-@@ -690,6 +824,14 @@
+@@ -690,6 +824,14 @@ static int ppe_ft_pppoe_l3_if(struct ppe
  	return ft->ppe_dev->num_ports + index;
  }
  
@@ -794,7 +797,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* PPP lifecycle topology recovered through the generic forward path. */
  struct ppe_ft_pppoe_topo {
  	u16 sid;
-@@ -698,20 +840,57 @@
+@@ -698,20 +840,57 @@ struct ppe_ft_pppoe_topo {
  	int mtu;
  	int vlan_mtu;
  	int port;
@@ -858,7 +861,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
  			     struct ppe_ft_pppoe_topo *topo)
-@@ -724,7 +903,8 @@
+@@ -724,7 +903,8 @@ static int ppe_ft_pppoe_path(struct net_
  	int i, ret;
  
  	topo->port = -1;
@@ -868,7 +871,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	topo->mtu = ppp_dev->mtu;
  	topo->vlan_mtu = ppp_dev->mtu;
  
-@@ -747,32 +927,43 @@
+@@ -747,32 +927,43 @@ static int ppe_ft_pppoe_path(struct net_
  			ether_addr_copy(topo->peer, path->encap.h_dest);
  			break;
  		case DEV_PATH_VLAN:
@@ -890,14 +893,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		case DEV_PATH_DSA:
  		{
 -			int dsa_mode, vid;
--
++			struct ppe_ft_dsa_path dsa;
++			int dsa_mode;
+ 
 -			if (topo->vid >= 0) {
 -				ret = -EOPNOTSUPP;
 -				goto out_unlock;
 -			}
-+			struct ppe_ft_dsa_path dsa;
-+			int dsa_mode;
-+
  			dsa_mode = ppe_ft_dsa_resolve((struct net_device *)path->dev,
 -						      NULL, &vid);
 +						      &dsa);
@@ -925,7 +927,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			break;
  		}
  		case DEV_PATH_ETHERNET: {
-@@ -784,7 +975,7 @@
+@@ -784,7 +975,7 @@ static int ppe_ft_pppoe_path(struct net_
  			}
  			port_priv = netdev_priv(path->dev);
  			topo->port = port_priv->ppe_port->port_id;
@@ -934,7 +936,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				ether_addr_copy(topo->local, path->dev->dev_addr);
  			break;
  		}
-@@ -796,8 +987,17 @@
+@@ -796,8 +987,17 @@ static int ppe_ft_pppoe_path(struct net_
  
  	if (!have_pppoe || topo->port < 0 ||
  	    !is_valid_ether_addr(topo->peer) ||
@@ -953,20 +955,25 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  out_unlock:
  	rcu_read_unlock();
-@@ -812,12 +1012,185 @@
+@@ -812,41 +1012,185 @@ static bool ppe_ft_pppoe_match(const voi
  	       ether_addr_equal(session->peer, want->peer);
  }
  
 -/* Flow rules only reference a session already published by PPP connect. */
 -static int ppe_ft_pppoe_get(struct ppe_flowtable *ft, u16 sid,
+-			    const u8 *peer, const u8 *local,
+-			    int port, int vid)
 +/* Withdraw the session and restore VLAN routing before releasing its L3.
 + * A failed write/readback retains every dependency for quarantine.
 + */
 +static int ppe_ft_pppoe_deactivate(struct ppe_flowtable *ft, int index)
-+{
+ {
+-	int i;
 +	struct ppe_ft_pppoe *session = &ft->pppoe[index];
 +	int ret;
-+
+ 
+-	for (i = 0; i < PPE_FT_PPPOE_SESSIONS; i++) {
+-		struct ppe_ft_pppoe *session = &ft->pppoe[i];
 +	if (!session->hw_active)
 +		return 0;
 +	ret = ppe_pppoe_session_set(ft->ppe_dev, index, false,
@@ -996,7 +1003,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	session->hw_active = false;
 +	return 0;
 +}
-+
+ 
+-		if (!session->ref.refcnt || session->sid != sid ||
+-		    !ether_addr_equal(session->peer, peer))
+-			continue;
+-		if (session->poisoned)
+-			return -EIO;
+-		if (!session->connected)
+-			return -ENOTCONN;
+-		if (session->port != port ||
+-		    (session->vlan < 0) != (vid < 0) ||
+-		    (vid >= 0 && ft->vlans[session->vlan].vid != vid) ||
+-		    !ether_addr_equal(session->local, local))
+-			return -EEXIST;
 +/* Activate a connected session when its first eligible IP flow arrives.
 + * The PPP notifier runs before LCP/IPCP and must not call this helper.
 + * Must be called with the flowtable lock held.
@@ -1005,7 +1024,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	struct ppe_ft_pppoe *session = &ft->pppoe[index];
 +	int vlan = -1, l3_if, mac, ret, cleanup_ret, i;
-+
+ 
+-		session->ref.refcnt++;
+-		return i;
 +	if (session->poisoned)
 +		return -EIO;
 +	if (!session->connected)
@@ -1024,8 +1045,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ret = ppe_vp_ref_qca4b(ft->ppe_dev, vp, session->port);
 +		if (ret)
 +			return ret;
-+	}
-+
+ 	}
+ 
+-	return -ENOENT;
 +	if (session->svid >= 0 || session->cvid >= 0) {
 +		vlan = ppe_ft_vlan_get(ft, session->port, session->svid,
 +				       session->cvid, session->vlan_mtu,
@@ -1129,71 +1151,48 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	ppe_ft_vlan_put(ft, vlan);
 +	ppe_vp_put(ft->ppe_dev, vp);
 +	return ret;
-+}
-+
-+/* Flow rules only reference connected metadata, then lazily activate it. */
-+static int ppe_ft_pppoe_get(struct ppe_flowtable *ft,
-+			    struct net_device *ppp_dev, u16 sid,
- 			    const u8 *peer, const u8 *local,
--			    int port, int vid)
--{
--	int i;
-+			    int port, int svid, int cvid, int vp)
-+{
-+	int i, ret;
- 
- 	for (i = 0; i < PPE_FT_PPPOE_SESSIONS; i++) {
- 		struct ppe_ft_pppoe *session = &ft->pppoe[i];
-@@ -829,11 +1202,15 @@
- 			return -EIO;
- 		if (!session->connected)
- 			return -ENOTCONN;
-+		if (ppp_dev && session->ppp_dev != ppp_dev)
-+			continue;
- 		if (session->port != port ||
--		    (session->vlan < 0) != (vid < 0) ||
--		    (vid >= 0 && ft->vlans[session->vlan].vid != vid) ||
--		    !ether_addr_equal(session->local, local))
-+		    session->svid != svid || session->cvid != cvid ||
-+		    (local && !ether_addr_equal(session->local, local)))
- 			return -EEXIST;
-+		ret = ppe_ft_pppoe_activate(ft, i, vp);
-+		if (ret)
-+			return ret;
- 
- 		session->ref.refcnt++;
- 		return i;
-@@ -842,44 +1219,31 @@
- 	return -ENOENT;
  }
  
 -static int ppe_ft_pppoe_dev_get(struct ppe_flowtable *ft,
 -				struct net_device *ppp_dev, u16 sid,
 -				const u8 *peer, int port, int vid)
--{
++/* Flow rules only reference connected metadata, then lazily activate it. */
++static int ppe_ft_pppoe_get(struct ppe_flowtable *ft,
++			    struct net_device *ppp_dev, u16 sid,
++			    const u8 *peer, const u8 *local,
++			    int port, int svid, int cvid, int vp)
+ {
 -	int i;
--
--	for (i = 0; i < PPE_FT_PPPOE_SESSIONS; i++) {
--		struct ppe_ft_pppoe *session = &ft->pppoe[i];
--
--		if (!session->ref.refcnt || session->sid != sid ||
--		    !ether_addr_equal(session->peer, peer))
--			continue;
--		if (session->poisoned)
--			return -EIO;
++	int i, ret;
+ 
+ 	for (i = 0; i < PPE_FT_PPPOE_SESSIONS; i++) {
+ 		struct ppe_ft_pppoe *session = &ft->pppoe[i];
+@@ -856,12 +1200,18 @@ static int ppe_ft_pppoe_dev_get(struct p
+ 			continue;
+ 		if (session->poisoned)
+ 			return -EIO;
 -		if (!session->connected || session->ppp_dev != ppp_dev ||
 -		    session->port != port ||
 -		    (session->vlan < 0 && vid >= 0) ||
 -		    (session->vlan >= 0 && vid < 0) ||
 -		    (vid >= 0 && ft->vlans[session->vlan].vid != vid))
--			continue;
--		session->ref.refcnt++;
--		return i;
--	}
--
--	return -ENOENT;
--}
--
++		if (!session->connected)
++			return -ENOTCONN;
++		if (ppp_dev && session->ppp_dev != ppp_dev)
+ 			continue;
++		if (session->port != port ||
++		    session->svid != svid || session->cvid != cvid ||
++		    (local && !ether_addr_equal(session->local, local)))
++			return -EEXIST;
++		ret = ppe_ft_pppoe_activate(ft, i, vp);
++		if (ret)
++			return ret;
++
+ 		session->ref.refcnt++;
+ 		return i;
+ 	}
+@@ -871,15 +1221,29 @@ static int ppe_ft_pppoe_dev_get(struct p
+ 
  static void ppe_ft_pppoe_put(struct ppe_flowtable *ft, int index)
  {
 -	int vlan;
@@ -1202,11 +1201,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!ppe_ft_ref_put(ft->pppoe, sizeof(*ft->pppoe), index))
  		return;
--
--	if (WARN_ON_ONCE(ft->pppoe[index].connected))
--		ppe_pppoe_session_set(ft->ppe_dev, index, false, 0, NULL, 0);
--	vlan = ft->pppoe[index].vlan;
--	memset(&ft->pppoe[index], 0, sizeof(ft->pppoe[index]));
 +	session = &ft->pppoe[index];
 +
 +	WARN_ON_ONCE(session->connected);
@@ -1221,14 +1215,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			index, ret);
 +		return;
 +	}
-+
+ 
+-	if (WARN_ON_ONCE(ft->pppoe[index].connected))
+-		ppe_pppoe_session_set(ft->ppe_dev, index, false, 0, NULL, 0);
+-	vlan = ft->pppoe[index].vlan;
+-	memset(&ft->pppoe[index], 0, sizeof(ft->pppoe[index]));
 +	vlan = session->vlan;
 +	ppe_vp_put(ft->ppe_dev, session->vp);
 +	memset(session, 0, sizeof(*session));
  	ppe_ft_vlan_put(ft, vlan);
  }
  
-@@ -890,27 +1254,25 @@
+@@ -890,27 +1254,25 @@ static int ppe_ft_pppoe_connect(struct p
  	struct ppe_ft_pppoe want = {};
  	struct ppe_ft_pppoe *session;
  	bool is_new;
@@ -1266,7 +1264,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	want.ppp_dev = ppp_dev;
  	want.connected = true;
  	ether_addr_copy(want.peer, topo.peer);
-@@ -921,18 +1283,21 @@
+@@ -921,18 +1283,21 @@ static int ppe_ft_pppoe_connect(struct p
  			   &want, &is_new);
  	if (i < 0) {
  		ret = i;
@@ -1291,12 +1289,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !ether_addr_equal(session->local, topo.local)) {
  			ret = -EEXIST;
  			goto out_ref;
-@@ -943,36 +1308,6 @@
- 		}
- 	} else {
+@@ -945,36 +1310,6 @@ static int ppe_ft_pppoe_connect(struct p
  		session = &ft->pppoe[i];
--	}
--
+ 	}
+ 
 -	ret = ppe_l3_if_set(ft->ppe_dev, ppe_ft_pppoe_l3_if(ft, i),
 -			    topo.local, topo.mtu, topo.sid);
 -	if (ret)
@@ -1325,10 +1321,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			goto out_unlock;
 -		}
 -		goto out_ref_or_vlan;
- 	}
- 
+-	}
+-
  	if (is_new) {
-@@ -985,12 +1320,6 @@
+ 		want.ref.refcnt = 1;
+ 		*session = want;
+@@ -985,12 +1320,6 @@ static int ppe_ft_pppoe_connect(struct p
  	mutex_unlock(&ft->lock);
  	return 0;
  
@@ -1341,7 +1339,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  out_ref:
  	ppe_ft_ref_put(ft->pppoe, sizeof(*ft->pppoe), i);
  out_unlock:
-@@ -1001,7 +1330,7 @@
+@@ -1001,7 +1330,7 @@ out_unlock:
  static int ppe_ft_pppoe_disconnect(struct ppe_flowtable *ft,
  				   struct net_device *ppp_dev)
  {
@@ -1350,7 +1348,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	mutex_lock(&ft->lock);
  	for (i = 0; i < PPE_FT_PPPOE_SESSIONS; i++) {
-@@ -1010,9 +1339,9 @@
+@@ -1010,9 +1339,9 @@ static int ppe_ft_pppoe_disconnect(struc
  		if (!session->connected || session->ppp_dev != ppp_dev)
  			continue;
  
@@ -1361,7 +1359,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ret) {
  			/* Retain a phantom lifecycle reference and dependencies so
  			 * an entry whose invalidation failed cannot be reused.
-@@ -1021,6 +1350,10 @@
+@@ -1021,6 +1350,10 @@ static int ppe_ft_pppoe_disconnect(struc
  			dev_err(ft->ppe_dev->dev,
  				"quarantining PPPoE session %d: %d\n", i, ret);
  		} else {
@@ -1372,7 +1370,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ppe_ft_pppoe_put(ft, i);
  		}
  		break;
-@@ -1086,78 +1419,369 @@
+@@ -1086,78 +1419,369 @@ static int ppe_ft_vp_l3_if(struct ppe_fl
  	       (vp - PPE_VP_PORT_BASE);
  }
  
@@ -1596,22 +1594,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 -	return !uplink->poisoned && uplink->vid == want->vid &&
 -	       uplink->port == want->port;
--}
--
--static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
--			   int mtu, bool keep_tag)
--{
--	struct ppe_ft_vlan want = { .vid = vid, .port = port };
 +	return !uplink->poisoned && uplink->svid == want->svid &&
 +	       uplink->cvid == want->cvid && uplink->port == want->port &&
 +	       uplink->keep_svid == want->keep_svid &&
 +	       uplink->keep_cvid == want->keep_cvid;
-+}
-+
+ }
+ 
+-static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
+-			   int mtu, bool keep_tag)
 +static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, int svid,
 +			   int cvid, int mtu, bool keep_svid,
 +			   bool keep_cvid)
-+{
+ {
+-	struct ppe_ft_vlan want = { .vid = vid, .port = port };
 +	struct ppe_ft_vlan want = {
 +		.pppoe = -1,
 +		.svid = svid,
@@ -1666,12 +1661,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				ppe_ft_vlan_l3_if(ft, i));
  	if (ret)
 -		return ret;
--
--	if (keep_tag) {
--		eg_modes = 0;
 +		goto err_config;
 +	vsi_bound = true;
-+
+ 
+-	if (keep_tag) {
+-		eg_modes = 0;
 +	eg_modes = 0;
 +	if (keep_svid || keep_cvid)
  		for (p = 0; p < ft->ppe_dev->num_ports; p++)
@@ -1696,11 +1690,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +					  svid >= 0, restore_cvid);
  		if (ret)
 -			return ret;
--	}
--
 +			goto err_config;
-+	}
-+
+ 	}
+ 
 +	ret = ppe_ft_vlan_port_get(ft, port);
 +	if (ret)
 +		goto err_config;
@@ -1779,7 +1771,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index)
-@@ -1170,9 +1794,20 @@
+@@ -1170,9 +1794,20 @@ static void ppe_ft_vlan_put(struct ppe_f
  
  	slot = &ft->vlans[index];
  	ret = ppe_ing_xlt_rule_clear(ft->ppe_dev, ppe_ft_vlan_xlt(index));
@@ -1800,7 +1792,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* The hardware learned the source MACs of the uplink segment
  	 * into the VSI; nothing ages them (the FDB synchronization
-@@ -1181,6 +1816,12 @@
+@@ -1181,6 +1816,12 @@ static void ppe_ft_vlan_put(struct ppe_f
  	err = ppe_fdb_vsi_flush(ft->ppe_dev, ppe_ft_vlan_vsi(index));
  	if (!ret)
  		ret = err;
@@ -1813,7 +1805,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		slot->poisoned = true;
  		slot->ref.refcnt = 1;
-@@ -1189,6 +1830,9 @@
+@@ -1189,6 +1830,9 @@ static void ppe_ft_vlan_put(struct ppe_f
  		return;
  	}
  
@@ -1823,7 +1815,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	memset(slot, 0, sizeof(*slot));
  }
  
-@@ -1561,8 +2205,8 @@
+@@ -1561,8 +2205,8 @@ out_unlock:
  	}
  
  	if (have_pppoe) {
@@ -1834,7 +1826,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (pppoe < 0) {
  			ret = pppoe;
  			goto out_dst;
-@@ -1589,8 +2233,9 @@
+@@ -1589,8 +2233,9 @@ out_unlock:
  
  		if (vid >= 0) {
  			tunnel->vlan = ppe_ft_vlan_get(ft,
@@ -1846,7 +1838,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (tunnel->vlan < 0) {
  				ret = tunnel->vlan;
  				tunnel->vlan = -1;
-@@ -1851,7 +2496,8 @@
+@@ -1851,7 +2496,8 @@ static bool ppe_ft_host_match(const stru
  
  /* Add or reference the source host before inserting its flow. */
  static int ppe_ft_host_get(struct ppe_flowtable *ft,
@@ -1856,7 +1848,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	u32 key = ppe_ft_host_key(flow);
  	struct ppe_ft_host *host;
-@@ -1872,7 +2518,7 @@
+@@ -1872,7 +2518,7 @@ static int ppe_ft_host_get(struct ppe_fl
  	else
  		host->sip.ip4 = flow->sip.ip4;
  	host->is_ipv6 = flow->is_ipv6;
@@ -1865,7 +1857,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret < 0) {
  		kfree(host);
  		return ret;
-@@ -1928,7 +2574,9 @@
+@@ -1928,7 +2574,9 @@ static void ppe_ft_flow_deps_put(struct
  	ppe_ft_my_mac_put(ft, flow->my_mac);
  	ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
  	ppe_ft_pppoe_put(ft, flow->pppoe);
@@ -1875,23 +1867,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
  	ppe_ft_tunnel_put(ft, flow->tunnel);
  	ppe_vp_put(ft->ppe_dev, flow->vp);
-@@ -2022,10 +2670,12 @@
+@@ -2022,10 +2670,12 @@ static void ppe_ft_flow_release(struct p
  	kfree(flow);
  }
  
 -static int ppe_ft_dsa_resolve(struct net_device *dev, struct dsa_port **dpp,
 -			      int *vid)
--{
 +static int ppe_ft_dsa_resolve(struct net_device *dev,
 +			      struct ppe_ft_dsa_path *path)
-+{
+ {
 +	struct ppe_ft_dsa_path resolved = { .vid = -1 };
  	struct dsa_port *dp;
 +	int mode;
  
  	if (!dev || !dsa_user_dev_check(dev))
  		return -EOPNOTSUPP;
-@@ -2040,30 +2690,65 @@
+@@ -2040,30 +2690,65 @@ static int ppe_ft_dsa_resolve(struct net
  	if (!edma_port_dev_check(dsa_port_to_conduit(dp)))
  		return -EOPNOTSUPP;
  
@@ -1933,10 +1924,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			*vid = dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
 -	} else if (vid) {
 -		*vid = dsa_tag_8021q_standalone_vid(dp);
--	}
--
--	return PPE_FT_DSA_TAG_8021Q;
-+	}
+ 	}
 +	if (path)
 +		*path = resolved;
 +	return mode;
@@ -1948,7 +1936,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	struct ppe_ft_flow *old;
 +	int ret;
-+
+ 
+-	return PPE_FT_DSA_TAG_8021Q;
 +	old = rhashtable_lookup_fast(&ft->flows, &flow->cookie, ppe_ft_params);
 +	if (!old)
 +		return 0;
@@ -1978,7 +1967,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
-@@ -2078,6 +2763,7 @@
+@@ -2078,6 +2763,7 @@ static int ppe_ft_flow_replace(struct pp
  	struct ip6_tnl_flow_offload_info tnl_info;
  	struct ppe_flow_nexthop nh = {};
  	struct ppe_ft_data data = {};
@@ -1986,12 +1975,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ppe_ft_flow *flow, *old;
  	enum ppe_ft_reject_reason reject_reason = PPE_FT_REJECT_PARSE;
  	int vlan_pops = 0;
-@@ -2087,30 +2773,11 @@
+@@ -2087,30 +2773,11 @@ static int ppe_ft_flow_replace(struct pp
  	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
  	int i, nexthop, ret, cleanup_ret, redirects = 0, vlan_pushes = 0;
  	int pppoe_pushes = 0, csums = 0;
 -	int iport = -1, imtu = 0;
--
++	int iport = -1, imtu = 0, egress_core_port = -1;
+ 
 -	/* A refresh of an intact cookie is a no-op. If the hardware has lost
 -	 * or recycled its slot, retire the stale object now so the same rule
 -	 * can be installed again instead of remaining in software forever.
@@ -2014,15 +2004,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		ppe_ft_flow_forget(ft, old);
 -	}
 -	mutex_unlock(&ft->lock);
-+	int iport = -1, imtu = 0, egress_core_port = -1;
-+
 +	/* Padding is included in the normalized request comparison below. */
 +	memset(&data, 0, sizeof(data));
 +	memset(&nh, 0, sizeof(nh));
  
  	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC) ||
  	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS))
-@@ -2139,6 +2806,8 @@
+@@ -2139,6 +2806,8 @@ static int ppe_ft_flow_replace(struct pp
  	      BIT_ULL(FLOW_DISSECTOR_KEY_TCP) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_PORTS) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_VLAN) |
@@ -2031,7 +2019,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	      PPE_FT_TUNNEL_KEYS))
  		return -EOPNOTSUPP;
  
-@@ -2154,14 +2823,18 @@
+@@ -2154,14 +2823,18 @@ static int ppe_ft_flow_replace(struct pp
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
  	flow->pppoe = -1;
@@ -2051,7 +2039,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	data.ingress_dsa = false;
  
  	{
-@@ -2246,28 +2919,56 @@
+@@ -2246,23 +2919,35 @@ static int ppe_ft_flow_replace(struct pp
  		flow->entry.dport = match.key->dst;
  	}
  
@@ -2063,13 +2051,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
 +	for (i = 0; i < 2; i++) {
  		struct flow_match_vlan match;
--
++		enum flow_dissector_key_id key = i ? FLOW_DISSECTOR_KEY_CVLAN :
++						   FLOW_DISSECTOR_KEY_VLAN;
+ 
 -		flow_rule_match_vlan(rule, &match);
 -		if (match.key->vlan_tpid != htons(ETH_P_8021Q) ||
 -		    match.mask->vlan_id != VLAN_VID_MASK ||
-+		enum flow_dissector_key_id key = i ? FLOW_DISSECTOR_KEY_CVLAN :
-+						   FLOW_DISSECTOR_KEY_VLAN;
-+
 +		if (!flow_rule_match_key(rule, key))
 +			continue;
 +		if (i)
@@ -2096,10 +2083,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
  			ret = -EOPNOTSUPP;
- 			goto err_free;
+@@ -2270,6 +2955,22 @@ static int ppe_ft_flow_replace(struct pp
  		}
-+	}
-+
+ 	}
+ 
 +	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PPPOE)) {
 +		struct flow_match_pppoe match;
 +
@@ -2114,10 +2101,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			goto err_free;
 +		}
 +		data.ingress_pppoe_sid = ntohs(match.key->session_id);
- 	}
- 
++	}
++
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
-@@ -2355,16 +3056,25 @@
+ 		struct flow_match_meta match;
+ 
+@@ -2355,16 +3056,25 @@ static int ppe_ft_flow_replace(struct pp
  				goto err_free;
  			break;
  		case FLOW_ACTION_VLAN_PUSH:
@@ -2148,7 +2137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				ret = -EOPNOTSUPP;
  				goto err_free;
  			}
-@@ -2430,7 +3140,7 @@
+@@ -2430,7 +3140,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  		if (flow->entry.is_ipv6 || data.pppoe_sid >= 0 ||
  		    nh.svid >= 0 || nh.cvid >= 0 ||
@@ -2157,7 +2146,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
-@@ -2457,14 +3167,14 @@
+@@ -2457,14 +3167,14 @@ static int ppe_ft_flow_replace(struct pp
  	}
  
  	if (!odev || redirects != 1 ||
@@ -2174,7 +2163,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    (!ft->ppe_dev->variant->has_vports ||
  	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
  		ret = -EOPNOTSUPP;
-@@ -2489,7 +3199,6 @@
+@@ -2489,7 +3199,6 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	if (data.ingress_ifindex) {
  		struct net_device *idev;
@@ -2182,7 +2171,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct net_device *master;
  		int vp_ret = 0;
  
-@@ -2515,30 +3224,26 @@
+@@ -2515,30 +3224,26 @@ static int ppe_ft_flow_replace(struct pp
  
  			iport = ipriv->ppe_port->port_id;
  		} else if (dsa_user_dev_check(idev)) {
@@ -2190,11 +2179,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			struct net_device *conduit;
  			struct edma_port_priv *ipriv;
 -			int dsa_ivid, dsa_mode;
--
++			int dsa_mode;
+ 
 -			dsa_mode = ppe_ft_dsa_resolve(idev, &dp,
 -						      &dsa_ivid);
-+			int dsa_mode;
-+
 +			dsa_mode = ppe_ft_dsa_resolve(idev, &dsa);
  			if (dsa_mode < 0) {
  				vp_ret = dsa_mode;
@@ -2221,7 +2209,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				reject_reason = PPE_FT_REJECT_INGRESS_VP;
  				vp_ret = ppe_vp_get_qca4b(ft->ppe_dev, idev,
  							  f->common.prio,
-@@ -2546,10 +3251,14 @@
+@@ -2546,10 +3251,14 @@ static int ppe_ft_flow_replace(struct pp
  				if (vp_ret >= 0)
  					flow->ivp = vp_ret;
  			} else {
@@ -2238,7 +2226,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				data.ingress_dsa = true;
  			}
  		} else if (ft->ppe_dev->variant->has_vports &&
-@@ -2568,7 +3277,8 @@
+@@ -2568,7 +3277,8 @@ put_idev:
  			goto err_prelock_ivp;
  		}
  
@@ -2248,7 +2236,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !ingress_vp_vlan) {
  			ret = -EOPNOTSUPP;
  			goto err_prelock_ivp;
-@@ -2581,17 +3291,23 @@
+@@ -2581,19 +3291,25 @@ put_idev:
  			port_priv = netdev_priv(odev);
  			nh.port = port_priv->ppe_port->port_id;
  			nh.l3_if = nh.port;
@@ -2268,14 +2256,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			dsa_mode = ppe_ft_dsa_resolve(odev, &dsa);
  			if (dsa_mode < 0) {
  				ret = dsa_mode;
-+				goto err_prelock_ivp;
-+			}
-+			if (nh.svid >= 0) {
-+				ret = -EOPNOTSUPP;
  				goto err_prelock_ivp;
  			}
++			if (nh.svid >= 0) {
++				ret = -EOPNOTSUPP;
++				goto err_prelock_ivp;
++			}
  			if (dsa_mode == PPE_FT_DSA_QCA4B) {
-@@ -2602,27 +3318,19 @@
+ 				ret = ppe_vp_get_qca4b(ft->ppe_dev, odev,
+ 						       f->common.prio, false);
+@@ -2602,27 +3318,19 @@ put_idev:
  				flow->vp = ret;
  				nh.port = ret;
  				nh.l3_if = ppe_ft_vp_l3_if(ft, ret);
@@ -2311,7 +2301,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			dev_hold(flow->egress_dev);
  		} else {
  			ret = ppe_vp_get(ft->ppe_dev, odev,
-@@ -2653,7 +3361,7 @@
+@@ -2653,7 +3361,7 @@ put_idev:
  		}
  		if (ingress_vp_vlan) {
  			flow->vp_flow.key.vlan_proto = htons(ETH_P_8021Q);
@@ -2320,7 +2310,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -2681,7 +3389,19 @@
+@@ -2681,7 +3389,19 @@ put_idev:
  	 * destination of DNAT from the next hop, and the translated L4
  	 * port from the flow entry itself.
  	 */
@@ -2340,7 +2330,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tunnel_flow) {
  		struct in6_addr local, remote;
  		int link, mtu;
-@@ -2760,6 +3480,14 @@
+@@ -2760,6 +3480,14 @@ put_idev:
  	}
  
  	reject_reason = PPE_FT_REJECT_RESOURCE;
@@ -2355,7 +2345,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* An ingress virtual port is an independent L3 endpoint.  A flow
  	 * may be accepted without its reverse direction, so it cannot rely
  	 * on the reverse rule to publish the bridge MAC or configure the VP
-@@ -2773,31 +3501,125 @@
+@@ -2773,34 +3501,128 @@ put_idev:
  			ppe_ft_my_mac_get(ft, data.eth.ingress);
  		if (flow->ingress_my_mac < 0) {
  			ret = flow->ingress_my_mac;
@@ -2397,9 +2387,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (flow->vlan < 0) {
  			ret = flow->vlan;
  			goto err_ingress_my_mac;
-+		}
-+	}
-+
+ 		}
+ 	}
+ 
 +	/* Pin the input independently of the output rule. An active tagged
 +	 * session binds its VLAN VSI to the same L3 used by PPPoE lookup.
 +	 */
@@ -2484,10 +2474,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				if (ret)
 +					goto err_vlan;
 +			}
- 		}
- 	}
- 
-@@ -2827,15 +3649,15 @@
++		}
++	}
++
+ 	/* A PPPoE push routes the flow through the L3 interface of its
+ 	 * session, which encapsulates on egress; the session table
+ 	 * entry of the slot terminates the reverse direction, whose
+@@ -2827,15 +3649,15 @@ put_idev:
  			}
  		}
  
@@ -2507,7 +2500,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  	reject_reason = PPE_FT_REJECT_RESOURCE;
  
-@@ -2857,6 +3679,7 @@
+@@ -2857,6 +3679,7 @@ put_idev:
  		if (data.pppoe_sid < 0) {
  			ret = ppe_l3_if_set(ft->ppe_dev, nh.l3_if,
  					    data.eth.src, odev->mtu, -1);
@@ -2515,7 +2508,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (ret)
  				goto err_my_mac;
  		}
-@@ -2869,19 +3692,21 @@
+@@ -2869,19 +3692,21 @@ put_idev:
  		 * session table instead.
  		 */
  		if (data.pppoe_sid < 0) {
@@ -2540,7 +2533,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (nexthop < 0) {
  		ret = nexthop;
  		goto err_my_mac;
-@@ -2890,20 +3715,32 @@
+@@ -2890,20 +3715,32 @@ put_idev:
  	flow->nexthop = nexthop;
  	flow->entry.nexthop = nexthop;
  
@@ -2576,7 +2569,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		atomic_long_inc(&ft->flow_readback_failures);
  		/* An unknown read failure cannot prove whether the previous or new
-@@ -2930,6 +3767,7 @@
+@@ -2930,6 +3767,7 @@ put_idev:
  
  	ret = rhashtable_lookup_insert_fast(&ft->flows, &flow->node,
  					    ppe_ft_params);
@@ -2584,7 +2577,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		goto err_hw_flow;
  	ppe_ft_flow_count_inc(ft, flow);
-@@ -2937,6 +3775,7 @@
+@@ -2937,6 +3775,7 @@ put_idev:
  	if (flow->ivp >= 0) {
  		ret = ppe_vp_flow_add(ft->ppe_dev, flow->ivp,
  				      &flow->vp_flow);
@@ -2592,7 +2585,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ret) {
  			rhashtable_remove_fast(&ft->flows, &flow->node,
  					       ppe_ft_params);
-@@ -2985,9 +3824,12 @@
+@@ -2985,9 +3824,12 @@ err_my_mac:
  err_pppoe:
  	ppe_ft_pppoe_put(ft, flow->pppoe);
  err_vlan:
@@ -2605,7 +2598,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_pub_ip:
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
  err_vp:
-@@ -3133,7 +3975,8 @@
+@@ -3133,7 +3975,8 @@ static int ppe_ft_flow_stats(struct ppe_
  			     struct flow_cls_offload *f)
  {
  	struct ppe_ft_flow *flow;
@@ -2615,7 +2608,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 packets;
  	u64 bytes;
  	int ret;
-@@ -3150,13 +3993,10 @@
+@@ -3150,13 +3993,10 @@ static int ppe_ft_flow_stats(struct ppe_
  	}
  
  	if (flow->egress_dev)
@@ -2631,7 +2624,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mutex_unlock(&ft->lock);
  		return 0;
  	}
-@@ -3212,6 +4052,8 @@
+@@ -3212,6 +4052,8 @@ static const char *ppe_ft_reason_name(bo
  {
  	if (cpu) {
  		switch (code) {
@@ -2640,7 +2633,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		case 148:
  			return "L3 route host mismatch action";
  		case 162:
-@@ -3325,6 +4167,9 @@
+@@ -3325,6 +4167,9 @@ static int ppe_ft_flows_show(struct seq_
  		seq_printf(seq, " %s:%ld", ppe_ft_reject_names[i],
  			   atomic_long_read(&ft->rejects[i]));
  	seq_putc(seq, '\n');
@@ -2650,7 +2643,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	rhashtable_walk_enter(&ft->flows, &iter);
  	rhashtable_walk_start(&iter);
-@@ -3332,6 +4177,7 @@
+@@ -3332,6 +4177,7 @@ static int ppe_ft_flows_show(struct seq_
  		u32 f[3] = {}, packets = 0, qos[2] = {};
  		u64 bytes = 0;
  		u8 hw_priority, hw_profile;
@@ -2658,7 +2651,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (IS_ERR(flow)) {
  			if (PTR_ERR(flow) == -EAGAIN)
-@@ -3339,18 +4185,19 @@
+@@ -3339,18 +4185,19 @@ static int ppe_ft_flows_show(struct seq_
  			break;
  		}
  
@@ -2687,7 +2680,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (flow->entry.is_ipv6)
  			seq_printf(seq, "[%pI6c]:%u -> [%pI6c]:%u",
-@@ -3365,14 +4212,14 @@
+@@ -3365,14 +4212,14 @@ static int ppe_ft_flows_show(struct seq_
  				   &flow->entry.dip.ip4,
  				   be16_to_cpu(flow->entry.dport));
  		seq_printf(seq,
@@ -2704,7 +2697,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   packets, (unsigned long long)bytes);
  	}
  	rhashtable_walk_stop(&iter);
-@@ -3402,8 +4249,26 @@
+@@ -3402,8 +4249,26 @@ DEFINE_SHOW_ATTRIBUTE(ppe_ft_active_flow
  static int ppe_ft_resource_stats_show(struct seq_file *seq, void *data)
  {
  	struct ppe_flowtable *ft = seq->private;
@@ -2731,7 +2724,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	seq_printf(seq,
  		   "nexthop active:%u capacity:%u alloc:%lu reuse:%lu free:%lu\n",
  		   ft->nexthop_active,
-@@ -3731,8 +4596,8 @@
+@@ -3731,8 +4596,8 @@ void ppe_flowtable_destroy(struct ppe_de
  	for (i = 0; i < PPE_FT_PPPOE_SESSIONS; i++) {
  		if (!ft->pppoe[i].ref.refcnt)
  			continue;
@@ -2744,7 +2737,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
-@@ -965,6 +965,31 @@
+@@ -965,6 +965,31 @@ out:
  	return ret;
  }
  
@@ -2778,7 +2771,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @ppe_dev: PPE device
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
-@@ -59,6 +59,7 @@
+@@ -59,6 +59,7 @@ int ppe_vp_get(struct ppe_device *ppe_de
  	       int priority);
  int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
  		     int priority, bool need_hook);

@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct wcss_sec {
  	struct device *dev;
  	struct qcom_rproc_glink glink_subdev;
-@@ -35,6 +37,7 @@
+@@ -35,6 +37,7 @@ struct wcss_sec {
  	void *mem_region;
  	size_t mem_size;
  	const struct wcss_data *desc;
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	struct mbox_client mbox_client;
  	struct mbox_chan *mbox_chan;
-@@ -137,7 +140,8 @@
+@@ -137,7 +140,8 @@ static int wcss_sec_load(struct rproc *r
  {
  	struct wcss_sec *wcss = rproc->priv;
  	struct device *dev = wcss->dev;
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (wcss->desc->use_tmelcom) {
  		wcss->metadata = qcom_mdt_read_metadata(fw, &wcss->metadata_len,
-@@ -161,6 +165,28 @@
+@@ -161,6 +165,28 @@ static int wcss_sec_load(struct rproc *r
  				    wcss->mem_phys, wcss->mem_size, &wcss->mem_reloc);
  		if (ret)
  			return ret;
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	qcom_pil_info_store("wcss", wcss->mem_phys, wcss->mem_size);
-@@ -290,18 +316,22 @@
+@@ -290,18 +316,22 @@ static int wcss_sec_probe(struct platfor
  	struct rproc *rproc;
  	struct wcss_sec *wcss;
  	struct clk *sleep_clk;
@@ -114,7 +114,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!rproc) {
  		dev_err(&pdev->dev, "failed to allocate rproc\n");
  		return -ENOMEM;
-@@ -310,6 +340,7 @@
+@@ -310,6 +340,7 @@ static int wcss_sec_probe(struct platfor
  	wcss = rproc->priv;
  	wcss->dev = &pdev->dev;
  	wcss->desc = desc;
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = wcss_sec_alloc_memory_region(wcss);
  	if (ret)
-@@ -325,6 +356,11 @@
+@@ -325,6 +356,11 @@ static int wcss_sec_probe(struct platfor
  		return dev_err_probe(&pdev->dev, PTR_ERR(int_clk),
  				     "Failed to get interconnect clock\n");
  
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
  			     WCSS_CRASH_REASON, NULL, NULL);
  	if (ret)
-@@ -387,6 +423,7 @@
+@@ -387,6 +423,7 @@ static const struct of_device_id wcss_se
  	{ .compatible = "qcom,ipq5018-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
  	{ .compatible = "qcom,ipq5332-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
  	{ .compatible = "qcom,ipq5424-wcss-sec-pil", .data = &wcss_sec_ipq5424_res_init },

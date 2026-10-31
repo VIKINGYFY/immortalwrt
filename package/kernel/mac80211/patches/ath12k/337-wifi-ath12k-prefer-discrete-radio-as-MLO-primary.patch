@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/peer.c
 +++ b/drivers/net/wireless/ath/ath12k/peer.c
-@@ -331,8 +331,8 @@
+@@ -331,8 +331,8 @@ int ath12k_peer_create(struct ath12k *ar
  				peer->ml_id = ml_peer_id;
  			ether_addr_copy(peer->ml_addr, sta->addr);
  
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			peer->ml_id = ATH12K_MLO_PEER_ID_INVALID;
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -514,7 +514,7 @@
+@@ -514,7 +514,7 @@ struct ath12k_link_sta {
  	s8 rssi_beacon;
  	s8 chain_signal[IEEE80211_MAX_CHAINS];
  
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool is_assoc_link;
  
  	 /* for firmware use only */
-@@ -532,6 +532,8 @@
+@@ -532,6 +532,8 @@ struct ath12k_sta {
  	/* indicates bitmap of link sta created in FW */
  	u16 links_map;
  	u8 assoc_link_id;
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/dp.c
-@@ -48,6 +48,7 @@
+@@ -48,6 +48,7 @@ int ath12k_dp_peer_setup(struct ath12k *
  {
  	struct ath12k_base *ab = ar->ab;
  	struct ath12k_dp_link_peer *peer;
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 reo_dest;
  	int ret = 0, tid;
  	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
-@@ -64,6 +65,34 @@
+@@ -64,6 +65,34 @@ int ath12k_dp_peer_setup(struct ath12k *
  		return ret;
  	}
  
@@ -102,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  						  HAL_PN_TYPE_NONE);
 --- a/drivers/net/wireless/ath/ath12k/hw.h
 +++ b/drivers/net/wireless/ath/ath12k/hw.h
-@@ -231,6 +231,7 @@
+@@ -231,6 +231,7 @@ struct ath12k_hw_params {
  	u32 bdf_addr_offset;
  
  	/* setup REO queue, frag etc only for primary link peer */
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		u32 max_client_single;
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -437,6 +437,7 @@
+@@ -437,6 +437,7 @@ static const struct ath12k_hw_params ath
  
  		.current_cc_support = false,
  
@@ -120,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.dp_primary_link_only = true,
  		.client = {
  			.max_client_single = 512,
-@@ -531,6 +532,7 @@
+@@ -531,6 +532,7 @@ static const struct ath12k_hw_params ath
  
  		.current_cc_support = true,
  
@@ -128,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.dp_primary_link_only = false,
  		.client = {
  			.max_client_single = 512,
-@@ -621,6 +623,7 @@
+@@ -621,6 +623,7 @@ static const struct ath12k_hw_params ath
  
  		.current_cc_support = false,
  
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.dp_primary_link_only = true,
  		.client = {
  			.max_client_single = 512,
-@@ -704,6 +707,7 @@
+@@ -704,6 +707,7 @@ static const struct ath12k_hw_params ath
  		.ce_remap = &ath12k_wifi7_ce_remap_ipq5332,
  		.bdf_addr_offset = 0x1A00000,
  
@@ -144,7 +144,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.dp_primary_link_only = true,
  		.client = {
  			.max_client_single = 256,
-@@ -799,6 +803,7 @@
+@@ -799,6 +803,7 @@ static const struct ath12k_hw_params ath
  
  		.current_cc_support = true,
  
@@ -152,7 +152,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.dp_primary_link_only = false,
  		.client = {
  			.max_client_single = 512,
-@@ -886,6 +891,7 @@
+@@ -886,6 +891,7 @@ static const struct ath12k_hw_params ath
  
  		.current_cc_support = false,
  
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.max_client_single = 512,
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -3568,8 +3568,7 @@
+@@ -3568,8 +3568,7 @@ static void ath12k_peer_assoc_h_mlo(stru
  	ml->enabled = true;
  	ml->assoc_link = arsta->is_assoc_link;
  
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/*
  	 * Only chips that allocate the MLD peer ID on the host send a valid
  	 * ml_peer_id in WMI_PEER_ASSOC_CMDID. For chips where the firmware
-@@ -3614,7 +3613,8 @@
+@@ -3614,7 +3613,8 @@ static void ath12k_peer_assoc_h_mlo(stru
  		ml->partner_info[i].vdev_id = arvif->vdev_id;
  		ml->partner_info[i].hw_link_id = arvif->ar->pdev->hw_link_id;
  		ml->partner_info[i].assoc_link = arsta_p->is_assoc_link;
@@ -182,7 +182,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ml->partner_info[i].logical_link_idx_valid = true;
  		ml->partner_info[i].logical_link_idx = arsta_p->link_idx;
  		ml->num_partner_links++;
-@@ -7294,11 +7294,13 @@
+@@ -7294,11 +7294,13 @@ static int ath12k_mac_station_add(struct
  		}
  	}
  
@@ -201,7 +201,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (ab->hw_params->vdev_start_delay &&
-@@ -7442,6 +7444,7 @@
+@@ -7442,6 +7444,7 @@ static int ath12k_mac_handle_link_sta_st
  					    enum ieee80211_sta_state new_state)
  {
  	struct ieee80211_vif *vif = ath12k_ahvif_to_vif(arvif->ahvif);
@@ -209,7 +209,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ieee80211_bss_conf *link_conf;
  	struct ath12k *ar = arvif->ar;
  	struct ath12k_reg_info *reg_info;
-@@ -7478,14 +7481,25 @@
+@@ -7478,14 +7481,25 @@ static int ath12k_mac_handle_link_sta_st
  	 * peer associated to AP/Mesh/ADHOC vif type.
  	 */
  	} else if (old_state == IEEE80211_STA_AUTH &&
@@ -242,7 +242,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* IEEE80211_STA_ASSOC -> IEEE80211_STA_AUTHORIZED: set peer status as
  	 * authorized
-@@ -7965,6 +7979,7 @@
+@@ -7965,6 +7979,7 @@ int ath12k_mac_op_sta_state(struct ieee8
  
  			arsta->is_assoc_link = true;
  			ahsta->assoc_link_id = link_id;
@@ -250,7 +250,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -8287,6 +8302,35 @@
+@@ -8287,6 +8302,35 @@ static struct ath12k_link_sta *ath12k_ma
  	return arsta;
  }
  
@@ -286,7 +286,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ath12k_mac_op_change_sta_links(struct ieee80211_hw *hw,
  				   struct ieee80211_vif *vif,
  				   struct ieee80211_sta *sta,
-@@ -8299,6 +8343,7 @@
+@@ -8299,6 +8343,7 @@ int ath12k_mac_op_change_sta_links(struc
  	struct ath12k_link_sta *arsta;
  	unsigned long valid_links;
  	struct ath12k *ar;
@@ -294,7 +294,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 link_id;
  	int ret;
  
-@@ -8349,6 +8394,16 @@
+@@ -8349,6 +8394,16 @@ int ath12k_mac_op_change_sta_links(struc
  		}
  	}
  
@@ -311,7 +311,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  EXPORT_SYMBOL(ath12k_mac_op_change_sta_links);
-@@ -9752,7 +9807,7 @@
+@@ -9752,7 +9807,7 @@ u8 ath12k_mac_get_tx_link(struct ieee802
  	 */
  	if (info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP ||
  	    ieee80211_is_data(hdr->frame_control))

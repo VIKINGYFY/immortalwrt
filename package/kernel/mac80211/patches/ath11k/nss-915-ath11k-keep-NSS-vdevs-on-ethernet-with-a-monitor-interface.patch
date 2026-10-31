@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -7060,15 +7060,19 @@
+@@ -7060,15 +7060,19 @@ static int ath11k_mac_setup_vdev_create_
   * what the hardware encapsulation and decapsulation this driver has already
   * been told to use produce.
   */
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ATH11K_HW_TXRX_ETHERNET;
  	if (test_bit(ATH11K_FLAG_RAW_MODE, &ab->dev_flags))
  		return ATH11K_HW_TXRX_RAW;
-@@ -7181,13 +7185,8 @@
+@@ -7181,13 +7185,8 @@ static void ath11k_mac_op_update_vif_off
  		vif->offload_flags &= ~(IEEE80211_OFFLOAD_ENCAP_ENABLED |
  					IEEE80211_OFFLOAD_DECAP_ENABLED);
  
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    param_id, param_value);
  	if (ret) {
-@@ -7197,13 +7196,8 @@
+@@ -7197,13 +7196,8 @@ static void ath11k_mac_op_update_vif_off
  	}
  
  	param_id = WMI_VDEV_PARAM_RX_DECAP_TYPE;

@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -39,6 +39,38 @@
+@@ -39,6 +39,38 @@ static int rx_buff_size;
  module_param(rx_buff_size, int, 0640);
  MODULE_PARM_DESC(rx_buff_size, "Rx Buffer size for Jumbo MRU value (default:0)");
  
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Priority to multi-queue mapping. */
  static u8 edma_pri_map[PPE_QUEUE_INTER_PRI_NUM] = {
  	0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7};
-@@ -780,6 +812,11 @@
+@@ -780,6 +812,11 @@ void edma_destroy(struct ppe_device *ppe
  	struct edma_ring_info *rx = hw_info->rx;
  	u32 i;
  
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Disable interrupts. */
  	for (i = 1; i <= hw_info->max_ports; i++)
  		edma_cfg_tx_disable_interrupts(i);
-@@ -823,6 +860,17 @@
+@@ -823,6 +860,17 @@ void edma_destroy(struct ppe_device *ppe
  	kfree(edma_ctx->netdev_arr);
  }
  
@@ -94,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * edma_setup - EDMA Setup.
   * @ppe_dev: PPE device
-@@ -843,7 +891,17 @@
+@@ -843,7 +891,17 @@ int edma_setup(struct ppe_device *ppe_de
  	edma_ctx->hw_info = &ipq9574_hw_info;
  	edma_ctx->ppe_dev = ppe_dev;
  	edma_ctx->rx_buf_size = rx_buff_size;
@@ -114,7 +114,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = edma_clock_init();
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
-@@ -132,6 +132,7 @@
+@@ -132,6 +132,7 @@ struct edma_intr_info {
   * @tx_rings: Tx Descriptor Ring, SW is producer
   * @txcmpl_rings: Tx complete Ring, SW is consumer
   * @err_stats: Per CPU error statistics
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @rx_page_mode: Page mode enabled or disabled
   * @rx_buf_size: Rx buffer size for Jumbo MRU
   * @tx_requeue_stop: Tx requeue stop enabled or disabled
-@@ -147,6 +148,7 @@
+@@ -147,6 +148,7 @@ struct edma_context {
  	struct edma_txdesc_ring *tx_rings;
  	struct edma_txcmpl_ring *txcmpl_rings;
  	struct edma_err_stats __percpu *err_stats;
@@ -132,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool tx_requeue_stop;
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-@@ -43,6 +43,8 @@
+@@ -43,6 +43,8 @@ static u32 edma_rx_ring_queue_map[][EDMA
  						{ 6, 14, 22, 30 },
  						{ 7, 15, 23, 31 }};
  
@@ -141,7 +141,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int edma_cfg_rx_desc_rings_reset_queue_mapping(void)
  {
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
-@@ -166,6 +168,24 @@
+@@ -166,6 +168,24 @@ static void edma_cfg_rx_desc_ring_config
  	reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_RING_SIZE(rxdesc_ring->ring_id);
  	regmap_write(regmap, reg, data);
  
@@ -166,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Configure the Mitigation timer */
  	data = EDMA_MICROSEC_TO_TIMER_UNIT(EDMA_RX_MITIGATION_TIMER_DEF,
  					   ppe_dev->clk_rate / MHZ);
-@@ -176,7 +196,7 @@
+@@ -176,7 +196,7 @@ static void edma_cfg_rx_desc_ring_config
  	regmap_write(regmap, reg, data);
  
  	/* Configure the Mitigation packet count */
@@ -175,7 +175,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			<< EDMA_RXDESC_LOW_THRE_SHIFT;
  	pr_debug("EDMA Rx mitigation packet count value: %d\n", data);
  	reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_UGT_THRE(rxdesc_ring->ring_id);
-@@ -915,6 +935,13 @@
+@@ -915,6 +935,13 @@ void edma_cfg_rx_napi_add(void)
  	struct edma_ring_info *rx = hw_info->rx;
  	u32 i;
  
@@ -189,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < rx->num_rings; i++) {
  		struct edma_rxdesc_ring *rxdesc_ring = &edma_ctx->rx_rings[i];
  
-@@ -923,7 +950,7 @@
+@@ -923,7 +950,7 @@ void edma_cfg_rx_napi_add(void)
  		rxdesc_ring->napi_added = true;
  	}
  
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -962,3 +989,28 @@
+@@ -962,3 +989,28 @@ int edma_cfg_rx_rps_hash_map(void)
  
  	return 0;
  }
@@ -272,7 +272,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int edma_cfg_rx_rings(void);
  int edma_cfg_rx_rings_alloc(void);
  void edma_cfg_rx_ring_mappings(void);
-@@ -43,6 +66,8 @@
+@@ -43,6 +66,8 @@ void edma_cfg_rx_rings_enable(void);
  void edma_cfg_rx_rings_disable(void);
  void edma_cfg_rx_buff_size_setup(void);
  int edma_cfg_rx_rps_hash_map(void);
@@ -284,7 +284,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-@@ -170,6 +170,24 @@
+@@ -170,6 +170,24 @@ static void edma_cfg_txcmpl_ring_configu
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CTRL(txcmpl_ring->id);
  	regmap_write(regmap, reg, EDMA_TXCMPL_RETMODE_OPAQUE);
  
@@ -309,7 +309,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Configure the Mitigation timer. */
  	data = EDMA_MICROSEC_TO_TIMER_UNIT(EDMA_TX_MITIGATION_TIMER_DEF,
  					   ppe_dev->clk_rate / MHZ);
-@@ -180,7 +198,7 @@
+@@ -180,7 +198,7 @@ static void edma_cfg_txcmpl_ring_configu
  	regmap_write(regmap, reg, data);
  
  	/* Configure the Mitigation packet count. */
@@ -318,7 +318,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		<< EDMA_TXCMPL_LOW_THRE_SHIFT;
  	pr_debug("EDMA Tx mitigation packet count value: %d\n", data);
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_UGT_THRE(txcmpl_ring->id);
-@@ -634,6 +652,13 @@
+@@ -634,6 +652,13 @@ void edma_cfg_tx_napi_add(struct net_dev
  	struct edma_txcmpl_ring *txcmpl_ring;
  	u32 i, ring_idx;
  
@@ -332,7 +332,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Adding tx napi for a interface with each queue. */
  	for_each_possible_cpu(i) {
  		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
-@@ -644,5 +669,5 @@
+@@ -644,5 +669,5 @@ void edma_cfg_tx_napi_add(struct net_dev
  		netdev_dbg(netdev, "Napi added for txcmpl ring: %u\n", txcmpl_ring->id);
  	}
  
@@ -372,7 +372,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void edma_cfg_tx_rings_cleanup(void);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-@@ -281,6 +281,10 @@
+@@ -281,6 +281,10 @@ struct edma_rxdesc_ring {
  	struct sk_buff *last;
  };
  
@@ -385,7 +385,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int edma_rx_napi_poll(struct napi_struct *napi, int budget);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-@@ -288,6 +288,10 @@
+@@ -288,6 +288,10 @@ struct edma_txcmpl_ring {
  	bool napi_added;
  };
  

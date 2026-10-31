@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/system-linux.c
 +++ b/system-linux.c
-@@ -3841,6 +3841,8 @@
+@@ -3841,6 +3841,8 @@ system_if_dump_info(struct device *dev,
  	void *c, *d;
  	char *s;
  
@@ -20,12 +20,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	system_get_ethtool_pause(dev, &rx_pause, &tx_pause, &pause_autoneg);
  
  	memset(&ecmd, 0, sizeof(ecmd));
-@@ -3921,8 +3923,6 @@
- 
+@@ -3922,8 +3924,6 @@ system_if_dump_info(struct device *dev,
  	blobmsg_add_u8(b, "hw-tc-offload",
  		ethtool_feature_value(dev->ifname, "hw-tc-offload"));
--
--	system_add_devtype(b, dev->ifname);
  
+-	system_add_devtype(b, dev->ifname);
+-
  	/* Add PSE (PoE) status if available */
  	{
+ 		struct pse_reply_data pse_data;

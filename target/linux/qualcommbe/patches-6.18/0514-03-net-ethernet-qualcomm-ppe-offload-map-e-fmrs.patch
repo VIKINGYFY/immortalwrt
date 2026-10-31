@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -1083,13 +1083,13 @@
+@@ -1083,13 +1083,13 @@ static void ppe_ft_tunnel_underlay_put(s
  
  static int ppe_ft_tunnel_resolve(struct ppe_flowtable *ft,
  				 const struct net_device *tdev,
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.saddr = *local,
  		.daddr = *remote,
  	};
-@@ -1148,11 +1148,11 @@
+@@ -1148,11 +1148,11 @@ static void ppe_ft_tunnel_put(struct ppe
  
  static int ppe_ft_tunnel_get(struct ppe_flowtable *ft, struct net_device *dev,
  			     const struct in6_addr *local,
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ppe_tunnel_ipip6 ipip6;
  	struct ppe_ft_tunnel *tunnel;
  	int i, ret, err, cleanup_ret = 0, l3_if;
-@@ -1175,13 +1175,13 @@
+@@ -1175,13 +1175,13 @@ static int ppe_ft_tunnel_get(struct ppe_
  	tunnel->dev = dev;
  	tunnel->local = *local;
  	tunnel->remote = *remote;
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		goto err_clear;
  	l3_if = ppe_ft_tunnel_underlay_get(ft, tunnel->underlay_port);
-@@ -1430,6 +1430,7 @@
+@@ -1430,6 +1430,7 @@ static int ppe_ft_flow_replace(struct pp
  	struct flow_action_entry *act;
  	struct net_device *odev = NULL;
  	struct net_device *tdev = NULL;
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ppe_flow_nexthop nh = {};
  	struct ppe_ft_data data = {};
  	struct ppe_ft_flow *flow;
-@@ -1767,6 +1768,24 @@
+@@ -1767,6 +1768,24 @@ static int ppe_ft_flow_replace(struct pp
  		ether_addr_copy(nh.mac, data.eth.dst);
  	}
  
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* The hardware rewrites one direction per flow: the translated
  	 * source of SNAT comes from the public IP table, the translated
  	 * destination of DNAT from the next hop, and the translated L4
-@@ -1774,16 +1793,12 @@
+@@ -1774,16 +1793,12 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	mutex_lock(&ft->lock);
  	if (tunnel_flow) {

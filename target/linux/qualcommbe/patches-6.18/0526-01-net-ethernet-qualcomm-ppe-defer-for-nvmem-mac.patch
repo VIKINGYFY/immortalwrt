@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  3 files changed, 40 insertions(+), 18 deletions(-)
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
-@@ -241,6 +241,11 @@
+@@ -241,6 +241,11 @@ static int qcom_ppe_probe(struct platfor
  	ppe_dev->num_ports = num_ports;
  	ppe_dev->num_icc_paths = num_icc;
  
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return dev_err_probe(dev, ret, "PPE clock config failed\n");
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -1395,6 +1395,40 @@
+@@ -1395,6 +1395,40 @@ static int ppe_port_mac_hw_init(struct p
  }
  
  /**
@@ -82,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * ppe_port_mac_init() - Initialization of PPE ports for the PPE device
   * @ppe_dev: PPE device
   *
-@@ -1434,13 +1468,13 @@
+@@ -1434,13 +1468,13 @@ int ppe_port_mac_init(struct ppe_device
  		ret = of_property_read_u32(port_node, "reg", &port);
  		if (ret) {
  			dev_err(ppe_dev->dev, "Failed to get port id\n");
@@ -98,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		ppe_ports->port[i].ppe_dev = ppe_dev;
-@@ -1452,20 +1486,19 @@
+@@ -1452,20 +1486,19 @@ int ppe_port_mac_init(struct ppe_device
  		ret = ppe_port_clock_init(&ppe_ports->port[i]);
  		if (ret) {
  			dev_err(ppe_dev->dev, "Failed to initialize port clocks\n");
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		i++;
-@@ -1474,20 +1507,16 @@
+@@ -1474,20 +1507,16 @@ int ppe_port_mac_init(struct ppe_device
  	of_node_put(ports_node);
  	return 0;
  
@@ -148,7 +148,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	of_node_put(ports_node);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-@@ -84,6 +84,7 @@
+@@ -84,6 +84,7 @@ struct ppe_ports {
  	struct ppe_port port[] __counted_by(num);
  };
  

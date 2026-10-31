@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  maintainers:
    - Nitheesh Sekar <quic_nsekar@quicinc.com>
-@@ -17,6 +17,7 @@
+@@ -17,6 +17,7 @@ properties:
    compatible:
      enum:
        - qcom,ipq5018-uniphy-pcie-phy
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
        - qcom,ipq5332-uniphy-pcie-phy
  
    reg:
-@@ -27,9 +28,24 @@
+@@ -27,9 +28,24 @@ properties:
      maxItems: 2
  
    resets:
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
    "#phy-cells":
      const: 0
  
-@@ -47,7 +63,6 @@
+@@ -47,7 +63,6 @@ required:
    - resets
    - "#phy-cells"
    - "#clock-cells"
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  additionalProperties: false
  
-@@ -67,6 +82,27 @@
+@@ -67,6 +82,27 @@ allOf:
            items:
              - description: phy reset
              - description: cfg reset
@@ -149,7 +149,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
    - if:
        properties:
-@@ -85,6 +121,8 @@
+@@ -85,6 +121,8 @@ allOf:
              - description: phy reset
              - description: ahb reset
              - description: cfg reset
@@ -160,7 +160,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
    - |
 --- a/Documentation/devicetree/bindings/usb/qcom,snps-dwc3.yaml
 +++ b/Documentation/devicetree/bindings/usb/qcom,snps-dwc3.yaml
-@@ -183,6 +183,26 @@
+@@ -183,6 +183,26 @@ allOf:
          compatible:
            contains:
              enum:
@@ -187,7 +187,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
                - qcom,ipq8064-dwc3
      then:
        properties:
-@@ -271,7 +291,6 @@
+@@ -271,7 +291,6 @@ allOf:
          compatible:
            contains:
              enum:
@@ -263,7 +263,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			snps,is-utmi-l1-suspend;
 --- a/drivers/phy/qualcomm/Kconfig
 +++ b/drivers/phy/qualcomm/Kconfig
-@@ -145,19 +145,6 @@
+@@ -145,19 +145,6 @@ config PHY_QCOM_M31_USB
  	  management. This driver is required even for peripheral only or
  	  host only mode configurations.
  
@@ -283,7 +283,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  config PHY_QCOM_M31_EUSB
  	tristate "Qualcomm M31 eUSB2 PHY driver support"
  	depends on USB && (ARCH_QCOM || COMPILE_TEST)
-@@ -168,6 +155,17 @@
+@@ -168,6 +155,17 @@ config PHY_QCOM_M31_EUSB
  	  up of the associated USB repeater that is paired with the eUSB2
  	  PHY.
  
@@ -303,7 +303,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	depends on USB_ULPI_BUS
 --- a/drivers/phy/qualcomm/Makefile
 +++ b/drivers/phy/qualcomm/Makefile
-@@ -17,7 +17,7 @@
+@@ -17,7 +17,7 @@ obj-$(CONFIG_PHY_QCOM_QMP_USB_LEGACY)	+=
  
  obj-$(CONFIG_PHY_QCOM_QUSB2)		+= phy-qcom-qusb2.o
  obj-$(CONFIG_PHY_QCOM_EUSB2_REPEATER)	+= phy-qcom-eusb2-repeater.o

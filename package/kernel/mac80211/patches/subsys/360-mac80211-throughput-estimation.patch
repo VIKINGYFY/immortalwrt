@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/airtime.c
 +++ b/net/mac80211/airtime.c
-@@ -685,7 +685,7 @@
+@@ -685,7 +685,7 @@ static int ieee80211_fill_rx_status(stru
  	if (ieee80211_fill_rate_info(hw, stat, band, ri))
  		return 0;
  
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -1;
  
  	if (rate->flags & IEEE80211_TX_RC_160_MHZ_WIDTH)
-@@ -753,6 +753,53 @@
+@@ -753,6 +753,53 @@ u32 ieee80211_calc_tx_airtime(struct iee
  }
  EXPORT_SYMBOL_GPL(ieee80211_calc_tx_airtime);
  
@@ -85,7 +85,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u32 ieee80211_calc_expected_tx_airtime(struct ieee80211_hw *hw,
  				       struct ieee80211_vif *vif,
  				       struct ieee80211_sta *pubsta,
-@@ -775,45 +822,15 @@
+@@ -775,45 +822,15 @@ u32 ieee80211_calc_expected_tx_airtime(s
  	if (pubsta) {
  		struct sta_info *sta = container_of(pubsta, struct sta_info,
  						    sta);
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -2944,6 +2944,11 @@
+@@ -2944,6 +2944,11 @@ u8 *ieee80211_get_bssid(struct ieee80211
  
  extern const struct ethtool_ops ieee80211_ethtool_ops;
  
@@ -151,7 +151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				       struct ieee80211_sta *pubsta,
 --- a/net/mac80211/sta_info.c
 +++ b/net/mac80211/sta_info.c
-@@ -3058,6 +3058,29 @@
+@@ -3058,6 +3058,29 @@ static void sta_set_link_sinfo(struct st
  	}
  }
  
@@ -181,7 +181,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo,
  		   bool tidstats)
  {
-@@ -3283,6 +3306,8 @@
+@@ -3283,6 +3306,8 @@ void sta_set_sinfo(struct sta_info *sta,
  		sinfo->sta_flags.set |= BIT(NL80211_STA_FLAG_TDLS_PEER);
  
  	thr = sta_get_expected_throughput(sta);

@@ -62,7 +62,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
    */
  
   /* Qualcomm Ethernet DMA driver setup, HW configuration, clocks and
-@@ -121,7 +121,7 @@
+@@ -121,7 +121,7 @@ static struct edma_hw_info ipq9574_hw_in
  	.tx = &ipq9574_tx_ring_info,
  	.txcmpl = &ipq9574_txcmpl_ring_info,
  	.max_ports = 6,
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.napi_budget_tx = 512,
  };
  
-@@ -156,13 +156,12 @@
+@@ -156,13 +156,12 @@ static int edma_clock_set_and_enable(str
  	}
  
  	of_node_put(edma_np);
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct device *dev = ppe_dev->dev;
-@@ -181,6 +180,8 @@
+@@ -181,6 +180,8 @@ static int edma_clock_init(void)
  	if (ret)
  		return ret;
  
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -245,7 +246,7 @@
+@@ -245,7 +246,7 @@ static int edma_configure_ucast_prio_map
  		}
  
  		ret = ppe_edma_queue_offset_config(edma_ctx->ppe_dev,
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (ret) {
  			pr_err("Failed with error: %d to set queue priority class for int_pri: %d for profile_id: %d\n",
-@@ -494,7 +495,7 @@
+@@ -494,7 +495,7 @@ txcmpl_ring_irq_name_alloc_fail:
  	return ret;
  }
  
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
  	struct edma_ring_info *txcmpl = hw_info->txcmpl;
-@@ -602,44 +603,23 @@
+@@ -602,44 +603,23 @@ static int edma_hw_reset(void)
  	struct device *dev = ppe_dev->dev;
  	struct reset_control *edma_hw_rst;
  	struct device_node *edma_np;
@@ -168,7 +168,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	of_node_put(edma_np);
  
-@@ -661,14 +641,12 @@
+@@ -661,14 +641,12 @@ static int edma_hw_configure(void)
  
  	pr_debug("EDMA ver %d hw init\n", data);
  
@@ -184,7 +184,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -682,7 +660,7 @@
+@@ -682,7 +660,7 @@ static int edma_hw_configure(void)
  	edma_ctx->dummy_dev = alloc_netdev_dummy(0);
  	if (!edma_ctx->dummy_dev) {
  		ret = -ENOMEM;
@@ -193,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto dummy_dev_alloc_failed;
  	}
  
-@@ -696,7 +674,7 @@
+@@ -696,7 +674,7 @@ static int edma_hw_configure(void)
  
  	ret = edma_alloc_rings();
  	if (ret) {
@@ -202,7 +202,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto edma_alloc_rings_failed;
  	}
  
-@@ -716,7 +694,7 @@
+@@ -716,7 +694,7 @@ static int edma_hw_configure(void)
  
  	ret = edma_cfg_rx_rings();
  	if (ret) {
@@ -211,7 +211,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto edma_cfg_rx_rings_failed;
  	}
  
-@@ -734,15 +712,13 @@
+@@ -734,15 +712,13 @@ static int edma_hw_configure(void)
  	if (ret)
  		return ret;
  
@@ -228,7 +228,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	data = EDMA_MISC_AXI_RD_ERR_MASK |
  		EDMA_MISC_AXI_WR_ERR_MASK |
  		EDMA_MISC_RX_DESC_FIFO_FULL_MASK |
-@@ -757,15 +733,15 @@
+@@ -757,15 +733,15 @@ static int edma_hw_configure(void)
  	edma_cfg_rx_napi_add();
  	edma_cfg_rx_napi_enable();
  
@@ -247,7 +247,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = (int)edma_configure_ucast_prio_map_tbl();
  	if (ret) {
  		pr_err("Failed to initialize unicast priority map table: %d\n",
-@@ -773,7 +749,6 @@
+@@ -773,7 +749,6 @@ static int edma_hw_configure(void)
  		goto configure_ucast_prio_map_tbl_failed;
  	}
  
@@ -255,7 +255,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = edma_cfg_rx_rps_hash_map();
  	if (ret) {
  		pr_err("Failed to configure rps hash table: %d\n",
-@@ -817,14 +792,13 @@
+@@ -817,14 +792,13 @@ void edma_destroy(struct ppe_device *ppe
  		edma_ctx->rx_rps_ctl_table_hdr = NULL;
  	}
  
@@ -271,7 +271,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < txcmpl->num_rings; i++) {
  		synchronize_irq(edma_ctx->intr_info.intr_txcmpl[i]);
  
-@@ -834,7 +808,7 @@
+@@ -834,7 +808,7 @@ void edma_destroy(struct ppe_device *ppe
  	}
  	kfree(edma_txcmpl_irq_name);
  
@@ -280,7 +280,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < rx->num_rings; i++) {
  		synchronize_irq(edma_ctx->intr_info.intr_rx[i]);
  		free_irq(edma_ctx->intr_info.intr_rx[i],
-@@ -875,7 +849,7 @@
+@@ -875,7 +849,7 @@ static struct ctl_table edma_rx_rps_core
   * edma_setup - EDMA Setup.
   * @ppe_dev: PPE device
   *
@@ -289,7 +289,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * Return 0 on success, negative error code on failure.
   */
-@@ -903,22 +877,19 @@
+@@ -903,22 +877,19 @@ int edma_setup(struct ppe_device *ppe_de
  		return -EINVAL;
  	}
  
@@ -314,7 +314,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		dev_err(dev, "Error in irq initialization\n");
  		return ret;
-@@ -939,70 +910,3 @@
+@@ -939,70 +910,3 @@ int edma_setup(struct ppe_device *ppe_de
  
  	return 0;
  }
@@ -420,7 +420,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * struct edma_err_stats - EDMA error stats
   * @edma_axi_read_err: AXI read error
   * @edma_axi_write_err: AXI write error
-@@ -123,7 +113,7 @@
+@@ -123,7 +113,7 @@ struct edma_intr_info {
  /**
   * struct edma_context - EDMA context.
   * @netdev_arr: Net device for each EDMA port
@@ -429,7 +429,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @ppe_dev: PPE device
   * @hw_info: EDMA Hardware info
   * @intr_info: EDMA Interrupt info
-@@ -154,7 +144,7 @@
+@@ -154,7 +144,7 @@ struct edma_context {
  	bool tx_requeue_stop;
  };
  
@@ -438,7 +438,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  extern struct edma_context *edma_ctx;
  
  int edma_err_stats_alloc(void);
-@@ -164,13 +154,4 @@
+@@ -164,13 +154,4 @@ int edma_setup(struct ppe_device *ppe_de
  void edma_debugfs_teardown(void);
  int edma_debugfs_setup(struct ppe_device *ppe_dev);
  void edma_set_ethtool_ops(struct net_device *netdev);
@@ -481,7 +481,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int rx_queues[] = {0, 8, 16, 24};
  
  static u32 edma_rx_ring_queue_map[][EDMA_MAX_CORE] = {{ 0, 8, 16, 24 },
-@@ -75,7 +75,7 @@
+@@ -75,7 +75,7 @@ static int edma_cfg_rx_desc_ring_reset_q
  	for (i = 0; i < EDMA_MAX_PRI_PER_CORE; i++) {
  		queue_id = edma_rx_ring_queue_map[i][rxdesc_ring_idx];
  
@@ -490,7 +490,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ret) {
  			pr_err("Error in resetting %u queue's priority\n",
  			       queue_id);
-@@ -138,7 +138,7 @@
+@@ -138,7 +138,7 @@ static int edma_cfg_rx_desc_ring_to_queu
  			pr_err("Error in configuring Rx ring to PPE queue mapping, ret: %d, id: %d\n",
  			       ret, rxdesc_ring->ring_id);
  			if (!edma_cfg_rx_desc_rings_reset_queue_mapping())
@@ -499,7 +499,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  			return ret;
  		}
-@@ -219,7 +219,9 @@
+@@ -219,7 +219,9 @@ static void edma_cfg_rx_qid_to_rx_desc_r
  
  	desc_index = (rx->ring_start & EDMA_RX_RING_ID_MASK);
  
@@ -510,7 +510,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (q_id = EDMA_RX_QUEUE_START;
  		q_id <= EDMA_CPU_PORT_QUEUE_MAX(EDMA_RX_QUEUE_START);
  			q_id += EDMA_QID2RID_NUM_PER_REG) {
-@@ -271,6 +273,11 @@
+@@ -271,6 +273,11 @@ static void edma_cfg_rx_rings_to_rx_fill
  	struct edma_ring_info *rx = hw_info->rx;
  	u32 i, data, reg;
  
@@ -522,7 +522,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_0_ADDR, 0);
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_1_ADDR, 0);
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_2_ADDR, 0);
-@@ -326,7 +333,6 @@
+@@ -326,7 +333,6 @@ void edma_cfg_rx_rings_enable(void)
  	struct edma_ring_info *rx = hw_info->rx;
  	u32 i, reg;
  
@@ -530,7 +530,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = rx->ring_start; i < rx->ring_start + rx->num_rings; i++) {
  		u32 data;
  
-@@ -445,7 +451,6 @@
+@@ -445,7 +451,6 @@ static int edma_cfg_rx_fill_ring_dma_all
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct device *dev = ppe_dev->dev;
  
@@ -538,7 +538,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	rxfill_ring->desc = dma_alloc_coherent(dev, (sizeof(struct edma_rxfill_desc)
  					       * rxfill_ring->count),
  					       &rxfill_ring->dma,
-@@ -633,6 +638,62 @@
+@@ -633,6 +638,62 @@ rxdesc_mem_alloc_fail:
  	return -ENOMEM;
  }
  
@@ -601,7 +601,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * edma_cfg_rx_buff_size_setup - Configure EDMA Rx jumbo buffer
   *
-@@ -729,62 +790,6 @@
+@@ -729,62 +790,6 @@ void edma_cfg_rx_rings_cleanup(void)
  	edma_ctx->rx_rings = NULL;
  }
  
@@ -664,7 +664,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * edma_cfg_rx_rings - Configure EDMA Rx rings.
   *
-@@ -917,6 +922,7 @@
+@@ -917,6 +922,7 @@ void edma_cfg_rx_napi_delete(void)
  		if (!rxdesc_ring->napi_added)
  			continue;
  
@@ -672,7 +672,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		netif_napi_del(&rxdesc_ring->napi);
  		rxdesc_ring->napi_added = false;
  	}
-@@ -978,7 +984,7 @@
+@@ -978,7 +984,7 @@ int edma_cfg_rx_rps_hash_map(void)
  
  	for (hash = 0; hash < PPE_QUEUE_HASH_NUM; hash++) {
  		ret = ppe_edma_queue_offset_config(edma_ctx->ppe_dev,
@@ -698,7 +698,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Rx mitigation timer's default value in microseconds */
  #define EDMA_RX_MITIGATION_TIMER_DEF	25
  
-@@ -66,7 +67,7 @@
+@@ -66,7 +67,7 @@ void edma_cfg_rx_rings_enable(void);
  void edma_cfg_rx_rings_disable(void);
  void edma_cfg_rx_buff_size_setup(void);
  int edma_cfg_rx_rps_hash_map(void);
@@ -716,7 +716,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  
  /* Configure rings, Buffers and NAPI for transmit path along with
-@@ -27,7 +27,7 @@
+@@ -27,7 +27,7 @@ static void edma_cfg_txcmpl_ring_cleanup
  	/* Free any buffers assigned to any descriptors. */
  	edma_tx_complete(EDMA_TX_RING_SIZE - 1, txcmpl_ring);
  
@@ -725,7 +725,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dma_free_coherent(dev, sizeof(struct edma_txcmpl_desc)
  			  * txcmpl_ring->count, txcmpl_ring->desc,
  			  txcmpl_ring->dma);
-@@ -101,7 +101,6 @@
+@@ -101,7 +101,6 @@ static int edma_cfg_tx_desc_ring_setup(s
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct device *dev = ppe_dev->dev;
  
@@ -733,7 +733,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	txdesc_ring->pdesc = dma_alloc_coherent(dev, sizeof(struct edma_txdesc_pri)
  						* txdesc_ring->count,
  						&txdesc_ring->pdma,
-@@ -159,14 +158,14 @@
+@@ -159,14 +158,14 @@ static void edma_cfg_txcmpl_ring_configu
  	struct regmap *regmap = ppe_dev->regmap;
  	u32 data, reg;
  
@@ -750,7 +750,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CTRL(txcmpl_ring->id);
  	regmap_write(regmap, reg, EDMA_TXCMPL_RETMODE_OPAQUE);
  
-@@ -327,10 +326,10 @@
+@@ -327,10 +326,10 @@ void edma_cfg_tx_ring_mappings(void)
  		else
  			reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC2CMPL_MAP_5_ADDR;
  
@@ -763,7 +763,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		 *	reg = EDMA_REG_TXDESC2CMPL_MAP_4_ADDR
  		 *	data |= (desc_index & 0x1F) << ((i % 6) * 5);
  		 *	data |= (0x1F << 20); -
-@@ -408,7 +407,7 @@
+@@ -408,7 +407,7 @@ static int edma_cfg_tx_rings_setup(void)
  		}
  	}
  
@@ -772,7 +772,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < txcmpl->num_rings; i++) {
  		struct edma_txcmpl_ring *txcmpl_ring = NULL;
  		int ret;
-@@ -419,7 +418,7 @@
+@@ -419,7 +418,7 @@ static int edma_cfg_tx_rings_setup(void)
  
  		ret = edma_cfg_txcmpl_ring_setup(txcmpl_ring);
  		if (ret != 0) {
@@ -781,7 +781,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			       txcmpl_ring->id, ret);
  			while (i-- >= 0)
  				edma_cfg_txcmpl_ring_cleanup(&edma_ctx->txcmpl_rings[i]);
-@@ -527,7 +526,7 @@
+@@ -527,7 +526,7 @@ void edma_cfg_tx_rings(void)
  	for (i = 0; i < tx->num_rings; i++)
  		edma_cfg_tx_desc_ring_configure(&edma_ctx->tx_rings[i]);
  
@@ -790,7 +790,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < txcmpl->num_rings; i++)
  		edma_cfg_txcmpl_ring_configure(&edma_ctx->txcmpl_rings[i]);
  }
-@@ -634,6 +633,7 @@
+@@ -634,6 +633,7 @@ void edma_cfg_tx_napi_delete(u32 port_id
  		if (!txcmpl_ring->napi_added)
  			continue;
  
@@ -798,7 +798,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		netif_napi_del(&txcmpl_ring->napi);
  		txcmpl_ring->napi_added = false;
  	}
-@@ -666,7 +666,7 @@
+@@ -666,7 +666,7 @@ void edma_cfg_tx_napi_add(struct net_dev
  		netif_napi_add_weight(netdev, &txcmpl_ring->napi,
  				      edma_tx_napi_poll, hw_info->napi_budget_tx);
  		txcmpl_ring->napi_added = true;
@@ -834,7 +834,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  
  /* ethtool support for EDMA */
-@@ -243,33 +243,6 @@
+@@ -243,33 +243,6 @@ static int edma_set_pauseparam(struct ne
  	return phylink_ethtool_set_pauseparam(port->phylink, pause);
  }
  
@@ -868,7 +868,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct ethtool_ops edma_ethtool_ops = {
  	.get_strings = &edma_get_strings,
  	.get_sset_count = &edma_get_strset_count,
-@@ -279,8 +252,6 @@
+@@ -279,8 +252,6 @@ static const struct ethtool_ops edma_eth
  	.set_link_ksettings = edma_set_link_ksettings,
  	.get_pauseparam = &edma_get_pauseparam,
  	.set_pauseparam = &edma_set_pauseparam,
@@ -886,7 +886,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
    */
  
  /* EDMA port initialization, configuration and netdevice ops handling */
-@@ -59,9 +59,12 @@
+@@ -59,9 +59,12 @@ static void edma_port_stats_free(struct
  static void edma_port_configure(struct net_device *netdev)
  {
  	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
@@ -900,7 +900,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	edma_cfg_tx_fill_per_port_tx_map(netdev, port_id);
  	edma_cfg_tx_rings_enable(port_id);
  	edma_cfg_tx_napi_add(netdev, port_id);
-@@ -70,7 +73,7 @@
+@@ -70,7 +73,7 @@ static void edma_port_configure(struct n
  static void edma_port_deconfigure(struct net_device *netdev)
  {
  	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
@@ -909,7 +909,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int port_id = port->port_id;
  
  	edma_cfg_tx_napi_delete(port_id);
-@@ -140,7 +143,6 @@
+@@ -140,7 +143,6 @@ static int edma_port_close(struct net_de
  	edma_cfg_tx_disable_interrupts(port_id);
  	edma_cfg_tx_napi_disable(port_id);
  
@@ -917,7 +917,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ppe_port->phylink)
  		phylink_stop(ppe_port->phylink);
  
-@@ -219,7 +221,7 @@
+@@ -219,7 +221,7 @@ static netdev_tx_t edma_port_xmit(struct
  		if (unlikely(ret == EDMA_TX_FAIL_NO_DESC)) {
  			if (likely(!edma_ctx->tx_requeue_stop)) {
  				cpu_id = smp_processor_id();
@@ -926,7 +926,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				u64_stats_update_begin(&stats->syncp);
  				++stats->tx_queue_stopped[cpu_id];
  				u64_stats_update_end(&stats->syncp);
-@@ -406,16 +408,12 @@
+@@ -406,16 +408,12 @@ int edma_port_setup(struct ppe_port *por
  			    port_id, netdev->dev_addr);
  	}
  
@@ -943,7 +943,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* We expect 'port_id' to correspond to ports numbers on SoC.
  	 * These begin from '1' and hence we subtract
  	 * one when using it as an array index.
-@@ -424,7 +422,6 @@
+@@ -424,7 +422,6 @@ int edma_port_setup(struct ppe_port *por
  
  	edma_port_configure(netdev);
  
@@ -951,7 +951,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ppe_port_phylink_setup(port, netdev);
  	if (ret) {
  		netdev_dbg(netdev, "EDMA port phylink setup for netdevice %s\n",
-@@ -432,7 +429,6 @@
+@@ -432,7 +429,6 @@ int edma_port_setup(struct ppe_port *por
  		goto port_phylink_setup_fail;
  	}
  
@@ -959,7 +959,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = register_netdev(netdev);
  	if (ret) {
  		netdev_dbg(netdev, "Error registering netdevice %s\n",
-@@ -440,7 +436,7 @@
+@@ -440,7 +436,7 @@ int edma_port_setup(struct ppe_port *por
  		goto register_netdev_fail;
  	}
  
@@ -995,7 +995,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  
  /* Provides APIs to alloc Rx Buffers, reap the buffers, receive and
-@@ -33,10 +33,12 @@
+@@ -33,10 +33,12 @@ static int edma_rx_alloc_buffer_list(str
  	struct device *dev = ppe_dev->dev;
  	u16 prod_idx, start_idx;
  	u16 num_alloc = 0;
@@ -1008,7 +1008,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	while (likely(alloc_count--)) {
  		dma_addr_t buff_addr;
-@@ -56,9 +58,9 @@
+@@ -56,9 +58,9 @@ static int edma_rx_alloc_buffer_list(str
  		skb_reserve(skb, EDMA_RX_SKB_HEADROOM + NET_IP_ALIGN);
  
  		if (likely(!page_mode)) {
@@ -1020,7 +1020,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					edma_ctx);
  				dev_kfree_skb_any(skb);
  				break;
-@@ -70,14 +72,14 @@
+@@ -70,14 +72,14 @@ static int edma_rx_alloc_buffer_list(str
  				++rxfill_stats->page_alloc_failed;
  				u64_stats_update_end(&rxfill_stats->syncp);
  				dev_kfree_skb_any(skb);
@@ -1038,7 +1038,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					edma_ctx);
  				__free_page(pg);
  				dev_kfree_skb_any(skb);
-@@ -97,9 +99,12 @@
+@@ -97,9 +99,12 @@ static int edma_rx_alloc_buffer_list(str
  					   (u32)(buf_len) & EDMA_RXFILL_BUF_SIZE_MASK);
  		prod_idx = (prod_idx + 1) & EDMA_RX_RING_SIZE_MASK;
  		num_alloc++;
@@ -1051,7 +1051,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		reg = EDMA_BASE_OFFSET + EDMA_REG_RXFILL_PROD_IDX(rxfill_ring->ring_id);
  		regmap_write(regmap, reg, prod_idx);
  		rxfill_ring->prod_idx = prod_idx;
-@@ -122,24 +127,26 @@
+@@ -122,24 +127,26 @@ int edma_rx_alloc_buffer(struct edma_rxf
  	return edma_rx_alloc_buffer_list(rxfill_ring, alloc_count);
  }
  
@@ -1085,7 +1085,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void edma_rx_process_last_segment(struct edma_rxdesc_ring *rxdesc_ring,
-@@ -154,7 +161,6 @@
+@@ -154,7 +161,6 @@ static void edma_rx_process_last_segment
  	struct net_device *dev;
  	u32 pkt_length;
  
@@ -1093,7 +1093,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	pkt_length = EDMA_RXDESC_PACKET_LEN_GET(rxdesc_pri);
  
  	skb_head = rxdesc_ring->head;
-@@ -162,7 +168,7 @@
+@@ -162,7 +168,7 @@ static void edma_rx_process_last_segment
  
  	/* Check Rx checksum offload status. */
  	if (likely(dev->features & NETIF_F_RXCSUM))
@@ -1102,7 +1102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Get stats for the netdevice. */
  	port_dev = netdev_priv(dev);
-@@ -207,7 +213,7 @@
+@@ -207,7 +213,7 @@ static void edma_rx_process_last_segment
  	rx_stats->rx_fraglist_pkts += (u64)(!page_mode);
  	u64_stats_update_end(&rx_stats->syncp);
  
@@ -1111,7 +1111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		 edma_ctx, skb_head, skb_head->len);
  
  	skb_head->protocol = eth_type_trans(skb_head, dev);
-@@ -229,9 +235,8 @@
+@@ -229,9 +235,8 @@ static void edma_rx_handle_frag_list(str
  {
  	u32 pkt_length;
  
@@ -1122,7 +1122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		 edma_ctx, skb, pkt_length);
  
  	if (!(rxdesc_ring->head)) {
-@@ -275,9 +280,8 @@
+@@ -275,9 +280,8 @@ static void edma_rx_handle_nr_frags(stru
  	skb_frag_t *frag = NULL;
  	u32 pkt_length;
  
@@ -1133,7 +1133,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		 edma_ctx, skb, pkt_length);
  
  	if (!(rxdesc_ring->head)) {
-@@ -327,7 +331,6 @@
+@@ -327,7 +331,6 @@ static bool edma_rx_handle_linear_packet
  	pcpu_stats = &port_dev->pcpu_stats;
  	rx_stats = this_cpu_ptr(pcpu_stats->rx_stats);
  
@@ -1141,7 +1141,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	pkt_length = EDMA_RXDESC_PACKET_LEN_GET(rxdesc_pri);
  
  	if (likely(!page_mode)) {
-@@ -355,7 +358,7 @@
+@@ -355,7 +358,7 @@ send_to_stack:
  
  	/* Check Rx checksum offload status. */
  	if (likely(skb->dev->features & NETIF_F_RXCSUM))
@@ -1150,7 +1150,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	u64_stats_update_begin(&rx_stats->syncp);
  	rx_stats->rx_pkts++;
-@@ -363,15 +366,15 @@
+@@ -363,15 +366,15 @@ send_to_stack:
  	rx_stats->rx_nr_frag_pkts += (u64)page_mode;
  	u64_stats_update_end(&rx_stats->syncp);
  
@@ -1169,7 +1169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return true;
  }
  
-@@ -390,7 +393,7 @@
+@@ -390,7 +393,7 @@ static struct net_device *edma_rx_get_sr
  		src_port_num = src_info & EDMA_RXDESC_PORTNUM_BITS;
  	} else {
  		if (net_ratelimit()) {
@@ -1178,7 +1178,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				(src_info & EDMA_RXDESC_SRCINFO_TYPE_MASK), skb);
  		}
  
-@@ -401,11 +404,10 @@
+@@ -401,11 +404,10 @@ static struct net_device *edma_rx_get_sr
  		return NULL;
  	}
  
@@ -1191,7 +1191,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					src_port_num, skb);
  
  			u64_stats_update_begin(&rxdesc_stats->syncp);
-@@ -427,7 +429,7 @@
+@@ -427,7 +429,7 @@ static struct net_device *edma_rx_get_sr
  		return ndev;
  
  	if (net_ratelimit())
@@ -1200,7 +1200,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			(src_info & EDMA_RXDESC_SRCINFO_TYPE_MASK),
  			src_port_num, skb);
  
-@@ -482,16 +484,17 @@
+@@ -482,16 +484,17 @@ static int edma_rx_reap(struct edma_rxde
  		struct net_device *ndev;
  		struct sk_buff *skb;
  		dma_addr_t dma_addr;
@@ -1239,7 +1239,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  
  /* Provide APIs to alloc Tx Buffers, fill the Tx descriptors and transmit
-@@ -68,14 +68,9 @@
+@@ -68,14 +68,9 @@ enum edma_tx_gso_status edma_tx_gso_segm
  	if (likely(!skb_is_nonlinear(skb)))
  		return EDMA_TX_GSO_NOT_NEEDED;
  
@@ -1257,7 +1257,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* GSO segmentation of the skb into multiple segments. */
  	*segs = skb_gso_segment(skb, netdev->features
-@@ -119,7 +114,7 @@
+@@ -119,7 +114,7 @@ u32 edma_tx_complete(u32 work_to_do, str
  	if (likely(txcmpl_ring->avail_pkt >= work_to_do)) {
  		avail = work_to_do;
  	} else {
@@ -1266,7 +1266,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_PROD_IDX(txcmpl_ring->id);
  		regmap_read(regmap, reg, &data);
  		prod_idx = data & EDMA_TXCMPL_PROD_IDX_MASK;
-@@ -128,7 +123,7 @@
+@@ -128,7 +123,7 @@ u32 edma_tx_complete(u32 work_to_do, str
  		txcmpl_ring->avail_pkt = avail;
  
  		if (unlikely(!avail)) {
@@ -1275,7 +1275,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				txcmpl_ring->id);
  			u64_stats_update_begin(&txcmpl_stats->syncp);
  			++txcmpl_stats->no_pending_desc;
-@@ -144,9 +139,6 @@
+@@ -144,9 +139,6 @@ u32 edma_tx_complete(u32 work_to_do, str
  	end_idx = (cons_idx + avail) & EDMA_TX_RING_SIZE_MASK;
  	txcmpl = EDMA_TXCMPL_DESC(txcmpl_ring, cons_idx);
  
@@ -1285,7 +1285,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	while (likely(avail--)) {
  		/* The last descriptor holds the SKB pointer for scattered frames.
  		 * So skip the descriptors with more bit set.
-@@ -172,7 +164,21 @@
+@@ -172,7 +164,21 @@ u32 edma_tx_complete(u32 work_to_do, str
  			++txcmpl_stats->invalid_buffer;
  			u64_stats_update_end(&txcmpl_stats->syncp);
  		} else {
@@ -1308,7 +1308,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				skb, skb->len, skb->data_len, cons_idx, prod_idx,
  				txcmpl->word2, txcmpl->word3);
  
-@@ -187,20 +193,6 @@
+@@ -187,20 +193,6 @@ u32 edma_tx_complete(u32 work_to_do, str
  				u64_stats_update_end(&txcmpl_stats->syncp);
  			}
  
@@ -1329,7 +1329,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			dev_kfree_skb(skb);
  		}
  
-@@ -211,7 +203,7 @@
+@@ -211,7 +203,7 @@ u32 edma_tx_complete(u32 work_to_do, str
  	txcmpl_ring->cons_idx = cons_idx;
  	txcmpl_ring->avail_pkt -= count;
  
@@ -1338,7 +1338,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		txcmpl_ring->id, count, prod_idx, cons_idx);
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CONS_IDX(txcmpl_ring->id);
  	regmap_write(regmap, reg, cons_idx);
-@@ -265,7 +257,7 @@
+@@ -265,7 +257,7 @@ int edma_tx_napi_poll(struct napi_struct
  	/* No more packets to process. Finish NAPI processing. */
  	napi_complete(napi);
  
@@ -1347,7 +1347,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
  	regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
  
-@@ -392,9 +384,9 @@
+@@ -392,9 +384,9 @@ static u32 edma_tx_skb_nr_frags(struct e
  	return num_descs;
  }
  
@@ -1360,7 +1360,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ppe_port *port = port_priv->ppe_port;
  	int port_id = port->port_id;
-@@ -463,7 +455,7 @@
+@@ -463,7 +455,7 @@ static struct edma_txdesc_pri *edma_tx_s
  
  	EDMA_TXDESC_BUFFER_ADDR_SET(txd, buff_addr);
  	EDMA_TXDESC_POOL_ID_SET(txd, 0);
@@ -1369,7 +1369,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Set packet length in the descriptor. */
  	EDMA_TXDESC_DATA_LEN_SET(txd, buf_len);
-@@ -528,6 +520,23 @@
+@@ -528,6 +520,23 @@ static u32 edma_tx_skb_sg_fill_desc(stru
  	/* Head skb processed already. */
  	num_descs++;
  
@@ -1393,7 +1393,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (unlikely(skb_has_frag_list(skb))) {
  		struct edma_txdesc_pri *start_desc = NULL;
  		u32 start_idx = 0, end_idx = 0;
-@@ -608,23 +617,9 @@
+@@ -608,23 +617,9 @@ skip_primary:
  		u64_stats_update_begin(&stats->syncp);
  		stats->tx_fraglist_pkts++;
  		u64_stats_update_end(&stats->syncp);
@@ -1418,7 +1418,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		skb, num_descs, skb_shinfo(skb)->nr_frags, num_sg_frag_list);
  
  	*txdesc = txd;
-@@ -775,7 +770,7 @@
+@@ -775,7 +770,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
  			netdev_dbg(netdev, "No descriptor available for ring %d\n",
  				   txdesc_ring->id);
  			dma_unmap_single(dev, virt_to_phys(skb->data),
@@ -1427,7 +1427,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			u64_stats_update_begin(&txdesc_stats->syncp);
  			++txdesc_stats->no_desc_avail;
  			u64_stats_update_end(&txdesc_stats->syncp);
-@@ -792,10 +787,12 @@
+@@ -792,10 +787,12 @@ enum edma_tx_status edma_tx_ring_xmit(st
  	txdesc_ring->prod_idx = hw_next_to_use & EDMA_TXDESC_PROD_IDX_MASK;
  	txdesc_ring->avail_desc -= num_desc_filled;
  
@@ -1459,7 +1459,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define EDMA_TXDESC_POOL_ID_SET(desc, x)	((desc)->word5 |= \
  				(FIELD_PREP(EDMA_TXDESC_POOL_ID_SET_MASK, x)))
  
-@@ -153,7 +153,7 @@
+@@ -153,7 +153,7 @@ enum edma_tx_gso_status {
  };
  
  /**
@@ -1468,7 +1468,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @invalid_buffer: Invalid buffer address received.
   * @errors: Other Tx complete descriptor errors indicated by the hardware.
   * @desc_with_more_bit: Packet's segment transmit count.
-@@ -181,7 +181,7 @@
+@@ -181,7 +181,7 @@ struct edma_txdesc_stats {
  };
  
  /**
@@ -1477,7 +1477,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @word0: Low 32-bit of buffer address.
   * @word1: Buffer recycling, PTP tag flag, PRI valid flag.
   * @word2: Low 32-bit of opaque value.
-@@ -203,7 +203,7 @@
+@@ -203,7 +203,7 @@ struct edma_txdesc_pri {
  };
  
  /**
@@ -1486,7 +1486,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @word0: Reserved.
   * @word1: Custom csum offset, payload offset, TTL/NAT action.
   * @word2: NAPT translated port, DSCP value, TTL value.
-@@ -225,7 +225,7 @@
+@@ -225,7 +225,7 @@ struct edma_txdesc_sec {
  };
  
  /**
@@ -1495,7 +1495,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @word0: Low 32-bit opaque value.
   * @word1: High 32-bit opaque value.
   * @word2: More fragment, transmit ring id, pool id.
-@@ -239,7 +239,7 @@
+@@ -239,7 +239,7 @@ struct edma_txcmpl_desc {
  };
  
  /**
@@ -1504,7 +1504,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @prod_idx: Producer index
   * @id: Tx ring number
   * @avail_desc: Number of available descriptor to process
-@@ -265,7 +265,7 @@
+@@ -265,7 +265,7 @@ struct edma_txdesc_ring {
  };
  
  /**
@@ -1515,7 +1515,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @avail_pkt: Number of available packets to process
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
-@@ -229,11 +229,9 @@
+@@ -229,11 +229,9 @@ static void qcom_ppe_remove(struct platf
  	struct ppe_device *ppe_dev;
  
  	ppe_dev = platform_get_drvdata(pdev);
@@ -1530,7 +1530,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct of_device_id qcom_ppe_of_match[] = {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -13,6 +13,8 @@
+@@ -13,6 +13,8 @@ struct device;
  struct regmap;
  struct dentry;
  
@@ -1703,7 +1703,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#endif
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -889,7 +889,7 @@
+@@ -889,7 +889,7 @@ static int ppe_scheduler_l0_queue_map_se
  				  val);
  }
  
@@ -1712,7 +1712,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_scheduler_l0_queue_map_get(struct ppe_device *ppe_dev,
  					  int node_id, int *port,
  					  struct ppe_scheduler_cfg *scheduler_cfg)
-@@ -986,7 +986,7 @@
+@@ -986,7 +986,7 @@ static int ppe_scheduler_l1_queue_map_se
  	return regmap_update_bits(ppe_dev->regmap, reg, PPE_L1_COMP_CFG_TBL_NODE_METER_LEN, val);
  }
  
@@ -1721,7 +1721,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_scheduler_l1_queue_map_get(struct ppe_device *ppe_dev,
  					  int node_id, int *port,
  					  struct ppe_scheduler_cfg *scheduler_cfg)
-@@ -1056,58 +1056,6 @@
+@@ -1056,58 +1056,6 @@ int ppe_queue_scheduler_set(struct ppe_d
  }
  
  /**
@@ -1780,7 +1780,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * ppe_queue_ucast_base_set - Set PPE unicast queue base ID and profile ID
   * @ppe_dev: PPE device
   * @queue_dst: PPE queue destination configuration
-@@ -1520,6 +1468,31 @@
+@@ -1520,6 +1468,31 @@ int ppe_ring_queue_map_set(struct ppe_de
  				 ARRAY_SIZE(queue_bitmap_val));
  }
  
@@ -1814,7 +1814,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -294,8 +294,6 @@
+@@ -294,8 +294,6 @@ int ppe_queue_scheduler_set(struct ppe_d
  int ppe_queue_scheduler_get(struct ppe_device *ppe_dev,
  			    int node_id, bool flow_level, int *port,
  			    struct ppe_scheduler_cfg *scheduler_cfg);
@@ -1846,7 +1846,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/rtnetlink.h>
  
  #include "edma_port.h"
-@@ -118,7 +119,7 @@
+@@ -118,7 +119,7 @@ enum ppe_xgmib_stats_type {
  	xgmib_rx_broadcast_g,
  	xgmib_rx_multicast_g,
  	xgmib_rx_crc_err,
@@ -1855,7 +1855,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	xgmib_rx_jabber_err,
  	xgmib_rx_undersize_g,
  	xgmib_rx_oversize_g,
-@@ -220,7 +221,7 @@
+@@ -220,7 +221,7 @@ static const struct ppe_mac_mib_info xgm
  	PPE_MAC_MIB_DESC(8, XGMAC_RXBROAD_G_ADDR, "rx_broadcast_g"),
  	PPE_MAC_MIB_DESC(8, XGMAC_RXMULTI_G_ADDR, "rx_multicast_g"),
  	PPE_MAC_MIB_DESC(8, XGMAC_RXCRC_ERR_ADDR, "rx_crc_err"),
@@ -1864,7 +1864,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	PPE_MAC_MIB_DESC(4, XGMAC_RXJABBER_ERR_ADDR, "rx_jabber_err"),
  	PPE_MAC_MIB_DESC(4, XGMAC_RXUNDERSIZE_G_ADDR, "rx_undersize_g"),
  	PPE_MAC_MIB_DESC(4, XGMAC_RXOVERSIZE_G_ADDR, "rx_oversize_g"),
-@@ -258,7 +259,8 @@
+@@ -258,7 +259,8 @@ static void ppe_port_gmib_update(struct
  
  		ret = regmap_read(ppe_dev->regmap, reg, &val);
  		if (ret) {
@@ -1874,7 +1874,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			continue;
  		}
  
-@@ -266,8 +268,8 @@
+@@ -266,8 +268,8 @@ static void ppe_port_gmib_update(struct
  		if (mib->size == 8) {
  			ret = regmap_read(ppe_dev->regmap, reg + 4, &val);
  			if (ret) {
@@ -1885,7 +1885,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				continue;
  			}
  
-@@ -289,6 +291,43 @@
+@@ -289,6 +291,43 @@ static void ppe_port_gmib_stats_poll(str
  			      msecs_to_jiffies(PPE_GMIB_POLL_INTERVAL_MS));
  }
  
@@ -1929,7 +1929,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Get the XGMAC MIB counter based on the specific MIB stats type */
  static u64 ppe_port_xgmib_get(struct ppe_port *ppe_port,
  			      enum ppe_xgmib_stats_type xgmib_type)
-@@ -305,7 +344,7 @@
+@@ -305,7 +344,7 @@ static u64 ppe_port_xgmib_get(struct ppe
  
  	ret = regmap_read(ppe_dev->regmap, reg, &val);
  	if (ret) {
@@ -1938,7 +1938,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto data_return;
  	}
  
-@@ -313,7 +352,8 @@
+@@ -313,7 +352,8 @@ static u64 ppe_port_xgmib_get(struct ppe
  	if (mib->size == 8) {
  		ret = regmap_read(ppe_dev->regmap, reg + 4, &val);
  		if (ret) {
@@ -1948,7 +1948,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			goto data_return;
  		}
  
-@@ -339,10 +379,12 @@
+@@ -339,10 +379,12 @@ int ppe_port_get_sset_count(struct ppe_p
  	if (sset != ETH_SS_STATS)
  		return 0;
  
@@ -1965,7 +1965,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -362,15 +404,9 @@
+@@ -362,15 +404,9 @@ void ppe_port_get_strings(struct ppe_por
  	if (stringset != ETH_SS_STATS)
  		return;
  
@@ -1984,7 +1984,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -386,17 +422,64 @@
+@@ -386,17 +422,64 @@ void ppe_port_get_ethtool_stats(struct p
  {
  	int i;
  
@@ -2055,7 +2055,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  }
  
-@@ -411,56 +494,57 @@
+@@ -411,56 +494,57 @@ void ppe_port_get_ethtool_stats(struct p
  void ppe_port_get_stats64(struct ppe_port *ppe_port,
  			  struct rtnl_link_stats64 *s)
  {
@@ -2156,7 +2156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  }
  
-@@ -480,73 +564,37 @@
+@@ -480,73 +564,37 @@ int ppe_port_set_mac_address(struct ppe_
  	u32 reg, val;
  	int ret;
  
@@ -2250,7 +2250,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  int ppe_port_set_maxframe(struct ppe_port *ppe_port, int maxframe_size)
  {
-@@ -591,42 +639,23 @@
+@@ -591,42 +639,23 @@ int ppe_port_set_maxframe(struct ppe_por
  /* PPE port and MAC reset */
  static int ppe_port_mac_reset(struct ppe_port *ppe_port)
  {
@@ -2306,7 +2306,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* PPE port MAC configuration for phylink */
-@@ -649,31 +678,28 @@
+@@ -649,31 +678,28 @@ static void ppe_port_mac_config(struct p
  	case PHY_INTERFACE_MODE_10G_QXGMII:
  		mac_type = PPE_MAC_TYPE_XGMAC;
  		break;
@@ -2346,7 +2346,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		goto err_mac_config;
  
-@@ -682,8 +708,112 @@
+@@ -682,8 +708,112 @@ static void ppe_port_mac_config(struct p
  	return;
  
  err_mac_config:
@@ -2461,7 +2461,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* PPE port GMAC link up configuration */
-@@ -694,6 +824,11 @@
+@@ -694,6 +824,11 @@ static int ppe_port_gmac_link_up(struct
  	int ret, port = ppe_port->port_id;
  	u32 reg, val;
  
@@ -2473,7 +2473,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Set GMAC speed */
  	switch (speed) {
  	case SPEED_1000:
-@@ -706,8 +841,8 @@
+@@ -706,8 +841,8 @@ static int ppe_port_gmac_link_up(struct
  		val = GMAC_SPEED_10;
  		break;
  	default:
@@ -2484,7 +2484,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EINVAL;
  	}
  
-@@ -726,10 +861,8 @@
+@@ -726,10 +861,8 @@ static int ppe_port_gmac_link_up(struct
  	if (rx_pause)
  		val |= GMAC_RXFCEN;
  
@@ -2497,7 +2497,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* PPE port XGMAC link up configuration */
-@@ -770,8 +903,8 @@
+@@ -770,8 +903,8 @@ static int ppe_port_xgmac_link_up(struct
  		val = XGMAC_SPEED_10;
  		break;
  	default:
@@ -2508,7 +2508,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EINVAL;
  	}
  
-@@ -798,10 +931,8 @@
+@@ -798,10 +931,8 @@ static int ppe_port_xgmac_link_up(struct
  		return ret;
  
  	/* Enable XGMAC RX*/
@@ -2521,7 +2521,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* PPE port MAC link up configuration for phylink */
-@@ -819,9 +950,12 @@
+@@ -819,9 +950,12 @@ static void ppe_port_mac_link_up(struct
  	int ret, port = ppe_port->port_id;
  	u32 reg, val;
  
@@ -2536,7 +2536,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (mac_type == PPE_MAC_TYPE_GMAC)
  		ret = ppe_port_gmac_link_up(ppe_port,
  					    speed, duplex, tx_pause, rx_pause);
-@@ -842,17 +976,47 @@
+@@ -842,17 +976,47 @@ static void ppe_port_mac_link_up(struct
  
  	/* Enable PPE port TX */
  	reg = PPE_PORT_BRIDGE_CTRL_ADDR + PPE_PORT_BRIDGE_CTRL_INC * port;
@@ -2589,7 +2589,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* PPE port MAC link down configuration for phylink */
-@@ -867,48 +1031,28 @@
+@@ -867,48 +1031,28 @@ static void ppe_port_mac_link_down(struc
  	int ret, port = ppe_port->port_id;
  	u32 reg;
  
@@ -2648,7 +2648,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ppe_port *ppe_port = container_of(config, struct ppe_port,
  						 phylink_config);
-@@ -926,8 +1070,8 @@
+@@ -926,8 +1070,8 @@ struct phylink_pcs *ppe_port_mac_select_
  					 PPE_PORT_MUX_CTRL_ADDR,
  					 PPE_PORT5_SEL_PCS1, val);
  		if (ret) {
@@ -2659,7 +2659,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return NULL;
  		}
  	}
-@@ -942,6 +1086,17 @@
+@@ -942,6 +1086,17 @@ static const struct phylink_mac_ops ppe_
  	.mac_select_pcs = ppe_port_mac_select_pcs,
  };
  
@@ -2677,7 +2677,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * ppe_port_phylink_setup() - Set phylink instance for the given PPE port
   * @ppe_port: PPE port
-@@ -956,9 +1111,9 @@
+@@ -956,9 +1111,9 @@ int ppe_port_phylink_setup(struct ppe_po
  {
  	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
  	struct device_node *pcs_node;
@@ -2689,7 +2689,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	pcs_node = of_parse_phandle(ppe_port->np, "pcs-handle", 0);
  	if (!pcs_node)
  		return -ENODEV;
-@@ -966,8 +1121,8 @@
+@@ -966,8 +1121,8 @@ int ppe_port_phylink_setup(struct ppe_po
  	ppe_port->pcs = ipq_pcs_get(pcs_node);
  	of_node_put(pcs_node);
  	if (IS_ERR(ppe_port->pcs)) {
@@ -2700,7 +2700,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return PTR_ERR(ppe_port->pcs);
  	}
  
-@@ -977,22 +1132,10 @@
+@@ -977,22 +1132,10 @@ int ppe_port_phylink_setup(struct ppe_po
  	ppe_port->phylink_config.mac_capabilities = MAC_ASYM_PAUSE |
  		MAC_SYM_PAUSE | MAC_10 | MAC_100 | MAC_1000 |
  		MAC_2500FD | MAC_5000FD | MAC_10000FD;
@@ -2727,7 +2727,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Create phylink */
  	ppe_port->phylink = phylink_create(&ppe_port->phylink_config,
-@@ -1000,8 +1143,8 @@
+@@ -1000,8 +1143,8 @@ int ppe_port_phylink_setup(struct ppe_po
  					   ppe_port->interface,
  					   &ppe_phylink_ops);
  	if (IS_ERR(ppe_port->phylink)) {
@@ -2738,7 +2738,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = PTR_ERR(ppe_port->phylink);
  		goto err_free_pcs;
  	}
-@@ -1009,8 +1152,8 @@
+@@ -1009,8 +1152,8 @@ int ppe_port_phylink_setup(struct ppe_po
  	/* Connect phylink */
  	ret = phylink_of_phy_connect(ppe_port->phylink, ppe_port->np, 0);
  	if (ret) {
@@ -2749,7 +2749,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto err_free_phylink;
  	}
  
-@@ -1043,7 +1186,7 @@
+@@ -1043,7 +1186,7 @@ void ppe_port_phylink_destroy(struct ppe
  		ppe_port->phylink = NULL;
  	}
  
@@ -2758,7 +2758,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ppe_port->pcs) {
  		ipq_pcs_put(ppe_port->pcs);
  		ppe_port->pcs = NULL;
-@@ -1056,7 +1199,7 @@
+@@ -1056,7 +1199,7 @@ static int ppe_port_clock_init(struct pp
  	struct device_node *port_node = ppe_port->np;
  	struct reset_control *rstc;
  	struct clk *clk;
@@ -2767,7 +2767,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	for (i = 0; i < PPE_PORT_CLK_RST_MAX; i++) {
  		/* Get PPE port resets which will be used to reset PPE
-@@ -1090,10 +1233,11 @@
+@@ -1090,10 +1233,11 @@ err_clk_en:
  err_clk_get:
  	reset_control_put(rstc);
  err_rst:
@@ -2783,7 +2783,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return ret;
-@@ -1120,12 +1264,12 @@
+@@ -1120,12 +1264,12 @@ static int ppe_port_mac_hw_init(struct p
  
  	/* GMAC RX and TX are initialized as disabled */
  	reg = PPE_PORT_GMAC_ADDR(port);
@@ -2799,7 +2799,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	val = FIELD_PREP(GMAC_JUMBO_SIZE_M, PPE_PORT_MAC_MAX_FRAME_SIZE);
  	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_JUMBO_SIZE_ADDR,
  				 GMAC_JUMBO_SIZE_M, val);
-@@ -1134,13 +1278,13 @@
+@@ -1134,13 +1278,13 @@ static int ppe_port_mac_hw_init(struct p
  
  	val = FIELD_PREP(GMAC_MAXFRAME_SIZE_M, PPE_PORT_MAC_MAX_FRAME_SIZE);
  	val |= FIELD_PREP(GMAC_TX_THD_M, 0x1);
@@ -2815,7 +2815,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				 GMAC_HIGH_IPG_M, val);
  	if (ret)
  		return ret;
-@@ -1148,13 +1292,13 @@
+@@ -1148,13 +1292,13 @@ static int ppe_port_mac_hw_init(struct p
  	/* Enable and reset GMAC MIB counters and set as read clear
  	 * mode, the GMAC MIB counters will be cleared after reading.
  	 */
@@ -2833,7 +2833,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		return ret;
  
-@@ -1185,31 +1329,8 @@
+@@ -1185,31 +1329,8 @@ static int ppe_port_mac_hw_init(struct p
  		return ret;
  
  	/* Enable and reset XGMAC MIB counters */
@@ -2867,7 +2867,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -1224,8 +1345,8 @@
+@@ -1224,8 +1345,8 @@ static int ppe_port_mac_mib_work_init(st
  int ppe_port_mac_init(struct ppe_device *ppe_dev)
  {
  	struct device_node *ports_node, *port_node;
@@ -2877,7 +2877,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	phy_interface_t phy_mode;
  
  	ports_node = of_get_child_by_name(ppe_dev->dev->of_node,
-@@ -1265,6 +1386,7 @@
+@@ -1265,6 +1386,7 @@ int ppe_port_mac_init(struct ppe_device
  		ppe_ports->port[i].port_id = port;
  		ppe_ports->port[i].np = port_node;
  		ppe_ports->port[i].interface = phy_mode;
@@ -2885,7 +2885,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		ret = ppe_port_clock_init(&ppe_ports->port[i]);
  		if (ret) {
-@@ -1278,12 +1400,6 @@
+@@ -1278,12 +1400,6 @@ int ppe_port_mac_init(struct ppe_device
  			goto err_port_node;
  		}
  
@@ -2898,7 +2898,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = edma_port_setup(&ppe_ports->port[i]);
  		if (ret) {
  			dev_err(ppe_dev->dev, "QCOM EDMA port setup failed\n");
-@@ -1305,8 +1421,11 @@
+@@ -1305,8 +1421,11 @@ err_port_setup:
  	}
  
  err_port_clk:
@@ -2912,7 +2912,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_port_node:
  	of_node_put(port_node);
  err_ports_node:
-@@ -1328,10 +1447,7 @@
+@@ -1328,10 +1447,7 @@ void ppe_port_mac_deinit(struct ppe_devi
  
  	for (i = 0; i < ppe_dev->ports->num; i++) {
  		ppe_port = &ppe_dev->ports->port[i];
@@ -2951,7 +2951,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * enum ppe_port_clk_rst_type - PPE port clock and reset ID type
   * @PPE_PORT_CLK_RST_MAC: The clock and reset ID for port MAC
-@@ -37,14 +44,14 @@
+@@ -37,14 +44,14 @@ enum ppe_mac_type {
  
  /**
   * struct ppe_port - Private data for each PPE port
@@ -2969,7 +2969,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @clks: Port clocks
   * @rstcs: Port resets
   * @gmib_read: Delay work task for GMAC MIB statistics polling function
-@@ -52,14 +59,14 @@
+@@ -52,14 +59,14 @@ enum ppe_mac_type {
   * @gmib_stats_lock: Lock to protect GMAC MIB statistics
   */
  struct ppe_port {
@@ -2987,7 +2987,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct clk *clks[PPE_PORT_CLK_RST_MAX];
  	struct reset_control *rstcs[PPE_PORT_CLK_RST_MAX];
  	struct delayed_work gmib_read;
-@@ -88,6 +95,5 @@
+@@ -88,6 +95,5 @@ void ppe_port_get_ethtool_stats(struct p
  void ppe_port_get_stats64(struct ppe_port *ppe_port,
  			  struct rtnl_link_stats64 *s);
  int ppe_port_set_mac_address(struct ppe_port *ppe_port, const u8 *addr);

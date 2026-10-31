@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -959,6 +959,7 @@
+@@ -959,6 +959,7 @@ static int ath11k_ahb_setup_resources(st
  
  	ab->mem = mem;
  	ab->mem_len = resource_size(mem_res);
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2817,7 +2817,8 @@
+@@ -2817,7 +2817,8 @@ static int ath11k_init_hw_params(struct
  	 */
  	ab->nss_offload = ath11k_nss_offload &&
  			  (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -978,6 +978,8 @@
+@@ -978,6 +978,8 @@ struct ath11k_base {
  	void __iomem *mem;
  	void __iomem *mem_ce;
  	unsigned long mem_len;
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static void ath11k_dp_htt_htc_tx_complete(struct ath11k_base *ab,
  					  struct sk_buff *skb)
-@@ -909,8 +909,7 @@
+@@ -909,8 +909,7 @@ EXPORT_SYMBOL(ath11k_dp_service_srng);
   */
  
  /* The target as the firmware enumerates it, which is its own numbering and
@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  static u32 ath11k_nss_target(struct ath11k_base *ab)
  {
-@@ -919,16 +918,19 @@
+@@ -919,16 +918,19 @@ static u32 ath11k_nss_target(struct ath1
  		return ATH11K_NSS_TARGET_IPQ8074;
  	case ATH11K_HW_IPQ6018_HW10:
  		return ATH11K_NSS_TARGET_IPQ6018;
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	r->id = srng->ring_id;
  	r->dir = srng->ring_dir;
-@@ -936,8 +938,14 @@
+@@ -936,8 +938,14 @@ static void ath11k_nss_wifi_ring(struct
  	r->entry_size = srng->entry_size;
  	r->flags = srng->flags;
  	r->base = srng->ring_base_paddr;
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* ath11k's own hw-restart. The NSS firmware's buffers sit in these rings, so
-@@ -1017,25 +1025,24 @@
+@@ -1017,25 +1025,24 @@ static void ath11k_nss_wifi_describe(str
  {
  	struct ath11k_dp *dp = &ab->dp;
  	struct nss_wifi_soc *soc;
@@ -149,7 +149,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	soc->shadow_rd = ab->hal.rdp.paddr;
  	soc->shadow_wr = ab->hal.wrp.paddr;
  	soc->lmac_ring_start = HAL_SRNG_RING_ID_LMAC1_ID_START;
-@@ -1053,19 +1060,16 @@
+@@ -1053,19 +1060,16 @@ static void ath11k_nss_wifi_describe(str
  
  	for (i = 0; i < soc->num_tcl; i++) {
  		ath11k_nss_wifi_ring(&soc->tcl[i], ab,
@@ -173,7 +173,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Not the release ring this driver reaps. The firmware fills the
  	 * receive-DMA ring from its own pool and names those buffers with its
  	 * own buffer manager, and the buffer manager is what decides which
-@@ -1075,10 +1079,8 @@
+@@ -1075,10 +1079,8 @@ static void ath11k_nss_wifi_describe(str
  	 * a manager id is the release ring's number plus the first software
  	 * manager, not the number itself.
  	 */
@@ -186,7 +186,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ab->nss_soc = nss_wifi_soc_register(soc);
  	if (ab->nss_soc < 0)
-@@ -1092,19 +1094,12 @@
+@@ -1092,19 +1094,12 @@ static void ath11k_nss_wifi_describe_pde
  {
  	struct ath11k *ar = ab->pdevs[id].ar;
  	struct nss_wifi_pdev pdev = {};
@@ -217,7 +217,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int (*read)(struct ath11k_base *ab, void *buf, u32 start, u32 end);
  	void (*irq_enable)(struct ath11k_base *ab);
  	void (*irq_disable)(struct ath11k_base *ab);
-@@ -109,6 +110,14 @@
+@@ -109,6 +110,14 @@ static inline void ath11k_hif_write32(st
  	ab->hif.ops->write32(ab, address, data);
  }
  
@@ -234,7 +234,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/drivers/net/wireless/ath/ath11k/pci.c
 +++ b/drivers/net/wireless/ath/ath11k/pci.c
-@@ -72,6 +72,13 @@
+@@ -72,6 +72,13 @@ static u32 ath11k_pci_get_window_start(s
  		return ATH11K_PCI_WINDOW_START;
  }
  
@@ -248,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static inline void ath11k_pci_select_window(struct ath11k_pci *ab_pci, u32 offset)
  {
  	struct ath11k_base *ab = ab_pci->ab;
-@@ -583,6 +590,7 @@
+@@ -583,6 +590,7 @@ static int ath11k_pci_claim(struct ath11
  	pci_set_master(pdev);
  
  	ab->mem_len = pci_resource_len(pdev, ATH11K_PCI_BAR_NUM);
@@ -256,7 +256,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ab->mem = pci_iomap(pdev, ATH11K_PCI_BAR_NUM, 0);
  	if (!ab->mem) {
  		ath11k_err(ab, "failed to map pci bar %d\n", ATH11K_PCI_BAR_NUM);
-@@ -914,6 +922,7 @@
+@@ -914,6 +922,7 @@ static const struct ath11k_hif_ops ath11
  	.stop = ath11k_pcic_stop,
  	.read32 = ath11k_pcic_read32,
  	.write32 = ath11k_pcic_write32,

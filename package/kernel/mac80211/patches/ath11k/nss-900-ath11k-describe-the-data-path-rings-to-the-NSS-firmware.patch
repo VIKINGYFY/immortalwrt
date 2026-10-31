@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2977,6 +2977,7 @@
+@@ -2977,6 +2977,7 @@ struct ath11k_base *ath11k_core_alloc(st
  	init_completion(&ab->restart_completed);
  
  	ab->dev = dev;
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ab;
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -946,6 +946,8 @@
+@@ -946,6 +946,8 @@ struct ath11k_base {
  	struct ath11k_wmi_base wmi_ab;
  	struct completion fw_ready;
  	int num_radios;
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_dp_htt_htc_tx_complete(struct ath11k_base *ab,
  					  struct sk_buff *skb)
  {
-@@ -875,6 +881,174 @@
+@@ -875,6 +881,174 @@ done:
  }
  EXPORT_SYMBOL(ath11k_dp_service_srng);
  
@@ -239,7 +239,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_dp_pdev_free(struct ath11k_base *ab)
  {
  	struct ath11k *ar;
-@@ -917,6 +1091,14 @@
+@@ -917,6 +1091,14 @@ int ath11k_dp_pdev_alloc(struct ath11k_b
  	int ret;
  	int i;
  
@@ -254,7 +254,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* TODO:Per-pdev rx ring unlike tx ring which is mapped to different AC's */
  	for (i = 0; i < ab->num_radios; i++) {
  		ar = ab->pdevs[i].ar;
-@@ -932,6 +1114,8 @@
+@@ -932,6 +1114,8 @@ int ath11k_dp_pdev_alloc(struct ath11k_b
  				    i);
  			goto err;
  		}
@@ -263,7 +263,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return 0;
-@@ -1032,6 +1216,10 @@
+@@ -1032,6 +1216,10 @@ void ath11k_dp_free(struct ath11k_base *
  	struct ath11k_dp *dp = &ab->dp;
  	int i;
  

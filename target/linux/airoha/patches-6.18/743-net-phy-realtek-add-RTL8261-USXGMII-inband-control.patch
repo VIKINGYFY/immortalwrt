@@ -9,7 +9,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -3550,6 +3550,28 @@
+@@ -3550,6 +3550,28 @@ failed:
  	return ret;
  }
  
@@ -38,7 +38,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  static int rtl826x_suspend(struct phy_device *phydev)
  {
  	struct rtl826x_priv *priv = phydev->priv;
-@@ -4302,6 +4324,8 @@
+@@ -4302,6 +4324,8 @@ static struct phy_driver realtek_drvs[]
  		.config_aneg    = rtl826x_config_aneg,
  		.aneg_done      = genphy_c45_aneg_done,
  		.read_status    = rtl826x_read_status,
@@ -47,7 +47,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  		.config_intr    = rtl826x_config_intr,
  		.handle_interrupt = rtl826x_handle_interrupt,
  		.match_phy_device = rtl8261be_match_phy_device,
-@@ -4320,6 +4344,8 @@
+@@ -4320,6 +4344,8 @@ static struct phy_driver realtek_drvs[]
  		.config_aneg    = rtl826x_config_aneg,
  		.aneg_done      = genphy_c45_aneg_done,
  		.read_status    = rtl826x_read_status,

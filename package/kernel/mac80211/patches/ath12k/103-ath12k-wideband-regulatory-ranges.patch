@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -8600,9 +8600,7 @@
+@@ -8600,9 +8600,7 @@ static void ath12k_mac_setup_ht_vht_cap(
  						    rate_cap_rx_chainmask);
  	}
  
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ht_cap_info)
 --- a/drivers/net/wireless/ath/ath12k/reg.c
 +++ b/drivers/net/wireless/ath/ath12k/reg.c
-@@ -310,7 +310,8 @@
+@@ -310,7 +310,8 @@ int ath12k_regd_update(struct ath12k *ar
  		ath12k_mac_update_freq_range(ar, freq_low, freq_high);
  	}
  
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ab->hw_params->single_pdev_only) {
  			phy_id = ar->pdev->cap.band[WMI_HOST_WLAN_5GHZ_CAP].phy_id;
  			reg_cap = &ab->hal_reg_cap[phy_id];
-@@ -322,7 +323,8 @@
+@@ -322,7 +323,8 @@ int ath12k_regd_update(struct ath12k *ar
  		ath12k_mac_update_freq_range(ar, freq_low, freq_high);
  	}
  

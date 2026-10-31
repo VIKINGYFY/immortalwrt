@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/remoteproc/qcom_q6v5.c
 +++ b/drivers/remoteproc/qcom_q6v5.c
-@@ -61,6 +61,8 @@
+@@ -61,6 +61,8 @@ int qcom_q6v5_prepare(struct qcom_q6v5 *
  	reinit_completion(&q6v5->start_done);
  	reinit_completion(&q6v5->stop_done);
  
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	q6v5->running = true;
  	q6v5->handover_issued = false;
  
-@@ -96,17 +98,23 @@
+@@ -96,17 +98,23 @@ static irqreturn_t q6v5_wdog_interrupt(i
  
  	/* Sometimes the stop triggers a watchdog rather than a stop-ack */
  	if (!q6v5->running) {
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	rproc_report_crash(q6v5->rproc, RPROC_WATCHDOG);
  
  	return IRQ_HANDLED;
-@@ -121,13 +129,18 @@
+@@ -121,13 +129,18 @@ static irqreturn_t q6v5_fatal_interrupt(
  	if (!q6v5->running)
  		return IRQ_HANDLED;
  
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	rproc_report_crash(q6v5->rproc, RPROC_FATAL_ERROR);
  
  	return IRQ_HANDLED;
-@@ -137,6 +150,7 @@
+@@ -137,6 +150,7 @@ static irqreturn_t q6v5_ready_interrupt(
  {
  	struct qcom_q6v5 *q6v5 = data;
  
@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	complete(&q6v5->start_done);
  
  	return IRQ_HANDLED;
-@@ -149,14 +163,19 @@
+@@ -149,14 +163,19 @@ static irqreturn_t q6v5_ready_interrupt(
   *
   * qcom_q6v5_unprepare() should not be called when this function fails.
   *
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  EXPORT_SYMBOL_GPL(qcom_q6v5_wait_for_start);
  
-@@ -183,6 +202,7 @@
+@@ -183,6 +202,7 @@ static irqreturn_t q6v5_stop_interrupt(i
  {
  	struct qcom_q6v5 *q6v5 = data;
  
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	complete(&q6v5->stop_done);
  
  	return IRQ_HANDLED;
-@@ -199,6 +219,7 @@
+@@ -199,6 +219,7 @@ int qcom_q6v5_request_stop(struct qcom_q
  {
  	int ret;
  
@@ -115,7 +115,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	q6v5->running = false;
  
  	/* Don't perform SMP2P dance if remote isn't running */
-@@ -212,7 +233,10 @@
+@@ -212,7 +233,10 @@ int qcom_q6v5_request_stop(struct qcom_q
  
  	qcom_smem_state_update_bits(q6v5->state, BIT(q6v5->stop_bit), 0);
  
@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  EXPORT_SYMBOL_GPL(qcom_q6v5_request_stop);
  
-@@ -239,6 +263,7 @@
+@@ -239,6 +263,7 @@ EXPORT_SYMBOL_GPL(qcom_q6v5_panic);
   * @q6v5:	handle to be initialized
   * @pdev:	platform_device reference for acquiring resources
   * @rproc:	associated remoteproc instance
@@ -135,7 +135,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @crash_reason: SMEM id for crash reason string, or 0 if none
   * @load_state: load state resource string
   * @handover:	function to be called when proxy resources should be released
-@@ -246,13 +271,15 @@
+@@ -246,13 +271,15 @@ EXPORT_SYMBOL_GPL(qcom_q6v5_panic);
   * Return: 0 on success, negative errno on failure
   */
  int qcom_q6v5_init(struct qcom_q6v5 *q6v5, struct platform_device *pdev,
@@ -154,7 +154,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/remoteproc/qcom_q6v5.h
 +++ b/drivers/remoteproc/qcom_q6v5.h
-@@ -34,6 +34,9 @@
+@@ -34,6 +34,9 @@ struct qcom_q6v5 {
  	struct completion start_done;
  	struct completion stop_done;
  
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int crash_reason;
  
  	bool running;
-@@ -43,7 +46,8 @@
+@@ -43,7 +46,8 @@ struct qcom_q6v5 {
  };
  
  int qcom_q6v5_init(struct qcom_q6v5 *q6v5, struct platform_device *pdev,
@@ -176,7 +176,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/remoteproc/qcom_q6v5_adsp.c
 +++ b/drivers/remoteproc/qcom_q6v5_adsp.c
-@@ -717,7 +717,8 @@
+@@ -717,7 +717,8 @@ static int adsp_probe(struct platform_de
  	if (ret)
  		goto disable_pm;
  
@@ -196,7 +196,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/iopoll.h>
  #include <linux/slab.h>
  
-@@ -2164,7 +2165,8 @@
+@@ -2164,7 +2165,8 @@ static int q6v5_probe(struct platform_de
  	qproc->need_mem_protection = desc->need_mem_protection;
  	qproc->has_mba_logs = desc->has_mba_logs;
  
@@ -208,7 +208,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto detach_proxy_pds;
 --- a/drivers/remoteproc/qcom_q6v5_pas.c
 +++ b/drivers/remoteproc/qcom_q6v5_pas.c
-@@ -763,7 +763,8 @@
+@@ -763,7 +763,8 @@ static int qcom_pas_probe(struct platfor
  		goto unassign_mem;
  	pas->proxy_pd_count = ret;
  
@@ -228,7 +228,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "qcom_common.h"
  #include "qcom_pil_info.h"
  #include "qcom_q6v5.h"
-@@ -1015,7 +1016,8 @@
+@@ -1015,7 +1016,8 @@ static int q6v5_wcss_probe(struct platfo
  	if (ret)
  		return ret;
  
@@ -248,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define WCSS_PAS_ID			0x6
  #define MPD_WCSS_PAS_ID			0xd
-@@ -75,15 +76,18 @@
+@@ -75,15 +76,18 @@ static int wcss_sec_stop(struct rproc *r
  {
  	struct wcss_sec *wcss = rproc->priv;
  	struct device *dev = wcss->dev;
@@ -271,7 +271,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	qcom_q6v5_unprepare(&wcss->q6);
  
-@@ -270,7 +274,9 @@
+@@ -270,7 +274,9 @@ static int wcss_sec_probe(struct platfor
  		return dev_err_probe(&pdev->dev, PTR_ERR(int_clk),
  				     "Failed to get interconnect clock\n");
  

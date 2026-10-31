@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/neighbour.h>
  #include <net/tcp.h>
  
-@@ -189,6 +191,10 @@
+@@ -189,6 +191,10 @@ struct ppe_ft_tunnel {
  	u8 underlay_port;
  	u8 hop_limit;
  	u16 mtu;
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int encap_id;
  	int decap_index;
  	int vp;
-@@ -200,8 +206,16 @@
+@@ -200,8 +206,16 @@ struct ppe_ft_tunnel_underlay {
  	int l3_if;
  };
  
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define PPE_FT_HOST_HASH_BITS	8
  
  /* Refcounted hardware host entry. Its hardware-selected index is
-@@ -251,7 +265,8 @@
+@@ -251,7 +265,8 @@ struct ppe_flowtable {
  	struct ppe_ft_pppoe pppoe[PPE_FT_PPPOE_SESSIONS];
  	struct ppe_ft_vlan vlans[PPE_L3_VLAN_UPLINKS];
  	struct ppe_ft_tunnel tunnels[PPE_FT_TUNNELS];
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct notifier_block ppp_nb;
  	struct list_head block_cb_list;
  };
-@@ -599,6 +614,7 @@
+@@ -599,6 +614,7 @@ static int ppe_ft_pppoe_path(struct net_
  	    !is_valid_ether_addr(topo->peer) ||
  	    !is_valid_ether_addr(topo->local))
  		ret = -EINVAL;
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  out_unlock:
  	rcu_read_unlock();
  	return ret;
-@@ -642,6 +658,33 @@
+@@ -642,6 +658,33 @@ static int ppe_ft_pppoe_get(struct ppe_f
  	return -ENOENT;
  }
  
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ppe_ft_pppoe_put(struct ppe_flowtable *ft, int index)
  {
  	int vlan;
-@@ -1013,14 +1056,120 @@
+@@ -1013,14 +1056,120 @@ static bool ppe_ft_rule_is_tunnel(const
  	return is_tunnel;
  }
  
@@ -237,7 +237,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (underlay->refcnt) {
  		if (underlay->poisoned)
  			return -EIO;
-@@ -1038,8 +1187,24 @@
+@@ -1038,8 +1187,24 @@ static int ppe_ft_tunnel_underlay_get(st
  				   PPE_TUNNEL_L3_IPIP6_VALUE);
  	if (ret)
  		goto err_id;
@@ -264,7 +264,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		goto err_row;
  
-@@ -1058,20 +1223,35 @@
+@@ -1058,20 +1223,35 @@ err_ref:
  	return ret;
  }
  
@@ -305,7 +305,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		underlay->poisoned = true;
  		underlay->refcnt = 1;
  		WARN_ONCE(1, "quarantining an undeletable tunnel underlay\n");
-@@ -1088,6 +1268,8 @@
+@@ -1088,6 +1268,8 @@ static int ppe_ft_tunnel_resolve(struct
  				 const struct in6_addr *remote,
  				 struct ppe_ft_tunnel *tunnel)
  {
@@ -314,7 +314,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct flowi6 fl6 = {
  		.flowi6_oif = link,
  		.saddr = *local,
-@@ -1095,82 +1277,193 @@
+@@ -1095,82 +1277,193 @@ static int ppe_ft_tunnel_resolve(struct
  	};
  	struct neighbour *neigh;
  	struct dst_entry *dst;
@@ -537,7 +537,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	tunnel->ref.refcnt = 1;
  	tunnel->dev = dev;
  	tunnel->local = *local;
-@@ -1181,10 +1474,8 @@
+@@ -1181,10 +1474,8 @@ static int ppe_ft_tunnel_get(struct ppe_
  	tunnel->decap_index = -1;
  	tunnel->vp = -1;
  
@@ -550,7 +550,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (l3_if < 0) {
  		ret = l3_if;
  		goto err_clear;
-@@ -1207,6 +1498,10 @@
+@@ -1207,6 +1498,10 @@ static int ppe_ft_tunnel_get(struct ppe_
  	ipip6.hop_limit = tunnel->hop_limit;
  	ipip6.vp = tunnel->vp;
  	ipip6.l3_if = l3_if;
@@ -561,7 +561,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_tunnel_ipip6_decap_build(&decap, &ipip6);
  	ppe_tunnel_ipip6_encap_build(&encap, &ipip6);
  
-@@ -1263,8 +1558,9 @@
+@@ -1263,8 +1558,9 @@ err_decap:
  err_encap_id:
  	ppe_tunnel_id_free(ft->ppe_dev, tunnel->encap_id);
  err_underlay:
@@ -572,7 +572,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	memset(tunnel, 0, sizeof(*tunnel));
  	return ret;
  }
-@@ -1304,7 +1600,8 @@
+@@ -1304,7 +1600,8 @@ static void ppe_ft_tunnel_put(struct ppe
  
  	ppe_tunnel_vp_free(ft->ppe_dev, tunnel->vp);
  	ppe_tunnel_id_free(ft->ppe_dev, tunnel->encap_id);
@@ -582,7 +582,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dev_put(tunnel->dev);
  	memset(tunnel, 0, sizeof(*tunnel));
  }
-@@ -1435,7 +1732,9 @@
+@@ -1435,7 +1732,9 @@ static int ppe_ft_flow_replace(struct pp
  	struct ppe_ft_data data = {};
  	struct ppe_ft_flow *flow;
  	int vlan_pops = 0;
@@ -593,7 +593,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int i, nexthop, ret, redirects = 0, iport = -1, imtu = 0;
  
  	/* nf_flow_offload_refresh() re-sends FLOW_CLS_REPLACE for as long
-@@ -1467,7 +1766,8 @@
+@@ -1467,7 +1766,8 @@ static int ppe_ft_flow_replace(struct pp
  	      BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_TCP) |
  	      BIT_ULL(FLOW_DISSECTOR_KEY_PORTS) |
@@ -603,7 +603,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EOPNOTSUPP;
  
  	flow = kzalloc(sizeof(*flow), GFP_KERNEL);
-@@ -1684,6 +1984,25 @@
+@@ -1684,6 +1984,25 @@ static int ppe_ft_flow_replace(struct pp
  			break;
  		case FLOW_ACTION_CSUM:
  			break;
@@ -629,7 +629,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		default:
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -1700,7 +2019,10 @@
+@@ -1700,7 +2019,10 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -641,7 +641,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			tdev = odev;
  			tunnel_encap = true;
  		} else if (data.ingress_ifindex) {
-@@ -1715,7 +2037,7 @@
+@@ -1715,7 +2037,7 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -650,7 +650,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			dev_hold(tdev);
  	}
  
-@@ -1768,7 +2090,7 @@
+@@ -1768,7 +2090,7 @@ static int ppe_ft_flow_replace(struct pp
  		ether_addr_copy(nh.mac, data.eth.dst);
  	}
  
@@ -659,7 +659,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct ip6_tnl_flow_offload_key key = {
  			.addr = tunnel_encap ? flow->entry.dip.ip4 :
  					       flow->entry.sip.ip4,
-@@ -1782,7 +2104,7 @@
+@@ -1782,7 +2104,7 @@ static int ppe_ft_flow_replace(struct pp
  		if (ret || ipv6_addr_any(&tnl_info.local) ||
  		    ipv6_addr_any(&tnl_info.remote)) {
  			ret = -EOPNOTSUPP;
@@ -668,7 +668,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -1793,12 +2115,29 @@
+@@ -1793,12 +2115,29 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	mutex_lock(&ft->lock);
  	if (tunnel_flow) {
@@ -727,7 +727,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/regmap.h>
  
  #include "ppe.h"
-@@ -28,6 +30,7 @@
+@@ -28,6 +30,7 @@ enum ppe_tunnel_op {
  };
  
  #define PPE_TUNNEL_KEY_IPIP6		7
@@ -735,7 +735,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static void ppe_tunnel_bits_set(u32 *words, unsigned int offset,
  				unsigned int width, u32 value)
-@@ -86,22 +89,51 @@
+@@ -86,22 +89,51 @@ void ppe_tunnel_ipip6_encap_build(struct
  		.saddr = ipip6->local,
  		.daddr = ipip6->remote,
  	};
@@ -796,7 +796,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_tunnel_bits_set(entry->control, 66, 2, 1);
  }
  
-@@ -493,6 +525,66 @@
+@@ -493,6 +525,66 @@ int ppe_tunnel_port_l3_if_set(struct ppe
  out:
  	mutex_unlock(&ppe_dev->tunnel_lock);
  
@@ -865,7 +865,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_tunnel.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_tunnel.h
-@@ -38,6 +38,10 @@
+@@ -38,6 +38,10 @@ struct ppe_tunnel_ipip6 {
  	u8 hop_limit;
  	u8 vp;
  	u8 l3_if;
@@ -876,7 +876,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  int ppe_tunnel_hw_init(struct ppe_device *ppe_dev);
-@@ -60,6 +64,10 @@
+@@ -60,6 +64,10 @@ int ppe_tunnel_vp_bind(struct ppe_device
  int ppe_tunnel_vp_unbind(struct ppe_device *ppe_dev, int vp);
  int ppe_tunnel_port_l3_if_set(struct ppe_device *ppe_dev, int port,
  			      bool valid, int l3_if);

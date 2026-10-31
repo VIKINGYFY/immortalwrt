@@ -88,7 +88,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /**
-@@ -44,13 +65,17 @@
+@@ -44,13 +65,17 @@ struct ppe_bridge_vsi {
   * @bridge: Bridge device the port is offloaded to, NULL when the port
   * is not offloaded.
   * @dev: Net device of the port, valid while the port is offloaded.
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned long flags;
  };
  
-@@ -72,6 +97,7 @@
+@@ -72,6 +97,7 @@ struct ppe_bridge_port {
   * @fdb_ht: Shadow of the dynamic hardware FDB entries reported to the
   * bridge, to tell new and aged-out entries apart while walking the
   * hardware table.
@@ -115,7 +115,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @shutdown: Tear-down in progress, stops the FDB synchronization from
   * rescheduling itself.
   * @vsis: State of the PPE VSIs.
-@@ -90,6 +116,7 @@
+@@ -90,6 +116,7 @@ struct ppe_bridge {
  	struct workqueue_struct *fdb_wq;
  	struct delayed_work fdb_sync;
  	DECLARE_HASHTABLE(fdb_ht, 8);
@@ -123,7 +123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool shutdown;
  	struct ppe_bridge_vsi vsis[PPE_VSI_TBL_ENTRIES];
  	struct ppe_bridge_port ports[];
-@@ -124,6 +151,7 @@
+@@ -124,6 +151,7 @@ struct ppe_bridge_fdb {
   * @dev: PPE port net device the event applies to, held while queued.
   * @event: SWITCHDEV_FDB_ADD_TO_DEVICE or SWITCHDEV_FDB_DEL_TO_DEVICE.
   * @addr: MAC address of the FDB entry.
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @host_addr: Entry points to the CPU port instead of the PPE port,
   * used for the addresses of the bridge itself and for addresses on
   * software ports of the bridge (assisted learning).
-@@ -135,6 +163,7 @@
+@@ -135,6 +163,7 @@ struct ppe_bridge_fdb_work {
  	struct net_device *dev;
  	unsigned long event;
  	unsigned char addr[ETH_ALEN];
@@ -139,7 +139,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool host_addr;
  	bool notify_offloaded;
  };
-@@ -146,67 +175,192 @@
+@@ -146,67 +175,192 @@ static int ppe_bridge_port_id(struct net
  	return port_priv->ppe_port->port_id;
  }
  
@@ -362,7 +362,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ppe_bridge_port_offload_mark_set(struct net_device *dev,
  					     bool offloaded)
  {
-@@ -235,7 +389,7 @@
+@@ -235,7 +389,7 @@ static struct ppe_bridge_fdb *ppe_bridge
  }
  
  static void ppe_bridge_fdb_notify(struct ppe_bridge *pb, unsigned long event,
@@ -371,7 +371,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct switchdev_notifier_fdb_info info = {};
  	struct net_device *dev = pb->ports[port].dev;
-@@ -244,13 +398,15 @@
+@@ -244,13 +398,15 @@ static void ppe_bridge_fdb_notify(struct
  		return;
  
  	info.addr = addr;
@@ -390,7 +390,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  static void ppe_bridge_fdb_shadow_purge(struct ppe_bridge *pb, int port,
  					int vsi)
-@@ -260,7 +416,8 @@
+@@ -260,7 +416,8 @@ static void ppe_bridge_fdb_shadow_purge(
  	int bkt;
  
  	hash_for_each_safe(pb->fdb_ht, bkt, tmp, fdb, node) {
@@ -400,7 +400,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			continue;
  
  		hash_del(&fdb->node);
-@@ -268,6 +425,48 @@
+@@ -268,6 +425,48 @@ static void ppe_bridge_fdb_shadow_purge(
  	}
  }
  
@@ -449,7 +449,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Synchronize the dynamic entries the hardware has learned and aged to
   * the bridge, so they show up in the bridge FDB and station moves reach
   * the software ports. The entries are reported as offloaded, which
-@@ -301,10 +500,12 @@
+@@ -301,10 +500,12 @@ static void ppe_bridge_fdb_sync_work(str
  		if (!entry.port || entry.port >= pb->ppe_dev->num_ports)
  			continue;
  
@@ -465,7 +465,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			continue;
  
  		fdb = ppe_bridge_fdb_find(pb, entry.addr, entry.vsi);
-@@ -319,12 +520,14 @@
+@@ -319,12 +520,14 @@ static void ppe_bridge_fdb_sync_work(str
  			hash_add(pb->fdb_ht, &fdb->node,
  				 ppe_bridge_fdb_key(fdb->addr, fdb->vsi));
  			ppe_bridge_fdb_notify(pb, SWITCHDEV_FDB_ADD_TO_BRIDGE,
@@ -482,7 +482,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		fdb->seen = true;
-@@ -335,14 +538,15 @@
+@@ -335,14 +538,15 @@ static void ppe_bridge_fdb_sync_work(str
  			continue;
  
  		ppe_bridge_fdb_notify(pb, SWITCHDEV_FDB_DEL_TO_BRIDGE,
@@ -500,7 +500,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			active = true;
  
  	if (active && !pb->shutdown)
-@@ -352,50 +556,95 @@
+@@ -352,50 +556,95 @@ requeue:
  	rtnl_unlock();
  }
  
@@ -626,7 +626,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* The bridge TX MAC gates packets forwarded to the port by the
  	 * hardware bridge, it is kept disabled while a port is not
-@@ -403,7 +652,7 @@
+@@ -403,7 +652,7 @@ static int ppe_bridge_port_join(struct p
  	 */
  	ret = ppe_port_bridge_txmac_set(ppe_dev, port, true);
  	if (ret)
@@ -635,7 +635,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ppe_bridge_port_offload_mark_set(dev, true);
  
-@@ -412,27 +661,27 @@
+@@ -412,27 +661,27 @@ static int ppe_bridge_port_join(struct p
  					    &pb->switchdev_blocking_nb,
  					    false, extack);
  	if (ret)
@@ -676,7 +676,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return ret;
  }
-@@ -441,54 +690,224 @@
+@@ -441,54 +690,224 @@ static void ppe_bridge_port_leave(struct
  				  struct net_device *dev)
  {
  	struct ppe_device *ppe_dev = pb->ppe_dev;
@@ -919,7 +919,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_bridge_stp_state_set(struct ppe_bridge *pb,
-@@ -532,11 +951,9 @@
+@@ -532,11 +951,9 @@ static int ppe_bridge_flags_set(struct p
  				struct switchdev_brport_flags flags)
  {
  	struct ppe_device *ppe_dev = pb->ppe_dev;
@@ -932,7 +932,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	old_flags = pb->ports[port].flags;
  	pb->ports[port].flags &= ~flags.mask;
-@@ -552,20 +969,29 @@
+@@ -552,20 +969,29 @@ static int ppe_bridge_flags_set(struct p
  	}
  
  	if (flags.mask & (BR_FLOOD | BR_MCAST_FLOOD | BR_BCAST_FLOOD)) {
@@ -972,7 +972,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_bridge_attr_set(struct net_device *dev, const void *ctx,
-@@ -576,7 +1002,7 @@
+@@ -576,7 +1002,7 @@ static int ppe_bridge_attr_set(struct ne
  	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
  	int port = ppe_bridge_port_id(dev);
  
@@ -981,7 +981,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EOPNOTSUPP;
  
  	switch (attr->id) {
-@@ -589,10 +1015,10 @@
+@@ -589,10 +1015,10 @@ static int ppe_bridge_attr_set(struct ne
  	case SWITCHDEV_ATTR_ID_PORT_BRIDGE_FLAGS:
  		return ppe_bridge_flags_set(pb, dev, attr->u.brport_flags);
  	case SWITCHDEV_ATTR_ID_BRIDGE_VLAN_FILTERING:
@@ -995,7 +995,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -640,11 +1066,18 @@
+@@ -640,11 +1066,18 @@ static void ppe_bridge_fdb_work_fn(struc
  	rtnl_lock();
  
  	port = ppe_bridge_port_id(fdb_work->dev);
@@ -1017,7 +1017,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (vsi < 0)
  		goto out;
  
-@@ -666,6 +1099,7 @@
+@@ -666,6 +1099,7 @@ static void ppe_bridge_fdb_work_fn(struc
  			struct switchdev_notifier_fdb_info info = {};
  
  			info.addr = fdb_work->addr;
@@ -1025,7 +1025,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			info.offloaded = true;
  			call_switchdev_notifiers(SWITCHDEV_FDB_OFFLOADED,
  						 fdb_work->dev, &info.info,
-@@ -705,10 +1139,6 @@
+@@ -705,10 +1139,6 @@ static int ppe_bridge_fdb_event(struct n
  	if (ctx && ctx != pb)
  		return 0;
  
@@ -1036,7 +1036,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (fdb_info->locked)
  		return 0;
  
-@@ -728,6 +1158,7 @@
+@@ -728,6 +1158,7 @@ static int ppe_bridge_fdb_event(struct n
  	fdb_work->dev = dev;
  	fdb_work->event = event;
  	ether_addr_copy(fdb_work->addr, fdb_info->addr);
@@ -1044,7 +1044,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	fdb_work->host_addr = host_addr;
  	fdb_work->notify_offloaded = !host_addr &&
  				     event == SWITCHDEV_FDB_ADD_TO_DEVICE;
-@@ -776,6 +1207,47 @@
+@@ -776,6 +1207,47 @@ static int ppe_bridge_switchdev_event(st
  	return NOTIFY_DONE;
  }
  
@@ -1092,7 +1092,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_bridge_switchdev_blocking_event(struct notifier_block *nb,
  					       unsigned long event, void *ptr)
  {
-@@ -783,6 +1255,16 @@
+@@ -783,6 +1255,16 @@ static int ppe_bridge_switchdev_blocking
  	int ret;
  
  	switch (event) {
@@ -1111,7 +1111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  						     edma_port_dev_check,
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1566,6 +1566,135 @@
+@@ -1566,6 +1566,135 @@ int ppe_vsi_eg_mode_set(struct ppe_devic
  }
  
  /**
@@ -1247,7 +1247,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * ppe_port_bridge_txmac_set - Enable or disable the bridge TX MAC of a port
   * @ppe_dev: PPE device
   * @port: PPE port to configure
-@@ -1971,6 +2100,23 @@
+@@ -1971,6 +2100,23 @@ int ppe_fdb_port_flush(struct ppe_device
  }
  
  /**
@@ -1273,7 +1273,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @vsi: VSI to flush the FDB entries of
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -329,6 +329,13 @@
+@@ -329,6 +329,13 @@ int ppe_vsi_members_set(struct ppe_devic
  			unsigned int bc_bitmap);
  int ppe_port_vsi_set(struct ppe_device *ppe_dev, int port, int vsi);
  int ppe_vsi_eg_mode_set(struct ppe_device *ppe_dev, int vsi, u32 port_modes);
@@ -1287,7 +1287,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ppe_port_bridge_txmac_set(struct ppe_device *ppe_dev, int port,
  			      bool enable);
  int ppe_port_bridge_learning_set(struct ppe_device *ppe_dev, int port,
-@@ -342,6 +349,7 @@
+@@ -342,6 +349,7 @@ int ppe_fdb_entry_del(struct ppe_device
  int ppe_fdb_entry_read(struct ppe_device *ppe_dev, int index,
  		       struct ppe_fdb_entry *entry, bool *valid);
  int ppe_fdb_port_flush(struct ppe_device *ppe_dev, int port, bool static_too);

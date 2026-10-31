@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/Kconfig
 +++ b/drivers/net/ethernet/qualcomm/Kconfig
-@@ -65,6 +65,9 @@
+@@ -65,6 +65,9 @@ config QCOM_PPE
  	depends on COMMON_CLK && HAS_IOMEM && OF
  	depends on ARCH_QCOM || COMPILE_TEST
  	select REGMAP_MMIO
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define PPE_PORT_MAX		8
  #define PPE_CLK_RATE		353000000
-@@ -205,6 +206,11 @@
+@@ -205,6 +206,11 @@ static int qcom_ppe_probe(struct platfor
  	if (ret)
  		return dev_err_probe(dev, ret, "PPE HW config failed\n");
  
@@ -81,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
  
-@@ -217,6 +223,9 @@
+@@ -217,6 +223,9 @@ static void qcom_ppe_remove(struct platf
  
  	ppe_dev = platform_get_drvdata(pdev);
  	ppe_debugfs_teardown(ppe_dev);
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct of_device_id qcom_ppe_of_match[] = {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -20,6 +20,7 @@
+@@ -20,6 +20,7 @@ struct dentry;
   * @clk_rate: PPE clock rate.
   * @num_ports: Number of PPE ports.
   * @debugfs_root: Debugfs root entry.
@@ -101,7 +101,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @num_icc_paths: Number of interconnect paths.
   * @icc_paths: Interconnect path array.
   *
-@@ -33,6 +34,7 @@
+@@ -33,6 +34,7 @@ struct ppe_device {
  	unsigned long clk_rate;
  	unsigned int num_ports;
  	struct dentry *debugfs_root;

@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/netfilter/nf_flow_table_bpf.c
 +++ b/net/netfilter/nf_flow_table_bpf.c
-@@ -50,6 +50,10 @@
+@@ -50,6 +50,10 @@ bpf_xdp_flow_tuple_lookup(struct net_dev
  
  	nf_flow = container_of(tuplehash, struct flow_offload,
  			       tuplehash[tuplehash->tuple.dir]);
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return tuplehash;
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -379,6 +379,26 @@
+@@ -379,6 +379,26 @@ nf_flow_offload_lookup(struct nf_flowtab
  	return flow_offload_lookup(flow_table, &tuple);
  }
  
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int nf_flow_offload_forward(struct nf_flowtable_ctx *ctx,
  				   struct nf_flowtable *flow_table,
  				   struct flow_offload_tuple_rhash *tuplehash,
-@@ -392,6 +412,9 @@
+@@ -392,6 +412,9 @@ static int nf_flow_offload_forward(struc
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mtu = flow->tuplehash[dir].tuple.mtu + ctx->offset;
  	if (unlikely(nf_flow_exceeds_mtu(skb, mtu)))
  		return 0;
-@@ -690,6 +713,9 @@
+@@ -690,6 +713,9 @@ static int nf_flow_offload_ipv6_forward(
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  

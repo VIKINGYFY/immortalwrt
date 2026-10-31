@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mhi.c
 +++ b/drivers/net/wireless/ath/ath12k/mhi.c
-@@ -188,7 +188,7 @@
+@@ -188,7 +188,7 @@ int ath12k_mhi_register(struct ath12k_pc
  {
  	struct ath12k_base *ab = ab_pci->ab;
  	struct mhi_controller *mhi_ctrl;
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  	bool dualmac = false;
  
-@@ -242,6 +242,14 @@
+@@ -242,6 +242,14 @@ int ath12k_mhi_register(struct ath12k_pc
  		}
  	}
  
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath12k_err(ab, "failed to get msi for mhi\n");
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
-@@ -249,6 +249,9 @@
+@@ -249,6 +249,9 @@ static void ath12k_pci_enable_ltssm(stru
  	u32 val;
  	int i;
  
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* PCIE link seems very unstable after the Hot Reset*/
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
-@@ -2122,15 +2122,23 @@
+@@ -2122,15 +2122,23 @@ int ath12k_dp_rxdma_ring_sel_config_qcn9
  	tlv_filter.offset_valid = true;
  	tlv_filter.rx_packet_offset = hal_rx_desc_sz;
  
@@ -98,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.hw_regs = &qcn9274_v1_regs,
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -1098,6 +1098,378 @@
+@@ -1098,6 +1098,378 @@ ath12k_hal_tcl_to_wbm_rbm_map_qcn9274[DP
  	},
  };
  
@@ -489,7 +489,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  extern const struct ath12k_hw_regs ipq5332_regs;
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
-@@ -1454,6 +1454,13 @@
+@@ -1454,6 +1454,13 @@ struct rx_msdu_end_qcn9274_compact {
   *
   */
  
@@ -503,7 +503,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct hal_rx_desc_qcn9274_compact {
  	struct rx_msdu_end_qcn9274_compact msdu_end;
  	struct rx_mpdu_start_qcn9274_compact mpdu_start;
-@@ -1499,6 +1506,7 @@
+@@ -1499,6 +1506,7 @@ struct hal_rx_desc_qcc2072 {
  
  struct hal_rx_desc {
  	union {
@@ -513,7 +513,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct hal_rx_desc_qcc2072 qcc2072;
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -382,7 +382,7 @@
+@@ -382,7 +382,7 @@ static const struct ath12k_hw_params ath
  			ath12k_wifi7_target_service_to_ce_map_wlan_qcn9274,
  		.svc_to_ce_map_len = 18,
  
@@ -522,7 +522,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.num_rxdma_per_pdev = 1,
  		.num_rxdma_dst_ring = 0,
  		.rx_mac_buf_ring = false,
-@@ -398,7 +398,7 @@
+@@ -398,7 +398,7 @@ static const struct ath12k_hw_params ath
  		.download_calib = true,
  		.supports_suspend = false,
  		.tcl_ring_retry = true,
@@ -541,7 +541,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "../hif.h"
  #include "../mhi.h"
  #include "hw.h"
-@@ -86,6 +87,8 @@
+@@ -86,6 +87,8 @@ void ath12k_wifi7_pci_read_hw_version(st
  	soc_hw_version = ath12k_pci_read32(ab, TCSR_SOC_HW_VERSION);
  	*major = u32_get_bits(soc_hw_version, TCSR_SOC_HW_VERSION_MAJOR_MASK);
  	*minor = u32_get_bits(soc_hw_version, TCSR_SOC_HW_VERSION_MINOR_MASK);

@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/remoteproc/Kconfig
 +++ b/drivers/remoteproc/Kconfig
-@@ -234,6 +234,25 @@
+@@ -234,6 +234,25 @@ config QCOM_Q6V5_PAS
  	  subsystems such as ADSP (Audio DSP), CDSP (Compute DSP), MPSS (Modem
  	  Peripheral SubSystem), and SLPI (Sensor Low Power Island).
  
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	depends on OF && ARCH_QCOM
 --- a/drivers/remoteproc/Makefile
 +++ b/drivers/remoteproc/Makefile
-@@ -25,6 +25,7 @@
+@@ -25,6 +25,7 @@ obj-$(CONFIG_QCOM_PIL_INFO)		+= qcom_pil
  obj-$(CONFIG_QCOM_RPROC_COMMON)		+= qcom_common.o
  obj-$(CONFIG_QCOM_Q6V5_COMMON)		+= qcom_q6v5.o
  obj-$(CONFIG_QCOM_Q6V5_ADSP)		+= qcom_q6v5_adsp.o
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  obj-$(CONFIG_QCOM_Q6V5_WCSS)		+= qcom_q6v5_wcss.o
 --- a/drivers/remoteproc/qcom_q6v5.c
 +++ b/drivers/remoteproc/qcom_q6v5.c
-@@ -112,7 +112,7 @@
+@@ -112,7 +112,7 @@ static irqreturn_t q6v5_wdog_interrupt(i
  	return IRQ_HANDLED;
  }
  
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct qcom_q6v5 *q6v5 = data;
  	size_t len;
-@@ -132,8 +132,9 @@
+@@ -132,8 +132,9 @@ static irqreturn_t q6v5_fatal_interrupt(
  
  	return IRQ_HANDLED;
  }
@@ -98,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct qcom_q6v5 *q6v5 = data;
  
-@@ -141,6 +142,7 @@
+@@ -141,6 +142,7 @@ static irqreturn_t q6v5_ready_interrupt(
  
  	return IRQ_HANDLED;
  }
@@ -106,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /**
   * qcom_q6v5_wait_for_start() - wait for remote processor start signal
-@@ -179,7 +181,17 @@
+@@ -179,7 +181,17 @@ static irqreturn_t q6v5_handover_interru
  	return IRQ_HANDLED;
  }
  
@@ -125,7 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct qcom_q6v5 *q6v5 = data;
  
-@@ -187,6 +199,7 @@
+@@ -187,6 +199,7 @@ static irqreturn_t q6v5_stop_interrupt(i
  
  	return IRQ_HANDLED;
  }
@@ -133,7 +133,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /**
   * qcom_q6v5_request_stop() - request the remote processor to stop
-@@ -217,6 +230,28 @@
+@@ -217,6 +230,28 @@ int qcom_q6v5_request_stop(struct qcom_q
  EXPORT_SYMBOL_GPL(qcom_q6v5_request_stop);
  
  /**
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
 --- a/drivers/remoteproc/qcom_q6v5.h
 +++ b/drivers/remoteproc/qcom_q6v5.h
-@@ -18,21 +18,27 @@
+@@ -18,21 +18,27 @@ struct qcom_q6v5 {
  
  	struct qcom_smem_state *state;
  	struct qmp *qmp;
@@ -192,7 +192,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	int crash_reason;
  
-@@ -50,7 +56,12 @@
+@@ -50,7 +56,12 @@ void qcom_q6v5_deinit(struct qcom_q6v5 *
  int qcom_q6v5_prepare(struct qcom_q6v5 *q6v5);
  int qcom_q6v5_unprepare(struct qcom_q6v5 *q6v5);
  int qcom_q6v5_request_stop(struct qcom_q6v5 *q6v5, struct qcom_sysmon *sysmon);

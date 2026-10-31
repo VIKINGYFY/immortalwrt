@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/Kconfig
 +++ b/drivers/net/ethernet/qualcomm/Kconfig
-@@ -64,9 +64,11 @@
+@@ -64,9 +64,11 @@ config QCOM_PPE
  	tristate "Qualcomm Technologies, Inc. PPE Ethernet support"
  	depends on COMMON_CLK && HAS_IOMEM && OF
  	depends on ARCH_QCOM || COMPILE_TEST
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o edma_ethtool.o
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -309,6 +309,23 @@
+@@ -309,6 +309,23 @@ static int edma_port_set_mac_address(str
  	return 0;
  }
  
@@ -81,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct net_device_ops edma_port_netdev_ops = {
  	.ndo_open = edma_port_open,
  	.ndo_stop = edma_port_close,
-@@ -320,9 +337,22 @@
+@@ -320,9 +337,22 @@ static const struct net_device_ops edma_
  	.ndo_eth_ioctl = edma_port_ioctl,
  	.ndo_features_check = edma_port_feature_check,
  	.ndo_select_queue = edma_port_select_queue,
@@ -106,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.h
-@@ -82,6 +82,8 @@
+@@ -82,6 +82,8 @@ struct edma_port_pcpu_stats {
   * @netdev: Corresponding netdevice
   * @pcpu_stats: Per CPU netdev statistics
   * @txr_map: Tx ring per-core mapping
@@ -115,7 +115,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @flags: Feature flags
   */
  struct edma_port_priv {
-@@ -89,9 +91,11 @@
+@@ -89,9 +91,11 @@ struct edma_port_priv {
  	struct net_device *netdev;
  	struct edma_port_pcpu_stats pcpu_stats;
  	struct edma_txdesc_ring *txr_map[EDMA_PORT_MAX_CORE];
@@ -129,7 +129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
-@@ -506,6 +506,8 @@
+@@ -506,6 +506,8 @@ static int edma_rx_reap(struct edma_rxde
  
  		/* Handle linear packets or initial segments first. */
  		if (likely(!(rxdesc_ring->head))) {
@@ -138,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ndev = edma_rx_get_src_dev(rxdesc_stats, rxdesc_pri, skb);
  			if (unlikely(!ndev)) {
  				dev_kfree_skb_any(skb);
-@@ -516,6 +518,13 @@
+@@ -516,6 +518,13 @@ static int edma_rx_reap(struct edma_rxde
  			skb->dev = ndev;
  			skb->skb_iif = ndev->ifindex;
  
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "ppe_config.h"
  #include "ppe_debugfs.h"
  #include "ppe_port.h"
-@@ -255,6 +256,14 @@
+@@ -255,6 +256,14 @@ static int qcom_ppe_probe(struct platfor
  				     "PPE Port MAC initialization failed\n");
  	}
  
@@ -177,7 +177,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
  
-@@ -267,6 +276,7 @@
+@@ -267,6 +276,7 @@ static void qcom_ppe_remove(struct platf
  
  	ppe_dev = platform_get_drvdata(pdev);
  	ppe_port_mac_deinit(ppe_dev);
@@ -202,7 +202,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /* Per-SoC PPE parameters. The PPE register layer is shared between the
   * HPPE (IPQ807x) and APPE (IPQ9574) generations; this collects the few
-@@ -55,6 +57,9 @@
+@@ -55,6 +57,9 @@ struct ppe_variant {
   * @num_ports: Number of PPE ports.
   * @debugfs_root: Debugfs root entry.
   * @ports: PPE MAC ports.
@@ -212,7 +212,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @num_icc_paths: Number of interconnect paths.
   * @icc_paths: Interconnect path array.
   *
-@@ -70,6 +75,10 @@
+@@ -70,6 +75,10 @@ struct ppe_device {
  	unsigned int num_ports;
  	struct dentry *debugfs_root;
  	struct ppe_ports *ports;
@@ -679,7 +679,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#endif
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1469,6 +1469,378 @@
+@@ -1469,6 +1469,378 @@ int ppe_ring_queue_map_set(struct ppe_de
  }
  
  /**
@@ -1058,7 +1058,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * ppe_queue_scheduler_get - get scheduler of PPE hardware queue
   * @ppe_dev: PPE device
   * @node_id: PPE queue ID or flow ID
-@@ -2058,6 +2430,21 @@
+@@ -2058,6 +2430,21 @@ static int ppe_bridge_init(struct ppe_de
  		return ret;
  
  	for (i = 1; i < ppe_dev->num_ports; i++) {
@@ -1080,7 +1080,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* Enable invalid VSI forwarding for all the physical ports
  		 * to CPU port0, in case no VSI is assigned to the physical
  		 * port.
-@@ -2071,6 +2458,10 @@
+@@ -2071,6 +2458,10 @@ static int ppe_bridge_init(struct ppe_de
  
  		PPE_L2_PORT_SET_INVALID_VSI_FWD_EN(port_cfg, true);
  		PPE_L2_PORT_SET_DST_INFO(port_cfg, 0);
@@ -1091,7 +1091,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		ret = regmap_bulk_write(ppe_dev->regmap, reg,
  					port_cfg, ARRAY_SIZE(port_cfg));
-@@ -2112,6 +2503,14 @@
+@@ -2112,6 +2503,14 @@ int ppe_hw_config(struct ppe_device *ppe
  {
  	int ret;
  
@@ -1116,7 +1116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/types.h>
  
  #include "ppe.h"
-@@ -287,7 +288,55 @@
+@@ -287,7 +288,55 @@ struct ppe_rss_hash_cfg {
  	u8 hash_fin_outer[PPE_RSS_HASH_TUPLES];
  };
  

@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -1131,6 +1131,8 @@
+@@ -1131,6 +1131,8 @@ struct dsa_switch_ops {
  				    const struct flow_action_police *policer,
  				    struct netlink_ext_ack *extack);
  	void	(*port_policer_del)(struct dsa_switch *ds, int port);
@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -1572,6 +1572,21 @@
+@@ -1572,6 +1572,21 @@ static void dsa_user_del_cls_matchall(st
  	kfree(mall_tc_entry);
  }
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int dsa_user_setup_tc_cls_matchall(struct net_device *dev,
  					  struct tc_cls_matchall_offload *cls,
  					  bool ingress)
-@@ -1585,6 +1600,8 @@
+@@ -1585,6 +1600,8 @@ static int dsa_user_setup_tc_cls_matchal
  	case TC_CLSMATCHALL_DESTROY:
  		dsa_user_del_cls_matchall(dev, cls);
  		return 0;

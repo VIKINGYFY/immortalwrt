@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6289,8 +6289,11 @@
+@@ -6289,8 +6289,11 @@ static int ath11k_mac_mgmt_tx_wmi(struct
  	if (peer_in_unassoc_pool)
  		ath11k_cfr_update_unassoc_pool_entry(ar, hdr->addr1);
  
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		ath11k_warn(ar->ab, "failed to send mgmt frame: %d\n", ret);
  		goto err_unmap_buf;
-@@ -6555,6 +6558,19 @@
+@@ -6555,6 +6558,19 @@ static int ath11k_mac_mgmt_tx(struct ath
  	return 0;
  }
  
@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath11k_mac_tx(struct ieee80211_hw *hw,
  			 struct ieee80211_tx_control *control,
  			 struct sk_buff *skb, int held_ring)
-@@ -6581,7 +6597,8 @@
+@@ -6581,7 +6597,8 @@ static int ath11k_mac_tx(struct ieee8021
  
  	if (info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP) {
  		skb_cb->flags |= ATH11K_SKB_HW_80211_ENCAP;
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ret) {
 --- a/drivers/net/wireless/ath/ath11k/wmi.c
 +++ b/drivers/net/wireless/ath/ath11k/wmi.c
-@@ -720,6 +720,49 @@
+@@ -720,6 +720,49 @@ int ath11k_wmi_mgmt_send(struct ath11k *
  	return ret;
  }
  
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ath11k_wmi_vdev_create(struct ath11k *ar, u8 *macaddr,
  			   struct vdev_create_params *param)
  {
-@@ -6056,7 +6099,7 @@
+@@ -6056,7 +6099,7 @@ static int wmi_process_mgmt_tx_comp(stru
  }
  
  static int ath11k_pull_mgmt_tx_compl_param_tlv(struct ath11k_base *ab,
@@ -125,7 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					       struct wmi_mgmt_tx_compl_event *param)
  {
  	const void **tb;
-@@ -6070,7 +6113,7 @@
+@@ -6070,7 +6113,7 @@ static int ath11k_pull_mgmt_tx_compl_par
  		return ret;
  	}
  
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!ev) {
  		ath11k_warn(ab, "failed to fetch mgmt tx compl ev");
  		kfree(tb);
-@@ -7723,12 +7766,13 @@
+@@ -7723,12 +7766,13 @@ exit:
  	rcu_read_unlock();
  }
  
@@ -150,7 +150,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_warn(ab, "failed to extract mgmt tx compl event");
  		return;
  	}
-@@ -8948,7 +8992,10 @@
+@@ -8948,7 +8992,10 @@ static void ath11k_wmi_tlv_op_rx(struct
  		/* mgmt_rx_event() owns the skb now! */
  		return;
  	case WMI_MGMT_TX_COMPLETION_EVENTID:
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_scan_event(ab, skb);
 --- a/drivers/net/wireless/ath/ath11k/wmi.h
 +++ b/drivers/net/wireless/ath/ath11k/wmi.h
-@@ -380,6 +380,7 @@
+@@ -380,6 +380,7 @@ enum wmi_tlv_cmd_id {
  	WMI_BSS_COLOR_CHANGE_ENABLE_CMDID,
  	WMI_VDEV_BCN_OFFLOAD_QUIET_CONFIG_CMDID,
  	WMI_FILS_DISCOVERY_TMPL_CMDID,
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	WMI_ADDBA_CLEAR_RESP_CMDID = WMI_TLV_CMD(WMI_GRP_BA_NEG),
  	WMI_ADDBA_SEND_CMDID,
  	WMI_ADDBA_STATUS_CMDID,
-@@ -710,6 +711,8 @@
+@@ -710,6 +711,8 @@ enum wmi_tlv_event_id {
  	WMI_TBTTOFFSET_EXT_UPDATE_EVENTID,
  	WMI_OFFCHAN_DATA_TX_COMPLETION_EVENTID,
  	WMI_HOST_FILS_DISCOVERY_EVENTID,
@@ -181,7 +181,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	WMI_TX_DELBA_COMPLETE_EVENTID = WMI_TLV_CMD(WMI_GRP_BA_NEG),
  	WMI_TX_ADDBA_COMPLETE_EVENTID,
  	WMI_BA_RSP_SSN_EVENTID,
-@@ -1898,6 +1901,8 @@
+@@ -1898,6 +1901,8 @@ enum wmi_tlv_tag {
  	WMI_TAG_PDEV_SRG_OBSS_BSSID_ENABLE_BITMAP_CMD,
  	WMI_TAG_PDEV_NON_SRG_OBSS_COLOR_ENABLE_BITMAP_CMD,
  	WMI_TAG_PDEV_NON_SRG_OBSS_BSSID_ENABLE_BITMAP_CMD,
@@ -190,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	WMI_TAG_REGULATORY_RULE_EXT_STRUCT = 0x3A9,
  	WMI_TAG_REG_CHAN_LIST_CC_EXT_EVENT,
  	WMI_TAG_VDEV_SET_TPC_POWER_CMD = 0x3B5,
-@@ -2132,6 +2137,7 @@
+@@ -2132,6 +2137,7 @@ enum wmi_tlv_service {
  	WMI_TLV_SERVICE_SRG_SRP_SPATIAL_REUSE_SUPPORT = 249,
  	WMI_TLV_SERVICE_MBSS_PARAM_IN_VDEV_START_SUPPORT = 253,
  	WMI_TLV_SERVICE_PASSIVE_SCAN_START_TIME_ENHANCE = 263,
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* The second 128 bits */
  	WMI_MAX_EXT_SERVICE = 256,
-@@ -4992,6 +4998,17 @@
+@@ -4992,6 +4998,17 @@ struct wmi_rssi_ctl_ext {
  	u32 rssi_ctl_ext[MAX_ANTENNA_EIGHT - ATH_MAX_ANTENNA];
  };
  
@@ -216,7 +216,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct wmi_mgmt_tx_compl_event {
  	u32 desc_id;
  	u32 status;
-@@ -6434,6 +6451,8 @@
+@@ -6434,6 +6451,8 @@ const void **ath11k_wmi_tlv_parse_alloc(
  int ath11k_wmi_cmd_send(struct ath11k_pdev_wmi *wmi, struct sk_buff *skb,
  			u32 cmd_id);
  struct sk_buff *ath11k_wmi_alloc_skb(struct ath11k_wmi_base *wmi_sc, u32 len);

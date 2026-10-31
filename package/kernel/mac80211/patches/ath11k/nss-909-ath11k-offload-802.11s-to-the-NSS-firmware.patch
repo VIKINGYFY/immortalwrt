@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -1550,6 +1550,9 @@
+@@ -1550,6 +1550,9 @@ ath11k_update_per_peer_tx_stats(struct a
  	u8 tid = HTT_PPDU_STATS_NON_QOS_TID;
  	u8 airtime_tid;
  	bool is_ampdu = false;
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!(usr_stats->tlv_flags & BIT(HTT_PPDU_STATS_TAG_USR_RATE)))
  		return;
-@@ -1695,9 +1698,27 @@
+@@ -1695,9 +1698,27 @@ ath11k_update_per_peer_tx_stats(struct a
  
  		if (ath11k_debugfs_is_extd_tx_stats_enabled(ar))
  			ath11k_debugfs_sta_add_tx_stats(arsta, peer_stats, rate_idx);
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -3570,6 +3570,14 @@
+@@ -3570,6 +3570,14 @@ static void ath11k_mac_op_bss_info_chang
  					    ret);
  		}
  
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (arvif->bcca_zero_sent)
  			arvif->do_not_send_tmpl = true;
  		else
-@@ -6606,6 +6614,26 @@
+@@ -6606,6 +6614,26 @@ static int ath11k_mac_tx(struct ieee8021
  	 * which is what makes the check it performs vacuous rather than
  	 * wrong.
  	 */
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ar->ab->nss_offload && !ath11k_nss_host_tx) {
  		struct sk_buff *orig = skb;
  
-@@ -6997,6 +7025,50 @@
+@@ -6997,6 +7025,50 @@ static u8 ath11k_nss_vdev_mode(struct at
  	return ATH11K_HW_TXRX_NATIVE_WIFI;
  }
  
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The firmware owns the radio's rings, so an interface it does not take
   * cannot carry data at all and is refused.
   */
-@@ -7011,13 +7083,22 @@
+@@ -7011,13 +7083,22 @@ static int ath11k_nss_vdev_register(stru
  	if (!wdev || !wdev->netdev)
  		return 0;
  
@@ -186,7 +186,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret < 0) {
  		ath11k_warn(ar->ab, "failed to give vdev %d to the NSS firmware: %d\n",
  			    arvif->vdev_id, ret);
-@@ -10480,6 +10561,44 @@
+@@ -10480,6 +10561,44 @@ static int ath11k_mac_op_net_setup_tc(st
   * The subsystem only asks once it has resolved the destination to a
   * station it holds.
   */
@@ -231,7 +231,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath11k_mac_op_net_fill_forward_path(struct ieee80211_hw *hw,
  					       struct ieee80211_vif *vif,
  					       struct ieee80211_sta *sta,
-@@ -10536,6 +10655,7 @@
+@@ -10536,6 +10655,7 @@ static const struct ieee80211_ops ath11k
  	.flush_sta			= ath11k_mac_op_flush_sta,
  	.sta_statistics			= ath11k_mac_op_sta_statistics,
  	.net_setup_tc			= ath11k_mac_op_net_setup_tc,

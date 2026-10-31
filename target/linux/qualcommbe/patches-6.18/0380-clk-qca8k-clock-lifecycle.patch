@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/clk/qcom/clk-rcg.h
 +++ b/drivers/clk/qcom/clk-rcg.h
-@@ -189,9 +189,11 @@
+@@ -189,9 +189,11 @@ struct clk_rcg2_gfx3d {
  	container_of(to_clk_rcg2(_hw), struct clk_rcg2_gfx3d, rcg)
  
  extern const struct clk_ops clk_rcg2_ops;
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  extern const struct clk_ops clk_byte_ops;
 --- a/drivers/clk/qcom/clk-rcg2.c
 +++ b/drivers/clk/qcom/clk-rcg2.c
-@@ -290,13 +290,14 @@
+@@ -290,13 +290,14 @@ __clk_rcg2_select_conf(struct clk_hw *hw
  	unsigned long rate_diff, best_rate_diff = ULONG_MAX;
  	const struct freq_conf *conf, *best_conf = NULL;
  	struct clk_rcg2 *rcg = to_clk_rcg2(hw);
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		best_conf = f->confs;
  		goto exit;
  	}
-@@ -310,6 +311,8 @@
+@@ -310,6 +311,8 @@ __clk_rcg2_select_conf(struct clk_hw *hw
  		p = clk_hw_get_parent_by_index(hw, index);
  		if (!p)
  			continue;
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		parent_rate = clk_hw_get_rate(p);
  		rate = calc_rate(parent_rate, conf->n, conf->m, conf->n, conf->pre_div);
-@@ -326,6 +329,9 @@
+@@ -326,6 +329,9 @@ __clk_rcg2_select_conf(struct clk_hw *hw
  		}
  	}
  
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/*
  	 * Very unlikely. Warn if we couldn't find a correct config
  	 * due to parent not found in every config.
-@@ -811,6 +817,20 @@
+@@ -811,6 +817,20 @@ const struct clk_ops clk_rcg2_ops = {
  };
  EXPORT_SYMBOL_GPL(clk_rcg2_ops);
  
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  const struct clk_ops clk_rcg2_gp_ops = {
  	.is_enabled = clk_rcg2_is_enabled,
  	.get_parent = clk_rcg2_get_parent,
-@@ -849,6 +869,20 @@
+@@ -849,6 +869,20 @@ const struct clk_ops clk_rcg2_fm_ops = {
  };
  EXPORT_SYMBOL_GPL(clk_rcg2_fm_ops);
  
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.get_parent = clk_rcg2_get_parent,
 --- a/drivers/clk/qcom/nsscc-qca8k.c
 +++ b/drivers/clk/qcom/nsscc-qca8k.c
-@@ -75,6 +75,7 @@
+@@ -75,6 +75,7 @@ static struct clk_rcg2 nss_cc_switch_cor
  		.name = "nss_cc_switch_core_clk_src",
  		.parent_data = nss_cc_uniphy1_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_data),
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.ops = &clk_rcg2_mux_closest_ops,
  	},
  };
-@@ -91,7 +92,7 @@
+@@ -91,7 +92,7 @@ static struct clk_branch nss_cc_switch_c
  				&nss_cc_switch_core_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -109,7 +110,7 @@
+@@ -109,7 +110,7 @@ static struct clk_branch nss_cc_apb_brid
  				&nss_cc_switch_core_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -313,7 +314,8 @@
+@@ -313,7 +314,8 @@ static struct clk_rcg2 nss_cc_mac1_tx_cl
  		.name = "nss_cc_mac1_tx_clk_src",
  		.parent_data = nss_cc_uniphy1_rx_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_rx_tx312p5m_data),
@@ -146,7 +146,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -450,7 +452,7 @@
+@@ -450,7 +452,7 @@ static struct clk_rcg2 nss_cc_mac1_rx_cl
  		.name = "nss_cc_mac1_rx_clk_src",
  		.parent_data = nss_cc_uniphy1_tx312p5m_prx_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_prx_data),
@@ -155,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -569,7 +571,8 @@
+@@ -569,7 +571,8 @@ static struct clk_rcg2 nss_cc_mac2_tx_cl
  		.name = "nss_cc_mac2_tx_clk_src",
  		.parent_data = nss_cc_uniphy1_rx_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_rx_tx312p5m_data),
@@ -165,7 +165,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -688,7 +691,7 @@
+@@ -688,7 +691,7 @@ static struct clk_rcg2 nss_cc_mac2_rx_cl
  		.name = "nss_cc_mac2_rx_clk_src",
  		.parent_data = nss_cc_uniphy1_tx312p5m_prx_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_prx_data),
@@ -174,7 +174,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -807,7 +810,8 @@
+@@ -807,7 +810,8 @@ static struct clk_rcg2 nss_cc_mac3_tx_cl
  		.name = "nss_cc_mac3_tx_clk_src",
  		.parent_data = nss_cc_uniphy1_rx_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_rx_tx312p5m_data),
@@ -184,7 +184,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -926,7 +930,7 @@
+@@ -926,7 +930,7 @@ static struct clk_rcg2 nss_cc_mac3_rx_cl
  		.name = "nss_cc_mac3_rx_clk_src",
  		.parent_data = nss_cc_uniphy1_tx312p5m_prx_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_prx_data),
@@ -193,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -1087,7 +1091,8 @@
+@@ -1087,7 +1091,8 @@ static struct clk_rcg2 nss_cc_mac4_tx_cl
  		.name = "nss_cc_mac4_tx_clk_src",
  		.parent_data = nss_cc_uniphy0_rx_uniphy1_rx_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy0_rx_uniphy1_rx_tx312p5m_data),
@@ -203,7 +203,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -1243,7 +1248,8 @@
+@@ -1243,7 +1248,8 @@ static struct clk_rcg2 nss_cc_mac4_rx_cl
  		.name = "nss_cc_mac4_rx_clk_src",
  		.parent_data = nss_cc_uniphy0_tx_uniphy1_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy0_tx_uniphy1_tx312p5m_data),
@@ -213,7 +213,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -1575,7 +1581,8 @@
+@@ -1575,7 +1581,8 @@ static struct clk_rcg2 nss_cc_ahb_clk_sr
  		.name = "nss_cc_ahb_clk_src",
  		.parent_data = nss_cc_uniphy1_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_data),
@@ -223,7 +223,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -1591,7 +1598,7 @@
+@@ -1591,7 +1598,7 @@ static struct clk_branch nss_cc_ahb_clk
  				&nss_cc_ahb_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -232,7 +232,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1609,7 +1616,7 @@
+@@ -1609,7 +1616,7 @@ static struct clk_branch nss_cc_sec_ctrl
  				&nss_cc_ahb_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -241,7 +241,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1627,7 +1634,7 @@
+@@ -1627,7 +1634,7 @@ static struct clk_branch nss_cc_tlmm_clk
  				&nss_cc_ahb_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -250,7 +250,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1645,7 +1652,7 @@
+@@ -1645,7 +1652,7 @@ static struct clk_branch nss_cc_tlmm_ahb
  				&nss_cc_ahb_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -259,7 +259,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1663,7 +1670,7 @@
+@@ -1663,7 +1670,7 @@ static struct clk_branch nss_cc_cnoc_ahb
  				&nss_cc_ahb_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -268,7 +268,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1681,7 +1688,7 @@
+@@ -1681,7 +1688,7 @@ static struct clk_branch nss_cc_mdio_ahb
  				&nss_cc_ahb_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -277,7 +277,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1699,7 +1706,7 @@
+@@ -1699,7 +1706,7 @@ static struct clk_branch nss_cc_mdio_mas
  				&nss_cc_ahb_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -286,7 +286,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1727,7 +1734,8 @@
+@@ -1727,7 +1734,8 @@ static struct clk_rcg2 nss_cc_sys_clk_sr
  		.name = "nss_cc_sys_clk_src",
  		.parent_data = nss_cc_xo_data,
  		.num_parents = ARRAY_SIZE(nss_cc_xo_data),
@@ -296,7 +296,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  };
  
-@@ -1743,6 +1751,7 @@
+@@ -1743,6 +1751,7 @@ static struct clk_branch nss_cc_srds0_sy
  				&nss_cc_sys_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -304,7 +304,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1760,6 +1769,7 @@
+@@ -1760,6 +1769,7 @@ static struct clk_branch nss_cc_srds1_sy
  				&nss_cc_sys_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -312,7 +312,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1777,6 +1787,7 @@
+@@ -1777,6 +1787,7 @@ static struct clk_branch nss_cc_gephy0_s
  				&nss_cc_sys_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -320,7 +320,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1794,6 +1805,7 @@
+@@ -1794,6 +1805,7 @@ static struct clk_branch nss_cc_gephy1_s
  				&nss_cc_sys_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -328,7 +328,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1811,6 +1823,7 @@
+@@ -1811,6 +1823,7 @@ static struct clk_branch nss_cc_gephy2_s
  				&nss_cc_sys_clk_src.clkr.hw,
  			},
  			.num_parents = 1,
@@ -336,7 +336,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_prepare_ops,
  		},
  	},
-@@ -1828,6 +1841,7 @@
+@@ -1828,6 +1841,7 @@ static struct clk_branch nss_cc_gephy3_s
  				&nss_cc_sys_clk_src.clkr.hw,
  			},
  			.num_parents = 1,

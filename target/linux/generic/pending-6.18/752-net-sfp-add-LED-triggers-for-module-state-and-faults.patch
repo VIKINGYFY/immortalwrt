@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/mdio/mdio-i2c.h>
  #include <linux/module.h>
  #include <linux/mutex.h>
-@@ -237,6 +238,26 @@
+@@ -237,6 +238,26 @@ struct sff_data {
  	bool (*module_supported)(const struct sfp_eeprom_id *id);
  };
  
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct sfp {
  	struct device *dev;
  	struct i2c_adapter *i2c;
-@@ -315,6 +336,10 @@
+@@ -315,6 +336,10 @@ struct sfp {
  #if IS_ENABLED(CONFIG_DEBUG_FS)
  	struct dentry *debugfs_dir;
  #endif
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  static void sfp_schedule_poll(struct sfp *sfp)
-@@ -2081,23 +2106,27 @@
+@@ -2081,23 +2106,27 @@ static void sfp_sm_link_down(struct sfp
  	sfp_link_down(sfp->sfp_bus);
  }
  
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		sfp_sm_next(sfp, SFP_S_WAIT_LOS, 0);
  	else
  		sfp_sm_link_up(sfp);
-@@ -2956,6 +2985,102 @@
+@@ -2956,6 +2985,102 @@ static void sfp_sm_main(struct sfp *sfp,
  	}
  }
  
@@ -203,7 +203,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void __sfp_sm_event(struct sfp *sfp, unsigned int event)
  {
  	dev_dbg(sfp->dev, "SM: enter %s:%s:%s event %s\n",
-@@ -2972,6 +3097,8 @@
+@@ -2972,6 +3097,8 @@ static void __sfp_sm_event(struct sfp *s
  		mod_state_to_str(sfp->sm_mod_state),
  		dev_state_to_str(sfp->sm_dev_state),
  		sm_state_to_str(sfp->sm_state));
@@ -212,7 +212,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void sfp_sm_event(struct sfp *sfp, unsigned int event)
-@@ -3312,6 +3439,10 @@
+@@ -3312,6 +3439,10 @@ static int sfp_probe(struct platform_dev
  	dev_info(sfp->dev, "Host maximum power %u.%uW\n",
  		 sfp->max_power_mW / 1000, (sfp->max_power_mW / 100) % 10);
  

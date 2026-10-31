@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -2262,7 +2262,7 @@
+@@ -2262,7 +2262,7 @@ static void ath11k_peer_assoc_h_vht(stru
  
  	if (arg->peer_phymode == MODE_11AC_VHT160 ||
  	    arg->peer_phymode == MODE_11AC_VHT80_80) {
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		rx_nss = min(arg->peer_nss, tx_nss);
  		arg->peer_bw_rxnss_override = ATH11K_BW_NSS_MAP_ENABLE;
  
-@@ -2572,7 +2572,7 @@
+@@ -2572,7 +2572,7 @@ static void ath11k_peer_assoc_h_he(struc
  
  	if (arg->peer_phymode == MODE_11AX_HE160 ||
  	    arg->peer_phymode == MODE_11AX_HE80_80) {
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		rx_nss = min(arg->peer_nss, tx_nss);
  		arg->peer_bw_rxnss_override = ATH11K_BW_NSS_MAP_ENABLE;
  
-@@ -5927,7 +5927,7 @@
+@@ -5927,7 +5927,7 @@ static void ath11k_mac_set_hemcsmap(stru
  				    struct ieee80211_sta_he_cap *he_cap,
  				    int band)
  {
@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 i;
  
  	rxmcs_map = 0;
-@@ -5945,18 +5945,28 @@
+@@ -5945,18 +5945,28 @@ static void ath11k_mac_set_hemcsmap(stru
  		else
  			rxmcs_map |= IEEE80211_HE_MCS_NOT_SUPPORTED << (i * 2);
  	}

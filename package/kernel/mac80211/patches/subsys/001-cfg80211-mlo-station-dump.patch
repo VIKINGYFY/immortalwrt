@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/uapi/linux/nl80211.h
 +++ b/include/uapi/linux/nl80211.h
-@@ -3165,6 +3165,23 @@
+@@ -3165,6 +3165,23 @@ enum nl80211_commands {
   * @NL80211_ATTR_NPCA_PRIMARY_FREQ: NPCA primary channel (u32)
   * @NL80211_ATTR_NPCA_PUNCT_BITMAP: NPCA puncturing bitmap (u32)
   *
@@ -84,7 +84,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @NUM_NL80211_ATTR: total number of nl80211_attrs available
   * @NL80211_ATTR_MAX: highest attribute number currently defined
   * @__NL80211_ATTR_AFTER_LAST: internal use
-@@ -3763,6 +3780,8 @@
+@@ -3763,6 +3780,8 @@ enum nl80211_attrs {
  	NL80211_ATTR_NPCA_PRIMARY_FREQ,
  	NL80211_ATTR_NPCA_PUNCT_BITMAP,
  
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	__NL80211_ATTR_AFTER_LAST,
 --- a/net/wireless/nl80211.c
 +++ b/net/wireless/nl80211.c
-@@ -1095,6 +1095,7 @@
+@@ -1095,6 +1095,7 @@ static const struct nla_policy nl80211_p
  	[NL80211_ATTR_NPCA_PRIMARY_FREQ] = { .type = NLA_U32 },
  	[NL80211_ATTR_NPCA_PUNCT_BITMAP] =
  		NLA_POLICY_FULL_RANGE(NLA_U32, &nl80211_punct_bitmap_range),
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /* policy for the key attributes */
-@@ -7882,7 +7883,7 @@
+@@ -7882,7 +7883,7 @@ static int nl80211_fill_link_station(str
  		goto nla_put_failure;					\
  	} while (0)
  
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!link_sinfoattr)
  		goto nla_put_failure;
  
-@@ -7948,8 +7949,8 @@
+@@ -7948,8 +7949,8 @@ static int nl80211_fill_link_station(str
  	PUT_LINK_SINFO(BEACON_LOSS, beacon_loss_count, u32);
  
  	if (link_sinfo->filled & BIT_ULL(NL80211_STA_INFO_BSS_PARAM)) {
@@ -123,7 +123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!bss_param)
  			goto nla_put_failure;
  
-@@ -7991,8 +7992,7 @@
+@@ -7991,8 +7992,7 @@ static int nl80211_fill_link_station(str
  		struct nlattr *tidsattr;
  		int tid;
  
@@ -133,7 +133,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!tidsattr)
  			goto nla_put_failure;
  
-@@ -8005,7 +8005,7 @@
+@@ -8005,7 +8005,7 @@ static int nl80211_fill_link_station(str
  			if (!tidstats->filled)
  				continue;
  
@@ -142,7 +142,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (!tidattr)
  				goto nla_put_failure;
  
-@@ -8041,36 +8041,15 @@
+@@ -8041,36 +8041,15 @@ nla_put_failure:
  	return -EMSGSIZE;
  }
  
@@ -184,7 +184,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define PUT_SINFO(attr, memb, type) do {				\
  	BUILD_BUG_ON(sizeof(type) == sizeof(u64));			\
-@@ -8161,8 +8140,7 @@
+@@ -8161,8 +8140,7 @@ static int nl80211_send_station(struct s
  	PUT_SINFO_U64(T_OFFSET, t_offset);
  
  	if (sinfo->filled & BIT_ULL(NL80211_STA_INFO_BSS_PARAM)) {
@@ -194,7 +194,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!bss_param)
  			goto nla_put_failure;
  
-@@ -8204,8 +8182,7 @@
+@@ -8204,8 +8182,7 @@ static int nl80211_send_station(struct s
  		struct nlattr *tidsattr;
  		int tid;
  
@@ -204,7 +204,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!tidsattr)
  			goto nla_put_failure;
  
-@@ -8218,7 +8195,7 @@
+@@ -8218,7 +8195,7 @@ static int nl80211_send_station(struct s
  			if (!tidstats->filled)
  				continue;
  
@@ -213,7 +213,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (!tidattr)
  				goto nla_put_failure;
  
-@@ -8248,6 +8225,37 @@
+@@ -8248,6 +8225,37 @@ static int nl80211_send_station(struct s
  	}
  
  	nla_nest_end(msg, sinfoattr);
@@ -251,7 +251,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (sinfo->assoc_req_ies_len &&
  	    nla_put(msg, NL80211_ATTR_IE, sinfo->assoc_req_ies_len,
-@@ -8270,45 +8278,11 @@
+@@ -8270,45 +8278,11 @@ static int nl80211_send_station(struct s
  			goto nla_put_failure;
  	}
  
@@ -298,7 +298,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	cfg80211_sinfo_release_content(sinfo);
  	genlmsg_cancel(msg, hdr);
  	return -EMSGSIZE;
-@@ -8502,82 +8476,261 @@
+@@ -8502,82 +8476,261 @@ static void cfg80211_sta_set_mld_sinfo(s
  	sinfo->filled &= ~BIT_ULL(NL80211_STA_INFO_CHAIN_SIGNAL_AVG);
  }
  
@@ -601,7 +601,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int nl80211_get_station(struct sk_buff *skb, struct genl_info *info)
  {
  	struct cfg80211_registered_device *rdev = info->user_ptr[0];
-@@ -8625,7 +8778,7 @@
+@@ -8625,7 +8778,7 @@ static int nl80211_get_station(struct sk
  
  	if (nl80211_send_station(msg, NL80211_CMD_NEW_STATION,
  				 info->snd_portid, info->snd_seq, 0,
@@ -610,7 +610,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		nlmsg_free(msg);
  		return -ENOBUFS;
  	}
-@@ -19542,6 +19695,14 @@
+@@ -19542,6 +19695,14 @@ static const struct genl_ops nl80211_ops
  		/* can be retrieved by unprivileged users */
  		.internal_flags = IFLAGS(NL80211_FLAG_NEED_WIPHY),
  	},
@@ -625,7 +625,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  static const struct genl_small_ops nl80211_small_ops[] = {
-@@ -19642,13 +19803,6 @@
+@@ -19642,13 +19803,6 @@ static const struct genl_small_ops nl802
  					 NL80211_FLAG_MLO_VALID_LINK_ID),
  	},
  	{
@@ -639,7 +639,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.cmd = NL80211_CMD_SET_STATION,
  		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
  		.doit = nl80211_set_station,
-@@ -21647,7 +21801,7 @@
+@@ -21647,7 +21801,7 @@ void cfg80211_new_sta(struct wireless_de
  		return;
  
  	if (nl80211_send_station(msg, NL80211_CMD_NEW_STATION, 0, 0, 0,
@@ -648,7 +648,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		nlmsg_free(msg);
  		return;
  	}
-@@ -21677,7 +21831,7 @@
+@@ -21677,7 +21831,7 @@ void cfg80211_del_sta_sinfo(struct wirel
  	}
  
  	if (nl80211_send_station(msg, NL80211_CMD_DEL_STATION, 0, 0, 0,

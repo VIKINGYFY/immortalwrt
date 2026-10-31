@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "peer.h"
  #include "debug.h"
  
-@@ -353,6 +355,25 @@
+@@ -353,6 +355,25 @@ int ath11k_peer_delete(struct ath11k *ar
  
  	lockdep_assert_held(&ar->conf_mutex);
  
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = __ath11k_peer_delete(ar, vdev_id, addr);
  	if (ret)
  		return ret;
-@@ -372,6 +393,7 @@
+@@ -372,6 +393,7 @@ int ath11k_peer_create(struct ath11k *ar
  {
  	struct ath11k_peer *peer;
  	struct ath11k_sta *arsta;
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret, fbret;
  
  	lockdep_assert_held(&ar->conf_mutex);
-@@ -457,9 +479,35 @@
+@@ -457,9 +479,35 @@ int ath11k_peer_create(struct ath11k *ar
  
  	ar->num_peers++;
  

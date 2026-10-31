@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6658,11 +6658,12 @@
+@@ -6658,11 +6658,12 @@ static int ath11k_mac_tx(struct ieee8021
  	 * The conversion is the subsystem's own, and it is written for the
  	 * receiving side: it refuses a frame travelling away from the
  	 * distribution system on an access point, which is every frame an
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 */
  	/* A mesh device carries 802.11, without the QoS control the
  	 * hardware inserts itself.
-@@ -6689,6 +6690,8 @@
+@@ -6689,6 +6690,8 @@ static int ath11k_mac_tx(struct ieee8021
  
  		if (!(info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP) &&
  		    ieee80211_data_to_8023(skb, hdr->addr1,

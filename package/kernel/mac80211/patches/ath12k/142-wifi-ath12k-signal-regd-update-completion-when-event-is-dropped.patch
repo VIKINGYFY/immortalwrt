@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  1 file changed, 9 insertions(+), 2 deletions(-)
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -6973,6 +6973,14 @@
+@@ -6973,6 +6973,14 @@ static int ath12k_reg_chan_list_event(st
  		goto mem_free;
  	}
  
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath12k_reg_validate_reg_info(ab, reg_info);
  	if (ret == ATH12K_REG_STATUS_FALLBACK) {
  		ath12k_warn(ab, "failed to validate reg info %d\n", ret);
-@@ -6989,7 +6997,6 @@
+@@ -6989,7 +6997,6 @@ static int ath12k_reg_chan_list_event(st
  	}
  
  	/* free old reg_info if it exist */
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ab->reg_info[pdev_idx]) {
  		ath12k_reg_reset_reg_info(ab->reg_info[pdev_idx]);
  		kfree(ab->reg_info[pdev_idx]);
-@@ -7028,7 +7035,7 @@
+@@ -7028,7 +7035,7 @@ fallback:
  
  out:
  	/* In some error cases, even a valid pdev_idx might not be available */

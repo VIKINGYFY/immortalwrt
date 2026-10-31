@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -445,6 +445,9 @@
+@@ -445,6 +445,9 @@ struct dsa_switch {
  	 */
  	u32			dscp_prio_mapping_is_global:1;
  
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Listener for switch fabric events */
  	struct notifier_block	nb;
  
-@@ -968,6 +971,11 @@
+@@ -968,6 +971,11 @@ struct dsa_switch_ops {
  				      u8 prio);
  	int	(*port_del_dscp_prio)(struct dsa_switch *ds, int port, u8 dscp,
  				      u8 prio);
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int	(*port_get_apptrust)(struct dsa_switch *ds, int port, u8 *sel,
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -2240,11 +2240,11 @@
+@@ -2240,11 +2240,11 @@ dsa_user_dcbnl_set_default_prio(struct n
  	return 0;
  }
  
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	int (*setdel)(struct net_device *dev, struct dcb_app *app);
  	struct dsa_port *dp = dsa_user_to_port(dev);
-@@ -2286,7 +2286,7 @@
+@@ -2286,7 +2286,7 @@ err_try_to_restore:
  
  		restore_err = setdel(user, app);
  		if (restore_err)
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return err;
-@@ -2326,7 +2326,7 @@
+@@ -2326,7 +2326,7 @@ dsa_user_dcbnl_add_dscp_prio(struct net_
  	if (!ds->dscp_prio_mapping_is_global)
  		return 0;
  
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (err) {
  		if (ds->ops->port_del_dscp_prio)
  			ds->ops->port_del_dscp_prio(ds, port, dscp, new_prio);
-@@ -2337,6 +2337,52 @@
+@@ -2337,6 +2337,52 @@ dsa_user_dcbnl_add_dscp_prio(struct net_
  	return 0;
  }
  
@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int __maybe_unused dsa_user_dcbnl_ieee_setapp(struct net_device *dev,
  						     struct dcb_app *app)
  {
-@@ -2351,6 +2397,8 @@
+@@ -2351,6 +2397,8 @@ static int __maybe_unused dsa_user_dcbnl
  		break;
  	case IEEE_8021QAZ_APP_SEL_DSCP:
  		return dsa_user_dcbnl_add_dscp_prio(dev, app);
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -2407,7 +2455,7 @@
+@@ -2407,7 +2455,7 @@ dsa_user_dcbnl_del_dscp_prio(struct net_
  	if (!ds->dscp_prio_mapping_is_global)
  		return 0;
  
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (err) {
  		if (ds->ops->port_add_dscp_prio)
  			ds->ops->port_add_dscp_prio(ds, port, dscp,
-@@ -2419,6 +2467,42 @@
+@@ -2419,6 +2467,42 @@ dsa_user_dcbnl_del_dscp_prio(struct net_
  	return 0;
  }
  
@@ -188,7 +188,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int __maybe_unused dsa_user_dcbnl_ieee_delapp(struct net_device *dev,
  						     struct dcb_app *app)
  {
-@@ -2433,6 +2517,8 @@
+@@ -2433,6 +2517,8 @@ static int __maybe_unused dsa_user_dcbnl
  		break;
  	case IEEE_8021QAZ_APP_SEL_DSCP:
  		return dsa_user_dcbnl_del_dscp_prio(dev, app);
@@ -197,7 +197,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -2478,6 +2564,30 @@
+@@ -2478,6 +2564,30 @@ static int dsa_user_dcbnl_init(struct ne
  			if (prio == -EOPNOTSUPP)
  				continue;
  			if (prio < 0)

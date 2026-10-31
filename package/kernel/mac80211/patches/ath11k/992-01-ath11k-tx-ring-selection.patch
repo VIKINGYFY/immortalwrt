@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
-@@ -108,7 +108,7 @@
+@@ -108,7 +108,7 @@ int ath11k_dp_tx(struct ath11k *ar, stru
  
  	pool_id = skb_get_queue_mapping(skb) & (ATH11K_HW_MAX_QUEUES - 1);
  
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	tcl_ring_retry = false;
 --- a/drivers/net/wireless/ath/ath11k/hw.c
 +++ b/drivers/net/wireless/ath/ath11k/hw.c
-@@ -887,28 +887,14 @@
+@@ -887,28 +887,14 @@ static bool ath11k_hw_wcn6855_rx_desc_ge
  			 __le32_to_cpu(desc->u.wcn6855.msdu_start.info2));
  }
  
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  const struct ath11k_hw_ops ipq9574_ops = {
 --- a/drivers/net/wireless/ath/ath11k/hw.h
 +++ b/drivers/net/wireless/ath/ath11k/hw.h
-@@ -278,7 +278,7 @@
+@@ -278,7 +278,7 @@ struct ath11k_hw_ops {
  	u16 (*mpdu_info_get_peerid)(struct hal_rx_mpdu_info *mpdu_info);
  	bool (*rx_desc_mac_addr2_valid)(struct hal_rx_desc *desc);
  	u8* (*rx_desc_mpdu_start_addr2)(struct hal_rx_desc *desc);

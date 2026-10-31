@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define WCSS_PAS_ID			0x6
  #define MPD_WCSS_PAS_ID			0xd
  
-@@ -40,6 +50,23 @@
+@@ -40,6 +50,23 @@ struct wcss_data {
  	bool auto_boot;
  };
  
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int wcss_sec_start(struct rproc *rproc)
  {
  	struct wcss_sec *wcss = rproc->priv;
-@@ -110,12 +137,121 @@
+@@ -110,12 +137,121 @@ static void *wcss_sec_da_to_va(struct rp
  	return wcss->mem_region + offset;
  }
  
@@ -191,7 +191,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
 --- a/drivers/soc/qcom/mdt_loader.c
 +++ b/drivers/soc/qcom/mdt_loader.c
-@@ -139,6 +139,45 @@
+@@ -139,6 +139,45 @@ ssize_t qcom_mdt_get_size(const struct f
  EXPORT_SYMBOL_GPL(qcom_mdt_get_size);
  
  /**
@@ -239,7 +239,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @data_len:	length of the read metadata blob
 --- a/include/linux/soc/qcom/mdt_loader.h
 +++ b/include/linux/soc/qcom/mdt_loader.h
-@@ -15,6 +15,7 @@
+@@ -15,6 +15,7 @@ struct qcom_scm_pas_metadata;
  #if IS_ENABLED(CONFIG_QCOM_MDT_LOADER)
  
  ssize_t qcom_mdt_get_size(const struct firmware *fw);
@@ -247,7 +247,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int qcom_mdt_pas_init(struct device *dev, const struct firmware *fw,
  		      const char *fw_name, int pas_id, phys_addr_t mem_phys,
  		      struct qcom_scm_pas_metadata *pas_metadata_ctx);
-@@ -36,6 +37,11 @@
+@@ -36,6 +37,11 @@ static inline ssize_t qcom_mdt_get_size(
  {
  	return -ENODEV;
  }

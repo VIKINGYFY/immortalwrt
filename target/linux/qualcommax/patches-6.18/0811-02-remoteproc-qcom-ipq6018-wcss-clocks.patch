@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/remoteproc/qcom_q6v5_wcss_sec.c
 +++ b/drivers/remoteproc/qcom_q6v5_wcss_sec.c
-@@ -316,6 +316,7 @@
+@@ -316,6 +316,7 @@ static int wcss_sec_probe(struct platfor
  	struct rproc *rproc;
  	struct wcss_sec *wcss;
  	struct clk *sleep_clk;
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct clk *prng_clk;
  	struct clk *int_clk;
  	const char **firmware = NULL;
-@@ -361,6 +362,11 @@
+@@ -361,6 +362,11 @@ static int wcss_sec_probe(struct platfor
  		return dev_err_probe(&pdev->dev, PTR_ERR(prng_clk),
  				     "Failed to get prng clock\n");
  
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
  			     WCSS_CRASH_REASON, NULL, NULL);
  	if (ret)
-@@ -414,6 +420,11 @@
+@@ -414,6 +420,11 @@ static const struct wcss_data wcss_sec_i
  	.use_tmelcom = true,
  };
  
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct wcss_data wcss_sec_ipq9574_res_init = {
  	.pasid = WCSS_PAS_ID,
  	.ss_name = "q6wcss",
-@@ -423,6 +434,7 @@
+@@ -423,6 +434,7 @@ static const struct of_device_id wcss_se
  	{ .compatible = "qcom,ipq5018-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
  	{ .compatible = "qcom,ipq5332-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
  	{ .compatible = "qcom,ipq5424-wcss-sec-pil", .data = &wcss_sec_ipq5424_res_init },
