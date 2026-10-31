@@ -37,17 +37,37 @@ function htmode(caps, requested) {
 	return null;
 }
 
-function default_ssid(uci, board, suffix) {
-	let hostname = uci.get_first('system', 'system', 'hostname') || 'OWRT';
-	let vendor = split(board?.model?.id, ',')?.[0] || 'unknown';
-	vendor = uc(substr(vendor, 0, 1)) + substr(vendor, 1);
-	// Keep the vendor and band visible within the 32-byte SSID limit.
-	let tail = substr(vendor, 0, 32 - length(suffix) - 3) + '-' + suffix;
-	return substr(hostname, 0, 31 - length(tail)) + '-' + tail;
+function default_ssid(uci, board, suffix, custom_ssid) {
+	let hostname = custom_ssid || uci.get_first('system', 'system', 'hostname') || 'OWRT';
+	let tail = suffix;
+	if (!custom_ssid) {
+		let vendor = split(board?.model?.id, ',')?.[0] || 'unknown';
+		vendor = uc(substr(vendor, 0, 1)) + substr(vendor, 1);
+		// Keep the vendor and band visible within the 32-byte SSID limit.
+		tail = substr(vendor, 0, 32 - length(suffix) - 3) + '-' + suffix;
+	}
+	let size = min(length(hostname), 31 - length(tail));
+	// Ucode string offsets count bytes. Avoid cutting a UTF-8 code point.
+	while (size > 0 && (ord(hostname, size) & 0xc0) == 0x80) size--;
+	return substr(hostname, 0, size) + '-' + tail;
 }
 
 export function synchronize_wireless(uci, board) {
 	if (type(board?.wlan) != 'object') return false;
+	let defaults = uci.get_all('router-tool', 'defaults');
+	if (defaults && defaults['.type'] != 'wireless') die('Invalid router-tool.defaults wireless section');
+	let custom_ssid = defaults?.ssid;
+	let custom_key = defaults?.key;
+	let use_custom = type(custom_ssid) == 'string' && type(custom_key) == 'string' &&
+		length(custom_ssid) && length(custom_key);
+	if (use_custom && (length(custom_ssid) > 32 || match(custom_ssid, /[[:cntrl:]]/)))
+		die('Wireless SSID must contain 1 to 32 bytes without control characters');
+	if (use_custom && (length(custom_key) < 8 || length(custom_key) > 63 || match(custom_key, /[^ -~]/)))
+		die('Wireless password must contain 8 to 63 printable ASCII characters');
+	if (!use_custom) {
+		custom_ssid = null;
+		custom_key = '12345678';
+	}
 	let radios = [], interfaces = [], changed = {};
 	uci.foreach('wireless', 'wifi-device', section => push(radios, section));
 	uci.foreach('wireless', 'wifi-iface', section => push(interfaces, section));
@@ -99,7 +119,7 @@ export function synchronize_wireless(uci, board) {
 		if (!mode) { mark_done(radio['.name']); continue; }
 		set('wireless', radio['.name'], { country: 'US', channel, htmode: mode });
 		for (let ap in aps)
-			set('wireless', ap['.name'], { ssid: default_ssid(uci, board, suffix), encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
+			set('wireless', ap['.name'], { ssid: default_ssid(uci, board, suffix, custom_ssid), key: custom_key, encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
 		mark_done(radio['.name']);
 	}
 	let result = keys(changed);
