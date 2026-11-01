@@ -140,6 +140,7 @@ struct nss_wifili_soc {
 	bool used;
 	bool started;
 	int last_error;
+	int vdev_error;
 	/* The device of the radios whose rings the firmware reaps. Every
 	 * interface on it is the firmware's, with or without a virtual device
 	 * of its own. The bus device outlives the WLAN driver, so its address
@@ -244,6 +245,7 @@ int nss_wifi_soc_register(const struct nss_wifi_soc *desc)
 	soc = &nss_wifili_socs[i];
 	soc->desc = *desc;
 	soc->pdevs = 0;
+	soc->vdev_error = 0;
 	memset(soc->radio_if, 0xff, sizeof(soc->radio_if));
 	soc->used = true;
 
@@ -320,26 +322,30 @@ static bool nss_wifili_described(const struct nss_wifili_soc *soc)
 
 int nss_wifi_pdev_register(int id, const struct nss_wifi_pdev *pdev)
 {
+	struct nss_core *core = NULL;
 	struct nss_wifili_soc *soc;
 
-	guard(mutex)(&nss_wifili_lock);
+	scoped_guard(mutex, &nss_wifili_lock) {
+		soc = nss_wifili_soc_get(id);
+		if (!soc || soc->pdevs >= soc->desc.num_pdevs)
+			return -EINVAL;
 
-	soc = nss_wifili_soc_get(id);
-	if (!soc || soc->pdevs >= soc->desc.num_pdevs)
-		return -EINVAL;
+		soc->pdev[soc->pdevs++] = *pdev;
 
-	soc->pdev[soc->pdevs++] = *pdev;
+		pr_info("nss-wifi-drv: radio %u rxdma id %u base %#x x%u hw %#x/%#x swdesc %u\n",
+			pdev->radio_id, pdev->rxdma.id, pdev->rxdma.base,
+			pdev->rxdma.num_entries, pdev->rxdma.hwreg[0],
+			pdev->rxdma.hwreg[1], pdev->num_rx_swdesc);
 
-	pr_info("nss-wifi-drv: radio %u rxdma id %u base %#x x%u hw %#x/%#x swdesc %u\n",
-		pdev->radio_id, pdev->rxdma.id, pdev->rxdma.base,
-		pdev->rxdma.num_entries, pdev->rxdma.hwreg[0],
-		pdev->rxdma.hwreg[1], pdev->num_rx_swdesc);
+		if (nss_wifili_described(soc))
+			core = nss_wifili_core;
+	}
 
-	/* After a reset of the WLAN driver, which is the last thing it does
-	 * before its interfaces come back.
+	/* Complete the ring handover before mac80211 restores interfaces.
+	 * The restart worker takes the WiFiLi mutex, so wait outside it.
 	 */
-	if (nss_wifili_core && nss_wifili_described(soc))
-		nss_core_resume(nss_wifili_core);
+	if (core)
+		nss_core_resume(core);
 
 	return 0;
 }
@@ -1041,31 +1047,18 @@ static void nss_me_peer_gone(const u8 *mac);
  * and a frame that is not what the WLAN firmware expects is released instead
  * of transmitted.
  */
-int nss_wifi_vdev_register(int id, struct net_device *dev, u8 radio,
-			   u32 vdev_id, const u8 *mac, bool ap, u8 encap,
-			   u8 decap)
+static int nss_wifili_vdev_register(struct nss_wifili_soc *soc,
+				    struct net_device *dev, u8 radio,
+				    u32 vdev_id, const u8 *mac, bool ap,
+				    u8 encap, u8 decap)
 {
 	struct nss_wifi_vdev_config_msg cfg = {};
 	struct nss_dynamic_interface_msg d;
-	struct nss_wifili_soc *soc;
-	struct nss_core *core;
+	struct nss_core *core = nss_wifili_core;
 	int if_num, ret, i;
 
-	/* A core the WLAN driver's reset brings back is restarted behind it,
-	 * while the subsystem is already adding the interfaces again.
-	 */
-	core = READ_ONCE(nss_wifili_core);
-	if (core)
-		wait_for_completion_timeout(&core->resumed, 10 * HZ);
-
-	guard(mutex)(&nss_wifili_lock);
-
-	soc = nss_wifili_soc_get(id);
-	if (!soc)
-		return -ENODEV;
+	lockdep_assert_held(&nss_wifili_lock);
 	WRITE_ONCE(soc->radio, dev->dev.parent);
-
-	core = nss_wifili_core;
 	if (!core || !soc->started)
 		return -EAGAIN;
 
@@ -1138,6 +1131,24 @@ int nss_wifi_vdev_register(int id, struct net_device *dev, u8 radio,
 		nss_me_enable(core, if_num);
 
 	return if_num;
+}
+
+int nss_wifi_vdev_register(int id, struct net_device *dev, u8 radio,
+			   u32 vdev_id, const u8 *mac, bool ap, u8 encap,
+			   u8 decap)
+{
+	struct nss_wifili_soc *soc;
+	int ret;
+
+	guard(mutex)(&nss_wifili_lock);
+	soc = nss_wifili_soc_get(id);
+	if (!soc)
+		return -ENODEV;
+
+	ret = nss_wifili_vdev_register(soc, dev, radio, vdev_id, mac, ap,
+				       encap, decap);
+	soc->vdev_error = ret < 0 ? ret : 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(nss_wifi_vdev_register);
 
@@ -2902,7 +2913,7 @@ unsigned int nss_wifili_expected(void)
 ssize_t nss_wifili_state(struct nss_core *core, char *buf)
 {
 	unsigned int expected, registered = 0, described = 0, started = 0;
-	unsigned int vdevs = 0, peers = 0;
+	unsigned int vdevs = 0, peers = 0, vdev_errors = 0;
 	struct nss_wifili_soc *soc;
 	bool rings_ready, ready;
 	ssize_t len;
@@ -2916,6 +2927,7 @@ ssize_t nss_wifili_state(struct nss_core *core, char *buf)
 		registered += soc->used;
 		described += nss_wifili_described(soc);
 		started += soc->used && soc->started;
+		vdev_errors += soc->used && soc->vdev_error;
 	}
 	for (i = 0; i < ARRAY_SIZE(nss_wifili_vdev_tbl); i++)
 		vdevs += !!nss_wifili_vdev_tbl[i].dev;
@@ -2924,16 +2936,17 @@ ssize_t nss_wifili_state(struct nss_core *core, char *buf)
 	rings_ready = registered == expected && described == expected;
 	ready = core->running && rings_ready && started == expected;
 	len = sysfs_emit(buf,
-		"running=%u expected=%u registered=%u described=%u started=%u rings_ready=%u ready=%u vdevs=%u peers=%u wlan=%u\n",
+		"running=%u expected=%u registered=%u described=%u started=%u rings_ready=%u ready=%u vdevs=%u peers=%u wlan=%u vdev_errors=%u\n",
 		core->running, expected, registered, described, started,
-		rings_ready, ready, vdevs, peers, nss_wlan);
+		rings_ready, ready, vdevs, peers, nss_wlan, vdev_errors);
 	for (i = 0; i < ARRAY_SIZE(nss_wifili_socs); i++) {
 		soc = &nss_wifili_socs[i];
 		len += sysfs_emit_at(buf, len,
-			"instance=%u registered=%u radios=%u expected_radios=%u started=%u last_error=%d\n",
+			"instance=%u registered=%u radios=%u expected_radios=%u started=%u last_error=%d vdev_error=%d\n",
 			nss_wifili_soc_ifnum(soc), soc->used, soc->pdevs,
 			soc->used ? soc->desc.num_pdevs : 0,
-			soc->used && soc->started, soc->last_error);
+			soc->used && soc->started, soc->last_error,
+			soc->vdev_error);
 	}
 	return len;
 }

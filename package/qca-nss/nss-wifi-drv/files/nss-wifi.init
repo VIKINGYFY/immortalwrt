@@ -25,6 +25,25 @@ nss_module_present() {
 
 # A multi-profile build can include ath11k but omit it from this image.
 # Check both the installed integration and the physical, enabled targets.
+# Keep crash dumps available without holding AHB recovery until userspace
+# releases an inline dump (up to five minutes on an unattended router).
+wifi_prepare_recovery() {
+	local node mode
+
+	for node in /sys/class/remoteproc/remoteproc*; do
+		grep -qsE 'qcom,ipq(6018|8074)-wcss-sec-pil' \
+			"$node/device/of_node/compatible" || continue
+		[ -r "$node/coredump" ] || continue
+		read -r mode < "$node/coredump" || continue
+		[ "$mode" = inline ] || continue
+		if ! echo enabled > "$node/coredump"; then
+			logger -t nss-wifi "cannot enable nonblocking AHB crash dumps"
+			return 1
+		fi
+	done
+	return 0
+}
+
 nss_wlan_buses() {
 	local node status vendor device start end flags wlan=0
 
@@ -144,7 +163,10 @@ nss_start() {
 			wifi_load_host
 			return 0
 		fi
-		[ "$((wlan & 1))" -eq 0 ] || modprobe ath11k_ahb 2>/dev/null
+		if [ "$((wlan & 1))" -ne 0 ]; then
+			wifi_prepare_recovery || return 1
+			modprobe ath11k_ahb 2>/dev/null
+		fi
 		[ "$((wlan & 2))" -eq 0 ] || modprobe ath11k_pci 2>/dev/null
 	else
 		# Other ath11k hardware can still use its host path. A NO WIFI

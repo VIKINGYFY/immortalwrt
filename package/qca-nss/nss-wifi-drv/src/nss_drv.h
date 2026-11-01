@@ -406,8 +406,6 @@ struct nss_core {
 	u32 faults;
 	unsigned long fault_window;
 	struct work_struct restart;
-	/* Completed once no restart is pending; WLAN interfaces wait on it. */
-	struct completion resumed;
 	struct clk **aux_clks;
 	int num_aux_clks;
 	unsigned long phys_armed;

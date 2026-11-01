@@ -19,7 +19,23 @@ debugfs (normally `/sys/bus/platform/devices/39000000.nss`):
 `ready=1` requires a running core and every expected on-chip/eligible PCI
 instance on the selected buses. Disabled device-tree WLAN nodes and absent
 bus modules are excluded. VDEVs are created later by netifd and are not a
-boot prerequisite.
+boot prerequisite. `ready=1` does not establish AP availability or client
+forwarding. `vdev_errors` counts registered instances whose latest VDEV
+creation failed; each instance reports the corresponding `vdev_error`.
+A later successful creation or a new ring registration clears that error.
+
+After a WLAN reset, the final radio ring registration waits for the NSS
+restart worker outside the WiFiLi mutex and before mac80211 restores VDEVs
+under RTNL. VDEV creation never waits for that worker. A WLAN-only restart
+does not reset shared EDMA while another instance keeps using it.
+Port arming runs in separate work, so its RTNL acquisition cannot delay
+completion of WLAN recovery.
+
+For the selected IPQ6018/IPQ8074 AHB remoteproc, the service changes an
+`inline` crash dump to `enabled` before probing WLAN. The kernel retains
+the dump in `/sys/class/devcoredump/` without waiting up to five minutes
+for userspace to release it before restarting the firmware. This uses a
+copy of the dump while it is retained; non-WLAN targets are unaffected.
 The persistent guard is cleared only after 120 seconds and a fresh healthy
 state check. Repeated service actions preserve a healthy running instance.
 

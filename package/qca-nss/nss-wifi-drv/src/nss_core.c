@@ -364,6 +364,14 @@ static void nss_edma_settle(struct nss_core *core)
 	u32 flags = ETH_RESET_DMA << ETH_RESET_SHARED_SHIFT;
 	int ret;
 
+	/* A WLAN-only reset leaves the core running on the other instance.
+	 * It needs no shared DMA reset and must not wait for RTNL there.
+	 * Drop the core mutex before taking RTNL, then recheck below.
+	 */
+	scoped_guard(mutex, &core->lock)
+		if (core->loaded || !core->edma_stale)
+			return;
+
 	rtnl_lock();
 	mutex_lock(&core->lock);
 	if (core->edma_stale && !core->loaded) {
@@ -972,14 +980,18 @@ void nss_core_block(struct nss_core *core)
 	nss_core_fault(core);
 }
 
-/* The WLAN driver has described its rings again. */
+/* The WLAN driver has described its rings again, before mac80211 takes
+ * RTNL to restore its interfaces. The caller must hold neither RTNL nor
+ * the WiFiLi mutex: restart may need both to reset shared DMA and start
+ * the newly described instance. Do not defer this wait to VDEV creation.
+ */
 void nss_core_resume(struct nss_core *core)
 {
 	if (!READ_ONCE(core->up))
 		return;
 
-	reinit_completion(&core->resumed);
 	schedule_work(&core->restart);
+	flush_work(&core->restart);
 }
 
 static void nss_core_restart(struct work_struct *work)
@@ -1023,9 +1035,12 @@ static void nss_core_restart(struct work_struct *work)
 		nss_wifili_reset(core, false);
 	else if (!ret)
 		nss_wifili_resume(core);
-	complete_all(&core->resumed);
 
-	nss_phys_arm_ports(core);
+	/* mac80211 may already hold RTNL while waiting for WLAN recovery.
+	 * Ring handover must finish before that wait ends; port arming can
+	 * follow it from its own worker, without holding up the WLAN driver.
+	 */
+	schedule_work(&core->arm);
 }
 
 static void nss_phys_work(struct work_struct *work)
@@ -1438,8 +1453,6 @@ static int nss_probe(struct platform_device *pdev)
 							       &nss_ipq8074;
 	INIT_LIST_HEAD(&core->allocs);
 	init_completion(&core->booted);
-	init_completion(&core->resumed);
-	complete_all(&core->resumed);
 	INIT_WORK(&core->restart, nss_core_restart);
 	INIT_WORK(&core->arm, nss_phys_work);
 	INIT_WORK(&core->edma_reset, nss_edma_reset_work);
@@ -1581,7 +1594,6 @@ static void nss_remove(struct platform_device *pdev)
 		nss_core_halt(core);
 	nss_wifili_halted(core);
 	cancel_work_sync(&core->restart);
-	complete_all(&core->resumed);
 	flush_work(&core->arm);
 	flush_work(&core->edma_reset);
 	/* After the halt, which forgets the bound core's node pairs. */
