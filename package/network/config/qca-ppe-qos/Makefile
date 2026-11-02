@@ -1,8 +1,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qca-ppe-qos
-PKG_VERSION:=20261030
-PKG_RELEASE:=4
+PKG_VERSION:=20261102
+PKG_RELEASE:=1
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Julius Bairaktaris <julius@bairaktaris.de>
 

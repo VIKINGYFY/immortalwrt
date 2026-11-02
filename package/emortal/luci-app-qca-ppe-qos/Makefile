@@ -4,8 +4,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-qca-ppe-qos
-PKG_VERSION:=20261030
-PKG_RELEASE:=4
+PKG_VERSION:=20261102
+PKG_RELEASE:=1
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 PKG_MAINTAINER:=Julius Bairaktaris <julius@bairaktaris.de>
