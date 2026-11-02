@@ -4091,7 +4091,11 @@ static void ppe_sparse_work(struct work_struct *work)
 		if (entry->oport == QCA_PPE_CPU_PORT)
 			continue;
 
-		if (delta > PPE_SPARSE_PKTS || !ppe_sparse_flows) {
+		/* A sparse profile serves a shaped port and would otherwise
+		 * override the DSCP written by its ACL classifier.
+		 */
+		if (delta > PPE_SPARSE_PKTS || !ppe_sparse_flows ||
+		    !ppe_port_shaped(priv, entry->oport)) {
 			entry->quiet = 0;
 			if (entry->sparse &&
 			    !ppe_flow_profile_set(priv, entry, entry->profile)) {
