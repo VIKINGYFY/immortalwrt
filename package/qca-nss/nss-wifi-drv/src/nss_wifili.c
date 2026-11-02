@@ -44,10 +44,12 @@
 /* Transmit descriptors per pool. The firmware holds one for every frame in
  * flight and refuses the frame when it cannot get one, silently as far as the
  * host is concerned - only the firmware's own desc_alloc_fail counter shows
- * it, and at 64 it read three times the number of frames that got through.
- * A descriptor is under 128 bytes, so this many still fit the page below.
+ * it, and at 512 it still dropped frames on a busy radio; at 8192 the counter
+ * stayed at zero. The probe below hands over a single page and keeps a pool
+ * that fits it.
  */
-#define NSS_WIFILI_TX_DESC		512
+#define NSS_WIFILI_TX_DESC		8192
+#define NSS_WIFILI_PROBE_TX_DESC	512
 #define NSS_WIFILI_TX_PROCESSQ		1024
 
 /* The firmware carves both kinds out of the memory given here, at a stride
@@ -58,8 +60,14 @@
 #define NSS_WIFILI_TX_DESC_STRIDE	80
 #define NSS_WIFILI_TX_DESC_EXT_STRIDE	160
 
-#define NSS_WIFILI_TX_DESC_MEM(pools, stride) \
-	PAGE_ALIGN(((NSS_WIFILI_TX_DESC + 1) * (pools)) * (stride))
+#define NSS_WIFILI_TX_DESC_MEM(n, pools, stride) \
+	(((n) + 1) * (pools) * (stride))
+
+/* The firmware finds a descriptor by page and offset, and a page is at most
+ * this long: one larger block starts but transmits nothing. It is a whole
+ * number of descriptors of either stride.
+ */
+#define NSS_WIFILI_TX_DESC_PAGE		(240 * SZ_1K)
 
 /* The receive buffer the hardware would be programmed with, and the tag block
  * in front of it. Both are bounds-checked by the firmware, which is why they
@@ -147,8 +155,12 @@ struct nss_wifili_soc {
 	 * stays its own.
 	 */
 	struct device *radio;
-	struct nss_wifili_mem txdesc;
-	struct nss_wifili_mem txdescext;
+	/* The descriptor pages, normal ones first, then from txext on the
+	 * extension ones.
+	 */
+	struct nss_wifili_mem txdesc[NSS_WIFILI_TX_DESC_PAGES];
+	u8 txpages;
+	u8 txext;
 	struct nss_wifili_device_stats stats;
 	u32 stats_seen;
 };
@@ -607,13 +619,13 @@ static void nss_wifili_init_fill(struct nss_wifili_init_msg *init,
 	nss_wifili_srng(&init->reo_exception_ring, w,
 			NSS_WIFILI_RING_REO_EXCEPTION, 1);
 
-	init->wtdim.num_tx_desc = NSS_WIFILI_TX_DESC;
-	init->wtdim.num_tx_desc_ext = NSS_WIFILI_TX_DESC;
+	init->wtdim.num_tx_desc = NSS_WIFILI_PROBE_TX_DESC;
+	init->wtdim.num_tx_desc_ext = NSS_WIFILI_PROBE_TX_DESC;
 	init->wtdim.num_pool = 1;
 	init->wtdim.num_memaddr = 1;
 	init->wtdim.memory_addr[0] = w->txdesc.dma;
 	init->wtdim.memory_size[0] = w->txdesc.size;
-	init->wtdim.num_tx_device_limit = NSS_WIFILI_TX_DESC;
+	init->wtdim.num_tx_device_limit = NSS_WIFILI_PROBE_TX_DESC;
 
 	init->target_type = NSS_WIFILI_TARGET_QCA8074V2;
 	init->wrip.tlv_size = NSS_WIFILI_TLV_SIZE;
@@ -663,7 +675,8 @@ static int nss_wifili_alloc(struct nss_core *core, struct nss_wifili_ctx *w)
 		return ret;
 
 	return nss_wifili_mem_get(core, &w->txdesc,
-				  NSS_WIFILI_TX_DESC_MEM(1, NSS_WIFILI_TX_DESC_STRIDE));
+				  PAGE_ALIGN(NSS_WIFILI_TX_DESC_MEM(NSS_WIFILI_PROBE_TX_DESC,
+								    1, NSS_WIFILI_TX_DESC_STRIDE)));
 }
 
 static void nss_wifili_arm(struct nss_core *core, struct seq_file *s,
@@ -2440,10 +2453,36 @@ static void nss_wifili_radio_free(struct nss_core *core,
 static void nss_wifili_txdesc_free(struct nss_core *core,
 				   struct nss_wifili_soc *soc)
 {
-	nss_mem_free(core, soc->txdesc.cpu);
-	nss_mem_free(core, soc->txdescext.cpu);
-	memset(&soc->txdesc, 0, sizeof(soc->txdesc));
-	memset(&soc->txdescext, 0, sizeof(soc->txdescext));
+	int i;
+
+	for (i = 0; i < soc->txpages; i++)
+		nss_mem_free(core, soc->txdesc[i].cpu);
+	memset(soc->txdesc, 0, sizeof(soc->txdesc));
+	soc->txpages = 0;
+	soc->txext = 0;
+}
+
+/* One kind of descriptor for every radio, cut into pages after those already
+ * taken.
+ */
+static int nss_wifili_txdesc_get(struct nss_core *core,
+				 struct nss_wifili_soc *soc, size_t len)
+{
+	while (len) {
+		size_t size = min_t(size_t, len, NSS_WIFILI_TX_DESC_PAGE);
+		int ret;
+
+		if (soc->txpages == NSS_WIFILI_TX_DESC_PAGES)
+			return -ENOSPC;
+		ret = nss_wifili_mem_get(core, &soc->txdesc[soc->txpages],
+					 PAGE_ALIGN(size));
+		if (ret)
+			return ret;
+		soc->txpages++;
+		len -= size;
+	}
+
+	return 0;
 }
 
 /* Take one instance off its rings while the core runs on for the others: its
@@ -2516,15 +2555,18 @@ static int nss_wifili_soc_start(struct nss_core *core,
 	 * host's to provide, so they are not part of what the WLAN driver
 	 * describes.
 	 */
-	ret = nss_wifili_mem_get(core, &soc->txdesc,
-				 NSS_WIFILI_TX_DESC_MEM(soc->pdevs,
-							NSS_WIFILI_TX_DESC_STRIDE));
+	ret = nss_wifili_txdesc_get(core, soc,
+				    NSS_WIFILI_TX_DESC_MEM(NSS_WIFILI_TX_DESC,
+							   soc->pdevs,
+							   NSS_WIFILI_TX_DESC_STRIDE));
 	if (ret)
 		goto out;
 
-	ret = nss_wifili_mem_get(core, &soc->txdescext,
-				 NSS_WIFILI_TX_DESC_MEM(soc->pdevs,
-							NSS_WIFILI_TX_DESC_EXT_STRIDE));
+	soc->txext = soc->txpages;
+	ret = nss_wifili_txdesc_get(core, soc,
+				    NSS_WIFILI_TX_DESC_MEM(NSS_WIFILI_TX_DESC,
+							   soc->pdevs,
+							   NSS_WIFILI_TX_DESC_EXT_STRIDE));
 	if (ret)
 		goto out;
 
@@ -2580,12 +2622,12 @@ static int nss_wifili_soc_start(struct nss_core *core,
 		m->msg.init.wtdim.num_tx_desc_ext_3 = NSS_WIFILI_TX_DESC;
 	}
 
-	m->msg.init.wtdim.num_memaddr = 2;
-	m->msg.init.wtdim.memory_addr[0] = soc->txdesc.dma;
-	m->msg.init.wtdim.memory_size[0] = soc->txdesc.size;
-	m->msg.init.wtdim.memory_addr[1] = soc->txdescext.dma;
-	m->msg.init.wtdim.memory_size[1] = soc->txdescext.size;
-	m->msg.init.wtdim.ext_desc_page_num = 1;
+	m->msg.init.wtdim.num_memaddr = soc->txpages;
+	for (i = 0; i < soc->txpages; i++) {
+		m->msg.init.wtdim.memory_addr[i] = soc->txdesc[i].dma;
+		m->msg.init.wtdim.memory_size[i] = soc->txdesc[i].size;
+	}
+	m->msg.init.wtdim.ext_desc_page_num = soc->txext;
 	m->msg.init.wtdim.num_tx_device_limit = NSS_WIFILI_TX_DESC *
 						soc->pdevs;
 
@@ -2601,10 +2643,10 @@ static int nss_wifili_soc_start(struct nss_core *core,
 	 * handed over so a trapped address can be told apart from a stray one.
 	 */
 	dev_info(core->dev,
-		 "wifili: txdesc %pad+%zx ext %pad+%zx, %u pools, %u tcl, %u reo\n",
-		 &soc->txdesc.dma, soc->txdesc.size, &soc->txdescext.dma,
-		 soc->txdescext.size, soc->pdevs, desc->num_tcl,
-		 desc->num_reo);
+		 "wifili: txdesc %pad ext %pad, %u+%u pages, %u pools, %u tcl, %u reo\n",
+		 &soc->txdesc[0].dma, &soc->txdesc[soc->txext].dma,
+		 soc->txext, soc->txpages - soc->txext, soc->pdevs,
+		 desc->num_tcl, desc->num_reo);
 	for (i = 0; i < desc->num_tcl; i++)
 		dev_info(core->dev,
 			 "wifili: tcl%d id %u base %#x x%u  txcomp id %u base %#x x%u hw %#x/%#x  tclhw %#x/%#x tcle %u\n",
@@ -2824,8 +2866,9 @@ static void nss_wifili_forget(struct nss_core *core)
 		struct nss_wifili_soc *soc = &nss_wifili_socs[i];
 
 		soc->started = false;
-		memset(&soc->txdesc, 0, sizeof(soc->txdesc));
-		memset(&soc->txdescext, 0, sizeof(soc->txdescext));
+		memset(soc->txdesc, 0, sizeof(soc->txdesc));
+		soc->txpages = 0;
+		soc->txext = 0;
 		memset(soc->radio_if, 0xff, sizeof(soc->radio_if));
 	}
 }

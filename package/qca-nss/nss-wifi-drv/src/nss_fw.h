@@ -563,12 +563,14 @@ struct nss_wifili_hal_srng_soc_msg {
 	u32 lmac_rings_start_id;
 };
 
+#define NSS_WIFILI_TX_DESC_PAGES	32
+
 struct nss_wifili_tx_desc_init_msg {
 	u32 num_tx_desc;
 	u32 num_tx_desc_ext;
 	u32 num_pool;
-	u32 memory_addr[32];
-	u32 memory_size[32];
+	u32 memory_addr[NSS_WIFILI_TX_DESC_PAGES];
+	u32 memory_size[NSS_WIFILI_TX_DESC_PAGES];
 	u32 num_memaddr;
 	u32 ext_desc_page_num;
 	u32 num_tx_desc_2;
