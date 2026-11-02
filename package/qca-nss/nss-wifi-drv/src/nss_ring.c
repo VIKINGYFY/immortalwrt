@@ -695,10 +695,14 @@ static int nss_refill(struct nss_core *core, int budget)
 /* The firmware is up the first time it asks for buffers. */
 static void nss_check_booted(struct nss_core *core)
 {
-	if (core->running)
-		return;
+	scoped_guard(spinlock_bh, &core->state_lock) {
+		/* A queued SOS from a faulted image is not a new boot. */
+		if (!core->booting)
+			return;
 
-	core->running = true;
+		core->booting = false;
+		core->running = true;
+	}
 	complete(&core->booted);
 	dev_info(core->dev, "core %u booted\n", core->id);
 }

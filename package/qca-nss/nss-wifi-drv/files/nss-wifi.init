@@ -23,6 +23,21 @@ nss_module_present() {
 	return 1
 }
 
+# An ath10k AIoT radio can register a PHY before the ath11k service starts.
+# Only ath11k owns the WLAN rings whose offload mode is fixed at probe.
+wifi_ath11k_probed() {
+	local phy driver
+
+	for phy in /sys/class/ieee80211/phy*; do
+		[ -e "$phy/device/driver" ] || continue
+		driver=$(readlink -f "$phy/device/driver" 2>/dev/null) || continue
+		case "$driver" in
+			*/ath11k|*/ath11k_pci) return 0 ;;
+		esac
+	done
+	return 1
+}
+
 # A multi-profile build can include ath11k but omit it from this image.
 # Check both the installed integration and the physical, enabled targets.
 # Keep crash dumps available without holding AHB recovery until userspace
@@ -111,7 +126,7 @@ nss_start() {
 		return 0
 	}
 	wlan=$(nss_wlan_buses)
-	if [ "$wlan" -ne 0 ] && ls -d /sys/class/ieee80211/phy* >/dev/null 2>&1; then
+	if [ "$wlan" -ne 0 ] && wifi_ath11k_probed; then
 		logger -t nss-wifi "WLAN already probed; reboot to select offload"
 		return 1
 	fi
