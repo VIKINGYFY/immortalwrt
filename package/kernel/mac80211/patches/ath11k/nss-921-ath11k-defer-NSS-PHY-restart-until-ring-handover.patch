@@ -1,0 +1,99 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 2 Nov 2026 02:48:00 +0800
+Subject: [PATCH] ath11k: defer NSS PHY restart until shared ring handover
+
+A halted NSS core cannot release its buffers until both AHB and PCIe WLAN
+instances stop. Restarting mac80211 first holds global RTNL while waiting
+for that handover and prevents the other instance from reaching its reset.
+
+Quiesce every PHY before resetting hardware, including clearing active PHY
+references and cancelling per-radio work. In NSS mode queue mac80211 PHY
+restarts only after rebuilding the shared data rings. Preserve the host
+reset sequence and the all-radio recovery-complete accounting. Do not wait
+for RDDM when an NSS-requested PCIe reset still finds WLAN in mission mode;
+real RDDM crashes retain their full dump collection.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -2653,7 +2653,8 @@
+ 	reinit_completion(&ab->driver_recovery);
+ }
+ 
+-static void ath11k_core_post_reconfigure_recovery(struct ath11k_base *ab)
++static void ath11k_core_post_reconfigure_recovery(struct ath11k_base *ab,
++						  bool restart)
+ {
+ 	struct ath11k *ar;
+ 	struct ath11k_pdev *pdev;
+@@ -2671,7 +2672,8 @@
+ 		case ATH11K_STATE_ON:
+ 			ar->state = ATH11K_STATE_RESTARTING;
+ 			ath11k_core_halt(ar);
+-			ieee80211_restart_hw(ar->hw);
++			if (restart)
++				ieee80211_restart_hw(ar->hw);
+ 			break;
+ 		case ATH11K_STATE_OFF:
+ 			ath11k_warn(ab,
+@@ -2679,6 +2681,8 @@
+ 				    i);
+ 			break;
+ 		case ATH11K_STATE_RESTARTING:
++			if (restart)
++				ieee80211_restart_hw(ar->hw);
+ 			break;
+ 		case ATH11K_STATE_RESTARTED:
+ 			ar->state = ATH11K_STATE_WEDGED;
+@@ -2712,8 +2716,8 @@
+ 	if (ab->is_reset)
+ 		complete_all(&ab->reconfigure_complete);
+ 
+-	if (!ab->is_reset)
+-		ath11k_core_post_reconfigure_recovery(ab);
++	if (!ab->is_reset || ab->nss_offload)
++		ath11k_core_post_reconfigure_recovery(ab, true);
+ 
+ 	complete(&ab->restart_completed);
+ }
+@@ -2786,12 +2790,18 @@
+ 	ath11k_core_pre_reconfigure_recovery(ab);
+ 
+ 	reinit_completion(&ab->reconfigure_complete);
+-	ath11k_core_post_reconfigure_recovery(ab);
++	/* Quiesce every PHY before its rings are freed. In NSS mode defer
++	 * mac80211 restart until all shared instances can hand over the core;
++	 * its per-PHY restart holds RTNL and cannot wait for another instance.
++	 */
++	ath11k_core_post_reconfigure_recovery(ab, !ab->nss_offload);
+ 
+-	ath11k_dbg(ab, ATH11K_DBG_BOOT, "waiting recovery start...\n");
++	if (!ab->nss_offload) {
++		ath11k_dbg(ab, ATH11K_DBG_BOOT, "waiting recovery start...\n");
+ 
+-	time_left = wait_for_completion_timeout(&ab->recovery_start,
+-						ATH11K_RECOVER_START_TIMEOUT_HZ);
++		time_left = wait_for_completion_timeout(&ab->recovery_start,
++					ATH11K_RECOVER_START_TIMEOUT_HZ);
++	}
+ 
+ 	ath11k_hif_irq_disable(ab);
+ 	ath11k_hif_ce_irq_disable(ab);
+--- a/drivers/net/wireless/ath/ath11k/pci.c
++++ b/drivers/net/wireless/ath/ath11k/pci.c
+@@ -733,6 +733,13 @@
+ 	void *buf;
+ 	u32 dump_seg_sz[FW_CRASH_DUMP_TYPE_MAX] = {};
+ 
++	/* An NSS-initiated reset can leave WLAN in mission mode. Waiting
++	 * for a nonexistent RDDM image delays the shared handover long enough
++	 * for the other WLAN instance to watchdog while its NSS is stopped.
++	 */
++	if (ab->nss_offload && mhi_get_exec_env(mhi_ctrl) != MHI_EE_RDDM)
++		return;
++
+ 	ath11k_mhi_coredump(mhi_ctrl, false);
+ 
+ 	len = ath11k_pci_coredump_calculate_size(ab, dump_seg_sz);

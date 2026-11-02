@@ -1,0 +1,173 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 2 Nov 2026 01:09:29 +0800
+Subject: [PATCH] ath11k: recover an NSS REO command ring that stops progressing
+
+The host still owns the REO command ring while NSS owns the data rings.
+Repeated ENOBUFS errors can leave station TIDs unusable without a firmware
+assert. On a full ring in NSS mode, wait one second and re-read the hardware
+tail. Only queue the existing reset if the ring is still full and neither
+the tail nor the accepted-command count has advanced. This excludes short
+bursts of TID deletion and a tail pointer wrapping under load. Cancel the
+check before freeing rings; host-ring mode retains its error handling.
+
+Share the reset entry point with NSS and reject resets during registration,
+unregistration or an active firmware recovery. This provides recovery from
+a persistent stall; it does not establish why the hardware stopped.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -2718,6 +2718,16 @@
+ 	complete(&ab->restart_completed);
+ }
+ 
++void ath11k_core_queue_reset(struct ath11k_base *ab)
++{
++	if (!test_bit(ATH11K_FLAG_REGISTERED, &ab->dev_flags) ||
++	    test_bit(ATH11K_FLAG_RECOVERY, &ab->dev_flags) ||
++	    test_bit(ATH11K_FLAG_UNREGISTERING, &ab->dev_flags))
++		return;
++
++	queue_work(ab->workqueue_aux, &ab->reset_work);
++}
++
+ static void ath11k_core_reset(struct work_struct *work)
+ {
+ 	struct ath11k_base *ab = container_of(work, struct ath11k_base, reset_work);
+--- a/drivers/net/wireless/ath/ath11k/core.h
++++ b/drivers/net/wireless/ath/ath11k/core.h
+@@ -1333,6 +1333,7 @@
+ int ath11k_core_suspend_late(struct ath11k_base *ab);
+ void ath11k_core_pre_reconfigure_recovery(struct ath11k_base *ab);
+ bool ath11k_core_coldboot_cal_support(struct ath11k_base *ab);
++void ath11k_core_queue_reset(struct ath11k_base *ab);
+ 
+ const struct firmware *ath11k_core_firmware_request(struct ath11k_base *ab,
+ 						    const char *filename);
+--- a/drivers/net/wireless/ath/ath11k/dp.c
++++ b/drivers/net/wireless/ath/ath11k/dp.c
+@@ -955,7 +955,7 @@
+ {
+ 	struct ath11k_base *ab = priv;
+ 
+-	queue_work(ab->workqueue_aux, &ab->reset_work);
++	ath11k_core_queue_reset(ab);
+ }
+ 
+ /* Put back an MSDU-link descriptor the firmware cannot release itself: the
+@@ -1280,6 +1280,53 @@
+ 	}
+ }
+ 
++/* A station removal can briefly fill the ring with one command per TID.
++ * Re-read the hardware tail after a grace period and require both the tail
++ * and the accepted-command count to have stopped before resetting hardware.
++ */
++static void ath11k_dp_reo_cmd_check_work(struct work_struct *work)
++{
++	struct ath11k_dp *dp = container_of(to_delayed_work(work),
++					  struct ath11k_dp, reo_cmd_check_work);
++	struct ath11k_base *ab = dp->ab;
++	struct hal_srng *srng = &ab->hal.srng_list[dp->reo_cmd_ring.ring_id];
++	bool stalled = false;
++
++	spin_lock_bh(&srng->lock);
++	if (READ_ONCE(ab->nss_soc) >= 0 &&
++	    !test_bit(ATH11K_FLAG_CRASH_FLUSH, &ab->dev_flags))
++		stalled = !ath11k_hal_srng_src_num_free(ab, srng, true) &&
++			  srng->u.src_ring.cached_tp == dp->reo_cmd_check_tp &&
++			  atomic_read(&dp->reo_cmd_progress) ==
++			  dp->reo_cmd_check_progress;
++	dp->reo_cmd_check_pending = false;
++	spin_unlock_bh(&srng->lock);
++
++	if (stalled) {
++		ath11k_warn(ab, "NSS REO command ring stalled; queueing recovery\n");
++		ath11k_core_queue_reset(ab);
++	}
++}
++
++void ath11k_dp_reo_cmd_check(struct ath11k_base *ab)
++{
++	struct ath11k_dp *dp = &ab->dp;
++	struct hal_srng *srng = &ab->hal.srng_list[dp->reo_cmd_ring.ring_id];
++
++	spin_lock_bh(&srng->lock);
++	if (READ_ONCE(ab->nss_soc) >= 0 &&
++	    !test_bit(ATH11K_FLAG_CRASH_FLUSH, &ab->dev_flags) &&
++	    !dp->reo_cmd_check_pending &&
++	    !ath11k_hal_srng_src_num_free(ab, srng, true)) {
++		dp->reo_cmd_check_pending = true;
++		dp->reo_cmd_check_tp = srng->u.src_ring.cached_tp;
++		dp->reo_cmd_check_progress = atomic_read(&dp->reo_cmd_progress);
++		queue_delayed_work(ab->workqueue_aux, &dp->reo_cmd_check_work,
++				   msecs_to_jiffies(1000));
++	}
++	spin_unlock_bh(&srng->lock);
++}
++
+ void ath11k_dp_free(struct ath11k_base *ab)
+ {
+ 	struct ath11k_dp *dp = &ab->dp;
+@@ -1287,7 +1334,8 @@
+ 
+ 	if (ab->nss_soc >= 0)
+ 		nss_wifi_soc_unregister(ab->nss_soc);
+-	ab->nss_soc = -1;
++	WRITE_ONCE(ab->nss_soc, -1);
++	cancel_delayed_work_sync(&dp->reo_cmd_check_work);
+ 
+ 	ath11k_dp_link_desc_cleanup(ab, dp->link_desc_banks,
+ 				    HAL_WBM_IDLE_LINK, &dp->wbm_idle_ring);
+@@ -1318,6 +1366,9 @@
+ 	int i;
+ 
+ 	dp->ab = ab;
++	INIT_DELAYED_WORK(&dp->reo_cmd_check_work, ath11k_dp_reo_cmd_check_work);
++	atomic_set(&dp->reo_cmd_progress, 0);
++	dp->reo_cmd_check_pending = false;
+ 
+ 	INIT_LIST_HEAD(&dp->reo_cmd_list);
+ 	INIT_LIST_HEAD(&dp->reo_cmd_cache_flush_list);
+--- a/drivers/net/wireless/ath/ath11k/dp.h
++++ b/drivers/net/wireless/ath/ath11k/dp.h
+@@ -290,6 +290,12 @@
+ 	struct list_head reo_cmd_cache_flush_list;
+ 	struct list_head dp_full_mon_mpdu_list;
+ 	u32 reo_cmd_cache_flush_count;
++	struct delayed_work reo_cmd_check_work;
++	atomic_t reo_cmd_progress;
++	/* Protected by the REO command SRNG lock. */
++	bool reo_cmd_check_pending;
++	u32 reo_cmd_check_tp;
++	int reo_cmd_check_progress;
+ 	/**
+ 	 * protects access to below fields,
+ 	 * - reo_cmd_list
+@@ -1675,6 +1681,7 @@
+ int ath11k_dp_htt_connect(struct ath11k_dp *dp);
+ void ath11k_dp_vdev_tx_attach(struct ath11k *ar, struct ath11k_vif *arvif);
+ void ath11k_dp_free(struct ath11k_base *ab);
++void ath11k_dp_reo_cmd_check(struct ath11k_base *ab);
+ int ath11k_dp_alloc(struct ath11k_base *ab);
+ int ath11k_dp_pdev_alloc(struct ath11k_base *ab);
+ void ath11k_dp_pdev_pre_alloc(struct ath11k_base *ab);
+--- a/drivers/net/wireless/ath/ath11k/dp_tx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
+@@ -968,8 +968,13 @@
+ 	cmd_num = ath11k_hal_reo_cmd_send(ab, cmd_ring, type, cmd);
+ 
+ 	/* cmd_num should start from 1, during failure return the error code */
+-	if (cmd_num < 0)
++	if (cmd_num < 0) {
++		if (cmd_num == -ENOBUFS && READ_ONCE(ab->nss_soc) >= 0)
++			ath11k_dp_reo_cmd_check(ab);
+ 		return cmd_num;
++	}
++
++	atomic_inc(&dp->reo_cmd_progress);
+ 
+ 	/* reo cmd ring descriptors has cmd_num starting from 1 */
+ 	if (cmd_num == 0)
