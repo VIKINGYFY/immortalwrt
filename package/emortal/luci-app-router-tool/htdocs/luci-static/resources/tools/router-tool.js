@@ -82,12 +82,6 @@ function lanContext() {
 	return Object.fromEntries([ 'proto', 'ipaddr', 'netmask' ].map(key => [ key, copy(uci.get('network', 'lan', key)) ]));
 }
 
-function savedLan(state) {
-	if (state?.lan && typeof state.lan == 'object') return state.lan;
-	const options = [ 'proto', 'ipaddr', 'netmask' ].map(key => trackedOption(state, 'network', 'lan', key));
-	return options.every(Boolean) ? Object.fromEntries(options.map(o => [ o.key, copy(o.expected) ])) : null;
-}
-
 function finishSnapshot(state) {
 	for (const option of state.options) {
 		const value = copy(uci.get(option.config, option.sid, option.key));
@@ -98,9 +92,8 @@ function finishSnapshot(state) {
 		const current = sectionValues(section.config, section.sid);
 		if (!current) continue;
 		if (state.mode != 'ap') {
-			for (const key of new Set(Object.keys(section.values || {}).concat(Object.keys(current)))) {
+			for (const key of Object.keys(current)) {
 				const option = { config: section.config, sid: section.sid, type: uci.get(section.config, section.sid)['.type'], key, expected: copy(current[key]) };
-				if (section.values && !optionEqual(option, section.values[key], current[key])) option.custom = true;
 				state.options.push(option);
 			}
 			continue;
@@ -188,6 +181,8 @@ function readSnapshot(sid, option, mode) {
 			(Object.hasOwn(state, 'lan') && (!state.lan || Array.isArray(state.lan) || typeof state.lan != 'object' ||
 				Object.keys(state.lan).some(key => ![ 'proto', 'ipaddr', 'netmask' ].includes(key)) || !Object.values(state.lan).every(validValue))) ||
 			!Array.isArray(state.options) || !Array.isArray(state.created) || !state.options.length && !state.created.length) return null;
+		if (Object.hasOwn(state, 'dhcpv4_defaults') || mode != 'ap' &&
+			(!state.lan || typeof state.lan != 'object' || !Object.hasOwn(state, 'proto') || typeof state.manual_lan != 'boolean' || state.created.length)) return null;
 		for (const s of state.created) {
 			const id = `${s.config}/${s.sid}`;
 			if (!validSection(s) || !s.values || Array.isArray(s.values) || typeof s.values != 'object' || !Object.values(s.values).every(validValue) || seen.has(id)) return null;
@@ -389,7 +384,7 @@ function subnet(value, netmask) {
 	const octets = address.split('.');
 	if (octets.length != 4 || octets.some(n => !/^\d+$/.test(n) || Number(n) > 255)) return null;
 	if (cidr != null && !/^\d+$/.test(cidr)) return null;
-	let prefix = cidr != null ? Number(cidr) : 24;
+	let prefix = cidr != null ? Number(cidr) : 32;
 	if (cidr == null && netmask) {
 		const masks = String(netmask).split('.');
 		if (masks.length != 4 || masks.some(n => !/^\d+$/.test(n) || Number(n) > 255)) return null;
@@ -430,7 +425,7 @@ function synchronize(sid, context) {
 	if (uci.get('router-tool', 'main', 'ap_mode') == '1') return;
 	const role = uci.get('network', 'wan', 'proto') == 'pppoe' ? 'main' : 'sub';
 	previousSnapshot = readSnapshot(sid, 'state', uci.get('router-tool', 'main', 'auto_role'));
-	const beforeLan = savedLan(previousSnapshot);
+	const beforeLan = previousSnapshot?.lan;
 	if (beforeLan && !equal(beforeLan, lanContext())) previousSnapshot.manual_lan = true;
 	if (uci.get('router-tool', 'main', 'auto_role') != role) {
 		console.info(`[router-tool] Preparing ${role} router presets`);
@@ -463,7 +458,7 @@ function synchronize(sid, context) {
 		const state = previousSnapshot;
 		const option = trackedOption(state, 'network', 'wan', 'proto');
 		const device = trackedOption(state, 'network', 'wan6', 'device');
-		if ((state?.proto ?? option?.expected) != uci.get('network', 'wan', 'proto') ||
+		if (state?.proto != uci.get('network', 'wan', 'proto') ||
 			device && !device.custom && device.expected != wan6Device() && !customOption(state, 'network', 'wan6', 'device')) {
 			recorder = state;
 			try { setOptions('network', 'wan6', { device: wan6Device() }); }

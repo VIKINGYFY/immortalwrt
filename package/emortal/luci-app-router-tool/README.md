@@ -30,3 +30,15 @@ OpenWRT-CI passes `WRT_SSID` and `WRT_WORD` through this section. It must leave
 the wifi-scripts generator's untouched-AP values intact, so custom build
 credentials do not suppress channel, bandwidth, country, and security defaults.
 Keep this configuration private when using a private Wi-Fi password.
+
+## Configuration migration
+
+`/etc/uci-defaults/90-router-tool-migrate` owns historical settings and snapshot
+normalization and the initial generated ULA cleanup. It removes only the unchanged, owned `wan6`/`local` prefix
+filter, including its saved routed value when AP mode is active. Custom filters
+remain intact. It also normalizes older routed snapshots before regular service
+reloads and LuCI saves can use them.
+
+Regular runtime paths do not repair old snapshot formats. They still record new
+sections, restore AP settings, preserve manual edits, and resume interrupted
+configuration transactions. These operations are part of normal mode switching.

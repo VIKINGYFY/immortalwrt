@@ -1,5 +1,5 @@
 // Shared preset data is also used by the LuCI post-parse save callback.
-import { read_snapshot, record_option, custom_option, tracked_option, lan_context, saved_lan, equal, finish_snapshot } from './snapshot.uc';
+import { read_snapshot, record_option, custom_option, tracked_option, lan_context, equal, finish_snapshot } from './snapshot.uc';
 
 function sections(uci, config, type) {
 	let result = [];
@@ -26,7 +26,7 @@ function subnet(value, netmask) {
 	let octets = split(parts[0], '.');
 	if (length(octets) != 4 || length(filter(octets, n => !match(n, /^\d+$/) || int(n) > 255))) return null;
 	if (length(parts) > 1 && !match(parts[1], /^\d+$/)) return null;
-	let prefix = length(parts) > 1 ? int(parts[1]) : 24;
+	let prefix = length(parts) > 1 ? int(parts[1]) : 32;
 	if (length(parts) < 2 && netmask) {
 		let masks = split(netmask, '.');
 		if (length(masks) != 4) return null;
@@ -111,7 +111,7 @@ export function synchronize(uci, data, upstream4, target) {
 	let previous = uci.get('router-tool', 'main', 'auto_role');
 	let saved = uci.get('router-tool', 'main', 'state');
 	let state = previous || saved ? read_snapshot(saved, previous) : null;
-	let context = saved_lan(state);
+	let context = state?.lan;
 	if (context && !equal(context, lan_context(uci))) state.manual_lan = true;
 	previous_state = state;
 	// Apply platform defaults once; preserve explicit user choices on reload
@@ -131,14 +131,9 @@ export function synchronize(uci, data, upstream4, target) {
 		set('firewall', firewall, defaults.firewall);
 		set('router-tool', 'main', { offload_defaults_done: '1' });
 	}
-	// Keep later user-added ULA prefixes after the one-time cleanup.
-	if (uci.get('router-tool', 'main', 'ula_cleanup_done') != '1') {
-		set('network', sid, { ula_prefix: null });
-		set('router-tool', 'main', { ula_cleanup_done: '1' });
-	}
 	if (ap) return keys(changed);
 	if (previous != role) {
-		let context = saved_lan(previous_state);
+		let context = previous_state?.lan;
 		let manual_lan = !!previous_state?.manual_lan || context && !equal(context, lan_context(uci));
 		// Carry missing managed sections forward as deletion markers across
 		// role changes, instead of recreating an explicitly removed section.
@@ -185,7 +180,7 @@ export function synchronize(uci, data, upstream4, target) {
 	// Await the first lease, then check the LAN subnet once for this mode.
 	// Later lease events must not overwrite a user's addressing decisions.
 	if (role == 'sub' && !state.subnet_done && length(upstream4 || [])) {
-		let context = saved_lan(state);
+		let context = state.lan;
 		if (context && !equal(context, lan_context(uci))) state.manual_lan = true;
 		recorder = state;
 		let upstream = filter(map(upstream4 || [], address => subnet(address)), address => address != null);
@@ -213,7 +208,7 @@ export function synchronize(uci, data, upstream4, target) {
 	else if (previous != role) set('router-tool', 'main', { state: finish_snapshot(uci, state) });
 	else {
 		let protocol = tracked_option(state, 'network', 'wan', 'proto');
-		let last_proto = state.proto ?? protocol?.expected;
+		let last_proto = state.proto;
 		let device = tracked_option(state, 'network', 'wan6', 'device');
 		if (last_proto != uci.get('network', 'wan', 'proto') ||
 			device && !device.custom && device.expected != wan6_device(uci) && !custom_option(uci, state, 'network', 'wan6', 'device')) {

@@ -7,6 +7,7 @@
 import { cursor } from 'uci';
 import { open, mkdir, stat, readfile, unlink } from 'fs';
 import { configuration, transaction, save_transaction, commit_transaction } from '/usr/share/router-tool/transaction.uc';
+import { read_snapshot, tracked_option, section_values, option_equal, equal } from '/usr/share/router-tool/snapshot.uc';
 
 const path = '/etc/router-tool/pending.json';
 let lock = open('/var/lock/router-tool.lock', 'a');
@@ -60,6 +61,112 @@ uci.foreach('wireless', 'wifi-device', radio => {
 	ensure(radio['.name'], 'radio');
 	move('wireless', radio['.name'], 'router_tool_defaults_done', radio['.name'], 'defaults_done');
 });
+
+// The historical generated ULA cleanup is also a one-time migration. Later
+// user-added prefixes must survive every ordinary save and interface event.
+if (uci.get('router-tool', 'main', 'ula_cleanup_done') != '1') {
+	uci.foreach('network', 'globals', section => {
+		if (section.ula_prefix != null && !uci.delete('network', section['.name'], 'ula_prefix'))
+			die('Cannot remove the initial ULA prefix');
+	});
+	if (!uci.set('router-tool', 'main', 'ula_cleanup_done', '1')) die('Cannot record ULA cleanup');
+}
+
+// Retire the old uplink-name restriction once, without changing manual filters
+// or teaching the regular save/interface-event paths about legacy defaults.
+let saved = uci.get('router-tool', 'main', 'state');
+let ap_text = uci.get('router-tool', 'main', 'ap_state');
+let ap = ap_text ? read_snapshot(ap_text, 'ap', true) : null;
+if (ap && exists(ap, 'dhcpv4_defaults')) {
+	delete ap.dhcpv4_defaults;
+	uci.set('router-tool', 'main', 'ap_state', sprintf('%J', ap));
+}
+if (saved) {
+	let state = read_snapshot(saved, uci.get('router-tool', 'main', 'auto_role'), true);
+	let owned = tracked_option(state, 'network', 'lan', 'ip6class');
+	let legacy = [ 'wan6', 'local' ];
+	let changed = false;
+	if (owned && !owned.custom && equal(owned.expected, legacy)) {
+		if (uci.get('router-tool', 'main', 'ap_mode') == '1') {
+			// The routed value is saved in the AP snapshot, not the active LAN.
+			// Updating only that value also preserves edits made while in AP mode.
+			for (let option in ap?.options || [])
+				if (option.config == 'network' && option.sid == 'lan' && option.key == 'ip6class' &&
+					option.type == 'interface' && !option.custom && equal(option.value, legacy)) {
+					option.value = null;
+					changed = true;
+				}
+			if (changed) uci.set('router-tool', 'main', 'ap_state', sprintf('%J', ap));
+		}
+		else if (uci.get_all('network', 'lan')?.['.type'] == 'interface' &&
+			equal(uci.get('network', 'lan', 'ip6class'), legacy)) {
+			if (!uci.delete('network', 'lan', 'ip6class')) die('Cannot remove legacy IPv6 prefix filter');
+			changed = true;
+		}
+	}
+	if (changed) {
+		for (let option in state.options)
+			if (option.config == 'network' && option.sid == 'lan' && option.key == 'ip6class')
+				option.expected = null;
+		for (let section in state.created)
+			if (section.config == 'network' && section.sid == 'lan' && exists(section.values, 'ip6class'))
+				section.values.ip6class = null;
+	}
+	// Normalize historical routed snapshots once. Predict AP restoration in
+	// memory so active AP settings never become the routed ownership baseline.
+	let normalized = !exists(state, 'lan') || !exists(state, 'proto') ||
+		!exists(state, 'manual_lan') || exists(state, 'dhcpv4_defaults') || length(state.created);
+	if (normalized) {
+		if (uci.get('router-tool', 'main', 'ap_mode') == '1' && !ap)
+			die('Cannot migrate routed metadata while the AP restoration snapshot is missing');
+		let configs = configuration(uci);
+		if (uci.get('router-tool', 'main', 'ap_mode') == '1' && ap) {
+			for (let option in ap.options) {
+				let section = configs[option.config]?.[option.sid];
+				if (!section || section['.type'] != option.type || !option_equal(option, section[option.key], option.expected)) continue;
+				if (option.value == null) delete section[option.key];
+				else section[option.key] = option.value;
+			}
+			for (let section in ap.created)
+				if (equal(section_values(configs[section.config]?.[section.sid]), section.values))
+					delete configs[section.config][section.sid];
+		}
+		function value(config, sid, key) { return configs[config]?.[sid]?.[key]; }
+		if (!exists(state, 'lan')) {
+			let context = {}, known = true;
+			for (let key in [ 'proto', 'ipaddr', 'netmask' ]) {
+				let option = tracked_option(state, 'network', 'lan', key);
+				if (!option) known = false;
+				context[key] = option ? option.expected : value('network', 'lan', key);
+			}
+			state.lan = context;
+			if (!known) state.manual_lan = true;
+		}
+		if (!exists(state, 'manual_lan')) state.manual_lan = false;
+		if (!equal(state.lan, { proto: value('network', 'lan', 'proto'), ipaddr: value('network', 'lan', 'ipaddr'), netmask: value('network', 'lan', 'netmask') })) state.manual_lan = true;
+		if (!exists(state, 'proto')) {
+			let protocol = tracked_option(state, 'network', 'wan', 'proto');
+			state.proto = protocol ? protocol.expected : value('network', 'wan', 'proto');
+		}
+		for (let section in state.created) {
+			let current = configs[section.config]?.[section.sid];
+			if (current && current['.type'] != section.type) die(`Cannot migrate retyped section ${section.config}.${section.sid}`);
+			let values = section_values(current);
+			for (let key in uniq([ ...keys(section.values), ...keys(values) ])) {
+				let option = { config: section.config, sid: section.sid, type: section.type, key, expected: values[key] };
+				if (!option_equal(option, section.values[key], values[key])) option.custom = true;
+				push(state.options, option);
+			}
+		}
+		state.created = [];
+		delete state.dhcpv4_defaults;
+	}
+	if (changed || normalized) {
+		let text = sprintf('%J', state);
+		read_snapshot(text, state.mode);
+		uci.set('router-tool', 'main', 'state', text);
+	}
+}
 
 let pending = transaction(uci, before);
 if (length(pending.edits)) {

@@ -32,7 +32,8 @@ export function option_equal(option, a, b) {
 	return equal(optional ? a ?? '0' : a, optional ? b ?? '0' : b);
 }
 
-export function read_snapshot(text, mode) {
+// Only the dedicated upgrade script may decode incomplete historical records.
+export function read_snapshot(text, mode, legacy) {
 	let state;
 	try { state = json(text || 'null'); } catch (e) {}
 	let valid = s => type(s) == 'object' && index([ 'network', 'dhcp', 'firewall', 'wireless' ], s.config) >= 0 &&
@@ -46,6 +47,9 @@ export function read_snapshot(text, mode) {
 			length(filter(values(state.lan), v => !value_valid(v))))) ||
 		type(state.options) != 'array' || type(state.created) != 'array' || !length(state.options) && !length(state.created))
 		die('Mode switch refused: saved configuration snapshot is missing or invalid');
+	if (!legacy && (exists(state, 'dhcpv4_defaults') || mode != 'ap' &&
+		(type(state.lan) != 'object' || !exists(state, 'proto') || type(state.manual_lan) != 'bool' || length(state.created))))
+		die('Mode switch refused: saved configuration snapshot requires migration');
 	let seen = {};
 	for (let s in state.created) {
 		let id = `${s.config}/${s.sid}`;
@@ -118,17 +122,6 @@ export function lan_context(uci) {
 	return result;
 }
 
-export function saved_lan(state) {
-	if (type(state?.lan) == 'object') return state.lan;
-	let result = {};
-	for (let key in [ 'proto', 'ipaddr', 'netmask' ]) {
-		let option = tracked_option(state, 'network', 'lan', key);
-		if (!option) return null;
-		result[key] = option.expected;
-	}
-	return result;
-}
-
 export function finish_snapshot(uci, state) {
 	for (let o in state.options) {
 		let value = uci.get(o.config, o.sid, o.key);
@@ -139,12 +132,10 @@ export function finish_snapshot(uci, state) {
 		let section = uci.get_all(s.config, s.sid);
 		if (!section) continue;
 		if (state.mode != 'ap') {
-			// Routed presets need per-option ownership after section creation.
-			// Flatten legacy section records without losing later overrides.
+			// Record the options of a section created by this operation.
 			let current = section_values(section);
-			for (let key in uniq([ ...keys(s.values || {}), ...keys(current) ])) {
+			for (let key in keys(current)) {
 				let option = { config: s.config, sid: s.sid, type: section['.type'], key, expected: current[key] };
-				if (s.values && !option_equal(option, s.values[key], current[key])) option.custom = true;
 				push(state.options, option);
 			}
 			continue;
