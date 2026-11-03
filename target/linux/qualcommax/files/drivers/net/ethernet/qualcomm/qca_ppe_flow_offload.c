@@ -1259,7 +1259,8 @@ static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
 	ret = dsa_service ? -ENOENT : ppe_uplink_find(priv, iport, vid);
 	if (ret >= 0) {
 		priv->uplink[ret].ref++;
-	} else if (vid && ppe_flow_ingress_vsi(priv, iport, vid) < 0) {
+	} else if (!dsa_service && vid &&
+		   ppe_flow_ingress_vsi(priv, iport, vid) < 0) {
 		ret = ppe_flow_vlan_uplink_get(priv, iport, vid);
 		if (ret < 0)
 			return ret;
