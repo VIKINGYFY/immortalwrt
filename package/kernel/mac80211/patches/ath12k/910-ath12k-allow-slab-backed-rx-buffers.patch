@@ -1,0 +1,29 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 03 Nov 2026 00:00:18 +0800
+Subject: [PATCH] wifi: ath12k: allow slab-backed RX buffers independently
+
+A receive buffer retained by a hardware ring pins its shared page-fragment
+allocation even after the other fragments have been freed. Sparse buffer
+replacement across several radios can therefore retain hundreds of MiB
+of mostly unused pages.
+
+Allow boards to select the existing slab-backed allocator independently
+of the low-memory host profile. Preserve ring sizes, descriptor counts,
+firmware memory mode, DMA ownership and the default allocator elsewhere.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1894,6 +1894,11 @@
+ 	const struct ath12k_mem_profile_based_param *param;
+ 
+ 	param = &ath12k_mem_profile_based_param[ab->target_mem_mode];
++	/* Long-lived RX ring entries can pin mostly unused shared page fragments.
++	 * Allow slab-backed buffers without reducing host or firmware capacity.
++	 */
++	ab->low_memory_rx = of_property_read_bool(ab->dev->of_node,
++						"qcom,rx-skb-slab");
+ 	/* An integrated radio can have a fixed default-mode firmware layout
+ 	 * while sharing a small host with a discrete radio. Only reduce host
+ 	 * rings and descriptor pools; leave QMI and WMI capacity unchanged.

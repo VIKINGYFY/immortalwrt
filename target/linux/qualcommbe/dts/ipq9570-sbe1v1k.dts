@@ -241,6 +241,7 @@
 };
 
 &qcom_ppe {
+	qcom,rx-low-memory;
 	status = "okay";
 
 	ethernet-ports {
@@ -433,18 +434,21 @@
 };
 
 &wifi1 {
+	qcom,rx-skb-slab;
 	qcom,calibration-variant = "Askey-SBE1V1K_1";
 	nvmem-cells = <&ethaddr (-3)>;
 	nvmem-cell-names = "mac-address";
 };
 
 &wifi2 {
+	qcom,rx-skb-slab;
 	qcom,calibration-variant = "Askey-SBE1V1K_4";
 	nvmem-cells = <&ethaddr (-1)>;
 	nvmem-cell-names = "mac-address";
 };
 
 &wifi3 {
+	qcom,rx-skb-slab;
 	qcom,calibration-variant = "Askey-SBE1V1K_2";
 	nvmem-cells = <&ethaddr (-2)>;
 	nvmem-cell-names = "mac-address";
