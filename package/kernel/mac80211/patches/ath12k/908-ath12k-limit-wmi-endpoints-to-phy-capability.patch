@@ -1,0 +1,30 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 02 Nov 2026 21:10:45 +0800
+Subject: [PATCH] wifi: ath12k: bound WMI endpoints by firmware PHY capability
+
+QCN9274 hardware supports two radios, but board firmware may enable only
+one PHY. Connecting the unused MAC1 WMI service then fails with -EPROTO.
+The endpoint count also determines the HTC credit split.
+
+The QMI PHY capability exchange completes before HTC initialization. Use
+its valid radio count to cap the selected WMI endpoint count, retaining
+the hardware-mode and device-tree limits and the existing fallback when
+no usable capability is available.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/htc.c
++++ b/drivers/net/wireless/ath/ath12k/htc.c
+@@ -779,6 +779,12 @@
+ 		break;
+ 	}
+ 
++	/* PHY capability is queried before firmware startup. A chip's maximum
++	 * radio count can exceed the PHYs enabled by its board firmware.
++	 */
++	if (ab->qmi.num_radios && ab->qmi.num_radios <= ab->hw_params->max_radios)
++		htc->wmi_ep_count = min_t(u8, htc->wmi_ep_count, ab->qmi.num_radios);
++
+ 	if (!of_property_read_u32(ab->dev->of_node, "qcom,num-radios",
+ 				  &num_radios) && num_radios) {
+ 		num_radios = min_t(u32, num_radios, ab->hw_params->max_radios);
