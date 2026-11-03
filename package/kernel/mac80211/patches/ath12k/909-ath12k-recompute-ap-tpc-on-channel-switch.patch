@@ -1,0 +1,32 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 02 Nov 2026 22:40:54 +0800
+Subject: [PATCH] wifi: ath12k: recompute AP TPC after channel changes
+
+num_pwr_levels is also populated by the local TPC calculation. On an AP,
+reusing that output as evidence of a received TPE selects zeroed TPE
+limits on the next vdev restart. A 6 GHz 160/320 MHz CSA then lowers
+the reported power to 0 dBm and reduces the client signal.
+
+Only stations receive a TPE from an AP. Recompute an AP power table
+from the current channel definition after each restart, including its
+new bandwidth, instead of reusing the previous output level count.
+Keep the existing station TPE handling unchanged.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -12318,7 +12318,12 @@
+ 	start_freq = ath12k_mac_get_6ghz_start_frequency(&ctx->def);
+ 	pwr_reduction = bss_conf->pwr_reduction;
+ 
+-	if (arvif->reg_tpc_info.num_pwr_levels) {
++	/* Only a station can have a received TPE. AP num_pwr_levels is
++	 * cached output from the previous TPC calculation, not a TPE.
++	 * Recompute it for the new channel width after a restart/CSA.
++	 */
++	if (ahvif->vdev_type == WMI_VDEV_TYPE_STA &&
++	    reg_tpc_info->num_pwr_levels) {
+ 		is_tpe_present = true;
+ 		num_pwr_levels = arvif->reg_tpc_info.num_pwr_levels;
+ 	} else {
