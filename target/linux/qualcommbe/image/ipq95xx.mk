@@ -108,7 +108,7 @@ define Device/xiaomi_be10000-common
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
 	DEVICE_VENDOR := Xiaomi
-	DEVICE_DTS_CONFIG := config@al02-c6
+	DEVICE_DTS_CONFIG := config@al02-c4
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	DEVICE_PACKAGES := ath12k-firmware-qcn9274-ddwrt \

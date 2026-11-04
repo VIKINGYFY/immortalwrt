@@ -45,10 +45,14 @@ ipq95xx_setup_wlan()
 	local board="$1"
 
 	case "$board" in
-	askey,sbe1v1k|\
+	askey,sbe1v1k)
+		ucidef_add_wlan "$DEV_PATH_PCIE0" "$DEV_PATH_PCIE1" "$DEV_PATH_PCIE2"
+		;;
 	xiaomi,be10000|\
 	xiaomi,be10000-es)
-		ucidef_add_wlan "$DEV_PATH_PCIE0" "$DEV_PATH_PCIE1" "$DEV_PATH_PCIE2"
+		ucidef_add_wlan "$DEV_PATH_PCIE0"
+		ucidef_add_wlan "$DEV_PATH_PCIE1"
+		ucidef_add_wlan "$DEV_PATH_PCIE2"
 		;;
 	xiaomi,be7000|\
 	xiaomi,be7000-es)

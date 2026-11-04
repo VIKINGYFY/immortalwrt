@@ -241,25 +241,25 @@
 
 &ppe_port1 {
 	label = "lan1";
-	nvmem-cells = <&macaddr_art_0 1>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
 &ppe_port2 {
 	label = "lan2";
-	nvmem-cells = <&macaddr_art_0 1>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
 &ppe_port3 {
 	label = "lan3";
-	nvmem-cells = <&macaddr_art_0 1>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
 &ppe_port4 {
 	label = "lan4";
-	nvmem-cells = <&macaddr_art_0 1>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
@@ -291,7 +291,7 @@
 			pcs-handle = <&pcs2_ch0>;
 			managed = "in-band-status";
 			sfp = <&sfp>;
-			nvmem-cells = <&macaddr_art_0 1>;
+			nvmem-cells = <&macaddr_art_6 0>;
 			nvmem-cell-names = "mac-address";
 			clocks = <&nsscc NSS_CC_PORT6_MAC_CLK>,
 				 <&nsscc NSS_CC_PORT6_RX_CLK>,
@@ -406,17 +406,7 @@
 						#nvmem-cell-cells = <1>;
 					};
 
-					macaddr_art_c: macaddr@c {
-						compatible = "mac-base";
-						reg = <0xc 0x6>;
-						#nvmem-cell-cells = <1>;
-					};
 
-					macaddr_art_12: macaddr@12 {
-						compatible = "mac-base";
-						reg = <0x12 0x6>;
-						#nvmem-cell-cells = <1>;
-					};
 
 					caldata_art_1000: calibration@1000 {
 						reg = <0x1000 0x20000>;
@@ -521,7 +511,7 @@
 	qcom,calibration-variant = "Xiaomi-BE10000";
 	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
-	nvmem-cells = <&macaddr_art_6 0>;
+	nvmem-cells = <&macaddr_art_6 2>;
 	nvmem-cell-names = "mac-address";
 	memory-region = <&wifi_2g_mem>, <&mlo_mem>;
 	memory-region-names = "host-ddr-mem", "mlo-global-mem";
@@ -532,7 +522,7 @@
 	qcom,calibration-variant = "Xiaomi-BE10000";
 	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
-	nvmem-cells = <&macaddr_art_12 0>;
+	nvmem-cells = <&macaddr_art_6 3>;
 	nvmem-cell-names = "mac-address";
 	memory-region = <&wifi_5gh_mem>, <&mlo_mem>;
 	memory-region-names = "host-ddr-mem", "mlo-global-mem";
@@ -543,7 +533,7 @@
 	qcom,calibration-variant = "Xiaomi-BE10000";
 	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
-	nvmem-cells = <&macaddr_art_c 0>;
+	nvmem-cells = <&macaddr_art_6 4>;
 	nvmem-cell-names = "mac-address";
 	memory-region = <&wifi_5gl_mem>, <&mlo_mem>;
 	memory-region-names = "host-ddr-mem", "mlo-global-mem";
