@@ -1,0 +1,46 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 04 Nov 2026 16:09:08 +0800
+Subject: [PATCH] wifi: ath12k: keep unsupported MLO devices independent
+
+QCN9274 HW1.0 uses the legacy WBE.1.0 firmware ABI. No compatible MLO
+firmware is available for the supported HW1.0 images, so do not expose
+single-chip MLO or join these devices to an inter-device WSI group.
+Preserve their local datapath IDs and normal non-MLO operation.
+
+Other PCIe devices without the MLO firmware feature also need separate
+hardware groups: assigning partner device IDs before rejecting MLO
+selects cookie tables and return-buffer managers the firmware does not
+use. Preserve graph-based grouping for MLO-capable PCIe firmware and
+AHB split firmware, which has no firmware feature bitmap.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -2114,6 +2114,14 @@
+ 	if (ath12k_ftm_mode)
+ 		goto invalid_group;
+ 
++	/* HW1 uses the legacy WBE.1.0 ABI without supported MLO firmware.
++	 * Other PCIe devices require the firmware MLO feature to share IDs.
++	 */
++	if (ab->hw_rev == ATH12K_HW_QCN9274_HW10 ||
++	    (ab->hif.bus == ATH12K_BUS_PCI &&
++	     !ath12k_fw_feature_supported(ab, ATH12K_FW_FEATURE_MLO)))
++		goto invalid_group;
++
+ 	/* The grouping of multiple devices will be done based on device tree file.
+ 	 * The platforms that do not have any valid group information would have
+ 	 * each device to be part of its own invalid group.
+@@ -2325,6 +2333,11 @@
+ 
+ 	if (ag->num_devices == 1) {
+ 		ab = ag->ab[0];
++		if (ab->hw_rev == ATH12K_HW_QCN9274_HW10) {
++			ag->mlo_capable = false;
++			return;
++		}
++
+ 		/* QCN9274 firmware uses firmware IE for MLO advertisement */
+ 		if (ab->fw.fw_features_valid) {
+ 			ag->mlo_capable =
