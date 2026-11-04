@@ -192,6 +192,9 @@
 	aqr113c: ethernet-phy@0 {
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <0>;
+		reset-gpios = <&tlmm 61 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <100000>;
+		reset-deassert-us = <100000>;
 		nvmem-cells = <&aqr_fw>;
 		nvmem-cell-names = "firmware";
 	};

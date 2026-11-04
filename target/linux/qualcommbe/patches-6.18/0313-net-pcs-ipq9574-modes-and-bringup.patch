@@ -1,5 +1,5 @@
-From: Lei Wei <quic_leiwei@quicinc.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 4 Nov 2026 10:40:00 +0800
 Subject: [PATCH] net: pcs: ipq9574: implement link modes and UNIPHY bring-up
 
 The 'UNIPHY' PCS block in the IPQ9574 SoC includes PCS and SerDes
@@ -70,6 +70,9 @@ Use the SFP state machine to gate forced 1000BASE-X and 2500BASE-X links
 without in-band negotiation. Select the SGMII+ MAC personality explicitly
 without inheriting bootloader or previous interface settings.
 
+Select the NSSCC USXGMII MII clock source before releasing XPCS reset
+so initial negotiation does not depend on a previous bootloader.
+
 Merged from:
   0313-dt-bindings-net-pcs-Add-Ethernet-PCS-for-Qualcomm-IP.patch
   0314-net-pcs-Add-PCS-driver-for-Qualcomm-IPQ9574-SoC.patch
@@ -115,7 +118,10 @@ Signed-off-by: Luo Jie <quic_luoj@quicinc.com>
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 Signed-off-by: Til Kaiser <mail@tk154.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 
+diff --git a/Documentation/devicetree/bindings/net/pcs/qcom,ipq9574-pcs.yaml b/Documentation/devicetree/bindings/net/pcs/qcom,ipq9574-pcs.yaml
+new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/pcs/qcom,ipq9574-pcs.yaml
 @@ -0,0 +1,197 @@
@@ -316,9 +322,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +                          "tx";
 +        };
 +    };
+diff --git a/drivers/net/pcs/Kconfig b/drivers/net/pcs/Kconfig
 --- a/drivers/net/pcs/Kconfig
 +++ b/drivers/net/pcs/Kconfig
-@@ -45,6 +45,15 @@ config PCS_MTK_USXGMII
+@@ -45,6 +45,15 @@
  	  1000Base-X, 2500Base-X and Cisco SGMII are supported on the same
  	  differential pairs via an embedded LynxI PCS.
  
@@ -334,16 +341,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  config PCS_RZN1_MIIC
  	tristate "Renesas RZ/N1, RZ/N2H, RZ/T2H MII converter"
  	depends on OF
+diff --git a/drivers/net/pcs/Makefile b/drivers/net/pcs/Makefile
 --- a/drivers/net/pcs/Makefile
 +++ b/drivers/net/pcs/Makefile
-@@ -10,3 +10,4 @@ obj-$(CONFIG_PCS_LYNX)		+= pcs-lynx.o
+@@ -10,3 +10,4 @@
  obj-$(CONFIG_PCS_MTK_LYNXI)	+= pcs-mtk-lynxi.o
  obj-$(CONFIG_PCS_MTK_USXGMII)	+= pcs-mtk-usxgmii.o
  obj-$(CONFIG_PCS_RZN1_MIIC)	+= pcs-rzn1-miic.o
 +obj-$(CONFIG_PCS_QCOM_IPQ9574)	+= pcs-qcom-ipq9574.o
+diff --git a/drivers/net/pcs/pcs-qcom-ipq9574.c b/drivers/net/pcs/pcs-qcom-ipq9574.c
+new file mode 100644
 --- /dev/null
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -0,0 +1,1378 @@
+@@ -0,0 +1,1392 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -822,11 +832,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		goto err_clk;
 +	}
 +
-+	/* Re-enable the port clocks disabled at entry */
-+	ret = ipq_pcs_restore_port_clks(qpcs, interface);
-+	if (ret)
-+		return ret;
-+
 +	qpcs->interface = interface;
 +
 +	/* The clock output register is only writable after PLL reset
@@ -838,7 +843,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				      PCS_CLKOUT_50M_25M_EN |
 +				      PCS_CLKOUT_50M_DIV2_SEL);
 +		if (ret)
-+			return ret;
++			goto err_clk;
 +	}
 +
 +	/* Configure the RX and TX clock to NSSCC as 125M or 312.5M based
@@ -847,14 +852,33 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	ret = clk_set_rate(qpcs->rx_hw.clk, rate);
 +	if (ret) {
 +		dev_err(qpcs->dev, "Failed to set RX clock rate\n");
-+		return ret;
++		goto err_clk;
 +	}
 +
 +	ret = clk_set_rate(qpcs->tx_hw.clk, rate);
 +	if (ret) {
 +		dev_err(qpcs->dev, "Failed to set TX clock rate\n");
-+		return ret;
++		goto err_clk;
 +	}
++
++	/* Select the UNIPHY clock before releasing XPCS. On a cold boot
++	 * NSSCC may still select its 24MHz XO parent. Waiting for MAC link-up
++	 * to select the parent leaves the initial in-band exchange unclocked.
++	 */
++	if (interface == PHY_INTERFACE_MODE_USXGMII && qpcs->qpcs_mii[0]) {
++		ret = clk_set_rate(qpcs->qpcs_mii[0]->rx_clk, rate);
++		if (ret)
++			goto err_clk;
++
++		ret = clk_set_rate(qpcs->qpcs_mii[0]->tx_clk, rate);
++		if (ret)
++			goto err_clk;
++	}
++
++	/* Re-enable the port clocks disabled at entry. */
++	ret = ipq_pcs_restore_port_clks(qpcs, interface);
++	if (ret)
++		return ret;
 +
 +	/* Deassert XPCS */
 +	if (xpcs_mode)
@@ -1722,6 +1746,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +MODULE_LICENSE("GPL");
 +MODULE_DESCRIPTION("Qualcomm IPQ9574 PCS driver");
 +MODULE_AUTHOR("Lei Wei <quic_leiwei@quicinc.com>");
+diff --git a/include/dt-bindings/net/qcom,ipq9574-pcs.h b/include/dt-bindings/net/qcom,ipq9574-pcs.h
+new file mode 100644
 --- /dev/null
 +++ b/include/dt-bindings/net/qcom,ipq9574-pcs.h
 @@ -0,0 +1,15 @@
@@ -1740,6 +1766,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#define PCS_TX_CLK		1
 +
 +#endif /* _DT_BINDINGS_PCS_QCOM_IPQ9574_H */
+diff --git a/include/linux/pcs/pcs-qcom-ipq9574.h b/include/linux/pcs/pcs-qcom-ipq9574.h
+new file mode 100644
 --- /dev/null
 +++ b/include/linux/pcs/pcs-qcom-ipq9574.h
 @@ -0,0 +1,15 @@
