@@ -22,7 +22,7 @@ platform_check_image() {
 platform_do_upgrade() {
 	case "$(board_name)" in
 	8devices,kiwi-dvk|\
-	nokia,beacon10)
+	nokia,beacon-10)
 		CI_KERNPART="0:HLOS"
 		CI_ROOTPART="rootfs"
 		emmc_do_upgrade "$1"
@@ -37,9 +37,9 @@ platform_do_upgrade() {
 		ln6001_do_upgrade "$1" || return 1
 		;;
 	xiaomi,be7000|\
-	xiaomi,be7000-pro|\
+	xiaomi,be7000-es|\
 	xiaomi,be10000|\
-	xiaomi,be10000-pro)
+	xiaomi,be10000-es)
 		nand_do_upgrade "$1"
 		;;
 	*)
@@ -51,7 +51,7 @@ platform_do_upgrade() {
 platform_copy_config() {
 	case "$(board_name)" in
 	8devices,kiwi-dvk|\
-	nokia,beacon10|\
+	nokia,beacon-10|\
 	askey,sbe1v1k)
 		emmc_copy_config
 		;;

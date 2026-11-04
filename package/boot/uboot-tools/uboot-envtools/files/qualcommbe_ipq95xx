@@ -10,16 +10,16 @@ board=$(board_name)
 case "$board" in
 8devices,kiwi-dvk|\
 askey,sbe1v1k|\
-nokia,beacon10)
+nokia,beacon-10)
 	ubootenv_add_mmc "0:APPSBLENV" "" "0x0" "0x40000" "0x40000"
 	;;
 linksys,ln6001)
 	ubootenv_add_mmc "u_env" "" "0x0" "0x40000" "0x40000"
 	;;
 xiaomi,be7000|\
-xiaomi,be7000-pro|\
+xiaomi,be7000-es|\
 xiaomi,be10000|\
-xiaomi,be10000-pro)
+xiaomi,be10000-es)
 	ubootenv_add_mtd "0:appsblenv" "0x0" "0x40000" "0x20000"
 	;;
 esac

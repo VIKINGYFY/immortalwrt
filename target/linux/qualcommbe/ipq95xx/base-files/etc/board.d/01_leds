@@ -8,7 +8,7 @@ board_config_update
 
 case "$(board_name)" in
 xiaomi,be10000|\
-xiaomi,be10000-pro)
+xiaomi,be10000-es)
 	ucidef_set_led_netdev "sfp" "SFP+ port" "green:sfp" "sfp" "link tx rx"
 	ucidef_set_led_netdev "lan1-port" "LAN1 port" "90000.mdio-1:01:green:lan-1" "lan1" "link_10 link_100 link_1000 link_2500 tx rx"
 	ucidef_set_led_netdev "lan2-port" "LAN2 port" "90000.mdio-1:02:green:lan-2" "lan2" "link_10 link_100 link_1000 link_2500 tx rx"
@@ -16,7 +16,7 @@ xiaomi,be10000-pro)
 	ucidef_set_led_netdev "lan4-port" "LAN4 port" "90000.mdio-1:04:green:lan-4" "lan4" "link_10 link_100 link_1000 link_2500 tx rx"
 	;;
 xiaomi,be7000|\
-xiaomi,be7000-pro)
+xiaomi,be7000-es)
 	ucidef_set_led_netdev "wan-port" "WAN port" "90000.mdio-1:01:green:wan" "wan" "link_10 link_100 link_1000 link_2500 tx rx"
 	ucidef_set_led_netdev "lan1-port" "LAN1 port" "90000.mdio-1:02:green:lan-1" "lan1" "link_10 link_100 link_1000 link_2500 tx rx"
 	ucidef_set_led_netdev "lan2-port" "LAN2 port" "90000.mdio-1:03:green:lan-2" "lan2" "link_10 link_100 link_1000 link_2500 tx rx"

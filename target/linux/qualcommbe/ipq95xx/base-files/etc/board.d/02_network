@@ -15,16 +15,16 @@ ipq95xx_setup_interfaces()
 		ucidef_set_interfaces_lan_wan "lan1 lan2" "wan"
 		;;
 	askey,sbe1v1k|\
-	nokia,beacon10|\
+	nokia,beacon-10|\
 	xiaomi,be7000|\
-	xiaomi,be7000-pro)
+	xiaomi,be7000-es)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3" "wan"
 		;;
 	linksys,ln6001)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan"
 		;;
 	xiaomi,be10000|\
-	xiaomi,be10000-pro)
+	xiaomi,be10000-es)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 sfp" "wan"
 		;;
 	qcom,ipq9574-ap-al02-c7)
@@ -47,15 +47,15 @@ ipq95xx_setup_wlan()
 	case "$board" in
 	askey,sbe1v1k|\
 	xiaomi,be10000|\
-	xiaomi,be10000-pro)
+	xiaomi,be10000-es)
 		ucidef_add_wlan "$DEV_PATH_PCIE0" "$DEV_PATH_PCIE1" "$DEV_PATH_PCIE2"
 		;;
 	xiaomi,be7000|\
-	xiaomi,be7000-pro)
+	xiaomi,be7000-es)
 		ucidef_add_wlan "platform/soc@0/c000000.wifi"
 		ucidef_add_wlan "$DEV_PATH_PCIE2"
 		;;
-	nokia,beacon10)
+	nokia,beacon-10)
 		ucidef_add_wlan "platform/soc@0/c000000.wifi"
 		ucidef_add_wlan "$DEV_PATH_PCIE2"
 		ucidef_add_wlan "$DEV_PATH_PCIE1"
