@@ -1,6 +1,6 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
-Subject: [PATCH] wifi: ath12k: support QCN9274 HW1 startup RX and diagnostics
+Date: Wed, 4 Nov 2026 11:30:00 +0800
+Subject: [PATCH] wifi: ath12k: support QCN9274 HW1 startup and RX
 
 Consolidate consecutive changes within this functional responsibility.
 Retain the final implementation and its error handling directly.
@@ -8,39 +8,13 @@ Retain the final implementation and its error handling directly.
 Merged from:
   100-01-ath12k-prevent-ltssm-startup-crash.patch
   100-02-wifi-ath12k-restore-qcn9274-hw10-rx-support.patch
-  100-03-ath12k-qcn9274-mhi-diagnostics.patch
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
---- a/drivers/net/wireless/ath/ath12k/mhi.c
-+++ b/drivers/net/wireless/ath/ath12k/mhi.c
-@@ -188,7 +188,7 @@ int ath12k_mhi_register(struct ath12k_pc
- {
- 	struct ath12k_base *ab = ab_pci->ab;
- 	struct mhi_controller *mhi_ctrl;
--	unsigned int board_id;
-+	unsigned int board_id = ATH12K_BOARD_ID_DEFAULT;
- 	int ret;
- 	bool dualmac = false;
- 
-@@ -242,6 +242,14 @@ int ath12k_mhi_register(struct ath12k_pc
- 		}
- 	}
- 
-+	if (ab->hw_rev == ATH12K_HW_QCN9274_HW10 ||
-+	    ab->hw_rev == ATH12K_HW_QCN9274_HW20)
-+		ath12k_info(ab,
-+			    "QCN9274 MHI selection: hw_rev=%u board_id=0x%x dualmac=%u source=%s size=%zu\n",
-+			    ab->hw_rev, board_id, dualmac,
-+			    mhi_ctrl->fw_image ? mhi_ctrl->fw_image : "firmware-N.bin",
-+			    mhi_ctrl->fw_sz);
-+
- 	ret = ath12k_mhi_get_msi(ab_pci);
- 	if (ret) {
- 		ath12k_err(ab, "failed to get msi for mhi\n");
+diff --git a/drivers/net/wireless/ath/ath12k/pci.c b/drivers/net/wireless/ath/ath12k/pci.c
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
-@@ -249,6 +249,9 @@ static void ath12k_pci_enable_ltssm(stru
+@@ -249,6 +249,9 @@
  	u32 val;
  	int i;
  
@@ -50,9 +24,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	val = ath12k_pci_read32(ab, PCIE_PCIE_PARF_LTSSM);
  
  	/* PCIE link seems very unstable after the Hot Reset*/
+diff --git a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
-@@ -2122,15 +2122,23 @@ int ath12k_dp_rxdma_ring_sel_config_qcn9
+@@ -2122,15 +2122,23 @@
  	tlv_filter.offset_valid = true;
  	tlv_filter.rx_packet_offset = hal_rx_desc_sz;
  
@@ -83,6 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		   tlv_filter.rx_mpdu_start_wmask, tlv_filter.rx_msdu_end_wmask);
  
  	ret = ath12k_dp_tx_htt_rx_filter_setup(ab, ring_id, 0,
+diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal.c b/drivers/net/wireless/ath/ath12k/wifi7/hal.c
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal.c
 @@ -16,8 +16,8 @@
@@ -96,9 +72,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.tcl_to_wbm_rbm_map = ath12k_hal_tcl_to_wbm_rbm_map_qcn9274,
  		.hal_params = &ath12k_hw_hal_params_qcn9274,
  		.hw_regs = &qcn9274_v1_regs,
+diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -1098,6 +1098,378 @@ ath12k_hal_tcl_to_wbm_rbm_map_qcn9274[DP
+@@ -1098,6 +1098,378 @@
  	},
  };
  
@@ -477,6 +454,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  const struct hal_ops hal_qcn9274_ops = {
  	.create_srng_config = ath12k_hal_srng_create_config_qcn9274,
  	.rx_desc_set_msdu_len = ath12k_hal_rx_desc_set_msdu_len_qcn9274,
+diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h
 @@ -14,6 +14,7 @@
@@ -487,9 +465,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  extern const struct ath12k_hw_regs qcn9274_v1_regs;
  extern const struct ath12k_hw_regs qcn9274_v2_regs;
  extern const struct ath12k_hw_regs ipq5332_regs;
+diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h b/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
-@@ -1454,6 +1454,13 @@ struct rx_msdu_end_qcn9274_compact {
+@@ -1454,6 +1454,13 @@
   *
   */
  
@@ -503,7 +482,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct hal_rx_desc_qcn9274_compact {
  	struct rx_msdu_end_qcn9274_compact msdu_end;
  	struct rx_mpdu_start_qcn9274_compact mpdu_start;
-@@ -1499,6 +1506,7 @@ struct hal_rx_desc_qcc2072 {
+@@ -1499,6 +1506,7 @@
  
  struct hal_rx_desc {
  	union {
@@ -511,9 +490,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct hal_rx_desc_qcn9274_compact qcn9274_compact;
  		struct hal_rx_desc_wcn7850 wcn7850;
  		struct hal_rx_desc_qcc2072 qcc2072;
+diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hw.c b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -382,7 +382,7 @@ static const struct ath12k_hw_params ath
+@@ -382,7 +382,7 @@
  			ath12k_wifi7_target_service_to_ce_map_wlan_qcn9274,
  		.svc_to_ce_map_len = 18,
  
@@ -522,7 +502,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.num_rxdma_per_pdev = 1,
  		.num_rxdma_dst_ring = 0,
  		.rx_mac_buf_ring = false,
-@@ -398,7 +398,7 @@ static const struct ath12k_hw_params ath
+@@ -398,7 +398,7 @@
  		.download_calib = true,
  		.supports_suspend = false,
  		.tcl_ring_retry = true,
@@ -531,22 +511,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.supports_shadow_regs = false,
  
  		.num_tcl_banks = 48,
---- a/drivers/net/wireless/ath/ath12k/wifi7/pci.c
-+++ b/drivers/net/wireless/ath/ath12k/wifi7/pci.c
-@@ -9,6 +9,7 @@
- #include "../pci.h"
- #include "pci.h"
- #include "../core.h"
-+#include "../debug.h"
- #include "../hif.h"
- #include "../mhi.h"
- #include "hw.h"
-@@ -86,6 +87,8 @@ void ath12k_wifi7_pci_read_hw_version(st
- 	soc_hw_version = ath12k_pci_read32(ab, TCSR_SOC_HW_VERSION);
- 	*major = u32_get_bits(soc_hw_version, TCSR_SOC_HW_VERSION_MAJOR_MASK);
- 	*minor = u32_get_bits(soc_hw_version, TCSR_SOC_HW_VERSION_MINOR_MASK);
-+	ath12k_info(ab, "QCN9274 TCSR hardware version: raw=0x%08x major=%u minor=%u\n",
-+		    soc_hw_version, *major, *minor);
- }
- 
- static int ath12k_wifi7_pci_probe(struct pci_dev *pdev,
