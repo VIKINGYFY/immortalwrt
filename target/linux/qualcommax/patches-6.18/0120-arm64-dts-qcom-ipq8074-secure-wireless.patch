@@ -1,5 +1,5 @@
 From: Robert Marko <robimarko@gmail.com>
-Date: Thu, 29 Oct 2026 09:46:42 +0800
+Date: Fri, 06 Nov 2026 03:14:37 +0800
 Subject: [PATCH] arm64: dts: qcom: connect IPQ8074 secure WCSS and WLAN
 
 Describe the IPQ8074 WCSS remote processor using the secure PIL compatible.
@@ -22,8 +22,13 @@ Original-commit: a67d1901741c162645eda0dbdc3a2c0c2aff5cf4
 Refresh against the explicit IPQ8074 CMN PLL clock topology.
 
 Signed-off-by: Robert Marko <robimarko@gmail.com>
+
+Use firmware memory mode 1 as the shared SoC default; board files can
+override the property when required.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+---
 --- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
 @@ -157,6 +157,32 @@
@@ -59,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	soc: soc@0 {
  		#address-cells = <1>;
  		#size-cells = <1>;
-@@ -1059,6 +1085,155 @@
+@@ -1059,6 +1085,156 @@
  				ranges;
  			};
  		};
@@ -104,6 +109,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +		wifi: wifi@c0000000 {
 +			compatible = "qcom,ipq8074-wifi";
++			qcom,ath11k-fw-memory-mode = <1>;
 +			reg = <0xc000000 0x2000000>;
 +
 +			interrupts = <GIC_SPI 320 IRQ_TYPE_EDGE_RISING>,

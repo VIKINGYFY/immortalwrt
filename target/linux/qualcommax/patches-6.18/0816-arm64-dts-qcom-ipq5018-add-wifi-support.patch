@@ -1,5 +1,5 @@
 From: George Moussalem <george.moussalem@outlook.com>
-Date: Wed, 27 Oct 2024 16:34:11 +0400
+Date: Fri, 06 Nov 2026 03:14:37 +0800
 Subject: [PATCH] arm64: dts: qcom: ipq5018: add wifi support
 
 The IPQ5018 SoC comes with an internal 2x2 2.4Ghz wifi radio.
@@ -10,15 +10,22 @@ PCIe based wifi solution (such as QCN9074) for 5/6 Ghz support.
 As such, add wifi nodes for both IPQ5018 and QCN6122.
 
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
+
+Use firmware memory mode 1 as the shared SoC default; board files can
+override the property when required.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 ---
 --- a/arch/arm64/boot/dts/qcom/ipq5018.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5018.dtsi
-@@ -763,6 +763,118 @@
+@@ -763,6 +763,119 @@
  			};
  		};
  
 +		wifi: wifi@c000000 {
 +			compatible = "qcom,ipq5018-wifi";
++			qcom,ath11k-fw-memory-mode = <1>;
 +			reg = <0x0c000000 0x1000000>;
 +
 +			interrupts = <GIC_SPI 288 IRQ_TYPE_EDGE_RISING>,
