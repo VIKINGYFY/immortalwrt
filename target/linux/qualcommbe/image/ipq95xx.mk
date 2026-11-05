@@ -27,7 +27,7 @@ define Device/askey_sbe1v1k
 	KERNEL_LOADADDR := 0x42200000
 	SOC := ipq9570
 	DEVICE_PACKAGES := ipq-wifi-askey_sbe1v1k ath12k-firmware-qcn9274-ddwrt \
-		kmod-hwmon-pwmfan kmod-phy-realtek rtl826x-firmware
+		kmod-hwmon-pwmfan kmod-leds-pwm kmod-phy-realtek rtl826x-firmware
 endef
 TARGET_DEVICES += askey_sbe1v1k
 

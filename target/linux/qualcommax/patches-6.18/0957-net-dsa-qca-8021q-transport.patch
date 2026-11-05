@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Fri, 06 Nov 2026 02:34:28 +0800
 Subject: [PATCH] net: dsa: implement QCA 8021Q transport and switch VLAN domains
 
 The QCA8K header carries the destination port bitmap on transmit and the
@@ -59,6 +59,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: Stanislaw Pal <kuncy7@gmail.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+---
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
 @@ -19,6 +19,7 @@
@@ -69,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/dsa/tag_qca.h>
  
  #include "qca8k.h"
-@@ -1755,9 +1756,68 @@ qca8k_get_tag_protocol(struct dsa_switch
+@@ -1755,9 +1756,68 @@
  	return DSA_TAG_PROTO_QCA;
  }
  
@@ -138,7 +139,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct qca8k_priv *priv = ds->priv;
  	u32 val;
  	int ret;
-@@ -1767,6 +1827,7 @@ static int qca8k_change_tag_protocol(str
+@@ -1767,6 +1827,7 @@
  		val = 0;
  		break;
  	case DSA_TAG_PROTO_QCA_ETYPE:
@@ -146,7 +147,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		val = QCA8K_HEADER_CTRL_TYPE_LEN |
  		      FIELD_PREP(QCA8K_HEADER_CTRL_TYPE_VAL, QCA_HDR_ETYPE);
  		break;
-@@ -1774,12 +1835,18 @@ static int qca8k_change_tag_protocol(str
+@@ -1774,12 +1835,18 @@
  		return -EPROTONOSUPPORT;
  	}
  
@@ -166,7 +167,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -1935,6 +2002,7 @@ static int qca8k_connect_tag_protocol(st
+@@ -1935,6 +2002,7 @@
  	switch (proto) {
  	case DSA_TAG_PROTO_QCA:
  	case DSA_TAG_PROTO_QCA_ETYPE:
@@ -174,7 +175,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		tagger_data = ds->tagger_data;
  
  		tagger_data->rw_reg_ack_handler = qca8k_rw_reg_ack_handler;
-@@ -2112,6 +2180,7 @@ qca8k_setup(struct dsa_switch *ds)
+@@ -2112,6 +2180,7 @@
  				  QCA8K_PORT_VLAN_SVID(QCA8K_PORT_VID_DEF));
  		if (ret)
  			return ret;
@@ -182,7 +183,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	/* The port 5 of the qca8337 have some problem in flood condition. The
-@@ -2152,6 +2221,9 @@ qca8k_setup(struct dsa_switch *ds)
+@@ -2152,6 +2221,9 @@
  	/* HW learn on CPU port is limited and require manual setting */
  	ds->assisted_learning_on_cpu_port = true;
  
@@ -192,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -2165,6 +2237,8 @@ static const struct phylink_mac_ops qca8
+@@ -2165,6 +2237,8 @@
  static const struct dsa_switch_ops qca8k_switch_ops = {
  	.get_tag_protocol	= qca8k_get_tag_protocol,
  	.change_tag_protocol	= qca8k_change_tag_protocol,
@@ -211,7 +212,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/dsa.h>
  #include <linux/if_bridge.h>
  
-@@ -730,6 +731,14 @@ int qca8k_port_bridge_join(struct dsa_sw
+@@ -730,6 +731,14 @@
  			   struct netlink_ext_ack *extack)
  {
  	struct qca8k_priv *priv = ds->priv;
@@ -226,7 +227,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return qca8k_update_port_member(priv, port, bridge.dev, true);
  }
-@@ -740,6 +749,9 @@ void qca8k_port_bridge_leave(struct dsa_
+@@ -740,6 +749,9 @@
  	struct qca8k_priv *priv = ds->priv;
  	int err;
  
@@ -236,7 +237,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	err = qca8k_update_port_member(priv, port, bridge.dev, false);
  	if (err)
  		dev_err(priv->dev,
-@@ -852,6 +864,29 @@ int qca8k_port_fdb_insert(struct qca8k_p
+@@ -852,6 +864,29 @@
  			     QCA8K_ATU_STATUS_STATIC);
  }
  
@@ -266,7 +267,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int qca8k_port_fdb_add(struct dsa_switch *ds, int port,
  		       const unsigned char *addr, u16 vid,
  		       struct dsa_db db)
-@@ -859,6 +894,8 @@ int qca8k_port_fdb_add(struct dsa_switch
+@@ -859,6 +894,8 @@
  	struct qca8k_priv *priv = ds->priv;
  	u16 port_mask = BIT(port);
  
@@ -275,7 +276,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* The ATU forwards a unicast hit to every port set in the
  	 * destination mask, so a host entry spanning multiple CPU ports
  	 * would deliver one copy of each host-bound frame per CPU port.
-@@ -895,6 +932,7 @@ int qca8k_port_fdb_del(struct dsa_switch
+@@ -895,6 +932,7 @@
  	if (dsa_is_cpu_port(ds, port) || dsa_is_dsa_port(ds, port))
  		return 0;
  
@@ -283,7 +284,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!vid)
  		vid = QCA8K_PORT_VID_DEF;
  
-@@ -930,7 +968,7 @@ int qca8k_port_mdb_add(struct dsa_switch
+@@ -930,7 +968,7 @@
  {
  	struct qca8k_priv *priv = ds->priv;
  	const u8 *addr = mdb->addr;
@@ -292,7 +293,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!vid)
  		vid = QCA8K_PORT_VID_DEF;
-@@ -945,7 +983,7 @@ int qca8k_port_mdb_del(struct dsa_switch
+@@ -945,7 +983,7 @@
  {
  	struct qca8k_priv *priv = ds->priv;
  	const u8 *addr = mdb->addr;
@@ -301,7 +302,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!vid)
  		vid = QCA8K_PORT_VID_DEF;
-@@ -1044,6 +1082,30 @@ err:
+@@ -1044,6 +1082,30 @@
  	dev_err(priv->dev, "Failed to del mirror port from %d", port);
  }
  
@@ -332,7 +333,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int qca8k_port_vlan_filtering(struct dsa_switch *ds, int port,
  			      bool vlan_filtering,
  			      struct netlink_ext_ack *extack)
-@@ -1051,7 +1113,7 @@ int qca8k_port_vlan_filtering(struct dsa
+@@ -1051,7 +1113,7 @@
  	struct qca8k_priv *priv = ds->priv;
  	int ret;
  
@@ -341,7 +342,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(port),
  				QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
  				QCA8K_PORT_LOOKUP_VLAN_MODE_SECURE);
-@@ -1061,6 +1123,9 @@ int qca8k_port_vlan_filtering(struct dsa
+@@ -1061,6 +1123,9 @@
  				QCA8K_PORT_LOOKUP_VLAN_MODE_NONE);
  	}
  
@@ -351,7 +352,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -1073,6 +1138,17 @@ int qca8k_port_vlan_add(struct dsa_switc
+@@ -1073,6 +1138,17 @@
  	struct qca8k_priv *priv = ds->priv;
  	int ret;
  
@@ -369,7 +370,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = qca8k_vlan_add(priv, port, vlan->vid, untagged);
  	if (ret) {
  		dev_err(priv->dev, "Failed to add VLAN to port %d (%d)", port, ret);
-@@ -1080,15 +1156,11 @@ int qca8k_port_vlan_add(struct dsa_switc
+@@ -1080,15 +1156,11 @@
  	}
  
  	if (pvid) {
@@ -389,7 +390,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return ret;
-@@ -1107,6 +1179,38 @@ int qca8k_port_vlan_del(struct dsa_switc
+@@ -1107,6 +1179,38 @@
  	return ret;
  }
  
@@ -439,7 +440,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define QCA8K_REG_IPV4_PRI_BASE_ADDR			0x470
  #define QCA8K_REG_IPV4_PRI_ADDR_MASK			0x474
  
-@@ -466,6 +468,8 @@ struct qca8k_priv {
+@@ -466,6 +468,8 @@
  	struct gpio_desc *reset_gpio;
  	struct net_device *mgmt_conduit; /* Track if mdio/mib Ethernet is available */
  	bool etype_hdr; /* The header is behind QCA_HDR_ETYPE */
@@ -448,7 +449,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct qca8k_mgmt_eth_data mgmt_eth_data;
  	struct qca8k_mib_eth_data mib_eth_data;
  	struct qca8k_mdio_cache mdio_cache;
-@@ -589,6 +593,9 @@ int qca8k_port_vlan_add(struct dsa_switc
+@@ -589,6 +593,9 @@
  			struct netlink_ext_ack *extack);
  int qca8k_port_vlan_del(struct dsa_switch *ds, int port,
  			const struct switchdev_obj_port_vlan *vlan);
@@ -460,15 +461,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int qca8k_port_lag_join(struct dsa_switch *ds, int port, struct dsa_lag lag,
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -60,6 +60,7 @@ struct tc_action;
- #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
+@@ -63,6 +63,7 @@
+ #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	38
  #define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
  #define DSA_TAG_PROTO_QCA_ETYPE_VALUE		36
 +#define DSA_TAG_PROTO_QCA_8021Q_VALUE		37
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -97,6 +98,7 @@ enum dsa_tag_protocol {
+@@ -103,6 +104,7 @@
  	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
  	DSA_TAG_PROTO_RTL9303_8021AD	= DSA_TAG_PROTO_RTL9303_8021AD_VALUE,
  	DSA_TAG_PROTO_QCA_ETYPE		= DSA_TAG_PROTO_QCA_ETYPE_VALUE,
@@ -493,7 +494,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static struct sk_buff *__qca_tag_xmit(struct sk_buff *skb,
  				      struct net_device *dev, unsigned int len)
-@@ -177,14 +181,77 @@ static const struct dsa_device_ops qca_e
+@@ -177,14 +181,77 @@
  
  DSA_TAG_DRIVER(qca_etype_netdev_ops);
  
@@ -573,7 +574,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  module_dsa_tag_drivers(dsa_tag_driver_array);
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -4118,6 +4118,47 @@ static int dsa_user_switchdev_event(stru
+@@ -4133,6 +4133,47 @@
  	return NOTIFY_OK;
  }
  
@@ -621,7 +622,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int dsa_user_switchdev_blocking_event(struct notifier_block *unused,
  					     unsigned long event, void *ptr)
  {
-@@ -4130,12 +4171,16 @@ static int dsa_user_switchdev_blocking_e
+@@ -4145,12 +4186,16 @@
  							    dsa_user_dev_check,
  							    dsa_foreign_dev_check,
  							    dsa_user_port_obj_add);

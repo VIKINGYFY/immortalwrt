@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 26 Sep 2026 03:10:00 +0800
+Date: Fri, 06 Nov 2026 02:33:07 +0800
 Subject: [PATCH] net: dsa: add service tags for external RTL9303 switches
 
 An external CPU can connect to an RTL9303 front-panel MAC instead of the
@@ -7,22 +7,22 @@ internal CPU port. Use isolated service VLANs to transport port identity.
 Unlike tag_8021q, retain five port bits for all supported external ports.
 Customer tags remain inside the service tag. Separate TX VLANs avoid
 replicating directed packets when the RX VLAN offloads a bridge.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+---
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -58,6 +58,7 @@ struct tc_action;
- #define DSA_TAG_PROTO_MXL862_VALUE		30
- #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
- #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
+@@ -61,6 +61,7 @@
+ #define DSA_TAG_PROTO_YT922X_VALUE		33
+ #define DSA_TAG_PROTO_YT922X_4B_VALUE		34
+ #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	38
 +#define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -93,6 +94,7 @@ enum dsa_tag_protocol {
- 	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
- 	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
+@@ -99,6 +100,7 @@
+ 	DSA_TAG_PROTO_YT922X		= DSA_TAG_PROTO_YT922X_VALUE,
+ 	DSA_TAG_PROTO_YT922X_4B		= DSA_TAG_PROTO_YT922X_4B_VALUE,
  	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
 +	DSA_TAG_PROTO_RTL9303_8021AD	= DSA_TAG_PROTO_RTL9303_8021AD_VALUE,
  };
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct dsa_switch;
 --- a/net/dsa/Kconfig
 +++ b/net/dsa/Kconfig
-@@ -192,6 +192,12 @@ config NET_DSA_TAG_TRAILER
+@@ -192,6 +192,12 @@
  	  Say Y or M if you want to enable support for tagging frames at
  	  with a trailed. e.g. Marvell 88E6060.
  
@@ -45,14 +45,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	help
 --- a/net/dsa/Makefile
 +++ b/net/dsa/Makefile
-@@ -40,6 +40,7 @@ obj-$(CONFIG_NET_DSA_TAG_RZN1_A5PSW) +=
+@@ -40,6 +40,7 @@
  obj-$(CONFIG_NET_DSA_TAG_SJA1105) += tag_sja1105.o
  obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag_trailer.o
  obj-$(CONFIG_NET_DSA_TAG_RTL837X_8021AD) += tag_rtl837x_8021ad.o
 +obj-$(CONFIG_NET_DSA_TAG_RTL9303_8021AD) += tag_rtl9303_8021ad.o
  obj-$(CONFIG_NET_DSA_TAG_VSC73XX_8021Q) += tag_vsc73xx_8021q.o
  obj-$(CONFIG_NET_DSA_TAG_XRS700X) += tag_xrs700x.o
- 
+ obj-$(CONFIG_NET_DSA_TAG_YT921X) += tag_yt921x.o
 --- /dev/null
 +++ b/net/dsa/tag_rtl9303_8021ad.c
 @@ -0,0 +1,79 @@

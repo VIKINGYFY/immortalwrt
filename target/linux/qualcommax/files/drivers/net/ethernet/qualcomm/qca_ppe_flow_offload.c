@@ -4026,6 +4026,7 @@ static void ppe_sparse_work(struct work_struct *work)
 						 sparse_work.work);
 	struct ppe_flow_entry *entry, *tmp;
 	u32 pkts, delta;
+	bool shaped;
 
 	mutex_lock(&priv->flow_lock);
 	mutex_lock(&priv->vlan_lock);
@@ -4088,15 +4089,16 @@ static void ppe_sparse_work(struct work_struct *work)
 			ppe_flow_account(priv, entry, acct, bytes);
 		}
 
-		/* CPU egress has three bands, without a fourth sparse list. */
-		if (entry->oport == QCA_PPE_CPU_PORT)
-			continue;
-
-		/* A sparse profile serves a shaped port and would otherwise
-		 * override the DSCP written by its ACL classifier.
+		/* The list is a queue of a shaped user port, so only a flow
+		 * that leaves by one has a use for it. Anywhere else the profile
+		 * buys nothing and costs the flow the DSCP its ACL rule writes,
+		 * which the switch stops applying once the flow's profile
+		 * outranks the ACL.
 		 */
-		if (delta > PPE_SPARSE_PKTS || !ppe_sparse_flows ||
-		    !ppe_port_shaped(priv, entry->oport)) {
+		shaped = entry->oport != QCA_PPE_CPU_PORT &&
+			 ppe_port_shaped(priv, entry->oport);
+
+		if (delta > PPE_SPARSE_PKTS || !ppe_sparse_flows || !shaped) {
 			entry->quiet = 0;
 			if (entry->sparse &&
 			    !ppe_flow_profile_set(priv, entry, entry->profile)) {

@@ -1,5 +1,5 @@
 From: Pablo Neira Ayuso <pablo@netfilter.org>
-Date: Thu, 25 Jan 2018 12:58:55 +0100
+Date: Fri, 06 Nov 2026 02:28:18 +0800
 Subject: [PATCH] netfilter: nft_flow_offload: handle netdevice events from
  nf_flow_table
 
@@ -8,9 +8,11 @@ Move the code that deals with device events to the core.
 Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
 ---
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/net/netfilter/nf_flow_table_core.c
 +++ b/net/netfilter/nf_flow_table_core.c
-@@ -819,6 +819,23 @@ static struct pernet_operations nf_flow_
+@@ -824,6 +824,23 @@ static struct pernet_operations nf_flow_
  	.exit_batch = nf_flow_table_pernet_exit,
  };
  
@@ -34,7 +36,7 @@ Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
  static int __init nf_flow_table_module_init(void)
  {
  	int ret;
-@@ -835,6 +852,10 @@ static int __init nf_flow_table_module_i
+@@ -840,6 +857,10 @@ static int __init nf_flow_table_module_i
  	if (ret)
  		goto out_bpf;
  
@@ -45,7 +47,7 @@ Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
  	return 0;
  
  out_bpf:
-@@ -846,6 +867,7 @@ out_offload:
+@@ -851,6 +872,7 @@ out_offload:
  
  static void __exit nf_flow_table_module_exit(void)
  {
@@ -55,7 +57,7 @@ Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
  	unregister_pernet_subsys(&nf_flow_table_net_ops);
 --- a/net/netfilter/nft_flow_offload.c
 +++ b/net/netfilter/nft_flow_offload.c
-@@ -248,47 +248,14 @@ static struct nft_expr_type nft_flow_off
+@@ -239,47 +239,14 @@ static struct nft_expr_type nft_flow_off
  	.owner		= THIS_MODULE,
  };
  
