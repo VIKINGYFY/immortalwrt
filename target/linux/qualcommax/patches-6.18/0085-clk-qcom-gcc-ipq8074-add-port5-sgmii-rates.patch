@@ -1,0 +1,47 @@
+Subject: [PATCH] clk: qcom: gcc-ipq8074: add port 5 UNIPHY1 SGMII rates
+
+Port 5 can use either UNIPHY0 or UNIPHY1. Its 25 MHz and 125 MHz
+configurations currently cover UNIPHY0 in SGMII mode and UNIPHY1 in
+SGMII+ mode, but omit UNIPHY1 in SGMII mode.
+
+With UNIPHY0 unavailable and UNIPHY1 supplying 125 MHz, the closest
+125 MHz configuration divides UNIPHY1 by 2.5 and actually supplies
+50 MHz. An AP8220 negotiated at 1 Gbps reports this clock rate together
+with zero good RX packets, MAC alignment errors and HPPE CRC-error drops.
+The 25 MHz configuration has the corresponding missing divide-by-5 case.
+
+Append the SGMII divisors for RX and TX, retaining the existing SGMII+
+and UNIPHY0 alternatives and their priority when more than one parent
+can supply a matching rate. Leave the 2.5 Gbps rate and port 6 unchanged.
+
+---
+--- a/drivers/clk/qcom/gcc-ipq8074.c
++++ b/drivers/clk/qcom/gcc-ipq8074.c
+@@ -1680,11 +1680,13 @@
+ static const struct freq_conf ftbl_nss_port5_rx_clk_src_25[] = {
+ 	C(P_UNIPHY1_RX, 12.5, 0, 0),
+ 	C(P_UNIPHY0_RX, 5, 0, 0),
++	C(P_UNIPHY1_RX, 5, 0, 0),
+ };
+ 
+ static const struct freq_conf ftbl_nss_port5_rx_clk_src_125[] = {
+ 	C(P_UNIPHY1_RX, 2.5, 0, 0),
+ 	C(P_UNIPHY0_RX, 1, 0, 0),
++	C(P_UNIPHY1_RX, 1, 0, 0),
+ };
+ 
+ static const struct freq_multi_tbl ftbl_nss_port5_rx_clk_src[] = {
+@@ -1750,11 +1752,13 @@
+ static const struct freq_conf ftbl_nss_port5_tx_clk_src_25[] = {
+ 	C(P_UNIPHY1_TX, 12.5, 0, 0),
+ 	C(P_UNIPHY0_TX, 5, 0, 0),
++	C(P_UNIPHY1_TX, 5, 0, 0),
+ };
+ 
+ static const struct freq_conf ftbl_nss_port5_tx_clk_src_125[] = {
+ 	C(P_UNIPHY1_TX, 2.5, 0, 0),
+ 	C(P_UNIPHY0_TX, 1, 0, 0),
++	C(P_UNIPHY1_TX, 1, 0, 0),
+ };
+ 
+ static const struct freq_multi_tbl ftbl_nss_port5_tx_clk_src[] = {
