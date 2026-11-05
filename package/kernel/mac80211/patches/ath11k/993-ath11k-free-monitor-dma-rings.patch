@@ -1,0 +1,25 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 05 Nov 2026 21:30:07 +0800
+Subject: [PATCH] wifi: ath11k: release monitor DMA rings during pdev cleanup
+
+RXDMA monitor setup allocates destination and descriptor rings, but pdev
+SRNG cleanup only releases the monitor buffer ring. Release both missing
+rings on teardown and setup failure. Unallocated or previously freed rings
+are already ignored by ath11k_dp_srng_cleanup().
+
+On IPQ9554, the missing frees retain 26 CMA pages (104 KiB) on each AHB
+driver unload. The two allocations are 65543 and 32775 bytes, respectively.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -701,6 +701,8 @@
+ 	}
+ 
+ 	ath11k_dp_srng_cleanup(ab, &dp->rxdma_mon_buf_ring.refill_buf_ring);
++	ath11k_dp_srng_cleanup(ab, &dp->rxdma_mon_dst_ring);
++	ath11k_dp_srng_cleanup(ab, &dp->rxdma_mon_desc_ring);
+ }
+ 
+ void ath11k_dp_pdev_reo_cleanup(struct ath11k_base *ab)
