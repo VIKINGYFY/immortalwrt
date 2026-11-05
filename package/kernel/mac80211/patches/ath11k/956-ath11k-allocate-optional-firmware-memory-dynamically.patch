@@ -1,0 +1,189 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 05 Nov 2026 17:38:33 +0800
+Subject: [PATCH] wifi: ath11k: allocate optional IPQ9574 firmware memory dynamically
+
+Allow IPQ9574 to allocate M3 dump and coldboot CALDB through coherent
+DMA when their fixed regions are absent. Keep CALDB disabled when
+coldboot calibration is disabled, and preserve existing named regions,
+address properties and other hardware fallback contracts.
+
+Track coherent-buffer ownership independently of fixed host DDR, reuse
+unchanged buffers on recovery, and release unused segments safely.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/qmi.c
++++ b/drivers/net/wireless/ath/ath11k/qmi.c
+@@ -1955,27 +1955,56 @@
+ 	return ret;
+ }
+ 
++static void ath11k_qmi_free_mem_chunk(struct ath11k_base *ab,
++				      struct target_mem_chunk *chunk)
++{
++	if (chunk->anyaddr) {
++		if (!chunk->dma_allocated &&
++		    (ab->hw_params.fixed_mem_region ||
++		     test_bit(ATH11K_FLAG_FIXED_MEM_RGN, &ab->dev_flags))) {
++			iounmap(chunk->iaddr);
++		} else {
++			dma_free_coherent(ab->dev, chunk->prev_size,
++					  chunk->vaddr, chunk->paddr);
++		}
++	}
++	chunk->anyaddr = NULL;
++	chunk->paddr = 0;
++	chunk->prev_size = 0;
++	chunk->dma_allocated = false;
++}
++
+ static void ath11k_qmi_free_target_mem_chunk(struct ath11k_base *ab)
+ {
+ 	int i;
+ 
+-	for (i = 0; i < ab->qmi.mem_seg_count; i++) {
+-		if (!ab->qmi.target_mem[i].anyaddr)
+-			continue;
++	for (i = 0; i < ARRAY_SIZE(ab->qmi.target_mem); i++)
++		ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[i]);
++}
+ 
+-		if (ab->hw_params.fixed_mem_region ||
+-		    test_bit(ATH11K_FLAG_FIXED_MEM_RGN, &ab->dev_flags)) {
+-			iounmap(ab->qmi.target_mem[i].iaddr);
+-			ab->qmi.target_mem[i].iaddr = NULL;
+-			continue;
+-		}
++static int ath11k_qmi_alloc_optional_chunk(struct ath11k_base *ab,
++					   struct target_mem_chunk *chunk)
++{
++	if (chunk->anyaddr && chunk->dma_allocated &&
++	    chunk->prev_type == chunk->type &&
++	    chunk->prev_size == chunk->size)
++		return 0;
+ 
+-		dma_free_coherent(ab->dev,
+-				  ab->qmi.target_mem[i].prev_size,
+-				  ab->qmi.target_mem[i].vaddr,
+-				  ab->qmi.target_mem[i].paddr);
+-		ab->qmi.target_mem[i].vaddr = NULL;
+-	}
++	ath11k_qmi_free_mem_chunk(ab, chunk);
++	if (!chunk->size)
++		return 0;
++
++	chunk->vaddr = dma_alloc_coherent(ab->dev, chunk->size, &chunk->paddr,
++					  GFP_KERNEL | __GFP_NOWARN);
++	if (!chunk->vaddr)
++		return -ENOMEM;
++
++	chunk->prev_size = chunk->size;
++	chunk->prev_type = chunk->type;
++	chunk->dma_allocated = true;
++	ath11k_info(ab, "allocated firmware memory type %u addr %pad size %u\n",
++		    chunk->type, &chunk->paddr, chunk->size);
++	return 0;
+ }
+ 
+ static int ath11k_qmi_alloc_target_mem_chunk(struct ath11k_base *ab)
+@@ -2098,7 +2127,8 @@
+ 	struct resource res = DEFINE_RES_NAMED(0, 0, NULL, IORESOURCE_UNSET);
+ 	struct resource region;
+ 	struct device *dev = ab->dev;
+-	u32 host_ddr_sz;
++	struct target_mem_chunk *chunk;
++	u32 host_ddr_sz = 0;
+ 	u32 addr;
+ 	int i, idx, ret;
+ 
+@@ -2122,6 +2152,7 @@
+ 				return -EINVAL;
+ 			}
+ 
++			ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
+ 			ab->qmi.target_mem[idx].paddr = res.start;
+ 			ab->qmi.target_mem[idx].iaddr =
+ 				ioremap(ab->qmi.target_mem[idx].paddr,
+@@ -2139,6 +2170,7 @@
+ 						      &region.start);
+ 			if (ret)
+ 				return ret;
++			ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
+ 			ab->qmi.target_mem[idx].paddr = region.start;
+ 			ab->qmi.target_mem[idx].iaddr = NULL;
+ 			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
+@@ -2155,6 +2187,18 @@
+ 				ret = ath11k_qmi_get_named_mem(ab, "q6-caldb", NULL,
+ 							       ab->qmi.target_mem[i].size,
+ 							       &region);
++				if (ret == -ENOENT &&
++				    ab->hw_rev == ATH11K_HW_IPQ9574_HW10) {
++					chunk = &ab->qmi.target_mem[idx];
++					chunk->size = ab->qmi.target_mem[i].size;
++					chunk->type = CALDB_MEM_REGION_TYPE;
++					ret = ath11k_qmi_alloc_optional_chunk(ab, chunk);
++					if (ret)
++						return ret;
++					idx++;
++					break;
++				}
++				ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
+ 				if (!ret) {
+ 					ab->qmi.target_mem[idx].paddr = region.start;
+ 					ab->qmi.target_mem[idx].iaddr = NULL;
+@@ -2175,6 +2219,7 @@
+ 					ab->qmi.target_mem[idx].iaddr = NULL;
+ 				}
+ 			} else {
++				ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
+ 				ab->qmi.target_mem[idx].paddr = 0;
+ 				ab->qmi.target_mem[idx].iaddr = NULL;
+ 			}
+@@ -2186,14 +2231,26 @@
+ 			ret = ath11k_qmi_get_named_mem(ab, "m3-dump", NULL,
+ 						       ab->qmi.target_mem[i].size, &region);
+ 			if (ret == -ENOENT) {
+-				if (of_property_read_u32(dev->of_node, "qcom,m3-dump-addr",
+-							 &addr))
++				ret = of_property_read_u32(dev->of_node,
++							   "qcom,m3-dump-addr", &addr);
++				if (ret) {
++					if (ab->hw_rev != ATH11K_HW_IPQ9574_HW10)
++						break;
++					chunk = &ab->qmi.target_mem[idx];
++					chunk->size = ab->qmi.target_mem[i].size;
++					chunk->type = M3_DUMP_REGION_TYPE;
++					ret = ath11k_qmi_alloc_optional_chunk(ab, chunk);
++					if (ret)
++						return ret;
++					idx++;
+ 					break;
++				}
+ 				region.start = addr;
+ 			} else if (ret) {
+ 				return ret;
+ 			}
+ 
++			ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
+ 			ab->qmi.target_mem[idx].paddr = region.start;
+ 			ab->qmi.target_mem[idx].vaddr = NULL;
+ 			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
+@@ -2207,6 +2264,8 @@
+ 		}
+ 	}
+ 	ab->qmi.mem_seg_count = idx;
++	for (i = idx; i < ARRAY_SIZE(ab->qmi.target_mem); i++)
++		ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[i]);
+ 
+ 	return 0;
+ }
+--- a/drivers/net/wireless/ath/ath11k/qmi.h
++++ b/drivers/net/wireless/ath/ath11k/qmi.h
+@@ -101,6 +101,7 @@
+ 	u32 type;
+ 	u32 prev_size;
+ 	u32 prev_type;
++	bool dma_allocated;
+ 	dma_addr_t paddr;
+ 	union {
+ 		u32 *vaddr;

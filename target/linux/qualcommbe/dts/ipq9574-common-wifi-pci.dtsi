@@ -1,10 +1,20 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 
 /* Three PCIe radios in the AP-AL02 WSI ring. Board files enable the
- * controllers and provide reset GPIOs, calibration, MACs and memory.
+ * controllers and provide reset GPIOs, calibration and MACs.
  */
 
+/delete-node/ &q6_region;
+
+&q6v5_wcss {
+	status = "disabled";
+	/delete-property/ memory-region;
+};
+
 &pcie1 {
+	pinctrl-0 = <&pcie1_default>;
+	pinctrl-names = "default";
+
 	pcie@0,0 {
 		device_type = "pci";
 		reg = <0x0 0x0 0x0 0x0 0x0>;
@@ -15,6 +25,8 @@
 		wifi1: wifi@0 {
 			compatible = "pci17cb,1109";
 			reg = <0x0 0x0 0x0 0x0 0x0>;
+			qcom,num-radios = <1>;
+			qcom,ath12k-fw-memory-mode = <1>;
 
 			ports {
 				#address-cells = <1>;
@@ -41,6 +53,9 @@
 };
 
 &pcie2 {
+	pinctrl-0 = <&pcie2_default>;
+	pinctrl-names = "default";
+
 	pcie@0,0 {
 		device_type = "pci";
 		reg = <0x0 0x0 0x0 0x0 0x0>;
@@ -52,6 +67,8 @@
 			compatible = "pci17cb,1109";
 			reg = <0x0 0x0 0x0 0x0 0x0>;
 			qcom,wsi-controller;
+			qcom,num-radios = <1>;
+			qcom,ath12k-fw-memory-mode = <1>;
 
 			ports {
 				#address-cells = <1>;
@@ -78,6 +95,9 @@
 };
 
 &pcie3 {
+	pinctrl-0 = <&pcie3_default>;
+	pinctrl-names = "default";
+
 	pcie@0,0 {
 		device_type = "pci";
 		reg = <0x0 0x0 0x0 0x0 0x0>;
@@ -88,6 +108,8 @@
 		wifi3: wifi@0 {
 			compatible = "pci17cb,1109";
 			reg = <0x0 0x0 0x0 0x0 0x0>;
+			qcom,num-radios = <1>;
+			qcom,ath12k-fw-memory-mode = <1>;
 
 			ports {
 				#address-cells = <1>;

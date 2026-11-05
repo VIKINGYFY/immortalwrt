@@ -104,13 +104,6 @@
 			default-state = "off";
 		};
 	};
-
-	reserved-memory {
-		qcn9274_pcie2_region: wifi@4f500000 {
-			reg = <0x0 0x4f500000 0x0 0x3a00000>;
-			no-map;
-		};
-	};
 };
 
 &blsp1_i2c1 {
@@ -134,34 +127,9 @@
 };
 
 &pcie2 {
-	pinctrl-0 = <&pcie2_default>;
-	pinctrl-names = "default";
-
 	perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
 	wake-gpios = <&tlmm 30 GPIO_ACTIVE_LOW>;
 	status = "okay";
-
-	pcie@0,0 {
-		device_type = "pci";
-		ranges;
-		#address-cells = <3>;
-		#size-cells = <2>;
-		reg = <0 0 0 0 0>;
-
-		wifi1: pcie@0 {
-			compatible = "pci17cb,1109";
-			reg = <0 0 0 0 0>;
-			qcom,board-id = <0x02>;
-			qcom,calibration-variant = "Xiaomi-BE7000";
-			qcom,num-radios = <1>;
-			qcom,force-unique-qrtr-id;
-			nvmem-cells = <&macaddr_art_c 0>;
-			nvmem-cell-names = "mac-address";
-			memory-region = <&qcn9274_pcie2_region>, <&mlo_mem>;
-			memory-region-names = "host-ddr-mem", "mlo-global-mem";
-			qcom,ath12k-fw-memory-mode = <1>;
-		};
-	};
 };
 
 &pcie2_phy {
@@ -378,4 +346,13 @@
 	qcom,calibration-variant = "Xiaomi-BE7000";
 	nvmem-cells = <&macaddr_art_6 0>, <&caldata_art_1000>;
 	nvmem-cell-names = "mac-address", "calibration";
+};
+
+&wifi2 {
+	qcom,board-id = <2>;
+	qcom,force-unique-qrtr-id;
+	qcom,calibration-variant = "Xiaomi-BE7000";
+
+	nvmem-cells = <&macaddr_art_c 0>;
+	nvmem-cell-names = "mac-address";
 };

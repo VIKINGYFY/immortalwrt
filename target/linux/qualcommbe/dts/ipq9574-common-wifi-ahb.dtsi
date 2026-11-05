@@ -1,25 +1,12 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 
 /* IPQ9574 AHB radio resources for boards with additional PCIe radios. */
+
+/* The IPQ9574 AHB firmware requires its M3 dump at this fixed address. */
 / {
 	reserved-memory {
-		m3_dump: m3-dump@4dc00000 {
-			no-map;
-			reg = <0x0 0x4dc00000 0x0 0x100000>;
-		};
-
-		q6_etr_dump: q6-etr-dump@4dd00000 {
-			no-map;
-			reg = <0x0 0x4dd00000 0x0 0x100000>;
-		};
-
-		q6_caldb_region: q6-caldb@4de00000 {
-			no-map;
-			reg = <0x0 0x4de00000 0x0 0x500000>;
-		};
-
-		/omit-if-no-ref/ mlo_mem: mlo-global-mem@4e300000 {
-			reg = <0x0 0x4e300000 0x0 0x01200000>;
+		m3_dump: m3-dump@4db00000 {
+			reg = <0x0 0x4db00000 0x0 0x00100000>;
 			no-map;
 		};
 	};
@@ -31,12 +18,53 @@
 };
 
 &wifi0 {
-	qcom,ath11k-fw-memory-mode = <0>;
-	/* BDF is a bounded view inside Q6, without a second reservation. */
-	qcom,bdf-offset = <0x00c00000>;
-	memory-region = <&q6_region>, <&q6_region>, <&m3_dump>, <&q6_caldb_region>;
-	memory-region-names = "host-ddr-mem", "bdf", "m3-dump", "q6-caldb";
+	status = "okay";
+
 	clocks = <&xo_board_clk>;
 	clock-names = "xo";
-	status = "okay";
+	memory-region = <&q6_region>, <&q6_region>, <&m3_dump>;
+	memory-region-names = "host-ddr-mem", "bdf", "m3-dump";
+	qcom,ath11k-fw-memory-mode = <1>;
+	qcom,bdf-offset = <0x00c00000>;
+};
+
+/* Boards using a different PCIe radio override these defaults. */
+&pcie2 {
+	pinctrl-0 = <&pcie2_default>;
+	pinctrl-names = "default";
+
+	pcie@0,0 {
+		device_type = "pci";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+
+		wifi2: wifi@0 {
+			compatible = "pci17cb,1109";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			qcom,num-radios = <1>;
+			qcom,ath12k-fw-memory-mode = <1>;
+		};
+	};
+};
+
+&pcie3 {
+	pinctrl-0 = <&pcie3_default>;
+	pinctrl-names = "default";
+
+	pcie@0,0 {
+		device_type = "pci";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+
+		wifi3: wifi@0 {
+			compatible = "pci17cb,1109";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			qcom,num-radios = <1>;
+			qcom,ath12k-fw-memory-mode = <1>;
+		};
+	};
 };

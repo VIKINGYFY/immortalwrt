@@ -110,16 +110,6 @@
 		};
 	};
 
-	reserved-memory {
-		/delete-node/ tzapp@4d600000;
-
-		/* RC01's TrustZone application precedes the bootloader region. */
-		tzapp_rc01: tzapp@49b00000 {
-			reg = <0x0 0x49b00000 0x0 0x00600000>;
-			no-map;
-		};
-	};
-
 	sfp: sfp {
 		compatible = "sff,sfp";
 		pinctrl-0 = <&sfp_default>;
@@ -176,8 +166,6 @@
 };
 
 &pcie1 {
-	pinctrl-0 = <&pcie1_default>;
-	pinctrl-names = "default";
 	perst-gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
@@ -187,8 +175,6 @@
 };
 
 &pcie2 {
-	pinctrl-0 = <&pcie2_default>;
-	pinctrl-names = "default";
 	perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
@@ -484,27 +470,27 @@
 
 &wifi1 {
 	qcom,board-id = <1>;
-	qcom,calibration-variant = "Xiaomi-BE10000";
-	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
+	qcom,calibration-variant = "Xiaomi-BE10000";
+
 	nvmem-cells = <&macaddr_art_6 2>;
 	nvmem-cell-names = "mac-address";
 };
 
 &wifi2 {
 	qcom,board-id = <4>;
-	qcom,calibration-variant = "Xiaomi-BE10000";
-	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
+	qcom,calibration-variant = "Xiaomi-BE10000";
+
 	nvmem-cells = <&macaddr_art_6 3>;
 	nvmem-cell-names = "mac-address";
 };
 
 &wifi3 {
 	qcom,board-id = <2>;
-	qcom,calibration-variant = "Xiaomi-BE10000";
-	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
+	qcom,calibration-variant = "Xiaomi-BE10000";
+
 	nvmem-cells = <&macaddr_art_6 4>;
 	nvmem-cell-names = "mac-address";
 };

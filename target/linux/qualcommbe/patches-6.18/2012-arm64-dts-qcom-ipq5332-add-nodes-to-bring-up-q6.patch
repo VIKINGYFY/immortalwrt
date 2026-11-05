@@ -1,6 +1,6 @@
 From: Manikanta Mylavarapu <manikanta.mylavarapu@oss.qualcomm.com>
-Subject: arm64: dts: qcom: ipq5332: add nodes to bring up q6
-Date: Mon, 13 Jul 2026 12:02:21 +0530
+Subject: [PATCH] arm64: dts: qcom: ipq5332: reserve 48 MiB for Q6 bring-up
+Date: Thu, 05 Nov 2026 15:55:19 +0800
 
 Enable nodes required for q6 remoteproc bring up.
 
@@ -12,6 +12,7 @@ Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@oss.qualcomm.com>
 Tested-by: Vignesh Viswanathan <vignesh.viswanathan@oss.qualcomm.com>
 Link: https://lore.kernel.org/r/20260713-rproc-v13-5-41011cbcda3e@oss.qualcomm.com
 Signed-off-by: Varadarajan Narayanan <varadarajan.narayanan@oss.qualcomm.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
  arch/arm64/boot/dts/qcom/ipq5332.dtsi | 64 ++++++++++++++++++++++++++-
  1 file changed, 63 insertions(+), 1 deletion(-)
@@ -33,7 +34,7 @@ Signed-off-by: Varadarajan Narayanan <varadarajan.narayanan@oss.qualcomm.com>
  		};
 +
 +		q6_region: wcss@4a900000 {
-+			reg = <0x0 0x4a900000 0x0 0x2b00000>;
++			reg = <0x0 0x4a900000 0x0 0x3000000>;
 +			no-map;
 +		};
 +	};

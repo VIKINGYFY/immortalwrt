@@ -1,7 +1,7 @@
 From 0d2a58e0bea5cee085a6f4b44f95dac8c1381c6f Mon Sep 17 00:00:00 2001
 From: JiaY-shi <shi05275@163.com>
-Date: Mon, 19 Jan 2026 18:03:44 +0800
-Subject: [PATCH] arm64: dts: qcom: add wifi node for IPQ5332 based RDP441
+Date: Thu, 05 Nov 2026 17:38:33 +0800
+Subject: [PATCH] arm64: dts: qcom: use dynamic auxiliary WiFi memory on RDP441
 
 RDP441 is based on IPQ5332. It has inbuilt AHB bus based IPQ5332 WiFi
 device.
@@ -14,12 +14,12 @@ Depends-On: [PATCH V3 0/8] Add new driver for WCSS secure PIL loading
 Link: https://lore.kernel.org/lkml/20241231054900.2144961-1-quic_srichara@quicinc.com/
 Link: https://lore.kernel.org/lkml/20250107101647.2087358-1-quic_gokulsri@quicinc.com/
 
-Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
----
- arch/arm64/boot/dts/qcom/ipq5332-rdp441.dts |  64 ++++++++++-
- arch/arm64/boot/dts/qcom/ipq5332.dtsi       | 113 ++++++++++++++++++++
- 2 files changed, 176 insertions(+), 1 deletion(-)
+Keep the 48 MiB Q6 window and its fixed host DDR view. Allocate M3 dump,
+CALDB and shared MLO memory dynamically when requested by firmware.
 
+Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/arch/arm64/boot/dts/qcom/ipq5332-rdp441.dts
 +++ b/arch/arm64/boot/dts/qcom/ipq5332-rdp441.dts
 @@ -2,7 +2,7 @@
@@ -31,38 +31,13 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
   */
  
  /dts-v1/;
-@@ -12,6 +12,61 @@
+@@ -12,6 +12,23 @@
  / {
  	model = "Qualcomm Technologies, Inc. IPQ5332 MI01.2";
  	compatible = "qcom,ipq5332-ap-mi01.2", "qcom,ipq5332";
 +
-+	/*                 Default Profile
-+	 * +============+==============+=====================+
-+	 * |            |              |                     |
-+	 * | Region     | Start Offset |       Size          |
-+	 * |            |              |                     |
-+	 * +------------+--------------+---------------------+
-+	 * |            |              |                     |
-+	 * |            |              |                     |
-+	 * |            |              |                     |
-+	 * | WLAN Q6    |  0x4A900000  |       43MB          |
-+	 * |            |              |                     |
-+	 * |            |              |                     |
-+	 * +------------+--------------+---------------------+
-+	 * | M3 Dump    |  0x4D400000  |       1MB           |
-+	 * +------------+--------------+---------------------+
-+	 * | Q6 caldb   |  0x4D500000  |       5MB           |
-+	 * +------------+--------------+---------------------+
-+	 * | MLO        |  0x4DB00000  |       18MB          |
-+	 * +============+==============+=====================+
-+	 * |                                                 |
-+	 * |                                                 |
-+	 * |                                                 |
-+	 * |            Rest of memory for Linux             |
-+	 * |                                                 |
-+	 * |                                                 |
-+	 * |                                                 |
-+	 * +=================================================+
++	/* Q6 retains its fixed 48 MiB firmware window. M3 dump, CALDB and
++	 * shared MLO memory are allocated through DMA when requested.
 +	 */
 +
 +	reserved-memory {
@@ -71,36 +46,25 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
 +		ranges;
 +
 +		q6_region: wcss@4a900000 {
-+			reg = <0x0 0x4a900000 0x0 0x02b00000>;
++			reg = <0x0 0x4a900000 0x0 0x03000000>;
 +			no-map;
 +		};
 +
-+		m3_dump: m3-dump@4d400000 {
-+			reg = <0x0 0x4d400000 0x0 0x100000>;
-+			no-map;
-+		};
 +
-+		q6_caldb: q6-caldb@4d500000 {
-+			reg = <0x0 0x4d500000 0x0 0x500000>;
-+			no-map;
-+		};
-+
-+		mlo_mem: mlo-global-mem@4db00000 {
-+			reg = <0x0 0x4db00000 0x0 0x01200000>;
-+			no-map;
-+		};
 +	};
  };
  
  &blsp1_i2c1 {
-@@ -139,3 +194,10 @@
+@@ -139,3 +156,12 @@
  		};
  	};
  };
 +
 +&wifi0 {
-+	memory-region = <&q6_region>, <&m3_dump>, <&q6_caldb>, <&mlo_mem>;
-+	memory-region-names = "q6-region", "m3-dump", "q6-caldb", "mlo-global-mem";
++	qcom,ath12k-fw-memory-mode = <1>;
++	memory-region = <&q6_region>, <&q6_region>;
++	memory-region-names = "q6-region", "host-ddr-mem";
++	qcom,host-ddr-offset = <0x00c00000>;
 +	qcom,rproc = <&q6v5_wcss>;
 +	status = "okay";
 +};

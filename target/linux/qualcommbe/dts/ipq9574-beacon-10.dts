@@ -88,8 +88,7 @@
 	};
 
 	rtl8221b: ethernet-phy@7 {
-		compatible = "ethernet-phy-id001c.c849",
-			     "ethernet-phy-ieee802.3-c22";
+		compatible = "ethernet-phy-id001c.c849", "ethernet-phy-ieee802.3-c22";
 		reg = <7>;
 	};
 
@@ -104,25 +103,9 @@
 };
 
 &pcie2 {
-	pinctrl-0 = <&pcie2_default>;
-	pinctrl-names = "default";
 	perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
 	wake-gpios = <&tlmm 30 GPIO_ACTIVE_LOW>;
 	status = "okay";
-
-	pcie@0,0 {
-		device_type = "pci";
-		reg = <0 0 0 0 0>;
-		#address-cells = <3>;
-		#size-cells = <2>;
-		ranges;
-
-		wifi@0,0 {
-			compatible = "pci17cb,1104";
-			reg = <0 0 0 0 0>;
-			qcom,calibration-variant = "Nokia-Beacon-10-5G";
-		};
-	};
 };
 
 &pcie2_phy {
@@ -130,25 +113,9 @@
 };
 
 &pcie3 {
-	pinctrl-0 = <&pcie3_default>;
-	pinctrl-names = "default";
 	perst-gpios = <&tlmm 32 GPIO_ACTIVE_LOW>;
 	wake-gpios = <&tlmm 33 GPIO_ACTIVE_LOW>;
 	status = "okay";
-
-	pcie@0,0 {
-		device_type = "pci";
-		reg = <0 0 0 0 0>;
-		#address-cells = <3>;
-		#size-cells = <2>;
-		ranges;
-
-		wifi@0,0 {
-			compatible = "pci17cb,1104";
-			reg = <0 0 0 0 0>;
-			qcom,calibration-variant = "Nokia-Beacon-10-6G";
-		};
-	};
 };
 
 &pcie3_phy {
@@ -302,4 +269,20 @@
 
 &wifi0 {
 	qcom,calibration-variant = "Nokia-Beacon-10";
+};
+
+&wifi2 {
+	compatible = "pci17cb,1104";
+	/delete-property/ qcom,num-radios;
+	/delete-property/ qcom,ath12k-fw-memory-mode;
+	qcom,ath11k-fw-memory-mode = <1>;
+	qcom,calibration-variant = "Nokia-Beacon-10-5G";
+};
+
+&wifi3 {
+	compatible = "pci17cb,1104";
+	/delete-property/ qcom,num-radios;
+	/delete-property/ qcom,ath12k-fw-memory-mode;
+	qcom,ath11k-fw-memory-mode = <1>;
+	qcom,calibration-variant = "Nokia-Beacon-10-6G";
 };

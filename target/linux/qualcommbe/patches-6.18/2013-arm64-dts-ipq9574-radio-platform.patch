@@ -1,6 +1,6 @@
 From: Manikanta Mylavarapu <manikanta.mylavarapu@oss.qualcomm.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
-Subject: [PATCH] arm64: dts: qcom: describe IPQ9574 radio and WSI resources
+Date: Thu, 05 Nov 2026 15:55:19 +0800
+Subject: [PATCH] arm64: dts: qcom: describe IPQ9574 radios with 48 MiB Q6 memory
 
 Enable nodes required for q6 remoteproc bring up.
 
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/Documentation/devicetree/bindings/net/wireless/qcom,ath11k.yaml
 +++ b/Documentation/devicetree/bindings/net/wireless/qcom,ath11k.yaml
-@@ -18,6 +18,7 @@ properties:
+@@ -18,6 +18,7 @@
    compatible:
      enum:
        - qcom,ipq8074-wifi
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
        - qcom,ipq6018-wifi
        - qcom,wcn6750-wifi
        - qcom,ipq5018-wifi
-@@ -217,6 +218,124 @@ allOf:
+@@ -217,6 +218,124 @@
  
    - if:
        properties:
@@ -178,7 +178,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
              enum:
 --- a/Documentation/devicetree/bindings/net/wireless/qcom,ath12k-wsi.yaml
 +++ b/Documentation/devicetree/bindings/net/wireless/qcom,ath12k-wsi.yaml
-@@ -52,6 +52,14 @@ properties:
+@@ -52,6 +52,14 @@
    reg:
      maxItems: 1
  
@@ -193,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
    qcom,calibration-variant:
      $ref: /schemas/types.yaml#/definitions/string
      description:
-@@ -201,3 +209,23 @@ examples:
+@@ -201,3 +209,23 @@
              };
          };
      };
@@ -234,7 +234,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		};
 +
 +		q6_region: wcss@4ab00000 {
-+			reg = <0x0 0x4ab00000 0x0 0x2b00000>;
++			reg = <0x0 0x4ab00000 0x0 0x3000000>;
 +			no-map;
 +		};
 +	};

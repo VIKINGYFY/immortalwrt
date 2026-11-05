@@ -2,6 +2,8 @@
 
 #include "ipq5332-common.dtsi"
 
+/delete-node/ &q6_region;
+
 / {
 	model = "Ubiquiti UniFi 7 Pro XGS";
 	compatible = "ubnt,u7-pro-xgs", "qcom,ipq5332";
@@ -86,7 +88,7 @@
 &pcie0 {
 	status = "okay";
 
-	perst-gpio = <&tlmm 38 GPIO_ACTIVE_LOW>;
+	perst-gpios = <&tlmm 38 GPIO_ACTIVE_LOW>;
 	wake-gpios = <&tlmm 39 GPIO_ACTIVE_LOW>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie0_pins>;
@@ -95,15 +97,17 @@
 &pcie1 {
 	status = "okay";
 
-	perst-gpio = <&tlmm 47 GPIO_ACTIVE_LOW>;
+	perst-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
 	wake-gpios = <&tlmm 48 GPIO_ACTIVE_LOW>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie1_pins>;
 
 	pcie@0 {
 		wifi@0,0 {
+			compatible = "pci17cb,1109";
 			reg = <0x00000000 0 0 0 0>;
 			qcom,board-id = <21>;
+			qcom,ath12k-fw-memory-mode = <1>;
 
 			qcom,wsi-controller;
 
@@ -132,15 +136,17 @@
 &pcie2 {
 	status = "okay";
 
-	perst-gpio = <&tlmm 44 GPIO_ACTIVE_LOW>;
+	perst-gpios = <&tlmm 44 GPIO_ACTIVE_LOW>;
 	wake-gpios = <&tlmm 45 GPIO_ACTIVE_LOW>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie2_pins>;
 
 	pcie@0 {
 		wifi@0,0 {
+			compatible = "pci17cb,1109";
 			reg = <0x00000000 0 0 0 0>;
 			qcom,board-id = <4101>;
+			qcom,ath12k-fw-memory-mode = <1>;
 
 			ports {
 				#address-cells = <1>;
@@ -185,6 +191,11 @@
 	qti,phy-mux-regs = <&tcsr 0x10544>;
 
 	status = "okay";
+};
+
+&q6v5_wcss {
+	status = "disabled";
+	/delete-property/ memory-region;
 };
 
 &pwm {
