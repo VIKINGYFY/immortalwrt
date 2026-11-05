@@ -1,3 +1,5 @@
+From: hiper25 <whydonit@gmail.com>
+Date: Thu, 05 Nov 2026 22:43:24 +0800
 Subject: [PATCH] clk: qcom: gcc-ipq8074: add port 5 UNIPHY1 SGMII rates
 
 Port 5 can use either UNIPHY0 or UNIPHY1. Its 25 MHz and 125 MHz
@@ -13,6 +15,9 @@ The 25 MHz configuration has the corresponding missing divide-by-5 case.
 Append the SGMII divisors for RX and TX, retaining the existing SGMII+
 and UNIPHY0 alternatives and their priority when more than one parent
 can supply a matching rate. Leave the 2.5 Gbps rate and port 6 unchanged.
+
+Signed-off-by: hiper25 <whydonit@gmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 ---
 --- a/drivers/clk/qcom/gcc-ipq8074.c
