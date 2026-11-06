@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 
 /* IPQ9574 AHB radio resources for boards with additional PCIe radios. */
-
 /* The IPQ9574 AHB firmware requires its M3 dump at this fixed address. */
+
 / {
 	reserved-memory {
 		m3_dump: m3-dump@4db00000 {
@@ -13,8 +13,7 @@
 };
 
 &q6v5_wcss {
-	firmware-name = "ath11k/IPQ9574/hw1.0/q6_fw.mdt",
-			"ath11k/IPQ9574/hw1.0/m3_fw.mdt";
+	firmware-name = "ath11k/IPQ9574/hw1.0/q6_fw.mdt", "ath11k/IPQ9574/hw1.0/m3_fw.mdt";
 };
 
 &wifi0 {
@@ -40,10 +39,7 @@
 		ranges;
 
 		wifi2: wifi@0 {
-			compatible = "pci17cb,1109";
 			reg = <0x0 0x0 0x0 0x0 0x0>;
-			qcom,num-radios = <1>;
-			qcom,ath12k-fw-memory-mode = <1>;
 		};
 	};
 };
@@ -60,10 +56,7 @@
 		ranges;
 
 		wifi3: wifi@0 {
-			compatible = "pci17cb,1109";
 			reg = <0x0 0x0 0x0 0x0 0x0>;
-			qcom,num-radios = <1>;
-			qcom,ath12k-fw-memory-mode = <1>;
 		};
 	};
 };
