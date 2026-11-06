@@ -1,6 +1,6 @@
 From: Manikanta Mylavarapu <manikanta.mylavarapu@oss.qualcomm.com>
-Date: Thu, 05 Nov 2026 15:55:19 +0800
-Subject: [PATCH] arm64: dts: qcom: describe IPQ9574 radios with 48 MiB Q6 memory
+Date: Fri, 06 Nov 2026 09:04:24 +0800
+Subject: [PATCH] arm64: dts: qcom: describe IPQ9574 radios and memory defaults
 
 Enable nodes required for q6 remoteproc bring up.
 
@@ -34,6 +34,9 @@ Link: https://lore.kernel.org/r/20260713-rproc-v13-6-41011cbcda3e@oss.qualcomm.c
 Original-commit: 0000000000000000000000000000000000000000
 Link: https://lists.infradead.org/pipermail/ath11k/2026-January/008112.html
 
+Preset firmware memory mode 1 on the SoC WiFi node so board files
+inherit the common setting and only describe exceptions.
+
 Signed-off-by: Manikanta Mylavarapu <manikanta.mylavarapu@oss.qualcomm.com>
 Signed-off-by: Gokul Sriram Palanisamy <gokul.sriram.p@oss.qualcomm.com>
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
@@ -41,6 +44,7 @@ Signed-off-by: Varadarajan Narayanan <varadarajan.narayanan@oss.qualcomm.com>
 Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+---
 --- a/Documentation/devicetree/bindings/net/wireless/qcom,ath11k.yaml
 +++ b/Documentation/devicetree/bindings/net/wireless/qcom,ath11k.yaml
 @@ -18,6 +18,7 @@
@@ -264,12 +268,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	};
  
  	soc: soc@0 {
-@@ -934,6 +963,146 @@
+@@ -934,6 +963,147 @@
  			};
  		};
  
 +		wifi0: wifi@c000000 {
 +			compatible = "qcom,ipq9574-wifi";
++			qcom,ath11k-fw-memory-mode = <1>;
 +			reg = <0x0c000000 0x01000000>;
 +			interrupts = <GIC_SPI 320 IRQ_TYPE_EDGE_RISING>,
 +				     <GIC_SPI 319 IRQ_TYPE_EDGE_RISING>,

@@ -1,7 +1,7 @@
 From 0d2a58e0bea5cee085a6f4b44f95dac8c1381c6f Mon Sep 17 00:00:00 2001
 From: JiaY-shi <shi05275@163.com>
-Date: Thu, 05 Nov 2026 17:38:33 +0800
-Subject: [PATCH] arm64: dts: qcom: use dynamic auxiliary WiFi memory on RDP441
+Date: Fri, 06 Nov 2026 09:04:24 +0800
+Subject: [PATCH] arm64: dts: qcom: use dynamic WiFi memory and shared RDP441 defaults
 
 RDP441 is based on IPQ5332. It has inbuilt AHB bus based IPQ5332 WiFi
 device.
@@ -17,8 +17,12 @@ Link: https://lore.kernel.org/lkml/20250107101647.2087358-1-quic_gokulsri@quicin
 Keep the 48 MiB Q6 window and its fixed host DDR view. Allocate M3 dump,
 CALDB and shared MLO memory dynamically when requested by firmware.
 
+Preset firmware memory mode 1 and one radio on the SoC WiFi node.
+RDP441 and other board files inherit these defaults and can override them.
+
 Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
+
 ---
 --- a/arch/arm64/boot/dts/qcom/ipq5332-rdp441.dts
 +++ b/arch/arm64/boot/dts/qcom/ipq5332-rdp441.dts
@@ -55,13 +59,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  &blsp1_i2c1 {
-@@ -139,3 +156,12 @@
+@@ -139,3 +156,11 @@
  		};
  	};
  };
 +
 +&wifi0 {
-+	qcom,ath12k-fw-memory-mode = <1>;
 +	memory-region = <&q6_region>, <&q6_region>;
 +	memory-region-names = "q6-region", "host-ddr-mem";
 +	qcom,host-ddr-offset = <0x00c00000>;
@@ -70,12 +73,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +};
 --- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
-@@ -997,6 +997,119 @@
+@@ -997,6 +997,121 @@
  			};
  		};
  
 +		wifi0: wifi@c000000 {
 +			compatible = "qcom,ipq5332-wifi";
++			qcom,ath12k-fw-memory-mode = <1>;
++			qcom,num-radios = <1>;
 +			reg = <0x0c000000 0x1000000>;
 +			clocks = <&gcc GCC_XO_CLK>;
 +			clock-names = "xo";
