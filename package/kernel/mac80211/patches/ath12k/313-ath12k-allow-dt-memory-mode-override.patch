@@ -1,22 +1,26 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Sat, 25 Jul 2026 00:30:00 +0800
-Subject: [PATCH] wifi: ath12k: allow firmware memory mode override from DT
+Date: Fri, 06 Nov 2026 09:47:55 +0800
+Subject: [PATCH] wifi: ath12k: honor DT firmware memory modes on PCI and AHB
 
 ath12k selects the QCN9274 firmware memory mode from total system RAM.
 That heuristic cannot describe embedded designs where a discrete radio has
 to share memory and firmware resources with an integrated radio.
 
-Allow the board DTS to select one of the existing QMI memory modes. Keep the
-automatic RAM-based selection when the property is absent or invalid.
+Allow a valid qcom,ath12k-fw-memory-mode property to select an existing
+QMI memory mode, and use the same selector from the WiFi-7 AHB probe.
+The AHB path previously ignored the property and always selected mode 0.
+
+Preserve the fixed AHB default when the property is missing or invalid;
+keep the RAM-based fallback for QCN9274 PCIe devices. This avoids changing
+the default of other integrated radios without an explicit DT override.
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
----
- drivers/net/wireless/ath/ath12k/core.c | 13 +++++++++++++
- 1 file changed, 13 insertions(+)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
+---
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -1778,9 +1778,22 @@ static void ath12k_core_reset(struct wor
+@@ -1778,9 +1778,26 @@
  
  enum ath12k_qmi_mem_mode ath12k_core_get_memory_mode(struct ath12k_base *ab)
  {
@@ -36,6 +40,21 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +			    mode);
 +	}
 +
++	/* Preserve the integrated-radio default without a valid DT override. */
++	if (ab->hif.bus == ATH12K_BUS_AHB)
++		return ATH12K_QMI_MEMORY_MODE_DEFAULT;
++
  	si_meminfo(&si);
  	total_ram = si.totalram * si.mem_unit;
  
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ahb.c
+@@ -51,7 +51,7 @@
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+-	ab->target_mem_mode = ATH12K_QMI_MEMORY_MODE_DEFAULT;
++	ab->target_mem_mode = ath12k_core_get_memory_mode(ab);
+ 	ab->hw_rev = hw_rev;
+ 
+ 	ret = ath12k_wifi7_hw_init(ab);
