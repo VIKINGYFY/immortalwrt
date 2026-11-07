@@ -1,0 +1,58 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: wire board and native policy interfaces
+
+Connect the existing board and native forwarding policy to the upstream dev driver without replacing its register, VLAN or L2 helpers.
+
+Split from:
+  package/kernel/rtl837x/patches/120-wire-native-policy-and-board-interfaces.patch ([PATCH] rtl837x: wire native policy and board interfaces)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -10,6 +10,7 @@
+ obj-$(CONFIG_RTL8372N_DSA) += rtl8372n_dsa.o
+ 
+ rtl8372n_dsa-objs := rtl8372n.o
++rtl8372n_dsa-objs += rtl837x_board.o rtl837x_policy.o
+ 
+ rtl8372n_dsa-objs += rtl837x_dbg.o
+ rtl8372n_dsa-objs += rtl837x_mdio.o
+--- a/src/rtl837x.h
++++ b/src/rtl837x.h
+@@ -41,7 +41,12 @@
+ 	u8 led_id;
+ };
+ 
++struct rtl837x_local;
++
+ struct realtek_priv {
++	struct rtl837x_local *local;
++	bool preserve_boot_config;
++	bool reinit_cpu_serdes;
+ 	struct device *dev;
+ 	struct regmap		*map;
+ 	struct mutex		map_lock;	/* Protects regmap access */
+@@ -157,4 +162,20 @@
+ 
+ extern const struct rtl837x_variant rtl8372n_variant;
+ 
++int rtl837x_board_prepare(struct realtek_priv *priv);
++int rtl837x_board_led_init(struct realtek_priv *priv);
++
++int rtl8372n_set_bpdu_l2mc_cpu_trap(struct realtek_priv *priv, u32 vid, u32 cpu_port_mask, bool add);
++int rtl837x_local_init(struct dsa_switch *ds);
++int rtl837x_local_bridge_init(struct dsa_switch *ds);
++void rtl837x_local_stp_set(struct dsa_switch *ds, int port, u8 state);
++int rtl837x_tag_8021q_vlan_add(struct dsa_switch *ds, int port, u16 vid, u16 flags);
++int rtl837x_tag_8021q_vlan_del(struct dsa_switch *ds, int port, u16 vid);
++int rtl837x_port_bridge_join(struct dsa_switch *ds, int port, struct dsa_bridge bridge, bool *tx_fwd_offload, struct netlink_ext_ack *extack);
++void rtl837x_port_bridge_leave(struct dsa_switch *ds, int port, struct dsa_bridge bridge);
++int rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack);
++int rtl837x_port_vlan_add(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan, struct netlink_ext_ack *extack);
++int rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan);
++
++
+ #endif

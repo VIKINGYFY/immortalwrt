@@ -1,0 +1,101 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: remove unused tag and isolation helpers
+
+Remove superseded driver helpers after wiring the existing native policy to upstream dev. Keep only one implementation for each responsibility.
+
+Split from:
+  package/kernel/rtl837x/patches/154-remove-superseded-private-vlan-helpers.patch ([PATCH] rtl8372n: remove superseded private VLAN helpers)
+  package/kernel/rtl837x/patches/155-remove-superseded-vlan-and-bridge-helpers.patch ([PATCH] rtl8372n: remove superseded VLAN and bridge helpers)
+  package/kernel/rtl837x/patches/156-remove-inactive-tag-switching.patch ([PATCH] rtl8372n: remove inactive tag switching)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1413,63 +1413,6 @@
+ 	return 0;
+ }
+ 
+-static int rtl8372n_teardown_tag_rtl(struct dsa_switch *ds)
+-{
+-	struct net_device *master_dev = NULL;
+-	struct dsa_port *dp, *cpu_dp = NULL;
+-	struct rtl8372n *chip_data;
+-	struct realtek_priv *priv = ds->priv;
+-
+-	chip_data = priv->chip_data;
+-
+-	// Only support one CPU port
+-	dsa_switch_for_each_cpu_port(dp, ds) {
+-		cpu_dp = dp;
+-		break;
+-	}
+-
+-	if (!cpu_dp)
+-		return -ENODEV;
+-
+-#if KERNEL_VERSION(6, 12, 44) >= LINUX_VERSION_CODE
+-	master_dev = cpu_dp->master;
+-#else
+-	master_dev = cpu_dp->conduit;
+-#endif
+-
+-	if (!master_dev) {
+-		dev_err(priv->dev, "Cannot get master netdev from cpu port\n");
+-		return -ENODEV;
+-	}
+-
+-	// Set external CPU DSA tag insert mode
+-	/*
+-	 *	CPU_INSERT_TO_ALL = 0,
+-	 *	CPU_INSERT_TO_TRAPPING,
+-	 *	CPU_INSERT_TO_NONE,
+-	 *	CPU_INSERT_END
+-	 */
+-	rtl837x_reg_bits_write(priv, RTL837X_CPU_CTRL_REG,
+-			       RTL837X_CPU_CTRL_INSERTMODE_MASK, 2
+-			);
+-
+-	// Disable CPU tag
+-	rtl837x_reg_bits_write(priv, RTL837X_CPU_CTRL_REG,
+-			       RTL837X_CPU_CTRL_EN_MASK, 0
+-			);
+-
+-	// Remove cpu port from RTL8_4 TAG aware port
+-	dsa_switch_for_each_cpu_port(dp, ds) {
+-		rtl837x_reg_bits_write(priv, RTL837X_CPU_TAG_AWARE_CTRL_REG, BIT(dp->index), 0);
+-	}
+-
+-	master_dev->wanted_features |= chip_data->csum_feature_backup;
+-	netdev_update_features(master_dev);
+-
+-	(void)rtl837x_lut_l2_flush_all(priv);
+-	return 0;
+-}
+-
+ static int rtl8372n_set_tag_8021q(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+@@ -1716,20 +1659,6 @@
+ 	return rtl837x_reg_write(priv, RTL837X_PORT_ISOLATION_REG(port), mask);
+ }
+ 
+-static int rtl8372n_port_add_isolation(struct realtek_priv *priv, int port,
+-				       u32 mask)
+-{
+-	return rtl837x_reg_bits_write(priv, RTL837X_PORT_ISOLATION_REG(port),
+-				  mask, 0xffffffff);
+-}
+-
+-static int rtl8372n_port_remove_isolation(struct realtek_priv *priv, int port,
+-					  u32 mask)
+-{
+-	return rtl837x_reg_bits_write(priv, RTL837X_PORT_ISOLATION_REG(port),
+-				  mask, 0);
+-}
+-
+ static void rtl8372n_get_strings(struct dsa_switch *ds, int port, u32 stringset,
+ 				 uint8_t *data)
+ {

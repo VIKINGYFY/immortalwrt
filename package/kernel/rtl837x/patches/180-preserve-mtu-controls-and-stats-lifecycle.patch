@@ -1,0 +1,167 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: preserve mtu controls and stats lifecycle
+
+Keep dual VLAN-tag frame budgets, pause/ageing/port controls and tagger teardown while using upstream get_stats64 with BH-safe cache locking.
+
+Split from:
+  package/kernel/rtl837x/patches/180-preserve-statistics-mtu-and-teardown.patch ([PATCH] rtl8372n: preserve statistics, MTU and teardown)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1461,25 +1461,19 @@
+ 				      BIT(port), enable);
+ }
+ 
+-static int rtl8372n_port_change_mtu(struct dsa_switch *ds, int port,
+-				    int new_mtu)
++static int rtl8372n_port_change_mtu(struct dsa_switch *ds, int port, int mtu)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+-	u32 len = new_mtu + VLAN_ETH_HLEN + ETH_FCS_LEN;
+-
+-	if (len > RTL837X_MAC_MAX_LEN_MAX)
+-		return -EINVAL;
+-
+-	return regmap_update_bits(priv->map, RTL837X_MAC_MAX_LEN_REG(port),
+-				  RTL837X_MAC_MAX_LEN_LO_MASK |
+-				  RTL837X_MAC_MAX_LEN_HI_MASK,
+-				  FIELD_PREP(RTL837X_MAC_MAX_LEN_LO_MASK, len) |
+-				  FIELD_PREP(RTL837X_MAC_MAX_LEN_HI_MASK, len));
++	u32 length = mtu + ETH_HLEN + 2 * VLAN_HLEN + ETH_FCS_LEN;
++	if (length > 0x3fff)
++		return -ERANGE;
++	return regmap_update_bits(priv->map, 0x1250 + (port << 8),
++		GENMASK(28, 0), length | (length << 14) | BIT(28));
+ }
+ 
+ static int rtl8372n_port_max_mtu(struct dsa_switch *ds, int port)
+ {
+-	return RTL837X_MAC_MAX_LEN_MAX - VLAN_ETH_HLEN - ETH_FCS_LEN;
++	return 0x3fff - ETH_HLEN - 2 * VLAN_HLEN - ETH_FCS_LEN;
+ }
+ 
+ static int rtl8372n_check_bridge_flood(struct realtek_priv *priv,
+@@ -2069,6 +2063,67 @@
+ 	return 0;
+ }
+ 
++#define RTL837X_L2_AGE_CTRL_ADDR 0x5354
++#define RTL837X_L2_AGE_CTRL_AGE_UNIT_MASK GENMASK(15, 0)
++
++static void rtl8372n_get_pause_stats(struct dsa_switch *ds, int port,
++				      struct ethtool_pause_stats *pause_stats)
++{
++	struct realtek_priv *priv = ds->priv;
++
++	pause_stats->rx_pause_frames = 0;
++	pause_stats->tx_pause_frames = 0;
++
++	mutex_lock(&priv->mib_lock);
++	priv->ops->get_mib_counter(priv, port,
++		&priv->mib_counters[RTL837X_MIB_dot3InPauseFrames],
++		&pause_stats->rx_pause_frames);
++	priv->ops->get_mib_counter(priv, port,
++		&priv->mib_counters[RTL837X_MIB_dot3OutPauseFrames],
++		&pause_stats->tx_pause_frames);
++	mutex_unlock(&priv->mib_lock);
++}
++
++static int rtl8372n_set_ageing_time(struct dsa_switch *ds,
++				     unsigned int msecs)
++{
++	struct realtek_priv *priv = ds->priv;
++	unsigned int secs = DIV_ROUND_UP(msecs, MSEC_PER_SEC);
++
++	secs = clamp_t(unsigned int, secs, 14, 800);
++
++	/* The RTL8372N SDK represents one second as five age-unit ticks. */
++	return rtl837x_reg_bits_write(priv, RTL837X_L2_AGE_CTRL_ADDR,
++				       RTL837X_L2_AGE_CTRL_AGE_UNIT_MASK,
++				       secs * 5);
++}
++
++static int rtl8372n_port_enable(struct dsa_switch *ds, int port,
++			       struct phy_device *phy)
++{
++	struct realtek_priv *priv = ds->priv;
++	int ret;
++
++	if (rtl8372n_is_serdes_port(port))
++		return 0;
++
++	ret = priv->ops->phy_write_c45(priv, port, 31, 0xa610, 0x2058);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static void rtl8372n_port_disable(struct dsa_switch *ds, int port)
++{
++	struct realtek_priv *priv = ds->priv;
++
++	if (rtl8372n_is_serdes_port(port))
++		return;
++
++	priv->ops->phy_write_c45(priv, port, 31, 0xa610, 0x2858);
++}
++
+ static void rtl8372n_stats_update(struct realtek_priv *priv, int port)
+ {
+ 	static const int idx[] = {
+@@ -2109,7 +2164,7 @@
+ 	if (ret)
+ 		return;
+ 
+-	spin_lock(&p->stats_lock);
++	spin_lock_bh(&p->stats_lock);
+ 
+ 	stats->rx_packets = cnt[RTL837X_MIB_ifInUcastPkts] +
+ 			    cnt[RTL837X_MIB_ifInMulticastPkts] +
+@@ -2136,7 +2191,7 @@
+ 	stats->tx_window_errors = cnt[RTL837X_MIB_dot3StatsLateCollisions];
+ 	stats->tx_errors = stats->tx_aborted_errors + stats->tx_window_errors;
+ 
+-	spin_unlock(&p->stats_lock);
++	spin_unlock_bh(&p->stats_lock);
+ }
+ 
+ static void rtl8372n_stats_poll(struct work_struct *work)
+@@ -2155,9 +2210,9 @@
+ 	struct rtl8372n *chip_data = priv->chip_data;
+ 	struct rtl8372n_port *p = &chip_data->ports[port];
+ 
+-	spin_lock(&p->stats_lock);
++	spin_lock_bh(&p->stats_lock);
+ 	memcpy(s, &p->stats, sizeof(*s));
+-	spin_unlock(&p->stats_lock);
++	spin_unlock_bh(&p->stats_lock);
+ }
+ 
+ static void rtl8372n_stats_start(struct dsa_switch *ds)
+@@ -2184,6 +2239,10 @@
+ 
+ 	dsa_switch_for_each_available_port(dp, ds)
+ 		cancel_delayed_work_sync(&chip_data->ports[dp->index].mib_work);
++
++	rtnl_lock();
++	rtl8372n_teardown_tag_8021q(ds);
++	rtnl_unlock();
+ }
+ 
+ // TODO: init chip based on rtl837x_chip_info
+@@ -2364,6 +2423,10 @@
+ 	.get_eth_phy_stats = rtl8372n_get_phy_stats,
+ 	.get_eth_mac_stats = rtl8372n_get_mac_stats,
+ 	.get_eth_ctrl_stats = rtl8372n_get_ctrl_stats,
++	.get_pause_stats = rtl8372n_get_pause_stats,
++	.set_ageing_time = rtl8372n_set_ageing_time,
++	.port_enable = rtl8372n_port_enable,
++	.port_disable = rtl8372n_port_disable,
+ 
+ 	.port_vlan_filtering = rtl837x_port_vlan_filtering,
+ 	.port_vlan_add = rtl837x_port_vlan_add,

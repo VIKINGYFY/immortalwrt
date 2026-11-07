@@ -1,0 +1,105 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: remove superseded pvid and vlan helpers
+
+Remove superseded driver helpers after wiring the existing native policy to upstream dev. Keep only one implementation for each responsibility.
+
+Split from:
+  package/kernel/rtl837x/patches/154-remove-superseded-private-vlan-helpers.patch ([PATCH] rtl8372n: remove superseded private VLAN helpers)
+  package/kernel/rtl837x/patches/155-remove-superseded-vlan-and-bridge-helpers.patch ([PATCH] rtl8372n: remove superseded VLAN and bridge helpers)
+  package/kernel/rtl837x/patches/156-remove-inactive-tag-switching.patch ([PATCH] rtl8372n: remove inactive tag switching)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -609,88 +609,6 @@
+ 	return 0;
+ }
+ 
+-static int rtl8372n_vlan_update(struct realtek_priv *priv, int vid, u32 member,
+-				u32 untag, u32 fid)
+-{
+-	struct rtl837x_vlan_data vlan_data;
+-	int ret;
+-
+-	ret = rtl837x_vlan_get(priv, vid, &vlan_data);
+-
+-	if (ret)
+-		return ret;
+-
+-	vlan_data.mbr |= member;
+-	vlan_data.untag &= ~member;
+-	vlan_data.untag |= untag;
+-	vlan_data.fid = fid;
+-	vlan_data.ivl_en = 1;
+-
+-	return rtl837x_vlan_set(priv, vid, &vlan_data);
+-}
+-
+-static int rtl8372n_set_pvid(struct realtek_priv *priv, int port,
+-			     u16 vid)
+-{
+-	enum rtl837x_frame_ingress prev_accepted_frame;
+-	struct rtl8372n *chip_data = priv->chip_data;
+-	bool prev_pvid_enabled = chip_data->pvid_enabled[port];
+-	struct dsa_switch *ds = priv->ds;
+-	u32 configured_ports = 0;
+-	struct dsa_port *dp;
+-	bool pvid_enabled;
+-	u16 prev_pvid = 0;
+-	int ret;
+-
+-	dev_dbg(priv->dev, "[%s]: port (%d), vid (%d)\n", __func__, port, vid);
+-	pvid_enabled = !!vid;
+-
+-	ret = rtl837x_vlan_port_get_pvid(priv, port, &prev_pvid);
+-	if (ret)
+-		return ret;
+-
+-	ret = rtl837x_vlan_port_get_framefilter(priv, port, &prev_accepted_frame);
+-	if (ret)
+-		return ret;
+-
+-	ret = rtl837x_vlan_port_set_pvid(priv, port, vid);
+-	if (ret)
+-		return ret;
+-
+-	chip_data->pvid_enabled[port] = pvid_enabled;
+-
+-	/* When a port have its pvid, we can accept tagged/untagged frame came in */
+-	ret = rtl837x_vlan_port_set_framefilter(priv, port, RTL837X_FRAME_TYPE_ANY_FRAME);
+-	if (ret)
+-		goto undo_pvid;
+-
+-	/* When a port have its pvid, untagged frame will marked the port pvid and forward */
+-	dsa_switch_for_each_available_port(dp, ds) {
+-		ret = rtl837x_vlan_port_set_egress_vlan_keep(priv, port, dp->index, false);
+-		if (ret)
+-			goto undo_vlan_keep;
+-
+-		configured_ports |= BIT(dp->index);
+-	}
+-
+-	return 0;
+-
+-undo_vlan_keep:
+-	dsa_switch_for_each_port(dp, ds) {
+-		if (configured_ports & BIT(dp->index))
+-			(void)rtl837x_vlan_port_set_egress_vlan_keep(priv, port, dp->index,
+-						       !prev_pvid_enabled);
+-	}
+-
+-	if (prev_accepted_frame != RTL837X_FRAME_TYPE_ANY_FRAME)
+-		(void)rtl837x_vlan_port_set_framefilter(priv, port, prev_accepted_frame);
+-
+-undo_pvid:
+-	(void)rtl837x_vlan_port_set_pvid(priv, port, prev_pvid);
+-	chip_data->pvid_enabled[port] = prev_pvid_enabled;
+-	return ret;
+-}
+-
+ static int rtl8372n_clean_pvid(struct realtek_priv *priv, int port, u16 vid)
+ {
+ 	enum rtl837x_frame_ingress accepted_frame, prev_accepted_frame;

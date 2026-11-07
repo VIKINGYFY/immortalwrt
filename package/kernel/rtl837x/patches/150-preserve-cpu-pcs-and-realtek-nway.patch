@@ -1,0 +1,57 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: preserve cpu pcs and realtek nway
+
+Retain the verified fixed CPU MAC and P8 second-switch NWay behavior using the upstream per-port PCS and SerDes APIs. Preserve the upstream standard-USXGMII configuration for other boards.
+
+Split from:
+  package/kernel/rtl837x/patches/150-harden-chip-detection-reset-and-pcs.patch ([PATCH] rtl8372n: preserve chip reset and CPU PCS behavior)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1002,7 +1002,7 @@
+ 		case PHY_INTERFACE_MODE_10GBASER:
+ 			return LINK_INBAND_DISABLE;
+ 		case PHY_INTERFACE_MODE_USXGMII:
+-			return LINK_INBAND_ENABLE;
++			return LINK_INBAND_ENABLE | LINK_INBAND_DISABLE;
+ 		default:
+ 			return 0;
+ 		}
+@@ -1101,6 +1101,20 @@
+ 	int port = port_priv->index;
+ 	int ret;
+ 
++	if (priv->preserve_boot_config && dsa_is_cpu_port(priv->ds, port) &&
++	    !priv->reinit_cpu_serdes)
++		return 0;
++
++	if (priv->reinit_cpu_serdes && dsa_is_cpu_port(priv->ds, port)) {
++		/* This board uses Realtek NWay even with a fixed host MAC. */
++		if (interface == PHY_INTERFACE_MODE_USXGMII)
++			neg_mode = PHYLINK_PCS_NEG_INBAND_ENABLED;
++		ret = regmap_update_bits(priv->map, RTL837X_MAC_FORCE_MODE_REG(port),
++			GENMASK(6, 0), BIT(0) | BIT(1) | BIT(2) | (4 << 3));
++		if (ret)
++			return ret;
++	}
++
+ 	sds_idx = PORT_TO_SERDES_IDX(port);
+ 
+ 	dev_dbg(priv->dev, "[%s]PCS config serdes(%d) mode(%s) neg_mode(0x%x)\n", __func__,
+--- a/src/rtl837x_serdes.c
++++ b/src/rtl837x_serdes.c
+@@ -988,6 +988,10 @@
+ 		if (ret)
+ 			return ret;
+ 
++		/* Preserve the board CPU link's Realtek variant; external PHYs use standard USXGMII. */
++		if (priv->preserve_boot_config &&
++		    dsa_is_cpu_port(priv->ds, sds_idx ? 8 : 3))
++			break;
+ 		ret = rtl837x_serdes_usxgmii_std(priv, sds_idx);
+ 		if (ret)
+ 			return ret;

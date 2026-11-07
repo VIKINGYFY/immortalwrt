@@ -1,0 +1,144 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: native policy customer vlan and lifecycle
+
+Preserve the existing service-VLAN policy, transactional recovery and DSA callbacks on the upstream VLAN helper API.
+
+Split from:
+  package/kernel/rtl837x/patches/140-native-policy-state-and-register-access.patch ([PATCH] rtl837x: define native policy state and register access)
+  package/kernel/rtl837x/patches/141-native-vlan-transactions-and-recovery.patch ([PATCH] rtl837x: retain VLAN snapshots and recovery)
+  package/kernel/rtl837x/patches/142-native-bridge-and-vlan-updates.patch ([PATCH] rtl837x: retain bridge and VLAN update transactions)
+  package/kernel/rtl837x/patches/143-native-dsa-policy-callbacks.patch ([PATCH] rtl837x: expose the native DSA policy callbacks)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl837x_policy.c
++++ b/src/rtl837x_policy.c
+@@ -778,3 +778,126 @@
+ 	return rtl837x_vlan_failed(gsw, &old, phase, ret);
+ }
+ 
++int rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
++{
++	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	int ret;
++
++	mutex_lock(&gsw->lock);
++	ret = __rtl837x_port_vlan_filtering(ds, port, vlan_filtering, extack);
++	mutex_unlock(&gsw->lock);
++
++	return ret;
++}
++
++static int __rtl837x_port_vlan_add(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan, struct netlink_ext_ack *extack)
++{
++	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	u16 vid = vlan->vid;
++
++	if (!rtl837x_valid_port(gsw, port))
++		return -EINVAL;
++	if (!vid)
++		return 0;
++	if (vid > VLAN_VID_MASK)
++		return -EINVAL;
++	if (vid_is_dsa_8021q(vid)) {
++		NL_SET_ERR_MSG_MOD(extack, "VLAN ID reserved for internal DSA service tags");
++		return -EBUSY;
++	}
++	return rtl837x_vlan_update(gsw, port, vid, vlan->flags, true, false);
++}
++
++int rtl837x_port_vlan_add(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan, struct netlink_ext_ack *extack)
++{
++	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	int ret;
++
++	mutex_lock(&gsw->lock);
++	ret = __rtl837x_port_vlan_add(ds, port, vlan, extack);
++	mutex_unlock(&gsw->lock);
++
++	return ret;
++}
++
++static int __rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan)
++{
++	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	u16 vid = vlan->vid;
++
++	if (!rtl837x_valid_port(gsw, port))
++		return -EINVAL;
++	if (!vid)
++		return 0;
++	if (vid > VLAN_VID_MASK)
++		return 0;
++	if (vid_is_dsa_8021q(vid)) {
++		return -EBUSY;
++	}
++	return rtl837x_vlan_update(gsw, port, vid, vlan->flags, false, false);
++}
++
++int rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan)
++{
++	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	int ret;
++
++	mutex_lock(&gsw->lock);
++	ret = __rtl837x_port_vlan_del(ds, port, vlan);
++	mutex_unlock(&gsw->lock);
++
++	return ret;
++}
++
++int rtl837x_local_init(struct dsa_switch *ds)
++{
++	struct realtek_priv *priv = ds->priv;
++	struct rtl837x_local *gsw;
++	struct dsa_port *dp;
++	int ret;
++
++	gsw = devm_kzalloc(priv->dev, sizeof(*gsw), GFP_KERNEL);
++	if (!gsw)
++		return -ENOMEM;
++	priv->local = gsw;
++	gsw->priv = priv;
++	gsw->ds = ds;
++	gsw->dev = priv->dev;
++	mutex_init(&gsw->lock);
++	dsa_switch_for_each_available_port(dp, ds) {
++		gsw->configured_port_mask |= BIT(dp->index);
++		if (dsa_port_is_cpu(dp))
++			gsw->cpu_port = dp->index;
++	}
++	ret = rtl837x_seed_vlan_table(gsw);
++	if (ret)
++		return ret;
++	dsa_switch_for_each_available_port(dp, ds) {
++		ret = rtl837x_set_stp_state(gsw, dp->index,
++			dsa_port_is_cpu(dp) ? BR_STATE_FORWARDING : BR_STATE_DISABLED);
++		if (ret)
++			return ret;
++	}
++	return rtl8372n_set_bpdu_l2mc_cpu_trap(priv, 1, BIT(gsw->cpu_port), true);
++}
++
++int rtl837x_local_bridge_init(struct dsa_switch *ds)
++{
++	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	return rtl837x_update_isolation(gsw);
++}
++
++void rtl837x_local_stp_set(struct dsa_switch *ds, int port, u8 state)
++{
++	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	int ret;
++
++	if (!rtl837x_valid_port(gsw, port))
++		return;
++
++	mutex_lock(&gsw->lock);
++	ret = rtl837x_set_stp_state(gsw, port, state);
++	mutex_unlock(&gsw->lock);
++	if (ret)
++		dev_err(gsw->dev, "STP update failed: port=%d ret=%d\n", port, ret);
++}

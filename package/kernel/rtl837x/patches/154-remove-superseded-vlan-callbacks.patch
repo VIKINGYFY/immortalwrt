@@ -1,0 +1,348 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: remove superseded vlan callbacks
+
+Remove superseded VLAN callbacks after wiring the existing native policy to upstream dev. Keep only one implementation for each responsibility.
+
+Split from:
+  package/kernel/rtl837x/patches/154-remove-superseded-private-vlan-helpers.patch ([PATCH] rtl8372n: remove superseded private VLAN helpers)
+  package/kernel/rtl837x/patches/155-remove-superseded-vlan-and-bridge-helpers.patch ([PATCH] rtl8372n: remove superseded VLAN and bridge helpers)
+  package/kernel/rtl837x/patches/156-remove-inactive-tag-switching.patch ([PATCH] rtl8372n: remove inactive tag switching)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -609,85 +609,6 @@
+ 	return 0;
+ }
+ 
+-static int rtl8372n_clean_pvid(struct realtek_priv *priv, int port, u16 vid)
+-{
+-	enum rtl837x_frame_ingress accepted_frame, prev_accepted_frame;
+-	struct rtl8372n *chip_data = priv->chip_data;
+-	struct dsa_switch *ds = priv->ds;
+-	u32 configured_ports = 0;
+-	struct dsa_port *dp;
+-	u16 prev_pvid;
+-	int ret;
+-
+-	ret = rtl837x_vlan_port_get_pvid(priv, port, &prev_pvid);
+-	if (ret)
+-		return ret;
+-
+-	if (prev_pvid != vid)
+-		return 0;
+-
+-	ret = rtl837x_vlan_port_get_framefilter(priv, port,
+-						&prev_accepted_frame);
+-	if (ret) {
+-		dev_err(priv->dev, "Failed to get current framefilter\n");
+-		return ret;
+-	}
+-
+-	/* When a port doesn't have pvid, and it enable vlan filter,
+-	 * Only accept tagged frame came in
+-	 */
+-	if (dsa_port_is_vlan_filtering(dsa_to_port(ds, port))) {
+-		accepted_frame = RTL837X_FRAME_TYPE_TAGGED_ONLY;
+-
+-		ret = rtl837x_vlan_port_set_framefilter(priv, port,
+-							accepted_frame);
+-		if (ret) {
+-			dev_err(priv->dev, "Failed to set port frame filter\n");
+-			return ret;
+-		}
+-	} else {
+-		/* skip undo_set_framefilter */
+-		accepted_frame = prev_accepted_frame;
+-	}
+-
+-	ret = rtl837x_vlan_port_set_pvid(priv, port, 0);
+-	if (ret) {
+-		dev_err(priv->dev, "Failed to set port PVID to 0\n");
+-		goto undo_set_framefilter;
+-	}
+-
+-	chip_data->pvid_enabled[port] = false;
+-
+-	/* When a port doesn't have pvid, the untagged frame must be
+-	 * forwarded as-is and must not carry a VID 0.
+-	 */
+-	dsa_switch_for_each_available_port(dp, ds) {
+-		ret = rtl837x_vlan_port_set_egress_vlan_keep(priv, port, dp->index, true);
+-		if (ret)
+-			goto undo_vlan_keep;
+-
+-		configured_ports |= BIT(dp->index);
+-	}
+-
+-	return 0;
+-
+-undo_vlan_keep:
+-	dsa_switch_for_each_port(dp, ds) {
+-		if (configured_ports & BIT(dp->index))
+-			(void)rtl837x_vlan_port_set_egress_vlan_keep(priv, port, dp->index,
+-						       false);
+-	}
+-
+-	(void)rtl837x_vlan_port_set_pvid(priv, port, prev_pvid);
+-
+-undo_set_framefilter:
+-	if (prev_accepted_frame != accepted_frame)
+-		(void)rtl837x_vlan_port_set_framefilter(priv, port,
+-							  prev_accepted_frame);
+-
+-	return ret;
+-}
+-
+ static int rtl8372n_get_mib_counter(struct realtek_priv *priv,
+ 				    int port,
+ 		const struct rtl837x_mib_counter *mib,
+@@ -1529,108 +1450,6 @@
+ 	mutex_unlock(&priv->mib_lock);
+ }
+ 
+-static int rtl8372n_port_vlan_filtering(struct dsa_switch *ds, int port,
+-					bool vlan_filtering, struct netlink_ext_ack *extack)
+-{
+-	enum rtl837x_frame_ingress prev_accepted_frame, accepted_frame;
+-	enum rtl837x_vlan_egress_mode mode;
+-	struct rtl8372n *chip_data;
+-	struct realtek_priv *priv = ds->priv;
+-	u32 configured_ports = 0;
+-	struct dsa_port *dp;
+-	int ret;
+-
+-	chip_data = priv->chip_data;
+-
+-	dev_dbg(priv->dev, "[%s]: port (%d), filtering: %s\n", __func__,
+-		port, !!vlan_filtering ? "true" : "false");
+-
+-	ret = rtl837x_vlan_port_get_framefilter(priv, port, &prev_accepted_frame);
+-	if (ret) {
+-		NL_SET_ERR_MSG_MOD(extack,
+-				   "Failed to get current framefilter");
+-		return ret;
+-	}
+-
+-	/* While filtering, only accepts untagged frames if PVID is enabled */
+-	accepted_frame = RTL837X_FRAME_TYPE_ANY_FRAME;
+-	if (vlan_filtering)
+-		accepted_frame = chip_data->pvid_enabled[port] ?
+-				    RTL837X_FRAME_TYPE_ANY_FRAME : RTL837X_FRAME_TYPE_TAGGED_ONLY;
+-
+-	/* When vlan filter is enable/disabled in a bridge, this function is
+-	 * called for all member ports. We need to enable/disable ingress
+-	 * VLAN membership check.
+-	 */
+-	ret = rtl837x_vlan_port_set_ingress_filtering(priv, port, vlan_filtering);
+-	if (ret)
+-		return ret;
+-
+-	/* However, we also enable/disable egress filtering because the switch
+-	 * still consider the egress interface VLAN membership to forward the
+-	 * traffic. We enable/disable that check disabling/enabling transparent
+-	 * VLAN between the ingress port and all other available ports.
+-	 */
+-	dsa_switch_for_each_available_port(dp, ds) {
+-		/* port isolation will still keep traffic inside the bridge */
+-		ret = rtl837x_vlan_port_set_transparent(priv, port, dp->index,
+-							!vlan_filtering);
+-		if (ret)
+-			goto undo_transparent;
+-
+-		configured_ports |= BIT(dp->index);
+-	}
+-
+-	if (accepted_frame != prev_accepted_frame) {
+-		ret = rtl837x_vlan_port_set_framefilter(priv, port,
+-							accepted_frame);
+-		if (ret) {
+-			NL_SET_ERR_MSG_MOD(extack,
+-					   "Failed to set port framefilter");
+-			goto undo_transparent;
+-		}
+-	}
+-
+-	/* When VLAN filtering is disabled, preserve frames exactly as received.
+-	 * Otherwise, the VLAN egress pipeline may still alter tag state
+-	 * according to VLAN membership and untag configuration.
+-	 */
+-	if (vlan_filtering)
+-		mode = RTL837X_VLAN_EGRESS_MODE_ORIGINAL;
+-	else
+-		mode = RTL837X_VLAN_EGRESS_MODE_REAL_KEEP;
+-
+-	ret = rtl837x_vlan_port_set_vlan_egress_mode(priv, port, mode);
+-	if (ret)
+-		goto undo_set_framefilter;
+-
+-	return ret;
+-
+-undo_set_framefilter:
+-	if (prev_accepted_frame != accepted_frame)
+-		rtl837x_vlan_port_set_framefilter(priv, port,
+-						  prev_accepted_frame);
+-undo_transparent:
+-	/* The DSA core guarantees this callback is only invoked on an actual
+-	 * state transition, ensuring the previous hardware state was the
+-	 * opposite (!vlan_filtering). It is also called during setup but, in
+-	 * that case, any failure here aborts the entire switch initialization.
+-	 *
+-	 * VLAN_INGRESS and VLAN_EGRESS_TRANSPARENT states are directly derived
+-	 * from vlan_filtering. That way, we can simply undo it without
+-	 * checking the current HW state as we do with VLAN_EGRESS_MODE.
+-	 */
+-	dsa_switch_for_each_port(dp, ds) {
+-		if (configured_ports & BIT(dp->index))
+-			rtl837x_vlan_port_set_transparent(priv, port, dp->index,
+-							  vlan_filtering);
+-	}
+-
+-	rtl837x_vlan_port_set_ingress_filtering(priv, port, !vlan_filtering);
+-
+-	return ret;
+-}
+-
+ /*
+  * The well-known bridge group address 01:80:C2:00:00:00 is treated by the
+  * hardware as an ordinary L2 multicast address, so BPDUs received on one port
+@@ -1671,136 +1490,6 @@
+ 	return rtl837x_lut_del(priv, entry.addr);
+ }
+ 
+-static int rtl8372n_vlan_add(struct dsa_switch *ds, int port,
+-			     const struct switchdev_obj_port_vlan *vlan,
+-			    struct netlink_ext_ack *extack)
+-{
+-	struct rtl837x_vlan_data vlan_data_bak;
+-	struct realtek_priv *priv = ds->priv;
+-	bool untagged = !!(vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED);
+-	u32 member = 0, untag = 0;
+-	bool pvid = !!(vlan->flags & BRIDGE_VLAN_INFO_PVID);
+-	u16 vid = vlan->vid;
+-	int ret;
+-
+-	if (vid == 0) {
+-		NL_SET_ERR_MSG_MOD(extack, "VLAN 0 is reserved by this driver");
+-		return -EOPNOTSUPP;
+-	}
+-
+-	if (vid_is_dsa_8021q(vid) && is_8021q_tag(priv->tag_proto)) {
+-		NL_SET_ERR_MSG_MOD(extack, "Range 3072-4095 reserved for dsa_8021q operation");
+-		return -EINVAL;
+-	}
+-
+-	member |= BIT(port);
+-
+-	if (untagged)
+-		untag |= BIT(port);
+-
+-	dev_dbg(priv->dev, "[%s] add VLAN %d on port %d, %s, %s\n", __func__,
+-		vlan->vid, port, untagged ? "untagged" : "tagged",
+-		pvid ? "PVID" : "no PVID");
+-
+-	ret = rtl837x_vlan_get(priv, vid, &vlan_data_bak);
+-	if (ret)
+-		return ret;
+-
+-	ret = rtl8372n_vlan_update(priv, vid, member, untag, 0);
+-	if (ret) {
+-		dev_err(priv->dev, "failed to set up VLAN %04x\n",
+-			vid);
+-		goto fail_rollback;
+-	}
+-
+-	/* Add bpdu trap rule for vlan */
+-	ret = rtl8372n_set_bpdu_l2mc_cpu_trap(priv, vid,
+-					      dsa_cpu_ports(priv->ds), true);
+-	if (ret)
+-		dev_warn(priv->dev,
+-			 "failed to install BPDU trap for VLAN %04x: %d\n",
+-			 vid, ret);
+-
+-	if (pvid) {
+-		ret = rtl8372n_set_pvid(priv, port, vid);
+-		if (ret) {
+-			dev_err(priv->dev, "failed to set PVID on port %d to VLAN %04x\n",
+-				port, vid);
+-			goto fail_rollback;
+-		}
+-	} else {
+-		ret = rtl8372n_clean_pvid(priv, port, vid);
+-		if (ret) {
+-			dev_err(priv->dev, "failed to clean PVID on port %d to VLAN %04x\n",
+-				port, vid);
+-			goto fail_rollback;
+-		}
+-	}
+-
+-	return 0;
+-
+-fail_rollback:
+-	{
+-		int r = rtl837x_vlan_set(priv, vid, &vlan_data_bak);
+-
+-		if (r)
+-			dev_err(priv->dev,
+-				"failed to restore VLAN %04x: %d\n",
+-				vid, r);
+-	}
+-	return ret;
+-}
+-
+-static int rtl8372n_vlan_del(struct dsa_switch *ds, int port,
+-			     const struct switchdev_obj_port_vlan *vlan)
+-{
+-	struct rtl837x_vlan_data vlan_data;
+-	struct realtek_priv *priv = ds->priv;
+-	int ret;
+-
+-	dev_dbg(priv->dev, "[%s]: port (%d) vid (%d)\n", __func__,
+-		port, vlan->vid);
+-
+-	ret = rtl8372n_clean_pvid(priv, port, vlan->vid);
+-	if (ret) {
+-		dev_err(priv->dev, "[%s] failed to clean PVID on port %d to VLAN %04x\n", __func__,
+-			port, vlan->vid);
+-		return ret;
+-	}
+-
+-	ret = rtl837x_vlan_get(priv, vlan->vid, &vlan_data);
+-	if (ret)
+-		return ret;
+-
+-	vlan_data.mbr &= ~BIT(port);
+-	vlan_data.untag &= ~BIT(port);
+-	vlan_data.ivl_en = 1;
+-
+-	if (!vlan_data.mbr) {
+-		vlan_data.untag = 0;
+-		vlan_data.fid = 0;
+-	}
+-
+-	ret = rtl837x_vlan_set(priv, vlan->vid, &vlan_data);
+-	if (ret) {
+-		dev_err(priv->dev,
+-			"failed to remove VLAN %04x\n",
+-			vlan->vid);
+-		return ret;
+-	}
+-
+-	/* The VLAN is really gone now, drop the BPDU trap rule with it */
+-	if (!vlan_data.mbr) {
+-		ret = rtl8372n_set_bpdu_l2mc_cpu_trap(priv, vlan->vid, 0, false);
+-		if (ret)
+-			dev_warn(priv->dev,
+-				 "failed to remove BPDU trap for VLAN %04x: %d\n",
+-				 vlan->vid, ret);
+-	}
+-
+-	return 0;
+-}
+-
+ static int rtl8372n_port_set_ucast_flood(struct realtek_priv *priv, int port,
+ 					 bool enable)
+ {

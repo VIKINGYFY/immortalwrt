@@ -1,0 +1,141 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: remove superseded bridge callbacks
+
+Remove superseded bridge callbacks after wiring the existing native policy to upstream dev. Keep only one implementation for each responsibility.
+
+Split from:
+  package/kernel/rtl837x/patches/154-remove-superseded-private-vlan-helpers.patch ([PATCH] rtl8372n: remove superseded private VLAN helpers)
+  package/kernel/rtl837x/patches/155-remove-superseded-vlan-and-bridge-helpers.patch ([PATCH] rtl8372n: remove superseded VLAN and bridge helpers)
+  package/kernel/rtl837x/patches/156-remove-inactive-tag-switching.patch ([PATCH] rtl8372n: remove inactive tag switching)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1618,124 +1618,6 @@
+ 	return 0;
+ }
+ 
+-static int
+-rtl8372n_port_bridge_join(struct dsa_switch *ds, int port,
+-			  struct dsa_bridge bridge,
+-			   bool *tx_fwd_offload,
+-			   struct netlink_ext_ack *extack)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-	struct dsa_port *dp;
+-	u32 port_bitmap = 0;
+-	int ret;
+-
+-	/* Loop over all other ports than the current one */
+-	dsa_switch_for_each_user_port(dp, ds) {
+-		/* Not on this bridge */
+-		if (!dsa_port_offloads_bridge(dp, &bridge))
+-			continue;
+-
+-		/* Current port handled last */
+-		if (dp->index == port)
+-			continue;
+-
+-		/* Join this port to each other port on the bridge */
+-		ret = rtl8372n_port_add_isolation(priv, dp->index, BIT(port));
+-		if (ret) {
+-			dev_err(priv->dev,
+-				"failed to join port %d to port %d: %d\n",
+-				dp->index, port, ret);
+-			goto fail_rollback;
+-		}
+-
+-		port_bitmap |= BIT(dp->index);
+-	}
+-	dev_dbg(priv->dev, "[%s]: port(%d) isolate(0x%04x)\n", __func__,
+-		port, port_bitmap);
+-
+-	/* Set the bits for the ports we can access */
+-	ret = rtl8372n_port_add_isolation(priv, port, port_bitmap);
+-	if (ret) {
+-		dev_err(priv->dev, "failed to join port %d: %d\n", port, ret);
+-		goto fail_rollback;
+-	}
+-
+-	ret = rtl837x_lut_port_set_learning(priv, port, true);
+-	if (ret)
+-		goto fail_rollback;
+-
+-	return 0;
+-
+-fail_rollback:
+-	{
+-		int r;
+-		/* Drop the access rights of this port */
+-		r = rtl8372n_port_remove_isolation(priv, port, port_bitmap);
+-		if (r)
+-			dev_err(priv->dev,
+-				"failed to drop access rights of port %d: %d\n",
+-				port, r);
+-
+-		/* And drop the access rights other ports gained towards us */
+-		dsa_switch_for_each_user_port(dp, ds) {
+-			if (!(port_bitmap & BIT(dp->index)))
+-				continue;
+-
+-			r = rtl8372n_port_remove_isolation(priv, dp->index, BIT(port));
+-			if (r)
+-				dev_err(priv->dev,
+-					"failed to drop port %d access to port %d: %d\n",
+-					dp->index, port, r);
+-		}
+-	}
+-	return ret;
+-}
+-
+-static void
+-rtl8372n_port_bridge_leave(struct dsa_switch *ds, int port,
+-			   struct dsa_bridge bridge)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-	struct dsa_port *dp;
+-	u32 port_bitmap = 0;
+-	int ret;
+-
+-	dev_dbg(priv->dev, "[%s]: %d\n", __func__,
+-		port);
+-
+-	/* Loop over all other ports than this one */
+-	dsa_switch_for_each_user_port(dp, ds) {
+-		/* Not on this bridge */
+-		if (!dsa_port_offloads_bridge(dp, &bridge))
+-			continue;
+-
+-		/* Current port handled last */
+-		if (dp->index == port)
+-			continue;
+-
+-		/* Remove this port from any other port on the bridge */
+-		ret = rtl8372n_port_remove_isolation(priv, dp->index,
+-						     BIT(port));
+-		if (ret) {
+-			dev_err(priv->dev,
+-				"failed to leave port %d from port %d: %d\n",
+-				dp->index, port, ret);
+-		}
+-
+-		port_bitmap |= BIT(dp->index);
+-	}
+-	/* Clear the bits for the ports we can not access, leave ourselves */
+-	ret = rtl8372n_port_remove_isolation(priv, port, port_bitmap);
+-	if (ret)
+-		dev_err(priv->dev, "failed to remove port(%d) isolation err: %d\n", port, ret);
+-
+-	ret = rtl837x_lut_port_set_learning(priv, port, false);
+-	if (ret)
+-		dev_err(priv->dev,
+-			"failed to disable learning on port %d: %pe\n",
+-			port, ERR_PTR(ret));
+-}
+-
+ static int rtl8372n_set_mac_eee(struct dsa_switch *ds, int port, struct ethtool_keee *eee)
+ {
+ 	struct realtek_priv *priv = ds->priv;

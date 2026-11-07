@@ -1,22 +1,46 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 11:20:00 +0800
-Subject: [PATCH] rtl837x: define native policy state and register access
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: native policy state and register access
 
-Define local policy state, device register operations, port membership and
-CPU customer-tag preservation.
+Preserve the existing service-VLAN policy, transactional recovery and DSA callbacks on the upstream VLAN helper API.
 
 Split from:
+  package/kernel/rtl837x/patches/140-native-policy-state-and-register-access.patch ([PATCH] rtl837x: define native policy state and register access)
+  package/kernel/rtl837x/patches/141-native-vlan-transactions-and-recovery.patch ([PATCH] rtl837x: retain VLAN snapshots and recovery)
+  package/kernel/rtl837x/patches/142-native-bridge-and-vlan-updates.patch ([PATCH] rtl837x: retain bridge and VLAN update transactions)
+  package/kernel/rtl837x/patches/143-native-dsa-policy-callbacks.patch ([PATCH] rtl837x: expose the native DSA policy callbacks)
   package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
---- /dev/null
-+++ b/src/rtl837x_vlan.c
-@@ -0,0 +1,195 @@
+--- a/src/rtl837x_policy.c
++++ b/src/rtl837x_policy.c
+@@ -0,0 +1,190 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later
 +/* Preserve the local per-port service VLAN and recovery contract on regmap. */
 +#include <linux/if_bridge.h>
++#include <linux/if_vlan.h>
 +#include "rtl837x.h"
++#include "rtl837x_vlan.h"
++
++#define RTL837X_VLAN_PORT_AFT_ADDR(_p)                           (0x4E10 + (((_p / 10) << 2)))
++#define   RTL837X_VLAN_PORT_AFT_CTAG_ACCEPT_TYPE_MASK(_p)        (GENMASK(1, 0) << ((_p % 0xA) << 1))
++#define RTL837X_VLAN_PORT_IGR_FLTR_ADDR(_p)                      (0x4E18 + (((_p / 10) << 2)))
++#define   RTL837X_VLAN_PORT_IGR_FLTR_IGR_FLTR_ACT_MASK(_p)       BIT(_p % 0xA)
++#define RTL837X_VLAN_PORT_PB_VLAN_ADDR(_p)                       (0x4E1C + (((_p >> 1) << 2)))
++#define   RTL837X_VLAN_PORT_PB_VLAN_PVID_MASK(_p)                (GENMASK(11, 0) << ((_p & 0x1) * 12))
++#define RTL837X_VLAN_PORT_EGR_KEEP_ADDR(_p)                      (0x6728 + (((_p / 3) << 2)))
++#define   RTL837X_VLAN_PORT_EGR_KEEP_PMSK_MASK(_p)               (GENMASK(9, 0) << ((_p % 0x3) * 10))
++#define RTL837X_VLAN_PORT_EGR_TAG_ADDR(_p)                       (0x6738 + (((_p / 10) << 2)))
++#define   RTL837X_VLAN_PORT_EGR_TAG_MODE_MASK(_p)                (GENMASK(1, 0) << ((_p % 0xA) << 1))
++#define RTL837X_VS_PORT_DFLT_SVID_ADDR(_p)                       (0x57CC + (((_p >> 1) << 2)))
++#define   RTL837X_VS_PORT_DFLT_SVID_PORT_DFLT_SVID_MASK(_p)      (GENMASK(11, 0) << ((_p & 0x1) * 12))
++#define RTL837X_MSPT_STATE_ADDR(_fid)       (0x5310 + (((_fid) << 2))) /* RTL837x_FIDMAX */
++#define RTL837X_MSTP_STATE(port, state) \
++	((state) << ((port) * 2))
++#define RTL837X_MSTP_STATE_MASK(port) \
++	RTL837X_MSTP_STATE((port), GENMASK(1, 0))
++#define RTL837X_PORT_ISO_PORT_PMSK_ADDR(_p)                    (0x50C0 + (((_p) << 2)))
 +
 +struct rtl837x_vlan_entry { u16 mbr, untag; };
 +struct rtl837x_vlan_snapshot {
@@ -26,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	u8 port;
 +};
 +struct rtl837x_local {
-+	struct rtl837x_priv *priv;
++	struct realtek_priv *priv;
 +	struct dsa_switch *ds;
 +	struct device *dev;
 +	struct mutex lock;
@@ -76,22 +100,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +}
 +static int rtl837x_row_get(struct rtl837x_local *gsw, u16 vid, struct rtl837x_vlan_data *row)
 +{
-+	row->vid = vid;
-+	return rtl837x_vlan_get(gsw->priv, row);
++	return rtl837x_vlan_get(gsw->priv, vid, row);
 +}
 +static int rtl837x_row_set(struct rtl837x_local *gsw, u16 vid, const struct rtl837x_vlan_data *row)
 +{
 +	struct rtl837x_vlan_data value = *row;
-+	value.vid = vid;
-+	return rtl837x_vlan_set(gsw->priv, &value);
++	return rtl837x_vlan_set(gsw->priv, vid, &value);
 +}
 +static int rtl837x_write_vlan(struct rtl837x_local *gsw, u16 vid, u16 member, u16 untag)
 +{
-+	struct rtl837x_vlan_data row = { .vid = vid };
++	struct rtl837x_vlan_data row = { 0 };
 +	row.mbr = member;
 +	row.untag = untag;
 +	row.ivl_en = 1;
-+	return rtl837x_vlan_set(gsw->priv, &row);
++	return rtl837x_vlan_set(gsw->priv, vid, &row);
 +}
 +static bool rtl837x_valid_port(struct rtl837x_local *gsw, int port)
 +{
@@ -182,29 +204,5 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		return -EIO;
 +
 +	return 0;
-+}
-+
-+static int rtl837x_update_isolation(struct rtl837x_local *gsw)
-+{
-+	u32 permit;
-+	int port, ret;
-+
-+	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
-+		if (!rtl837x_valid_port(gsw, port))
-+			continue;
-+
-+		if (port == gsw->cpu_port) {
-+			permit = rtl837x_user_ports(gsw);
-+		} else {
-+			permit = BIT(gsw->cpu_port) |
-+				 rtl837x_bridge_ports(gsw, port);
-+		}
-+
-+		ret = rtl837x_isolation_set(gsw, port, permit);
-+		if (ret)
-+			return ret;
-+	}
-+
-+	return rtl837x_update_cpu_keep(gsw, -1, false);
 +}
 +

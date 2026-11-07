@@ -1,0 +1,232 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: select service tag and native callbacks
+
+Keep ETH_P_8021AD and the fixed service tag expected by the existing PPE integration; wire the native bridge and VLAN callbacks.
+
+Split from:
+  package/kernel/rtl837x/patches/160-select-local-service-tag-and-forwarding-callbacks.patch ([PATCH] rtl8372n: select the local service tag and forwarding callbacks)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -513,7 +513,7 @@
+ static bool is_8021q_tag(enum dsa_tag_protocol tag_proto)
+ {
+ 	switch (tag_proto) {
+-	case DSA_TAG_PROTO_MXL862_8021Q:
++	case DSA_TAG_PROTO_RTL837X_8021AD:
+ 		return true;
+ 	default:
+ 		return false;
+@@ -1181,117 +1181,53 @@
+ static int rtl8372n_set_tag_8021q(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+-	int ret;
++	int ret, idx;
+ 
+-	//  bit0: internal cpu; bit1: external cpu
++	ret = rtl837x_reg_bits_write(priv, RTL837X_CPU_CTRL_REG,
++		RTL837X_CPU_CTRL_EN_MASK, 0);
++	if (ret)
++		return ret;
+ 	ret = rtl837x_reg_bits_write(priv, RTL837X_SVLAN_TRAP_CTRL_REG,
+-				     RTL837X_SVLAN_TRAP_CTRL_CPU_TYPE_MASK, BIT(1)
+-			);
++		RTL837X_SVLAN_TRAP_CTRL_CPU_TYPE_MASK, BIT(1));
+ 	if (ret)
+ 		return ret;
+-
+-	// Set S-VLAN upstream priority reference setting.
+-	/*
+-	 *	REF_INTERNAL_PRI = 0,
+-	 *	REF_CTAG_PRI,
+-	 *	REF_SVLAN_PRI,
+-	 *	REF_PB_PRI,
+-	 *	REF_PRI_END
+-	 */
+ 	ret = rtl837x_reg_bits_write(priv, RTL837X_VS_CTRL_REG,
+-				     RTL837X_VS_CTRL_SPRISEL_MASK, 1
+-			);
++		RTL837X_VS_CTRL_SPRISEL_MASK, 1);
+ 	if (ret)
+ 		return ret;
+-
+-	// Drop packets received from the CPU port without an S-tag
+-	/*
+-	 *	UNTAG_DROP = 0,
+-	 *	UNTAG_TRAP,
+-	 *	UNTAG_ASSIGN,
+-	 *	UNTAG_END
+-	 */
+ 	ret = rtl837x_reg_bits_write(priv, RTL837X_VS_CTRL_REG,
+-				     RTL837X_VS_CTRL_UNTAG_MASK, 0
+-		);
++		RTL837X_VS_CTRL_UNTAG_MASK | RTL837X_VS_CTRL_UIFSEG_MASK, 0);
+ 	if (ret)
+ 		return ret;
+-
+-	// Set custom TPID
+-	ret = rtl837x_reg_write(priv, RTL837X_VS_GLB_CTRL_REG, ETH_P_8021Q);
++	ret = rtl837x_reg_write(priv, RTL837X_VS_GLB_CTRL_REG, ETH_P_8021AD);
+ 	if (ret)
+ 		return ret;
+-
+-	// Set cpu port as service port
+ 	ret = rtl837x_reg_write(priv, RTL837X_VS_UPLINK_PORT_REG, dsa_cpu_ports(ds));
+ 	if (ret)
+ 		return ret;
+-
+-	for (int idx = 0; idx <= RTL837x_C2SIDXMAX;  idx++) {
++	for (idx = 0; idx <= RTL837x_C2SIDXMAX; idx++) {
+ 		ret = rtl837x_reg_write(priv, RTL837X_VLAN_C2S_ENTRY_REG(idx) + 4, 0);
+ 		if (ret)
+ 			return ret;
+-
+ 		ret = rtl837x_reg_write(priv, RTL837X_VLAN_C2S_ENTRY_REG(idx), 0);
+ 		if (ret)
+ 			return ret;
+ 	}
+-
+-	// Set Port Ingress Tag Action
+-	/*
+-	 *	UNASSIGN_PBSVID = 0,
+-	 *	UNASSIGN_TRAP,
+-	 *	UNASSIGN_END
+-	 */
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_VS_CTRL_REG,
+-				     RTL837X_VS_CTRL_UIFSEG_MASK, 0
+-		);
++	ret = dsa_tag_8021q_register(ds, htons(ETH_P_8021AD));
+ 	if (ret)
+ 		return ret;
+-
+-	ret = dsa_tag_8021q_register(ds, htons(ETH_P_8021Q));
++	ret = rtl837x_local_bridge_init(ds);
+ 	if (ret)
+-		return ret;
+-
+-	return 0;
++		dsa_tag_8021q_unregister(ds);
++	return ret;
+ }
+ 
+ static int rtl8372n_teardown_tag_8021q(struct dsa_switch *ds)
+ {
+-	struct rtl837x_vlan_data vlan_data;
+-	struct rtl8372n *chip_data;
+ 	struct realtek_priv *priv = ds->priv;
+-	struct dsa_port *dp = NULL;
+-
+-	chip_data = priv->chip_data;
+-
+ 	if (ds->tag_8021q_ctx)
+ 		dsa_tag_8021q_unregister(ds);
+-
+-	// Clean service port
+-	rtl837x_reg_write(priv, RTL837X_VS_UPLINK_PORT_REG, 0);
+-
+-	vlan_data.mbr = 0;
+-	vlan_data.untag = 0;
+-	vlan_data.fid = 0;
+-	vlan_data.ivl_en = 1;
+-
+-	// Remove s-tag vlan entries
+-	for (int i = 0; i < 4096; i++) {
+-		if (chip_data->dsa_tag_8021q_vid[i]) {
+-			chip_data->dsa_tag_8021q_vid[i] = false;
+-			rtl837x_vlan_set(priv, i, &vlan_data);
+-		}
+-	}
+-
+-	dsa_switch_for_each_user_port(dp, ds) {
+-		rtl837x_reg_bits_write(priv, RTL837X_VS_PORT_DFLT_SVID_REG(dp->index),
+-				       RTL837X_VS_PORT_DFLT_SVID_MASK(dp->index), 0
+-				);
+-	}
+-
+-	(void)rtl837x_lut_l2_flush_all(priv);
+-	return 0;
++	return rtl837x_reg_write(priv, RTL837X_VS_UPLINK_PORT_REG, 0);
+ }
+ 
+ static int rtl8372n_port_set_isolation(struct realtek_priv *priv, int port,
+@@ -1713,7 +1649,7 @@
+ 
+ 	if (db.type == DSA_DB_BRIDGE && is_8021q_tag(priv->tag_proto)) {
+ 		/*
+-		 * When the DSA tag protocol is DSA_TAG_PROTO_MXL862_8021Q, the L2 VLAN
++		 * When the DSA tag protocol is DSA_TAG_PROTO_RTL837X_8021AD, the L2 VLAN
+ 		 * learned on the CPU port is the 802.1q DSA TAG rather than the port's own
+ 		 * VLAN ID.
+ 		 * We need add the correct fdb entry
+@@ -2438,12 +2374,9 @@
+ 
+ 	rtnl_lock();
+ 	switch (priv->tag_proto) {
+-	case DSA_TAG_PROTO_MXL862_8021Q:
++	case DSA_TAG_PROTO_RTL837X_8021AD:
+ 		ret = rtl8372n_set_tag_8021q(ds);
+ 		break;
+-	case DSA_TAG_PROTO_RTL8_4:
+-		ret = rtl8372n_set_tag_rtl(ds);
+-		break;
+ 	default:
+ 		ret = -EPROTONOSUPPORT;
+ 	}
+@@ -2458,7 +2391,6 @@
+ 
+ static const struct dsa_switch_ops rtl8372n_switch_ops_mdio = {
+ 	.get_tag_protocol = rtl8372n_get_tag_protocol,
+-	.change_tag_protocol = rtl8372n_change_tag_protocol,
+ 	.setup = rtl8372n_setup,
+ 	.teardown = rtl8372n_teardown,
+ 
+@@ -2472,18 +2404,18 @@
+ 	.get_eth_mac_stats = rtl8372n_get_mac_stats,
+ 	.get_eth_ctrl_stats = rtl8372n_get_ctrl_stats,
+ 
+-	.port_vlan_filtering = rtl8372n_port_vlan_filtering,
+-	.port_vlan_add = rtl8372n_vlan_add,
+-	.port_vlan_del = rtl8372n_vlan_del,
++	.port_vlan_filtering = rtl837x_port_vlan_filtering,
++	.port_vlan_add = rtl837x_port_vlan_add,
++	.port_vlan_del = rtl837x_port_vlan_del,
+ 
+-	.port_stp_state_set = rtl8372n_port_stp_state_set,
++	.port_stp_state_set = rtl837x_local_stp_set,
+ 
+ 	.port_pre_bridge_flags = rtl8372n_port_pre_bridge_flags,
+ 	.port_bridge_flags = rtl8372n_port_bridge_flags,
+ 	.port_change_mtu = rtl8372n_port_change_mtu,
+ 	.port_max_mtu = rtl8372n_port_max_mtu,
+-	.port_bridge_join = rtl8372n_port_bridge_join,
+-	.port_bridge_leave = rtl8372n_port_bridge_leave,
++	.port_bridge_join = rtl837x_port_bridge_join,
++	.port_bridge_leave = rtl837x_port_bridge_leave,
+ 
+ 	.port_fdb_add  = rtl8372n_port_fdb_add,
+ 	.port_fdb_del  = rtl8372n_port_fdb_del,
+@@ -2492,8 +2424,8 @@
+ 	.port_mdb_del  = rtl8372n_port_mdb_del,
+ 	.port_fast_age = rtl8372n_port_fast_age,
+ 
+-	.tag_8021q_vlan_add = rtl8372n_tag_8021q_vlan_add,
+-	.tag_8021q_vlan_del = rtl8372n_tag_8021q_vlan_del,
++	.tag_8021q_vlan_add = rtl837x_tag_8021q_vlan_add,
++	.tag_8021q_vlan_del = rtl837x_tag_8021q_vlan_del,
+ 
+ #if  KERNEL_VERSION(6, 12, 44) <= LINUX_VERSION_CODE
+ 	.support_eee		= dsa_supports_eee,
+@@ -2516,7 +2448,7 @@
+ const struct rtl837x_variant rtl8372n_variant = {
+ 	.ds_ops_mdio = &rtl8372n_switch_ops_mdio,
+ 	.ops = &rtl8372n_ops,
+-	.def_tag_proto = DSA_TAG_PROTO_RTL8_4,
++	.def_tag_proto = DSA_TAG_PROTO_RTL837X_8021AD,
+ 	.pl_mac_ops = &rtl8372n_phylink_mac_ops,
+ 	.chip_data_sz = sizeof(struct rtl8372n),
+ };

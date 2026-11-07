@@ -1,0 +1,228 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: remove superseded tag switching
+
+Remove superseded tag switching after wiring the existing native policy to upstream dev. Keep only one implementation for each responsibility.
+
+Split from:
+  package/kernel/rtl837x/patches/154-remove-superseded-private-vlan-helpers.patch ([PATCH] rtl8372n: remove superseded private VLAN helpers)
+  package/kernel/rtl837x/patches/155-remove-superseded-vlan-and-bridge-helpers.patch ([PATCH] rtl8372n: remove superseded VLAN and bridge helpers)
+  package/kernel/rtl837x/patches/156-remove-inactive-tag-switching.patch ([PATCH] rtl8372n: remove inactive tag switching)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1257,80 +1257,6 @@
+ 	return 0;
+ }
+ 
+-static int rtl8372n_set_tag_rtl(struct dsa_switch *ds)
+-{
+-	struct net_device *master_dev = NULL;
+-	struct dsa_port *dp, *cpu_dp = NULL;
+-	struct rtl8372n *chip_data;
+-	struct realtek_priv *priv = ds->priv;
+-	int ret;
+-
+-	chip_data = priv->chip_data;
+-
+-	// Only support one CPU port
+-	dsa_switch_for_each_cpu_port(dp, ds) {
+-		cpu_dp = dp;
+-		break;
+-	}
+-
+-	if (!cpu_dp)
+-		return -ENODEV;
+-
+-#if KERNEL_VERSION(6, 12, 44) >= LINUX_VERSION_CODE
+-	master_dev = cpu_dp->master;
+-#else
+-	master_dev = cpu_dp->conduit;
+-#endif
+-
+-	if (!master_dev) {
+-		dev_err(priv->dev, "Cannot get master netdev from cpu port\n");
+-		return -ENODEV;
+-	}
+-
+-	// Set external CPU DSA tag insert mode
+-	/*
+-	 *	CPU_INSERT_TO_ALL = 0,
+-	 *	CPU_INSERT_TO_TRAPPING,
+-	 *	CPU_INSERT_TO_NONE,
+-	 *	CPU_INSERT_END
+-	 */
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_CPU_CTRL_REG,
+-				     RTL837X_CPU_CTRL_INSERTMODE_MASK, 0
+-			);
+-	if (ret)
+-		return ret;
+-
+-	// Set external CPU port
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_EXT_CPU_CTRL_REG,
+-				     RTL837X_EXT_CPU_CTRL_PORT_IDX_MASK, cpu_dp->index
+-			);
+-	if (ret)
+-		return ret;
+-
+-	// Enable CPU tag
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_CPU_CTRL_REG,
+-				     RTL837X_CPU_CTRL_EN_MASK, 1
+-			);
+-	if (ret)
+-		return ret;
+-
+-	// Add cpu port to RTL8_4 TAG aware port
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_CPU_TAG_AWARE_CTRL_REG, BIT(cpu_dp->index), 1);
+-	if (ret)
+-		return ret;
+-
+-	chip_data->csum_feature_backup = master_dev->wanted_features &
+-					 (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
+-	chip_data->csum_feature_backup |= master_dev->wanted_features &
+-					  NETIF_F_HW_CSUM;
+-
+-	master_dev->wanted_features &= ~(NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
+-	master_dev->wanted_features &= ~NETIF_F_HW_CSUM;
+-	netdev_update_features(master_dev);
+-
+-	return 0;
+-}
+-
+ static int rtl8372n_set_tag_8021q(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+@@ -1447,130 +1373,6 @@
+ 	return 0;
+ }
+ 
+-static int rtl8372n_tag_8021q_vlan_add(struct dsa_switch *ds, int port,
+-				       u16 vid, u16 flags)
+-{
+-	struct rtl8372n *chip_data;
+-	struct realtek_priv *priv = ds->priv;
+-	u32 member = 0, untag = 0;
+-	int ret = 0;
+-
+-	chip_data = priv->chip_data;
+-
+-	dev_dbg(priv->dev, "[%s]: port: %d, vid:%u, flags: %u\n", __func__, port, vid, flags);
+-
+-	// Set Port SVID
+-	if (flags & BRIDGE_VLAN_INFO_PVID)
+-		ret = rtl837x_reg_bits_write(priv, RTL837X_VS_PORT_DFLT_SVID_REG(port),
+-					     RTL837X_VS_PORT_DFLT_SVID_MASK(port), vid
+-				);
+-	if (ret)
+-		return ret;
+-
+-	member |= BIT(port);
+-	if (dsa_is_user_port(ds, port))
+-		untag |= BIT(port);
+-
+-	ret = rtl8372n_vlan_update(priv, vid, member, untag, 0);
+-	if (ret)
+-		goto fail_rollback;
+-
+-	chip_data->dsa_tag_8021q_vid[vid] = true;
+-	return 0;
+-
+-fail_rollback:
+-	dev_err(priv->dev, "failed to add 8021q tag for port(%d) vid: %u\n", port, vid);
+-
+-	if (flags & BRIDGE_VLAN_INFO_PVID)
+-		rtl837x_reg_bits_write(priv, RTL837X_VS_PORT_DFLT_SVID_REG(port),
+-				       RTL837X_VS_PORT_DFLT_SVID_MASK(port), 0
+-				);
+-	return ret;
+-}
+-
+-static int rtl8372n_tag_8021q_vlan_del(struct dsa_switch *ds, int port,
+-				       u16 vid)
+-{
+-	struct rtl837x_vlan_data vlan_data;
+-	struct rtl8372n *chip_data;
+-	struct realtek_priv *priv = ds->priv;
+-	int ret;
+-
+-	chip_data = priv->chip_data;
+-
+-	dev_dbg(priv->dev, "[%s]: port: %d, vid: %u\n", __func__, port, vid);
+-
+-	ret = rtl837x_vlan_get(priv, vid, &vlan_data);
+-	if (ret)
+-		return ret;
+-
+-	vlan_data.mbr &= ~BIT(port);
+-	vlan_data.untag &= ~BIT(port);
+-	vlan_data.ivl_en = 1;
+-
+-	if (!vlan_data.mbr) {
+-		vlan_data.untag = 0;
+-		vlan_data.fid = 0;
+-	}
+-
+-	ret = rtl837x_vlan_set(priv, vid, &vlan_data);
+-	if (ret) {
+-		dev_err(priv->dev,
+-			"failed to remove SVLAN %u\n",
+-			vid);
+-		return ret;
+-	}
+-
+-	chip_data->dsa_tag_8021q_vid[vid] = false;
+-
+-	// Clean Port SVID
+-	if (dsa_is_user_port(ds, port))
+-		ret = rtl837x_reg_bits_write(priv, RTL837X_VS_PORT_DFLT_SVID_REG(port),
+-					     RTL837X_VS_PORT_DFLT_SVID_MASK(port), 0
+-				);
+-	if (ret) {
+-		dev_err(priv->dev,
+-			"failed to clean port(%d) SVID %u\n",
+-			port, vid);
+-		return ret;
+-	}
+-
+-	return 0;
+-}
+-
+-static int rtl8372n_change_tag_protocol(struct dsa_switch *ds,
+-					enum dsa_tag_protocol proto)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-	int ret;
+-
+-	dev_dbg(priv->dev, "[%s]: proto: %d\n", __func__, proto);
+-
+-	switch (proto) {
+-	case DSA_TAG_PROTO_MXL862_8021Q:
+-		ret = rtl8372n_teardown_tag_rtl(ds);
+-		if (ret)
+-			return ret;
+-		ret = rtl8372n_set_tag_8021q(ds);
+-		if (ret)
+-			return ret;
+-		break;
+-	case DSA_TAG_PROTO_RTL8_4:
+-		ret = rtl8372n_teardown_tag_8021q(ds);
+-		if (ret)
+-			return ret;
+-		ret = rtl8372n_set_tag_rtl(ds);
+-		if (ret)
+-			return ret;
+-		break;
+-	default:
+-		return -EPROTONOSUPPORT;
+-	}
+-	priv->tag_proto = proto;
+-
+-	return 0;
+-}
+-
+ static int rtl8372n_port_set_isolation(struct realtek_priv *priv, int port,
+ 				       u32 mask)
+ {

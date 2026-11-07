@@ -1,0 +1,142 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: preserve native fdb and mdb identities
+
+Keep the local VLAN-zero/default FDB and MDB identities without replacing the upstream FDB dump error handling.
+
+Split from:
+  package/kernel/rtl837x/patches/170-preserve-local-fdb-and-mdb-identities.patch ([PATCH] rtl8372n: preserve local FDB and MDB identities)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1400,11 +1400,11 @@
+  * to the CPU and to no other port", whereas the member port mask of an L2
+  * multicast entry can.
+  */
+-static int rtl8372n_set_bpdu_l2mc_cpu_trap(struct realtek_priv *priv, u32 vid,
++int rtl8372n_set_bpdu_l2mc_cpu_trap(struct realtek_priv *priv, u32 vid,
+ 					   u32 cpu_port_mask, bool add)
+ {
+-	struct rtl837x_lut_entry entry = {0};
+ 	const u8 bpdu[] = { 0x01, 0x80, 0xC2, 0x00, 0x00, 0x00 };
++	struct rtl837x_lut_entry entry = {0};
+ 	int ret;
+ 
+ 	entry.type = RTL837X_LUT_TYPE_L2_MC;
+@@ -1634,56 +1634,31 @@
+ 
+ static int
+ rtl8372n_port_fdb_add(struct dsa_switch *ds, int port,
+-		      const unsigned char *addr, u16 vid,
++		    const unsigned char *addr, u16 vid,
+ 		    struct dsa_db db)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+-	int ret;
+ 
+ 	if (db.type != DSA_DB_PORT && db.type != DSA_DB_BRIDGE)
+ 		return -EOPNOTSUPP;
+ 
+ 	dev_dbg(priv->dev, "[%s]:type: %s port:%d vid:%04d\n", __func__,
+-		db.type == DSA_DB_PORT ? "DSA_DB_PORT" : "DSA_DB_BRIDGE",
++					db.type == DSA_DB_PORT ? "DSA_DB_PORT" : "DSA_DB_BRIDGE",
+ 					port, vid);
+ 
+-	if (db.type == DSA_DB_BRIDGE && is_8021q_tag(priv->tag_proto)) {
+-		/*
+-		 * When the DSA tag protocol is DSA_TAG_PROTO_RTL837X_8021AD, the L2 VLAN
+-		 * learned on the CPU port is the 802.1q DSA TAG rather than the port's own
+-		 * VLAN ID.
+-		 * We need add the correct fdb entry
+-		 */
+-		if (vid == 0) {
+-			struct dsa_port *dp;
+-
+-			dsa_switch_for_each_user_port(dp, ds) {
+-				/* Add static fdb entry */
+-				vid = dsa_tag_8021q_standalone_vid(dp);
+-				ret = rtl8372n_port_fdb_static_add(priv, port,
+-								   addr, vid);
+-				if (ret)
+-					return ret;
+-			}
+-		} else {
+-			ret = rtl8372n_port_fdb_static_add(priv, port, addr,
+-							   vid);
+-			if (ret)
+-				return ret;
+-		}
+-	} else {
+-		return rtl8372n_port_fdb_static_add(priv, port, addr, vid);
+-	}
+-	return 0;
++	if (dsa_is_cpu_port(ds, port))
++		return 0;
++	vid = vid ?: 1;
++	return rtl8372n_port_fdb_static_add(priv, port, addr, vid);
++
+ }
+ 
+ static int
+ rtl8372n_port_fdb_del(struct dsa_switch *ds, int port,
+-		      const unsigned char *addr, u16 vid,
++		    const unsigned char *addr, u16 vid,
+ 		    struct dsa_db db)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+-	int ret;
+ 
+ 	if (db.type != DSA_DB_PORT && db.type != DSA_DB_BRIDGE)
+ 		return -EOPNOTSUPP;
+@@ -1691,25 +1666,11 @@
+ 	if (dsa_fdb_present_in_other_db(ds, port, addr, vid, db))
+ 		return 0;
+ 
+-	if (db.type == DSA_DB_BRIDGE && is_8021q_tag(priv->tag_proto)) {
+-		if (vid == 0) {
+-			struct dsa_port *dp;
+-
+-			dsa_switch_for_each_user_port(dp, ds) {
+-				/* Del static fdb entry */
+-				vid = dsa_tag_8021q_standalone_vid(dp);
+-				ret = rtl8372n_port_fdb_static_del(priv, addr,
+-								   vid);
+-				if (ret)
+-					return ret;
+-			}
+-		} else {
+-			return rtl8372n_port_fdb_static_del(priv, addr, vid);
+-		}
+-	} else {
+-		return rtl8372n_port_fdb_static_del(priv, addr, vid);
+-	}
+-	return 0;
++	if (dsa_is_cpu_port(ds, port))
++		return 0;
++	vid = vid ?: 1;
++	return rtl8372n_port_fdb_static_del(priv, addr, vid);
++
+ }
+ 
+ static int
+@@ -1752,7 +1713,7 @@
+ 	struct rtl837x_lut_entry entry = {0};
+ 	struct realtek_priv *priv = ds->priv;
+ 	const u8 *addr = mdb->addr;
+-	u16 vid = mdb->vid;
++	u16 vid = mdb->vid ? mdb->vid : 1;
+ 	int ret;
+ 
+ 	memcpy(entry.mc.key.mac_addr, addr, ETH_ALEN);
+@@ -1796,7 +1757,7 @@
+ 	struct rtl837x_lut_entry entry = {0};
+ 	struct realtek_priv *priv = ds->priv;
+ 	const u8 *addr = mdb->addr;
+-	u16 vid = mdb->vid;
++	u16 vid = mdb->vid ? mdb->vid : 1;
+ 	int ret;
+ 
+ 	dev_dbg(priv->dev, "[%s]:mac:%pM port:%d vid:%04d\n",

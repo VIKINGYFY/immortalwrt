@@ -1,18 +1,18 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 11:20:00 +0800
-Subject: [PATCH] rtl837x: preserve board topology and LED initialization
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: preserve board topology and leds
 
-Keep early quarantine, conduit readiness, the P8 switch supplier and
-masked board LED data independent of the former SDK context.
+Keep conduit readiness, dual-switch dependency, pre-conduit quarantine and the masked board LED table.
 
 Split from:
+  package/kernel/rtl837x/patches/130-preserve-board-topology-and-led-initialization.patch ([PATCH] rtl837x: preserve board topology and LED initialization)
   package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
---- /dev/null
+--- a/src/rtl837x_board.c
 +++ b/src/rtl837x_board.c
-@@ -0,0 +1,140 @@
+@@ -0,0 +1,142 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later
 +/* Board initialization retained from the local RTL837x integration. */
 +#include <linux/device.h>
@@ -21,7 +21,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +#include "rtl837x.h"
 +
-+int rtl837x_board_prepare(struct rtl837x_priv *priv)
++#define RTL837X_PORT_ISOLATION_REG(_p) (0x50c0 + ((_p) << 2))
++
++int rtl837x_board_prepare(struct realtek_priv *priv)
 +{
 +	struct device_node *np = priv->dev->of_node;
 +	struct device_node *ports, *port, *ethernet = NULL, *supplier_np;
@@ -67,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				(configured & BIT(index) ? BIT(cpu) : 0);
 +
 +			ret = rtl837x_reg_write(priv,
-+				RTL837X_PORT_ISO_PORT_PMSK_ADDR(index), members);
++				RTL837X_PORT_ISOLATION_REG(index), members);
 +			if (ret)
 +				goto out;
 +		}
@@ -102,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +}
 +
 +/* Masked board LED register settings from the existing board integration. */
-+int rtl837x_board_led_init(struct rtl837x_priv *priv)
++int rtl837x_board_led_init(struct realtek_priv *priv)
 +{
 +	static const struct { u32 reg, mask, value; } init[] = {
 +		{ 0x65e0, 0x0000003f, 0x00000000 },

@@ -1,18 +1,21 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 11:20:00 +0800
-Subject: [PATCH] rtl837x: retain bridge and VLAN update transactions
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: native policy bridge and vlan transactions
 
-Rebuild each fixed source SVID membership and local isolation atomically.
-Keep customer VLAN, service PVID and VLAN1 baseline updates independent.
+Preserve the existing service-VLAN policy, transactional recovery and DSA callbacks on the upstream VLAN helper API.
 
 Split from:
+  package/kernel/rtl837x/patches/140-native-policy-state-and-register-access.patch ([PATCH] rtl837x: define native policy state and register access)
+  package/kernel/rtl837x/patches/141-native-vlan-transactions-and-recovery.patch ([PATCH] rtl837x: retain VLAN snapshots and recovery)
+  package/kernel/rtl837x/patches/142-native-bridge-and-vlan-updates.patch ([PATCH] rtl837x: retain bridge and VLAN update transactions)
+  package/kernel/rtl837x/patches/143-native-dsa-policy-callbacks.patch ([PATCH] rtl837x: expose the native DSA policy callbacks)
   package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
---- a/src/rtl837x_vlan.c
-+++ b/src/rtl837x_vlan.c
-@@ -357,3 +357,261 @@
+--- a/src/rtl837x_policy.c
++++ b/src/rtl837x_policy.c
+@@ -376,3 +376,224 @@
  	return ret;
  }
  
@@ -235,42 +238,5 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +failed:
 +	return rtl837x_vlan_failed(gsw, &old, phase, ret);
-+}
-+
-+static int rtl837x_seed_vlan_table(struct rtl837x_local *gsw)
-+{
-+	struct rtl837x_vlan_entry vlan1 = {
-+		.mbr = gsw->configured_port_mask,
-+		.untag = gsw->configured_port_mask,
-+	};
-+	int port, ret;
-+
-+	ret = rtl837x_write_vlan(gsw, 1, vlan1.mbr, vlan1.untag);
-+	if (ret)
-+		return ret;
-+
-+	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
-+		if (!rtl837x_valid_port(gsw, port))
-+			continue;
-+
-+		ret = rtl837x_pvid_set(gsw, port, 1);
-+		if (ret)
-+			return ret;
-+		gsw->port_pvid[port] = 1;
-+		ret = rtl837x_field_set(gsw, RTL837X_VLAN_PORT_EGR_TAG_ADDR(port),
-+			RTL837X_VLAN_PORT_EGR_TAG_MODE_MASK(port), 0);
-+		if (ret)
-+			return ret;
-+
-+		ret = rtl837x_filter_set(gsw, port, 0);
-+		if (ret)
-+			return ret;
-+
-+		ret = rtl837x_accept_set(gsw, port, 0);
-+		if (ret)
-+			return ret;
-+	}
-+
-+	return 0;
 +}
 +
