@@ -1,0 +1,131 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 15:33:52 +0800
+Subject: [PATCH] net: ppe: retire bridge flows after learned FDB changes
+
+Recheck transparent bridge peers after software FDB moves or deletions.
+The switchdev atomic notifier queues process-context work, which uses
+the same RTNL to flow-lock order as flow publication. Withdraw only flows
+whose current source or destination port no longer matches. Unrelated
+learning retains its active offloaded flows. Stop the notifier and work
+before freeing flowtable resources.
+
+Split from:
+  0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -32,6 +32,7 @@
+ #include <linux/rtnetlink.h>
+ #include <linux/seq_file.h>
+ #include <linux/tc_act/tc_csum.h>
++#include <linux/workqueue.h>
+ #include <net/flow_offload.h>
+ #include <net/ip6_tunnel.h>
+ #include <net/ip6_route.h>
+@@ -467,6 +468,8 @@
+ 	struct notifier_block ppp_nb;
+ 	struct notifier_block account_nb;
+ 	struct notifier_block bridge_nb;
++	struct notifier_block fdb_nb;
++	struct work_struct fdb_work;
+ 	struct list_head block_cb_list;
+ };
+ 
+@@ -4925,6 +4928,62 @@
+ 	mutex_unlock(&ft->lock);
+ }
+ 
++/* FDB notifications can run in atomic context. Recheck learned peers in
++ * process context under the same RTNL -> flow lock order as publication.
++ * A move or deletion retires only bridge flows whose current peer lookup
++ * no longer agrees; learning another host must not flush active traffic.
++ */
++static void ppe_ft_fdb_work(struct work_struct *work)
++{
++	struct ppe_flowtable *ft = container_of(work, struct ppe_flowtable,
++						 fdb_work);
++	struct net_device *idev, *odev, *master;
++	struct ppe_ft_flow *flow;
++	bool valid;
++	u16 vid;
++	int i;
++
++	rtnl_lock();
++	mutex_lock(&ft->lock);
++	for (i = 0; i < ft->ppe_dev->variant->num_flow_entries; i++) {
++		flow = ft->flow_owners[i];
++		if (!flow || !list_empty(&flow->zombie_node) ||
++		    flow->entry.fwd_type != PPE_FLOW_FWD_TYPE_BRIDGE)
++			continue;
++		idev = flow->path_dev[0];
++		odev = flow->path_dev[1];
++		if (!idev || !odev)
++			continue;
++		rcu_read_lock();
++		master = netdev_master_upper_dev_get_rcu(idev);
++		vid = master && br_vlan_enabled(master) ?
++			(flow->vlan >= 0 ? ft->vlans[flow->vlan].cvid :
++			 flow->rule.data.ingress_cvid) : 0;
++		valid = master && netif_is_bridge_master(master) &&
++			netdev_master_upper_dev_get_rcu(odev) == master &&
++			br_fdb_find_port(master, flow->rule.data.eth.src, vid) == idev &&
++			br_fdb_find_port(master, flow->rule.data.eth.dst, vid) == odev;
++		rcu_read_unlock();
++		if (!valid)
++			ppe_ft_invalidate_locked(ft, flow);
++	}
++	mutex_unlock(&ft->lock);
++	rtnl_unlock();
++}
++
++static int ppe_ft_fdb_event(struct notifier_block *nb,
++			    unsigned long event, void *ptr)
++{
++	struct ppe_flowtable *ft = container_of(nb, struct ppe_flowtable,
++						 fdb_nb);
++	struct switchdev_notifier_fdb_info *info = ptr;
++
++	if ((event == SWITCHDEV_FDB_ADD_TO_DEVICE ||
++	     event == SWITCHDEV_FDB_DEL_TO_DEVICE) && !info->is_local)
++		schedule_work(&ft->fdb_work);
++	return NOTIFY_DONE;
++}
++
+ /* Retire hardware bypasses before a bridge policy change completes.
+  * RTNL excludes publication of another transparent flow until the bridge
+  * software state commits; nf_flowtable also retires its cached SW path.
+@@ -5067,6 +5126,8 @@
+ 	ft->ppp_nb.notifier_call = ppe_ft_ppp_event;
+ 	ft->account_nb.notifier_call = ppe_ft_account_event;
+ 	ft->bridge_nb.notifier_call = ppe_ft_bridge_event;
++	ft->fdb_nb.notifier_call = ppe_ft_fdb_event;
++	INIT_WORK(&ft->fdb_work, ppe_ft_fdb_work);
+ 	ppe_dev->flowtable = ft;
+ 
+ 	ret = register_netdevice_notifier(&ft->account_nb);
+@@ -5078,6 +5139,14 @@
+ 	if (!ret) {
+ 		ret = ppp_register_channel_notifier(&ft->ppp_nb);
+ 		if (ret) {
++			unregister_switchdev_blocking_notifier(&ft->bridge_nb);
++			unregister_netdevice_notifier(&ft->account_nb);
++		}
++	}
++	if (!ret) {
++		ret = register_switchdev_notifier(&ft->fdb_nb);
++		if (ret) {
++			ppp_unregister_channel_notifier(&ft->ppp_nb);
+ 			unregister_switchdev_blocking_notifier(&ft->bridge_nb);
+ 			unregister_netdevice_notifier(&ft->account_nb);
+ 		}
+@@ -5131,6 +5200,8 @@
+ 		return;
+ 
+ 	WARN_ON(!list_empty(&ft->block_cb_list));
++	unregister_switchdev_notifier(&ft->fdb_nb);
++	cancel_work_sync(&ft->fdb_work);
+ 	unregister_switchdev_blocking_notifier(&ft->bridge_nb);
+ 	unregister_netdevice_notifier(&ft->account_nb);
+ 	ppp_unregister_channel_notifier(&ft->ppp_nb);

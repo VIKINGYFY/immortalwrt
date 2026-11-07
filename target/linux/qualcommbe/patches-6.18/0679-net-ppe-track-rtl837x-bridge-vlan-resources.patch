@@ -1,0 +1,200 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 15:33:52 +0800
+Subject: [PATCH] net: ppe: track RTL837x bridge VLAN resource ownership
+
+Keep source virtual ports and physical bridge egress permissions owned by
+their exact ingress VLAN object. Reference each egress port separately and
+return it when a flow retires. Unknown unicast, multicast and broadcast
+floods remain CPU-only. Clear the consuming XLT before recycling a VP;
+quarantine uncertain resources. PPPoE source-L3 overrides stay exclusive.
+
+Split from:
+  0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -180,7 +180,9 @@
+  */
+ struct ppe_ft_vlan {
+ 	struct ppe_ft_ref ref;
++	unsigned int bridge_refs[8];
+ 	int pppoe;
++	int source_vp;
+ 	s16 svid;
+ 	s16 cvid;
+ 	u8 port;
+@@ -271,6 +273,7 @@
+ 	int ingress_pppoe;
+ 	int vlan;
+ 	int core_egress_port;
++	int bridge_peer;
+ 	int tunnel;
+ 	int vp;
+ 	int ivp;
+@@ -737,7 +740,8 @@
+ 	const struct ppe_ft_nexthop *slot = entry;
+ 	const struct ppe_flow_nexthop *nh = key;
+ 
+-	return slot->key.port == nh->port && slot->key.l3_if == nh->l3_if &&
++	return slot->key.vlan_only == nh->vlan_only &&
++	       slot->key.port == nh->port && slot->key.l3_if == nh->l3_if &&
+ 	       ether_addr_equal(slot->key.mac, nh->mac) &&
+ 	       slot->key.svid == nh->svid && slot->key.cvid == nh->cvid &&
+ 	       slot->key.pub_ip_index == nh->pub_ip_index &&
+@@ -1108,7 +1112,8 @@
+ 		/* A VSI has one L3 selector. Do not redirect another session or
+ 		 * an already installed plain-IP flow into this session's L3.
+ 		 */
+-		if (ft->vlans[vlan].pppoe >= 0) {
++		if (ft->vlans[vlan].pppoe >= 0 ||
++		    ft->vlans[vlan].source_vp >= 0) {
+ 			ret = -EEXIST;
+ 			goto err_vlan;
+ 		}
+@@ -1662,6 +1667,7 @@
+ {
+ 	struct ppe_ft_vlan want = {
+ 		.pppoe = -1,
++		.source_vp = -1,
+ 		.svid = svid,
+ 		.cvid = cvid,
+ 		.port = port,
+@@ -1818,6 +1824,65 @@
+ 		ppe_vp_put(ft->ppe_dev, port);
+ 
+ 	return ret;
++}
++
++/* A reserved VSI only opens the physical egress ports of live bridge
++ * flows. Keep CPU-only floods and no hardware FDB learning, so adding a
++ * member cannot create an unvalidated L2 path between service domains.
++ */
++static u32 ppe_ft_vlan_bridge_members(const struct ppe_ft_vlan *slot)
++{
++	u32 members = BIT(0);
++	int p;
++
++	for (p = 0; p < ARRAY_SIZE(slot->bridge_refs); p++)
++		if (slot->bridge_refs[p])
++			members |= BIT(p) | BIT(slot->port);
++	return members;
++}
++
++static int ppe_ft_vlan_bridge_peer_get(struct ppe_flowtable *ft, int vlan,
++				       int port)
++{
++	struct ppe_ft_vlan *slot = &ft->vlans[vlan];
++	int ret;
++
++	if (slot->poisoned || port <= 0 || port >= ft->ppe_dev->num_ports ||
++	    port >= ARRAY_SIZE(slot->bridge_refs))
++		return -EOPNOTSUPP;
++	slot->bridge_refs[port]++;
++	ret = ppe_vsi_bridge_members_set(ft->ppe_dev, ppe_ft_vlan_vsi(vlan),
++					ppe_ft_vlan_bridge_members(slot));
++	if (ret) {
++		slot->bridge_refs[port]--;
++		if (ret == -EUCLEAN) {
++			slot->poisoned = true;
++			slot->ref.refcnt++;
++			ppe_ing_xlt_rule_clear(ft->ppe_dev, ppe_ft_vlan_xlt(vlan));
++		}
++	}
++	return ret;
++}
++
++static void ppe_ft_vlan_bridge_peer_put(struct ppe_flowtable *ft, int vlan,
++				        int port)
++{
++	struct ppe_ft_vlan *slot;
++
++	if (vlan < 0 || port < 0)
++		return;
++	slot = &ft->vlans[vlan];
++	if (WARN_ON_ONCE(port >= ARRAY_SIZE(slot->bridge_refs) ||
++			 !slot->bridge_refs[port]))
++		return;
++	slot->bridge_refs[port]--;
++	if (ppe_vsi_bridge_members_set(ft->ppe_dev, ppe_ft_vlan_vsi(vlan),
++				      ppe_ft_vlan_bridge_members(slot))) {
++		slot->poisoned = true;
++		slot->ref.refcnt++;
++		ppe_ing_xlt_rule_clear(ft->ppe_dev, ppe_ft_vlan_xlt(vlan));
++		dev_err(ft->ppe_dev->dev, "quarantining bridge VSI %d\n", vlan);
++	}
+ }
+ 
+ static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index)
+@@ -1871,6 +1936,7 @@
+ 		ppe_ft_core_port_put(ft, 0, false);
+ 	if (slot->port >= PPE_VP_PORT_BASE)
+ 		ppe_vp_put(ft->ppe_dev, slot->port);
++	ppe_vp_put(ft->ppe_dev, slot->source_vp);
+ 	memset(slot, 0, sizeof(*slot));
+ }
+ 
+@@ -2626,6 +2692,7 @@
+ 	ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
+ 	ppe_ft_pppoe_put(ft, flow->pppoe);
+ 	ppe_ft_pppoe_put(ft, flow->ingress_pppoe);
++	ppe_ft_vlan_bridge_peer_put(ft, flow->vlan, flow->bridge_peer);
+ 	ppe_ft_vlan_put(ft, flow->vlan);
+ 	ppe_ft_core_port_put(ft, flow->core_egress_port, false);
+ 	ppe_ft_pub_ip_put(ft, flow->pub_ip);
+@@ -2850,6 +2917,38 @@
+ out:
+ 	rcu_read_unlock();
+ 	return valid;
++}
++
++
++/* A VLAN object owns the source VP as long as its consuming XLT survives.
++ * Existing routed flows keep the same VSI/L3 and CPU tag restoration.
++ */
++static int ppe_ft_vlan_source_vp(struct ppe_flowtable *ft, int vlan,
++				 struct net_device *dev)
++{
++	struct ppe_ft_vlan *slot = &ft->vlans[vlan];
++	int vp, ret;
++
++	if (slot->poisoned || slot->pppoe >= 0)
++		return -EBUSY;
++	if (slot->source_vp >= 0)
++		return slot->source_vp;
++	vp = ppe_vp_get_rtl837x_source(ft->ppe_dev, dev, slot->cvid);
++	if (vp < 0)
++		return vp;
++	ret = ppe_ing_xlt_source_vp_set(ft->ppe_dev,
++					ppe_ft_vlan_xlt(vlan), vp);
++	if (ret) {
++		if (ret == -EUCLEAN) {
++			slot->source_vp = vp;
++			slot->poisoned = true;
++		} else {
++			ppe_vp_put(ft->ppe_dev, vp);
++		}
++		return ret;
++	}
++	slot->source_vp = vp;
++	return vp;
+ }
+ 
+ static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
+@@ -2933,6 +3032,7 @@
+ 	flow->pppoe = -1;
+ 	flow->ingress_pppoe = -1;
+ 	flow->vlan = -1;
++	flow->bridge_peer = -1;
+ 	flow->core_egress_port = -1;
+ 	flow->tunnel = -1;
+ 	flow->vp = -1;
+@@ -4027,6 +4127,7 @@
+ 	ppe_ft_pppoe_put(ft, flow->pppoe);
+ err_vlan:
+ 	ppe_ft_pppoe_put(ft, flow->ingress_pppoe);
++	ppe_ft_vlan_bridge_peer_put(ft, flow->vlan, flow->bridge_peer);
+ 	ppe_ft_vlan_put(ft, flow->vlan);
+ err_ingress_my_mac:
+ 	ppe_ft_my_mac_put(ft, flow->ingress_my_mac);

@@ -1,0 +1,254 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 15:33:52 +0800
+Subject: [PATCH] net: ppe: select exact RTL837x ingress source virtual ports
+
+Use QSDK VLAN src_info_type=0 to identify a physical conduit plus the
+exact standalone SVID/CVID rule by an ingress-only VP. Keep the VSI/L3
+selection, CPU tag restoration and ordinary routed path. Reuse a VP only
+for the same DSA device and CVID. Disable uncertain rules and quarantine
+resources on rollback failure. Dispatch CPU misses through the existing
+RTL DSA tagger; do not install injection hooks or ATH tags.
+
+Split from:
+  0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+@@ -362,6 +362,8 @@
+ 			 int vsi, bool strip_svid, bool strip_cvid);
+ int ppe_ing_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
+ int ppe_ing_xlt_l3_if_set(struct ppe_device *ppe_dev, int index, int l3_if);
++int ppe_ing_xlt_source_vp_set(struct ppe_device *ppe_dev, int index, int vp);
++int ppe_vsi_bridge_members_set(struct ppe_device *ppe_dev, int vsi, u32 members);
+ int ppe_eg_xlt_rule_set(struct ppe_device *ppe_dev, int index,
+ 			unsigned int port_bitmap, int svid, int cvid,
+ 			int vsi, bool add_svid, bool add_cvid);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -1984,6 +1984,77 @@
+ 	return ppe_xlt_write_verify(ppe_dev, reg, action, ARRAY_SIZE(action));
+ }
+ 
++/* QSDK src_info_type=0 replaces the source port with a virtual port.
++ * Match the exact physical port/SVID/CVID in the existing consuming rule;
++ * retain its VSI, tag restoration and ordinary routed L3 selection.
++ */
++int ppe_ing_xlt_source_vp_set(struct ppe_device *ppe_dev, int index, int vp)
++{
++	u32 old[3], action[3], reg;
++	u32 mask = PPE_XLT_ACTION_W1_SRC_INFO_VALID |
++		   PPE_XLT_ACTION_W1_SRC_INFO_L3 | PPE_XLT_ACTION_W1_SRC_INFO;
++	int ret, restore;
++
++	if (index < PPE_XLT_RULE_TBL_ENTRIES - PPE_L3_RESERVED_VSIS ||
++	    index >= PPE_XLT_RULE_TBL_ENTRIES ||
++	    vp < PPE_VP_PORT_BASE || vp >= PPE_VP_PORT_BASE + PPE_VP_SLOTS)
++		return -EINVAL;
++	reg = PPE_XLT_ACTION_TBL_ADDR + PPE_XLT_ACTION_TBL_INC * index;
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, old, ARRAY_SIZE(old));
++	if (ret)
++		return ret;
++	/* An active PPPoE/tunnel L3 override owns this source selector. */
++	if (old[1] & PPE_XLT_ACTION_W1_SRC_INFO_L3)
++		return -EBUSY;
++	memcpy(action, old, sizeof(action));
++	action[1] = (action[1] & ~mask) |
++		    PPE_XLT_ACTION_W1_SRC_INFO_VALID |
++		    FIELD_PREP(PPE_XLT_ACTION_W1_SRC_INFO, vp);
++	ret = ppe_xlt_write_verify(ppe_dev, reg, action, ARRAY_SIZE(action));
++	if (!ret)
++		return 0;
++	restore = ppe_xlt_write_verify(ppe_dev, reg, old, ARRAY_SIZE(old));
++	if (restore) {
++		/* Stop matching before its uncertain source port can be reused. */
++		ppe_ing_xlt_rule_clear(ppe_dev, index);
++		dev_err(ppe_dev->dev,
++			"source VP rollback failed: xlt=%d vp=%d ret=%d\n",
++			index, vp, restore);
++		return -EUCLEAN;
++	}
++	return ret;
++}
++
++/* Reserved flow VSIs never learn peer FDB entries or flood to physical
++ * ports. Only validated flow references may add egress members; misses,
++ * ARP and broadcast still go to CPU and the software bridge.
++ */
++int ppe_vsi_bridge_members_set(struct ppe_device *ppe_dev, int vsi, u32 members)
++{
++	u32 old[2], val[2], reg;
++	int ret;
++
++	if (vsi < PPE_VSI_TBL_ENTRIES - PPE_L3_VLAN_UPLINKS ||
++	    vsi >= PPE_VSI_TBL_ENTRIES || !(members & BIT(0)) ||
++	    members & ~GENMASK(ppe_dev->num_ports - 1, 0))
++		return -EINVAL;
++	reg = PPE_VSI_TBL_ADDR + PPE_VSI_TBL_INC * vsi;
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, old, ARRAY_SIZE(old));
++	if (ret)
++		return ret;
++	memcpy(val, old, sizeof(val));
++	PPE_VSI_SET_MEMBER_PORT_BITMAP(val, members);
++	PPE_VSI_SET_UUC_BITMAP(val, BIT(0));
++	PPE_VSI_SET_UMC_BITMAP(val, BIT(0));
++	PPE_VSI_SET_BC_BITMAP(val, BIT(0));
++	PPE_VSI_SET_NEW_ADDR_LRN_EN(val, false);
++	PPE_VSI_SET_STATION_MOVE_LRN_EN(val, false);
++	ret = ppe_xlt_write_verify(ppe_dev, reg, val, ARRAY_SIZE(val));
++	if (ret && ppe_xlt_write_verify(ppe_dev, reg, old, ARRAY_SIZE(old)))
++		return -EUCLEAN;
++	return ret;
++}
++
+ /**
+  * ppe_eg_xlt_rule_set - Program a BE egress VLAN translation rule
+  * @ppe_dev: PPE device
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
+@@ -66,6 +66,8 @@
+ int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
+ 		     int priority, bool need_hook);
+ int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port);
++int ppe_vp_get_rtl837x_source(struct ppe_device *ppe_dev,
++			     struct net_device *dev, int cvid);
+ void ppe_vp_put(struct ppe_device *ppe_dev, int vp);
+ int ppe_vp_queue_set(struct ppe_device *ppe_dev, int vp, int queue, int profile);
+ struct net_device *ppe_vp_dev(struct ppe_device *ppe_dev, int vp);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
+@@ -67,6 +67,7 @@
+ 	PPE_VP_SLOT_NONE,
+ 	PPE_VP_SLOT_WIRELESS,
+ 	PPE_VP_SLOT_QCA4B,
++	PPE_VP_SLOT_RTL837X_SOURCE,
+ };
+ 
+ struct ppe_vp_slot {
+@@ -80,6 +81,7 @@
+ 	enum ppe_vp_slot_type type;
+ 	u8 switch_port;
+ 	u8 physical_port;
++	s16 source_cvid;
+ 	struct metadata_dst *dsa_meta;
+ 	u32 athtag_orig_prx;
+ 	u32 athtag_orig_eg_vp[3];
+@@ -883,6 +885,78 @@
+ 		 free, slot->vp, dev->name, ret);
+ 	slot->refcnt = 0;
+ 	ppe_vp_slot_reset(slot);
++	return ret;
++}
++
++/* A source-only RTL VP is selected by the exact ingress VLAN rule.
++ * It has no injection hook and never becomes an egress destination. CPU
++ * misses retain the restored RTL service tag and return via the conduit.
++ */
++int ppe_vp_get_rtl837x_source(struct ppe_device *ppe_dev,
++			     struct net_device *dev, int cvid)
++{
++	struct ppe_vp *vp = ppe_dev->vp;
++	struct edma_port_priv *priv;
++	struct net_device *conduit;
++	struct ppe_vp_slot *slot;
++	struct dsa_port *dp;
++	int i, free = -1, physical, ret;
++
++	if (!vp || !dsa_user_dev_check(dev) || cvid < -1 ||
++	    cvid >= VLAN_VID_MASK)
++		return -EOPNOTSUPP;
++	dp = dsa_port_from_netdev(dev);
++	if (IS_ERR(dp) || !dp->cpu_dp || !dp->cpu_dp->tag_ops ||
++	    dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_RTL837X_8021AD)
++		return -EOPNOTSUPP;
++	conduit = dsa_port_to_conduit(dp);
++	if (!edma_port_dev_check(conduit))
++		return -EOPNOTSUPP;
++	priv = netdev_priv(conduit);
++	if (priv->ppe_port->ppe_dev != ppe_dev)
++		return -EOPNOTSUPP;
++	physical = priv->ppe_port->port_id;
++
++	mutex_lock(&vp->lock);
++	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		slot = &vp->slots[i];
++		if (!slot->poisoned && rcu_access_pointer(slot->dev) == dev &&
++		    slot->type == PPE_VP_SLOT_RTL837X_SOURCE &&
++		    slot->source_cvid == cvid) {
++			slot->refcnt++;
++			ret = slot->vp;
++			goto unlock;
++		}
++		if (free < 0 && !slot->poisoned &&
++		    !rcu_access_pointer(slot->dev) && !slot->refcnt)
++			free = i;
++	}
++	if (free < 0) {
++		ret = -ENOSPC;
++		goto unlock;
++	}
++	slot = &vp->slots[free];
++	slot->type = PPE_VP_SLOT_RTL837X_SOURCE;
++	slot->source_cvid = cvid;
++	slot->switch_port = dp->index;
++	slot->physical_port = physical;
++	slot->vp = PPE_VP_PORT_BASE + free;
++	ret = ppe_vp_hw_set(ppe_dev, slot->vp, physical, dev->mtu, true);
++	if (ret) {
++		if (ppe_vp_hw_set(ppe_dev, slot->vp, physical, 0, false))
++			slot->poisoned = true;
++		ppe_vp_slot_reset(slot);
++		goto unlock;
++	}
++	slot->refcnt = 1;
++	slot->carrier_up = netif_carrier_ok(dev);
++	rcu_assign_pointer(slot->dev, dev);
++	ret = slot->vp;
++	dev_info(ppe_dev->dev,
++		 "RTL source VP: dev=%s vp=%d physical=%d cvid=%d\n",
++		 dev->name, ret, physical, cvid);
++unlock:
++	mutex_unlock(&vp->lock);
+ 	return ret;
+ }
+ 
+@@ -1165,6 +1239,28 @@
+ 		rcu_read_unlock();
+ 		return false;
+ 	}
++	if (slot->type == PPE_VP_SLOT_RTL837X_SOURCE) {
++		struct dsa_port *dp = dsa_port_from_netdev(dev);
++		struct net_device *conduit;
++
++		if (IS_ERR(dp)) {
++			rcu_read_unlock();
++			return false;
++		}
++		conduit = dsa_port_to_conduit(dp);
++		if (!conduit) {
++			rcu_read_unlock();
++			return false;
++		}
++		skb->dev = conduit;
++		skb->skb_iif = conduit->ifindex;
++		skb->protocol = eth_type_trans(skb, conduit);
++		if (likely(conduit->features & NETIF_F_RXCSUM))
++			skb->ip_summed = ip_summed;
++		netif_receive_skb(skb);
++		rcu_read_unlock();
++		return true;
++	}
+ 	if (slot->type == PPE_VP_SLOT_QCA4B) {
+ 		struct dsa_port *dp = dsa_port_from_netdev(dev);
+ 		struct net_device *conduit;
+@@ -1448,7 +1544,8 @@
+ 					 i, vp->slots[i].vp, dev->name, carrier_up, event);
+ 			vp->slots[i].carrier_up = carrier_up;
+ 		}
+-		break;
++		if (vp->slots[i].type != PPE_VP_SLOT_RTL837X_SOURCE)
++			break;
+ 	}
+ 	mutex_unlock(&vp->lock);
+ 

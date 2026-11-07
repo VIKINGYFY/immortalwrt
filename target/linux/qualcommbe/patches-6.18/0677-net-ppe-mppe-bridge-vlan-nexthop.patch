@@ -1,0 +1,101 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 15:33:52 +0800
+Subject: [PATCH] net: ppe: encode MPPE bridge VLAN next hops
+
+Enable bridge next hops only on IPQ5332, as selected by QSDK
+PPE_DRV_BRIDGE_NEXT_HOP. Keep FAL_FLOW_BRIDGE forwarding and its source
+port check. Encode the MPPE bridge next-hop valid bit and index separately
+from routed next hops, preserving Ethernet MACs and TTL/Hop Limit.
+
+Split from:
+  0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+@@ -58,6 +58,9 @@
+ 	 * VAPs. APPE and MPPE; consumed by the virtual-port offload work.
+ 	 */
+ 	bool has_vports;
++
++	/* MPPE can select VLAN-only next hops for transparent bridge flows. */
++	bool has_bridge_nexthop;
+ };
+ 
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
+@@ -341,6 +341,7 @@
+ 	.num_flow_entries	= 2048,
+ 	.num_host_entries	= 768,
+ 	.num_nexthop_entries	= 768,
++	.has_bridge_nexthop	= true,
+ 	.shaper_clock_khz	= 200000,
+ 	.has_tunnel_engine	= true,
+ 	.has_vports		= true,
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+@@ -37,6 +37,7 @@
+  * @dnat_ip: Translated destination address of DNAT flows.
+  */
+ struct ppe_flow_nexthop {
++	bool vlan_only;
+ 	u8 port;
+ 	u8 l3_if;
+ 	u8 mac[ETH_ALEN];
+@@ -67,6 +68,7 @@
+  * @src_l3_if: Ingress routing interface selected by port, VLAN, PPPoE or VP.
+  * @src_l3_if_valid: Restrict hits to that ingress routing interface.
+  * @bridge_port: Egress physical or virtual port of a transparent bridge flow.
++ * @bridge_nexthop_valid: Use an MPPE VLAN-only next hop in bridge mode.
+  */
+ struct ppe_flow_entry {
+ 	union {
+@@ -87,6 +89,7 @@
+ 	u8 src_l3_if;
+ 	bool src_l3_if_valid;
+ 	u8 bridge_port;
++	bool bridge_nexthop_valid;
+ };
+ 
+ int ppe_flow_hw_init(struct ppe_device *ppe_dev);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -212,9 +212,13 @@
+ 		val[0] |= FIELD_PREP(PPE_FLOW_W0_SRC_L3_IF, flow->src_l3_if);
+ 	}
+ 	val[0] |= FIELD_PREP(PPE_FLOW_W0_FWD_TYPE, flow->fwd_type);
+-	if (flow->fwd_type == PPE_FLOW_FWD_TYPE_BRIDGE)
++	if (flow->fwd_type == PPE_FLOW_FWD_TYPE_BRIDGE) {
+ 		val[1] = FIELD_PREP(PPE_FLOW_W1_BRIDGE_PORT, flow->bridge_port);
+-	else
++		if (flow->bridge_nexthop_valid)
++			val[1] |= PPE_FLOW_W1_BRIDGE_NH_VALID |
++				  FIELD_PREP(PPE_FLOW_W1_BRIDGE_NEXT_HOP,
++					     flow->nexthop);
++	} else
+ 		val[1] = FIELD_PREP(PPE_FLOW_W1_NEXT_HOP, flow->nexthop);
+ 	val[1] |= FIELD_PREP(PPE_FLOW_W1_L4_PORT,
+ 			     be16_to_cpu(flow->nat_port));
+@@ -871,7 +875,8 @@
+ 	if (index < 0 || index >= ppe_dev->variant->num_nexthop_entries)
+ 		return -EINVAL;
+ 
+-	val[0] = PPE_NEXTHOP_W0_TYPE;
++	/* QSDK bridge next hops leave the L3/VSI selector at zero. */
++	val[0] = nh->vlan_only ? 0 : PPE_NEXTHOP_W0_TYPE;
+ 	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_PORT, nh->port);
+ 	val[0] |= FIELD_PREP(PPE_NEXTHOP_W0_POST_L3_IF, nh->l3_if);
+ 	if (nh->svid >= 0) {
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -779,6 +779,8 @@
+ #define PPE_FLOW_W0_FWD_TYPE			GENMASK(31, 29)
+ #define PPE_FLOW_W1_NEXT_HOP			GENMASK(11, 0)
+ #define PPE_FLOW_W1_BRIDGE_PORT			GENMASK(7, 0)
++#define PPE_FLOW_W1_BRIDGE_NH_VALID		BIT(11)
++#define PPE_FLOW_W1_BRIDGE_NEXT_HOP		GENMASK(23, 12)
+ #define PPE_FLOW_W1_L4_PORT			GENMASK(27, 12)
+ #define PPE_FLOW_W1_DE_ACCE			BIT(28)
+ #define PPE_FLOW_W1_COPY_TO_CPU			BIT(29)

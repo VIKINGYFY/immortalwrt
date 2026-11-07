@@ -1,0 +1,315 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 15:33:52 +0800
+Subject: [PATCH] net: ppe: offload cross-tree RTL837x bridge forwarding
+
+Authorize learned unicast between independent RTL837x trees of the same
+MPPE under RTNL: recheck bridge, forwarding state, isolation and matching
+customer VLAN membership. Select the exact ingress source VP and a
+VLAN-only output next hop carrying the destination standalone SVID.
+
+Open only referenced physical egress members of the source VSI; never
+flood or learn a hardware FDB path there. Unsupported paths retain software
+forwarding. Withdraw flows on carrier loss and existing policy changes.
+
+Split from:
+  0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -39,6 +39,7 @@
+ #include <net/ipv6.h>
+ #include <net/lwtunnel.h>
+ #include <net/neighbour.h>
++#include <net/switchdev.h>
+ #include <net/tcp.h>
+ 
+ #include "edma_port.h"
+@@ -465,6 +466,7 @@
+ 	struct ppe_ft_tunnel_pppoe_port tunnel_pppoe_ports[PPE_PORT_ID_COUNT];
+ 	struct notifier_block ppp_nb;
+ 	struct notifier_block account_nb;
++	struct notifier_block bridge_nb;
+ 	struct list_head block_cb_list;
+ };
+ 
+@@ -2891,34 +2893,83 @@
+ 	return 0;
+ }
+ 
+-/* Flowtable rules carry the egress Ethernet header. A routed source MAC
+- * belongs to a local device; a bridge preserves its peer's source MAC.
+- * Limit direct bridge-port forwarding to one untagged bridge domain.
+- * Tagged/DSA paths need their own VLAN editor and source-domain encoding.
++/* Keep transparent bridge semantics separate from routing. MPPE can
++ * attach a VLAN-only next hop, but the flow's source check is a port, not
++ * an L3 interface. RTL SVID/CVID ingress therefore needs an exact source VP.
+  */
+-static bool ppe_ft_bridge_path(struct net_device *odev, int ingress_ifindex)
+-{
++static bool ppe_ft_bridge_path(struct ppe_flowtable *ft,
++			       struct net_device *odev,
++			       struct ppe_ft_data *data,
++			       struct ppe_flow_nexthop *nh)
++{
++	struct ppe_ft_dsa_path ingress, egress;
+ 	struct net_device *idev, *master;
+-	bool valid = false;
++	struct bridge_vlan_info vin, vout;
++	bool dsa, valid = false;
++	u16 vid = 0, proto;
+ 
+ 	rcu_read_lock();
+-	idev = dev_get_by_index_rcu(dev_net(odev), ingress_ifindex);
+-	if (!idev || idev == odev || dsa_user_dev_check(idev) ||
+-	    dsa_user_dev_check(odev))
++	idev = dev_get_by_index_rcu(dev_net(odev), data->ingress_ifindex);
++	if (!idev || idev == odev)
+ 		goto out;
+ 	master = netdev_master_upper_dev_get_rcu(idev);
+-	valid = master && netif_is_bridge_master(master) &&
+-		netdev_master_upper_dev_get_rcu(odev) == master &&
+-		!br_vlan_enabled(master) &&
+-		br_port_get_stp_state(idev) == BR_STATE_FORWARDING &&
+-		br_port_get_stp_state(odev) == BR_STATE_FORWARDING &&
+-		!(br_port_flag_is_set(idev, BR_ISOLATED) &&
+-		  br_port_flag_is_set(odev, BR_ISOLATED));
++	if (!master || !netif_is_bridge_master(master) ||
++	    netdev_master_upper_dev_get_rcu(odev) != master ||
++	    br_port_get_stp_state(idev) != BR_STATE_FORWARDING ||
++	    br_port_get_stp_state(odev) != BR_STATE_FORWARDING ||
++	    (br_port_flag_is_set(idev, BR_ISOLATED) &&
++	     br_port_flag_is_set(odev, BR_ISOLATED)))
++		goto out;
++
++	dsa = dsa_user_dev_check(idev) || dsa_user_dev_check(odev);
++	if (!dsa) {
++		valid = !br_vlan_enabled(master) && !data->ingress_tags &&
++			nh->svid < 0 && nh->cvid < 0;
++		goto out;
++	}
++	if (!ft->ppe_dev->variant->has_bridge_nexthop ||
++	    ppe_ft_dsa_resolve(idev, &ingress) != PPE_FT_DSA_VLAN ||
++	    ppe_ft_dsa_resolve(odev, &egress) != PPE_FT_DSA_VLAN ||
++	    ingress.rx_proto != htons(ETH_P_8021AD) ||
++	    egress.rx_proto != htons(ETH_P_8021AD) ||
++	    ingress.dp->ds == egress.dp->ds ||
++	    data->ingress_svid >= 0 || nh->svid >= 0)
++		goto out;
++	if (((struct edma_port_priv *)netdev_priv(dsa_port_to_conduit(ingress.dp)))->ppe_port->ppe_dev != ft->ppe_dev ||
++	    ((struct edma_port_priv *)netdev_priv(dsa_port_to_conduit(egress.dp)))->ppe_port->ppe_dev != ft->ppe_dev)
++		goto out;
++	if (br_vlan_enabled(master)) {
++		if (br_vlan_get_proto(master, &proto) || proto != ETH_P_8021Q)
++			goto out;
++		/* NF omits an implicit bridge PVID from its wire VLAN key.
++		 * RTL aware CPU transport carries that CVID independently of S.
++		 * Recover only the current authorized PVID, never VLAN 1.
++		 */
++		if (data->ingress_cvid < 0) {
++			if (br_vlan_get_pvid_rcu(idev, &vid) || !vid)
++				goto out;
++		} else {
++			vid = data->ingress_cvid;
++		}
++		if (!vid || br_vlan_get_info_rcu(idev, vid, &vin) ||
++		    br_vlan_get_info_rcu(odev, vid, &vout) ||
++		    (nh->cvid < 0 && !(vout.flags & BRIDGE_VLAN_INFO_UNTAGGED)) ||
++		    (nh->cvid >= 0 && nh->cvid != vid))
++			goto out;
++		data->ingress_cvid = vid;
++		nh->cvid = vid;
++	} else if (nh->cvid != data->ingress_cvid) {
++		goto out;
++	}
++	/* Only a learned unicast may bypass subsequent bridge lookups. */
++	if (br_fdb_find_port(master, data->eth.src, vid) != idev ||
++	    br_fdb_find_port(master, data->eth.dst, vid) != odev)
++		goto out;
++	valid = true;
+ out:
+ 	rcu_read_unlock();
+ 	return valid;
+ }
+-
+ 
+ /* A VLAN object owns the source VP as long as its consuming XLT survives.
+  * Existing routed flows keep the same VSI/L3 and CPU tag restoration.
+@@ -3423,15 +3474,14 @@
+ 	}
+ 	if (data.bridge &&
+ 	    (tunnel_flow || data.pppoe_sid >= 0 ||
+-	     data.ingress_pppoe_sid >= 0 || data.ingress_tags ||
+-	     vlan_pushes || vlan_pops || csums ||
++	     data.ingress_pppoe_sid >= 0 || csums ||
+ 	     !is_valid_ether_addr(data.eth.dst) ||
+ 	     data.sport != flow->entry.sport ||
+ 	     data.dport != flow->entry.dport ||
+ 	     (!flow->entry.is_ipv6 &&
+ 	      (data.sip != flow->entry.sip.ip4 ||
+ 	       data.dip != flow->entry.dip.ip4)) ||
+-	     !ppe_ft_bridge_path(odev, data.ingress_ifindex))) {
++	     !ppe_ft_bridge_path(ft, odev, &data, &nh))) {
+ 		ret = -EOPNOTSUPP;
+ 		goto err_tdev;
+ 	}
+@@ -3672,23 +3722,67 @@
+ 		goto err_vp;
+ 	}
+ 	if (data.bridge) {
+-		/* Close the lookup/publication race with topology notifiers.
+-		 * L2 flow mode interprets the source field as a port number,
+-		 * preserves Ethernet addresses and bypasses TTL/NAT editing.
+-		 * No peer address may be installed in a router MY_MAC slot.
++		/* Recheck while RTNL and the transaction lock still cover the
++		 * topology. Never publish peer MACs in a router MY_MAC slot.
+ 		 */
+-		if ((flow->ivp < 0 && iport < 0) ||
+-		    !ppe_ft_bridge_path(odev, data.ingress_ifindex)) {
++		struct ppe_flow_nexthop bridge_nh = { .vlan_only = true };
++		int source = flow->ivp >= 0 ? flow->ivp : iport;
++
++		struct ppe_ft_data check_data = data;
++		struct ppe_flow_nexthop check_nh = nh;
++
++		if (data.ingress_dsa) {
++			check_data.ingress_svid = -1;
++			check_nh.svid = -1;
++		}
++		if (source < 0 ||
++		    !ppe_ft_bridge_path(ft, odev, &check_data, &check_nh)) {
+ 			ret = -EOPNOTSUPP;
+ 			goto err_vp;
+ 		}
+ 		flow->iport = iport;
+ 		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_BRIDGE;
+ 		flow->entry.bridge_port = nh.port;
+-		flow->entry.src_l3_if = flow->ivp >= 0 ? flow->ivp : iport;
++		if (data.ingress_dsa) {
++			if (egress_core_port >= 0) {
++				ret = ppe_ft_core_port_get(ft, egress_core_port, false);
++				if (ret)
++					goto err_vp;
++				flow->core_egress_port = egress_core_port;
++			}
++			flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_svid,
++						     data.ingress_cvid, imtu, true,
++						     data.ingress_cvid >= 0);
++			if (flow->vlan < 0) {
++				ret = flow->vlan;
++				goto err_core_egress;
++			}
++			ret = ppe_ft_vlan_bridge_peer_get(ft, flow->vlan, nh.port);
++			if (ret)
++				goto err_vlan;
++			flow->bridge_peer = nh.port;
++			source = ppe_ft_vlan_source_vp(ft, flow->vlan,
++						    flow->path_dev[0]);
++			if (source < 0) {
++				ret = source;
++				goto err_vlan;
++			}
++			/* QSDK bridge NH carries only output VLAN format/VIDs. */
++			bridge_nh.svid = nh.svid;
++			bridge_nh.cvid = nh.cvid;
++			flow->nexthop = ppe_ft_nexthop_get(ft, &bridge_nh);
++			if (flow->nexthop < 0) {
++				ret = flow->nexthop;
++				goto err_vlan;
++			}
++			flow->entry.nexthop = flow->nexthop;
++			flow->entry.bridge_nexthop_valid = true;
++		}
++		flow->entry.src_l3_if = source;
+ 		flow->entry.src_l3_if_valid = true;
+ 		goto add_host;
+ 	}
++
+ 	if (tunnel_flow) {
+ 		struct in6_addr local, remote;
+ 		int link, mtu;
+@@ -4831,6 +4925,41 @@
+ 	mutex_unlock(&ft->lock);
+ }
+ 
++/* Retire hardware bypasses before a bridge policy change completes.
++ * RTNL excludes publication of another transparent flow until the bridge
++ * software state commits; nf_flowtable also retires its cached SW path.
++ */
++static int ppe_ft_bridge_event(struct notifier_block *nb,
++			       unsigned long event, void *ptr)
++{
++	struct ppe_flowtable *ft = container_of(nb, struct ppe_flowtable,
++						 bridge_nb);
++	struct net_device *dev = switchdev_notifier_info_to_dev(ptr);
++	struct switchdev_notifier_port_obj_info *obj = ptr;
++	struct switchdev_notifier_port_attr_info *attr = ptr;
++
++	switch (event) {
++	case SWITCHDEV_PORT_OBJ_ADD:
++	case SWITCHDEV_PORT_OBJ_DEL:
++		if (obj->obj->id == SWITCHDEV_OBJ_ID_PORT_VLAN)
++			ppe_ft_dev_invalidate(ft, dev);
++		break;
++	case SWITCHDEV_PORT_ATTR_SET:
++		switch (attr->attr->id) {
++		case SWITCHDEV_ATTR_ID_PORT_STP_STATE:
++		case SWITCHDEV_ATTR_ID_PORT_BRIDGE_FLAGS:
++		case SWITCHDEV_ATTR_ID_BRIDGE_VLAN_FILTERING:
++		case SWITCHDEV_ATTR_ID_BRIDGE_VLAN_PROTOCOL:
++			ppe_ft_dev_invalidate(ft, dev);
++			break;
++		default:
++			break;
++		}
++		break;
++	}
++	return NOTIFY_DONE;
++}
++
+ static int ppe_ft_account_event(struct notifier_block *nb,
+ 				unsigned long event, void *ptr)
+ {
+@@ -4848,6 +4977,10 @@
+ 	case NETDEV_CHANGEMTU:
+ 	case NETDEV_CHANGEINFODATA:
+ 		ppe_ft_dev_invalidate(ft, dev);
++		break;
++	case NETDEV_CHANGE:
++		if (!netif_carrier_ok(dev))
++			ppe_ft_dev_invalidate(ft, dev);
+ 		break;
+ 	}
+ 
+@@ -4933,13 +5066,21 @@
+ 	hash_init(ft->hosts);
+ 	ft->ppp_nb.notifier_call = ppe_ft_ppp_event;
+ 	ft->account_nb.notifier_call = ppe_ft_account_event;
++	ft->bridge_nb.notifier_call = ppe_ft_bridge_event;
+ 	ppe_dev->flowtable = ft;
+ 
+ 	ret = register_netdevice_notifier(&ft->account_nb);
+ 	if (!ret) {
+-		ret = ppp_register_channel_notifier(&ft->ppp_nb);
++		ret = register_switchdev_blocking_notifier(&ft->bridge_nb);
+ 		if (ret)
+ 			unregister_netdevice_notifier(&ft->account_nb);
++	}
++	if (!ret) {
++		ret = ppp_register_channel_notifier(&ft->ppp_nb);
++		if (ret) {
++			unregister_switchdev_blocking_notifier(&ft->bridge_nb);
++			unregister_netdevice_notifier(&ft->account_nb);
++		}
+ 	}
+ 	if (ret) {
+ 		ppe_dev->flowtable = NULL;
+@@ -4990,6 +5131,7 @@
+ 		return;
+ 
+ 	WARN_ON(!list_empty(&ft->block_cb_list));
++	unregister_switchdev_blocking_notifier(&ft->bridge_nb);
+ 	unregister_netdevice_notifier(&ft->account_nb);
+ 	ppp_unregister_channel_notifier(&ft->ppp_nb);
+ 	ppe_ft_flow_drain(ft);
