@@ -1,0 +1,28 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 16:11:13 +0800
+Subject: [PATCH] net: bridge: withdraw the old port before FDB replacement
+
+A userspace FDB replacement can move a static peer between independent
+switches. Notify switchdev of the old destination before changing fdb->dst,
+matching the existing learned-station move sequence. A new-port ADD alone
+can leave a static entry in the previous ASIC, blackholing later traffic
+even though the software FDB and new ASIC agree.
+
+Observed on BE3600 P8 with its two independent RTL8372 trees: moving a
+sticky VID 100 entry from LAN1 to LAN5 leaves LAN1 self static until the
+old ASIC receives the missing delete. Do not pin a CPU FDB entry as a
+workaround or clear unrelated VLAN/MAC entries.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/net/bridge/br_fdb.c
++++ b/net/bridge/br_fdb.c
+@@ -1223,6 +1223,8 @@
+ 			return -EEXIST;
+ 
+ 		if (READ_ONCE(fdb->dst) != source) {
++			/* The old switch may be independent of the new one. */
++			br_switchdev_fdb_notify(br, fdb, RTM_DELNEIGH);
+ 			WRITE_ONCE(fdb->dst, source);
+ 			modified = true;
+ 		}
