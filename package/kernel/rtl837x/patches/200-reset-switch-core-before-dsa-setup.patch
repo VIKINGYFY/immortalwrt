@@ -1,0 +1,71 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 02:10:13 +0800
+Subject: [PATCH] rtl837x: reset switch core before DSA setup
+
+Start the non-preserved setup from a chip reset, wait for its ready state, and isolate physical MACs before DSA recreates the service-tag and forwarding state. Perform the reset after device and conduit prerequisites are available, before exposing ports or starting any MIB work. The reset command and ready status follow RTLPlayground and the RTL8372N initialization state; no vendor SDK is linked.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -545,6 +545,37 @@
+ 	return -ENODEV;
+ }
+ 
++/* Reset the switch core before creating ports or starting MIB workers.
++ * The board straps are sampled by hardware; do not reuse bootloader VLAN,
++ * forwarding, SMI, MAC-force or SerDes configuration.
++ */
++static int rtl8372n_reset_chip(struct realtek_priv *priv)
++{
++	u32 value;
++	int port, ret;
++
++	ret = regmap_write(priv->map, 0x24, BIT(0));
++	if (ret)
++		return ret;
++	msleep(50);
++	ret = regmap_read_poll_timeout(priv->map, 0x7f60, value,
++				       (value & GENMASK(1, 0)) == 2,
++				       1000, 1000000);
++	if (ret)
++		return dev_err_probe(priv->dev, ret, "switch reset did not complete\n");
++
++	/* Reset defaults permit flooding. Isolate every physical MAC while
++	 * the normal DSA setup reconstructs the forwarding policy.
++	 */
++	for (port = 3; port < RTL837X_NUM_PORTS; port++) {
++		ret = regmap_write(priv->map, 0x50c0 + port * 4, 0);
++		if (ret)
++			return ret;
++	}
++	dev_info(priv->dev, "switch core reset; rebuilding hardware state\n");
++	return 0;
++}
++
+ static int rtl8372n_detect(struct realtek_priv *priv)
+ {
+ 	const struct rtl837x_chip_info *chip_info;
+@@ -2454,6 +2485,7 @@
+ 
+ static const struct rtl837x_ops rtl8372n_ops = {
+ 	.detect		= rtl8372n_detect,
++	.reset_chip	= rtl8372n_reset_chip,
+ 	.get_vlan_4k	= rtl8372n_get_vlan_4k,
+ 	.set_vlan_4k	= rtl8372n_set_vlan_4k,
+ 	.get_mib_counter = rtl8372n_get_mib_counter,
+--- a/src/rtl837x_mdio.c
++++ b/src/rtl837x_mdio.c
+@@ -242,6 +242,12 @@
+ 		return ret;
+ 	}
+ 
++	if (!priv->preserve_boot_config) {
++		ret = priv->ops->reset_chip(priv);
++		if (ret)
++			return ret;
++	}
++
+ 	priv->ds = devm_kzalloc(dev, sizeof(*priv->ds), GFP_KERNEL);
+ 	if (!priv->ds)
+ 		return -ENOMEM;

@@ -1,0 +1,39 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 02:10:13 +0800
+Subject: [PATCH] rtl837x: negotiate standard USXGMII CPU transport
+
+Use the upstream standard USXGMII register sequence on non-preserved CPU links. A fixed 10G host MAC still needs in-band USXGMII control-word negotiation with QCOM PCS. Preserve this transport requirement independently of the former second-switch boot workaround. Propagate RX reset errors.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -985,6 +985,13 @@
+ 			return ret;
+ 	}
+ 
++	/* The host MAC uses fixed speed, but the USXGMII transport still
++	 * exchanges in-band control words with the QCOM PCS.
++	 */
++	if (dsa_is_cpu_port(priv->ds, port) &&
++	    interface == PHY_INTERFACE_MODE_USXGMII)
++		neg_mode = PHYLINK_PCS_NEG_INBAND_ENABLED;
++
+ 	sds_idx = PORT_TO_SERDES_IDX(port);
+ 
+ 	dev_dbg(priv->dev, "[%s]PCS config serdes(%d) mode(%s) neg_mode(0x%x)\n", __func__,
+@@ -1034,12 +1041,10 @@
+ 	case PHY_INTERFACE_MODE_USXGMII:
+ 	case PHY_INTERFACE_MODE_10GBASER:
+ 		dev_dbg(priv->dev, "[%s]Reset Serdes RX R\n", __func__);
+-		rtl837x_serdes_reset_10G(priv, PORT_TO_SERDES_IDX(port));
+-		break;
++		return rtl837x_serdes_reset_10G(priv, PORT_TO_SERDES_IDX(port));
+ 	default:
+ 		dev_dbg(priv->dev, "[%s]Reset Serdes RX X\n", __func__);
+-		rtl837x_serdes_reset_XSG(priv, PORT_TO_SERDES_IDX(port));
+-		break;
++		return rtl837x_serdes_reset_XSG(priv, PORT_TO_SERDES_IDX(port));
+ 	}
+ 
+ 	return 0;
