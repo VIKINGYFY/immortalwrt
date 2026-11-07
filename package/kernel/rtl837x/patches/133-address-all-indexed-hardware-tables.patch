@@ -1,0 +1,25 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 01:05:01 +0800
+Subject: [PATCH] rtl837x: address all indexed hardware tables
+
+Include the caller-supplied index for all non-L2 table accesses. The former CVLAN-only branch caused ACL rule and action requests to access entry zero regardless of their requested index.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl837x_table.c
++++ b/src/rtl837x_table.c
+@@ -68,12 +68,11 @@
+ 		} else {
+ 			write_data = true;
+ 		}
+-	} else if (table == RTL837X_TABLE_CVLAN) {
++	} else {
++		/* All non-L2 tables are indexed, including both ACL halves. */
+ 		cmd |= FIELD_PREP(RTL837X_TABLE_CTRL_ADDR_MASK, *addr);
+ 		if (opera == RTL837X_TABLE_OPERA_WRITE)
+ 			write_data = true;
+-	} else if (opera == RTL837X_TABLE_OPERA_WRITE) {
+-		write_data = true;
+ 	}
+ 
+ 	mutex_lock(&priv->map_lock);
