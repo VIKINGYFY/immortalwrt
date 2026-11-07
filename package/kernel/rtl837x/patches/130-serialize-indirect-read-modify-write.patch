@@ -1,0 +1,167 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: serialize indirect read modify write
+
+Reuse upstream map_lock and nolock accessors while keeping the entire PHY/SerDes read-modify-write atomic.
+
+Split from:
+  package/kernel/rtl837x/patches/110-serialize-indirect-register-commands.patch ([PATCH] rtl837x: serialize indirect register commands)
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl837x_reg.c
++++ b/src/rtl837x_reg.c
+@@ -168,12 +168,11 @@
+ 	return rtl837x_phy_write_ocp(priv, phy, 0xA400 + (regnum * 2), val);
+ }
+ 
+-int rtl837x_phy_read_c45(struct realtek_priv *priv, int phy, int devad, int regnum, u16 *pval)
++static int __rtl837x_phy_read_c45(struct realtek_priv *priv, int phy, int devad, int regnum, u16 *pval)
+ {
+ 	int ret;
+ 	u32 tmp;
+ 
+-	mutex_lock(&priv->map_lock);
+ 
+ 	ret = regmap_update_bits(priv->map_nolock, RTL837X_SMI_PHY_CTRL_3_REG,
+ 				 RTL837X_SMI_PHY_CTRL_3_DATA_MASK,
+@@ -211,16 +210,24 @@
+ 
+ 	*pval = FIELD_GET(RTL837X_SMI_PHY_CTRL_2_DATA_MASK, tmp);
+ out:
++	return ret;
++}
++
++int rtl837x_phy_read_c45(struct realtek_priv *priv, int phy, int devad, int regnum, u16 *pval)
++{
++	int ret;
++
++	mutex_lock(&priv->map_lock);
++	ret = __rtl837x_phy_read_c45(priv, phy, devad, regnum, pval);
+ 	mutex_unlock(&priv->map_lock);
+ 	return ret;
+ }
+ 
+-int rtl837x_phys_write_c45(struct realtek_priv *priv, u16 phy_mask, int devad, int regnum, u16 val)
++static int __rtl837x_phys_write_c45(struct realtek_priv *priv, u16 phy_mask, int devad, int regnum, u16 val)
+ {
+ 	int ret;
+ 	u32 tmp;
+ 
+-	mutex_lock(&priv->map_lock);
+ 
+ 	ret = regmap_write(priv->map_nolock, RTL837X_SMI_PHY_CTRL_0_REG, phy_mask);
+ 	if (ret)
+@@ -257,6 +264,15 @@
+ 		goto out;
+ 
+ out:
++	return ret;
++}
++
++int rtl837x_phys_write_c45(struct realtek_priv *priv, u16 phy_mask, int devad, int regnum, u16 val)
++{
++	int ret;
++
++	mutex_lock(&priv->map_lock);
++	ret = __rtl837x_phys_write_c45(priv, phy_mask, devad, regnum, val);
+ 	mutex_unlock(&priv->map_lock);
+ 	return ret;
+ }
+@@ -287,23 +303,26 @@
+ 	int ret;
+ 	u16 val;
+ 
+-	ret = rtl837x_phy_read_c45(priv, phy, devad, regnum, &val);
++	mutex_lock(&priv->map_lock);
++	ret = __rtl837x_phy_read_c45(priv, phy, devad, regnum, &val);
+ 	if (ret)
+-		return ret;
++		goto out;
+ 
+ 	val &= ~mask;
+ 	val |= (data << __ffs(mask)) & mask;
+ 
+-	return rtl837x_phy_write_c45(priv, phy, devad, regnum, val);
++	ret = __rtl837x_phys_write_c45(priv, BIT(phy), devad, regnum, val);
++out:
++	mutex_unlock(&priv->map_lock);
++	return ret;
+ }
+ 
+-int rtl837x_sds_reg_read(struct realtek_priv *priv, u8 sds_idx, u16 sds_page,
++static int __rtl837x_sds_reg_read(struct realtek_priv *priv, u8 sds_idx, u16 sds_page,
+ 			 u16 sds_reg, u16 *pdata)
+ {
+ 	u32 val, tmp;
+ 	int ret;
+ 
+-	mutex_lock(&priv->map_lock);
+ 
+ 	ret = regmap_read_poll_timeout(priv->map_nolock,
+ 				       RTL837X_SDS_INDACS_CMD_REG, tmp,
+@@ -335,17 +354,25 @@
+ 
+ 	*pdata = val & 0xFFFF;
+ out:
++	return ret;
++}
++
++int rtl837x_sds_reg_read(struct realtek_priv *priv, u8 sds_idx, u16 sds_page, u16 sds_reg, u16 *pdata)
++{
++	int ret;
++
++	mutex_lock(&priv->map_lock);
++	ret = __rtl837x_sds_reg_read(priv, sds_idx, sds_page, sds_reg, pdata);
+ 	mutex_unlock(&priv->map_lock);
+ 	return ret;
+ }
+ 
+-int rtl837x_sds_reg_write(struct realtek_priv *priv, u8 sds_idx, u16 sds_page,
++static int __rtl837x_sds_reg_write(struct realtek_priv *priv, u8 sds_idx, u16 sds_page,
+ 			  u16 sds_reg, u16 data)
+ {
+ 	int ret;
+ 	u32 tmp;
+ 
+-	mutex_lock(&priv->map_lock);
+ 
+ 	ret = regmap_read_poll_timeout(priv->map_nolock,
+ 				       RTL837X_SDS_INDACS_CMD_REG, tmp,
+@@ -376,6 +403,15 @@
+ 		goto out;
+ 
+ out:
++	return ret;
++}
++
++int rtl837x_sds_reg_write(struct realtek_priv *priv, u8 sds_idx, u16 sds_page, u16 sds_reg, u16 data)
++{
++	int ret;
++
++	mutex_lock(&priv->map_lock);
++	ret = __rtl837x_sds_reg_write(priv, sds_idx, sds_page, sds_reg, data);
+ 	mutex_unlock(&priv->map_lock);
+ 	return ret;
+ }
+@@ -400,12 +436,16 @@
+ 	int ret;
+ 	u16 val;
+ 
+-	ret = rtl837x_sds_reg_read(priv, sds_idx, sds_page, sds_reg, &val);
++	mutex_lock(&priv->map_lock);
++	ret = __rtl837x_sds_reg_read(priv, sds_idx, sds_page, sds_reg, &val);
+ 	if (ret)
+-		return ret;
++		goto out;
+ 
+ 	val &= ~mask;
+ 	val |= (data << __ffs(mask)) & mask;
+ 
+-	return rtl837x_sds_reg_write(priv, sds_idx, sds_page, sds_reg, val);
++	ret = __rtl837x_sds_reg_write(priv, sds_idx, sds_page, sds_reg, val);
++out:
++	mutex_unlock(&priv->map_lock);
++	return ret;
+ }
