@@ -1,0 +1,20 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 22:33:07 +0800
+Subject: [PATCH] rtl837x: fix unlocked table error
+
+Reject unsupported L2 read methods before locking without unlocking a mutex that has not been acquired.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl837x_table.c
++++ b/src/rtl837x_table.c
+@@ -60,8 +60,7 @@
+ 				write_data = true;
+ 				break;
+ 			default:
+-				ret = -EINVAL;
+-				goto out;
++				return -EINVAL;
+ 			}
+ 		} else if (opera == RTL837X_TABLE_OPERA_DELETE) {
+ 			cmd |= FIELD_PREP(RTL837X_TABLE_CTRL_ADDR_MASK, *addr);
