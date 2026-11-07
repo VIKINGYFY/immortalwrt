@@ -1,0 +1,193 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 01:05:01 +0800
+Subject: [PATCH] rtl837x: direct service tagged host egress
+
+Use the hardware ACL engine to match CPU ingress and the exact outer service VID, then redirect to one user port. This separates directed host injection from unknown-unicast, multicast and broadcast flood masks without changing the service tag or PPE interface. Keep VLAN/STP checks and reject unowned host service tags.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -10,7 +10,7 @@
+ obj-$(CONFIG_RTL8372N_DSA) += rtl8372n_dsa.o
+ 
+ rtl8372n_dsa-objs := rtl8372n.o
+-rtl8372n_dsa-objs += rtl837x_board.o rtl837x_policy.o
++rtl8372n_dsa-objs += rtl837x_board.o rtl837x_policy.o rtl837x_service_acl.o
+ 
+ rtl8372n_dsa-objs += rtl837x_dbg.o
+ rtl8372n_dsa-objs += rtl837x_mdio.o
+--- a/src/rtl837x.h
++++ b/src/rtl837x.h
+@@ -178,4 +178,7 @@
+ int rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan);
+ 
+ 
++int rtl837x_service_acl_setup(struct dsa_switch *ds);
++void rtl837x_service_acl_teardown(struct dsa_switch *ds);
++
+ #endif
+--- a/src/rtl837x_service_acl.c
++++ b/src/rtl837x_service_acl.c
+@@ -0,0 +1,161 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/* Direct service-tagged host traffic before applying wire-port flood masks. */
++#include <linux/dsa/8021q.h>
++#include <linux/iopoll.h>
++#include <linux/if_vlan.h>
++
++#include "rtl837x.h"
++#include "rtl837x_table.h"
++
++#define RTL837X_ACL_CTRL                 0x4810
++#define RTL837X_ACL_RESET                BIT(0)
++#define RTL837X_ACL_PORT_EN              0x4818
++#define RTL837X_ACL_UNMATCH_PERMIT        0x481c
++#define RTL837X_ACL_TEMPLATE_HI          0x4840
++#define RTL837X_ACL_TEMPLATE_LO          0x4844
++#define RTL837X_ACL_ACT_CTRL(_i)         (0x4848 + ((_i) * 4))
++#define RTL837X_ACL_FWD_ENABLE           BIT(5)
++#define RTL837X_ACL_TEMPLATE             4
++#define RTL837X_ACL_FIELD_STAG           7
++#define RTL837X_ACL_DATA                 BIT(7)
++#define RTL837X_ACL_VALID                BIT(21)
++#define RTL837X_ACL_INFO_MASK            GENMASK(21, 0)
++#define RTL837X_ACL_TEMPLATE_MASK        GENMASK(2, 0)
++#define RTL837X_ACL_SOURCE_MASK          GENMASK(20, 11)
++#define RTL837X_ACL_FWD_REDIRECT         BIT(17)
++#define RTL837X_ACL_FWD_PORT_MASK        GENMASK(30, 21)
++#define RTL837X_ACL_RULE_BASE            80
++
++/* The driver owns the ACL engine; no tc-flower rule offload is exposed.
++ * Template 4 extracts the outer service TCI. Match only the host ingress
++ * port and its exact service VID, and force the destination to that one
++ * user port. Unlike the L2 miss masks, this also handles locally generated
++ * broadcast and multicast without flooding them to other bridge members.
++ * Do not enable the ACL VLAN/STP bypass actions.
++ */
++static int rtl837x_service_acl_table(struct realtek_priv *priv,
++				   enum rtl837x_table table, u16 addr,
++				   u32 *data, size_t words, u32 last_mask)
++{
++	u32 check[RTL837X_TABLE_ENTRY_SIZE] = {};
++	u16 read_addr = addr;
++	int i, ret;
++
++	ret = rtl837x_ita_execute(priv, table, RTL837X_TABLE_OPERA_WRITE,
++				&addr, 0, 0, data, words);
++	if (ret)
++		return ret;
++	ret = rtl837x_ita_execute(priv, table, RTL837X_TABLE_OPERA_READ,
++				&read_addr, 0, 0, check, words);
++	if (ret)
++		return ret;
++	for (i = 0; i < words; i++) {
++		u32 mask = i == words - 1 ? last_mask : U32_MAX;
++
++		if ((check[i] & mask) != (data[i] & mask))
++			return -EIO;
++	}
++	return 0;
++}
++
++static int rtl837x_service_acl_rule(struct realtek_priv *priv, int cpu,
++				  int port, u16 svid)
++{
++	u32 care[5] = { VLAN_VID_MASK, 0, 0, 0,
++		RTL837X_ACL_TEMPLATE_MASK | RTL837X_ACL_SOURCE_MASK };
++	u32 data[5] = { svid, 0, 0, 0,
++		RTL837X_ACL_TEMPLATE | FIELD_PREP(RTL837X_ACL_SOURCE_MASK,
++						 BIT(cpu)) };
++	u32 action[3] = { 0, RTL837X_ACL_FWD_REDIRECT |
++		FIELD_PREP(RTL837X_ACL_FWD_PORT_MASK, BIT(port)), 0 };
++	u16 idx = RTL837X_ACL_RULE_BASE + port;
++	int i, ret;
++
++	/* TCAM stores the inverted care/data encoding, not a plain mask. */
++	for (i = 0; i < ARRAY_SIZE(data); i++) {
++		u32 mask = care[i], value = data[i];
++
++		care[i] = ~mask | ~value;
++		data[i] = ~mask | value;
++	}
++	care[4] &= RTL837X_ACL_INFO_MASK;
++	data[4] = (data[4] & RTL837X_ACL_INFO_MASK) | RTL837X_ACL_VALID;
++	ret = rtl837x_service_acl_table(priv, RTL837X_TABLE_ACL_RULE,
++				       idx, care, ARRAY_SIZE(care),
++				       RTL837X_ACL_INFO_MASK);
++	if (ret)
++		return ret;
++	ret = rtl837x_service_acl_table(priv, RTL837X_TABLE_ACL_ACT, idx,
++				       action, ARRAY_SIZE(action), U32_MAX);
++	if (ret)
++		return ret;
++	ret = regmap_write(priv->map, RTL837X_ACL_ACT_CTRL(idx),
++			   RTL837X_ACL_FWD_ENABLE);
++	if (ret)
++		return ret;
++	return rtl837x_service_acl_table(priv, RTL837X_TABLE_ACL_RULE,
++					idx | RTL837X_ACL_DATA, data,
++					ARRAY_SIZE(data), RTL837X_ACL_INFO_MASK);
++}
++
++void rtl837x_service_acl_teardown(struct dsa_switch *ds)
++{
++	struct realtek_priv *priv = ds->priv;
++
++	regmap_write(priv->map, RTL837X_ACL_PORT_EN, 0);
++}
++
++int rtl837x_service_acl_setup(struct dsa_switch *ds)
++{
++	struct realtek_priv *priv = ds->priv;
++	struct dsa_port *dp;
++	u32 value;
++	int cpu = -1, ret;
++
++	dsa_switch_for_each_cpu_port(dp, ds)
++		cpu = dp->index;
++	if (cpu < 0)
++		return -EINVAL;
++	ret = regmap_write(priv->map, RTL837X_ACL_PORT_EN, 0);
++	if (ret)
++		return ret;
++	ret = regmap_set_bits(priv->map, RTL837X_ACL_CTRL, RTL837X_ACL_RESET);
++	if (ret)
++		return ret;
++	ret = regmap_read_poll_timeout(priv->map, RTL837X_ACL_CTRL, value,
++				       !(value & RTL837X_ACL_RESET), 10, 100000);
++	if (ret)
++		return ret;
++	ret = regmap_write(priv->map, RTL837X_ACL_TEMPLATE_HI, 0);
++	if (ret)
++		return ret;
++	ret = regmap_write(priv->map, RTL837X_ACL_TEMPLATE_LO,
++			   RTL837X_ACL_FIELD_STAG);
++	if (ret)
++		return ret;
++
++	dsa_switch_for_each_user_port(dp, ds) {
++		ret = rtl837x_service_acl_rule(priv, cpu, dp->index,
++					       dsa_tag_8021q_standalone_vid(dp));
++		if (ret)
++			return dev_err_probe(priv->dev, ret,
++					     "service-tag ACL port %d failed\n", dp->index);
++	}
++	/* Other ingress ports do not enter the ACL engine. Malformed host
++	 * traffic without an owned service VID is rejected at the boundary.
++	 */
++	ret = regmap_write(priv->map, RTL837X_ACL_UNMATCH_PERMIT, 0);
++	if (ret)
++		return ret;
++	ret = regmap_write(priv->map, RTL837X_ACL_PORT_EN, BIT(cpu));
++	if (ret) {
++		rtl837x_service_acl_teardown(ds);
++		return ret;
++	}
++	ret = regmap_read(priv->map, RTL837X_ACL_PORT_EN, &value);
++	if (!ret && value != BIT(cpu))
++		ret = -EIO;
++	if (ret)
++		rtl837x_service_acl_teardown(ds);
++	return ret;
++}

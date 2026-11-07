@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -1400,11 +1400,11 @@
+@@ -1403,11 +1403,11 @@
   * to the CPU and to no other port", whereas the member port mask of an L2
   * multicast entry can.
   */
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  
  	entry.type = RTL837X_LUT_TYPE_L2_MC;
-@@ -1634,56 +1634,31 @@
+@@ -1618,56 +1618,31 @@
  
  static int
  rtl8372n_port_fdb_add(struct dsa_switch *ds, int port,
@@ -91,7 +91,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (db.type != DSA_DB_PORT && db.type != DSA_DB_BRIDGE)
  		return -EOPNOTSUPP;
-@@ -1691,25 +1666,11 @@
+@@ -1675,25 +1650,11 @@
  	if (dsa_fdb_present_in_other_db(ds, port, addr, vid, db))
  		return 0;
  
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int
-@@ -1752,7 +1713,7 @@
+@@ -1736,7 +1697,7 @@
  	struct rtl837x_lut_entry entry = {0};
  	struct realtek_priv *priv = ds->priv;
  	const u8 *addr = mdb->addr;
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  
  	memcpy(entry.mc.key.mac_addr, addr, ETH_ALEN);
-@@ -1796,7 +1757,7 @@
+@@ -1780,7 +1741,7 @@
  	struct rtl837x_lut_entry entry = {0};
  	struct realtek_priv *priv = ds->priv;
  	const u8 *addr = mdb->addr;

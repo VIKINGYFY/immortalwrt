@@ -1,8 +1,8 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 22:33:07 +0800
-Subject: [PATCH] rtl837x: select service tag and native callbacks
+Date: Sun, 08 Nov 2026 02:41:30 +0800
+Subject: [PATCH] rtl837x: select service tag and native forwarding callbacks
 
-Keep ETH_P_8021AD and the fixed service tag expected by the existing PPE integration; wire the native bridge and VLAN callbacks.
+Keep ETH_P_8021AD and the fixed service tag expected by the existing PPE integration; wire the native bridge and VLAN callbacks. Install and disable CPU service-tag ACL rules with the tag lifecycle.
 
 Split from:
   package/kernel/rtl837x/patches/160-select-local-service-tag-and-forwarding-callbacks.patch ([PATCH] rtl8372n: select the local service tag and forwarding callbacks)
@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return true;
  	default:
  		return false;
-@@ -1181,117 +1181,53 @@
+@@ -1181,117 +1181,56 @@
  static int rtl8372n_set_tag_8021q(struct dsa_switch *ds)
  {
  	struct realtek_priv *priv = ds->priv;
@@ -106,6 +106,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -
 -	ret = dsa_tag_8021q_register(ds, htons(ETH_P_8021Q));
 +	ret = rtl837x_local_bridge_init(ds);
++	if (!ret)
++		ret = rtl837x_service_acl_setup(ds);
  	if (ret)
 -		return ret;
 -
@@ -123,6 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -
 -	chip_data = priv->chip_data;
 -
++	rtl837x_service_acl_teardown(ds);
  	if (ds->tag_8021q_ctx)
  		dsa_tag_8021q_unregister(ds);
 -
@@ -154,7 +157,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int rtl8372n_port_set_isolation(struct realtek_priv *priv, int port,
-@@ -1713,7 +1649,7 @@
+@@ -1694,7 +1633,7 @@
  
  	if (db.type == DSA_DB_BRIDGE && is_8021q_tag(priv->tag_proto)) {
  		/*
@@ -163,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		 * learned on the CPU port is the 802.1q DSA TAG rather than the port's own
  		 * VLAN ID.
  		 * We need add the correct fdb entry
-@@ -2438,12 +2374,9 @@
+@@ -2419,12 +2358,9 @@
  
  	rtnl_lock();
  	switch (priv->tag_proto) {
@@ -177,7 +180,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		ret = -EPROTONOSUPPORT;
  	}
-@@ -2458,7 +2391,6 @@
+@@ -2439,7 +2375,6 @@
  
  static const struct dsa_switch_ops rtl8372n_switch_ops_mdio = {
  	.get_tag_protocol = rtl8372n_get_tag_protocol,
@@ -185,7 +188,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.setup = rtl8372n_setup,
  	.teardown = rtl8372n_teardown,
  
-@@ -2472,18 +2404,18 @@
+@@ -2453,18 +2388,18 @@
  	.get_eth_mac_stats = rtl8372n_get_mac_stats,
  	.get_eth_ctrl_stats = rtl8372n_get_ctrl_stats,
  
@@ -210,7 +213,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	.port_fdb_add  = rtl8372n_port_fdb_add,
  	.port_fdb_del  = rtl8372n_port_fdb_del,
-@@ -2492,8 +2424,8 @@
+@@ -2473,8 +2408,8 @@
  	.port_mdb_del  = rtl8372n_port_mdb_del,
  	.port_fast_age = rtl8372n_port_fast_age,
  
@@ -221,7 +224,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #if  KERNEL_VERSION(6, 12, 44) <= LINUX_VERSION_CODE
  	.support_eee		= dsa_supports_eee,
-@@ -2516,7 +2448,7 @@
+@@ -2497,7 +2432,7 @@
  const struct rtl837x_variant rtl8372n_variant = {
  	.ds_ops_mdio = &rtl8372n_switch_ops_mdio,
  	.ops = &rtl8372n_ops,

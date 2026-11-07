@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -1461,25 +1461,19 @@
+@@ -1464,25 +1464,19 @@
  				      BIT(port), enable);
  }
  
@@ -44,8 +44,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	return 0x3fff - ETH_HLEN - 2 * VLAN_HLEN - ETH_FCS_LEN;
  }
  
- static int rtl8372n_check_bridge_flood(struct realtek_priv *priv,
-@@ -2069,6 +2063,67 @@
+ static int rtl8372n_port_pre_bridge_flags(struct dsa_switch *ds, int port,
+@@ -2053,6 +2047,67 @@
  	return 0;
  }
  
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void rtl8372n_stats_update(struct realtek_priv *priv, int port)
  {
  	static const int idx[] = {
-@@ -2109,7 +2164,7 @@
+@@ -2093,7 +2148,7 @@
  	if (ret)
  		return;
  
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	stats->rx_packets = cnt[RTL837X_MIB_ifInUcastPkts] +
  			    cnt[RTL837X_MIB_ifInMulticastPkts] +
-@@ -2136,7 +2191,7 @@
+@@ -2120,7 +2175,7 @@
  	stats->tx_window_errors = cnt[RTL837X_MIB_dot3StatsLateCollisions];
  	stats->tx_errors = stats->tx_aborted_errors + stats->tx_window_errors;
  
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void rtl8372n_stats_poll(struct work_struct *work)
-@@ -2155,9 +2210,9 @@
+@@ -2139,9 +2194,9 @@
  	struct rtl8372n *chip_data = priv->chip_data;
  	struct rtl8372n_port *p = &chip_data->ports[port];
  
@@ -143,7 +143,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void rtl8372n_stats_start(struct dsa_switch *ds)
-@@ -2184,6 +2239,10 @@
+@@ -2168,6 +2223,10 @@
  
  	dsa_switch_for_each_available_port(dp, ds)
  		cancel_delayed_work_sync(&chip_data->ports[dp->index].mib_work);
@@ -154,7 +154,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  // TODO: init chip based on rtl837x_chip_info
-@@ -2364,6 +2423,10 @@
+@@ -2348,6 +2407,10 @@
  	.get_eth_phy_stats = rtl8372n_get_phy_stats,
  	.get_eth_mac_stats = rtl8372n_get_mac_stats,
  	.get_eth_ctrl_stats = rtl8372n_get_ctrl_stats,
