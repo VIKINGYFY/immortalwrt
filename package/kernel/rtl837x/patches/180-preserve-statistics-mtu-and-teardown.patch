@@ -1,0 +1,116 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 11:20:00 +0800
+Subject: [PATCH] rtl8372n: preserve statistics, MTU and teardown
+
+Retain local ageing, pause statistics and double-tag MTU accounting
+through the upstream core, with DSA teardown cleanup.
+
+Split from:
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1612,6 +1612,101 @@
+ 
+ 
+ 
++
++static int __rtl8372n_port_stp_state_set(struct dsa_switch *ds, int port,
++					 u8 state)
++{
++	struct rtl837x_priv *priv = ds->priv;
++	int ret;
++	u32 val;
++
++	dev_dbg(priv->dev, "[%s]: port(%d) stp_status(%d)\n", __func__,
++						  port, state);
++
++	switch (state) {
++	case BR_STATE_DISABLED:
++		val = MSTP_DISABLE;
++		break;
++	case BR_STATE_BLOCKING:
++	case BR_STATE_LISTENING:
++		val = MSTP_BLOCKING;
++		break;
++	case BR_STATE_LEARNING:
++		val = MSTP_LEARNING;
++		break;
++	case BR_STATE_FORWARDING:
++		val = MSTP_FORWARDING;
++		break;
++	default:
++		dev_err(priv->dev, "[%s]: unknown bridge state requested\n", __func__);
++		return -EINVAL;
++	}
++
++	/* Set the same status for the port on all the FIDs */
++	for (int i = 0; i <= RTL837x_FIDMAX; i++) {
++		ret = rtl837x_reg_bits_write(priv, RTL837X_MSPT_STATE_ADDR(i),
++				  RTL837X_MSTP_STATE_MASK(port), val
++				);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
++static void rtl8372n_get_pause_stats(struct dsa_switch *ds, int port,
++				      struct ethtool_pause_stats *pause_stats)
++{
++	struct rtl837x_priv *priv = ds->priv;
++
++	pause_stats->rx_pause_frames = 0;
++	pause_stats->tx_pause_frames = 0;
++
++	mutex_lock(&priv->mib_lock);
++	priv->ops->get_mib_counter(priv, port,
++		&priv->mib_counters[RTL837X_MIB_dot3InPauseFrames],
++		&pause_stats->rx_pause_frames);
++	priv->ops->get_mib_counter(priv, port,
++		&priv->mib_counters[RTL837X_MIB_dot3OutPauseFrames],
++		&pause_stats->tx_pause_frames);
++	mutex_unlock(&priv->mib_lock);
++}
++
++static int rtl8372n_set_ageing_time(struct dsa_switch *ds,
++				     unsigned int msecs)
++{
++	struct rtl837x_priv *priv = ds->priv;
++	unsigned int secs = DIV_ROUND_UP(msecs, MSEC_PER_SEC);
++
++	secs = clamp_t(unsigned int, secs, 14, 800);
++
++	/* The RTL8372N SDK represents one second as five age-unit ticks. */
++	return rtl837x_reg_bits_write(priv, RTL837X_L2_AGE_CTRL_ADDR,
++				       RTL837X_L2_AGE_CTRL_AGE_UNIT_MASK,
++				       secs * 5);
++}
++
++static void rtl8372n_teardown(struct dsa_switch *ds)
++{
++	rtnl_lock();
++	rtl8372n_teardown_tag_8021q(ds);
++	rtnl_unlock();
++}
++
++static int rtl8372n_port_change_mtu(struct dsa_switch *ds, int port, int mtu)
++{
++	struct rtl837x_priv *priv = ds->priv;
++	u32 length = mtu + ETH_HLEN + 2 * VLAN_HLEN + ETH_FCS_LEN;
++	if (length > 0x3fff)
++		return -ERANGE;
++	return regmap_update_bits(priv->map, 0x1250 + (port << 8),
++		GENMASK(28, 0), length | (length << 14) | BIT(28));
++}
++
++static int rtl8372n_port_max_mtu(struct dsa_switch *ds, int port)
++{
++	return 0x3fff - ETH_HLEN - 2 * VLAN_HLEN - ETH_FCS_LEN;
++}
+ 
+ static int rtl8372n_setup(struct dsa_switch *ds)
+ {

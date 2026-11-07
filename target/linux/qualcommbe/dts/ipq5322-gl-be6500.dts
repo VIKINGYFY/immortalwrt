@@ -144,12 +144,10 @@
 	};
 
 	rtl837x: rtl837x-dsa@29 {
-		compatible = "realtek,rtl837x";
+		compatible = "realtek,rtl8372n";
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reg = <29>;
-		//realtek,reset-done-by-mdio;
-		rtl837x,sds0mode = "10g-kr";
 		gpio-controller;
 		#gpio-cells = <2>;
 
@@ -178,24 +176,53 @@
 				reg = <4>;
 				label = "lan1";
 				phy-mode = "internal";
+				phy-handle = <&rtl837x_phy4>;
 			};
 
 			port@5 {
 				reg = <5>;
 				label = "lan2";
 				phy-mode = "internal";
+				phy-handle = <&rtl837x_phy5>;
 			};
 
 			port@6 {
 				reg = <6>;
 				label = "lan3";
 				phy-mode = "internal";
+				phy-handle = <&rtl837x_phy6>;
 			};
 
 			port@7 {
 				reg = <7>;
 				label = "lan4";
 				phy-mode = "internal";
+				phy-handle = <&rtl837x_phy7>;
+			};
+		};
+
+		mdio {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rtl837x_phy4: ethernet-phy@4 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <4>;
+			};
+
+			rtl837x_phy5: ethernet-phy@5 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <5>;
+			};
+
+			rtl837x_phy6: ethernet-phy@6 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <6>;
+			};
+
+			rtl837x_phy7: ethernet-phy@7 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <7>;
 			};
 		};
 	};
@@ -216,7 +243,6 @@
 			nvmem-cells = <&base_macaddr 1>;
 			nvmem-cell-names = "mac-address";
 			pcs-handle = <&pcs0_ch0>;
-			phy-handle = <&rtl837x>;
 			clocks = <&nsscc NSS_CC_PORT1_MAC_CLK>,
 				 <&nsscc NSS_CC_PORT1_RX_CLK>,
 				 <&nsscc NSS_CC_PORT1_TX_CLK>;

@@ -19,13 +19,12 @@
 	};
 
 	rtl837x: rtl837x-dsa@29 {
-		compatible = "realtek,rtl837x";
+		compatible = "realtek,rtl8372n";
 		reg = <29>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 		realtek,preserve-boot-config;
 		realtek,rtl8372n-led-init;
-		rtl837x,sds1mode = "10g-usxg";
 
 		ports {
 			#address-cells = <1>;
@@ -47,24 +46,53 @@
 				reg = <7>;
 				label = "lan1";
 				phy-mode = "internal";
+				phy-handle = <&rtl837x_phy7>;
 			};
 
 			port@6 {
 				reg = <6>;
 				label = "lan2";
 				phy-mode = "internal";
+				phy-handle = <&rtl837x_phy6>;
 			};
 
 			port@5 {
 				reg = <5>;
 				label = "lan3";
 				phy-mode = "internal";
+				phy-handle = <&rtl837x_phy5>;
 			};
 
 			port@4 {
 				reg = <4>;
 				label = "lan4";
 				phy-mode = "internal";
+				phy-handle = <&rtl837x_phy4>;
+			};
+		};
+
+		mdio {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rtl837x_phy4: ethernet-phy@4 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <4>;
+			};
+
+			rtl837x_phy5: ethernet-phy@5 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <5>;
+			};
+
+			rtl837x_phy6: ethernet-phy@6 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <6>;
+			};
+
+			rtl837x_phy7: ethernet-phy@7 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <7>;
 			};
 		};
 	};

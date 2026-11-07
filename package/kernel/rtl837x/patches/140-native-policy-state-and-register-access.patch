@@ -1,0 +1,210 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 11:20:00 +0800
+Subject: [PATCH] rtl837x: define native policy state and register access
+
+Define local policy state, device register operations, port membership and
+CPU customer-tag preservation.
+
+Split from:
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- /dev/null
++++ b/src/rtl837x_vlan.c
+@@ -0,0 +1,195 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/* Preserve the local per-port service VLAN and recovery contract on regmap. */
++#include <linux/if_bridge.h>
++#include "rtl837x.h"
++
++struct rtl837x_vlan_entry { u16 mbr, untag; };
++struct rtl837x_vlan_snapshot {
++	struct rtl837x_vlan_data row;
++	u32 keep, pvid, svid, filtering;
++	u16 vid;
++	u8 port;
++};
++struct rtl837x_local {
++	struct rtl837x_priv *priv;
++	struct dsa_switch *ds;
++	struct device *dev;
++	struct mutex lock;
++	u32 configured_port_mask;
++	int cpu_port;
++	bool bridge_state_dirty, vlan_state_dirty;
++	struct rtl837x_vlan_snapshot vlan_rollback;
++	u8 stp_state[RTL837X_MAX_PORT_COUNT];
++	u16 port_pvid[RTL837X_MAX_PORT_COUNT];
++	u16 tag8021q_pvid[RTL837X_MAX_PORT_COUNT];
++	bool tag8021q_pvid_valid[RTL837X_MAX_PORT_COUNT];
++	u16 bridge_pvid[RTL837X_MAX_PORT_COUNT];
++	bool bridge_pvid_valid[RTL837X_MAX_PORT_COUNT];
++};
++static int rtl837x_field_get(struct rtl837x_local *gsw, u32 reg, u32 mask, u32 *value)
++{
++	return rtl837x_reg_bits_read(gsw->priv, reg, mask, value);
++}
++static int rtl837x_field_set(struct rtl837x_local *gsw, u32 reg, u32 mask, u32 value)
++{
++	return rtl837x_reg_bits_write(gsw->priv, reg, mask, value);
++}
++#define LOCAL_FIELD(name, reg, mask) \
++static int rtl837x_##name##_get(struct rtl837x_local *gsw, int port, u32 *value) \
++{ return rtl837x_field_get(gsw, reg, mask, value); } \
++static int rtl837x_##name##_set(struct rtl837x_local *gsw, int port, u32 value) \
++{ return rtl837x_field_set(gsw, reg, mask, value); }
++LOCAL_FIELD(keep, RTL837X_VLAN_PORT_EGR_KEEP_ADDR(port), RTL837X_VLAN_PORT_EGR_KEEP_PMSK_MASK(port))
++LOCAL_FIELD(pvid, RTL837X_VLAN_PORT_PB_VLAN_ADDR(port), RTL837X_VLAN_PORT_PB_VLAN_PVID_MASK(port))
++LOCAL_FIELD(svid, RTL837X_VS_PORT_DFLT_SVID_ADDR(port), RTL837X_VS_PORT_DFLT_SVID_PORT_DFLT_SVID_MASK(port))
++LOCAL_FIELD(filter, RTL837X_VLAN_PORT_IGR_FLTR_ADDR(port), RTL837X_VLAN_PORT_IGR_FLTR_IGR_FLTR_ACT_MASK(port))
++static int rtl837x_accept_set(struct rtl837x_local *gsw, int port, u32 value)
++{
++	return rtl837x_field_set(gsw, RTL837X_VLAN_PORT_AFT_ADDR(port), RTL837X_VLAN_PORT_AFT_CTAG_ACCEPT_TYPE_MASK(port), value);
++}
++static int rtl837x_isolation_get(struct rtl837x_local *gsw, int port, u32 *value)
++{
++	return rtl837x_reg_read(gsw->priv, RTL837X_PORT_ISO_PORT_PMSK_ADDR(port), value);
++}
++static int rtl837x_isolation_set(struct rtl837x_local *gsw, int port, u32 value)
++{
++	return rtl837x_reg_write(gsw->priv, RTL837X_PORT_ISO_PORT_PMSK_ADDR(port), value);
++}
++static int rtl837x_mstp_set(struct rtl837x_local *gsw, int fid, int port, u32 value)
++{
++	return rtl837x_field_set(gsw, RTL837X_MSPT_STATE_ADDR(fid), RTL837X_MSTP_STATE_MASK(port), value);
++}
++static int rtl837x_row_get(struct rtl837x_local *gsw, u16 vid, struct rtl837x_vlan_data *row)
++{
++	row->vid = vid;
++	return rtl837x_vlan_get(gsw->priv, row);
++}
++static int rtl837x_row_set(struct rtl837x_local *gsw, u16 vid, const struct rtl837x_vlan_data *row)
++{
++	struct rtl837x_vlan_data value = *row;
++	value.vid = vid;
++	return rtl837x_vlan_set(gsw->priv, &value);
++}
++static int rtl837x_write_vlan(struct rtl837x_local *gsw, u16 vid, u16 member, u16 untag)
++{
++	struct rtl837x_vlan_data row = { .vid = vid };
++	row.mbr = member;
++	row.untag = untag;
++	row.ivl_en = 1;
++	return rtl837x_vlan_set(gsw->priv, &row);
++}
++static bool rtl837x_valid_port(struct rtl837x_local *gsw, int port)
++{
++	return port >= 0 && port < RTL837X_MAX_PORT_COUNT && (gsw->configured_port_mask & BIT(port));
++}
++
++static bool rtl837x_user_port(struct rtl837x_local *gsw, int port)
++{
++	return rtl837x_valid_port(gsw, port) && port != gsw->cpu_port;
++}
++
++static u32 rtl837x_user_ports(struct rtl837x_local *gsw)
++{
++	return gsw->configured_port_mask & ~BIT(gsw->cpu_port);
++}
++
++static u32 rtl837x_bridge_ports(struct rtl837x_local *gsw, int port)
++{
++	struct net_device *bridge;
++	struct dsa_port *dp;
++	u32 members = 0;
++	int other;
++
++	dp = dsa_to_port(gsw->ds, port);
++	bridge = dsa_port_bridge_dev_get(dp);
++	if (!bridge)
++		return 0;
++
++	for (other = 0; other < RTL837X_MAX_PORT_COUNT; other++) {
++		if (other == port || !rtl837x_user_port(gsw, other))
++			continue;
++
++		dp = dsa_to_port(gsw->ds, other);
++		if (dsa_port_bridge_dev_get(dp) == bridge)
++			members |= BIT(other);
++	}
++
++	return members;
++}
++
++static u32 rtl837x_cpu_keep(struct rtl837x_local *gsw, int changing_port,
++				     bool vlan_filtering)
++{
++	u32 cpu_keep = 0;
++	int port;
++
++	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
++		struct dsa_port *dp;
++		bool filtering;
++
++		if (!rtl837x_user_port(gsw, port))
++			continue;
++		dp = dsa_to_port(gsw->ds, port);
++		filtering = port == changing_port ? vlan_filtering :
++			    dsa_port_is_vlan_filtering(dp);
++		if (!dsa_port_bridge_dev_get(dp) || !filtering)
++			cpu_keep |= BIT(port);
++	}
++
++	return cpu_keep;
++}
++
++static int rtl837x_update_cpu_keep(struct rtl837x_local *gsw, int changing_port,
++				 bool vlan_filtering)
++{
++	u32 cpu_keep = rtl837x_cpu_keep(gsw, changing_port, vlan_filtering);
++	u32 readback = 0;
++	int ret;
++
++
++	/* The S-tag already identifies the source port. Preserve the wire
++	 * C-tag on standalone and VLAN-unaware bridge ingress alike: adding
++	 * the bridge's private PVID here makes PPE see a tag which Linux's
++	 * software PVID untagging hides from the flow offload rule.
++	 */
++	ret = rtl837x_keep_get(gsw, gsw->cpu_port, &readback);
++	if (ret)
++		return ret;
++	if (readback == cpu_keep)
++		return 0;
++	ret = rtl837x_keep_set(gsw, gsw->cpu_port, cpu_keep);
++	if (ret)
++		return ret;
++	ret = rtl837x_keep_get(gsw, gsw->cpu_port, &readback);
++	if (ret)
++		return ret;
++	if (readback != cpu_keep)
++		return -EIO;
++
++	return 0;
++}
++
++static int rtl837x_update_isolation(struct rtl837x_local *gsw)
++{
++	u32 permit;
++	int port, ret;
++
++	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
++		if (!rtl837x_valid_port(gsw, port))
++			continue;
++
++		if (port == gsw->cpu_port) {
++			permit = rtl837x_user_ports(gsw);
++		} else {
++			permit = BIT(gsw->cpu_port) |
++				 rtl837x_bridge_ports(gsw, port);
++		}
++
++		ret = rtl837x_isolation_set(gsw, port, permit);
++		if (ret)
++			return ret;
++	}
++
++	return rtl837x_update_cpu_keep(gsw, -1, false);
++}
++

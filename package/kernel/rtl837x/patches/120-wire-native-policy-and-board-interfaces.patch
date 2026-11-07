@@ -1,0 +1,89 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 11:20:00 +0800
+Subject: [PATCH] rtl837x: wire native policy and board interfaces
+
+Declare per-device transport locks, local policy and board interfaces.
+Build the native policy and board objects alongside the upstream core.
+
+Split from:
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -10,6 +10,7 @@
+ obj-$(CONFIG_RTL8372N_DSA) += rtl8372n_dsa.o
+ 
+ rtl8372n_dsa-objs := rtl8372n.o
++rtl8372n_dsa-objs += rtl837x_vlan.o rtl837x_board.o
+ 
+ ifeq ($(CONFIG_GPIOLIB),y)
+ rtl8372n_dsa-objs += rtl837x_gpio.o
+--- a/src/rtl837x.h
++++ b/src/rtl837x.h
+@@ -10,6 +10,7 @@
+ #include <linux/debugfs.h>
+ #include <linux/dsa/8021q.h>
+ #include <net/dsa.h>
++#include <linux/if_vlan.h>
+ 
+ #define MDC_MDIO_CTRL_REG           21
+ #define MDC_MDIO_ADDR_REG           22
+@@ -151,6 +152,8 @@
+ #define RTL837X_INT_PHY_OCP_INDR_ACC_CTRL_2_ADDR                                  0xBD0
+ 
+ /* L2 learning control */
++#define RTL837X_L2_AGE_CTRL_ADDR 0x5354
++#define RTL837X_L2_AGE_CTRL_AGE_UNIT_MASK GENMASK(15, 0)
+ #define RTL837X_MAC_L2_GLOBAL_CTRL0_ADDR                          0x5FD4
+ #define   RTL837X_MAC_L2_GLOBAL_CTRL0_FWD_INVLD_MAC_CTRL_EN_MASK  BIT(20)
+ #define   RTL837X_MAC_L2_GLOBAL_CTRL0_FWD_UNKN_OPCODE_EN_MASK     BIT(19)
+@@ -412,7 +415,14 @@
+ 	struct led_classdev cdev;
+ };
+ 
++struct rtl837x_local;
++int rtl837x_board_prepare(struct rtl837x_priv *priv);
++int rtl837x_board_led_init(struct rtl837x_priv *priv);
++
+ struct rtl837x_priv {
++	struct rtl837x_local *local;
++	bool preserve_boot_config;
++	bool reinit_cpu_serdes;
+ 	struct device *dev;
+ 	struct gpio_desc	*reset;
+ 	struct mii_bus *bus;
+@@ -422,6 +432,7 @@
+ 	struct mutex		map_8224_lock;
+ 
+ 	struct mutex		ita_lock;
++	struct mutex phy_lock, sds_lock, ocp_lock;
+ 
+ 	int			mdio_addr;
+ 	enum dsa_tag_protocol tag_proto;
+@@ -629,8 +640,24 @@
+ extern int patch_phys_v008_rls_lockmain(struct rtl837x_priv *priv, u16 phy_mask);
+ extern int patch_phys_v009(struct rtl837x_priv *priv, u16 phy_mask);
+ extern int patch_phys_v009_rls_lockmain(struct rtl837x_priv *priv, u16 phy_mask);
++
++
+ #endif
+ 
+ extern const struct rtl837x_variant rtl8372n_variant;
+ 
++
++
++int rtl8372n_set_bpdu_l2mc_cpu_trap(struct rtl837x_priv *priv, u32 vid, u32 cpu_port_mask, bool add);
++int rtl837x_local_init(struct dsa_switch *ds);
++int rtl837x_local_bridge_init(struct dsa_switch *ds);
++void rtl837x_local_stp_set(struct dsa_switch *ds, int port, u8 state);
++int rtl837x_tag_8021q_vlan_add(struct dsa_switch *ds, int port, u16 vid, u16 flags);
++int rtl837x_tag_8021q_vlan_del(struct dsa_switch *ds, int port, u16 vid);
++int rtl837x_port_bridge_join(struct dsa_switch *ds, int port, struct dsa_bridge bridge, bool *tx_fwd_offload, struct netlink_ext_ack *extack);
++void rtl837x_port_bridge_leave(struct dsa_switch *ds, int port, struct dsa_bridge bridge);
++int rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack);
++int rtl837x_port_vlan_add(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan, struct netlink_ext_ack *extack);
++int rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan);
++
+ #endif

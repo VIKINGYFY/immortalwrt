@@ -1,0 +1,182 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 11:20:00 +0800
+Subject: [PATCH] rtl837x: retain VLAN snapshots and recovery
+
+Preserve desired STP states, hardware snapshots, verified restoration and
+recoverable fail-closed state.
+
+Split from:
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl837x_vlan.c
++++ b/src/rtl837x_vlan.c
+@@ -193,3 +193,167 @@
+ 	return rtl837x_update_cpu_keep(gsw, -1, false);
+ }
+ 
++static int rtl837x_set_stp_state(struct rtl837x_local *gsw, int port, u8 state)
++{
++	u32 mstp_state;
++	int ret;
++
++	if (!rtl837x_valid_port(gsw, port))
++		return -EINVAL;
++
++	gsw->stp_state[port] = state;
++	if ((gsw->bridge_state_dirty || gsw->vlan_state_dirty) &&
++	    rtl837x_user_port(gsw, port))
++		state = BR_STATE_BLOCKING;
++
++	switch (state) {
++	case BR_STATE_DISABLED:
++		mstp_state = 0;
++		break;
++	case BR_STATE_BLOCKING:
++	case BR_STATE_LISTENING:
++		mstp_state = 1;
++		break;
++	case BR_STATE_LEARNING:
++		mstp_state = 2;
++		break;
++	case BR_STATE_FORWARDING:
++		mstp_state = 3;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	ret = rtl837x_mstp_set(gsw, 0, port, mstp_state);
++	return ret;
++}
++
++static void rtl837x_bridge_quarantine(struct rtl837x_local *gsw)
++{
++	int port, ret;
++
++	gsw->bridge_state_dirty = true;
++	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
++		if (!rtl837x_user_port(gsw, port))
++			continue;
++		ret = rtl837x_mstp_set(gsw, 0, port, 1);
++		if (ret)
++			dev_err(gsw->dev, "bridge quarantine failed: port=%d ret=%d\n",
++				port, (ret));
++	}
++}
++
++static int rtl837x_vlan_snapshot(struct rtl837x_local *gsw, int port, u16 vid,
++				   struct rtl837x_vlan_snapshot *state)
++{
++	int ret;
++
++	memset(state, 0, sizeof(*state));
++	state->port = port;
++	state->vid = vid;
++	if (vid) {
++		ret = rtl837x_row_get(gsw, vid, &state->row);
++		if (ret)
++			return ret;
++	}
++	ret = rtl837x_pvid_get(gsw, port, &state->pvid);
++	if (ret)
++		return ret;
++	ret = rtl837x_svid_get(gsw, port, &state->svid);
++	if (ret)
++		return ret;
++	ret = rtl837x_filter_get(gsw, port, &state->filtering);
++	if (ret)
++		return ret;
++	return (rtl837x_keep_get(gsw, gsw->cpu_port, &state->keep));
++}
++
++static bool rtl837x_vlan_state_equal(const struct rtl837x_vlan_snapshot *a,
++				     const struct rtl837x_vlan_snapshot *b)
++{
++	return a->row.mbr == b->row.mbr &&
++	       a->row.untag == b->row.untag &&
++	       a->row.fid == b->row.fid &&
++	       a->row.ivl_en == b->row.ivl_en &&
++	       a->row.svlan_chk_ivl_svl == b->row.svlan_chk_ivl_svl &&
++	       a->pvid == b->pvid && a->svid == b->svid &&
++	       a->filtering == b->filtering &&
++	       a->keep == b->keep;
++}
++
++static int rtl837x_vlan_verify(struct rtl837x_local *gsw,
++			       const struct rtl837x_vlan_snapshot *expected)
++{
++	struct rtl837x_vlan_snapshot actual;
++	int ret;
++
++	ret = rtl837x_vlan_snapshot(gsw, expected->port, expected->vid, &actual);
++	if (ret)
++		return ret;
++	return rtl837x_vlan_state_equal(&actual, expected) ? 0 : -EIO;
++}
++
++static int rtl837x_vlan_restore(struct rtl837x_local *gsw,
++				struct rtl837x_vlan_snapshot *state)
++{
++	int first = 0, ret;
++
++	/* Try every field, including writes whose completion was uncertain. */
++	if (state->vid) {
++		ret = (rtl837x_row_set(gsw, state->vid, &state->row));
++		if (ret)
++			first = ret;
++	}
++	ret = (rtl837x_pvid_set(gsw, state->port, state->pvid));
++	if (ret && !first)
++		first = ret;
++	ret = (rtl837x_svid_set(gsw, state->port, state->svid));
++	if (ret && !first)
++		first = ret;
++	ret = (rtl837x_filter_set(gsw, state->port, state->filtering));
++	if (ret && !first)
++		first = ret;
++	ret = (rtl837x_keep_set(gsw, gsw->cpu_port, state->keep));
++	if (ret && !first)
++		first = ret;
++	ret = rtl837x_vlan_verify(gsw, state);
++	return first ?: ret;
++}
++
++static int rtl837x_vlan_recover(struct rtl837x_local *gsw)
++{
++	int ret;
++
++	if (!gsw->vlan_state_dirty)
++		return 0;
++	ret = rtl837x_vlan_restore(gsw, &gsw->vlan_rollback);
++	if (ret) {
++		rtl837x_bridge_quarantine(gsw);
++		dev_err(gsw->dev, "VLAN recovery failed: port=%u vid=%u ret=%d\n",
++			gsw->vlan_rollback.port, gsw->vlan_rollback.vid, ret);
++		return ret;
++	}
++	gsw->port_pvid[gsw->vlan_rollback.port] = gsw->vlan_rollback.pvid;
++	gsw->vlan_state_dirty = false;
++	/* STP stays blocked until update_bridge has rebuilt its own state. */
++	dev_info(gsw->dev, "VLAN hardware state recovered: port=%u vid=%u\n",
++		 gsw->vlan_rollback.port, gsw->vlan_rollback.vid);
++	return 0;
++}
++
++static int rtl837x_vlan_failed(struct rtl837x_local *gsw,
++			       struct rtl837x_vlan_snapshot *old,
++			       const char *phase, int ret)
++{
++	int rollback = rtl837x_vlan_restore(gsw, old);
++
++	if (rollback) {
++		gsw->vlan_rollback = *old;
++		gsw->vlan_state_dirty = true;
++		rtl837x_bridge_quarantine(gsw);
++	}
++	dev_err(gsw->dev, "VLAN transaction failed: phase=%s port=%u vid=%u ret=%d rollback=%d dirty=%u\n",
++		phase, old->port, old->vid, ret, rollback, gsw->vlan_state_dirty);
++	return ret;
++}
++

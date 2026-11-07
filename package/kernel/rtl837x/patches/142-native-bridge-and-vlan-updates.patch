@@ -1,0 +1,276 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 11:20:00 +0800
+Subject: [PATCH] rtl837x: retain bridge and VLAN update transactions
+
+Rebuild each fixed source SVID membership and local isolation atomically.
+Keep customer VLAN, service PVID and VLAN1 baseline updates independent.
+
+Split from:
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl837x_vlan.c
++++ b/src/rtl837x_vlan.c
+@@ -357,3 +357,261 @@
+ 	return ret;
+ }
+ 
++static int rtl837x_update_bridge(struct rtl837x_local *gsw)
++{
++	struct rtl837x_vlan_entry old[RTL837X_MAX_PORT_COUNT] = { 0 };
++	struct rtl837x_vlan_entry next[RTL837X_MAX_PORT_COUNT] = { 0 };
++	u32 isolation[RTL837X_MAX_PORT_COUNT] = { 0 };
++	bool changed[RTL837X_MAX_PORT_COUNT] = { 0 };
++	u32 keep = 0;
++	bool recovering = gsw->bridge_state_dirty;
++	const char *phase = "snapshot";
++	int port, ret, err, rollback = 0;
++
++	ret = rtl837x_vlan_recover(gsw);
++	if (ret)
++		return ret;
++
++	/* Snapshot real hardware, not a cache invalidated by a timed-out write. */
++	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
++		struct rtl837x_vlan_data entry = { 0 };
++
++		if (!rtl837x_valid_port(gsw, port))
++			continue;
++		ret = (rtl837x_isolation_get(gsw, port, &isolation[port]));
++		if (ret)
++			goto snapshot_failed;
++		if (!rtl837x_user_port(gsw, port) || !gsw->tag8021q_pvid_valid[port])
++			continue;
++		ret = (rtl837x_row_get(gsw, 
++			gsw->tag8021q_pvid[port], &entry));
++		if (ret)
++			goto snapshot_failed;
++		old[port].mbr = entry.mbr;
++		old[port].untag = entry.untag;
++		next[port].mbr = BIT(gsw->cpu_port) | BIT(port) |
++				 rtl837x_bridge_ports(gsw, port);
++		next[port].untag = next[port].mbr & rtl837x_user_ports(gsw);
++		changed[port] = recovering ||
++			memcmp(&next[port], &old[port], sizeof(next[port]));
++	}
++	ret = (rtl837x_keep_get(gsw, gsw->cpu_port, &keep));
++	if (ret)
++		goto snapshot_failed;
++
++	phase = "isolation/keep";
++	ret = rtl837x_update_isolation(gsw);
++	if (ret)
++		goto rollback;
++	phase = "svlan";
++	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
++		if (!changed[port])
++			continue;
++		ret = rtl837x_write_vlan(gsw, gsw->tag8021q_pvid[port],
++					 next[port].mbr, next[port].untag);
++		if (ret)
++			goto rollback;
++	}
++
++	gsw->bridge_state_dirty = false;
++	if (recovering) {
++		for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
++			if (!rtl837x_user_port(gsw, port))
++				continue;
++			ret = rtl837x_set_stp_state(gsw, port, gsw->stp_state[port]);
++			if (ret) {
++				rtl837x_bridge_quarantine(gsw);
++				return ret;
++			}
++		}
++		dev_info(gsw->dev, "bridge hardware state recovered\n");
++	}
++	return 0;
++
++rollback:
++	/* Include the failed row: completion failure does not prove no commit.
++	 * Restore every candidate, even if isolation failed before VLAN writes.
++	 */
++	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
++		if (changed[port]) {
++			err = rtl837x_write_vlan(gsw, gsw->tag8021q_pvid[port],
++						 old[port].mbr, old[port].untag);
++			if (err && !rollback)
++				rollback = err;
++		}
++		if (!rtl837x_valid_port(gsw, port))
++			continue;
++		err = (rtl837x_isolation_set(gsw, port, isolation[port]));
++		if (err && !rollback)
++			rollback = err;
++	}
++	err = (rtl837x_keep_set(gsw, gsw->cpu_port, keep));
++	if (err && !rollback)
++		rollback = err;
++	if (rollback || recovering)
++		rtl837x_bridge_quarantine(gsw);
++	dev_err(gsw->dev, "bridge transaction failed: phase=%s ret=%d rollback=%d dirty=%u\n",
++		phase, ret, rollback, gsw->bridge_state_dirty);
++	return ret;
++
++snapshot_failed:
++	dev_err(gsw->dev, "bridge transaction failed: phase=%s port=%d ret=%d\n",
++		phase, port, ret);
++	return ret;
++}
++
++static bool rtl837x_vlan_has_user(struct rtl837x_local *gsw, u16 mbr)
++{
++	return mbr & rtl837x_user_ports(gsw);
++}
++
++static int rtl837x_vlan_prepare(struct rtl837x_local *gsw, int port, u16 vid,
++				  struct rtl837x_vlan_snapshot *old)
++{
++	int ret;
++
++	if (gsw->vlan_state_dirty || gsw->bridge_state_dirty) {
++		ret = rtl837x_update_bridge(gsw);
++		if (ret)
++			return ret;
++	}
++	ret = rtl837x_vlan_snapshot(gsw, port, vid, old);
++	if (ret)
++		dev_err(gsw->dev, "VLAN snapshot failed: port=%d vid=%u ret=%d\n",
++			port, vid, ret);
++	return ret;
++}
++
++static int rtl837x_vlan_update(struct rtl837x_local *gsw, int port, u16 vid,
++			       u16 flags, bool add, bool service)
++{
++	struct rtl837x_vlan_snapshot old, next;
++	bool pvid = flags & BRIDGE_VLAN_INFO_PVID;
++	bool pvid_valid, change_pvid;
++	u16 new_pvid;
++	const char *phase = "row";
++	int ret;
++
++	ret = rtl837x_vlan_prepare(gsw, port, vid, &old);
++	if (ret)
++		return ret;
++	next = old;
++	if (add) {
++		next.row.mbr |= BIT(port);
++		if (flags & BRIDGE_VLAN_INFO_UNTAGGED)
++			next.row.untag |= BIT(port);
++		else
++			next.row.untag &= ~BIT(port);
++		if (!service && port != gsw->cpu_port) {
++			next.row.mbr |= BIT(gsw->cpu_port);
++			next.row.untag &= ~BIT(gsw->cpu_port);
++		}
++	} else if (!service && vid == 1 &&
++		   (!dsa_port_bridge_dev_get(dsa_to_port(gsw->ds, port)) ||
++		    !dsa_port_is_vlan_filtering(dsa_to_port(gsw->ds, port)))) {
++		/* VLAN1 is the private baseline for standalone/unaware ports. */
++		next.row.mbr |= BIT(port) | BIT(gsw->cpu_port);
++		next.row.untag |= BIT(port);
++		next.row.untag &= ~BIT(gsw->cpu_port);
++	} else {
++		next.row.mbr &= ~BIT(port);
++		next.row.untag &= ~BIT(port);
++		if (!service && !rtl837x_vlan_has_user(gsw, next.row.mbr)) {
++			next.row.mbr &= ~BIT(gsw->cpu_port);
++			next.row.untag &= ~BIT(gsw->cpu_port);
++		}
++	}
++	next.row.fid = 0;
++	next.row.svlan_chk_ivl_svl = 0;
++	next.row.ivl_en = 1;
++	new_pvid = service ? gsw->tag8021q_pvid[port] : gsw->bridge_pvid[port];
++	pvid_valid = service ? gsw->tag8021q_pvid_valid[port] : gsw->bridge_pvid_valid[port];
++	change_pvid = (service || port != gsw->cpu_port) &&
++		(pvid || (pvid_valid && new_pvid == vid));
++	if (change_pvid) {
++		struct dsa_port *dp = dsa_to_port(gsw->ds, port);
++
++		pvid_valid = add && pvid;
++		if (pvid_valid)
++			new_pvid = vid;
++		if (service) {
++			next.svid = pvid_valid ? vid : 0;
++		} else if (!dsa_port_is_vlan_filtering(dp)) {
++			next.pvid = 1;
++		} else {
++			/* A VLAN-aware bridge with no PVID must drop untagged
++			 * ingress. VID 0 has no members; VLAN1 is standalone only.
++			 */
++			next.pvid = pvid_valid ? vid :
++				    dsa_port_bridge_dev_get(dp) ? 0 : 1;
++		}
++	}
++	ret = (rtl837x_row_set(gsw, vid, &next.row));
++	if (ret)
++		goto failed;
++	phase = "pvid";
++	if (change_pvid) {
++		if (service)
++			ret = (rtl837x_svid_set(gsw, port, next.svid));
++		else
++			ret = (rtl837x_pvid_set(gsw, port, next.pvid));
++		if (ret)
++			goto failed;
++	}
++	phase = "readback";
++	ret = rtl837x_vlan_verify(gsw, &next);
++	if (ret)
++		goto failed;
++	gsw->port_pvid[port] = next.pvid;
++	if (change_pvid) {
++		if (service) {
++			gsw->tag8021q_pvid[port] = new_pvid;
++			gsw->tag8021q_pvid_valid[port] = pvid_valid;
++		} else {
++			gsw->bridge_pvid[port] = new_pvid;
++			gsw->bridge_pvid_valid[port] = pvid_valid;
++		}
++	}
++	return 0;
++
++failed:
++	return rtl837x_vlan_failed(gsw, &old, phase, ret);
++}
++
++static int rtl837x_seed_vlan_table(struct rtl837x_local *gsw)
++{
++	struct rtl837x_vlan_entry vlan1 = {
++		.mbr = gsw->configured_port_mask,
++		.untag = gsw->configured_port_mask,
++	};
++	int port, ret;
++
++	ret = rtl837x_write_vlan(gsw, 1, vlan1.mbr, vlan1.untag);
++	if (ret)
++		return ret;
++
++	for (port = 0; port < RTL837X_MAX_PORT_COUNT; port++) {
++		if (!rtl837x_valid_port(gsw, port))
++			continue;
++
++		ret = rtl837x_pvid_set(gsw, port, 1);
++		if (ret)
++			return ret;
++		gsw->port_pvid[port] = 1;
++		ret = rtl837x_field_set(gsw, RTL837X_VLAN_PORT_EGR_TAG_ADDR(port),
++			RTL837X_VLAN_PORT_EGR_TAG_MODE_MASK(port), 0);
++		if (ret)
++			return ret;
++
++		ret = rtl837x_filter_set(gsw, port, 0);
++		if (ret)
++			return ret;
++
++		ret = rtl837x_accept_set(gsw, port, 0);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++

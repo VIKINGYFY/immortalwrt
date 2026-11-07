@@ -1,0 +1,191 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 07 Nov 2026 11:20:00 +0800
+Subject: [PATCH] rtl8372n: remove inactive tag switching
+
+Remove tag switching paths that are not used by the fixed RTL837X service
+transport. Do not retain the obsolete bridge-VID scheme.
+
+Split from:
+  package/kernel/rtl837x/patches/100-migrate-local-behavior-to-upstream-regmap.patch ([PATCH] rtl837x: migrate local board and forwarding policy to regmap)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1019,135 +1019,7 @@
+ 	return 0;
+ }
+ 
+-static int rtl8372n_set_tag_rtl(struct dsa_switch *ds)
+-{
+-	int ret;
+-	struct rtl837x_priv *priv = ds->priv;
+-	struct rtl8372n *chip_data = priv->chip_data;
+-	struct dsa_port *dp, *cpu_dp = NULL;
+-	struct net_device *master_dev = NULL;
+-
+-
+-	// Only support one CPU port
+-	dsa_switch_for_each_cpu_port(dp, ds) {
+-		cpu_dp = dp;
+-		break;
+-	}
+-
+-	if (cpu_dp == NULL)
+-		return -ENODEV;
+-
+-#if KERNEL_VERSION(6, 12, 44) >= LINUX_VERSION_CODE
+-	master_dev = cpu_dp->master;
+-#else
+-	master_dev = cpu_dp->conduit;
+-#endif
+-
+-	if (!master_dev) {
+-		dev_err(priv->dev, "Cannot get master netdev from cpu port\n");
+-		return -ENODEV;
+-	}
+-
+-	// Set external CPU DSA tag insert mode
+-	/*
+-	 *	CPU_INSERT_TO_ALL = 0,
+-	 *	CPU_INSERT_TO_TRAPPING,
+-	 *	CPU_INSERT_TO_NONE,
+-	 *	CPU_INSERT_END
+-	 */
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_CPU_TAG_CTRL_ADDR,
+-			  RTL837X_CPU_TAG_CTRL_EXT_CPUTAG_INSERTMOD_MASK, 0
+-			);
+-	if (ret)
+-		return ret;
+-
+-	// Set external CPU port
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_EXT_CPU_CTRL_ADDR,
+-			  RTL837X_EXT_CPU_CTRL_PORT_MASK, cpu_dp->index
+-			);
+-	if (ret)
+-		return ret;
+-
+-	// Enable CPU tag
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_CPU_TAG_CTRL_ADDR,
+-			  RTL837X_CPU_TAG_CTRL_EXT_CPUTAG_EN_MASK, 1
+-			);
+-	if (ret)
+-		return ret;
+-
+-	// Add cpu port to RTL8_4 TAG aware port
+-	ret = rtl837x_reg_bits_write(priv, RTL837X_CPU_TAG_AWARE_CTRL_ADDR, BIT(cpu_dp->index), 1);
+-	if (ret)
+-		return ret;
+-
+-	chip_data->csum_feature_backup = (master_dev->wanted_features & (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM));
+-	chip_data->csum_feature_backup |= (master_dev->wanted_features & NETIF_F_HW_CSUM);
+-
+-	master_dev->wanted_features &= ~(NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
+-	master_dev->wanted_features &= ~NETIF_F_HW_CSUM;
+-	netdev_update_features(master_dev);
+-
+-	return 0;
+-}
+-
+-static int rtl8372n_teardown_tag_rtl(struct dsa_switch *ds)
+-{
+-	struct rtl837x_priv *priv = ds->priv;
+-	struct rtl8372n *chip_data = priv->chip_data;
+-	struct dsa_port *dp, *cpu_dp = NULL;
+-	struct net_device *master_dev = NULL;
+-
+-
+-	// Only support one CPU port
+-	dsa_switch_for_each_cpu_port(dp, ds) {
+-		cpu_dp = dp;
+-		break;
+-	}
+-
+-	if (cpu_dp == NULL)
+-		return -ENODEV;
+-
+-#if KERNEL_VERSION(6, 12, 44) >= LINUX_VERSION_CODE
+-	master_dev = cpu_dp->master;
+-#else
+-	master_dev = cpu_dp->conduit;
+-#endif
+-
+-	if (!master_dev) {
+-		dev_err(priv->dev, "Cannot get master netdev from cpu port\n");
+-		return -ENODEV;
+-	}
+-
+-	// Set external CPU DSA tag insert mode
+-	/*
+-	 *	CPU_INSERT_TO_ALL = 0,
+-	 *	CPU_INSERT_TO_TRAPPING,
+-	 *	CPU_INSERT_TO_NONE,
+-	 *	CPU_INSERT_END
+-	 */
+-	rtl837x_reg_bits_write(priv, RTL837X_CPU_TAG_CTRL_ADDR,
+-			  RTL837X_CPU_TAG_CTRL_EXT_CPUTAG_INSERTMOD_MASK, 2
+-			);
+-
+-	// Disable CPU tag
+-	rtl837x_reg_bits_write(priv, RTL837X_CPU_TAG_CTRL_ADDR,
+-			  RTL837X_CPU_TAG_CTRL_EXT_CPUTAG_EN_MASK, 0
+-			);
+-
+-	// Remove cpu port from RTL8_4 TAG aware port
+-	dsa_switch_for_each_cpu_port(dp, ds) {
+-		rtl837x_reg_bits_write(priv, RTL837X_CPU_TAG_AWARE_CTRL_ADDR, BIT(dp->index), 0);
+-	}
+-
+-	master_dev->wanted_features |= chip_data->csum_feature_backup;
+-	netdev_update_features(master_dev);
+-
+-	rtl837x_reg_bits_write(priv, RTL837X_L2_TBL_FLUSH_ALL_ADDR,
+-			  RTL837X_L2_TBL_FLUSH_ALL_FLUSH_ALL_MASK, 1
+-			);
+-
+-	return 0;
+-}
++
+ 
+ static int rtl8372n_set_tag_8021q(struct dsa_switch *ds)
+ {
+@@ -1268,39 +1140,6 @@
+ 
+ 
+ 
+-static int rtl8372n_change_tag_protocol(struct dsa_switch *ds,
+-					enum dsa_tag_protocol proto)
+-{
+-	int ret;
+-	struct rtl837x_priv *priv = ds->priv;
+-
+-	dev_dbg(priv->dev, "[%s]: proto: %d\n", __func__, proto);
+-
+-
+-	switch (proto) {
+-	case DSA_TAG_PROTO_MXL862_8021Q:
+-		ret = rtl8372n_teardown_tag_rtl(ds);
+-		if (ret)
+-			return ret;
+-		ret = rtl8372n_set_tag_8021q(ds);
+-		if (ret)
+-			return ret;
+-		break;
+-	case DSA_TAG_PROTO_RTL8_4:
+-		ret = rtl8372n_teardown_tag_8021q(ds);
+-		if (ret)
+-			return ret;
+-		ret = rtl8372n_set_tag_rtl(ds);
+-		if (ret)
+-			return ret;
+-		break;
+-	default:
+-		return -EPROTONOSUPPORT;
+-	}
+-	priv->tag_proto = proto;
+-
+-	return 0;
+-}
+ 
+ static int rtl8372n_port_set_isolation(struct rtl837x_priv *priv, int port,
+ 					u32 mask)
