@@ -1,6 +1,5 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
-Date: Mon, 2 Nov 2026 01:09:29 +0800
+Date: Sun, 08 Nov 2026 10:34:02 +0800
 Subject: [PATCH] ath11k: recover an NSS REO command ring that stops progressing
 
 The host still owns the REO command ring while NSS owns the data rings.
@@ -14,12 +13,11 @@ check before freeing rings; host-ring mode retains its error handling.
 Share the reset entry point with NSS and reject resets during registration,
 unregistration or an active firmware recovery. This provides recovery from
 a persistent stall; it does not establish why the hardware stopped.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2718,6 +2718,16 @@
+@@ -2720,6 +2720,16 @@
  	complete(&ab->restart_completed);
  }
  
@@ -38,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ath11k_base *ab = container_of(work, struct ath11k_base, reset_work);
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -1333,6 +1333,7 @@
+@@ -1342,6 +1342,7 @@
  int ath11k_core_suspend_late(struct ath11k_base *ab);
  void ath11k_core_pre_reconfigure_recovery(struct ath11k_base *ab);
  bool ath11k_core_coldboot_cal_support(struct ath11k_base *ab);
@@ -48,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  						    const char *filename);
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -955,7 +955,7 @@
+@@ -957,7 +957,7 @@
  {
  	struct ath11k_base *ab = priv;
  
@@ -57,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* Put back an MSDU-link descriptor the firmware cannot release itself: the
-@@ -1280,6 +1280,53 @@
+@@ -1282,6 +1282,53 @@
  	}
  }
  
@@ -111,7 +109,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_dp_free(struct ath11k_base *ab)
  {
  	struct ath11k_dp *dp = &ab->dp;
-@@ -1287,7 +1334,8 @@
+@@ -1289,7 +1336,8 @@
  
  	if (ab->nss_soc >= 0)
  		nss_wifi_soc_unregister(ab->nss_soc);
@@ -121,7 +119,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ath11k_dp_link_desc_cleanup(ab, dp->link_desc_banks,
  				    HAL_WBM_IDLE_LINK, &dp->wbm_idle_ring);
-@@ -1318,6 +1366,9 @@
+@@ -1320,6 +1368,9 @@
  	int i;
  
  	dp->ab = ab;

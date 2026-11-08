@@ -2,8 +2,8 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=nss-wifi-drv
-PKG_VERSION:=20261102
-PKG_RELEASE:=9
+PKG_VERSION:=20261108
+PKG_RELEASE:=1
 PKG_CONFIG_DEPENDS:=CONFIG_ATH11K_NSS_WIFI CONFIG_NSS_WIFI_DEBUG
 PKG_LICENSE:=GPL-2.0-only
 
@@ -14,6 +14,7 @@ define KernelPackage/nss-wifi-drv
   CATEGORY:=Kernel modules
   SUBMENU:=Network Devices
   TITLE:=NSS firmware host driver
+  ABI_VERSION:=2
   DEPENDS:=@(TARGET_qualcommax_ipq807x||TARGET_qualcommax_ipq60xx) \
 	+nss-firmware +kmod-nft-bridge
   FILES:=$(PKG_BUILD_DIR)/nss-wifi-drv.ko
@@ -63,6 +64,8 @@ define Build/InstallDev
 endef
 
 define KernelPackage/nss-wifi-drv/install
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/ieee80211
+	$(INSTALL_DATA) ./files/nss-wifi.recovery $(1)/etc/hotplug.d/ieee80211/95-nss-wifi-recovery
 	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/init.d
 	$(INSTALL_CONF) ./files/nss-wifi.config $(1)/etc/config/nss-wifi
 	$(INSTALL_BIN) ./files/nss-wifi.init $(1)/etc/init.d/nss-wifi

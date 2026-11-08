@@ -806,6 +806,7 @@ static int nss_poll_n2h(struct napi_struct *napi, int budget)
 				atomic_dec(&core->buffers_queued);
 				if (nss_redir_recv(core, desc, skb) ||
 				    nss_mesh_recv(core, napi, desc, skb) ||
+				    nss_wifili_special_recv(core, napi, desc, skb) ||
 				    nss_data_recv(core, napi, desc, skb))
 					goto next;
 				dma_unmap_single(core->dev, NSS_SKB_CB(skb)->dma,

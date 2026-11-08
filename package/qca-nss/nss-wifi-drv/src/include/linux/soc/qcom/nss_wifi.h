@@ -68,6 +68,39 @@ struct nss_wifi_peer_stats {
 	u32 rx_bytes;
 };
 
+enum nss_wifi_wds_event {
+	NSS_WIFI_WDS_LEARN,
+	NSS_WIFI_WDS_MEC,
+	NSS_WIFI_WDS_4ADDR,
+	NSS_WIFI_WDS_ACTIVE,
+	NSS_WIFI_WDS_MEC_EXPIRE,
+};
+
+struct nss_wifi_wds_info {
+	u16 peer_id;
+	u16 ast_idx;
+	u8 radio;
+	bool addr4;
+	u8 addr[ETH_ALEN];
+};
+
+enum nss_wifi_wds_cmd {
+	NSS_WIFI_WDS_ADD,
+	NSS_WIFI_WDS_DEL,
+	NSS_WIFI_WDS_MAP,
+	NSS_WIFI_WDS_UPDATE,
+};
+
+struct nss_wifi_wds_peer {
+	u16 vdev_id;
+	u16 peer_id;
+	u16 ast_idx;
+	u8 radio;
+	u8 type;
+	u8 peer[ETH_ALEN];
+	u8 addr[ETH_ALEN];
+};
+
 struct nss_wifi_soc {
 	u32 dev_base;
 	u32 shadow_rd;
@@ -111,7 +144,12 @@ struct nss_wifi_soc {
 	 * descriptor is at skb->head. Called from softirq.
 	 */
 	bool (*rx_80211)(void *priv, struct net_device *dev,
-			 struct sk_buff *skb, struct napi_struct *napi);
+			 struct sk_buff *skb, struct napi_struct *napi, bool mcbc);
+
+	/* Special receive notifications; softirq, may not sleep. */
+	void (*wds_event)(void *priv, struct net_device *dev,
+			  enum nss_wifi_wds_event ev,
+			  const struct nss_wifi_wds_info *info);
 
 	/*
 	 * Offloaded frames never pass the WLAN driver, so the firmware's
@@ -175,13 +213,17 @@ struct nss_wifi_mesh_ops {
 };
 
 #if IS_REACHABLE(CONFIG_NSS_WIFI_DRV)
-int nss_wifi_soc_register(const struct nss_wifi_soc *soc);
+int nss_wifi_soc_register_v2(const struct nss_wifi_soc *soc);
 void nss_wifi_soc_unregister(int soc);
 int nss_wifi_pdev_register(int soc, const struct nss_wifi_pdev *pdev);
 int nss_wifi_vdev_register(int soc, struct net_device *dev, u8 radio,
 			   u32 vdev_id, const u8 *mac, bool ap, u8 encap,
 			   u8 decap);
 void nss_wifi_vdev_unregister(struct net_device *dev);
+int nss_wifi_wds_vdev_register(struct net_device *dev, struct net_device *parent,
+			       u16 peer_id, const u8 *peer);
+int nss_wifi_wds_peer(int soc, enum nss_wifi_wds_cmd cmd,
+		      const struct nss_wifi_wds_peer *peer);
 int nss_wifi_vdev_tx(int if_num, struct sk_buff *skb);
 int nss_wifi_peer_create(int soc, u32 vdev_id, const u8 *mac, u16 peer_id,
 			 u16 hw_ast_idx, u32 tx_ast_hash);
@@ -199,7 +241,7 @@ int nss_wifi_mesh_path(int if_num, enum nss_wifi_mesh_cmd cmd,
 		       const struct nss_wifi_mesh_path *p);
 int nss_wifi_mesh_config(int if_num, u8 ttl, u32 refresh_ms, bool forward);
 #else
-static inline int nss_wifi_soc_register(const struct nss_wifi_soc *soc)
+static inline int nss_wifi_soc_register_v2(const struct nss_wifi_soc *soc)
 {
 	return -ENODEV;
 }
@@ -223,6 +265,19 @@ static inline int nss_wifi_vdev_register(int soc, struct net_device *dev,
 
 static inline void nss_wifi_vdev_unregister(struct net_device *dev)
 {
+}
+
+static inline int nss_wifi_wds_vdev_register(struct net_device *dev,
+					     struct net_device *parent,
+					     u16 peer_id, const u8 *peer)
+{
+	return -ENODEV;
+}
+
+static inline int nss_wifi_wds_peer(int soc, enum nss_wifi_wds_cmd cmd,
+				    const struct nss_wifi_wds_peer *peer)
+{
+	return -ENODEV;
 }
 
 static inline int nss_wifi_vdev_tx(int if_num, struct sk_buff *skb)

@@ -1,0 +1,79 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 10:34:05 +0800
+Subject: [PATCH] wifi: ath11k: allocate host TX software state only when used
+
+NSS uses the TCL/WBM DMA rings, but it does not use the host skb lookup,
+free-ID stack or software completion FIFO. Skip those allocations only
+when offload was selected before datapath setup and debug parameters
+cannot turn host TX on later. Keep locks and ring bookkeeping initialized.
+
+Host fallback, including a rejected external BAR, and NSS debug builds
+retain the original allocations. Make unexpected host completions reject
+an absent software table without touching firmware-owned hardware rings.
+Do not walk a missing host skb lookup table while removing a virtual
+interface; firmware-owned TX has no host skb references to clear.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath11k/dp.c
++++ b/drivers/net/wireless/ath/ath11k/dp.c
+@@ -1401,15 +1401,21 @@
+ 	size = sizeof(struct hal_wbm_release_ring) * DP_TX_COMP_RING_SIZE;
+ 
+ 	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
++		spin_lock_init(&dp->tx_ring[i].tx_idr_lock);
++		spin_lock_init(&dp->tx_ring[i].wake_tx_lock);
++		dp->tx_ring[i].tcl_data_ring_id = i;
++
++		dp->tx_ring[i].tx_status_head = 0;
++		dp->tx_ring[i].tx_status_tail = DP_TX_COMP_RING_SIZE - 1;
++		/* NSS owns data completions. Debug builds retain host storage
++		 * because their writable parameters can enable host TX later.
++		 * The DMA rings above still belong to the NSS firmware ABI.
++		 */
++		if (ab->nss_offload && !IS_ENABLED(CONFIG_NSS_WIFI_DEBUG))
++			continue;
+ 		ret = ath11k_dp_tx_bufs_init(&dp->tx_ring[i]);
+ 		if (ret)
+ 			goto fail_cmn_srng_cleanup;
+-		spin_lock_init(&dp->tx_ring[i].tx_idr_lock);
+-		spin_lock_init(&dp->tx_ring[i].wake_tx_lock);
+-		dp->tx_ring[i].tcl_data_ring_id = i;
+-
+-		dp->tx_ring[i].tx_status_head = 0;
+-		dp->tx_ring[i].tx_status_tail = DP_TX_COMP_RING_SIZE - 1;
+ 		dp->tx_ring[i].tx_status = kmalloc(size, GFP_KERNEL);
+ 		if (!dp->tx_ring[i].tx_status) {
+ 			ret = -ENOMEM;
+--- a/drivers/net/wireless/ath/ath11k/dp_tx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
+@@ -131,7 +131,7 @@
+ {
+ 	struct sk_buff *skb;
+ 
+-	if (unlikely(id >= DP_TX_IDR_SIZE - 1))
++	if (unlikely(!tx_ring->bufs || id >= DP_TX_IDR_SIZE - 1))
+ 		return NULL;
+ 
+ 	skb = tx_ring->bufs[id];
+@@ -849,6 +849,9 @@
+ 	u32 *desc;
+ 	u32 msdu_id;
+ 	u8 mac_id, i;
++
++	if (!tx_ring->tx_status)
++		return 0;
+ 
+ 	spin_lock_bh(&status_ring->lock);
+ 
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -7749,7 +7749,7 @@
+ 	struct ath11k_skb_cb *skb_cb;
+ 	u32 id;
+ 
+-	for (id = 0; id < DP_TX_IDR_SIZE - 1; id++) {
++	for (id = 0; tx_ring->bufs && id < DP_TX_IDR_SIZE - 1; id++) {
+ 		if (!tx_ring->bufs[id])
+ 			continue;
+ 

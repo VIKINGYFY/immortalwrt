@@ -12,7 +12,7 @@ PKG_NAME:=mac80211
 
 PKG_SOURCE_VERSION:=7.2
 PKG_VERSION:=$(subst -,_,$(PKG_SOURCE_VERSION))
-PKG_RELEASE:=39
+PKG_RELEASE:=$(if $(and $(CONFIG_TARGET_qualcommax),$(CONFIG_ATH11K_NSS_WIFI)),41,40)
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=COPYING
 
@@ -347,33 +347,6 @@ ifeq ($(strip $(CONFIG_EXTERNAL_KERNEL_TREE)),"")
   endif
 endif
 
-# Keep the source patches together while applying the NSS group only to AX.
-# The two ordered input sets retain the existing host-before-NSS contract.
-ATH11K_NSS_PATCHES = $(sort $(wildcard $(PATCH_DIR)/ath11k/nss-*.patch))
-ATH11K_HOST_PATCHES = $(filter-out $(ATH11K_NSS_PATCHES),$(sort $(wildcard $(PATCH_DIR)/ath11k/*.patch)))
-ATH11K_PATCH_INPUT := $(PKG_BUILD_DIR).ath11k-patches
-
-define Mac80211/PatchAth11k
-	rm -rf $(ATH11K_PATCH_INPUT)
-	mkdir -p $(ATH11K_PATCH_INPUT)/host $(ATH11K_PATCH_INPUT)/nss
-	$(foreach patch,$(ATH11K_HOST_PATCHES),$(CP) $(patch) $(ATH11K_PATCH_INPUT)/host/;)
-	$(call PatchDir,$(PKG_BUILD_DIR),$(ATH11K_PATCH_INPUT)/host,ath11k/)
-	$(if $(and $(CONFIG_TARGET_qualcommax),$(CONFIG_ATH11K_NSS_WIFI)),$(foreach patch,$(ATH11K_NSS_PATCHES),$(CP) $(patch) $(ATH11K_PATCH_INPUT)/nss/;))
-	$(if $(and $(CONFIG_TARGET_qualcommax),$(CONFIG_ATH11K_NSS_WIFI)),$(call PatchDir,$(PKG_BUILD_DIR),$(ATH11K_PATCH_INPUT)/nss,ath11k_nss/))
-endef
-
-# A refresh may run on a configuration that does not apply NSS patches.
-# Copy the applied groups back without deleting the inactive group's files.
-define Mac80211/RefreshAth11k
-	mkdir -p $(PATCH_DIR)/ath11k
-	@[ -f $(PKG_BUILD_DIR)/.quilt_no_patch ] || { \
-		for patch in $$$$(grep '^ath11k[/_]' $(PKG_BUILD_DIR)/patches/series | awk '{print $$$$1}'); do \
-			$(CP) -v "$(PKG_BUILD_DIR)/patches/$$$$patch" $(PATCH_DIR)/ath11k/; \
-		done; \
-	}
-	@-rm -f $(PKG_BUILD_DIR)/.quilt_no_patch 2>/dev/null >/dev/null
-endef
-
 define Build/Patch
 	$(if $(QUILT),rm -rf $(PKG_BUILD_DIR)/patches; mkdir -p $(PKG_BUILD_DIR)/patches)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/build,build/)
@@ -382,7 +355,8 @@ define Build/Patch
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath5k,ath5k/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath9k,ath9k/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath10k,ath10k/)
-	$(call Mac80211/PatchAth11k)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath11k,ath11k/)
+	$(if $(and $(CONFIG_TARGET_qualcommax),$(CONFIG_ATH11K_NSS_WIFI)),$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath11k-nss,ath11k-nss/))
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath12k,ath12k/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rt2x00,rt2x00/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/mt7601u,mt7601u/)
@@ -399,7 +373,8 @@ define Quilt/Refresh/Package
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath5k,ath5k/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath9k,ath9k/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath10k,ath10k/)
-	$(call Mac80211/RefreshAth11k)
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath11k,ath11k/)
+	$(if $(and $(CONFIG_TARGET_qualcommax),$(CONFIG_ATH11K_NSS_WIFI)),$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath11k-nss,ath11k-nss/))
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath12k,ath12k/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rt2x00,rt2x00/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/mt7601u,mt7601u/)

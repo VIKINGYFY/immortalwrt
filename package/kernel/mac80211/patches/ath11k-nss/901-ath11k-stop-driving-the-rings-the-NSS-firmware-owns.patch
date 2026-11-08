@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 28 Oct 2026 22:40:22 +0800
+Date: Sun, 08 Nov 2026 10:34:02 +0800
 Subject: [PATCH v3] ath11k: stop driving the rings the NSS firmware owns
 
 The NSS firmware reaps and fills the data-path rings once its Wi-Fi data
@@ -33,13 +33,14 @@ Use the shared driver hardware revision name ATH11K_HW_IPQ8074_HW20.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -38,6 +38,22 @@ bool ath11k_ftm_mode;
+@@ -37,6 +37,22 @@
+ bool ath11k_ftm_mode;
  module_param_named(ftm_mode, ath11k_ftm_mode, bool, 0444);
  MODULE_PARM_DESC(ftm_mode, "Boots up in factory test mode");
- 
++
 +bool ath11k_nss_offload;
 +module_param_named(nss_offload, ath11k_nss_offload, bool, 0644);
 +MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
@@ -55,11 +56,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +bool ath11k_nss_prefill;
 +module_param_named(nss_prefill, ath11k_nss_prefill, bool, 0644);
 +MODULE_PARM_DESC(nss_prefill, "Fill the receive-DMA ring from here as well");
-+
+ 
  static const struct ath11k_hw_params ath11k_hw_params[] = {
  	{
- 		.hw_rev = ATH11K_HW_IPQ9574_HW10,
-@@ -2786,6 +2802,28 @@ static int ath11k_init_hw_params(struct
+@@ -2788,6 +2804,28 @@
  
  	ab->hw_params = *hw_params;
  
@@ -101,23 +101,23 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define ATH11K_SCAN_TIMEOUT_HZ (20 * HZ)
  
-@@ -1012,6 +1016,13 @@ struct ath11k_base {
+@@ -1019,6 +1023,13 @@
+ 	bool pdevs_macaddr_valid;
  
  	struct ath11k_hw_params hw_params;
- 
++
 +	/* What hw_params.ring_mask points at while the firmware owns the
 +	 * data-path rings.
 +	 */
 +	struct ath11k_hw_ring_mask nss_ring_mask;
 +	/* ath11k_nss_offload, for a radio the NSS firmware drives */
 +	bool nss_offload;
-+
+ 
  	const struct firmware *cal_file;
  
- 	/* Below regd's are protected by ab->data_lock */
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -55,9 +55,17 @@ int ath11k_dp_peer_setup(struct ath11k *
+@@ -55,9 +55,17 @@
  
  	/* NOTE: reo_dest ring id starts from 1 unlike mac_id which starts from 0 */
  	reo_dest = ar->dp.mac_id + 1;
@@ -138,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_warn(ab, "failed to set default routing %d peer :%pM vdev_id :%d\n",
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -660,9 +660,12 @@ static int ath11k_dp_rxdma_pdev_buf_setu
+@@ -660,9 +660,12 @@
  	struct dp_rxdma_ring *rx_ring = &dp->rx_refill_buf_ring;
  	int i, ret;
  
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		rx_ring = &dp->rxdma_mon_buf_ring;
 --- a/drivers/net/wireless/ath/ath11k/hw.c
 +++ b/drivers/net/wireless/ath/ath11k/hw.c
-@@ -126,6 +126,15 @@ static void ath11k_hw_ipq8074_reo_setup(
+@@ -126,6 +126,15 @@
  		HAL_HASH_ROUTING_RING_SW2 << 15 |
  		HAL_HASH_ROUTING_RING_SW3 << 18 |
  		HAL_HASH_ROUTING_RING_SW4 << 21;
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_GEN_ENABLE);
  
-@@ -147,7 +156,7 @@ static void ath11k_hw_ipq8074_reo_setup(
+@@ -147,7 +156,7 @@
  
  	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_0,
  			   FIELD_PREP(HAL_REO_DEST_RING_CTRL_HASH_RING_MAP,
@@ -183,16 +183,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				      ring_hash_map));
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6550,6 +6550,12 @@ static int ath11k_mac_tx(struct ieee8021
+@@ -6638,6 +6638,12 @@
+ 			ieee80211_free_txskb(ar->hw, skb);
+ 		}
  		return ret;
- 	}
- 
++	}
++
 +	/* Management has already left over WMI. NSS owns data TX. */
 +	if (ar->ab->nss_offload) {
 +		ieee80211_free_txskb(ar->hw, skb);
 +		return 0;
-+	}
-+
- 	if (control->sta)
- 		arsta = ath11k_sta_to_arsta(control->sta);
+ 	}
  
+ 	if (control->sta)

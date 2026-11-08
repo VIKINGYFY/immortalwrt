@@ -1,6 +1,5 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
-Date: Thu, 29 Oct 2026 10:45:24 +0800
+Date: Sun, 08 Nov 2026 10:34:02 +0800
 Subject: [PATCH] ath11k: unwind NSS vdevs and propagate peer authorization errors
 
 Release NSS registrations when interface setup fails after ring ownership
@@ -10,12 +9,54 @@ The NSS driver stops forwarding on uncertain authorization state.
 
 Check the external radio BAR before replacing host ring masks, and expose
 experimental ring ownership switches only in an explicit debug build.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -43,11 +43,15 @@
+ MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
+ 
+ bool ath11k_nss_host_tx;
++#ifdef CONFIG_NSS_WIFI_DEBUG
+ module_param_named(nss_host_tx, ath11k_nss_host_tx, bool, 0644);
++#endif
+ MODULE_PARM_DESC(nss_host_tx, "Transmit from here rather than through the firmware");
+ 
+ bool ath11k_nss_keep_mask;
++#ifdef CONFIG_NSS_WIFI_DEBUG
+ module_param_named(nss_keep_mask, ath11k_nss_keep_mask, bool, 0644);
++#endif
+ MODULE_PARM_DESC(nss_keep_mask, "Leave the ring mask alone while offloading");
+ 
+ bool ath11k_nss_hash;
+@@ -55,7 +59,9 @@
+ MODULE_PARM_DESC(nss_hash, "Keep hash-based receive steering while offloading");
+ 
+ bool ath11k_nss_prefill;
++#ifdef CONFIG_NSS_WIFI_DEBUG
+ module_param_named(nss_prefill, ath11k_nss_prefill, bool, 0644);
++#endif
+ MODULE_PARM_DESC(nss_prefill, "Fill the receive-DMA ring from here as well");
+ 
+ static const struct ath11k_hw_params ath11k_hw_params[] = {
+@@ -2821,6 +2827,14 @@
+ 			  (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
+ 			   ab->hw_rev == ATH11K_HW_IPQ6018_HW10 ||
+ 			   ab->hw_rev == ATH11K_HW_QCN9074_HW10);
++	/* Decide before replacing host ring masks. The firmware has a
++	 * 32-bit MMIO ABI, including the BAR of an external radio.
++	 */
++	if (ab->nss_offload && ab->mem_pa > U32_MAX) {
++		ath11k_warn(ab, "NSS cannot reach BAR %pa; using host rings\n",
++			    &ab->mem_pa);
++		ab->nss_offload = false;
++	}
+ 	if (ab->nss_offload && !ath11k_nss_keep_mask) {
+ 		const struct ath11k_hw_ring_mask *m = ab->hw_params.ring_mask;
+ 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -7126,6 +7126,18 @@ static const struct nss_wifi_mesh_ops at
+@@ -7216,6 +7216,18 @@
  	.rx = ath11k_nss_mesh_rx,
  };
  
@@ -34,7 +75,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The firmware owns the radio's rings, so an interface it does not take
   * cannot carry data at all and is refused.
   */
-@@ -7618,6 +7630,7 @@ static int ath11k_mac_op_add_interface(s
+@@ -7708,6 +7720,7 @@
  	return 0;
  
  err_peer_del:
@@ -42,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (arvif->vdev_type == WMI_VDEV_TYPE_AP) {
  		fbret = ath11k_peer_delete(ar, arvif->vdev_id, vif->addr);
  		if (fbret) {
-@@ -7628,6 +7641,7 @@ err_peer_del:
+@@ -7718,6 +7731,7 @@
  	}
  
  err_vdev_del:
@@ -50,7 +91,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath11k_mac_vdev_delete(ar, arvif);
  	spin_lock_bh(&ar->data_lock);
  	list_del(&arvif->list);
-@@ -7690,13 +7704,7 @@ static void ath11k_mac_op_remove_interfa
+@@ -7780,13 +7794,7 @@
  	/* Before the vdev goes, so the firmware stops naming an interface
  	 * whose peers are already gone.
  	 */
@@ -65,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = ath11k_mac_vdev_delete(ar, arvif);
  	if (ret) {
-@@ -10303,6 +10311,7 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10386,6 +10394,7 @@
  	struct cur_regulatory_info *reg_info;
  	struct ath11k_peer *peer;
  	u16 peer_id;
@@ -73,7 +114,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret = 0;
  
  	/* cancel must be done outside the mutex to avoid deadlock */
-@@ -10369,8 +10378,7 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10452,8 +10461,7 @@
  		spin_lock_bh(&ar->ab->base_lock);
  
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
@@ -83,7 +124,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		peer_id = peer ? peer->peer_id : 0;
  
  		spin_unlock_bh(&ar->ab->base_lock);
-@@ -10380,8 +10388,21 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10463,8 +10471,21 @@
  		 * than its keys: an open network installs none, and a key is
  		 * installed before the exchange that proves it has finished.
  		 */
@@ -107,7 +148,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (vif->type == NL80211_IFTYPE_STATION && arvif->is_up) {
  			ret = ath11k_wmi_set_peer_param(ar, sta->addr,
-@@ -10422,12 +10443,20 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10505,12 +10526,20 @@
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  		if (peer)
  			peer->is_authorized = false;
@@ -127,10 +168,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				goto out;
 +			}
 +		}
- 	} else if (old_state == IEEE80211_STA_ASSOC &&
- 		   new_state == IEEE80211_STA_AUTH &&
- 		   (vif->type == NL80211_IFTYPE_AP ||
-@@ -10439,6 +10468,7 @@ static int ath11k_mac_op_sta_state(struc
+ 
+ 		if (arsta->ptk_clear_pending)
+ 			ret = ath11k_mac_clear_ptk(arvif, sta);
+@@ -10525,6 +10554,7 @@
  				    sta->addr);
  	}
  
@@ -138,46 +179,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ar->conf_mutex);
  	return ret;
  }
---- a/drivers/net/wireless/ath/ath11k/core.c
-+++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -43,11 +43,15 @@ module_param_named(nss_offload, ath11k_n
- MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
- 
- bool ath11k_nss_host_tx;
-+#ifdef CONFIG_NSS_WIFI_DEBUG
- module_param_named(nss_host_tx, ath11k_nss_host_tx, bool, 0644);
-+#endif
- MODULE_PARM_DESC(nss_host_tx, "Transmit from here rather than through the firmware");
- 
- bool ath11k_nss_keep_mask;
-+#ifdef CONFIG_NSS_WIFI_DEBUG
- module_param_named(nss_keep_mask, ath11k_nss_keep_mask, bool, 0644);
-+#endif
- MODULE_PARM_DESC(nss_keep_mask, "Leave the ring mask alone while offloading");
- 
- bool ath11k_nss_hash;
-@@ -55,7 +59,9 @@ module_param_named(nss_hash, ath11k_nss_
- MODULE_PARM_DESC(nss_hash, "Keep hash-based receive steering while offloading");
- 
- bool ath11k_nss_prefill;
-+#ifdef CONFIG_NSS_WIFI_DEBUG
- module_param_named(nss_prefill, ath11k_nss_prefill, bool, 0644);
-+#endif
- MODULE_PARM_DESC(nss_prefill, "Fill the receive-DMA ring from here as well");
- 
- static const struct ath11k_hw_params ath11k_hw_params[] = {
-@@ -2819,6 +2825,14 @@ static int ath11k_init_hw_params(struct
- 			  (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
- 			   ab->hw_rev == ATH11K_HW_IPQ6018_HW10 ||
- 			   ab->hw_rev == ATH11K_HW_QCN9074_HW10);
-+	/* Decide before replacing host ring masks. The firmware has a
-+	 * 32-bit MMIO ABI, including the BAR of an external radio.
-+	 */
-+	if (ab->nss_offload && ab->mem_pa > U32_MAX) {
-+		ath11k_warn(ab, "NSS cannot reach BAR %pa; using host rings\n",
-+			    &ab->mem_pa);
-+		ab->nss_offload = false;
-+	}
- 	if (ab->nss_offload && !ath11k_nss_keep_mask) {
- 		const struct ath11k_hw_ring_mask *m = ab->hw_params.ring_mask;
- 

@@ -68,6 +68,7 @@ enum nss_dynamic_interface_type {
 	NSS_DYNAMIC_INTERFACE_TYPE_GENERIC_REDIR_H2N = 33,
 	NSS_DYNAMIC_INTERFACE_TYPE_WIFILI_EXTERNAL0 = 61,
 	NSS_DYNAMIC_INTERFACE_TYPE_WIFILI_EXTERNAL1 = 62,
+	NSS_DYNAMIC_INTERFACE_TYPE_WIFI_EXT_VDEV_WDS = 66,
 	NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER = 70,
 	NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER = 71,
 };
@@ -788,6 +789,53 @@ struct nss_wifili_msg {
 	} msg;
 };
 
+/* WDS message layouts shared by firmware lines 11.4 and 12.5. */
+#define NSS_WIFILI_WDS_PEER_ADD_MSG	13
+#define NSS_WIFILI_WDS_PEER_DEL_MSG	14
+#define NSS_WIFILI_WDS_PEER_MAP_MSG	15
+#define NSS_WIFILI_WDS_ACTIVE_INFO_MSG	16
+#define NSS_WIFILI_WDS_PEER_UPDATE_MSG	31
+#define NSS_WIFILI_PEER_MEC_AGEOUT_MSG	37
+#define NSS_WIFILI_PEER_4ADDR_EVENT_MSG	42
+
+struct nss_wifili_wds_peer_msg {
+	u8 dest_mac[ETH_ALEN];
+	u8 peer_mac[ETH_ALEN];
+	u8 ast_type;
+	u8 pdev_id;
+	u16 peer_id;
+};
+
+struct nss_wifili_wds_peer_map_msg {
+	u8 dest_mac[ETH_ALEN];
+	u16 peer_id;
+	u16 ast_idx;
+	u16 vdev_id;
+};
+
+struct nss_wifili_peer_wds_4addr_allow_msg {
+	u32 peer_id;
+	u32 if_num;
+	u8 enable;
+	u8 reserved[3];
+};
+
+#define NSS_WIFI_EXT_VDEV_CONFIGURE_IF	10000
+#define NSS_WIFI_EXT_VDEV_CONFIGURE_WDS	10001
+#define NSS_WIFI_EXT_VDEV_SET_NEXT_HOP	10002
+#define NSS_WIFI_EXT_VDEV_STATS_SYNC	10003
+
+struct nss_wifi_ext_vdev_configure_if_msg {
+	u8 mac_addr[ETH_ALEN];
+	u16 radio_ifnum;
+	u16 pvap_ifnum;
+};
+
+struct nss_wifi_ext_vdev_wds_msg {
+	u16 wds_peer_id;
+	u8 mac_addr[ETH_ALEN];
+};
+
 /* Wi-Fi virtual devices. */
 
 #define NSS_WIFI_VDEV_INTERFACE_CONFIGURE_MSG		10000
@@ -806,6 +854,7 @@ struct nss_wifili_msg {
 #define NSS_WIFI_VDEV_ENABLE_ME_CMD		3
 #define NSS_WIFI_VDEV_CFG_AP_BRIDGE_CMD		14
 #define NSS_WIFI_VDEV_SECURITY_TYPE_CMD		15
+#define NSS_WIFI_VDEV_CFG_WDS_BACKHAUL_CMD	21
 #define NSS_WIFI_VDEV_CFG_MCBC_EXC_TO_HOST_CMD	22
 
 #define NSS_WIFI_VDEV_SNOOPTABLE_GRP_LIST_EXIST		17
@@ -815,6 +864,27 @@ struct nss_wifili_msg {
 
 /* Per-packet metadata in the headroom of a buffer handed up as PACKET_EXT. */
 #define NSS_WIFI_VDEV_PER_PACKET_METADATA_OFFSET		4
+#define NSS_WIFI_VDEV_EXT_DATA_PKT_TYPE_WDS_LEARN			12
+#define NSS_WIFI_VDEV_EXT_DATA_PKT_TYPE_4ADDR			17
+
+struct nss_wifi_vdev_wds_per_packet_metadata {
+	u16 peer_id;
+	u8 is_sa_valid;
+	u8 reserved;
+	u32 wds_type;
+	u8 addr4_valid;
+	u8 rsvd;
+	u16 sa_idx;
+	u16 sa_sw_peer_id;
+	u16 pad;
+};
+
+struct nss_wifi_vdev_addr4_data_metadata {
+	u16 peer_id;
+	u8 sa_valid;
+	u8 addr4_valid;
+};
+
 #define NSS_WIFI_VDEV_EXT_DATA_PKT_TYPE_MCBC_RX			14
 #define NSS_WIFI_VDEV_MESH_EXT_DATA_PKT_TYPE_RX_MCAST_EXC	16
 

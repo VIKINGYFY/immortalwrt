@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Thu, 29 Oct 2026 09:41:02 +0800
+Date: Sun, 08 Nov 2026 10:34:02 +0800
 Subject: [PATCH v4] ath11k: hand data frames to the NSS firmware
 
 The firmware owns the transmit ring, so this driver cannot put a frame on
@@ -45,23 +45,23 @@ whose data rings belong to the firmware but whose VDEV was rejected.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -42,6 +42,10 @@ bool ath11k_nss_offload;
+@@ -41,6 +41,10 @@
+ bool ath11k_nss_offload;
  module_param_named(nss_offload, ath11k_nss_offload, bool, 0644);
  MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
- 
++
 +bool ath11k_nss_host_tx;
 +module_param_named(nss_host_tx, ath11k_nss_host_tx, bool, 0644);
 +MODULE_PARM_DESC(nss_host_tx, "Transmit from here rather than through the firmware");
-+
+ 
  bool ath11k_nss_keep_mask;
  module_param_named(nss_keep_mask, ath11k_nss_keep_mask, bool, 0644);
- MODULE_PARM_DESC(nss_keep_mask, "Leave the ring mask alone while offloading");
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -67,6 +67,7 @@ extern bool ath11k_nss_offload;
+@@ -67,6 +67,7 @@
  extern bool ath11k_nss_prefill;
  extern bool ath11k_nss_hash;
  extern bool ath11k_nss_keep_mask;
@@ -69,17 +69,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define ATH11K_SCAN_TIMEOUT_HZ (20 * HZ)
  
-@@ -379,6 +380,9 @@ struct ath11k_vif {
+@@ -378,6 +379,9 @@
+ 	u16 tcl_metadata;
  	u8 hal_addr_search_flags;
  	u8 search_type;
- 
++
 +	/* What the NSS firmware calls this interface, or -1. */
 +	int nss_ifnum;
-+
+ 
  	struct ath11k *ar;
  	struct ieee80211_vif *vif;
- 
-@@ -563,6 +567,8 @@ struct ath11k_sta {
+@@ -563,6 +567,8 @@
  	struct rate_info txrate;
  	u32 peer_nss;
  	struct rate_info last_txrate;
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 tx_retries;
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -1000,6 +1000,7 @@ static void ath11k_nss_wifi_describe(str
+@@ -1002,6 +1002,7 @@
  	soc->priv = ab;
  	soc->reset = ath11k_nss_reset;
  	soc->link_desc_return = ath11k_nss_link_desc_return;
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_nss_wifi_ring(&soc->tcl[i], ab,
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -2701,6 +2701,55 @@ static void ath11k_dp_rx_deliver_msdu(st
+@@ -2708,6 +2708,55 @@
  	ieee80211_rx_napi(ar->hw, pubsta, msdu, napi);
  }
  
@@ -156,10 +156,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static bool ath11k_dp_rx_check_nwifi_hdr_len_valid(struct ath11k_base *ab,
  						   struct hal_rx_desc *rx_desc,
  						   struct sk_buff *msdu)
-@@ -2977,6 +3026,68 @@ exit:
+@@ -2982,6 +3031,68 @@
+ 	}
+ exit:
  	return total_msdu_reaped;
- }
- 
++}
++
 +/* The receive rate mac80211 reports comes from data frames, which do not
 + * reach it while the NSS firmware takes them. Take it from the PPDU status.
 + */
@@ -220,12 +222,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	r.nss = nss;
 +	r.bw = ath11k_mac_bw_to_mac80211_bw(ppdu_info->bw);
 +	arsta->rxrate = r;
-+}
-+
+ }
+ 
  static void ath11k_dp_rx_update_peer_stats(struct ath11k_sta *arsta,
- 					   struct hal_rx_mon_ppdu_info *ppdu_info)
- {
-@@ -5522,6 +5633,8 @@ int ath11k_dp_rx_process_mon_status(stru
+@@ -5529,6 +5640,8 @@
  		}
  
  		arsta = ath11k_sta_to_arsta(peer->sta);
@@ -236,7 +236,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* Charged once per PPDU with the measured duration, as on
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.h
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.h
-@@ -100,4 +100,9 @@ int ath11k_dp_rx_pktlog_stop(struct ath1
+@@ -100,4 +100,9 @@
  
  int ath11k_dp_rx_crypto_mic_len(struct ath11k *ar, enum hal_encrypt_type enctype);
  
@@ -248,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* ATH11K_DP_RX_H */
 --- a/drivers/net/wireless/ath/ath11k/hal_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/hal_rx.c
-@@ -929,6 +929,10 @@ ath11k_hal_rx_parse_mon_status_tlv(struc
+@@ -929,6 +929,10 @@
  		ppdu_info->num_mpdu_fcs_err =
  			FIELD_GET(HAL_RX_PPDU_END_USER_STATS_INFO0_MPDU_CNT_FCS_ERR,
  				  info0);
@@ -269,7 +269,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/cfg80211.h>
  #include <linux/etherdevice.h>
  #include <linux/bitfield.h>
-@@ -6550,9 +6551,57 @@ static int ath11k_mac_tx(struct ieee8021
+@@ -6640,9 +6641,57 @@
  		return ret;
  	}
  
@@ -330,7 +330,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return 0;
  	}
  
-@@ -6892,6 +6941,61 @@ static int ath11k_mac_setup_vdev_create_
+@@ -6982,6 +7031,61 @@
  	return 0;
  }
  
@@ -392,7 +392,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_mac_op_update_vif_offload(struct ieee80211_hw *hw,
  					     struct ieee80211_vif *vif)
  {
-@@ -7138,6 +7242,7 @@ static int ath11k_mac_op_add_interface(s
+@@ -7228,6 +7332,7 @@
  
  	arvif->ar = ar;
  	arvif->vif = vif;
@@ -400,7 +400,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	INIT_LIST_HEAD(&arvif->list);
  	INIT_WORK(&arvif->bcn_tx_work, ath11k_mac_bcn_tx_work);
-@@ -7223,6 +7328,12 @@ static int ath11k_mac_op_add_interface(s
+@@ -7313,6 +7418,12 @@
  
  	ath11k_mac_op_update_vif_offload(hw, vif);
  
@@ -413,10 +413,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	nss = get_num_chains(ar->cfg_tx_chainmask) ? : 1;
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    WMI_VDEV_PARAM_NSS, nss);
-@@ -7410,6 +7521,17 @@ static void ath11k_mac_op_remove_interfa
+@@ -7498,6 +7609,17 @@
+ 		if (ret)
+ 			ath11k_warn(ab, "failed to submit AP self-peer removal on vdev %d: %d\n",
  				    arvif->vdev_id, ret);
- 	}
- 
++	}
++
 +	/* Before the vdev goes, so the firmware stops naming an interface
 +	 * whose peers are already gone.
 +	 */
@@ -426,12 +428,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		if (wdev && wdev->netdev)
 +			nss_wifi_vdev_unregister(wdev->netdev);
 +		arvif->nss_ifnum = -1;
-+	}
-+
+ 	}
+ 
  	ret = ath11k_mac_vdev_delete(ar, arvif);
- 	if (ret) {
- 		ath11k_warn(ab, "failed to delete vdev %d: %d\n",
-@@ -9487,6 +9609,11 @@ static void ath11k_mac_op_sta_statistics
+@@ -9576,6 +9698,11 @@
  		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
  	}
  
@@ -443,10 +443,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath11k_mac_put_chain_rssi(sinfo, arsta, "ppdu", false);
  
  	mutex_lock(&ar->conf_mutex);
-@@ -10258,6 +10385,14 @@ static void ath11k_mac_op_wake_tx_queue(
+@@ -10343,6 +10470,14 @@
+ 
  	if (unlikely(test_bit(ATH11K_FLAG_CRASH_FLUSH, &ar->ab->dev_flags)))
  		return;
- 
++
 +	/* NSS reports aggregate completions and owns data TX; its generic
 +	 * dequeue path must not wait for host ring/AQL completions.
 +	 */
@@ -454,11 +455,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ieee80211_handle_wake_tx_queue(hw, txq);
 +		return;
 +	}
-+
+ 
  	set_bit(txq->ac, &ar->txq_woken);
  	queue_work(system_bh_wq, &ar->txq_work);
- }
-@@ -10797,9 +10932,14 @@ static int __ath11k_mac_register(struct
+@@ -10883,9 +11018,14 @@
  	ar->hw->sta_data_size = sizeof(struct ath11k_sta);
  
  	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_CQM_RSSI_LIST);
@@ -474,5 +474,5 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				      NL80211_EXT_FEATURE_AIRTIME_FAIRNESS);
 +	}
  	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_STA_TX_PWR);
- 	if (test_bit(WMI_TLV_SERVICE_BSS_COLOR_OFFLOAD,
- 		     ar->ab->wmi_ab.svc_map)) {
+ 	if (!test_bit(ATH11K_FLAG_RAW_MODE, &ar->ab->dev_flags) &&
+ 	    !test_bit(ATH11K_FLAG_HW_CRYPTO_DISABLED, &ar->ab->dev_flags))

@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Thu, 29 Oct 2026 09:41:02 +0800
+Date: Sun, 08 Nov 2026 10:34:02 +0800
 Subject: [PATCH v2] ath11k: tell the NSS firmware how frames are protected
 
 The firmware builds the transmit descriptor, and the descriptor carries
@@ -23,7 +23,7 @@ Refresh against NSS VDEV registration error propagation.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
 @@ -6,6 +6,7 @@
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/cfg80211.h>
  #include <linux/etherdevice.h>
  #include <linux/bitfield.h>
-@@ -4507,6 +4508,7 @@ static int ath11k_mac_op_set_key(struct
+@@ -4554,6 +4555,7 @@
  	const u8 *peer_addr;
  	int ret = 0;
  	u32 flags = 0;
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* BIP needs to be done in software */
  	if (key->cipher == WLAN_CIPHER_SUITE_AES_CMAC ||
-@@ -4620,6 +4622,10 @@ static int ath11k_mac_op_set_key(struct
+@@ -4700,6 +4702,10 @@
  	spin_lock_bh(&ab->base_lock);
  	peer = ath11k_peer_find(ab, arvif->vdev_id, peer_addr);
  	if (peer && cmd == SET_KEY) {
@@ -53,10 +53,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		peer->keys[key->keyidx] = key;
  		if (key->flags & IEEE80211_KEY_FLAG_PAIRWISE) {
  			peer->ucast_keyidx = key->keyidx;
-@@ -4660,6 +4666,33 @@ static int ath11k_mac_op_set_key(struct
+@@ -4747,6 +4753,33 @@
+ 	}
  
  	spin_unlock_bh(&ab->base_lock);
- 
++
 +	/* The firmware builds the transmit descriptor, so the cipher the
 +	 * hardware is to apply has to reach it. Left unsaid it is none, and a
 +	 * station that has just installed a key discards everything that
@@ -83,11 +84,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			nss_wifi_peer_security(ab->nss_soc, nss_peer_id, group,
 +					       key->cipher, mic);
 +	}
-+
+ 
  exit:
  	mutex_unlock(&ar->conf_mutex);
- 	return ret;
-@@ -10121,6 +10154,7 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10204,6 +10237,7 @@
  	enum ieee80211_ap_reg_power power_type;
  	struct cur_regulatory_info *reg_info;
  	struct ath11k_peer *peer;
@@ -95,14 +95,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret = 0;
  
  	/* cancel must be done outside the mutex to avoid deadlock */
-@@ -10189,9 +10223,18 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10272,8 +10306,17 @@
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  		if (peer)
  			peer->is_authorized = true;
 +		peer_id = peer ? peer->peer_id : 0;
  
  		spin_unlock_bh(&ar->ab->base_lock);
- 
++
 +		/* The firmware drops what an unauthorised peer sends, other
 +		 * than the key exchange, and follows the station's port rather
 +		 * than its keys: an open network installs none, and a key is
@@ -110,11 +110,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		 */
 +		if (ar->ab->nss_offload && peer_id)
 +			nss_wifi_peer_authorize(ar->ab->nss_soc, peer_id, true);
-+
+ 
  		if (vif->type == NL80211_IFTYPE_STATION && arvif->is_up) {
  			ret = ath11k_wmi_set_peer_param(ar, sta->addr,
- 							arvif->vdev_id,
-@@ -10231,8 +10274,12 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10314,8 +10357,12 @@
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  		if (peer)
  			peer->is_authorized = false;
@@ -124,6 +123,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +		if (ar->ab->nss_offload && peer_id)
 +			nss_wifi_peer_authorize(ar->ab->nss_soc, peer_id, false);
- 	} else if (old_state == IEEE80211_STA_ASSOC &&
- 		   new_state == IEEE80211_STA_AUTH &&
- 		   (vif->type == NL80211_IFTYPE_AP ||
+ 
+ 		if (arsta->ptk_clear_pending)
+ 			ret = ath11k_mac_clear_ptk(arvif, sta);

@@ -1,0 +1,304 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 19:49:50 +0800
+Subject: [PATCH] wifi: mac80211: preserve offloaded AP VLAN interfaces
+
+Add an opt-in AP VLAN offload contract, preserve VLAN identity through all
+transmit paths, and notify the authenticator once for authorized 4addr RX.
+Recreate VLANs and bind their peers after security is restored. Restore
+station 4addr capability when the firmware peer is recreated.
+Drivers which do not opt in retain the existing AP VLAN behavior.
+
+Merged from:
+  QSDK R50 wlan-open/patches/ath11k/0063-003-ath11k-add-AP_VLAN-vif-support-for-WDS-offload-in-NSS-offload.patch
+    [PATCH 3/3] ath11k: add AP_VLAN vif support for WDS offload in NSS offload
+  QSDK R50 wlan-open/patches/ath11k/0128-ath11k-fix-support-for-ext-vdev-in-NSS-for-AP_VLAN-v.patch
+    [PATCH] ath11k: fix support for ext vdev in NSS for AP_VLAN vif during recovery
+  QSDK R50 wlan-open/patches/ath11k/0067-002-ath11k-add-dynamic-VLAN-support-in-NSS-offload.patch
+    [PATCH 3/3] ath11k: add dynamic VLAN support in NSS offload
+
+Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
+Signed-off-by: Kaviarasu Sanjeevi <kaviaras@qti.qualcomm.com>
+Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
+Signed-off-by: Seevalamuthu Mariappan <seevalam@codeaurora.org>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/include/net/mac80211.h
++++ b/include/net/mac80211.h
+@@ -3128,6 +3128,9 @@
+  *	aggregating MPDUs with the same keyid, allowing mac80211 to keep Tx
+  *	A-MPDU sessions active while rekeying with Extended Key ID.
+  *
++ * @IEEE80211_HW_SUPPORTS_AP_VLAN_OFFLOAD: Driver needs add/remove-interface
++ *	callbacks for AP VLANs and the VLAN vif in sta_set_4addr and TX callbacks.
++ *	The VLAN shares its parent AP's channel and WLAN peer.
+  * @IEEE80211_HW_SUPPORTS_TX_ENCAP_OFFLOAD: Hardware supports tx encapsulation
+  *	offload
+  *
+@@ -3214,6 +3217,7 @@
+ 	IEEE80211_HW_SUPPORTS_MULTI_BSSID,
+ 	IEEE80211_HW_SUPPORTS_ONLY_HE_MULTI_BSSID,
+ 	IEEE80211_HW_AMPDU_KEYBORDER_SUPPORT,
++	IEEE80211_HW_SUPPORTS_AP_VLAN_OFFLOAD,
+ 	IEEE80211_HW_SUPPORTS_TX_ENCAP_OFFLOAD,
+ 	IEEE80211_HW_SUPPORTS_RX_DECAP_OFFLOAD,
+ 	IEEE80211_HW_SUPPORTS_CONC_MON_RX_DECAP,
+@@ -5722,6 +5726,16 @@
+  * and possibly ieee80211_sta_uapsd_trigger(); calls to all three must
+  * be serialized.
+  */
++/**
++ * ieee80211_rx_4addr_notify - report an offloaded four-address client
++ * @vif: receiving AP interface
++ * @addr: transmitter address of an associated, authorised station
++ *
++ * Call from an RCU read-side critical section. Sends the same one-time
++ * userspace notification as the regular RX path, without delivering data.
++ */
++void ieee80211_rx_4addr_notify(struct ieee80211_vif *vif, const u8 *addr);
++
+ void ieee80211_sta_pspoll(struct ieee80211_sta *sta);
+ 
+ /**
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -2812,7 +2812,9 @@
+ 
+ 	rcu_assign_pointer(sdata->u.vlan.sta, sta);
+ 	__ieee80211_check_fast_rx_iface(sdata);
+-	drv_sta_set_4addr(local, sta->sdata, &sta->sta, true);
++	drv_sta_set_4addr(local,
++			  ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD) ?
++			  sdata : sta->sdata, &sta->sta, true);
+ 
+ 	return 0;
+ }
+@@ -2886,8 +2888,11 @@
+ 		}
+ 
+ 		if (sta->sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
+-		    sta->sdata->u.vlan.sta)
++		    sta->sdata->u.vlan.sta) {
++			if (ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD))
++				drv_sta_set_4addr(local, sta->sdata, &sta->sta, false);
+ 			RCU_INIT_POINTER(sta->sdata->u.vlan.sta, NULL);
++		}
+ 
+ 		if (test_sta_flag(sta, WLAN_STA_AUTHORIZED))
+ 			ieee80211_vif_dec_num_mcast(sta->sdata);
+--- a/net/mac80211/debugfs.c
++++ b/net/mac80211/debugfs.c
+@@ -474,6 +474,7 @@
+ 	FLAG(SUPPORTS_MULTI_BSSID),
+ 	FLAG(SUPPORTS_ONLY_HE_MULTI_BSSID),
+ 	FLAG(AMPDU_KEYBORDER_SUPPORT),
++	FLAG(SUPPORTS_AP_VLAN_OFFLOAD),
+ 	FLAG(SUPPORTS_TX_ENCAP_OFFLOAD),
+ 	FLAG(SUPPORTS_RX_DECAP_OFFLOAD),
+ 	FLAG(SUPPORTS_CONC_MON_RX_DECAP),
+--- a/net/mac80211/driver-ops.c
++++ b/net/mac80211/driver-ops.c
+@@ -62,7 +62,8 @@
+ 	might_sleep();
+ 	lockdep_assert_wiphy(local->hw.wiphy);
+ 
+-	if (WARN_ON(sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||
++	if (WARN_ON((sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
++		     !ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD)) ||
+ 		    (sdata->vif.type == NL80211_IFTYPE_MONITOR &&
+ 		     !ieee80211_hw_check(&local->hw, WANT_MONITOR_VIF) &&
+ 		     !ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR) &&
+--- a/net/mac80211/driver-ops.h
++++ b/net/mac80211/driver-ops.h
+@@ -499,6 +499,7 @@
+ 	might_sleep();
+ 
+ 	if (sdata->vif.type == NL80211_IFTYPE_MONITOR ||
++	    sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||
+ 	    WARN_ON(!sdata->vif.debugfs_dir))
+ 		return;
+ 
+@@ -1675,7 +1676,8 @@
+ 				     struct ieee80211_sub_if_data *sdata,
+ 				     struct ieee80211_sta *sta, bool enabled)
+ {
+-	sdata = get_bss_sdata(sdata);
++	if (!ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD))
++		sdata = get_bss_sdata(sdata);
+ 
+ 	might_sleep();
+ 	lockdep_assert_wiphy(local->hw.wiphy);
+--- a/net/mac80211/iface.c
++++ b/net/mac80211/iface.c
+@@ -620,7 +620,6 @@
+ 		RCU_INIT_POINTER(sdata->vif.bss_conf.chanctx_conf, NULL);
+ 		/* see comment in the default case below */
+ 		ieee80211_free_keys(sdata, true);
+-		/* no need to tell driver */
+ 		break;
+ 	case NL80211_IFTYPE_MONITOR:
+ 		local->monitors--;
+@@ -753,6 +752,8 @@
+ 
+ 	switch (sdata->vif.type) {
+ 	case NL80211_IFTYPE_AP_VLAN:
++		if (ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD) && going_down)
++			drv_remove_interface(local, sdata);
+ 		break;
+ 	case NL80211_IFTYPE_MONITOR:
+ 		if (local->virt_monitors == 0)
+@@ -1507,6 +1508,11 @@
+ 				ieee80211_link_vlan_copy_chanctx(link);
+ 			}
+ 
++			if (ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD)) {
++				res = drv_add_interface(local, sdata);
++				if (res)
++					goto err_stop;
++			}
+ 			netif_carrier_on(dev);
+ 			ieee80211_set_vif_encap_ops(sdata);
+ 		} else {
+--- a/net/mac80211/rx.c
++++ b/net/mac80211/rx.c
+@@ -1807,6 +1807,21 @@
+ }
+ EXPORT_SYMBOL(ieee80211_sta_uapsd_trigger);
+ 
++void ieee80211_rx_4addr_notify(struct ieee80211_vif *vif, const u8 *addr)
++{
++	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
++	struct sta_info *sta;
++
++	if (vif->type != NL80211_IFTYPE_AP)
++		return;
++	sta = sta_info_get_bss(sdata, addr);
++	if (!sta || !test_sta_flag(sta, WLAN_STA_AUTHORIZED) ||
++	    test_and_set_sta_flag(sta, WLAN_STA_4ADDR_EVENT))
++		return;
++	cfg80211_rx_unexpected_4addr_frame(sdata->dev, addr, 0, GFP_ATOMIC);
++}
++EXPORT_SYMBOL_GPL(ieee80211_rx_4addr_notify);
++
+ static ieee80211_rx_result debug_noinline
+ ieee80211_rx_h_uapsd_and_pspoll(struct ieee80211_rx_data *rx)
+ {
+--- a/net/mac80211/tx.c
++++ b/net/mac80211/tx.c
+@@ -1916,8 +1916,9 @@
+ 			vif = NULL;
+ 		break;
+ 	case NL80211_IFTYPE_AP_VLAN:
+-		sdata = container_of(sdata->bss,
+-				     struct ieee80211_sub_if_data, u.ap);
++		if (!ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD))
++			sdata = container_of(sdata->bss,
++					     struct ieee80211_sub_if_data, u.ap);
+ 		fallthrough;
+ 	default:
+ 		vif = &sdata->vif;
+@@ -3947,7 +3948,8 @@
+ 		goto free;
+ 	}
+ 
+-	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
++	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
++	    !ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD))
+ 		sdata = container_of(sdata->bss,
+ 				     struct ieee80211_sub_if_data, u.ap);
+ 
+@@ -4232,8 +4234,9 @@
+ 		}
+ 		break;
+ 	case NL80211_IFTYPE_AP_VLAN:
+-		tx.sdata = container_of(tx.sdata->bss,
+-					struct ieee80211_sub_if_data, u.ap);
++		if (!ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD))
++			tx.sdata = container_of(tx.sdata->bss,
++						struct ieee80211_sub_if_data, u.ap);
+ 		fallthrough;
+ 	default:
+ 		vif = &tx.sdata->vif;
+@@ -4958,7 +4961,8 @@
+ 
+ 	info->hw_queue = sdata->vif.hw_queue[queue];
+ 
+-	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
++	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
++	    !ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD))
+ 		sdata = container_of(sdata->bss,
+ 				     struct ieee80211_sub_if_data, u.ap);
+ 
+--- a/net/mac80211/util.c
++++ b/net/mac80211/util.c
+@@ -1719,6 +1719,9 @@
+ 
+ 	lockdep_assert_wiphy(local->hw.wiphy);
+ 
++	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
++		return;
++
+ 	conf = rcu_dereference_protected(link->conf->chanctx_conf,
+ 					 lockdep_is_held(&local->hw.wiphy->mtx));
+ 	if (conf) {
+@@ -1746,10 +1749,32 @@
+ 			WARN_ON(drv_sta_state(local, sta->sdata, sta, state,
+ 					      state + 1));
+ 
++		/* Recreated peers lost the four-address capability in firmware. */
++		if (sta->sdata->wdev.use_4addr &&
++		    sta->sdata->vif.type == NL80211_IFTYPE_STATION)
++			drv_sta_set_4addr(local, sta->sdata, &sta->sta, true);
++
+ 		ieee80211_sta_scs_reconfig(sta);
+ 	}
+ }
+ 
++static void ieee80211_reconfig_ap_vlan_4addr(struct ieee80211_local *local)
++{
++	struct sta_info *sta;
++
++	if (!ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD))
++		return;
++
++	/* The offloaded VLAN can depend on its peer's restored security. */
++	list_for_each_entry(sta, &local->sta_list, list) {
++		if (sta->uploaded &&
++		    sta->sta_state == IEEE80211_STA_AUTHORIZED &&
++		    sta->sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
++		    sta->sdata->wdev.use_4addr)
++			drv_sta_set_4addr(local, sta->sdata, &sta->sta, true);
++	}
++}
++
+ static int
+ ieee80211_reconfig_nan_offload_de(struct ieee80211_sub_if_data *sdata)
+ {
+@@ -2009,7 +2034,8 @@
+ 		/* These vifs can't be added before NAN was started */
+ 		if (sdata->vif.type == NL80211_IFTYPE_NAN_DATA)
+ 			continue;
+-		if (sdata->vif.type != NL80211_IFTYPE_AP_VLAN &&
++		if ((sdata->vif.type != NL80211_IFTYPE_AP_VLAN ||
++		     ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD)) &&
+ 		    ieee80211_sdata_running(sdata)) {
+ 			res = drv_add_interface(local, sdata);
+ 			if (WARN_ON(res))
+@@ -2028,7 +2054,8 @@
+ 				continue;
+ 			if (sdata->vif.type == NL80211_IFTYPE_NAN_DATA)
+ 				continue;
+-			if (sdata->vif.type != NL80211_IFTYPE_AP_VLAN &&
++			if ((sdata->vif.type != NL80211_IFTYPE_AP_VLAN ||
++			     ieee80211_hw_check(&local->hw, SUPPORTS_AP_VLAN_OFFLOAD)) &&
+ 			    ieee80211_sdata_running(sdata))
+ 				drv_remove_interface(local, sdata);
+ 		}
+@@ -2269,6 +2296,8 @@
+ 	list_for_each_entry(sdata, &local->interfaces, list)
+ 		ieee80211_reenable_keys(sdata);
+ 
++	ieee80211_reconfig_ap_vlan_4addr(local);
++
+ 	/* re-enable multi-link for client interfaces */
+ 	list_for_each_entry(sdata, &local->interfaces, list) {
+ 		if (sdata->restart_active_links)

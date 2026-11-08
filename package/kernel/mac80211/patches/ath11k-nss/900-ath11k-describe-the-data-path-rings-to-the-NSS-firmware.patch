@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 28 Oct 2026 22:40:22 +0800
+Date: Sun, 08 Nov 2026 10:34:02 +0800
 Subject: [PATCH v3] ath11k: describe the data-path rings to the NSS firmware
 
 The NSS cores can reap the WLAN hardware's rings themselves, which takes
@@ -27,10 +27,10 @@ Use the shared driver hardware revision name ATH11K_HW_IPQ8074_HW20.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2977,6 +2977,7 @@ struct ath11k_base *ath11k_core_alloc(st
+@@ -2993,6 +2993,7 @@
  	init_completion(&ab->restart_completed);
  
  	ab->dev = dev;
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ab;
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -946,6 +946,8 @@ struct ath11k_base {
+@@ -954,6 +954,8 @@
  	struct ath11k_wmi_base wmi_ab;
  	struct completion fw_ready;
  	int num_radios;
@@ -51,20 +51,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -13,6 +13,12 @@
+@@ -12,6 +12,12 @@
+ #include "debug.h"
  #include "dp_rx.h"
  #include "peer.h"
- 
++
 +#include <linux/platform_device.h>
 +#include <linux/soc/qcom/nss_wifi.h>
 +
 +#define ATH11K_NSS_TARGET_IPQ8074	24
 +#define ATH11K_NSS_TARGET_IPQ6018	25
-+
+ 
  static void ath11k_dp_htt_htc_tx_complete(struct ath11k_base *ab,
  					  struct sk_buff *skb)
- {
-@@ -875,6 +881,174 @@ done:
+@@ -877,6 +883,174 @@
  }
  EXPORT_SYMBOL(ath11k_dp_service_srng);
  
@@ -239,7 +239,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_dp_pdev_free(struct ath11k_base *ab)
  {
  	struct ath11k *ar;
-@@ -917,6 +1091,14 @@ int ath11k_dp_pdev_alloc(struct ath11k_b
+@@ -919,6 +1093,14 @@
  	int ret;
  	int i;
  
@@ -254,7 +254,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* TODO:Per-pdev rx ring unlike tx ring which is mapped to different AC's */
  	for (i = 0; i < ab->num_radios; i++) {
  		ar = ab->pdevs[i].ar;
-@@ -932,6 +1114,8 @@ int ath11k_dp_pdev_alloc(struct ath11k_b
+@@ -934,6 +1116,8 @@
  				    i);
  			goto err;
  		}
@@ -263,7 +263,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return 0;
-@@ -1032,6 +1216,10 @@ void ath11k_dp_free(struct ath11k_base *
+@@ -1034,6 +1218,10 @@
  	struct ath11k_dp *dp = &ab->dp;
  	int i;
  

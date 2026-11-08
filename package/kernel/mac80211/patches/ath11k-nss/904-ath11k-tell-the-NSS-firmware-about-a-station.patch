@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 28 Oct 2026 22:34:51 +0800
+Date: Sun, 08 Nov 2026 10:34:02 +0800
 Subject: [PATCH v2] ath11k: tell the NSS firmware about a station
 
 The firmware places a frame for a station it knows, so a station this
@@ -20,7 +20,7 @@ series while preserving the local host-path fixes.
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath11k/peer.c
 +++ b/drivers/net/wireless/ath/ath11k/peer.c
 @@ -5,6 +5,8 @@
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "peer.h"
  #include "debug.h"
  
-@@ -353,6 +355,25 @@ int ath11k_peer_delete(struct ath11k *ar
+@@ -353,6 +355,25 @@
  
  	lockdep_assert_held(&ar->conf_mutex);
  
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = __ath11k_peer_delete(ar, vdev_id, addr);
  	if (ret)
  		return ret;
-@@ -372,6 +393,7 @@ int ath11k_peer_create(struct ath11k *ar
+@@ -372,6 +393,7 @@
  {
  	struct ath11k_peer *peer;
  	struct ath11k_sta *arsta;
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret, fbret;
  
  	lockdep_assert_held(&ar->conf_mutex);
-@@ -457,9 +479,35 @@ int ath11k_peer_create(struct ath11k *ar
+@@ -457,8 +479,34 @@
  
  	ar->num_peers++;
  
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
  	spin_unlock_bh(&ar->ab->base_lock);
  	mutex_unlock(&ar->ab->tbl_mtx_lock);
- 
++
 +	/* Outside the lock, because telling the firmware is a message that
 +	 * waits for its answer. Everything the message carries was read while
 +	 * the record was held, and the record cannot go before this returns:
@@ -98,7 +98,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				    param->peer_addr, ret);
 +		ret = 0;
 +	}
-+
+ 
  	return 0;
  
- cleanup:

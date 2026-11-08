@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Fri, 30 Oct 2026 22:23:01 +0800
+Date: Sun, 08 Nov 2026 10:34:02 +0800
 Subject: [PATCH v2] mac80211: use the JB NSS AP receive policy
 
 The NSS data path replaces the native PPE WLAN ingress hook on AX.
@@ -8,12 +8,11 @@ The shared mac80211 patch set remains unchanged for other targets.
 
 Rebase this NSS integration onto the shared mac80211/ath11k patch
 series while preserving the local host-path fixes.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -1404,16 +1404,6 @@ int ieee80211_do_open(struct wireless_de
+@@ -1404,16 +1404,6 @@
  
  	lockdep_assert_wiphy(local->hw.wiphy);
  

@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# NSS peers lose encrypted transmit state across WLAN firmware recovery.
+# Restart the authenticator sessions on this PHY after its driver is ready.
+nss_wifi_recover_ap() (
+	local phy="${DEVPATH##*/}" index offload object iface path retry=0
+	local lockfile
+
+	case "$phy" in
+		phy*) index="${phy#phy}" ;;
+		*) return 0 ;;
+	esac
+	case "$index" in
+		''|*[!0-9]*) return 0 ;;
+	esac
+	read -r offload < /sys/module/ath11k/parameters/nss_offload || return 0
+	[ "$offload" = Y ] || return 0
+
+	lockfile="/var/run/nss-wifi-recover-$phy.lock"
+	lock -n "$lockfile" || return 0
+	trap 'lock -u "$lockfile"' EXIT
+
+	while [ "$retry" -lt 5 ]; do
+		for object in $(ubus list 'hostapd.*' 2>/dev/null); do
+			iface="${object#hostapd.}"
+			path=$(readlink -f "/sys/class/net/$iface/phy80211") || continue
+			[ "${path##*/}" = "$phy" ] || continue
+			# All BSSes in this authenticator share the recovered PHY.
+			if ubus -t 5 call "$object" reload >/dev/null 2>&1; then
+				logger -t nss-wifi "renewed AP sessions on $phy after firmware recovery"
+				return 0
+			fi
+			logger -t nss-wifi "failed to renew AP sessions on $phy"
+			return 1
+		done
+		retry=$((retry + 1))
+		sleep 1
+	done
+	logger -t nss-wifi "no AP authenticator found for recovered $phy"
+	return 1
+)
+
+if [ "$ACTION" = change ] && [ "$NSS_WIFI_AP_RECOVER" = 1 ]; then
+	nss_wifi_recover_ap
+fi
