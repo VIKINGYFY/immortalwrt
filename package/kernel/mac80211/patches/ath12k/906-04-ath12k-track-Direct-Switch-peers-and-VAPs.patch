@@ -1,0 +1,465 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 10:29:57 +0800
+Subject: [PATCH] wifi: ath12k: track Direct Switch peer and VAP ownership
+
+Connect Direct Switch peer and VAP state to station authorization
+and interface lifecycle operations.
+
+Split from:
+  package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+
+Merged from:
+  906-01-wifi-ath12k-add-native-PPE-direct-switch.patch
+  906-02-wifi-ath12k-fix-IPQ5332-REO-register-offsets.patch
+  906-03-wifi-ath12k-batch-native-Direct-Switch-RX-recycling.patch
+  906-04-wifi-ath12k-amortize-native-Direct-Switch-TX-polls.patch
+  906-05-wifi-ath12k-notify-PPE-on-DS-buffer-returns.patch
+  906-06-wifi-ath12k-auto-enable-supported-native-Direct-Switch.patch
+  906-07-wifi-ath12k-use-revision-specific-DS-registers.patch
+  907-01-wifi-ath12k-coordinate-mixed-bus-group-shutdown.patch
+  907-02-wifi-ath12k-protect-recovery-tables-and-link-cleanup.patch
+  907-03-wifi-ath12k-repair-legacy-HW1-Direct-Switch-metadata.patch
+  907-04-wifi-ath12k-separate-DS-control-and-DMA-stop-errors.patch
+  907-05-wifi-ath12k-bound-and-index-legacy-DS-source-repair.patch
+
+Link: https://android.googlesource.com/kernel/msm-modules/wlan-fw-api/+/9ab723333db68e4552672f9e2a5cc6f8e4027894/hw/qcn9224/
+Original-commit: dfa0345057d5ef5dd7670544b833d3a5f92f62c0
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
+@@ -856,3 +856,434 @@
+ 	return (done + 3) >> 2;
+ }
+ 
++/* control_lock held. The hardware rings stay registered across a VAP's
++ * lifetime; the first supported peer starts the shared transport.
++ */
++static int ath12k_ds_start(struct ath12k_ds *ds)
++{
++	struct ath12k_base *ab = ds->dp->ab;
++	u32 reg, val;
++	int i, ret;
++
++	if (ds->started)
++		return ds->stopped || ds->faulted ? -ESHUTDOWN : 0;
++	reg = HAL_SEQ_WCSS_UMAC_REO_REG + HAL_REO1_DEST_RING_CTRL_IX_0;
++	val = ath12k_hif_read32(ab, reg);
++	i = ab->device_id;
++	if (!test_bit(i, &ds->reo_mapped)) {
++		ds->reo_map[i] = val & GENMASK(27, 24);
++		set_bit(i, &ds->reo_mapped);
++	}
++	val &= ~GENMASK(27, 24);
++	val |= FIELD_PREP(GENMASK(27, 24), 11);
++	ath12k_hif_write32(ab, reg, val);
++	ret = ath12k_dp_rx_htt_ds_cfg(ab);
++	if (ret)
++		return ret;
++	/* REO2PPE_DEST_INFO was added in QCN9274 hw2.0. */
++	if (HAL_REO2PPE_DEST_INFO(&ab->hal))
++		ath12k_hif_write32(ab, HAL_SEQ_WCSS_UMAC_REO_REG +
++				   HAL_REO2PPE_DEST_INFO(&ab->hal),
++				   HAL_REO2PPE_DEST_INFO_VALUE);
++	reg = HAL_SEQ_WCSS_UMAC_TCL_REG + HAL_TCL_DS_RBM_MAPPING_OFFSET;
++	val = ath12k_hif_read32(ab, reg);
++	val &= ~GENMASK(31, HAL_TCL_DS_RBM_MAPPING_SHIFT);
++	val |= (u32)HAL_WBM2SW_DS_RBM_ID << HAL_TCL_DS_RBM_MAPPING_SHIFT;
++	ath12k_hif_write32(ab, reg, val);
++	ret = qcom_ppe_ds_start(ds->handle);
++	if (!ret)
++		ds->started = true;
++	else
++		ath12k_ds_fault(ds);
++	return ret;
++}
++
++static int ath12k_ds_bind_vif(struct ath12k_ds *ds, struct ath12k_link_vif *arvif)
++{
++	struct ath12k_vif *vif = arvif->ahvif;
++	struct wireless_dev *wdev = ieee80211_vif_to_wdev(vif->vif);
++	struct ath12k_ds_vp *vp;
++	u32 config, bank_config;
++	int i, ret, bank, port;
++
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++)
++		if (ds->vps[i].vif == vif)
++			return ds->vps[i].closing ? -ESHUTDOWN : ds->vps[i].port;
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++)
++		if (!ds->vps[i].reserved)
++			break;
++	if (i == ATH12K_DS_VP_COUNT || !wdev || !wdev->netdev)
++		return -ENOSPC;
++	ret = ath12k_ds_start(ds);
++	if (ret)
++		return ret;
++	bank_config = ds->dp->ops->tx_get_vdev_bank_config(ds->dp->ab, arvif);
++	bank_config &= ~(HAL_TX_BANK_CONFIG_ENCAP_TYPE |
++			 HAL_TX_BANK_CONFIG_VDEV_ID_CHECK_EN |
++			 HAL_TX_BANK_CONFIG_PMAC_ID);
++	bank_config |= FIELD_PREP(HAL_TX_BANK_CONFIG_ENCAP_TYPE,
++				  HAL_TCL_ENCAP_TYPE_ETHERNET);
++	/* The native bank resolves the destination through the peer AST. */
++	bank_config |= FIELD_PREP(HAL_TX_BANK_CONFIG_PMAC_ID, 3);
++	bank = ath12k_dp_tx_get_bank_config(ds->dp, bank_config);
++	if (bank < 0)
++		return -ENOSPC;
++	port = qcom_ppe_ds_vp_alloc(ds->handle, wdev->netdev);
++	if (port < 0) {
++		ath12k_dp_tx_put_bank_profile(ds->dp, bank);
++		return port;
++	}
++	config = FIELD_PREP(GENMASK(7, 0), port) |
++		 FIELD_PREP(GENMASK(9, 8), 3) |
++		 FIELD_PREP(GENMASK(15, 10), bank) |
++		 FIELD_PREP(GENMASK(23, 16), arvif->vdev_id);
++	ath12k_hif_write32(ds->dp->ab, ATH12K_DS_VP_TABLE + i * 4, config);
++	/* Finish the WLAN table write before PPE can publish a descriptor. */
++	ath12k_hif_read32(ds->dp->ab, ATH12K_DS_VP_TABLE + i * 4);
++	/* Publish direct delivery only after all tracked peer submissions. */
++	vp = &ds->vps[i];
++	vp->reserved = true;
++	vp->vif = vif;
++	vp->dev = wdev->netdev;
++	dev_hold(vp->dev);
++	vp->port = port;
++	vp->bank = bank;
++	return port;
++}
++
++/* control_lock held. Queue selection belongs to the netdev, not a peer. */
++static int ath12k_ds_route_vif(struct ath12k_ds *ds, struct ath12k_vif *vif,
++			       bool direct)
++{
++	struct ath12k_ds_vp *vp;
++	int i, ret;
++
++	lockdep_assert_held(&ds->control_lock);
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++) {
++		vp = &ds->vps[i];
++		if (vp->vif != vif || vp->direct == direct)
++			continue;
++		if (direct && (vp->closing || ds->stopped || ds->faulted))
++			return -ESHUTDOWN;
++		ret = qcom_ppe_ds_vp_route(ds->handle, vp->port, direct);
++		if (ret) {
++			ath12k_ds_fault(ds);
++			return ret;
++		}
++		vp->direct = direct;
++		if (direct)
++			ds->route_direct++;
++		else
++			ds->route_cpu++;
++	}
++	return 0;
++}
++
++/* Keep CPU delivery while any authorized peer lacks a submitted route. */
++static bool ath12k_ds_vif_can_direct(struct ath12k_ds *ds,
++				     struct ath12k_vif *vif)
++{
++	struct ath12k_ds_peer *peer;
++	bool found = false;
++
++	lockdep_assert_held(&ds->control_lock);
++	list_for_each_entry(peer, &ds->peers, list) {
++		if (peer->vif != vif)
++			continue;
++		found = true;
++		if (!peer->enabled || !peer->authorized)
++			return false;
++	}
++	return found;
++}
++
++static int ath12k_ds_peer_disable(struct ath12k_ds_peer *peer)
++{
++	int ret;
++
++	if (!peer->enabled ||
++	    test_bit(ATH12K_FLAG_CRASH_FLUSH, &peer->ar->ab->dev_flags))
++		return 0;
++	ret = ath12k_wmi_config_peer_ds(peer->ar, peer->addr, peer->vdev, 0, false);
++	if (!ret)
++		WRITE_ONCE(peer->enabled, false);
++	return ret;
++}
++
++static int ath12k_ds_peer_cpu(struct ath12k_ds *ds,
++			      struct ath12k_ds_peer *peer)
++{
++	int ret, error;
++
++	ret = ath12k_ds_route_vif(ds, peer->vif, false);
++	error = ath12k_ds_peer_disable(peer);
++	if (error) {
++		ath12k_ds_fault(ds);
++		if (!ret)
++			ret = error;
++	}
++	return ret;
++}
++
++static int ath12k_ds_peer_update(struct ath12k *ar,
++				 struct ath12k_link_vif *arvif,
++				 struct ath12k_link_sta *arsta, bool authorized)
++{
++	struct ath12k_sta *ahsta = arsta->ahsta;
++	struct ieee80211_sta *sta = ath12k_ahsta_to_sta(ahsta);
++	struct ath12k_ds_peer *peer;
++	struct ath12k_ds *ds;
++	struct wireless_dev *wdev;
++	enum ath12k_ds_fallback fallback;
++	bool direct;
++	int port, ret = 0;
++
++	if (arvif->ahvif->vif->type != NL80211_IFTYPE_AP)
++		return 0;
++	/* AHB and MLO peers keep the ordinary WiFi/PPE path. */
++	ds = ath12k_ab_to_dp(ar->ab)->ds;
++	if (!ds)
++		return 0;
++	lockdep_assert_wiphy(ar->ah->hw->wiphy);
++	fallback = sta->mlo ? ATH12K_DS_FALLBACK_MLO : ATH12K_DS_FALLBACK_NONE;
++	mutex_lock(&ds->control_lock);
++	if (ds->stopped || ds->faulted)
++		goto unlock;
++	list_for_each_entry(peer, &ds->peers, list)
++		if (peer->ar == ar && peer->vif == arvif->ahvif &&
++		    peer->vdev == arvif->vdev_id &&
++		    ether_addr_equal(peer->addr, arsta->addr)) {
++			peer->authorized |= authorized;
++			if (authorized && !peer->enabled && !fallback) {
++				port = ath12k_ds_bind_vif(ds, arvif);
++				if (port < 0) {
++					ret = port;
++					goto peer_fault;
++				}
++				ret = ath12k_wmi_config_peer_ds(ar, arsta->addr,
++								arvif->vdev_id, port, true);
++				if (ret)
++					goto peer_fault;
++				WRITE_ONCE(peer->enabled, true);
++			}
++			direct = ath12k_ds_vif_can_direct(ds, arvif->ahvif);
++			ret = ath12k_ds_route_vif(ds, arvif->ahvif, direct);
++			goto unlock;
++		}
++	wdev = ieee80211_vif_to_wdev(arvif->ahvif->vif);
++	if (!wdev || !wdev->netdev) {
++		ret = -ENODEV;
++		goto fault;
++	}
++	peer = kzalloc(sizeof(*peer), GFP_KERNEL);
++	if (!peer) {
++		ret = -ENOMEM;
++		goto fault;
++	}
++	peer->ar = ar;
++	peer->vdev = arvif->vdev_id;
++	peer->vif = arvif->ahvif;
++	peer->dev = wdev->netdev;
++	peer->fallback = fallback;
++	peer->authorized = authorized;
++	ether_addr_copy(peer->addr, arsta->addr);
++	dev_hold(peer->dev);
++	spin_lock_bh(&ds->peer_lock);
++	list_add_tail(&peer->list, &ds->peers);
++	hash_add(ds->peer_vps, &peer->hash, ether_addr_to_u64(peer->addr));
++	spin_unlock_bh(&ds->peer_lock);
++	if (fallback) {
++		ds->fallback_events[fallback]++;
++		ret = ath12k_ds_route_vif(ds, arvif->ahvif, false);
++		goto unlock;
++	}
++	port = ath12k_ds_bind_vif(ds, arvif);
++	if (port < 0) {
++		ret = port;
++		goto peer_fault;
++	}
++	direct = authorized || ar->ab->hw_rev != ATH12K_HW_QCN9274_HW10;
++	ret = ath12k_wmi_config_peer_ds(ar, arsta->addr, arvif->vdev_id, port, direct);
++	if (ret)
++		goto peer_fault;
++	WRITE_ONCE(peer->enabled, direct);
++	ret = ath12k_ds_route_vif(ds, arvif->ahvif,
++				  ath12k_ds_vif_can_direct(ds, arvif->ahvif));
++	if (!ret)
++		goto unlock;
++peer_fault:
++	ath12k_ds_peer_cpu(ds, peer);
++	peer->fallback = ATH12K_DS_FALLBACK_CONTROL;
++	ds->fallback_events[ATH12K_DS_FALLBACK_CONTROL]++;
++fault:
++	ath12k_ds_fault(ds);
++unlock:
++	mutex_unlock(&ds->control_lock);
++	return ret;
++}
++
++int ath12k_wifi7_ds_peer_setup(struct ath12k *ar, struct ath12k_link_vif *arvif,
++			       struct ath12k_link_sta *arsta)
++{
++	if (!ath12k_wifi7_ds_hw1_compat(ar->ab))
++		return 0;
++	return ath12k_ds_peer_update(ar, arvif, arsta, false);
++}
++
++int ath12k_wifi7_ds_sta_state(struct ath12k *ar,
++			      struct ath12k_link_vif *arvif,
++			      struct ath12k_link_sta *arsta, bool enable)
++{
++	struct ath12k_ds_peer *peer, *tmp;
++	struct ath12k_ds *ds;
++	struct ath12k_dp *dp;
++	int i, error, ret = 0;
++
++	if (enable)
++		return ath12k_ds_peer_update(ar, arvif, arsta, true);
++	if (arvif->ahvif->vif->type != NL80211_IFTYPE_AP)
++		return 0;
++	ds = ath12k_ab_to_dp(ar->ab)->ds;
++	if (!ds)
++		return 0;
++	lockdep_assert_wiphy(ar->ah->hw->wiphy);
++	/* Primary/link maps may already have changed at teardown. */
++	for (i = 0; i < ATH12K_MAX_DEVICES; i++) {
++		dp = ar->ab->ag->dp_hw_grp.dp[i];
++		if (!dp || !dp->ds)
++			continue;
++		ds = dp->ds;
++		mutex_lock(&ds->control_lock);
++		list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
++			if (peer->ar != ar || peer->vif != arvif->ahvif ||
++			    peer->vdev != arvif->vdev_id ||
++			    !ether_addr_equal(peer->addr, arsta->addr))
++				continue;
++			error = ath12k_ds_peer_cpu(ds, peer);
++			if (!ret)
++				ret = error;
++			spin_lock_bh(&ds->peer_lock);
++			list_del(&peer->list);
++			hash_del(&peer->hash);
++			spin_unlock_bh(&ds->peer_lock);
++			dev_put(peer->dev);
++			kfree(peer);
++		}
++		if (!ds->stopped && !ds->faulted)
++			ath12k_ds_route_vif(ds, arvif->ahvif,
++					    ath12k_ds_vif_can_direct(ds, arvif->ahvif));
++		mutex_unlock(&ds->control_lock);
++	}
++	return ret;
++}
++
++void ath12k_wifi7_ds_vif_remove(struct ath12k_link_vif *arvif,
++			       bool before, bool deleted)
++{
++	struct ath12k_hw_group *ag = arvif->ar->ab->ag;
++	struct ath12k_ds_peer *peer, *tmp;
++	struct ath12k_ds_vp *vp;
++	struct ath12k_ds *ds;
++	struct ath12k_dp *dp;
++	int n, i, ret, retry;
++	bool fault;
++
++	for (n = 0; n < ATH12K_MAX_DEVICES; n++) {
++		dp = ag->dp_hw_grp.dp[n];
++		if (!dp || !dp->ds)
++			continue;
++		ds = dp->ds;
++		fault = false;
++		mutex_lock(&ds->control_lock);
++		if (ds->quarantined) {
++			/* Keep hardware bank/VP leases and all DMA, but do not pin a
++			 * netdevice or mac80211 vif behind an inert quarantine.
++			 */
++			list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
++				if (peer->vif != arvif->ahvif)
++					continue;
++				spin_lock_bh(&ds->peer_lock);
++				list_del(&peer->list);
++				hash_del(&peer->hash);
++				spin_unlock_bh(&ds->peer_lock);
++				dev_put(peer->dev);
++				kfree(peer);
++			}
++			for (i = 0; i < ATH12K_DS_VP_COUNT; i++) {
++				vp = &ds->vps[i];
++				if (vp->vif != arvif->ahvif)
++					continue;
++				vp->vif = NULL;
++				vp->closing = true;
++				if (vp->dev) {
++					dev_put(vp->dev);
++					vp->dev = NULL;
++				}
++			}
++			mutex_unlock(&ds->control_lock);
++			continue;
++		}
++		if (before) {
++			if (ath12k_ds_route_vif(ds, arvif->ahvif, false))
++				fault = true;
++			list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
++				if (peer->vif != arvif->ahvif)
++					continue;
++				if (ath12k_ds_peer_disable(peer))
++					fault = true;
++				spin_lock_bh(&ds->peer_lock);
++				list_del(&peer->list);
++				hash_del(&peer->hash);
++				spin_unlock_bh(&ds->peer_lock);
++				dev_put(peer->dev);
++				kfree(peer);
++			}
++		}
++		for (i = 0; i < ATH12K_DS_VP_COUNT; i++) {
++			vp = &ds->vps[i];
++			if (vp->vif != arvif->ahvif)
++				continue;
++			if (before) {
++				vp->closing = true;
++				ret = qcom_ppe_ds_vp_route(ds->handle, vp->port, false);
++				for (retry = 0; !ret && retry < 200; retry++) {
++					qcom_ppe_ds_sync(ds->handle);
++					if (ath12k_ds_tcl_cons(ds) ==
++					    ath12k_ds_srng(ds, &ds->tcl)->u.src_ring.hp /
++					    ath12k_ds_srng(ds, &ds->tcl)->entry_size) {
++						vp->drained = true;
++						break;
++					}
++					usleep_range(1000, 2000);
++				}
++				if (ret || !vp->drained)
++					fault = true;
++			} else {
++				/* Software references end with the interface. The reserved
++				 * bit keeps unacknowledged VP/bank leases unavailable even
++				 * after both vif and netdev pointers have been withdrawn.
++				 */
++				vp->vif = NULL;
++				if (vp->dev) {
++					dev_put(vp->dev);
++					vp->dev = NULL;
++				}
++				if (!deleted || !vp->drained || ds->faulted)
++					continue;
++				ath12k_hif_write32(dp->ab, ATH12K_DS_VP_TABLE + i * 4, 0);
++				ath12k_hif_read32(dp->ab, ATH12K_DS_VP_TABLE + i * 4);
++				ret = qcom_ppe_ds_vp_free(ds->handle, vp->port);
++				if (ret) {
++					fault = true;
++					continue;
++				}
++				ath12k_dp_tx_put_bank_profile(dp, vp->bank);
++				memset(vp, 0, sizeof(*vp));
++			}
++		}
++		mutex_unlock(&ds->control_lock);
++		if (fault)
++			ath12k_ds_fault(ds);
++	}
++}
++

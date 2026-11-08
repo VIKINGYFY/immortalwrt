@@ -1,0 +1,590 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 10:29:57 +0800
+Subject: [PATCH] wifi: ath12k: own Direct Switch ring indices and RX returns
+
+Create the native Direct Switch ring client and retain its producer
+and consumer index ownership across firmware and host operations.
+
+Split from:
+  package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+
+Merged from:
+  906-01-wifi-ath12k-add-native-PPE-direct-switch.patch
+  906-02-wifi-ath12k-fix-IPQ5332-REO-register-offsets.patch
+  906-03-wifi-ath12k-batch-native-Direct-Switch-RX-recycling.patch
+  906-04-wifi-ath12k-amortize-native-Direct-Switch-TX-polls.patch
+  906-05-wifi-ath12k-notify-PPE-on-DS-buffer-returns.patch
+  906-06-wifi-ath12k-auto-enable-supported-native-Direct-Switch.patch
+  906-07-wifi-ath12k-use-revision-specific-DS-registers.patch
+  907-01-wifi-ath12k-coordinate-mixed-bus-group-shutdown.patch
+  907-02-wifi-ath12k-protect-recovery-tables-and-link-cleanup.patch
+  907-03-wifi-ath12k-repair-legacy-HW1-Direct-Switch-metadata.patch
+  907-04-wifi-ath12k-separate-DS-control-and-DMA-stop-errors.patch
+  907-05-wifi-ath12k-bound-and-index-legacy-DS-source-repair.patch
+
+Link: https://android.googlesource.com/kernel/msm-modules/wlan-fw-api/+/9ab723333db68e4552672f9e2a5cc6f8e4027894/hw/qcn9224/
+Original-commit: dfa0345057d5ef5dd7670544b833d3a5f92f62c0
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- /dev/null
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
+@@ -0,0 +1,559 @@
++// SPDX-License-Identifier: BSD-3-Clause-Clear
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ * Copyright (c) 2026 JiaY-shi <shi05275@163.com>
++ *
++ * Native Direct Switch client. The descriptor ABI and index protocol follow
++ * QSDK PPE-DS. Packet storage remains DMA mapped across the two devices;
++ * normal completions recycle buffers without passing payloads to mac80211.
++ */
++#include <linux/module.h>
++#include <linux/hashtable.h>
++#include <linux/delay.h>
++#include <linux/debugfs.h>
++#include <linux/seq_file.h>
++#include <linux/unaligned.h>
++#include <linux/soc/qcom/ppe-ds.h>
++
++#include "../core.h"
++#include "../debug.h"
++#include "../dp_rx.h"
++#include "../dp_peer.h"
++#include "../dp_tx.h"
++#include "../hif.h"
++#include "hal.h"
++#include "hal_desc.h"
++#include "hal_tx.h"
++#include "hal_rx_desc.h"
++#include "ppe_ds.h"
++
++bool ath12k_wifi7_ds_hw1_compat(struct ath12k_base *ab)
++{
++	return ab->hw_rev == ATH12K_HW_QCN9274_HW10 &&
++	       ab->qmi.target.fw_version == 0x1003009f &&
++	       strstr(ab->qmi.target.fw_build_id, "WBE.1.0.r4-00159");
++}
++
++/* Only select compatible RX settings after successful DS registration.
++ * Provider availability is probed by ds_setup in process context; transport
++ * callbacks must never call that mutex-taking API.
++ */
++bool ath12k_wifi7_ds_hw1_registered(struct ath12k_base *ab)
++{
++	return ath12k_wifi7_ds_hw1_compat(ab) &&
++	       READ_ONCE(ath12k_ab_to_dp(ab)->ds);
++}
++
++#define ATH12K_DS_RING_ENTRIES 1024
++#define ATH12K_DS_BUFFER_COUNT 2048
++#define ATH12K_DS_BUFFER_SIZE 2048
++#define ATH12K_DS_VP_COUNT 8
++#define ATH12K_DS_REPAIR_BUDGET 128
++#define ATH12K_DS_VP_TABLE 0x00a44194
++
++enum ath12k_ds_fallback {
++	ATH12K_DS_FALLBACK_NONE,
++	ATH12K_DS_FALLBACK_MLO,
++	ATH12K_DS_FALLBACK_CONTROL,
++	ATH12K_DS_FALLBACK_MAX,
++};
++
++static const char * const ath12k_ds_fallback_names[] = {
++	"none", "unsupported-mlo", "control-submit",
++};
++
++struct ath12k_ds_buffer {
++	struct list_head list;
++	struct ath12k_tx_desc_info *desc;
++	dma_addr_t paddr;
++	bool in_use;
++};
++
++struct ath12k_ds_vp {
++	struct ath12k_vif *vif;
++	struct net_device *dev;
++	int port, bank;
++	bool reserved, closing, drained, direct;
++};
++
++struct ath12k_ds_peer {
++	struct list_head list;
++	struct hlist_node hash;
++	struct ath12k *ar;
++	struct ath12k_vif *vif;
++	u32 vdev;
++	u8 addr[ETH_ALEN];
++	struct net_device *dev;
++	enum ath12k_ds_fallback fallback;
++	bool enabled, authorized;
++};
++
++struct ath12k_ds {
++	struct ath12k_dp *dp;
++	struct qcom_ppe_ds *handle;
++	struct dp_srng tcl, reo, complete;
++	struct ath12k_ds_buffer *buffers;
++	/* Serialize refill and WLAN TX completion access to the buffer pool. */
++	spinlock_t tx_lock;
++	/* Protect pending RX buffers returned by PPE completion batches. */
++	spinlock_t rx_lock;
++	struct list_head free_buffers;
++	/* Serialize peer/VP control, shutdown and fault handling. */
++	struct mutex control_lock;
++	struct list_head peers;
++	DECLARE_HASHTABLE(peer_vps, 6);
++	/* Completion-side exception lookup cannot take the control mutex. */
++	spinlock_t peer_lock;
++	struct ath12k_ds_vp vps[ATH12K_DS_VP_COUNT];
++	struct work_struct fault_work;
++	struct dentry *debugfs;
++	struct list_head pending_rx[ATH12K_MAX_DEVICES];
++	/* Last validated allocation, protected by rx_lock. Cache indices only;
++	 * every lookup still checks the group's current descriptor storage.
++	 */
++	u16 rx_cookie_page;
++	u8 rx_cookie_device;
++	u16 hw1_reo;
++	u32 buffer_count;
++	u32 reo_map[ATH12K_MAX_DEVICES];
++	unsigned long reo_mapped;
++	bool tcl_ready, reo_ready, complete_ready;
++	bool stopped, faulted, started;
++	bool quarantined;
++	bool hw1_compat, hw1_pending;
++	u64 hw1_batches, hw1_scanned, hw1_repaired, hw1_yields;
++	u32 hw1_max_batch;
++	int stop_control_error;
++	unsigned long fault_flags;
++	atomic64_t tx_completed, rx_recycled, bad_cookie, tx_exception;
++	atomic64_t tx_acked, tx_dropped;
++	u64 fallback_events[ATH12K_DS_FALLBACK_MAX];
++	u64 route_direct, route_cpu;
++};
++
++static void ath12k_ds_fault(struct ath12k_ds *ds)
++{
++	WRITE_ONCE(ds->faulted, true);
++	if (READ_ONCE(ds->quarantined))
++		return;
++	/* RX service may still run while a failed stop quarantines the rings.
++	 * Notify once per registration, including when fault_work is running;
++	 * otherwise those calls can continuously requeue the same teardown.
++	 */
++	if (!test_and_set_bit(0, &ds->fault_flags))
++		queue_work(ds->dp->ab->workqueue_aux, &ds->fault_work);
++}
++
++static void ath12k_ds_fault_work(struct work_struct *work)
++{
++	struct ath12k_ds *ds = container_of(work, struct ath12k_ds, fault_work);
++
++	ath12k_warn(ds->dp->ab, "Direct Switch fault; stopping DMA and CPU routing\n");
++	if (ath12k_wifi7_ds_stop(ds->dp) && !READ_ONCE(ds->stopped))
++		ath12k_dp_ds_quarantine_group(ds->dp->ab->ag);
++}
++
++static struct hal_srng *ath12k_ds_srng(struct ath12k_ds *ds,
++				     struct dp_srng *ring)
++{
++	return &ds->dp->hal->srng_list[ring->ring_id];
++}
++
++static int ath12k_ds_start_indices(void *priv, u16 tcl, u16 reo)
++{
++	struct ath12k_ds *ds = priv;
++
++	ath12k_wifi7_hal_ds_set_indices(ds->dp->ab,
++				       ath12k_ds_srng(ds, &ds->tcl), tcl);
++	ath12k_wifi7_hal_ds_set_indices(ds->dp->ab,
++				       ath12k_ds_srng(ds, &ds->reo), reo);
++	ds->hw1_reo = reo;
++	return 0;
++}
++
++static u16 ath12k_ds_read_index(struct hal_srng *srng, const volatile u32 *addr)
++{
++	u32 words = READ_ONCE(*addr);
++
++	if (words >= srng->ring_size || words % srng->entry_size)
++		return U16_MAX;
++	return words / srng->entry_size;
++}
++
++static u16 ath12k_ds_tcl_cons(void *priv)
++{
++	struct ath12k_ds *ds = priv;
++	struct hal_srng *srng = ath12k_ds_srng(ds, &ds->tcl);
++
++	return ath12k_ds_read_index(srng, srng->u.src_ring.tp_addr);
++}
++
++static u16 ath12k_ds_hw1_source(struct ath12k_ds *ds, struct hal_srng *srng,
++				u16 producer);
++
++static u16 ath12k_ds_reo_prod(void *priv)
++{
++	struct ath12k_ds *ds = priv;
++	struct hal_srng *srng = ath12k_ds_srng(ds, &ds->reo);
++	u16 producer;
++
++	producer = ath12k_ds_read_index(srng, srng->u.dst_ring.hp_addr);
++	if (producer != U16_MAX)
++		producer = ath12k_ds_hw1_source(ds, srng, producer);
++	return producer;
++}
++
++static void ath12k_ds_tcl_prod(void *priv, u16 index)
++{
++	struct ath12k_ds *ds = priv;
++	struct hal_srng *srng = ath12k_ds_srng(ds, &ds->tcl);
++	unsigned long flags;
++
++	spin_lock_irqsave(&srng->lock, flags);
++	srng->u.src_ring.hp = index * srng->entry_size;
++	ath12k_hal_srng_access_end(ds->dp->ab, srng);
++	spin_unlock_irqrestore(&srng->lock, flags);
++}
++
++static void ath12k_ds_reo_cons(void *priv, u16 index)
++{
++	struct ath12k_ds *ds = priv;
++	struct hal_srng *srng = ath12k_ds_srng(ds, &ds->reo);
++	unsigned long flags;
++
++	spin_lock_irqsave(&srng->lock, flags);
++	srng->u.dst_ring.tp = index * srng->entry_size;
++	ath12k_hal_srng_access_end(ds->dp->ab, srng);
++	spin_unlock_irqrestore(&srng->lock, flags);
++}
++
++static unsigned int ath12k_ds_refill(void *priv,
++				    struct qcom_ppe_ds_buffer *out,
++				    unsigned int count, unsigned int size)
++{
++	struct ath12k_ds *ds = priv;
++	struct ath12k_ds_buffer *buffer;
++	unsigned long flags;
++	unsigned int done = 0;
++
++	if (size != ATH12K_DS_BUFFER_SIZE || READ_ONCE(ds->faulted))
++		return 0;
++	spin_lock_irqsave(&ds->tx_lock, flags);
++	while (done < count && !list_empty(&ds->free_buffers)) {
++		buffer = list_first_entry(&ds->free_buffers,
++					  struct ath12k_ds_buffer, list);
++		list_del_init(&buffer->list);
++		buffer->in_use = true;
++		out[done].addr = buffer->paddr;
++		out[done].cookie = buffer->desc->desc_id;
++		done++;
++	}
++	spin_unlock_irqrestore(&ds->tx_lock, flags);
++	return done;
++}
++
++/* PPE returns converted WLAN RX descriptor pointers. Resolve them against
++ * the group's live descriptor allocations before any pointer dereference.
++ */
++static struct ath12k_rx_desc_info *
++ath12k_ds_rx_cookie(struct ath12k_ds *ds, u64 cookie, struct ath12k_dp **owner)
++{
++	struct ath12k_dp_hw_group *group = &ds->dp->ab->ag->dp_hw_grp;
++	struct ath12k_dp *dp;
++	unsigned long addr, base;
++	size_t size = sizeof(struct ath12k_rx_desc_info) * ATH12K_MAX_SPT_ENTRIES;
++	int i, page;
++
++	lockdep_assert_held(&ds->rx_lock);
++	if (cookie != (unsigned long)cookie)
++		return NULL;
++	addr = cookie;
++	/* Completion batches commonly return adjacent descriptors. Try their
++	 * last allocation first without trusting or dereferencing the cookie.
++	 */
++	dp = group->dp[ds->rx_cookie_device];
++	if (dp && dp->rxbaddr && dp->ds_rx_bidir &&
++	    ds->rx_cookie_page < ATH12K_NUM_RX_SPT_PAGES(dp->ab)) {
++		base = (unsigned long)dp->rxbaddr[ds->rx_cookie_page];
++		if (base && addr >= base && addr - base < size &&
++		    !((addr - base) % sizeof(struct ath12k_rx_desc_info))) {
++			*owner = dp;
++			return (struct ath12k_rx_desc_info *)addr;
++		}
++	}
++	for (i = 0; i < ATH12K_MAX_DEVICES; i++) {
++		dp = group->dp[i];
++		if (!dp || !dp->rxbaddr || !dp->ds_rx_bidir)
++			continue;
++		for (page = 0; page < ATH12K_NUM_RX_SPT_PAGES(dp->ab); page++) {
++			base = (unsigned long)dp->rxbaddr[page];
++			if (!base || addr < base || addr - base >= size ||
++			    (addr - base) % sizeof(struct ath12k_rx_desc_info))
++				continue;
++			*owner = dp;
++			ds->rx_cookie_device = i;
++			ds->rx_cookie_page = page;
++			return (struct ath12k_rx_desc_info *)addr;
++		}
++	}
++	return NULL;
++}
++
++/* Called with rx_lock held; never retain a datapath peer beyond dp_lock. */
++static int ath12k_ds_hw1_peer_vp(struct ath12k_ds *ds, struct ath12k_dp *owner,
++				 const struct rx_msdu_end_qcn9274 *msdu)
++{
++	struct ath12k_dp_link_peer *link;
++	struct ath12k_ds_peer *peer;
++	struct ath12k_ds_vp *vp;
++	u16 peer_id = le16_to_cpu(msdu->sa_sw_peer_id);
++	u8 source[ETH_ALEN] __aligned(2);
++	int vdev = -1, port = -1, i;
++
++	if (owner->peer_metadata_ver != ATH12K_PEER_METADATA_V1 ||
++	    peer_id != le32_get_bits(msdu->peer_meta_data,
++				    RX_MPDU_DESC_META_DATA_V1_PEER_ID))
++		return -ENOENT;
++	put_unaligned_be32(le32_to_cpu(msdu->sa_47_16), source);
++	put_unaligned_be16(le16_to_cpu(msdu->sa_15_0), source + 4);
++	if (!is_valid_ether_addr(source))
++		return -ENOENT;
++	spin_lock(&owner->dp_lock);
++	link = ath12k_dp_link_peer_find_by_addr(owner, source);
++	if (link && link->peer_id == peer_id && link->sta &&
++	    READ_ONCE(link->is_authorized) && !link->mlo)
++		vdev = link->vdev_id;
++	spin_unlock(&owner->dp_lock);
++	if (vdev < 0)
++		return -ENOENT;
++
++	spin_lock(&ds->peer_lock);
++	hash_for_each_possible(ds->peer_vps, peer, hash,
++			       ether_addr_to_u64(source)) {
++		if (peer->ar->ab != owner->ab || peer->vdev != vdev ||
++		    !READ_ONCE(peer->enabled) || !READ_ONCE(peer->authorized) ||
++		    !ether_addr_equal(peer->addr, source))
++			continue;
++		for (i = 0; i < ATH12K_DS_VP_COUNT; i++) {
++			vp = &ds->vps[i];
++			if (READ_ONCE(vp->vif) == peer->vif &&
++			    READ_ONCE(vp->direct) && !READ_ONCE(vp->closing)) {
++				port = READ_ONCE(vp->port);
++				break;
++			}
++		}
++		break;
++	}
++	spin_unlock(&ds->peer_lock);
++	return port >= 64 && port <= 255 ? port : -ENOENT;
++}
++
++/* Old HW1 firmware supplies valid peer/header metadata but zero EDMA source
++ * information. Resolve its source from the current authorized peer before
++ * publishing the producer to PPE. Packet payloads remain DMA mapped.
++ */
++static u16 ath12k_ds_hw1_source(struct ath12k_ds *ds, struct hal_srng *srng,
++				u16 producer)
++{
++	struct ath12k_rx_desc_info *rx;
++	struct ath12k_dp *owner;
++	struct rx_msdu_end_qcn9274 *msdu;
++	struct hal_rx_desc *desc;
++	unsigned long flags;
++	unsigned int index = ds->hw1_reo, count, repaired = 0;
++	unsigned int size, offset, length;
++	dma_addr_t paddr;
++	__le32 *entry;
++	u32 word4, info5, info6, info13, info14;
++	u64 cookie;
++	int port;
++	bool failed = false;
++
++	if (!ds->hw1_compat) {
++		ds->hw1_reo = producer;
++		return producer;
++	}
++	if (READ_ONCE(ds->faulted) || READ_ONCE(ds->stopped))
++		return ds->hw1_reo;
++
++	dma_rmb();
++	spin_lock_irqsave(&ds->rx_lock, flags);
++	for (count = 0; index != producer &&
++	     count < min_t(u32, srng->num_entries, ATH12K_DS_REPAIR_BUDGET);
++	     count++, index = (index + 1) % srng->num_entries) {
++		entry = (void *)(srng->ring_base_vaddr + index * srng->entry_size);
++		word4 = le32_to_cpu(READ_ONCE(entry[4]));
++		if (word4 & 0xffff)
++			continue;
++		cookie = le32_to_cpu(entry[2]) | (u64)le32_to_cpu(entry[3]) << 32;
++		rx = ath12k_ds_rx_cookie(ds, cookie, &owner);
++		if (!rx || rx->magic != ATH12K_DP_RX_DESC_MAGIC ||
++		    !rx->in_use || !rx->skb || rx->ds_pending ||
++		    rx->device_id != owner->ab->device_id ||
++		    !ATH12K_SKB_RXCB(rx->skb)->dma_bidir) {
++			failed = true;
++			break;
++		}
++		paddr = ATH12K_SKB_RXCB(rx->skb)->paddr;
++		size = skb_end_pointer(rx->skb) - rx->skb->data;
++		offset = le32_to_cpu(entry[6]) & 0xffff;
++		length = le32_to_cpu(entry[5]) & 0xffff;
++		if (paddr != le32_to_cpu(entry[0]) ||
++		    size < sizeof(desc->u.qcn9274) || offset < sizeof(desc->u.qcn9274) ||
++		    offset > size || length < ETH_HLEN || length > size - offset) {
++			failed = true;
++			break;
++		}
++		dma_sync_single_for_cpu(owner->dev, paddr, size, DMA_BIDIRECTIONAL);
++		desc = (void *)rx->skb->data;
++		/* MPDU_START can be absent on A-MSDU continuation buffers.
++		 * RX_MSDU_END is present on every completed MSDU, including the
++		 * source address and peer identity required for source routing.
++		 */
++		msdu = &desc->u.qcn9274.msdu_end;
++		info5 = le16_to_cpu(msdu->info5);
++		info6 = le32_to_cpu(msdu->info6);
++		info13 = le32_to_cpu(msdu->info13);
++		info14 = le32_to_cpu(msdu->info14);
++		if (!(info14 & RX_MSDU_END_INFO14_MSDU_DONE) ||
++		    !(info5 & RX_MSDU_END_INFO5_SA_IS_VALID) ||
++		    (info5 & RX_MSDU_END_INFO5_SA_IDX_TIMEOUT) ||
++		    !(info6 & RX_MSDU_END_INFO6_USE_PPE) ||
++		    (info6 & (RX_MSDU_END_INFO6_MSDU_DROP |
++			 RX_MSDU_END_INFO6_FRAGMENT_FLAG)) ||
++		    (info13 & (RX_MSDU_END_INFO13_SA_IDX_INVALID |
++			  RX_MSDU_END_INFO13_MGMT_TYPE | RX_MSDU_END_INFO13_CTRL_TYPE |
++			  RX_MSDU_END_INFO13_A_MSDU_ERROR | RX_MSDU_END_INFO13_OVERFLOW_ERR |
++			  RX_MSDU_END_INFO13_MSDU_LEN_ERR | RX_MSDU_END_INFO13_AMSDU_ADDR_MISMATCH |
++			  RX_MSDU_END_INFO13_BUFFER_FRAGMENT | RX_MSDU_END_INFO13_MPDU_LEN_ERR |
++			  RX_MSDU_END_INFO13_TKIP_MIC_ERR | RX_MSDU_END_INFO13_DECRYPT_ERR |
++			  RX_MSDU_END_INFO13_UNDECRYPT_FRAME_ERR | RX_MSDU_END_INFO13_FCS_ERR)) ||
++		    (FIELD_GET(RX_MSDU_END_INFO14_DECRYPT_STATUS_CODE, info14) !=
++		     RX_DESC_DECRYPT_STATUS_CODE_OK &&
++		     (FIELD_GET(RX_MSDU_END_INFO14_DECRYPT_STATUS_CODE, info14) !=
++		      RX_DESC_DECRYPT_STATUS_CODE_UNPROTECTED_FRAME ||
++		      (info13 & RX_MSDU_END_INFO13_ENCRYPT_REQUIRED)))) {
++			port = -EINVAL;
++		} else {
++			port = ath12k_ds_hw1_peer_vp(ds, owner, msdu);
++		}
++		dma_sync_single_for_device(owner->dev, paddr, size, DMA_BIDIRECTIONAL);
++		if (port < 0) {
++			failed = true;
++			break;
++		}
++		WRITE_ONCE(entry[4], cpu_to_le32(word4 | 0x2000 | port));
++		repaired++;
++	}
++	/* Publish only the validated prefix. A rejected descriptor and all
++	 * following entries stay withheld while fault_work restores CPU RX.
++	 * Freeze this virtual producer so the PPE provider can drain the
++	 * already published prefix without consuming untrusted source data.
++	 */
++	ds->hw1_reo = index;
++	WRITE_ONCE(ds->hw1_pending, index != producer && !failed);
++	ds->hw1_batches++;
++	ds->hw1_scanned += count;
++	ds->hw1_repaired += repaired;
++	ds->hw1_max_batch = max_t(u32, ds->hw1_max_batch, count);
++	ds->hw1_yields += READ_ONCE(ds->hw1_pending);
++	dma_wmb();
++	spin_unlock_irqrestore(&ds->rx_lock, flags);
++	if (failed)
++		ath12k_ds_fault(ds);
++	return index;
++}
++
++static void ath12k_ds_flush_rx(struct ath12k_ds *ds)
++{
++	struct ath12k_rx_desc_info *rx;
++	struct ath12k_buffer_addr *entry;
++	struct ath12k_dp *dp;
++	struct hal_srng *srng;
++	unsigned long flags;
++	unsigned int recycled = 0;
++	int i;
++
++	spin_lock_irqsave(&ds->rx_lock, flags);
++	for (i = 0; i < ATH12K_MAX_DEVICES; i++) {
++		if (list_empty(&ds->pending_rx[i]))
++			continue;
++		dp = ds->dp->ab->ag->dp_hw_grp.dp[i];
++		if (!dp)
++			continue;
++		srng = &dp->hal->srng_list[dp->rx_refill_buf_ring.refill_buf_ring.ring_id];
++		spin_lock(&srng->lock);
++		ath12k_hal_srng_access_begin(dp->ab, srng);
++		while (!list_empty(&ds->pending_rx[i])) {
++			entry = ath12k_hal_srng_src_get_next_entry(dp->ab, srng);
++			if (!entry)
++				break;
++			rx = list_first_entry(&ds->pending_rx[i],
++					     struct ath12k_rx_desc_info, list);
++			list_del_init(&rx->list);
++			rx->ds_pending = false;
++			ath12k_hal_rx_buf_addr_info_set(dp->hal, entry,
++						       ATH12K_SKB_RXCB(rx->skb)->paddr,
++						       rx->cookie, dp->hal->hal_params->rx_buf_rbm);
++			recycled++;
++		}
++		ath12k_hal_srng_access_end(dp->ab, srng);
++		spin_unlock(&srng->lock);
++	}
++	spin_unlock_irqrestore(&ds->rx_lock, flags);
++	if (recycled)
++		atomic64_add(recycled, &ds->rx_recycled);
++}
++
++static void ath12k_ds_release(void *priv, const u64 *cookies, unsigned int count)
++{
++	struct ath12k_ds *ds = priv;
++	struct ath12k_rx_desc_info *rx;
++	struct ath12k_dp *owner;
++	unsigned long flags;
++	unsigned int i;
++
++	spin_lock_irqsave(&ds->rx_lock, flags);
++	for (i = 0; i < count; i++) {
++		rx = ath12k_ds_rx_cookie(ds, cookies[i], &owner);
++		if (!rx || rx->magic != ATH12K_DP_RX_DESC_MAGIC ||
++		    !rx->in_use || !rx->skb || rx->ds_pending ||
++		    rx->device_id != owner->ab->device_id ||
++		    !ATH12K_SKB_RXCB(rx->skb)->dma_bidir) {
++			atomic64_inc(&ds->bad_cookie);
++			WRITE_ONCE(ds->faulted, true);
++			continue;
++		}
++		rx->ds_pending = true;
++		list_add_tail(&rx->list, &ds->pending_rx[owner->ab->device_id]);
++	}
++	spin_unlock_irqrestore(&ds->rx_lock, flags);
++	ath12k_ds_flush_rx(ds);
++	if (READ_ONCE(ds->faulted))
++		ath12k_ds_fault(ds);
++}
++
++static void ath12k_ds_transport_fault(void *priv)
++{
++	ath12k_ds_fault(priv);
++}
++
++static bool ath12k_ds_more_reo(void *priv)
++{
++	struct ath12k_ds *ds = priv;
++
++	return READ_ONCE(ds->hw1_pending);
++}
++
++static const struct qcom_ppe_ds_ops ath12k_ds_ops = {
++	.more_reo = ath12k_ds_more_reo,
++	.set_start_indices = ath12k_ds_start_indices,
++	.get_tcl_cons = ath12k_ds_tcl_cons,
++	.set_tcl_prod = ath12k_ds_tcl_prod,
++	.get_reo_prod = ath12k_ds_reo_prod,
++	.set_reo_cons = ath12k_ds_reo_cons,
++	.refill = ath12k_ds_refill,
++	.release = ath12k_ds_release,
++	.fault = ath12k_ds_transport_fault,
++};
++

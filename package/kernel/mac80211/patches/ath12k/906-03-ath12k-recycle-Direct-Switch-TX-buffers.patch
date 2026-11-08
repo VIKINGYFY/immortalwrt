@@ -1,0 +1,333 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 10:29:57 +0800
+Subject: [PATCH] wifi: ath12k: allocate and recycle Direct Switch TX buffers
+
+Implement Direct Switch TX buffer lookup, completion recycling and
+statistics while retaining the existing DMA ownership rules.
+
+Split from:
+  package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+
+Merged from:
+  906-01-wifi-ath12k-add-native-PPE-direct-switch.patch
+  906-02-wifi-ath12k-fix-IPQ5332-REO-register-offsets.patch
+  906-03-wifi-ath12k-batch-native-Direct-Switch-RX-recycling.patch
+  906-04-wifi-ath12k-amortize-native-Direct-Switch-TX-polls.patch
+  906-05-wifi-ath12k-notify-PPE-on-DS-buffer-returns.patch
+  906-06-wifi-ath12k-auto-enable-supported-native-Direct-Switch.patch
+  906-07-wifi-ath12k-use-revision-specific-DS-registers.patch
+  907-01-wifi-ath12k-coordinate-mixed-bus-group-shutdown.patch
+  907-02-wifi-ath12k-protect-recovery-tables-and-link-cleanup.patch
+  907-03-wifi-ath12k-repair-legacy-HW1-Direct-Switch-metadata.patch
+  907-04-wifi-ath12k-separate-DS-control-and-DMA-stop-errors.patch
+  907-05-wifi-ath12k-bound-and-index-legacy-DS-source-repair.patch
+
+Link: https://android.googlesource.com/kernel/msm-modules/wlan-fw-api/+/9ab723333db68e4552672f9e2a5cc6f8e4027894/hw/qcn9224/
+Original-commit: dfa0345057d5ef5dd7670544b833d3a5f92f62c0
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
+@@ -557,3 +557,302 @@
+ 	.fault = ath12k_ds_transport_fault,
+ };
+ 
++static int ath12k_ds_stats_show(struct seq_file *seq, void *unused)
++{
++	struct ath12k_ds *ds = seq->private;
++	struct ath12k_ds_peer *peer;
++	int i, peers = 0, tracked = 0;
++
++	mutex_lock(&ds->control_lock);
++	list_for_each_entry(peer, &ds->peers, list) {
++		tracked++;
++		peers += peer->enabled;
++	}
++	seq_printf(seq, "started:%u stopped:%u faulted:%u peers:%d\n",
++		   ds->started, READ_ONCE(ds->stopped), READ_ONCE(ds->faulted), peers);
++	/* WMI reports command submission, not a firmware routing ACK. */
++	seq_printf(seq, "peer_submission_only:1 tracked:%d\n", tracked);
++	seq_printf(seq, "quarantined:%u stop_control_error:%d\n",
++		   READ_ONCE(ds->quarantined), ds->stop_control_error);
++	seq_printf(seq, "route_direct:%llu route_cpu:%llu\n",
++		   ds->route_direct, ds->route_cpu);
++	seq_printf(seq, "hw1_repair batches:%llu scanned:%llu repaired:%llu yields:%llu max_batch:%u pending:%u\n",
++		   READ_ONCE(ds->hw1_batches), READ_ONCE(ds->hw1_scanned),
++		   READ_ONCE(ds->hw1_repaired), READ_ONCE(ds->hw1_yields),
++		   READ_ONCE(ds->hw1_max_batch), READ_ONCE(ds->hw1_pending));
++	seq_puts(seq, "fallback_events");
++	for (i = 1; i < ATH12K_DS_FALLBACK_MAX; i++)
++		seq_printf(seq, " %s:%llu", ath12k_ds_fallback_names[i],
++			   ds->fallback_events[i]);
++	seq_putc(seq, '\n');
++	list_for_each_entry(peer, &ds->peers, list)
++		seq_printf(seq, "peer:%pM device:%s submitted:%u authorized:%u fallback:%s\n",
++			   peer->addr, peer->dev->name, peer->enabled,
++			   peer->authorized,
++			   ath12k_ds_fallback_names[peer->fallback]);
++	seq_printf(seq, "tx_complete:%lld rx_recycled:%lld bad_cookie:%lld tx_exception:%lld\n",
++		   atomic64_read(&ds->tx_completed), atomic64_read(&ds->rx_recycled),
++		   atomic64_read(&ds->bad_cookie), atomic64_read(&ds->tx_exception));
++	seq_printf(seq, "tx_acked:%lld tx_dropped:%lld\n",
++		   atomic64_read(&ds->tx_acked), atomic64_read(&ds->tx_dropped));
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++)
++		if (ds->vps[i].reserved)
++			seq_printf(seq, "vp:%d device:%s port:%d bank:%d closing:%u direct:%u\n",
++				   i, ds->vps[i].dev ? ds->vps[i].dev->name : "<removed>",
++				   ds->vps[i].port,
++				   ds->vps[i].bank, ds->vps[i].closing, ds->vps[i].direct);
++	mutex_unlock(&ds->control_lock);
++	return 0;
++}
++static int ath12k_ds_stats_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, ath12k_ds_stats_show, inode->i_private);
++}
++
++static const struct file_operations ath12k_ds_stats_fops = {
++	.owner = THIS_MODULE,
++	.open = ath12k_ds_stats_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
++
++static void ath12k_ds_free_buffers(struct ath12k_ds *ds)
++{
++	struct ath12k_ds_buffer *buffer;
++	struct ath12k_tx_desc_info *desc;
++	unsigned int i;
++
++	for (i = 0; i < ds->buffer_count; i++) {
++		buffer = &ds->buffers[i];
++		desc = buffer->desc;
++		dma_unmap_single(ds->dp->dev, buffer->paddr,
++				 ATH12K_DS_BUFFER_SIZE, DMA_BIDIRECTIONAL);
++		dev_kfree_skb(desc->skb);
++		desc->skb = NULL;
++		desc->ds_index = 0;
++		ath12k_dp_tx_release_txbuf(ds->dp, desc, desc->pool_id);
++	}
++	kfree(ds->buffers);
++}
++
++static int ath12k_ds_alloc_buffers(struct ath12k_ds *ds)
++{
++	struct ath12k_tx_desc_info *desc;
++	struct ath12k_ds_buffer *buffer;
++	struct sk_buff *skb;
++	dma_addr_t paddr;
++	unsigned int i;
++
++	ds->buffers = kcalloc(ATH12K_DS_BUFFER_COUNT, sizeof(*ds->buffers), GFP_KERNEL);
++	if (!ds->buffers)
++		return -ENOMEM;
++	for (i = 0; i < ATH12K_DS_BUFFER_COUNT; i++) {
++		skb = alloc_skb(ATH12K_DS_BUFFER_SIZE + DP_RX_BUFFER_ALIGN_SIZE, GFP_KERNEL);
++		if (!skb)
++			return -ENOMEM;
++		skb_reserve(skb, PTR_ALIGN(skb->data, DP_RX_BUFFER_ALIGN_SIZE) - skb->data);
++		memset(skb->cb, 0, sizeof(skb->cb));
++		paddr = dma_map_single(ds->dp->dev, skb->data,
++				       ATH12K_DS_BUFFER_SIZE, DMA_BIDIRECTIONAL);
++		if (dma_mapping_error(ds->dp->dev, paddr)) {
++			dev_kfree_skb(skb);
++			return -EIO;
++		}
++		if (!paddr || paddr > U32_MAX - ATH12K_DS_BUFFER_SIZE + 1)
++			goto fail_mapping;
++		desc = ath12k_dp_tx_assign_buffer(ds->dp, i % ATH12K_HW_MAX_QUEUES);
++		if (!desc)
++			goto fail_mapping;
++		desc->skb = skb;
++		desc->ds_index = i + 1;
++		buffer = &ds->buffers[i];
++		buffer->desc = desc;
++		buffer->paddr = paddr;
++		list_add_tail(&buffer->list, &ds->free_buffers);
++		ds->buffer_count++;
++	}
++	return 0;
++
++fail_mapping:
++	dma_unmap_single(ds->dp->dev, paddr, ATH12K_DS_BUFFER_SIZE, DMA_BIDIRECTIONAL);
++	dev_kfree_skb(skb);
++	return -ENOSPC;
++}
++
++/* FW reinject completions describe an Ethernet frame in the mapped buffer.
++ * Copy exceptional packets only: the reusable DMA storage must never become
++ * an skb owned by mac80211. Resolve its destination against authorized peers.
++ */
++static void ath12k_ds_reinject(struct ath12k_ds *ds,
++			       struct ath12k_ds_buffer *buffer,
++			       const struct htt_tx_wbm_completion *status,
++			       struct sk_buff_head *queue)
++{
++	struct ath12k_ds_peer *peer;
++	struct net_device *dev = NULL;
++	struct sk_buff *skb;
++	u16 len = le32_get_bits(status->info2, GENMASK(31, 16));
++	u8 tid = le32_get_bits(status->info3, GENMASK(4, 0));
++	unsigned long flags;
++	bool ambiguous = false;
++	const u8 *data = buffer->desc->skb->data;
++
++	if (len < ETH_HLEN || len > ATH12K_DS_BUFFER_SIZE || tid > 15)
++		goto fault;
++	dma_sync_single_for_cpu(ds->dp->dev, buffer->paddr,
++				ATH12K_DS_BUFFER_SIZE, DMA_BIDIRECTIONAL);
++	spin_lock_irqsave(&ds->peer_lock, flags);
++	hash_for_each_possible(ds->peer_vps, peer, hash,
++			       ether_addr_to_u64(data)) {
++		if (!READ_ONCE(peer->enabled) || !ether_addr_equal(data, peer->addr))
++			continue;
++		if (dev && dev != peer->dev) {
++			ambiguous = true;
++			break;
++		}
++		dev = peer->dev;
++	}
++	if (dev && !ambiguous)
++		dev_hold(dev);
++	spin_unlock_irqrestore(&ds->peer_lock, flags);
++	if (!dev || ambiguous)
++		goto sync_fault;
++	skb = dev_alloc_skb(len);
++	if (skb) {
++		skb_put_data(skb, data, len);
++		skb->dev = dev;
++		skb->protocol = ((struct ethhdr *)skb->data)->h_proto;
++		skb_reset_mac_header(skb);
++		skb->priority = tid & 7;
++		__skb_queue_tail(queue, skb);
++	} else {
++		dev_put(dev);
++	}
++	dma_sync_single_for_device(ds->dp->dev, buffer->paddr,
++				   ATH12K_DS_BUFFER_SIZE, DMA_BIDIRECTIONAL);
++	return;
++
++sync_fault:
++	dma_sync_single_for_device(ds->dp->dev, buffer->paddr,
++				   ATH12K_DS_BUFFER_SIZE, DMA_BIDIRECTIONAL);
++fault:
++	WRITE_ONCE(ds->faulted, true);
++}
++
++int ath12k_wifi7_ds_service(struct ath12k_dp *dp, int budget)
++{
++	struct ath12k_ds *ds = READ_ONCE(dp->ds);
++	struct hal_wbm_completion_ring_tx *status;
++	struct ath12k_tx_desc_info *desc;
++	struct ath12k_ds_buffer *buffer;
++	struct hal_srng *srng;
++	struct sk_buff_head reinject;
++	struct sk_buff *skb;
++	struct net_device *dev;
++	unsigned long flags;
++	u32 cookie, info;
++	unsigned int completed = 0, acked = 0, dropped = 0;
++	int done = 0;
++	int quota;
++
++	if (!ds || !ds->complete_ready || READ_ONCE(ds->stopped) ||
++	    READ_ONCE(ds->quarantined) || budget <= 0)
++		return 0;
++	/* QSDK charges four lightweight PPE completions per NAPI budget unit.
++	 * Bound each batch and round its cost up so a full batch requests
++	 * another poll instead of completing NAPI with work on the ring.
++	 */
++	quota = (budget << 2) - 1;
++	__skb_queue_head_init(&reinject);
++	srng = ath12k_ds_srng(ds, &ds->complete);
++	spin_lock_irqsave(&srng->lock, flags);
++	ath12k_hal_srng_access_begin(dp->ab, srng);
++	/* The ring lock already excludes IRQs. Recycle one completion batch
++	 * under the buffer-pool lock instead of locking and counting each
++	 * packet separately; publish the counters once after the batch.
++	 */
++	spin_lock(&ds->tx_lock);
++	while (done < quota) {
++		status = ath12k_hal_srng_dst_get_next_entry(dp->ab, srng);
++		if (!status)
++			break;
++		done++;
++		info = le32_to_cpu(status->info0);
++		/* Ring 6 uses software conversion. Never trust a hardware VA. */
++		if (info & (HAL_WBM_COMPL_TX_INFO0_CC_DONE |
++			    HAL_WBM_COMPL_TX_INFO0_WBM_INTERNAL_ERROR))
++			goto bad_cookie;
++		cookie = le32_get_bits(status->buf_va_hi, BUFFER_ADDR_INFO1_SW_COOKIE);
++		desc = ath12k_dp_get_tx_desc(dp, cookie);
++		if (!desc || !desc->ds_index || desc->ds_index > ds->buffer_count)
++			goto bad_cookie;
++		buffer = &ds->buffers[desc->ds_index - 1];
++		if (buffer->desc != desc || !buffer->in_use) {
++			goto bad_cookie;
++		}
++		if (FIELD_GET(HAL_WBM_COMPL_TX_INFO0_REL_SRC_MODULE, info) !=
++		    HAL_WBM_REL_SRC_MODULE_TQM) {
++			struct htt_tx_wbm_completion *htt = (void *)status;
++			u32 source = FIELD_GET(HAL_WBM_COMPL_TX_INFO0_REL_SRC_MODULE, info);
++			u32 fw_status = U32_MAX;
++
++			atomic64_inc(&ds->tx_exception);
++			if (source == HAL_WBM_REL_SRC_MODULE_FW)
++				fw_status = le32_get_bits(htt->info0,
++							HTT_TX_WBM_COMP_INFO0_STATUS);
++			if (source != HAL_WBM_REL_SRC_MODULE_FW) {
++				WRITE_ONCE(ds->faulted, true);
++				continue;
++			}
++			if (fw_status == HAL_WBM_REL_HTT_TX_COMP_STATUS_REINJ ||
++			    fw_status == HAL_WBM_REL_HTT_TX_COMP_STATUS_INSPECT)
++				ath12k_ds_reinject(ds, buffer, htt, &reinject);
++			else if (fw_status >= HAL_WBM_REL_HTT_TX_COMP_STATUS_MAX ||
++				 fw_status == HAL_WBM_REL_HTT_TX_COMP_STATUS_MEC_NOTIFY)
++				WRITE_ONCE(ds->faulted, true);
++			/* FW owns an ambiguous completion; keep its storage mapped. */
++			if (READ_ONCE(ds->faulted)) {
++				continue;
++			}
++		}
++		if (FIELD_GET(HAL_WBM_COMPL_TX_INFO0_REL_SRC_MODULE, info) ==
++		    HAL_WBM_REL_SRC_MODULE_TQM) {
++			if (FIELD_GET(HAL_WBM_COMPL_TX_INFO0_TQM_RELEASE_REASON, info) ==
++			    HAL_WBM_TQM_REL_REASON_FRAME_ACKED)
++				acked++;
++			else
++				dropped++;
++		}
++		buffer->in_use = false;
++		list_add_tail(&buffer->list, &ds->free_buffers);
++		completed++;
++		continue;
++
++bad_cookie:
++		atomic64_inc(&ds->bad_cookie);
++		WRITE_ONCE(ds->faulted, true);
++	}
++	spin_unlock(&ds->tx_lock);
++	if (done)
++		ath12k_hal_srng_access_end(dp->ab, srng);
++	spin_unlock_irqrestore(&srng->lock, flags);
++	atomic64_add(completed, &ds->tx_completed);
++	atomic64_add(acked, &ds->tx_acked);
++	atomic64_add(dropped, &ds->tx_dropped);
++	while ((skb = __skb_dequeue(&reinject))) {
++		dev = skb->dev;
++		dev_queue_xmit(skb);
++		dev_put(dev);
++	}
++	ath12k_ds_flush_rx(ds);
++	if (ds->handle && !READ_ONCE(ds->faulted)) {
++		qcom_ppe_ds_sync(ds->handle);
++		if (completed)
++			qcom_ppe_ds_refill_ready(ds->handle);
++	}
++	if (READ_ONCE(ds->faulted))
++		ath12k_ds_fault(ds);
++	return (done + 3) >> 2;
++}
++

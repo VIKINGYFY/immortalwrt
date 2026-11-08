@@ -1,0 +1,1120 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 10:29:57 +0800
+Subject: [PATCH] wifi: ath12k: quiesce and release Direct Switch resources
+
+Coordinate Direct Switch startup, shutdown and quarantine before
+releasing shared DMA rings, buffers and group resources.
+
+Split from:
+  package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+
+Merged from:
+  906-01-wifi-ath12k-add-native-PPE-direct-switch.patch
+  906-02-wifi-ath12k-fix-IPQ5332-REO-register-offsets.patch
+  906-03-wifi-ath12k-batch-native-Direct-Switch-RX-recycling.patch
+  906-04-wifi-ath12k-amortize-native-Direct-Switch-TX-polls.patch
+  906-05-wifi-ath12k-notify-PPE-on-DS-buffer-returns.patch
+  906-06-wifi-ath12k-auto-enable-supported-native-Direct-Switch.patch
+  906-07-wifi-ath12k-use-revision-specific-DS-registers.patch
+  907-01-wifi-ath12k-coordinate-mixed-bus-group-shutdown.patch
+  907-02-wifi-ath12k-protect-recovery-tables-and-link-cleanup.patch
+  907-03-wifi-ath12k-repair-legacy-HW1-Direct-Switch-metadata.patch
+  907-04-wifi-ath12k-separate-DS-control-and-DMA-stop-errors.patch
+  907-05-wifi-ath12k-bound-and-index-legacy-DS-source-repair.patch
+
+Link: https://android.googlesource.com/kernel/msm-modules/wlan-fw-api/+/9ab723333db68e4552672f9e2a5cc6f8e4027894/hw/qcn9224/
+Original-commit: dfa0345057d5ef5dd7670544b833d3a5f92f62c0
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -736,6 +736,7 @@
+ 
+ static void ath12k_core_stop(struct ath12k_base *ab)
+ {
++	ath12k_dp_ds_stop_group(ab->ag);
+ 	ath12k_link_sta_rhash_tbl_destroy(ab);
+ 
+ 	ath12k_core_to_group_ref_put(ab);
+@@ -1090,7 +1091,12 @@
+ 
+ 	lockdep_assert_held(&ag->mutex);
+ 
+-	clear_bit(ATH12K_GROUP_FLAG_REGISTERED, &ag->flags);
++	/* Setup can fail and destroy radios before this group is registered. */
++	if (!test_and_clear_bit(ATH12K_GROUP_FLAG_REGISTERED, &ag->flags))
++		return;
++	ath12k_dp_ds_stop_group(ag);
++	/* Keep every partner and its WMI event path live until teardown ACKs. */
++	ath12k_mac_mlo_teardown(ag);
+ 
+ 	for (i = ag->num_devices - 1; i >= 0; i--) {
+ 		ab = ag->ab[i];
+@@ -1104,9 +1110,6 @@
+ 
+ 	/* Unregister MAC (drops wiphys) only after per-device cleanup */
+ 	ath12k_mac_unregister(ag);
+-
+-	/* Teardown MLO state after MAC unregister for symmetry */
+-	ath12k_mac_mlo_teardown(ag);
+ 
+ 	ath12k_mac_destroy(ag);
+ }
+@@ -1468,6 +1471,8 @@
+ {
+ 	int ret, total_vdev;
+ 
++	if (test_bit(ATH12K_GROUP_FLAG_DS_QUARANTINED, &ab->ag->flags))
++		return -EIO;
+ 	mutex_lock(&ab->core_lock);
+ 	ath12k_link_sta_rhash_tbl_destroy(ab);
+ 	ath12k_thermal_unregister(ab);
+@@ -1724,6 +1729,10 @@
+ 	ret = ath12k_core_reconfigure_on_crash(ab);
+ 	if (ret) {
+ 		ath12k_err(ab, "failed to reconfigure driver on crash recovery\n");
++		/* The rings are half torn down, keep WMI and data from
++		 * reaching them until the next reset.
++		 */
++		set_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags);
+ 		return;
+ 	}
+ 
+@@ -1816,6 +1825,7 @@
+ 	ath12k_core_post_reconfigure_recovery(ab);
+ 
+ 	ath12k_dbg(ab, ATH12K_DBG_BOOT, "waiting recovery start...\n");
++	ath12k_dp_ds_stop_group(ag);
+ 
+ 	ath12k_hif_irq_disable(ab);
+ 	ath12k_hif_ce_irq_disable(ab);
+--- a/drivers/net/wireless/ath/ath12k/dp.c
++++ b/drivers/net/wireless/ath/ath12k/dp.c
+@@ -141,6 +141,7 @@
+ 
+ 	ring->vaddr_unaligned = NULL;
+ }
++EXPORT_SYMBOL_GPL(ath12k_dp_srng_cleanup);
+ 
+ static int ath12k_dp_srng_find_ring_in_mask(int ring_num, const u8 *grp_mask)
+ {
+@@ -162,6 +163,12 @@
+ 	const struct ath12k_hal_tcl_to_wbm_rbm_map *map;
+ 	const u8 *grp_mask;
+ 	int i;
++
++	/* Native DS rings share the existing group-0 NAPI instance. */
++	if (type == HAL_PPE2TCL || type == HAL_REO2PPE ||
++	    (type == HAL_WBM2SW_RELEASE && ring_num == 6 &&
++	     ath12k_ab_to_dp(ab)->ds))
++		return 0;
+ 
+ 	switch (type) {
+ 	case HAL_WBM2SW_RELEASE:
+@@ -290,7 +297,16 @@
+ 	params.num_entries = num_entries;
+ 	ath12k_dp_srng_msi_setup(ab, &params, type, ring_num + mac_id);
+ 
++	/* A source-ring space interrupt stays asserted while PPE2TCL is empty.
++	 * EDMA RXDESC publishes its producer and WBM completions publish the
++	 * TCL consumer through the shared NAPI; no idle source MSI is needed.
++	 */
++	if (type == HAL_PPE2TCL)
++		params.flags &= ~HAL_SRNG_FLAGS_MSI_INTR;
++
+ 	switch (type) {
++	case HAL_PPE2TCL:
++	case HAL_REO2PPE:
+ 	case HAL_REO_DST:
+ 		params.intr_batch_cntr_thres_entries =
+ 					HAL_SRNG_INT_BATCH_THRESHOLD_RX;
+@@ -316,7 +332,8 @@
+ 		params.intr_timer_thres_us = HAL_SRNG_INT_TIMER_THRESHOLD_RX;
+ 		break;
+ 	case HAL_WBM2SW_RELEASE:
+-		if (ab->hw_params->hw_ops->dp_srng_is_tx_comp_ring(ring_num)) {
++		if (ab->hw_params->hw_ops->dp_srng_is_tx_comp_ring(ring_num) ||
++		    (ring_num == 6 && ath12k_ab_to_dp(ab)->ds)) {
+ 			params.intr_batch_cntr_thres_entries =
+ 					HAL_SRNG_INT_BATCH_THRESHOLD_TX;
+ 			params.intr_timer_thres_us =
+@@ -359,18 +376,14 @@
+ 
+ 	return 0;
+ }
+-
+-static int ath12k_dp_tx_get_bank_profile(struct ath12k_base *ab,
+-					 struct ath12k_link_vif *arvif,
+-					 struct ath12k_dp *dp)
+-{
++EXPORT_SYMBOL_GPL(ath12k_dp_srng_setup);
++
++int ath12k_dp_tx_get_bank_config(struct ath12k_dp *dp, u32 bank_config)
++{
++	struct ath12k_base *ab = dp->ab;
+ 	int bank_id = DP_INVALID_BANK_ID;
+ 	int i;
+-	u32 bank_config;
+ 	bool configure_register = false;
+-
+-	/* convert vdev params into hal_tx_bank_config */
+-	bank_config = ath12k_dp_arch_tx_get_vdev_bank_config(dp, arvif);
+ 
+ 	spin_lock_bh(&dp->tx_bank_lock);
+ 	/* TODO: implement using idr kernel framework*/
+@@ -411,6 +424,15 @@
+ 
+ 	return bank_id;
+ }
++EXPORT_SYMBOL_GPL(ath12k_dp_tx_get_bank_config);
++
++static int ath12k_dp_tx_get_bank_profile(struct ath12k_base *ab,
++					 struct ath12k_link_vif *arvif,
++					 struct ath12k_dp *dp)
++{
++	return ath12k_dp_tx_get_bank_config(dp,
++					   ath12k_dp_arch_tx_get_vdev_bank_config(dp, arvif));
++}
+ 
+ void ath12k_dp_tx_put_bank_profile(struct ath12k_dp *dp, u8 bank_id)
+ {
+@@ -418,6 +440,7 @@
+ 	dp->bank_profiles[bank_id].num_users--;
+ 	spin_unlock_bh(&dp->tx_bank_lock);
+ }
++EXPORT_SYMBOL_GPL(ath12k_dp_tx_put_bank_profile);
+ 
+ static void ath12k_dp_deinit_bank_profiles(struct ath12k_base *ab)
+ {
+@@ -1030,7 +1053,7 @@
+ 				dma_unmap_single(ab->dev,
+ 						 ATH12K_SKB_RXCB(skb)->paddr,
+ 						 skb->len + skb_tailroom(skb),
+-						 DMA_FROM_DEVICE);
++						 ath12k_rx_dma_direction(skb));
+ 				dev_kfree_skb_any(skb);
+ 			}
+ 
+@@ -1144,6 +1167,11 @@
+ {
+ 	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
+ 	int i;
++
++	if (dp->ops->ds_cleanup && dp->ops->ds_cleanup(dp))
++		return;
++	if (dp->ds_quarantined)
++		return;
+ 
+ 	ath12k_dp_link_peer_rhash_tbl_destroy(dp);
+ 
+@@ -1510,10 +1538,13 @@
+ 	spin_lock_init(&dp->reo_cmd_lock);
+ 	spin_lock_init(&dp->reo_rxq_flush_lock);
+ 
+-	spin_lock_init(&dp->dp_lock);
++	/* dp_lock and link_peer_rhash_tbl_lock are set up once when dp is
++	 * allocated. This runs again on firmware recovery while mac80211
++	 * callbacks may hold them.
++	 */
++	spin_lock_bh(&dp->dp_lock);
+ 	INIT_LIST_HEAD(&dp->peers);
+-
+-	mutex_init(&dp->link_peer_rhash_tbl_lock);
++	spin_unlock_bh(&dp->dp_lock);
+ 
+ 	dp->reo_cmd_cache_flush_count = 0;
+ 	dp->idle_link_rbm =
+@@ -1580,6 +1611,12 @@
+ 	for (i = 0; i < HAL_DSCP_TID_MAP_TBL_NUM_ENTRIES_MAX; i++)
+ 		ath12k_hal_tx_set_dscp_tid_map(ab, i);
+ 
++	if (dp->ops->ds_setup) {
++		ret = dp->ops->ds_setup(dp);
++		if (ret)
++			ath12k_warn(ab, "Direct Switch setup unavailable: %d\n", ret);
++	}
++
+ 	ret = ath12k_dp_rx_alloc(ab);
+ 	if (ret)
+ 		goto fail_dp_rx_free;
+@@ -1589,6 +1626,8 @@
+ 	return 0;
+ 
+ fail_dp_rx_free:
++	if (dp->ops->ds_cleanup)
++		dp->ops->ds_cleanup(dp);
+ 	ath12k_dp_rx_free(ab);
+ 
+ fail_cmn_reoq_cleanup:
+@@ -1618,6 +1657,51 @@
+ 	return ret;
+ }
+ 
++void ath12k_dp_ds_quarantine_group(struct ath12k_hw_group *ag)
++{
++	struct ath12k_dp *dp;
++	int i;
++
++	if (!ag)
++		return;
++	/* Every partner's RX pool can be referenced by the shared engine. */
++	set_bit(ATH12K_GROUP_FLAG_DS_QUARANTINED, &ag->flags);
++	for (i = 0; i < ATH12K_MAX_DEVICES; i++) {
++		dp = ag->dp_hw_grp.dp[i];
++		if (!dp)
++			continue;
++		dp->ds_quarantined = true;
++		if (dp->ops->ds_quarantine)
++			dp->ops->ds_quarantine(dp);
++	}
++}
++EXPORT_SYMBOL_GPL(ath12k_dp_ds_quarantine_group);
++
++int ath12k_dp_ds_stop_group(struct ath12k_hw_group *ag)
++{
++	struct ath12k_dp *dp;
++	bool dma_failed = false;
++	int i, ret = 0, err;
++
++	if (!ag)
++		return 0;
++	for (i = 0; i < ATH12K_MAX_DEVICES; i++) {
++		dp = ag->dp_hw_grp.dp[i];
++		if (!dp || !dp->ds || !dp->ops->ds_stop)
++			continue;
++		err = dp->ops->ds_stop(dp);
++		if (!err)
++			continue;
++		if (!ret)
++			ret = err;
++		if (!dp->ops->ds_dma_stopped || !dp->ops->ds_dma_stopped(dp))
++			dma_failed = true;
++	}
++	if (dma_failed)
++		ath12k_dp_ds_quarantine_group(ag);
++	return ret;
++}
++
+ void ath12k_dp_cmn_device_deinit(struct ath12k_dp *dp)
+ {
+ 	ath12k_dp_cleanup(dp->ab);
+--- a/drivers/net/wireless/ath/ath12k/dp_peer.c
++++ b/drivers/net/wireless/ath/ath12k/dp_peer.c
+@@ -61,6 +61,10 @@
+ ath12k_dp_link_peer_find_by_addr(struct ath12k_dp *dp, const u8 *addr)
+ {
+ 	lockdep_assert_held(&dp->dp_lock);
++
++	/* NULL while firmware recovery rebuilds the datapath */
++	if (!dp->rhead_peer_addr)
++		return NULL;
+ 
+ 	return rhashtable_lookup_fast(dp->rhead_peer_addr, addr,
+ 				      dp->rhash_peer_addr_param);
+@@ -251,7 +255,9 @@
+ 		goto err_free;
+ 	}
+ 
++	spin_lock_bh(&dp->dp_lock);
+ 	dp->rhead_peer_addr = rhash_addr_tbl;
++	spin_unlock_bh(&dp->dp_lock);
+ 
+ 	return 0;
+ 
+@@ -274,14 +280,23 @@
+ 
+ void ath12k_dp_link_peer_rhash_tbl_destroy(struct ath12k_dp *dp)
+ {
++	struct rhashtable *tbl;
++
+ 	guard(mutex)(&dp->link_peer_rhash_tbl_lock);
+ 
+-	if (!dp->rhead_peer_addr)
++	/* Readers use the table only under dp_lock, so once the pointer is
++	 * cleared under it nobody can still be inside the old table.
++	 */
++	spin_lock_bh(&dp->dp_lock);
++	tbl = dp->rhead_peer_addr;
++	dp->rhead_peer_addr = NULL;
++	spin_unlock_bh(&dp->dp_lock);
++
++	if (!tbl)
+ 		return;
+ 
+-	rhashtable_destroy(dp->rhead_peer_addr);
+-	kfree(dp->rhead_peer_addr);
+-	dp->rhead_peer_addr = NULL;
++	rhashtable_destroy(tbl);
++	kfree(tbl);
+ }
+ 
+ static int ath12k_dp_link_peer_rhash_insert(struct ath12k_dp *dp,
+@@ -290,6 +305,9 @@
+ 	struct ath12k_dp_link_peer *tmp;
+ 
+ 	lockdep_assert_held(&dp->dp_lock);
++
++	if (!dp->rhead_peer_addr)
++		return -ENODEV;
+ 
+ 	tmp = rhashtable_lookup_get_insert_fast(dp->rhead_peer_addr, &peer->rhash_addr,
+ 						dp->rhash_peer_addr_param);
+@@ -307,6 +325,9 @@
+ 	int ret;
+ 
+ 	lockdep_assert_held(&dp->dp_lock);
++
++	if (!dp->rhead_peer_addr)
++		return 0;
+ 
+ 	ret = rhashtable_remove_fast(dp->rhead_peer_addr, &peer->rhash_addr,
+ 				     dp->rhash_peer_addr_param);
+--- a/drivers/net/wireless/ath/ath12k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
+@@ -68,6 +68,32 @@
+ 	spin_unlock_bh(&dp->rx_desc_lock);
+ }
+ 
++int ath12k_dp_rx_htt_ds_cfg(struct ath12k_base *ab)
++{
++	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
++	struct sk_buff *skb;
++	__le32 *info;
++	u32 flags;
++	int ret;
++
++	skb = ath12k_htc_alloc_skb(ab, sizeof(*info));
++	if (!skb)
++		return -ENOMEM;
++	info = skb_put(skb, sizeof(*info));
++	/* QSDK RXOLE override: REO destination 6 is REO2PPE. Keep raw,
++	 * native-Wi-Fi and IP fragments on the ordinary receive path.
++	 */
++	flags = 0x19 | BIT(8) | (6 << 9) | BIT(16) | BIT(17) | BIT(18);
++	if (ab->hw_rev == ATH12K_HW_QCN9274_HW10)
++		flags |= BIT(15);
++	*info = cpu_to_le32(flags);
++	ret = ath12k_htc_send(&ab->htc, dp->eid, skb);
++	if (ret)
++		dev_kfree_skb_any(skb);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(ath12k_dp_rx_htt_ds_cfg);
++
+ /* Returns number of Rx buffers replenished */
+ int ath12k_dp_rx_bufs_replenish(struct ath12k_dp *dp,
+ 				struct dp_rxdma_ring *rx_ring,
+@@ -126,9 +152,10 @@
+ 				 skb->data);
+ 		}
+ 
++		ATH12K_SKB_RXCB(skb)->dma_bidir = dp->ds_rx_bidir;
+ 		paddr = dma_map_single(dp->dev, skb->data,
+ 				       skb->len + skb_tailroom(skb),
+-				       DMA_FROM_DEVICE);
++				       ath12k_rx_dma_direction(skb));
+ 		if (dma_mapping_error(dp->dev, paddr))
+ 			goto fail_free_skb;
+ 
+@@ -158,7 +185,7 @@
+ 
+ fail_dma_unmap:
+ 	dma_unmap_single(dp->dev, paddr, skb->len + skb_tailroom(skb),
+-			 DMA_FROM_DEVICE);
++			 ath12k_rx_dma_direction(skb));
+ fail_free_skb:
+ 	dev_kfree_skb_any(skb);
+ out:
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -5900,7 +5900,7 @@
+ 		links_map = ahvif->links_map;
+ 		for_each_set_bit(link_id, &links_map, ATH12K_NUM_MAX_LINKS) {
+ 			arvif = wiphy_dereference(hw->wiphy, ahvif->link[link_id]);
+-			if (!arvif)
++			if (!arvif || !arvif->is_created)
+ 				continue;
+ 
+ 			ar = arvif->ar;
+@@ -7185,6 +7185,14 @@
+ 	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
+ 
+ 	wiphy_work_cancel(ar->ah->hw->wiphy, &arsta->update_wk);
++	if (ath12k_ab_to_dp(ar->ab)->ops->ds_sta_state) {
++		int ds_ret;
++
++		ds_ret = ath12k_ab_to_dp(ar->ab)->ops->ds_sta_state(ar, arvif, arsta, false);
++		if (ds_ret)
++			ath12k_warn(ar->ab, "Direct Switch peer cleanup unavailable: %d\n",
++				    ds_ret);
++	}
+ 
+ 	if (ahvif->vdev_type == WMI_VDEV_TYPE_STA) {
+ 		ath12k_bss_disassoc(ar, arvif);
+@@ -7236,7 +7244,7 @@
+ 	struct ieee80211_vif *vif = ath12k_ahvif_to_vif(arvif->ahvif);
+ 	struct ieee80211_sta *sta = ath12k_ahsta_to_sta(arsta->ahsta);
+ 	struct ath12k_wmi_peer_create_arg peer_param = {};
+-	int ret, delete_ret;
++	int ret, delete_ret, ds_ret;
+ 	struct ath12k_link_sta *temp_arsta;
+ 
+ 	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
+@@ -7300,6 +7308,12 @@
+ 			ath12k_warn(ab, "failed to setup dp for peer %pM on vdev %i (%d)\n",
+ 				    arsta->addr, arvif->vdev_id, ret);
+ 			goto free_peer;
++		}
++		if (ath12k_ab_to_dp(ab)->ops->ds_peer_setup) {
++			ds_ret = ath12k_ab_to_dp(ab)->ops->ds_peer_setup(ar, arvif, arsta);
++			if (ds_ret)
++				ath12k_warn(ab, "Direct Switch peer metadata setup unavailable: %d\n",
++					    ds_ret);
+ 		}
+ 	}
+ 
+@@ -7393,7 +7407,7 @@
+ 	bool is_recovery = false;
+ 	unsigned long links;
+ 	struct ath12k *ar;
+-	int ret;
++	int i, ret;
+ 	u8 link_id;
+ 
+ 	lockdep_assert_wiphy(ah->hw->wiphy);
+@@ -7417,16 +7431,27 @@
+ 	for_each_set_bit(link_id, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
+ 		arvif = wiphy_dereference(ah->hw->wiphy, ahvif->link[link_id]);
+ 		arsta = wiphy_dereference(ah->hw->wiphy, ahsta->link[link_id]);
+-		if (!arvif || !arsta)
++		if (!arsta)
+ 			continue;
+ 
+-		ar = arvif->ar;
+-
+-		ath12k_mac_station_post_remove(ar, arvif, arsta);
+-
+-		spin_lock_bh(&ar->ab->base_lock);
+-		ath12k_link_sta_rhash_delete(ar->ab, arsta);
+-		spin_unlock_bh(&ar->ab->base_lock);
++		ar = arvif ? arvif->ar : NULL;
++		if (ar) {
++			ath12k_mac_station_post_remove(ar, arvif, arsta);
++
++			spin_lock_bh(&ar->ab->base_lock);
++			ath12k_link_sta_rhash_delete(ar->ab, arsta);
++			spin_unlock_bh(&ar->ab->base_lock);
++		} else {
++			/* A failed vdev creation can leave the station listed
++			 * on a radio even though its link has no radio. Unlink
++			 * it from every table before freeing the station.
++			 */
++			for_each_ar(ah, ar, i) {
++				spin_lock_bh(&ar->ab->base_lock);
++				ath12k_link_sta_rhash_delete(ar->ab, arsta);
++				spin_unlock_bh(&ar->ab->base_lock);
++			}
++		}
+ 
+ 		ath12k_mac_free_unassign_link_sta(ah, ahsta, link_id);
+ 	}
+@@ -7512,6 +7537,13 @@
+ 				    arsta->addr);
+ 			goto exit;
+ 		}
++		if (ath12k_ab_to_dp(ab)->ops->ds_sta_state) {
++			int ds_ret;
++
++			ds_ret = ath12k_ab_to_dp(ab)->ops->ds_sta_state(ar, arvif, arsta, true);
++			if (ds_ret)
++				ath12k_warn(ab, "Direct Switch peer setup unavailable: %d\n", ds_ret);
++		}
+ 
+ 		if (ath12k_wmi_supports_6ghz_cc_ext(ar) &&
+ 		    arvif->ahvif->vdev_type == WMI_VDEV_TYPE_STA) {
+@@ -7528,6 +7560,8 @@
+ 	 */
+ 	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
+ 		   new_state == IEEE80211_STA_ASSOC) {
++		if (ath12k_ab_to_dp(ab)->ops->ds_sta_state)
++			ath12k_ab_to_dp(ab)->ops->ds_sta_state(ar, arvif, arsta, false);
+ 		ath12k_mac_station_unauthorize(ar, arvif, arsta);
+ 
+ 	/* IEEE80211_STA_ASSOC -> IEEE80211_STA_AUTH: disassoc peer connected to
+@@ -11127,10 +11161,14 @@
+ 	struct ath12k_base *ab = ar->ab;
+ 	unsigned long time_left;
+ 	int ret = 0;
++	bool ds_deleted = false;
+ 
+ 	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
+ 
+ 	reinit_completion(&ar->vdev_delete_done);
++
++	if (ath12k_ab_to_dp(ab)->ops->ds_vif_remove)
++		ath12k_ab_to_dp(ab)->ops->ds_vif_remove(arvif, true, false);
+ 
+ 	if (test_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags) &&
+ 	    list_empty(&arvif->list))
+@@ -11161,8 +11199,12 @@
+ 
+ 	ath12k_dbg(ab, ATH12K_DBG_MAC, "vdev %pM deleted, vdev_id %d\n",
+ 		   vif->addr, arvif->vdev_id);
++	ds_deleted = true;
+ 
+ err_vdev_del:
++	if (ath12k_ab_to_dp(ab)->ops->ds_vif_remove)
++		ath12k_ab_to_dp(ab)->ops->ds_vif_remove(arvif, false, ds_deleted);
++
+ 	spin_lock_bh(&ar->data_lock);
+ 	if (!list_empty(&arvif->list))
+ 		list_del_init(&arvif->list);
+@@ -15165,10 +15207,12 @@
+ 	ieee80211_hw_set(hw, REPORTS_LOW_ACK);
+ 	ieee80211_hw_set(hw, NO_VIRTUAL_MONITOR);
+ 
+-	if (test_bit(WMI_TLV_SERVICE_ETH_OFFLOAD, ar->wmi->wmi_ab->svc_map)) {
++	if (test_bit(WMI_TLV_SERVICE_ETH_OFFLOAD, ar->wmi->wmi_ab->svc_map))
+ 		ieee80211_hw_set(hw, SUPPORTS_TX_ENCAP_OFFLOAD);
++	if (test_bit(WMI_TLV_SERVICE_ETH_OFFLOAD, ar->wmi->wmi_ab->svc_map) ||
++	    (ab->hw_rev == ATH12K_HW_QCN9274_HW10 &&
++	     ab->wow.wmi_conf_rx_decap_mode == TARGET_DECAP_MODE_ETH))
+ 		ieee80211_hw_set(hw, SUPPORTS_RX_DECAP_OFFLOAD);
+-	}
+ 
+ 	if (cap->nss_ratio_enabled)
+ 		ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
+@@ -15422,6 +15466,7 @@
+ 	init_completion(&ar->scan.completed);
+ 	init_completion(&ar->scan.on_channel);
+ 	init_completion(&ar->mlo_setup_done);
++	init_completion(&ar->mlo_teardown_done);
+ 	init_completion(&ar->completed_11d_scan);
+ 	init_completion(&ar->regd_update_completed);
+ 	init_completion(&ar->thermal.wmi_sync);
+@@ -15528,8 +15573,12 @@
+ 	if (num_link == 0)
+ 		return 0;
+ 
++	reinit_completion(&ar->mlo_teardown_done);
++	WRITE_ONCE(ar->mlo_teardown_status, 0);
++	WRITE_ONCE(ar->mlo_teardown_pending, true);
+ 	ret = ath12k_wmi_mlo_teardown(ar);
+ 	if (ret) {
++		WRITE_ONCE(ar->mlo_teardown_pending, false);
+ 		ath12k_warn(ab, "failed to send MLO teardown WMI command for pdev %d: %d\n",
+ 			    ar->pdev_idx, ret);
+ 		return ret;
+@@ -15586,20 +15635,42 @@
+ {
+ 	struct ath12k_hw *ah;
+ 	struct ath12k *ar;
++	unsigned long time_left;
++	u32 status;
+ 	int ret, i, j;
+ 
++	lockdep_assert_held(&ag->mutex);
++
++	/* Submit to all partners before waiting; the firmware may coordinate ACKs. */
+ 	for (i = 0; i < ag->num_hw; i++) {
+ 		ah = ag->ah[i];
+ 		if (!ah)
+ 			continue;
+ 
+ 		for_each_ar(ah, ar, j) {
+-			ar = &ah->radio[j];
++			WRITE_ONCE(ar->mlo_teardown_pending, false);
+ 			ret = __ath12k_mac_mlo_teardown(ar);
+-			if (ret) {
+-				ath12k_err(ar->ab, "failed to teardown MLO: %d\n", ret);
+-				break;
+-			}
++			if (ret)
++				ath12k_warn(ar->ab, "MLO teardown submit pdev:%d error:%d\n",
++					    ar->pdev_idx, ret);
++		}
++	}
++
++	for (i = 0; i < ag->num_hw; i++) {
++		ah = ag->ah[i];
++		if (!ah)
++			continue;
++
++		for_each_ar(ah, ar, j) {
++			if (!READ_ONCE(ar->mlo_teardown_pending))
++				continue;
++			time_left = wait_for_completion_timeout(&ar->mlo_teardown_done,
++								WMI_MLO_CMD_TIMEOUT_HZ);
++			status = READ_ONCE(ar->mlo_teardown_status);
++			WRITE_ONCE(ar->mlo_teardown_pending, false);
++			if (!time_left || status)
++				ath12k_warn(ar->ab, "MLO teardown pdev:%d timeout:%u status:%u\n",
++					    ar->pdev_idx, !time_left, status);
+ 		}
+ 	}
+ }
+--- a/drivers/net/wireless/ath/ath12k/pci.c
++++ b/drivers/net/wireless/ath/ath12k/pci.c
+@@ -1756,25 +1756,38 @@
+ 	if (!ag)
+ 		return;
+ 
++	/* Stop shared DMA and detach MLO before any partner loses WMI. */
++	if (test_bit(ATH12K_GROUP_FLAG_REGISTERED, &ag->flags))
++		ath12k_core_hw_group_cleanup(ag);
++
+ 	mutex_lock(&ag->mutex);
+-
++	if (test_and_set_bit(ATH12K_GROUP_FLAG_SHUTDOWN, &ag->flags))
++		goto unlock;
++
++	ath12k_dp_ds_stop_group(ag);
+ 	for (i = 0; i < ag->num_devices; i++) {
+ 		ab = ag->ab[i];
+ 		if (!ab)
+ 			continue;
+ 
++		/* Mixed groups include AHB devices; never cast them to PCI state. */
++		ath12k_hif_power_down(ab, false);
++	}
++
++unlock:
++	mutex_unlock(&ag->mutex);
++}
++
++static void ath12k_pci_shutdown(struct pci_dev *pdev)
++{
++	struct ath12k_base *ab = pci_get_drvdata(pdev);
++	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
++
++	ath12k_pci_set_irq_affinity_hint(ab_pci, NULL);
++	if (!ab->ag || test_bit(ATH12K_FLAG_QMI_FAIL, &ab->dev_flags)) {
+ 		ath12k_pci_power_down(ab, false);
+-	}
+-
+-	mutex_unlock(&ag->mutex);
+-}
+-
+-static void ath12k_pci_shutdown(struct pci_dev *pdev)
+-{
+-	struct ath12k_base *ab = pci_get_drvdata(pdev);
+-	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
+-
+-	ath12k_pci_set_irq_affinity_hint(ab_pci, NULL);
++		return;
++	}
+ 	ath12k_pci_hw_group_power_down(ab->ag);
+ }
+ 
+--- a/drivers/net/wireless/ath/ath12k/peer.c
++++ b/drivers/net/wireless/ath/ath12k/peer.c
+@@ -563,6 +563,9 @@
+ 
+ 	lockdep_assert_held(&ab->base_lock);
+ 
++	if (!ab->rhead_sta_addr)
++		return -ENODEV;
++
+ 	tmp = rhashtable_lookup_get_insert_fast(ab->rhead_sta_addr, &arsta->rhash_addr,
+ 						ab->rhash_sta_addr_param);
+ 	if (!tmp)
+@@ -580,6 +583,9 @@
+ 
+ 	lockdep_assert_held(&ab->base_lock);
+ 
++	if (!ab->rhead_sta_addr)
++		return 0;
++
+ 	ret = rhashtable_remove_fast(ab->rhead_sta_addr, &arsta->rhash_addr,
+ 				     ab->rhash_sta_addr_param);
+ 	if (ret && ret != -ENOENT)
+@@ -646,7 +652,9 @@
+ 		goto err_free;
+ 	}
+ 
++	spin_lock_bh(&ab->base_lock);
+ 	ab->rhead_sta_addr = rhash_addr_tbl;
++	spin_unlock_bh(&ab->base_lock);
+ 
+ 	return 0;
+ 
+@@ -658,12 +666,19 @@
+ 
+ void ath12k_link_sta_rhash_tbl_destroy(struct ath12k_base *ab)
+ {
+-	if (!ab->rhead_sta_addr)
++	struct rhashtable *tbl;
++
++	/* Users hold base_lock, clear the pointer under it before freeing */
++	spin_lock_bh(&ab->base_lock);
++	tbl = ab->rhead_sta_addr;
++	ab->rhead_sta_addr = NULL;
++	spin_unlock_bh(&ab->base_lock);
++
++	if (!tbl)
+ 		return;
+ 
+-	rhashtable_destroy(ab->rhead_sta_addr);
+-	kfree(ab->rhead_sta_addr);
+-	ab->rhead_sta_addr = NULL;
++	rhashtable_destroy(tbl);
++	kfree(tbl);
+ }
+ 
+ struct ath12k_link_sta *ath12k_link_sta_find_by_addr(struct ath12k_base *ab,
+@@ -671,6 +686,10 @@
+ {
+ 	lockdep_assert_held(&ab->base_lock);
+ 
++	/* NULL while firmware recovery rebuilds the driver state */
++	if (!ab->rhead_sta_addr)
++		return NULL;
++
+ 	return rhashtable_lookup_fast(ab->rhead_sta_addr, addr,
+ 				      ab->rhash_sta_addr_param);
+ }
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
+@@ -15,6 +15,7 @@
+ #include "dp.h"
+ #include "dp_tx.h"
+ #include "hal.h"
++#include "ppe_ds.h"
+ 
+ static int ath12k_wifi7_dp_service_srng(struct ath12k_dp *dp,
+ 					struct ath12k_ext_irq_grp *irq_grp,
+@@ -27,6 +28,14 @@
+ 	int tot_work_done = 0;
+ 	enum dp_monitor_mode monitor_mode;
+ 	u8 ring_mask;
++
++	if (!grp_id) {
++		work_done = ath12k_wifi7_ds_service(dp, budget);
++		budget -= work_done;
++		tot_work_done += work_done;
++		if (budget <= 0)
++			goto done;
++	}
+ 
+ 	if (dp->hw_params->ring_mask->tx[grp_id]) {
+ 		i = fls(dp->hw_params->ring_mask->tx[grp_id]) - 1;
+@@ -148,6 +157,14 @@
+ }
+ 
+ static struct ath12k_dp_arch_ops ath12k_wifi7_dp_arch_ops = {
++	.ds_setup = ath12k_wifi7_ds_setup,
++	.ds_cleanup = ath12k_wifi7_ds_cleanup,
++	.ds_stop = ath12k_wifi7_ds_stop,
++	.ds_dma_stopped = ath12k_wifi7_ds_dma_stopped,
++	.ds_quarantine = ath12k_wifi7_ds_quarantine,
++	.ds_peer_setup = ath12k_wifi7_ds_peer_setup,
++	.ds_sta_state = ath12k_wifi7_ds_sta_state,
++	.ds_vif_remove = ath12k_wifi7_ds_vif_remove,
+ 	.service_srng = ath12k_wifi7_dp_service_srng,
+ 	.tx_get_vdev_bank_config = ath12k_wifi7_dp_tx_get_vdev_bank_config,
+ 	.reo_cmd_send = ath12k_wifi7_dp_reo_cmd_send,
+@@ -180,10 +197,23 @@
+ 
+ 	dp->ops = &ath12k_wifi7_dp_arch_ops;
+ 
++	spin_lock_init(&dp->dp_lock);
++	INIT_LIST_HEAD(&dp->peers);
++	mutex_init(&dp->link_peer_rhash_tbl_lock);
++
+ 	return dp;
+ }
+ 
+ void ath12k_wifi7_dp_device_free(struct ath12k_dp *dp)
+ {
++	/* An unquiesced DMA client retains its descriptor and buffer context. */
++	if (dp->ds || dp->ds_quarantined) {
++		/* Quarantine has detached callbacks and released software owners.
++		 * These are inert DMA allocations, not a retained parent lifetime.
++		 */
++		dp->ab = NULL;
++		dp->hal = NULL;
++		return;
++	}
+ 	kfree(dp);
+ }
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
+@@ -732,7 +732,7 @@
+ 		rxcb = ATH12K_SKB_RXCB(msdu);
+ 		dma_unmap_single(partner_dp->dev, rxcb->paddr,
+ 				 msdu->len + skb_tailroom(msdu),
+-				 DMA_FROM_DEVICE);
++				 ath12k_rx_dma_direction(msdu));
+ 
+ 		num_buffs_reaped[device_id]++;
+ 		dp->device_stats.reo_rx[ring_id][dp->device_id]++;
+@@ -1320,7 +1320,7 @@
+ 	rxcb = ATH12K_SKB_RXCB(msdu);
+ 	dma_unmap_single(dp->dev, rxcb->paddr,
+ 			 msdu->len + skb_tailroom(msdu),
+-			 DMA_FROM_DEVICE);
++			 ath12k_rx_dma_direction(msdu));
+ 
+ 	if (drop) {
+ 		dev_kfree_skb_any(msdu);
+@@ -1400,7 +1400,7 @@
+ 	list_add_tail(&desc_info->list, list);
+ 	rxcb = ATH12K_SKB_RXCB(msdu);
+ 	dma_unmap_single(dp->dev, rxcb->paddr, msdu->len + skb_tailroom(msdu),
+-			 DMA_FROM_DEVICE);
++			 ath12k_rx_dma_direction(msdu));
+ 	dev_kfree_skb_any(msdu);
+ 
+ 	return 0;
+@@ -1975,7 +1975,7 @@
+ 		rxcb = ATH12K_SKB_RXCB(msdu);
+ 		dma_unmap_single(partner_dp->dev, rxcb->paddr,
+ 				 msdu->len + skb_tailroom(msdu),
+-				 DMA_FROM_DEVICE);
++				 ath12k_rx_dma_direction(msdu));
+ 
+ 		num_buffs_reaped[device_id]++;
+ 		total_num_buffs_reaped++;
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
+@@ -1287,3 +1287,240 @@
+ 	}
+ }
+ 
++int ath12k_wifi7_ds_stop(struct ath12k_dp *dp)
++{
++	struct ath12k_ds *ds = READ_ONCE(dp->ds);
++	struct ath12k_ds_peer *peer;
++	int i, err, control_error = 0, ret = 0;
++
++	if (!ds)
++		return 0;
++	if (current_work() != &ds->fault_work)
++		cancel_work_sync(&ds->fault_work);
++	mutex_lock(&ds->control_lock);
++	if (ds->quarantined) {
++		ret = -ESHUTDOWN;
++		goto unlock;
++	}
++	if (ds->stopped) {
++		ret = ds->stop_control_error;
++		goto unlock;
++	}
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++)
++		if (ds->vps[i].reserved) {
++			err = qcom_ppe_ds_vp_route(ds->handle, ds->vps[i].port, false);
++			if (err)
++				ath12k_warn(dp->ab,
++					    "DS VP CPU route failed: %d; stop will retry\n", err);
++		}
++	list_for_each_entry(peer, &ds->peers, list) {
++		err = ath12k_ds_peer_disable(peer);
++		if (err && !control_error)
++			control_error = err;
++	}
++	ds->stop_control_error = control_error;
++	if (ds->reo_ready) {
++		ath12k_wifi7_hal_ds_disable(dp->ab, ath12k_ds_srng(ds, &ds->reo));
++		/* Observe the final DMA head writeback before EDMA drains. */
++		usleep_range(1000, 2000);
++		if (ds->handle)
++			qcom_ppe_ds_sync(ds->handle);
++	}
++	if (ds->handle)
++		ret = qcom_ppe_ds_stop(ds->handle);
++	if (ds->tcl_ready)
++		ath12k_wifi7_hal_ds_disable(dp->ab, ath12k_ds_srng(ds, &ds->tcl));
++	if (!ret)
++		WRITE_ONCE(ds->stopped, true);
++	if (!ret) {
++		for_each_set_bit(i, &ds->reo_mapped, ATH12K_MAX_DEVICES) {
++			struct ath12k_dp *partner = dp->ab->ag->dp_hw_grp.dp[i];
++			u32 reg = HAL_SEQ_WCSS_UMAC_REO_REG +
++				  HAL_REO1_DEST_RING_CTRL_IX_0;
++			u32 val;
++
++			if (!partner ||
++			    test_bit(ATH12K_FLAG_CRASH_FLUSH, &partner->ab->dev_flags))
++				continue;
++			val = ath12k_hif_read32(partner->ab, reg);
++			val = (val & ~GENMASK(27, 24)) | ds->reo_map[i];
++			ath12k_hif_write32(partner->ab, reg, val);
++		}
++		ds->reo_mapped = 0;
++	}
++	if (control_error) {
++		ath12k_warn(dp->ab, "DS CPU peer routing unconfirmed: %d\n", control_error);
++		if (!ret)
++			ret = control_error;
++	}
++unlock:
++	mutex_unlock(&ds->control_lock);
++	return ret;
++}
++
++bool ath12k_wifi7_ds_dma_stopped(struct ath12k_dp *dp)
++{
++	struct ath12k_ds *ds = READ_ONCE(dp->ds);
++
++	return !ds || READ_ONCE(ds->stopped);
++}
++
++void ath12k_wifi7_ds_quarantine(struct ath12k_dp *dp)
++{
++	struct ath12k_ds *ds = READ_ONCE(dp->ds);
++
++	if (!ds)
++		return;
++	mutex_lock(&ds->control_lock);
++	if (ds->handle)
++		qcom_ppe_ds_detach(ds->handle);
++	WRITE_ONCE(ds->faulted, true);
++	WRITE_ONCE(ds->quarantined, true);
++	mutex_unlock(&ds->control_lock);
++}
++
++int ath12k_wifi7_ds_cleanup(struct ath12k_dp *dp)
++{
++	struct ath12k_ds *ds = dp->ds;
++	struct ath12k_ds_peer *peer, *tmp;
++	int ret, i;
++
++	if (!ds)
++		return 0;
++	cancel_work_sync(&ds->fault_work);
++	debugfs_remove(ds->debugfs);
++	ds->debugfs = NULL;
++	if (ds->quarantined)
++		goto quarantine;
++	if (ds->handle) {
++		ret = qcom_ppe_ds_unregister(ds->handle);
++		if (ret) {
++			ath12k_dp_ds_quarantine_group(dp->ab->ag);
++			ath12k_wifi7_ds_quarantine(dp);
++			dp->ds_quarantined = true;
++			goto quarantine;
++		}
++		ds->handle = NULL;
++	}
++	WRITE_ONCE(ds->stopped, true);
++	list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
++		list_del(&peer->list);
++		hash_del(&peer->hash);
++		dev_put(peer->dev);
++		kfree(peer);
++	}
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++) {
++		if (!ds->vps[i].reserved)
++			continue;
++		ath12k_dp_tx_put_bank_profile(dp, ds->vps[i].bank);
++		if (ds->vps[i].dev)
++			dev_put(ds->vps[i].dev);
++	}
++	/* The caller must already have synchronized WLAN IRQ/NAPI and stopped
++	 * WLAN DMA before releasing the shared rings and completion buffers.
++	 */
++	if (ds->complete_ready)
++		ath12k_dp_srng_cleanup(dp->ab, &ds->complete);
++	if (ds->reo_ready)
++		ath12k_dp_srng_cleanup(dp->ab, &ds->reo);
++	if (ds->tcl_ready)
++		ath12k_dp_srng_cleanup(dp->ab, &ds->tcl);
++	ath12k_ds_free_buffers(ds);
++	dp->ds = NULL;
++	kfree(ds);
++	return 0;
++quarantine:
++	list_for_each_entry_safe(peer, tmp, &ds->peers, list) {
++		list_del(&peer->list);
++		hash_del(&peer->hash);
++		dev_put(peer->dev);
++		kfree(peer);
++	}
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++) {
++		if (ds->vps[i].dev)
++			dev_put(ds->vps[i].dev);
++		ds->vps[i].dev = NULL;
++		ds->vps[i].vif = NULL;
++	}
++	ds->dp = NULL;
++	return -EIO;
++}
++
++int ath12k_wifi7_ds_setup(struct ath12k_dp *dp)
++{
++	struct qcom_ppe_ds_config config = {};
++	struct ath12k_ds *ds;
++	int ret, i;
++
++	if (!qcom_ppe_ds_available())
++		return 0;
++	if (dp->ab->hw_rev != ATH12K_HW_QCN9274_HW10 &&
++	    dp->ab->hw_rev != ATH12K_HW_QCN9274_HW20)
++		return 0;
++	/* Unknown HW1 firmware and raw RX keep the ordinary CPU datapath. */
++	if (dp->ab->hw_rev == ATH12K_HW_QCN9274_HW10 &&
++	    (!ath12k_wifi7_ds_hw1_compat(dp->ab) ||
++	     test_bit(ATH12K_FLAG_RAW_MODE, &dp->ab->dev_flags)))
++		return 0;
++
++	dp->ds_rx_bidir = true;
++	ds = kzalloc(sizeof(*ds), GFP_KERNEL);
++	if (!ds)
++		return -ENOMEM;
++	ds->dp = dp;
++	mutex_init(&ds->control_lock);
++	spin_lock_init(&ds->peer_lock);
++	INIT_LIST_HEAD(&ds->peers);
++	hash_init(ds->peer_vps);
++	ds->hw1_compat = ath12k_wifi7_ds_hw1_compat(dp->ab);
++	INIT_WORK(&ds->fault_work, ath12k_ds_fault_work);
++	spin_lock_init(&ds->tx_lock);
++	spin_lock_init(&ds->rx_lock);
++	INIT_LIST_HEAD(&ds->free_buffers);
++	for (i = 0; i < ATH12K_MAX_DEVICES; i++)
++		INIT_LIST_HEAD(&ds->pending_rx[i]);
++	dp->ds = ds;
++	ret = ath12k_ds_alloc_buffers(ds);
++	if (ret)
++		goto fail;
++	ret = ath12k_dp_srng_setup(dp->ab, &ds->tcl, HAL_PPE2TCL, 0, 0,
++				   ATH12K_DS_RING_ENTRIES);
++	if (ret)
++		goto fail;
++	ds->tcl_ready = true;
++	ret = ath12k_dp_srng_setup(dp->ab, &ds->reo, HAL_REO2PPE, 0, 0,
++				   ATH12K_DS_RING_ENTRIES);
++	if (ret)
++		goto fail;
++	ds->reo_ready = true;
++	ret = ath12k_dp_srng_setup(dp->ab, &ds->complete, HAL_WBM2SW_RELEASE,
++				   HAL_WBM2SW_DS_RING_NUM, 0, ATH12K_DS_RING_ENTRIES);
++	if (ret)
++		goto fail;
++	ds->complete_ready = true;
++	config.wlan_dev = dp->dev;
++	config.ops = &ath12k_ds_ops;
++	config.priv = ds;
++	config.ppe2tcl = ath12k_ds_srng(ds, &ds->tcl)->ring_base_paddr;
++	config.reo2ppe = ath12k_ds_srng(ds, &ds->reo)->ring_base_paddr;
++	config.ppe2tcl_count = ATH12K_DS_RING_ENTRIES;
++	config.reo2ppe_count = ATH12K_DS_RING_ENTRIES;
++	config.buffer_size = ATH12K_DS_BUFFER_SIZE;
++	ds->handle = qcom_ppe_ds_register(&config);
++	if (IS_ERR(ds->handle)) {
++		ret = PTR_ERR(ds->handle);
++		ds->handle = NULL;
++		goto fail;
++	}
++	/* Registration only. VP/peer setup must complete before starting DMA. */
++	if (dp->ab->debugfs_soc)
++		ds->debugfs = debugfs_create_file("direct_switch", 0400,
++						 dp->ab->debugfs_soc, ds,
++						 &ath12k_ds_stats_fops);
++	ath12k_info(dp->ab, "native PPE Direct Switch rings registered (CPU fallback until authorization)\n");
++	return 0;
++
++fail:
++	ath12k_wifi7_ds_cleanup(dp);
++	return ret;
++}
