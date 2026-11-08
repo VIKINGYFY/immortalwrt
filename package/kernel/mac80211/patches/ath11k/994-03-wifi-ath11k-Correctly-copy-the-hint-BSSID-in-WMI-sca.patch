@@ -1,0 +1,38 @@
+From: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+Date: Sun, 08 Nov 2026 10:23:51 +0800
+Subject: [PATCH] wifi: ath11k: Correctly copy the hint BSSID in WMI scan
+ request
+
+Currently, in ath11k_wmi_send_scan_start_cmd(), the logic to populate
+the hint_bssid copies the BSSID in the wrong direction, from the
+firmware message to the argument buffer. Swap the parameters so that
+the BSSID is correctly populated in the firmware message from the
+argument buffer.
+
+This issue was reported on ath12k, but exists in ath11k as well.
+
+Compile tested only.
+
+Reported-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Closes: https://lore.kernel.org/linux-wireless/afbff608-a005-43c4-af76-968a58bf0cc3@oss.qualcomm.com/
+Fixes: 74601ecfef6e ("ath11k: Add support for 6g scan hint")
+Assisted-by: Claude:claude-sonnet-4-6
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260713-ath12k_wmi_send_scan_start_cmd-bad-hint_bssid-v1-2-4ffc4a472992@oss.qualcomm.com
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath11k/wmi.c
++++ b/drivers/net/wireless/ath/ath11k/wmi.c
+@@ -2429,8 +2429,8 @@
+ 		for (i = 0; i < params->num_hint_bssid; ++i) {
+ 			hint_bssid->freq_flags =
+ 				params->hint_bssid[i].freq_flags;
+-			ether_addr_copy(&params->hint_bssid[i].bssid.addr[0],
+-					&hint_bssid->bssid.addr[0]);
++			ether_addr_copy(&hint_bssid->bssid.addr[0],
++					&params->hint_bssid[i].bssid.addr[0]);
+ 			hint_bssid++;
+ 		}
+ 	}

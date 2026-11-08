@@ -1,0 +1,36 @@
+From: Mikhail Lobanov <m.lobanov@rosalinux.ru>
+Date: Sun, 08 Nov 2026 10:23:51 +0800
+Subject: [PATCH] wifi: ath11k: modify null check logic in
+ ath11k_ce_rx_post_pipe()
+
+The previous logic in ath11k_ce_rx_post_pipe() incorrectly required both
+dest_ring and status_ring to be NULL in order to exit the function.
+This caused the function to continue even if only one of the pointers
+was NULL, potentially leading to null pointer dereferences in
+ath11k_ce_rx_buf_enqueue_pipe().
+
+Fix the condition by modifying the logic so that the function returns
+early if either dest_ring or status_ring is NULL.
+
+Found by Linux Verification Center (linuxtesting.org) with SVACE.
+
+Fixes: d5c65159f289 ("ath11k: driver for Qualcomm IEEE 802.11ax devices")
+Signed-off-by: Mikhail Lobanov <m.lobanov@rosalinux.ru>
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Acked-by: Jeff Johnson <quic_jjohnson@quicinc.com>
+Link: https://patch.msgid.link/20240909150824.28195-1-m.lobanov@rosalinux.ru
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath11k/ce.c
++++ b/drivers/net/wireless/ath/ath11k/ce.c
+@@ -325,7 +325,7 @@
+ 	dma_addr_t paddr;
+ 	int ret = 0;
+ 
+-	if (!(pipe->dest_ring || pipe->status_ring))
++	if (!pipe->dest_ring || !pipe->status_ring)
+ 		return 0;
+ 
+ 	spin_lock_bh(&ab->ce.ce_lock);

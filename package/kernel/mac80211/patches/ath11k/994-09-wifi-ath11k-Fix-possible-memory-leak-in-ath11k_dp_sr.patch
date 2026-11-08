@@ -1,0 +1,40 @@
+From: Abdun Nihaal <nihaal@cse.iitm.ac.in>
+Date: Sun, 08 Nov 2026 10:23:51 +0800
+Subject: [PATCH] wifi: ath11k: Fix possible memory leak in
+ ath11k_dp_srng_setup()
+
+In ath11k_dp_srng_setup(), the memory allocated for
+ring->vaddr_unaligned is not freed in the error paths that follow.
+Fix that by calling ath11k_dp_srng_cleanup() in those error paths.
+
+Compile tested only. Issue found using a prototype static analysis tool
+built on the LLVM compiler infrastructure.
+
+Fixes: d5c65159f289 ("ath11k: driver for Qualcomm IEEE 802.11ax devices")
+Cc: stable@vger.kernel.org
+Assisted-by: Claude:claude-sonnet-4-6
+Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
+Signed-off-by: Abdun Nihaal <nihaal@cse.iitm.ac.in>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
+Link: https://patch.msgid.link/20260801114911.91483-1-nihaal@cse.iitm.ac.in
+Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath11k/dp.c
++++ b/drivers/net/wireless/ath/ath11k/dp.c
+@@ -313,6 +313,7 @@
+ 	case HAL_RXDMA_DIR_BUF:
+ 		break;
+ 	default:
++		ath11k_dp_srng_cleanup(ab, ring);
+ 		ath11k_warn(ab, "Not a valid ring type in dp :%d\n", type);
+ 		return -EINVAL;
+ 	}
+@@ -324,6 +325,7 @@
+ 
+ 	ret = ath11k_hal_srng_setup(ab, type, ring_num, mac_id, &params);
+ 	if (ret < 0) {
++		ath11k_dp_srng_cleanup(ab, ring);
+ 		ath11k_warn(ab, "failed to setup srng: %d ring_id %d\n",
+ 			    ret, ring_num);
+ 		return ret;
