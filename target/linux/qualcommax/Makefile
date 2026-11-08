@@ -16,7 +16,7 @@ DEFAULT_PACKAGES += \
 	kmod-ath11k kmod-ath11k-ahb kmod-ath11k-pci kmod-dsa kmod-dsa-qca8k kmod-phy-aquantia kmod-phy-qca83xx \
 	kmod-fs-ext4 kmod-fs-f2fs kmod-gpio-button-hotplug kmod-leds-gpio kmod-leds-pwm \
 	kmod-usb3 kmod-usb-dwc3 kmod-usb-dwc3-qcom kmod-usb-serial-qualcomm \
-	tc-tiny kmod-sched-flower kmod-sched-prio kmod-sched-act-police kmod-nss-wifi-drv \
+	tc-tiny kmod-sched-flower kmod-sched-prio kmod-sched-act-police \
 	kmod-sched-act-pedit kmod-sched-mqprio kmod-sched-ets kmod-sched-act-vlan dcb \
 	qca-ppe-qos luci-app-qca-ppe-qos luci-i18n-qca-ppe-qos-zh-cn
 
