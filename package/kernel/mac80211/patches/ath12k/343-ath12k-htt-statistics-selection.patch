@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: control HTT statistics and validate vendor layouts
 
 Consolidate consecutive changes within this functional responsibility.
@@ -8,12 +8,11 @@ Retain the final implementation and its error handling directly.
 Merged from:
   343-ath12k-allow-clearing-htt-statistics-selection.patch
   344-ath12k-guard-vendor-pdev-statistics-layout.patch
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -1225,6 +1225,8 @@ struct ath12k_fw_stats_bcn {
+@@ -1224,6 +1224,8 @@
  
  struct ath12k_fw_stats_pdev {
  	struct list_head list;
@@ -24,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	s32 ch_noise_floor;
 --- a/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.c
 +++ b/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.c
-@@ -6193,7 +6193,7 @@ static ssize_t ath12k_write_htt_stats_ty
+@@ -6193,7 +6193,7 @@
  	if (count > size)
  		return -EINVAL;
  
@@ -33,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!buf)
  		return -ENOMEM;
  
-@@ -6202,11 +6202,13 @@ static ssize_t ath12k_write_htt_stats_ty
+@@ -6202,11 +6202,13 @@
  
  	num_args = sscanf(buf, "%u %u %u %u %u\n", &type, &cfg_param[0],
  			  &cfg_param[1], &cfg_param[2], &cfg_param[3]);
@@ -52,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wiphy_lock(ath12k_ar_to_hw(ar)->wiphy);
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -8382,8 +8382,15 @@ ath12k_wmi_fw_pdev_stats_dump(struct ath
+@@ -8382,8 +8382,15 @@
  
  	ath12k_wmi_fw_pdev_base_stats_dump(pdev, buf, &len,
  					   ar->ab->fw_soc_drop_count);
@@ -70,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	*length = len;
  }
-@@ -8539,6 +8546,7 @@ static int ath12k_wmi_tlv_fw_stats_data_
+@@ -8539,6 +8546,7 @@
  	struct ath12k *ar;
  	struct ath12k_link_vif *arvif;
  	struct ath12k_link_sta *arsta;
@@ -78,11 +77,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int i, ret = 0;
  	const void *data = ptr;
  
-@@ -8616,28 +8624,55 @@ static int ath12k_wmi_tlv_fw_stats_data_
+@@ -8616,28 +8624,55 @@
  		stats->stats_id = WMI_REQUEST_BCN_STAT;
  		list_add_tail(&dst->list, &stats->bcn);
  	}
 -	for (i = 0; i < le32_to_cpu(ev->num_pdev_stats); i++) {
+-		const struct ath12k_wmi_pdev_stats_params *src;
+-		struct ath12k_fw_stats_pdev *dst;
+-
+-		src = data;
+-		if (len < sizeof(*src)) {
 +	num_pdev = le32_to_cpu(ev->num_pdev_stats);
 +	pdev_len = sizeof(struct ath12k_wmi_pdev_stats_params);
 +	/* A pure PDEV array has no unparsed sections after it. Its record
@@ -99,21 +103,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	    !le32_to_cpu(ev->num_peer_extd2_stats)) {
 +		if (len % num_pdev ||
 +		    len / num_pdev < sizeof(struct ath12k_wmi_pdev_base_stats_params)) {
-+			ret = -EPROTO;
-+			goto exit;
-+		}
-+		pdev_len = len / num_pdev;
-+	}
-+	for (i = 0; i < num_pdev; i++) {
- 		const struct ath12k_wmi_pdev_stats_params *src;
- 		struct ath12k_fw_stats_pdev *dst;
- 
- 		src = data;
--		if (len < sizeof(*src)) {
-+		if (len < pdev_len) {
  			ret = -EPROTO;
  			goto exit;
  		}
++		pdev_len = len / num_pdev;
++	}
++	for (i = 0; i < num_pdev; i++) {
++		const struct ath12k_wmi_pdev_stats_params *src;
++		struct ath12k_fw_stats_pdev *dst;
++
++		src = data;
++		if (len < pdev_len) {
++			ret = -EPROTO;
++			goto exit;
++		}
  
  		stats->stats_id = WMI_REQUEST_PDEV_STAT;
  

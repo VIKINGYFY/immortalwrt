@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Fri, 06 Nov 2026 16:38:10 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: quiesce recovery and MHI on teardown
 
 Firmware recovery powers MHI up before the data path sets PCI INIT_DONE.
@@ -18,9 +18,53 @@ is destroying the radio. Drain QMI events and restart work before the
 device teardown, and reject FW_READY once unregistering starts. This
 prevents the restart worker from unregistering thermal/hwmon twice. Apply
 the same event-before-restart drain order to AHB removal.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
+--- a/drivers/net/wireless/ath/ath12k/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/ahb.c
+@@ -1376,8 +1376,8 @@
+ 	}
+ 
+ 	set_bit(ATH12K_FLAG_UNREGISTERING, &ab->dev_flags);
++	cancel_work_sync(&ab->qmi.event_work);
+ 	cancel_work_sync(&ab->restart_work);
+-	cancel_work_sync(&ab->qmi.event_work);
+ }
+ 
+ static void ath12k_ahb_free_resources(struct ath12k_base *ab)
+--- a/drivers/net/wireless/ath/ath12k/mhi.c
++++ b/drivers/net/wireless/ath/ath12k/mhi.c
+@@ -288,6 +288,8 @@
+ {
+ 	struct mhi_controller *mhi_ctrl = ab_pci->mhi_ctrl;
+ 
++	/* Remove channel devices before freeing their controller storage. */
++	ath12k_mhi_stop(ab_pci, false);
+ 	mhi_unregister_controller(mhi_ctrl);
+ 	kfree(mhi_ctrl->irq);
+ 	mhi_free_controller(mhi_ctrl);
+@@ -513,12 +515,15 @@
+ 	 * workaround, otherwise ath12k_core_resume() will timeout
+ 	 * during resume.
+ 	 */
+-	if (is_suspend)
+-		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF_KEEP_DEV);
+-	else
+-		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF);
+-
+-	ath12k_mhi_set_state(ab_pci, ATH12K_MHI_DEINIT);
++	if (test_bit(ATH12K_MHI_POWER_ON, &ab_pci->mhi_state)) {
++		if (is_suspend)
++			ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF_KEEP_DEV);
++		else
++			ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF);
++	}
++
++	if (test_bit(ATH12K_MHI_INIT, &ab_pci->mhi_state))
++		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_DEINIT);
+ }
+ 
+ void ath12k_mhi_suspend(struct ath12k_pci *ab_pci)
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
 @@ -1479,7 +1479,10 @@
@@ -45,41 +89,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	cancel_work_sync(&ab->dump_work);
  	ath12k_core_hw_group_cleanup(ab->ag);
  
---- a/drivers/net/wireless/ath/ath12k/mhi.c
-+++ b/drivers/net/wireless/ath/ath12k/mhi.c
-@@ -288,6 +288,8 @@
- {
- 	struct mhi_controller *mhi_ctrl = ab_pci->mhi_ctrl;
- 
-+	/* Remove channel devices before freeing their controller storage. */
-+	ath12k_mhi_stop(ab_pci, false);
- 	mhi_unregister_controller(mhi_ctrl);
- 	kfree(mhi_ctrl->irq);
- 	mhi_free_controller(mhi_ctrl);
-@@ -513,12 +515,15 @@
- 	 * workaround, otherwise ath12k_core_resume() will timeout
- 	 * during resume.
- 	 */
--	if (is_suspend)
--		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF_KEEP_DEV);
--	else
--		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF);
-+	if (test_bit(ATH12K_MHI_POWER_ON, &ab_pci->mhi_state)) {
-+		if (is_suspend)
-+			ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF_KEEP_DEV);
-+		else
-+			ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF);
-+	}
- 
--	ath12k_mhi_set_state(ab_pci, ATH12K_MHI_DEINIT);
-+	if (test_bit(ATH12K_MHI_INIT, &ab_pci->mhi_state))
-+		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_DEINIT);
- }
- 
- void ath12k_mhi_suspend(struct ath12k_pci *ab_pci)
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -4456,6 +4456,9 @@
+@@ -4343,6 +4343,9 @@
  				set_bit(ATH12K_FLAG_QMI_FAIL, &ab->dev_flags);
  			break;
  		case ATH12K_QMI_EVENT_FW_READY:
@@ -89,15 +101,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			clear_bit(ATH12K_FLAG_QMI_FAIL, &ab->dev_flags);
  			if (test_bit(ATH12K_FLAG_QMI_FW_READY_COMPLETE, &ab->dev_flags)) {
  				if (ab->is_reset)
---- a/drivers/net/wireless/ath/ath12k/ahb.c
-+++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -1376,8 +1376,8 @@
- 	}
- 
- 	set_bit(ATH12K_FLAG_UNREGISTERING, &ab->dev_flags);
--	cancel_work_sync(&ab->restart_work);
- 	cancel_work_sync(&ab->qmi.event_work);
-+	cancel_work_sync(&ab->restart_work);
- }
- 
- static void ath12k_ahb_free_resources(struct ath12k_base *ab)

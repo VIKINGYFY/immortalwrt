@@ -1,6 +1,5 @@
-From af50baccaa5fab96b045700a8dc378f73c77822c Mon Sep 17 00:00:00 2001
 From: Daizhuang Bai <daizhuang.bai@oss.qualcomm.com>
-Date: Fri, 17 Jul 2026 07:13:02 +0530
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: Set DTIM policy to stick mode for station
  interface
 
@@ -23,17 +22,15 @@ Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Link: https://patch.msgid.link/20260717014302.284034-1-daizhuang.bai@oss.qualcomm.com
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
----
- drivers/net/wireless/ath/ath12k/mac.c | 11 +++++++++++
- drivers/net/wireless/ath/ath12k/wmi.h |  7 +++++++
- 2 files changed, 18 insertions(+)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -4047,6 +4047,17 @@ static void ath12k_bss_assoc(struct ath1
+@@ -4046,6 +4046,17 @@
+ 	if (ret)
  		ath12k_warn(ar->ab, "failed to set vdev %i OBSS PD parameters: %d\n",
  			    arvif->vdev_id, ret);
- 
++
 +	if (ar->ab->hw_params->supports_sta_ps &&
 +	    ahvif->vdev_type == WMI_VDEV_TYPE_STA &&
 +	    ahvif->vdev_subtype == WMI_VDEV_SUBTYPE_NONE) {
@@ -44,13 +41,12 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 +			ath12k_warn(ar->ab, "failed to set vdev %d stick DTIM policy: %d\n",
 +				    arvif->vdev_id, ret);
 +	}
-+
+ 
  	if (test_bit(WMI_TLV_SERVICE_11D_OFFLOAD, ar->ab->wmi_ab.svc_map) &&
  	    ahvif->vdev_type == WMI_VDEV_TYPE_STA &&
- 	    ahvif->vdev_subtype == WMI_VDEV_SUBTYPE_NONE)
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -2331,6 +2331,13 @@ enum wmi_slot_time {
+@@ -2331,6 +2331,13 @@
  	WMI_VDEV_SLOT_TIME_SHORT = 2,
  };
  

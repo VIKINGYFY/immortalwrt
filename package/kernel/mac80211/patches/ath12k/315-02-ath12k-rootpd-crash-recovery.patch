@@ -1,5 +1,5 @@
 From: Akshay Kakatkar <me@kakatkarakshay.dev>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: report rootPD crashes and recover the WSI group
 
 The AHB driver currently uses the Qualcomm SSR notifier only to wait for
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -357,6 +357,7 @@ static int ath12k_ahb_power_up(struct at
+@@ -357,6 +357,7 @@
  	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
  	char fw_name[ATH12K_USERPD_FW_NAME_LEN];
  	char fw2_name[ATH12K_USERPD_FW_NAME_LEN];
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct device *dev = ab->dev;
  	const struct firmware *fw, *fw2;
  	struct reserved_mem *rmem = NULL;
-@@ -453,6 +454,9 @@ static int ath12k_ahb_power_up(struct at
+@@ -453,6 +454,9 @@
  		}
  	}
  
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Instruct Q6 to spawn userPD thread */
  	ret = qcom_smem_state_update_bits(ab_ahb->spawn_state, BIT(ab_ahb->spawn_bit),
  					  BIT(ab_ahb->spawn_bit));
-@@ -460,6 +464,7 @@ static int ath12k_ahb_power_up(struct at
+@@ -460,6 +464,7 @@
  		ath12k_err(ab, "Failed to update spawn state %d\n", ret);
  		goto err_fw2;
  	}
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	time_left = wait_for_completion_timeout(&ab_ahb->userpd_spawned,
  						ATH12K_USERPD_SPAWN_TIMEOUT);
-@@ -477,11 +482,13 @@ static int ath12k_ahb_power_up(struct at
+@@ -477,11 +482,13 @@
  		goto err_fw2;
  	}
  
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	release_firmware(fw2);
  err_fw:
  	release_firmware(fw);
-@@ -495,6 +502,10 @@ static void ath12k_ahb_power_down(struct
+@@ -495,6 +502,10 @@
  	u32 pasid;
  	int ret;
  
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	qcom_smem_state_update_bits(ab_ahb->stop_state, BIT(ab_ahb->stop_bit),
  				    BIT(ab_ahb->stop_bit));
  
-@@ -809,18 +820,85 @@ static int ath12k_ahb_config_rproc_irq(s
+@@ -809,18 +820,85 @@
  	return 0;
  }
  
@@ -138,13 +138,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ath12k_ahb *ab_ahb = container_of(nb, struct ath12k_ahb, root_pd_nb);
  	struct ath12k_base *ab = ab_ahb->ab;
-+	struct qcom_ssr_notify_data *notify_data = data;
- 
+-
 -	if (event == ATH12K_RPROC_AFTER_POWERUP) {
++	struct qcom_ssr_notify_data *notify_data = data;
++
 +	switch (event) {
 +	case QCOM_SSR_AFTER_POWERUP:
  		ath12k_dbg(ab, ATH12K_DBG_AHB, "Root PD is UP\n");
  		complete(&ab_ahb->rootpd_ready);
+-	}
+-
+-	return 0;
 +		if (ab_ahb->rootpd_crashed)
 +			ath12k_ahb_queue_group_recovery(ab);
 +		return NOTIFY_OK;
@@ -164,16 +168,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ath12k_warn(ab, "rootPD crashed; releasing userPD for coredump\n");
 +		ath12k_ahb_release_crashed_userpd(ab);
 +		return NOTIFY_OK;
- 	}
- 
--	return 0;
++	}
++
 +	return NOTIFY_DONE;
  }
  
  static int ath12k_ahb_register_rproc_notifier(struct ath12k_base *ab)
 --- a/drivers/net/wireless/ath/ath12k/ahb.h
 +++ b/drivers/net/wireless/ath/ath12k/ahb.h
-@@ -69,6 +69,7 @@ struct ath12k_ahb {
+@@ -69,6 +69,7 @@
  	const struct ath12k_ahb_ops *ahb_ops;
  	const struct ath12k_ahb_device_family_ops *device_family_ops;
  	bool scm_auth_enabled;

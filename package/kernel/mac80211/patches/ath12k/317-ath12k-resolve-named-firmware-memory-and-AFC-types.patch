@@ -1,0 +1,104 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 08 Nov 2026 10:27:29 +0800
+Subject: [PATCH] wifi: ath12k: resolve named firmware memory and AFC types
+
+Resolve shared AHB and MLO reservations by name and describe AFC
+memory in the QMI and coredump ABI. PCI target memory uses the ordinary
+coherent DMA allocator; no supported board supplies fixed PCI host DDR.
+Keep the common named-region helper for AHB, CALDB, M3 and shared MLO.
+
+Split from:
+  317-ath12k-use-reserved-pci-host-ddr.patch - wifi: ath12k: use fixed host DDR for PCI firmware
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -664,6 +664,33 @@
+ 	return rmem;
+ }
+ 
++struct reserved_mem *ath12k_core_get_rmem_by_name(struct ath12k_base *ab, const char *name)
++{
++	struct device_node *node;
++	struct reserved_mem *rmem;
++	int index;
++
++	index = of_property_match_string(ab->dev->of_node,
++					 "memory-region-names", name);
++	if (index < 0)
++		return NULL;
++
++	node = of_parse_phandle(ab->dev->of_node, "memory-region", index);
++	if (!node) {
++		ath12k_dbg(ab, ATH12K_DBG_BOOT,
++			   "failed to parse memory region %s\n", name);
++		return NULL;
++	}
++
++	rmem = of_reserved_mem_lookup(node);
++	of_node_put(node);
++	if (!rmem)
++		ath12k_dbg(ab, ATH12K_DBG_BOOT,
++			   "unable to get memory region %s\n", name);
++
++	return rmem;
++}
++
+ static inline
+ void ath12k_core_to_group_ref_get(struct ath12k_base *ab)
+ {
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -1307,6 +1307,7 @@
+ void ath12k_fw_stats_reset(struct ath12k *ar);
+ struct reserved_mem *ath12k_core_get_reserved_mem(struct ath12k_base *ab,
+ 						  int index);
++struct reserved_mem *ath12k_core_get_rmem_by_name(struct ath12k_base *ab, const char *name);
+ enum ath12k_qmi_mem_mode ath12k_core_get_memory_mode(struct ath12k_base *ab);
+ 
+ static inline const char *ath12k_scan_state_str(enum ath12k_scan_state state)
+--- a/drivers/net/wireless/ath/ath12k/coredump.c
++++ b/drivers/net/wireless/ath/ath12k/coredump.c
+@@ -15,6 +15,7 @@
+ 
+ 	switch (type) {
+ 	case HOST_DDR_REGION_TYPE:
++	case AFC_REGION_TYPE:
+ 		dump_type = FW_CRASH_DUMP_REMOTE_MEM_DATA;
+ 		break;
+ 	case M3_DUMP_REGION_TYPE:
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -2660,8 +2660,7 @@
+ 
+ 		fixed_mem = true;
+ 
+-		/* The IPQ5332 binding defines MLO global memory as region 3. */
+-		*rmem = ath12k_core_get_reserved_mem(partner_ab, 3);
++		*rmem = ath12k_core_get_rmem_by_name(partner_ab, "mlo-global-mem");
+ 		if (*rmem)
+ 			return 0;
+ 	}
+--- a/drivers/net/wireless/ath/ath12k/qmi.h
++++ b/drivers/net/wireless/ath/ath12k/qmi.h
+@@ -29,6 +29,9 @@
+ #define ATH12K_QMI_FW_MEM_REQ_SEGMENT_CNT	3
+ #define ATH12K_QMI_WLFW_MAX_DEV_MEM_NUM_V01 4
+ #define ATH12K_QMI_DEVMEM_CMEM_INDEX	0
++#define AFC_SLOT_SIZE			0x1000
++#define AFC_MAX_SLOT			2
++#define AFC_MEM_SIZE			(AFC_SLOT_SIZE * AFC_MAX_SLOT)
+ 
+ #define QMI_WLFW_REQUEST_MEM_IND_V01		0x0035
+ #define QMI_WLFW_FW_MEM_READY_IND_V01		0x0037
+@@ -178,6 +181,7 @@
+ 	CALDB_MEM_REGION_TYPE = 0x4,
+ 	MLO_GLOBAL_MEM_REGION_TYPE = 0x8,
+ 	PAGEABLE_MEM_REGION_TYPE = 0x9,
++	AFC_REGION_TYPE = 0xa,
+ 	LPASS_SHARED_V01_REGION_TYPE = 0xb,
+ };
+ 

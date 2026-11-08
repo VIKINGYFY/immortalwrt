@@ -1,5 +1,5 @@
 From: Akshay Kakatkar <me@kakatkarakshay.dev>
-Date: Thu, 05 Nov 2026 15:55:19 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: select valid link for unspecified TX link
 
 Group frames without a STA and an explicit link can select a deflink
@@ -11,10 +11,10 @@ perceival/openwrt-flint3 commit 2365932733ca8ec3b346621d9cec2eb3df3b2cf3.
 
 Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -9589,12 +9589,17 @@ u8 ath12k_mac_get_tx_link(struct ieee802
+@@ -9589,11 +9589,16 @@
  	struct ieee80211_link_sta *link_sta;
  	struct ieee80211_bss_conf *bss_conf;
  	struct ath12k_sta *ahsta;
@@ -24,11 +24,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!sta) {
  		if (link != IEEE80211_LINK_UNSPECIFIED)
  			return link;
- 
++
 +		links_map = vif->active_links & ahvif->links_map;
 +		if (links_map)
 +			return __ffs(links_map);
-+
+ 
  		return ahvif->deflink.link_id;
  	}
- 

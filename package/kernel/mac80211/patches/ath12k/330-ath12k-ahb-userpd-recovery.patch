@@ -1,5 +1,5 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: recover AHB UserPD failures and independent reloads
 
 The IPQ5332 DT exposes a UserPD fatal interrupt but ath12k only requests
@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static const char *irq_name[ATH12K_IRQ_NUM_MAX] = {
  	"misc-pulse1",
-@@ -358,6 +363,7 @@ static int ath12k_ahb_power_up(struct at
+@@ -358,6 +363,7 @@
  	char fw_name[ATH12K_USERPD_FW_NAME_LEN];
  	char fw2_name[ATH12K_USERPD_FW_NAME_LEN];
  	bool spawn_requested = false;
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct device *dev = ab->dev;
  	const struct firmware *fw, *fw2;
  	struct reserved_mem *rmem = NULL;
-@@ -368,18 +374,26 @@ static int ath12k_ahb_power_up(struct at
+@@ -368,18 +374,26 @@
  	u32 pasid;
  	int ret;
  
@@ -74,6 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		ath12k_err(ab, "unable to map memory region: %pa+%pa\n",
 -			   &rmem->base, &rmem->size);
 -		return PTR_ERR(mem_region);
+-	}
 +	if (!ab_ahb->userpd_mem_region) {
 +		ab_ahb->userpd_mem_phys = rmem->base;
 +		ab_ahb->userpd_mem_size = rmem->size;
@@ -86,14 +87,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				   &rmem->base, &rmem->size, ret);
 +			return ret;
 +		}
- 	}
++	}
 +	mem_phys = ab_ahb->userpd_mem_phys;
 +	mem_size = ab_ahb->userpd_mem_size;
 +	mem_region = ab_ahb->userpd_mem_region;
  
  	ret = ath12k_ahb_get_firmware_name(ab, 0, fw_name, sizeof(fw_name));
  	if (ret) {
-@@ -406,12 +420,14 @@ static int ath12k_ahb_power_up(struct at
+@@ -406,12 +420,14 @@
  		ATH12K_AHB_UPD_SWID;
  
  	/* Load FW image to a reserved memory location */
@@ -110,7 +111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		ath12k_err(ab, "Failed to load MDT segments: %d\n", ret);
  		goto err_fw;
-@@ -483,6 +499,7 @@ static int ath12k_ahb_power_up(struct at
+@@ -483,6 +499,7 @@
  	}
  
  	ab_ahb->rootpd_crashed = false;
@@ -118,7 +119,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_dbg(ab, ATH12K_DBG_AHB, "UserPD%d is now UP\n", ab_ahb->userpd_id);
  
  err_fw2:
-@@ -492,6 +509,15 @@ err_fw2:
+@@ -492,6 +509,15 @@
  	release_firmware(fw2);
  err_fw:
  	release_firmware(fw);
@@ -134,7 +135,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -505,15 +531,18 @@ static void ath12k_ahb_power_down(struct
+@@ -505,15 +531,18 @@
  	if (ab_ahb->rootpd_crashed)
  		return;
  
@@ -162,7 +163,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	qcom_smem_state_update_bits(ab_ahb->stop_state, BIT(ab_ahb->stop_bit), 0);
-@@ -754,6 +783,38 @@ static const struct ath12k_hif_ops ath12
+@@ -754,6 +783,38 @@
  	.power_down = ath12k_ahb_power_down,
  };
  
@@ -201,7 +202,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static irqreturn_t ath12k_userpd_irq_handler(int irq, void *data)
  {
  	struct ath12k_base *ab = data;
-@@ -765,6 +826,8 @@ static irqreturn_t ath12k_userpd_irq_han
+@@ -765,6 +826,8 @@
  		complete(&ab_ahb->userpd_ready);
  	} else if (irq == ab_ahb->userpd_irq_num[ATH12K_USERPD_STOP_ACK_IRQ])	{
  		complete(&ab_ahb->userpd_stopped);
@@ -212,7 +213,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return IRQ_NONE;
 --- a/drivers/net/wireless/ath/ath12k/ahb.h
 +++ b/drivers/net/wireless/ath/ath12k/ahb.h
-@@ -39,6 +39,7 @@ enum ath12k_ahb_userpd_irq {
+@@ -39,6 +39,7 @@
  	ATH12K_USERPD_SPAWN_IRQ,
  	ATH12K_USERPD_READY_IRQ,
  	ATH12K_USERPD_STOP_ACK_IRQ,
@@ -220,7 +221,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ATH12K_USERPD_MAX_IRQ,
  };
  
-@@ -54,6 +55,9 @@ struct ath12k_ahb {
+@@ -54,6 +55,9 @@
  	struct ath12k_base *ab;
  	struct rproc *tgt_rproc;
  	struct clk *xo_clk;
@@ -230,7 +231,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct completion rootpd_ready;
  	struct notifier_block root_pd_nb;
  	void *root_pd_notifier;
-@@ -70,6 +74,7 @@ struct ath12k_ahb {
+@@ -70,6 +74,7 @@
  	const struct ath12k_ahb_device_family_ops *device_family_ops;
  	bool scm_auth_enabled;
  	bool rootpd_crashed;

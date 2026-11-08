@@ -1,6 +1,5 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Satoshi Ikeuchi <satosan.ikm@gmail.com>
-Date: Sun, 27 Sep 2026 13:00:00 +0900
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: skip unknown direct buffer capabilities
 
 Firmware can advertise optional direct buffer ring module IDs which the
@@ -22,13 +21,11 @@ cleanup.
 Based-on-patch-by: Nazar Mokrynskyi <nazar@mokrynskyi.com>
 Link: https://github.com/openwrt/openwrt/pull/23001
 Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
----
- drivers/net/wireless/ath/ath12k/wmi.c | 31 ++++++++++++++++---------------
- 1 file changed, 16 insertions(+), 15 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -4917,7 +4917,7 @@ static int ath12k_wmi_dma_ring_caps(stru
+@@ -4917,7 +4917,7 @@
  	struct ath12k_wmi_dma_ring_caps_params *dma_caps;
  	struct ath12k_dbring_cap *dir_buff_caps;
  	int ret;
@@ -37,7 +34,7 @@ Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
  
  	dma_caps_parse->n_dma_ring_caps = 0;
  	dma_caps = (struct ath12k_wmi_dma_ring_caps_params *)ptr;
-@@ -4942,27 +4942,28 @@ static int ath12k_wmi_dma_ring_caps(stru
+@@ -4942,27 +4942,28 @@
  		return ret;
  
  	dir_buff_caps = ab->db_caps;
@@ -62,21 +59,22 @@ Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
 -		dir_buff_caps[i].min_elem = le32_to_cpu(dma_caps[i].min_elem);
 -		dir_buff_caps[i].min_buf_sz = le32_to_cpu(dma_caps[i].min_buf_sz);
 -		dir_buff_caps[i].min_buf_align = le32_to_cpu(dma_caps[i].min_buf_align);
+-	}
 +		dir_buff_caps[j].min_elem = le32_to_cpu(dma_caps[i].min_elem);
 +		dir_buff_caps[j].min_buf_sz = le32_to_cpu(dma_caps[i].min_buf_sz);
 +		dir_buff_caps[j].min_buf_align = le32_to_cpu(dma_caps[i].min_buf_align);
 +		j++;
- 	}
- 
--	return 0;
++	}
++
 +	ab->num_db_cap = j;
 +	if (!j)
 +		ath12k_wmi_free_dbring_caps(ab);
  
+ 	return 0;
+-
 -free_dir_buff:
 -	ath12k_wmi_free_dbring_caps(ab);
 -	return ret;
-+	return 0;
  }
  
  static void

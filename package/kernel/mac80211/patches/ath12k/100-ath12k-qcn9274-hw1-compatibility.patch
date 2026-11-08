@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 4 Nov 2026 11:30:00 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: support QCN9274 HW1 startup and RX
 
 Consolidate consecutive changes within this functional responsibility.
@@ -9,9 +9,10 @@ Merged from:
   100-01-ath12k-prevent-ltssm-startup-crash.patch
   100-02-wifi-ath12k-restore-qcn9274-hw10-rx-support.patch
 
-Signed-off-by: ViKing <viking.yfy@qq.com>
 
 diff --git a/drivers/net/wireless/ath/ath12k/pci.c b/drivers/net/wireless/ath/ath12k/pci.c
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
 @@ -249,6 +249,9 @@
@@ -24,7 +25,6 @@ diff --git a/drivers/net/wireless/ath/ath12k/pci.c b/drivers/net/wireless/ath/at
  	val = ath12k_pci_read32(ab, PCIE_PCIE_PARF_LTSSM);
  
  	/* PCIE link seems very unstable after the Hot Reset*/
-diff --git a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 @@ -2122,15 +2122,23 @@
@@ -35,6 +35,9 @@ diff --git a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c b/drivers/net/wireles
 -		ath12k_hal_rx_desc_get_mpdu_start_offset_qcn9274();
 -	tlv_filter.rx_msdu_end_offset =
 -		ath12k_hal_rx_desc_get_msdu_end_offset_qcn9274();
+-
+-	tlv_filter.rx_mpdu_start_wmask = ath12k_hal_rx_mpdu_start_wmask_get_qcn9274();
+-	tlv_filter.rx_msdu_end_wmask = ath12k_hal_rx_msdu_end_wmask_get_qcn9274();
 +	if (ab->hw_rev == ATH12K_HW_QCN9274_HW10) {
 +		/* WBE.1.0 does not support the compact TLV word masks. */
 +		tlv_filter.rx_mpdu_start_offset =
@@ -46,9 +49,7 @@ diff --git a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c b/drivers/net/wireles
 +			ath12k_hal_rx_desc_get_mpdu_start_offset_qcn9274();
 +		tlv_filter.rx_msdu_end_offset =
 +			ath12k_hal_rx_desc_get_msdu_end_offset_qcn9274();
- 
--	tlv_filter.rx_mpdu_start_wmask = ath12k_hal_rx_mpdu_start_wmask_get_qcn9274();
--	tlv_filter.rx_msdu_end_wmask = ath12k_hal_rx_msdu_end_wmask_get_qcn9274();
++
 +		tlv_filter.rx_mpdu_start_wmask = ath12k_hal_rx_mpdu_start_wmask_get_qcn9274();
 +		tlv_filter.rx_msdu_end_wmask = ath12k_hal_rx_msdu_end_wmask_get_qcn9274();
 +	}
@@ -58,7 +59,6 @@ diff --git a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c b/drivers/net/wireles
  		   tlv_filter.rx_mpdu_start_wmask, tlv_filter.rx_msdu_end_wmask);
  
  	ret = ath12k_dp_tx_htt_rx_filter_setup(ab, ring_id, 0,
-diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal.c b/drivers/net/wireless/ath/ath12k/wifi7/hal.c
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal.c
 @@ -16,8 +16,8 @@
@@ -72,13 +72,14 @@ diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal.c b/drivers/net/wireless/
  		.tcl_to_wbm_rbm_map = ath12k_hal_tcl_to_wbm_rbm_map_qcn9274,
  		.hal_params = &ath12k_hw_hal_params_qcn9274,
  		.hw_regs = &qcn9274_v1_regs,
-diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -1098,6 +1098,378 @@
+@@ -1096,6 +1096,378 @@
+ 		.wbm_ring_num = 4,
+ 		.rbm_id = HAL_RX_BUF_RBM_SW4_BM,
  	},
- };
- 
++};
++
 +/* Full RX TLV accessors for the WBE.1.0 firmware used by hw1.0. */
 +static bool ath12k_hal_rx_desc_get_first_msdu_qcn9274_hw10(struct hal_rx_desc *desc)
 +{
@@ -449,12 +450,9 @@ diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c b/drivers/net/w
 +	.reo_status_dec_tlv_hdr = ath12k_hal_reo_status_dec_tlv_hdr_qcn9274,
 +	.mon_rx_status_dec_tlv_hdr = ath12k_hal_decode_tlv64_hdr,
 +	.get_tlv_hdr_align = ath12k_hal_get_tlv64_hdr_align,
-+};
-+
+ };
+ 
  const struct hal_ops hal_qcn9274_ops = {
- 	.create_srng_config = ath12k_hal_srng_create_config_qcn9274,
- 	.rx_desc_set_msdu_len = ath12k_hal_rx_desc_set_msdu_len_qcn9274,
-diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h
 @@ -14,6 +14,7 @@
@@ -465,7 +463,6 @@ diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h b/drivers/net/w
  extern const struct ath12k_hw_regs qcn9274_v1_regs;
  extern const struct ath12k_hw_regs qcn9274_v2_regs;
  extern const struct ath12k_hw_regs ipq5332_regs;
-diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h b/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
 @@ -1454,6 +1454,13 @@
@@ -490,7 +487,6 @@ diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h b/drivers/net/w
  		struct hal_rx_desc_qcn9274_compact qcn9274_compact;
  		struct hal_rx_desc_wcn7850 wcn7850;
  		struct hal_rx_desc_qcc2072 qcc2072;
-diff --git a/drivers/net/wireless/ath/ath12k/wifi7/hw.c b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 @@ -382,7 +382,7 @@

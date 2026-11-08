@@ -1,5 +1,5 @@
 From: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: decode and validate monitor descriptors across hardware revisions
 
 HAL_TLV_HDR_LEN was using the wrong bitmask; fix it to cover bits [21:10].
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -49,7 +49,7 @@ ath12k_mem_profile_based_param ath12k_me
+@@ -49,7 +49,7 @@
  		.dp_params = {
  			.tx_comp_ring_size = 32768,
  			.rxdma_monitor_buf_ring_size = 4096,
@@ -89,21 +89,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.rx_release_ring_size = 16384,
 --- a/drivers/net/wireless/ath/ath12k/dp_mon.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_mon.c
-@@ -493,12 +493,8 @@ EXPORT_SYMBOL(ath12k_dp_mon_update_radio
+@@ -493,12 +493,8 @@
  void ath12k_dp_mon_rx_deliver_msdu(struct ath12k_pdev_dp *dp_pdev,
  				   struct napi_struct *napi,
  				   struct sk_buff *msdu,
 -				   const struct hal_rx_mon_ppdu_info *ppduinfo,
 -				   struct ieee80211_rx_status *status,
 -				   u8 decap)
-+				   struct ieee80211_rx_status *status)
- {
+-{
 -	struct ath12k_dp *dp = dp_pdev->dp;
 -	struct ath12k_base *ab = dp->ab;
++				   struct ieee80211_rx_status *status)
++{
  	static const struct ieee80211_radiotap_he known = {
  		.data1 = cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_DATA_MCS_KNOWN |
  				     IEEE80211_RADIOTAP_HE_DATA1_BW_RU_ALLOC_KNOWN),
-@@ -506,14 +502,6 @@ void ath12k_dp_mon_rx_deliver_msdu(struc
+@@ -506,14 +502,6 @@
  	};
  	struct ieee80211_rx_status *rx_status;
  	struct ieee80211_radiotap_he *he = NULL;
@@ -118,7 +119,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	status->link_valid = 0;
  
-@@ -524,64 +512,10 @@ void ath12k_dp_mon_rx_deliver_msdu(struc
+@@ -524,64 +512,10 @@
  		status->flag |= RX_FLAG_RADIOTAP_HE;
  	}
  
@@ -186,7 +187,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/dp_mon.h
 +++ b/drivers/net/wireless/ath/ath12k/dp_mon.h
-@@ -112,9 +112,7 @@ void ath12k_dp_mon_update_radiotap(struc
+@@ -112,9 +112,7 @@
  void ath12k_dp_mon_rx_deliver_msdu(struct ath12k_pdev_dp *dp_pdev,
  				   struct napi_struct *napi,
  				   struct sk_buff *msdu,
@@ -199,7 +200,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			    struct dp_mon_mpdu *mon_mpdu,
 --- a/drivers/net/wireless/ath/ath12k/hal.c
 +++ b/drivers/net/wireless/ath/ath12k/hal.c
-@@ -828,8 +828,8 @@ void *ath12k_hal_encode_tlv64_hdr(void *
+@@ -828,8 +828,8 @@
  {
  	struct hal_tlv_64_hdr *tlv64 = tlv;
  
@@ -210,7 +211,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return tlv64->value;
  }
-@@ -846,26 +846,44 @@ void *ath12k_hal_encode_tlv32_hdr(void *
+@@ -846,26 +846,44 @@
  }
  EXPORT_SYMBOL(ath12k_hal_encode_tlv32_hdr);
  
@@ -219,17 +220,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct hal_tlv_64_hdr *tlv64 = tlv;
 -	u16 tag;
- 
+-
 -	tag = le64_get_bits(tlv64->tl, HAL_SRNG_TLV_HDR_TAG);
 -	*desc = tlv64->value;
+-
+-	return tag;
++
 +	if (tag)
 +		*tag = le64_get_bits(tlv64->tl, HAL_TLV_64_HDR_TAG);
 +	if (len)
 +		*len = le64_get_bits(tlv64->tl, HAL_TLV_64_HDR_LEN);
 +	if (usrid)
 +		*usrid = le64_get_bits(tlv64->tl, HAL_TLV_64_USR_ID);
- 
--	return tag;
++
 +	return tlv64->value;
  }
  EXPORT_SYMBOL(ath12k_hal_decode_tlv64_hdr);
@@ -239,17 +242,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct hal_tlv_hdr *tlv32 = tlv;
 -	u16 tag;
- 
+-
 -	tag = le32_get_bits(tlv32->tl, HAL_SRNG_TLV_HDR_TAG);
 -	*desc = tlv32->value;
+-
+-	return tag;
++
 +	if (tag)
 +		*tag = le32_get_bits(tlv32->tl, HAL_TLV_HDR_TAG);
 +	if (len)
 +		*len = le32_get_bits(tlv32->tl, HAL_TLV_HDR_LEN);
 +	if (usrid)
 +		*usrid = le32_get_bits(tlv32->tl, HAL_TLV_USR_ID);
- 
--	return tag;
++
 +	return tlv32->value;
  }
  EXPORT_SYMBOL(ath12k_hal_decode_tlv32_hdr);
@@ -267,7 +272,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +EXPORT_SYMBOL(ath12k_hal_get_tlv32_hdr_align);
 --- a/drivers/net/wireless/ath/ath12k/hal.h
 +++ b/drivers/net/wireless/ath/ath12k/hal.h
-@@ -1441,10 +1441,12 @@ struct hal_ops {
+@@ -1441,10 +1441,12 @@
  					 u8 *rbm, u32 *msdu_cnt);
  	void *(*reo_cmd_enc_tlv_hdr)(void *tlv, u64 tag, u64 len);
  	u16 (*reo_status_dec_tlv_hdr)(void *tlv, void **desc);
@@ -281,17 +286,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define HAL_TLV_USR_ID		GENMASK(31, 26)
  
  #define HAL_TLV_ALIGN	4
-@@ -1464,9 +1466,6 @@ struct hal_tlv_64_hdr {
+@@ -1463,9 +1465,6 @@
+ 	__le64 tl;
  	u8 value[];
  } __packed;
- 
+-
 -#define HAL_SRNG_TLV_HDR_TAG		GENMASK(9, 1)
 -#define HAL_SRNG_TLV_HDR_LEN		GENMASK(25, 10)
--
+ 
  dma_addr_t ath12k_hal_srng_get_tp_addr(struct ath12k_base *ab,
  				       struct hal_srng *srng);
- dma_addr_t ath12k_hal_srng_get_hp_addr(struct ath12k_base *ab,
-@@ -1556,6 +1555,8 @@ void ath12k_hal_rx_reo_ent_buf_paddr_get
+@@ -1556,6 +1555,8 @@
  					 u8 *rbm, u32 *msdu_cnt);
  void *ath12k_hal_encode_tlv64_hdr(void *tlv, u64 tag, u64 len);
  void *ath12k_hal_encode_tlv32_hdr(void *tlv, u64 tag, u64 len);
@@ -304,7 +309,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_mon.c
-@@ -1565,16 +1565,17 @@ ath12k_wifi7_dp_mon_parse_status_msdu_en
+@@ -1565,16 +1565,17 @@
  static enum hal_rx_mon_status
  ath12k_wifi7_dp_mon_rx_parse_status_tlv(struct ath12k_pdev_dp *dp_pdev,
  					struct ath12k_mon_data *pmon,
@@ -315,21 +320,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -	const void *tlv_data = tlv->value;
 -	u32 info[7], userid;
 -	u16 tlv_tag, tlv_len;
+-
+-	tlv_tag = le64_get_bits(tlv->tl, HAL_TLV_64_HDR_TAG);
+-	tlv_len = le64_get_bits(tlv->tl, HAL_TLV_64_HDR_LEN);
+-	userid = le64_get_bits(tlv->tl, HAL_TLV_64_USR_ID);
 +	struct ath12k *ar = ath12k_pdev_dp_to_ar(dp_pdev);
 +	struct ath12k_hal *hal = &ar->ab->hal;
 +	u16 tlv_tag, tlv_len, userid;
 +	void *tlv_data;
 +	u32 info[7];
- 
--	tlv_tag = le64_get_bits(tlv->tl, HAL_TLV_64_HDR_TAG);
--	tlv_len = le64_get_bits(tlv->tl, HAL_TLV_64_HDR_LEN);
--	userid = le64_get_bits(tlv->tl, HAL_TLV_64_USR_ID);
++
 +	tlv_data = hal->ops->mon_rx_status_dec_tlv_hdr((void *)tlv, &tlv_tag,
 +						       &tlv_len, &userid);
  
  	if (ppdu_info->tlv_aggr.in_progress && ppdu_info->tlv_aggr.tlv_tag != tlv_tag) {
  		ath12k_wifi7_dp_mon_parse_eht_sig_hdr(ppdu_info,
-@@ -2480,7 +2481,6 @@ ath12k_wifi7_dp_mon_rx_deliver(struct at
+@@ -2480,7 +2481,6 @@
  {
  	struct sk_buff *mon_skb, *skb_next, *header;
  	struct ieee80211_rx_status *rxs = &dp_pdev->rx_status;
@@ -337,7 +343,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	mon_skb = ath12k_dp_mon_rx_merg_msdus(dp_pdev, mon_mpdu, ppduinfo, rxs);
  	if (!mon_skb)
-@@ -2507,12 +2507,8 @@ ath12k_wifi7_dp_mon_rx_deliver(struct at
+@@ -2507,12 +2507,8 @@
  		}
  		rxs->flag |= RX_FLAG_ONLY_MONITOR;
  
@@ -351,7 +357,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mon_skb = skb_next;
  	} while (mon_skb);
  	rxs->flag = 0;
-@@ -2930,11 +2926,12 @@ static enum dp_mon_status_buf_state
+@@ -2930,11 +2926,12 @@
  ath12k_wifi7_dp_rx_mon_buf_done(struct ath12k_base *ab, struct hal_srng *srng,
  				struct dp_rxdma_mon_ring *rx_ring)
  {
@@ -365,7 +371,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 cookie;
  	int buf_id;
  	u8 rbm;
-@@ -2959,8 +2956,8 @@ ath12k_wifi7_dp_rx_mon_buf_done(struct a
+@@ -2959,8 +2956,8 @@
  				skb->len + skb_tailroom(skb),
  				DMA_FROM_DEVICE);
  
@@ -376,7 +382,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return DP_MON_STATUS_NO_DMA;
  
  	return DP_MON_STATUS_REPLINISH;
-@@ -2972,41 +2969,40 @@ ath12k_wifi7_dp_mon_parse_rx_dest(struct
+@@ -2972,41 +2969,40 @@
  				  struct sk_buff *skb)
  {
  	struct ath12k *ar = ath12k_pdev_dp_to_ar(dp_pdev);
@@ -419,9 +425,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 -		ptr += sizeof(*tlv) + tlv_len;
 -		ptr = PTR_ALIGN(ptr, HAL_TLV_64_ALIGN);
-+		tlv = PTR_ALIGN(tlv + tlv_len + tlv_hdr_len, tlv_hdr_len);
- 
+-
 -		if ((ptr - skb->data) > skb->len)
++		tlv = PTR_ALIGN(tlv + tlv_len + tlv_hdr_len, tlv_hdr_len);
++
 +		if (unlikely(tlv - skb->data > skb->len ||
 +			     skb->len - (tlv - skb->data) < tlv_hdr_len))
  			break;
@@ -429,7 +436,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} while ((hal_status == HAL_RX_MON_STATUS_PPDU_NOT_DONE) ||
  		 (hal_status == HAL_RX_MON_STATUS_BUF_ADDR) ||
  		 (hal_status == HAL_RX_MON_STATUS_MPDU_START) ||
-@@ -3056,15 +3052,16 @@ ath12k_wifi7_dp_rx_reap_mon_status_ring(
+@@ -3056,15 +3052,16 @@
  	int buf_id, srng_id, num_buffs_reaped = 0;
  	enum dp_mon_status_buf_state reap_status;
  	struct dp_rxdma_mon_ring *rx_ring;
@@ -447,7 +454,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 cookie;
  	u8 rbm;
  
-@@ -3109,14 +3106,13 @@ ath12k_wifi7_dp_rx_reap_mon_status_ring(
+@@ -3109,14 +3106,13 @@
  						skb->len + skb_tailroom(skb),
  						DMA_FROM_DEVICE);
  
@@ -469,7 +476,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				 */
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c
-@@ -455,7 +455,7 @@ static u16 ath12k_hal_reo_status_dec_tlv
+@@ -455,7 +455,7 @@
  	struct hal_reo_get_queue_stats_status_qcc2072 *status_tlv;
  	u16 tag;
  
@@ -478,7 +485,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/*
  	 * actual desc of REO status entry starts after tlv32_padding,
  	 * see hal_reo_get_queue_stats_status_qcc2072
-@@ -506,6 +506,8 @@ const struct hal_ops hal_qcc2072_ops = {
+@@ -506,6 +506,8 @@
  	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
  	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv32_hdr,
  	.reo_status_dec_tlv_hdr = ath12k_hal_reo_status_dec_tlv_hdr_qcc2072,
@@ -489,10 +496,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u32 ath12k_hal_rx_desc_get_mpdu_start_offset_qcc2072(void)
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -950,6 +950,15 @@ void ath12k_hal_extract_rx_desc_data_qcn
+@@ -948,6 +948,15 @@
+ 	rx_desc_data->ip_csum_fail = ath12k_hal_rx_h_ip_cksum_fail_qcn9274(rx_desc);
+ 	rx_desc_data->is_decrypted = ath12k_hal_rx_h_is_decrypted_qcn9274(rx_desc);
  	rx_desc_data->err_bitmap = ath12k_hal_rx_h_mpdu_err_qcn9274(rx_desc);
- }
- 
++}
++
 +static u16 ath12k_hal_reo_status_dec_tlv_hdr_qcn9274(void *tlv, void **desc)
 +{
 +	u16 tag;
@@ -500,12 +509,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	*desc = ath12k_hal_decode_tlv64_hdr(tlv, &tag, NULL, NULL);
 +
 +	return tag;
-+}
-+
+ }
+ 
  const struct ath12k_hw_hal_params ath12k_hw_hal_params_qcn9274 = {
- 	.rx_buf_rbm = HAL_RX_BUF_RBM_SW3_BM,
- 	.wbm2sw_cc_enable = HAL_WBM_SW_COOKIE_CONV_CFG_WBM2SW0_EN |
-@@ -1510,5 +1519,7 @@ const struct hal_ops hal_qcn9274_ops = {
+@@ -1510,5 +1519,7 @@
  	.rx_msdu_list_get = ath12k_wifi7_hal_rx_msdu_list_get,
  	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
  	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv64_hdr,
@@ -516,10 +523,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c
-@@ -756,6 +756,15 @@ int ath12k_hal_srng_create_config_wcn785
- 	return 0;
- }
+@@ -754,6 +754,15 @@
+ 	s->max_rings = 0;
  
+ 	return 0;
++}
++
 +static u16 ath12k_hal_reo_status_dec_tlv_hdr_wcn7850(void *tlv, void **desc)
 +{
 +	u16 tag;
@@ -527,12 +536,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	*desc = ath12k_hal_decode_tlv64_hdr(tlv, &tag, NULL, NULL);
 +
 +	return tag;
-+}
-+
+ }
+ 
  const struct ath12k_hal_tcl_to_wbm_rbm_map
- ath12k_hal_tcl_to_wbm_rbm_map_wcn7850[DP_TCL_NUM_RING_MAX] = {
- 	{
-@@ -821,5 +830,7 @@ const struct hal_ops hal_wcn7850_ops = {
+@@ -821,5 +830,7 @@
  	.rx_msdu_list_get = ath12k_wifi7_hal_rx_msdu_list_get,
  	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
  	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv64_hdr,

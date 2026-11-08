@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 25 Oct 2026 14:06:01 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: service RX returns and refill buffers
 
 IPQ5332 RX error buffers are returned through WBM SW3, while the legacy
@@ -18,12 +18,11 @@ exhaustion, and register the AHB refill vector declared by the ring mask.
 Use the descriptor's partner device for WBM refilling, as already used
 for DMA unmapping. Keep the common threshold, locks and descriptor pool;
 do not add a timer, recovery loop or polling workaround.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -705,13 +705,28 @@ static int ath12k_ahb_config_ext_irq(str
+@@ -705,12 +705,27 @@
  				irq_grp->irqs[num_irq++] = reo2host_exception;
  
  			if (ring_mask->rx_wbm_rel[i] & BIT(j) &&
@@ -44,17 +43,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (ring_mask->reo_status[i] & BIT(j) &&
  			    num_irq < ATH12K_EXT_IRQ_NUM_MAX)
  				irq_grp->irqs[num_irq++] = reo2host_status;
- 
++
 +			if (ring_mask->host2rxdma[i] & BIT(j) &&
 +			    j < ab->hw_params->max_radios &&
 +			    num_irq < ATH12K_EXT_IRQ_NUM_MAX)
 +				irq_grp->irqs[num_irq++] =
 +					host2rxdma_host_buf_ring_mac1 - j;
-+
+ 
  			if (ring_mask->rx_mon_dest[i] & BIT(j) &&
  			    num_irq < ATH12K_EXT_IRQ_NUM_MAX)
- 				irq_grp->irqs[num_irq++] =
-@@ -725,14 +740,18 @@ static int ath12k_ahb_config_ext_irq(str
+@@ -725,14 +740,18 @@
  
  			irq = platform_get_irq_byname(ab->pdev,
  						      irq_name[irq_idx]);
@@ -76,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
-@@ -127,16 +127,23 @@ static int ath12k_wifi7_dp_service_srng(
+@@ -127,16 +127,23 @@
  	if (dp->hw_params->ring_mask->reo_status[grp_id])
  		ath12k_wifi7_dp_rx_process_reo_status(dp);
  
@@ -106,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
-@@ -2052,7 +2052,7 @@ int ath12k_wifi7_dp_rx_process_wbm_err(s
+@@ -2052,7 +2052,7 @@
  		partner_dp = ath12k_dp_hw_grp_to_dp(dp_hw_grp, device_id);
  		rx_ring = &partner_dp->rx_refill_buf_ring;
  

@@ -1,6 +1,5 @@
-From 784f7dabf5d3bce23c69c48a0441ff2b1536f069 Mon Sep 17 00:00:00 2001
 From: Manish Dharanenthiran <manish.dharanenthiran@oss.qualcomm.com>
-Date: Tue, 23 Jun 2026 11:16:21 +0530
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: advertise ieee_link_id in vdev start MLO params
 
 Firmware builds the AP MLD partner profile from the hw_link_id passed in
@@ -45,15 +44,11 @@ Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Link: https://patch.msgid.link/20260623-ieee_link_id-v2-1-8a89d71baf58@oss.qualcomm.com
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
----
- drivers/net/wireless/ath/ath12k/mac.c |  3 +++
- drivers/net/wireless/ath/ath12k/wmi.c | 32 +++++++++++++++++----------
- drivers/net/wireless/ath/ath12k/wmi.h |  7 ++++++
- 3 files changed, 30 insertions(+), 12 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -11289,6 +11289,8 @@ ath12k_mac_mlo_get_vdev_args(struct ath1
+@@ -11289,6 +11289,8 @@
  
  	ml_arg->assoc_link = arvif->is_sta_assoc_link;
  
@@ -62,7 +57,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  	partner_info = ml_arg->partner_info;
  
  	links = ahvif->links_map;
-@@ -11312,6 +11314,7 @@ ath12k_mac_mlo_get_vdev_args(struct ath1
+@@ -11312,6 +11314,7 @@
  
  		partner_info->vdev_id = arvif_p->vdev_id;
  		partner_info->hw_link_id = arvif_p->ar->pdev->hw_link_id;
@@ -72,16 +67,17 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  		partner_info++;
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -1237,10 +1237,14 @@ int ath12k_wmi_vdev_start(struct ath12k
+@@ -1237,10 +1237,14 @@
  				   le32_encode_bits(arg->ml.mcast_link,
  						    ATH12K_WMI_FLAG_MLO_MCAST_VDEV) |
  				   le32_encode_bits(arg->ml.link_add,
 -						    ATH12K_WMI_FLAG_MLO_LINK_ADD);
-+						    ATH12K_WMI_FLAG_MLO_LINK_ADD) |
-+				   cpu_to_le32(ATH12K_WMI_FLAG_MLO_IEEE_LINK_IDX_VALID);
- 
+-
 -		ath12k_dbg(ar->ab, ATH12K_DBG_WMI, "vdev %d start ml flags 0x%x\n",
 -			   arg->vdev_id, ml_params->flags);
++						    ATH12K_WMI_FLAG_MLO_LINK_ADD) |
++				   cpu_to_le32(ATH12K_WMI_FLAG_MLO_IEEE_LINK_IDX_VALID);
++
 +		ml_params->ieee_link_id = cpu_to_le32(arg->ml.ieee_link_id);
 +
 +		ath12k_dbg(ar->ab, ATH12K_DBG_WMI, "vdev %u start link_id %u ml flags 0x%x\n",
@@ -90,7 +86,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  
  		ptr += sizeof(*ml_params);
  
-@@ -1253,19 +1257,23 @@ int ath12k_wmi_vdev_start(struct ath12k
+@@ -1253,19 +1257,23 @@
  		partner_info = ptr;
  
  		for (i = 0; i < arg->ml.num_partner_links; i++) {
@@ -125,7 +121,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  		}
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -2954,10 +2954,13 @@ struct wmi_vdev_create_mlo_params {
+@@ -2954,10 +2954,13 @@
  #define ATH12K_WMI_FLAG_MLO_EMLSR_SUPPORT		BIT(6)
  #define ATH12K_WMI_FLAG_MLO_FORCED_INACTIVE		BIT(7)
  #define ATH12K_WMI_FLAG_MLO_LINK_ADD			BIT(8)
@@ -139,7 +135,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  } __packed;
  
  struct wmi_partner_link_info {
-@@ -2965,6 +2968,8 @@ struct wmi_partner_link_info {
+@@ -2965,6 +2968,8 @@
  	__le32 vdev_id;
  	__le32 hw_link_id;
  	struct ath12k_wmi_mac_addr_params vdev_addr;
@@ -148,7 +144,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  } __packed;
  
  struct wmi_vdev_delete_cmd {
-@@ -3120,6 +3125,7 @@ struct wmi_ml_partner_info {
+@@ -3120,6 +3125,7 @@
  	bool primary_umac;
  	bool logical_link_idx_valid;
  	u32 logical_link_idx;
@@ -156,7 +152,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  };
  
  struct wmi_ml_arg {
-@@ -3127,6 +3133,7 @@ struct wmi_ml_arg {
+@@ -3127,6 +3133,7 @@
  	bool assoc_link;
  	bool mcast_link;
  	bool link_add;

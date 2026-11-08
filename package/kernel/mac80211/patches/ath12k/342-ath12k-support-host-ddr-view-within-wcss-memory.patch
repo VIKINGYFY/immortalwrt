@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 25 Oct 2026 14:06:01 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: support host DDR view within WCSS memory
 
 An IPQ5332 UserPD host-DDR window can be contained in the root WCSS
@@ -12,12 +12,11 @@ Bound both the offset and requested length against the owning region
 before mapping. CALDB, M3, MLO and fixed PCI mappings keep their existing
 addresses. This preserves the complete remoteproc carveout and firmware
 physical addresses while removing the duplicate reservation.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -3186,7 +3186,8 @@ static int ath12k_qmi_assign_target_mem_
+@@ -3077,10 +3077,15 @@
  	struct target_mem_chunk *chunk;
  	struct ath12k_hw_group *ag = ab->ag;
  	struct reserved_mem *rmem;
@@ -27,18 +26,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const char *name;
  	int i, idx, mlo_idx, ret;
  	int mlo_size = 0;
-@@ -3195,6 +3196,10 @@ static int ath12k_qmi_assign_target_mem_
- 	    test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags))
- 		return ath12k_qmi_assign_pci_target_mem_chunk(ab);
- 
++
 +	/* A host DDR view can share the remoteproc WCSS reservation. */
 +	of_property_read_u32(ab->dev->of_node, "qcom,host-ddr-offset",
 +			     &host_offset);
-+
+ 
  	mutex_lock(&ag->mutex);
  	ath12k_qmi_begin_fixed_request(ab);
- 
-@@ -3216,6 +3221,8 @@ static int ath12k_qmi_assign_target_mem_
+@@ -3103,6 +3108,8 @@
  			name = type == CALDB_MEM_REGION_TYPE ? "q6-caldb" :
  			       type == M3_DUMP_REGION_TYPE ? "m3-dump" :
  			       "host-ddr-mem";
@@ -47,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			rmem = ath12k_core_get_rmem_by_name(ab, name);
  			if (!rmem && type == CALDB_MEM_REGION_TYPE) {
  				/* Preserve the optional CALDB zero-address contract. */
-@@ -3228,11 +3235,13 @@ static int ath12k_qmi_assign_target_mem_
+@@ -3115,11 +3122,13 @@
  					ret = -ENODEV;
  					goto out;
  				}

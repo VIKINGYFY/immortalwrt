@@ -1,5 +1,5 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Thu, 27 Aug 2026 11:40:00 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: harden AHB UserPD lifecycle handshakes
 
 The standalone AHB UserPD loader currently authenticates and resets the
@@ -21,10 +21,11 @@ failed shutdown cannot poison the next recovery attempt.  RootPD crashes
 also wake all UserPD waiters even when the per-UserPD fatal IRQ is absent.
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -461,6 +461,17 @@ static int ath12k_ahb_power_up(struct at
+@@ -461,6 +461,17 @@
  		goto err_fw2;
  	}
  
@@ -42,7 +43,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (ab_ahb->scm_auth_enabled) {
  		/* Authenticate FW image using peripheral ID */
  		ret = qcom_scm_pas_auth_and_reset(pasid);
-@@ -470,9 +481,6 @@ static int ath12k_ahb_power_up(struct at
+@@ -470,9 +481,6 @@
  		}
  	}
  
@@ -52,7 +53,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* Instruct Q6 to spawn userPD thread */
  	ret = qcom_smem_state_update_bits(ab_ahb->spawn_state, BIT(ab_ahb->spawn_bit),
  					  BIT(ab_ahb->spawn_bit));
-@@ -489,6 +497,13 @@ static int ath12k_ahb_power_up(struct at
+@@ -489,6 +497,13 @@
  		ret = -ETIMEDOUT;
  		goto err_fw2;
  	}
@@ -66,10 +67,13 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	time_left = wait_for_completion_timeout(&ab_ahb->userpd_ready,
  						ATH12K_USERPD_READY_TIMEOUT);
-@@ -497,9 +512,14 @@ static int ath12k_ahb_power_up(struct at
+@@ -497,9 +512,14 @@
  		ret = -ETIMEDOUT;
  		goto err_fw2;
  	}
+-
+-	ab_ahb->rootpd_crashed = false;
+-	atomic_set(&ab_ahb->userpd_crashed, 0);
 +	if (!READ_ONCE(ab_ahb->userpd_ready_acked) ||
 +	    atomic_read(&ab_ahb->userpd_crashed) ||
 +	    READ_ONCE(ab_ahb->rootpd_crashed)) {
@@ -77,13 +81,11 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +		ret = -EIO;
 +		goto err_fw2;
 +	}
- 
--	ab_ahb->rootpd_crashed = false;
--	atomic_set(&ab_ahb->userpd_crashed, 0);
++
  	ath12k_dbg(ab, ATH12K_DBG_AHB, "UserPD%d is now UP\n", ab_ahb->userpd_id);
  
  err_fw2:
-@@ -528,24 +548,37 @@ static void ath12k_ahb_power_down(struct
+@@ -528,24 +548,37 @@
  	u32 pasid;
  	int ret;
  
@@ -132,7 +134,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	if (ab_ahb->scm_auth_enabled) {
  		pasid = (u32_encode_bits(ab_ahb->userpd_id, ATH12K_USERPD_ID_MASK)) |
-@@ -801,10 +834,6 @@ static void ath12k_ahb_handle_userpd_cra
+@@ -801,10 +834,6 @@
  {
  	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
  
@@ -143,7 +145,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (atomic_cmpxchg(&ab_ahb->userpd_crashed, 0, 1))
  		return;
  
-@@ -812,7 +841,9 @@ static void ath12k_ahb_handle_userpd_cra
+@@ -812,7 +841,9 @@
  	complete_all(&ab_ahb->userpd_ready);
  	complete_all(&ab_ahb->userpd_stopped);
  	ath12k_ahb_log_userpd_crash_reason(ab);
@@ -154,7 +156,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  }
  
  static irqreturn_t ath12k_userpd_irq_handler(int irq, void *data)
-@@ -821,10 +852,13 @@ static irqreturn_t ath12k_userpd_irq_han
+@@ -821,10 +852,13 @@
  	struct ath12k_ahb *ab_ahb = ath12k_ab_to_ahb(ab);
  
  	if (irq == ab_ahb->userpd_irq_num[ATH12K_USERPD_SPAWN_IRQ]) {
@@ -168,7 +170,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		complete(&ab_ahb->userpd_stopped);
  	} else if (irq == ab_ahb->userpd_irq_num[ATH12K_USERPD_FATAL_IRQ]) {
  		ath12k_ahb_handle_userpd_crash(ab);
-@@ -940,15 +974,19 @@ static int ath12k_ahb_root_pd_state_noti
+@@ -940,15 +974,19 @@
  	case QCOM_SSR_AFTER_POWERUP:
  		ath12k_dbg(ab, ATH12K_DBG_AHB, "Root PD is UP\n");
  		complete(&ab_ahb->rootpd_ready);
@@ -192,7 +194,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  		    !test_bit(ATH12K_FLAG_UNREGISTERING, &ab->dev_flags)) {
 --- a/drivers/net/wireless/ath/ath12k/ahb.h
 +++ b/drivers/net/wireless/ath/ath12k/ahb.h
-@@ -74,6 +74,9 @@ struct ath12k_ahb {
+@@ -74,6 +74,9 @@
  	const struct ath12k_ahb_device_family_ops *device_family_ops;
  	bool scm_auth_enabled;
  	bool rootpd_crashed;

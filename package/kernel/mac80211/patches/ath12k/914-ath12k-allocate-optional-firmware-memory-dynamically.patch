@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Thu, 05 Nov 2026 17:38:33 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: allocate optional firmware memory dynamically
 
 Keep fixed AHB host DDR and explicitly named reserved regions. Allocate
@@ -11,9 +11,8 @@ Allow a dynamic shared MLO pool independently of fixed AHB host DDR.
 Allocate one pool for the complete firmware request and return offset
 views so partners can use different segment boundaries. Keep the owning
 device referenced until the group releases its last allocation.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
 @@ -2744,6 +2744,20 @@
@@ -193,7 +192,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			ath12k_err(ab,
 -				   "QMI MLO chunk %d size %u differs from %u\n",
 -				   idx, size, mlo_chunk->size);
--			return -EINVAL;
 +	/* Firmware partners can describe the same shared memory with different
 +	 * segment boundaries. Allocate one group-owned pool and return views.
 +	 */
@@ -206,13 +204,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			if (ab->qmi.target_mem[i].size > U32_MAX - total_size)
 +				return -EINVAL;
 +			total_size += ab->qmi.target_mem[i].size;
- 		}
--	} else {
--		mlo_chunk->size = size;
++		}
 +		if (!total_size || total_size > INT_MAX ||
 +		    (ag->mlo_mem.mlo_mem_size &&
 +				    total_size != ag->mlo_mem.mlo_mem_size))
-+			return -EINVAL;
+ 			return -EINVAL;
+-		}
+-	} else {
+-		mlo_chunk->size = size;
 +
 +		mlo_chunk->size = total_size;
  		mlo_chunk->type = MLO_GLOBAL_MEM_REGION_TYPE;
@@ -223,12 +222,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			ag->mlo_mem.alloc_dev = ab->dev;
 +		ag->mlo_mem.alloc_dev = get_device(ab->dev);
  		memset(mlo_chunk->v.addr, 0, mlo_chunk->size);
-+		ath12k_info(ab, "allocated MLO memory addr %pad size %u\n",
-+			    &mlo_chunk->paddr, mlo_chunk->size);
- 	}
- 
+-	}
+-
 -	chunk->paddr = mlo_chunk->paddr;
 -	chunk->v.addr = mlo_chunk->v.addr;
++		ath12k_info(ab, "allocated MLO memory addr %pad size %u\n",
++			    &mlo_chunk->paddr, mlo_chunk->size);
++	}
++
 +	if (offset > mlo_chunk->size || size > mlo_chunk->size - offset)
 +		return -EINVAL;
 +
@@ -299,42 +300,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ag->mutex);
  
  	return 0;
-@@ -3088,8 +3121,8 @@
- 	struct target_mem_chunk *chunk;
- 	size_t host_offset = 0;
- 	size_t mlo_offset;
--	int i, mlo_idx = 0;
--	int mlo_size = 0;
-+	int i;
-+	u32 mlo_size = 0;
- 	int ret = 0;
- 
- 	host_rmem = ath12k_core_get_rmem_by_name(ab, "host-ddr-mem");
-@@ -3141,6 +3174,10 @@
- 			host_offset += chunk->size;
- 			break;
- 		case MLO_GLOBAL_MEM_REGION_TYPE:
-+			if (chunk->size > U32_MAX - mlo_size) {
-+				ret = -EINVAL;
-+				goto out;
-+			}
- 			mlo_size += chunk->size;
- 			if (ag->mlo_mem.mlo_mem_size &&
- 			    mlo_size > ag->mlo_mem.mlo_mem_size) {
-@@ -3152,11 +3189,10 @@
- 			}
- 
- 			mlo_offset = mlo_size - chunk->size;
--			ret = ath12k_qmi_assign_mlo_mem_chunk(ab, chunk, mlo_idx,
-+			ret = ath12k_qmi_assign_mlo_mem_chunk(ab, chunk,
- 							      mlo_offset, chunk->size);
- 			if (ret)
- 				goto out;
--			mlo_idx++;
- 			break;
- 		default:
- 			ath12k_warn(ab, "qmi ignore invalid PCI mem req type %u\n",
-@@ -3198,8 +3234,8 @@
+@@ -3089,8 +3122,8 @@
  	u32 type, size, host_offset = 0;
  	size_t offset;
  	const char *name;
@@ -343,9 +309,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	int i, idx, ret;
 +	u32 mlo_size = 0;
  
- 	if (ab->hif.bus == ATH12K_BUS_PCI &&
- 	    test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags))
-@@ -3219,46 +3255,59 @@
+ 	/* A host DDR view can share the remoteproc WCSS reservation. */
+ 	of_property_read_u32(ab->dev->of_node, "qcom,host-ddr-offset",
+@@ -3106,46 +3139,59 @@
  		ag->mlo_mem.alloc_dev = NULL;
  	}
  
@@ -429,7 +395,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			mlo_size += chunk->size;
  			if (ag->mlo_mem.mlo_mem_size &&
  			    mlo_size > ag->mlo_mem.mlo_mem_size) {
-@@ -3271,13 +3320,11 @@
+@@ -3158,13 +3204,11 @@
  
  			ret = ath12k_qmi_assign_mlo_mem_chunk(ab,
  							&ab->qmi.target_mem[idx],

@@ -1,6 +1,5 @@
-From 1e33f8acd837420160ea088160d8648a3db54c3b Mon Sep 17 00:00:00 2001
 From: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
-Date: Wed, 29 Jul 2026 22:47:32 +0530
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: fix encrypted EAPOL TX in encap offload mode
 
 When a vif operates with IEEE80211_OFFLOAD_ENCAP_ENABLED,
@@ -35,15 +34,11 @@ Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Link: https://patch.msgid.link/20260729171732.668367-1-reshma.rajkumar@oss.qualcomm.com
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
----
- drivers/net/wireless/ath/ath12k/dp_tx.c       | 46 +++++++++++++
- drivers/net/wireless/ath/ath12k/dp_tx.h       |  2 +
- drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c | 64 ++++++++++++++++++-
- 3 files changed, 111 insertions(+), 1 deletion(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
-@@ -82,6 +82,52 @@ enum hal_encrypt_type ath12k_dp_tx_get_e
+@@ -82,6 +82,52 @@
  }
  EXPORT_SYMBOL(ath12k_dp_tx_get_encrypt_type);
  
@@ -98,7 +93,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  				u8 pool_id)
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.h
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.h
-@@ -19,6 +19,8 @@ enum hal_tcl_encap_type
+@@ -19,6 +19,8 @@
  ath12k_dp_tx_get_encap_type(struct ath12k_base *ab, struct sk_buff *skb);
  void ath12k_dp_tx_encap_nwifi(struct sk_buff *skb);
  u8 ath12k_dp_tx_get_tid(struct sk_buff *skb);
@@ -109,10 +104,11 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  void ath12k_dp_tx_release_txbuf(struct ath12k_dp *dp,
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
-@@ -13,6 +13,49 @@
+@@ -12,6 +12,49 @@
+ #include "hal_desc.h"
  #include "hal.h"
  #include "hal_tx.h"
- 
++
 +/*
 + * Convert an encrypted EAPOL frame from native-WiFi format to
 + * the layout expected by the firmware RAW encrypt pipeline:
@@ -155,11 +151,10 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 +
 +	return 0;
 +}
-+
+ 
  static void
  ath12k_wifi7_hal_tx_cmd_ext_desc_setup(struct ath12k_base *ab,
- 				       struct hal_tx_msdu_ext_desc *tcl_ext_cmd,
-@@ -91,6 +134,7 @@ int ath12k_wifi7_dp_tx(struct ath12k_pde
+@@ -91,6 +134,7 @@
  	u32 iova_mask = dp->hw_params->iova_mask;
  	bool is_diff_encap = false;
  	bool is_null_frame = false;
@@ -167,7 +162,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  
  	if (test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
  		return -ESHUTDOWN;
-@@ -211,9 +255,27 @@ tcl_ring_sel:
+@@ -211,9 +255,27 @@
  	case HAL_TCL_ENCAP_TYPE_NATIVE_WIFI:
  		is_null_frame = ieee80211_is_nullfunc(hdr->frame_control);
  		if (ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {

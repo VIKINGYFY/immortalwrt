@@ -1,6 +1,5 @@
-From 366554f9b8031c1ad697359588940d439123cf02 Mon Sep 17 00:00:00 2001
 From: Harish Rachakonda <rachakon@qti.qualcomm.com>
-Date: Wed, 17 Sep 2025 11:47:43 +0530
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: validate link STA before reading statistics
 
 link_sta->sta can already be cleared while a link is being removed.  Do not
@@ -12,13 +11,11 @@ Adapted to the current upstream ath12k statistics implementation.
 
 Signed-off-by: Harish Rachakonda <rachakon@qti.qualcomm.com>
 Signed-off-by: JiaY-shi <shi05275@163.com>
----
- drivers/net/wireless/ath/ath12k/mac.c | 7 ++++++-
- 1 file changed, 6 insertions(+), 1 deletion(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -14023,7 +14023,7 @@ void ath12k_mac_op_link_sta_statistics(s
+@@ -14023,13 +14023,18 @@
  				       struct ieee80211_link_sta *link_sta,
  				       struct link_station_info *link_sinfo)
  {
@@ -27,15 +24,14 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	struct ath12k_fw_stats_req_params params = {};
  	struct ath12k_dp_link_peer *peer;
  	struct ath12k_link_sta *arsta;
-@@ -14031,6 +14031,11 @@ void ath12k_mac_op_link_sta_statistics(s
+ 	struct ath12k *ar;
  	s8 signal;
  	bool db2dbm;
- 
++
 +	if (!link_sta->sta)
 +		return;
 +
 +	ahsta = ath12k_sta_to_ahsta(link_sta->sta);
-+
+ 
  	lockdep_assert_wiphy(hw->wiphy);
  
- 	arsta = wiphy_dereference(hw->wiphy, ahsta->link[link_sta->link_id]);
