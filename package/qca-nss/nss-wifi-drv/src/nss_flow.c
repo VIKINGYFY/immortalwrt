@@ -147,10 +147,11 @@ static DEFINE_SPINLOCK(nss_flow_sync_lock);
  * Admission stops firmware LRU eviction cycling active connections through
  * the serialized command ring while new flows can use software forwarding.
  */
-#define NSS_FLOW_DEFAULT_CONN	1024
+#define NSS_FLOW_BASE_CONN	1024
+#define NSS_FLOW_DEFAULT_CONN	4096
 #define NSS_FLOW_MAX_CONN	4096
 static u32 nss_flow_limit[2] = {
-	NSS_FLOW_DEFAULT_CONN, NSS_FLOW_DEFAULT_CONN,
+	NSS_FLOW_BASE_CONN, NSS_FLOW_BASE_CONN,
 };
 
 static u32 nss_flow_table_bytes[2];
@@ -171,8 +172,8 @@ static int nss_flow_connections_set(const char *val, const struct kernel_param *
 	ret = kstrtouint(val, 0, &count);
 	if (ret)
 		return ret;
-	if (count < NSS_FLOW_DEFAULT_CONN || count > NSS_FLOW_MAX_CONN ||
-	    count % NSS_FLOW_DEFAULT_CONN)
+	if (count < NSS_FLOW_BASE_CONN || count > NSS_FLOW_MAX_CONN ||
+	    count % NSS_FLOW_BASE_CONN)
 		return -EINVAL;
 
 	guard(mutex)(&nss_flow_lock);
@@ -187,7 +188,7 @@ static const struct kernel_param_ops nss_flow_connections_ops = {
 	.get = param_get_uint,
 };
 module_param_cb(connections, &nss_flow_connections_ops, &nss_flow_connections, 0644);
-MODULE_PARM_DESC(connections, "NSS12.5 connections per family: 1024 default, up to 4096 in steps of 1024; set before boot");
+MODULE_PARM_DESC(connections, "NSS12.5/11.4 connections per family: 4096 default, 1024 to 4096 in steps of 1024; set before boot");
 
 /* Table sizes come from the running image, never from a guessed entry size.
  * Once CFG is sent, keep both DMA blocks until core halt even on a timeout:
@@ -262,9 +263,10 @@ int nss_flow_configure(struct nss_core *core)
 	/* A later boot may select smaller tables than the previous one. */
 	memset(nss_flow_sweep_index, 0, sizeof(nss_flow_sweep_index));
 	nss_flow_swept = jiffies - HZ;
-	if (count == NSS_FLOW_DEFAULT_CONN)
+	if (count == NSS_FLOW_BASE_CONN)
 		return 0;
-	if (strcmp(core->fw->name, "12.5"))
+	if (strcmp(core->fw->name, "12.5") &&
+	    strcmp(core->fw->name, "11.4"))
 		return -EOPNOTSUPP;
 
 	scoped_guard(spinlock_bh, &nss_flow_sync_lock)
@@ -1557,7 +1559,7 @@ void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 static int nss_flow_sweep_rounds(bool v6)
 {
 	return 8 * DIV_ROUND_UP(READ_ONCE(nss_flow_limit[v6]),
-			       NSS_FLOW_DEFAULT_CONN);
+			       NSS_FLOW_BASE_CONN);
 }
 
 static void nss_flow_sweep_v4(struct nss_core *core)
@@ -2112,8 +2114,8 @@ void nss_flow_flush(void)
 	scoped_guard(spinlock_bh, &nss_flow_sync_lock) {
 		memset(&nss_flow_buffers, 0, sizeof(nss_flow_buffers));
 		memset(nss_flow_table_bytes, 0, sizeof(nss_flow_table_bytes));
-		nss_flow_limit[0] = NSS_FLOW_DEFAULT_CONN;
-		nss_flow_limit[1] = NSS_FLOW_DEFAULT_CONN;
+		nss_flow_limit[0] = NSS_FLOW_BASE_CONN;
+		nss_flow_limit[1] = NSS_FLOW_BASE_CONN;
 	}
 }
 

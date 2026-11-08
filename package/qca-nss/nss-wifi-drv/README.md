@@ -66,37 +66,42 @@ service derives the read-only `wlan` module parameter from the build marker,
 installed modules and enabled hardware: bit 0 selects AHB, bit 1 PCI, and
 zero selects non-WLAN offload only. Apply a change by rebooting.
 
-With no WLAN targets the automatic payload pool uses 8192 buffers with a
-4096-buffer refill threshold, instead of 16384/4352. Explicit nonzero
+With no WLAN targets the automatic payload pool uses 16384 buffers with a
+4096-buffer refill threshold, instead of 24576/4352. Explicit nonzero
 `pool_size` and `pool_low` parameters override these defaults. The shared
 firmware memory requests and descriptor pool are retained for forwarding.
 
-## Optional connection tables
+## Connection tables
 
-The default is 1024 bidirectional connections for each of IPv4 and IPv6.
-Unused capacity in one family is not available to the other. NSS12.5 can
-negotiate host-backed tables with the `connections` module parameter: 1024,
-2048, 3072 or 4096 connections per family. Values above 1024 are opt-in and
-are rejected with other firmware lines. Change parameters before booting
-NSS; changing `connections` while the core is loaded returns `-EBUSY`.
+NSS12.5 and NSS11.4 default to 4096 bidirectional connections for each of
+IPv4 and IPv6, or 8192 combined. Unused capacity in one family is not
+available to the other. The driver negotiates host-backed tables with the
+firmware before enabling flow steering. The `connections` module parameter
+can select 1024, 2048, 3072 or 4096 connections per family. Change parameters
+before booting NSS; changing them while the core is loaded returns `-EBUSY`.
 
 The connection tables and packet payload pool are separate resources.
-For example, this WLAN configuration requests 4096 connections per family
-and a 24576-buffer payload ceiling:
+The automatic pool ceiling is 24576 with WLAN and 16384 without it; explicit
+nonzero `pool_size` overrides it. Relative to the previous automatic pools,
+this permits 8192 additional 4 KiB buffer objects, or 32 MiB, plus table RAM.
+The firmware supplies the required connection-entry and match-entry table
+sizes. The driver allocates DMA memory and updates admission limits only
+after both families acknowledge the configuration. The firmware profile
+and available memory constrain which requests can succeed. No PPE SRAM
+tables are enlarged by these parameters.
+
+For example, a WLAN device can explicitly select the smaller built-in
+tables and the previous payload ceiling:
 
 ```sh
-uci set nss-wifi.general.param='connections=4096 pool_size=24576'
+uci set nss-wifi.general.param='connections=1024 pool_size=16384'
 uci commit nss-wifi
 reboot
 ```
 
-Relative to the automatic WLAN pool of 16384 buffers, that ceiling allows
-8192 additional 4 KiB buffer objects, or 32 MiB, plus connection-table RAM.
-The firmware supplies the required connection-entry and match-entry table
-sizes. The driver allocates DMA memory and updates admission limits only
-after both families acknowledge the configuration. The firmware profile
-and available memory still constrain which requests can succeed. No PPE
-SRAM tables are enlarged by these parameters.
+The status overview reads the running driver's combined capacity, so its
+NSS count shows an upper limit of 8192 with the default configuration and
+2048 with the smaller setting above.
 
 While WLAN targets are configured, a manual `boot=0` request returns
 `-EBUSY`: stopping NSS alone would leave automatic WLAN recovery without
@@ -106,11 +111,11 @@ their existing paths.
 
 A failed or timed-out table handover stops the core before its DMA memory
 is freed; correct the parameters before retrying NSS. The persistent
-bring-up guard described above still applies. Default table configuration
-does not allocate these optional host tables.
+bring-up guard described above still applies. Selecting 1024 connections per family
+uses the built-in firmware tables without allocating host connection tables.
 
 Read `flow_stats` for the installed IPv4, IPv6 and total counts followed by
-the configured combined capacity. Its final value is 8192 for the example;
+the configured combined capacity. Its final value is 8192 by default;
 each family is still limited to 4096. Passive `flows` diagnostics also
 show per-family limits, resource retries and firmware buffer availability.
 Statistics scan budgets grow with the configured table size so active
