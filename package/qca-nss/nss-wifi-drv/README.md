@@ -15,7 +15,7 @@ debugfs (normally `/sys/bus/platform/devices/39000000.nss`):
 
 | Attribute | Access | Contents |
 | --- | --- | --- |
-| `boot` | read/write | Core running flag; write a boolean to boot or stop it. |
+| `boot` | read/write | Core running flag; write a boolean to boot or stop it. Manual stop returns `-EBUSY` while WLAN targets are configured. |
 | `wifi_start` | write | Write `1` to initialize all fully described WLAN instances. Errors are returned to the writer. |
 | `state` | read | Current physical target count, registered/described/started instances, readiness, VDEV/peer counts and per-instance errors. |
 | `flow_stats` | read | IPv4, IPv6, total installed bidirectional rules, total firmware capacity. |
@@ -70,6 +70,55 @@ With no WLAN targets the automatic payload pool uses 8192 buffers with a
 4096-buffer refill threshold, instead of 16384/4352. Explicit nonzero
 `pool_size` and `pool_low` parameters override these defaults. The shared
 firmware memory requests and descriptor pool are retained for forwarding.
+
+## Optional connection tables
+
+The default is 1024 bidirectional connections for each of IPv4 and IPv6.
+Unused capacity in one family is not available to the other. NSS12.5 can
+negotiate host-backed tables with the `connections` module parameter: 1024,
+2048, 3072 or 4096 connections per family. Values above 1024 are opt-in and
+are rejected with other firmware lines. Change parameters before booting
+NSS; changing `connections` while the core is loaded returns `-EBUSY`.
+
+The connection tables and packet payload pool are separate resources.
+For example, this WLAN configuration requests 4096 connections per family
+and a 24576-buffer payload ceiling:
+
+```sh
+uci set nss-wifi.general.param='connections=4096 pool_size=24576'
+uci commit nss-wifi
+reboot
+```
+
+Relative to the automatic WLAN pool of 16384 buffers, that ceiling allows
+8192 additional 4 KiB buffer objects, or 32 MiB, plus connection-table RAM.
+The firmware supplies the required connection-entry and match-entry table
+sizes. The driver allocates DMA memory and updates admission limits only
+after both families acknowledge the configuration. The firmware profile
+and available memory still constrain which requests can succeed. No PPE
+SRAM tables are enlarged by these parameters.
+
+While WLAN targets are configured, a manual `boot=0` request returns
+`-EBUSY`: stopping NSS alone would leave automatic WLAN recovery without
+its offload core. Use a full WLAN/NSS module teardown or reboot to change
+startup parameters. Coordinated fault recovery and driver removal keep
+their existing paths.
+
+A failed or timed-out table handover stops the core before its DMA memory
+is freed; correct the parameters before retrying NSS. The persistent
+bring-up guard described above still applies. Default table configuration
+does not allocate these optional host tables.
+
+Read `flow_stats` for the installed IPv4, IPv6 and total counts followed by
+the configured combined capacity. Its final value is 8192 for the example;
+each family is still limited to 4096. Passive `flows` diagnostics also
+show per-family limits, resource retries and firmware buffer availability.
+Statistics scan budgets grow with the configured table size so active
+connections are refreshed before the kernel flow timeout. Concurrent
+per-flow statistics work reads the RCU cache while one caller polls NSS.
+At capacity, new connections continue in software and may retry hardware
+offload after entries are released. Firmware buffer-allocation refusals
+use bounded backoff independently of table admission.
 
 Non-WLAN functions include supported IPv4/IPv6 TCP/UDP routing and IPv4 NAT
 through USB Ethernet/raw-IP redirect devices, plus the routed-multicast

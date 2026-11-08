@@ -935,17 +935,25 @@ static int nss_core_boot(struct nss_core *core)
 		goto halt;
 	}
 
+	nss_pool_configure(core);
+	nss_accel_in_core(core);
+	nss_rps_enable(core);
+	nss_pbuf_pool_add(core, nss_pbuf_bytes);
+	nss_core_stats_off(core);
+	/* The firmware needs its packet pools before table negotiation. Keep
+	 * flow steering disabled until both families acknowledge the handover.
+	 * A failed or ambiguous handover halts before its DMA blocks are freed.
+	 */
+	ret = nss_flow_configure(core);
+	if (ret)
+		goto halt;
+
 	ret = qca_ppe_fw_carrier_set(core->conduit, nss_flow_is_ours);
 	if (ret) {
 		dev_err(core->dev, "flows not steered to the firmware: %d\n", ret);
 		goto halt;
 	}
 
-	nss_pool_configure(core);
-	nss_accel_in_core(core);
-	nss_rps_enable(core);
-	nss_pbuf_pool_add(core, nss_pbuf_bytes);
-	nss_core_stats_off(core);
 	nss_bridge_start(core);
 
 	return 0;
@@ -1117,6 +1125,14 @@ static int nss_boot_set(void *data, u64 val)
 {
 	struct nss_core *core = data;
 	int ret = 0;
+
+	/* WLAN recovery automatically restores its rings and interfaces. A
+	 * user-requested permanent halt leaves that recovery with no NSS,
+	 * so it must instead tear down WLAN modules or reboot. Fault recovery
+	 * and driver removal use their own coordinated lifetime paths.
+	 */
+	if (!val && nss_wifili_expected())
+		return -EBUSY;
 
 	WRITE_ONCE(core->up, val);
 

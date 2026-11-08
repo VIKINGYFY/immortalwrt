@@ -583,6 +583,7 @@ void nss_bridge_start(struct nss_core *core);
 void nss_bridge_stop(void);
 void nss_bridge_print(struct seq_file *s);
 void nss_flow_flush(void);
+int nss_flow_configure(struct nss_core *core);
 void nss_flow_withdraw_dev(const struct net_device *dev);
 int nss_flow_dyn_alloc(struct nss_core *core, u32 type);
 void nss_flow_dyn_free(struct nss_core *core, u32 type, int if_num);

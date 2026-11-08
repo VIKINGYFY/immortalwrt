@@ -31,6 +31,7 @@
 #include <linux/mutex.h>
 #include <linux/netdevice.h>
 #include <linux/rhashtable.h>
+#include <linux/sizes.h>
 #include <linux/sysfs.h>
 #include <linux/soc/qcom/nss_wifi.h>
 #include <net/flow_offload.h>
@@ -142,15 +143,148 @@ static struct rhashtable nss_flow_table;
  */
 static DEFINE_HASHTABLE(nss_flow_sync_table, 10);
 static DEFINE_SPINLOCK(nss_flow_sync_lock);
-/* No resize is sent: QSDK's default capacity is per address family.
+/* Capacity is per address family and only grows after firmware ACKs.
  * Admission stops firmware LRU eviction cycling active connections through
  * the serialized command ring while new flows can use software forwarding.
  */
-#define NSS_FLOW_FAMILY_LIMIT	1024
+#define NSS_FLOW_DEFAULT_CONN	1024
+#define NSS_FLOW_MAX_CONN	4096
+static u32 nss_flow_limit[2] = {
+	NSS_FLOW_DEFAULT_CONN, NSS_FLOW_DEFAULT_CONN,
+};
+
+static u32 nss_flow_table_bytes[2];
+static u16 nss_flow_sweep_index[2];
+static unsigned long nss_flow_swept;
 static u32 nss_flow_installed[2];
 static u32 nss_flow_full[2];
 static bool nss_flow_ready;
 static struct nss_core *nss_flow_core;
+static unsigned int nss_flow_connections = NSS_FLOW_DEFAULT_CONN;
+
+/* Ring ownership and table memory are fixed for a core's running lifetime. */
+static int nss_flow_connections_set(const char *val, const struct kernel_param *kp)
+{
+	unsigned int count;
+	int ret;
+
+	ret = kstrtouint(val, 0, &count);
+	if (ret)
+		return ret;
+	if (count < NSS_FLOW_DEFAULT_CONN || count > NSS_FLOW_MAX_CONN ||
+	    count % NSS_FLOW_DEFAULT_CONN)
+		return -EINVAL;
+
+	guard(mutex)(&nss_flow_lock);
+	if (nss_flow_core && READ_ONCE(nss_flow_core->loaded))
+		return -EBUSY;
+	*(unsigned int *)kp->arg = count;
+	return 0;
+}
+
+static const struct kernel_param_ops nss_flow_connections_ops = {
+	.set = nss_flow_connections_set,
+	.get = param_get_uint,
+};
+module_param_cb(connections, &nss_flow_connections_ops, &nss_flow_connections, 0644);
+MODULE_PARM_DESC(connections, "NSS12.5 connections per family: 1024 default, up to 4096 in steps of 1024; set before boot");
+
+/* Table sizes come from the running image, never from a guessed entry size.
+ * Once CFG is sent, keep both DMA blocks until core halt even on a timeout:
+ * a late firmware ACK may already have taken ownership of their addresses.
+ */
+static int nss_flow_configure_family(struct nss_core *core, bool v6,
+				     u32 count, u32 *bytes)
+{
+	struct nss_conn_table_size_msg size = {
+		.cm.interface = v6 ? NSS_INTERFACE_IPV6 : NSS_INTERFACE_IPV4,
+		.cm.type = NSS_IPV4_TX_CONN_TABLE_SIZE_MSG,
+		.num_conn = cpu_to_be32(count),
+	};
+	struct nss_conn_cfg_msg cfg = {
+		.cm.interface = size.cm.interface,
+		.cm.type = NSS_IPV4_TX_CONN_CFG_RULE_MSG,
+		.num_conn = cpu_to_be32(count),
+	};
+	void *ce, *cme;
+	u32 ce_size, cme_size;
+	int ret;
+
+	ret = nss_msg_send_quiet(core, &size,
+				 offsetofend(struct nss_conn_table_size_msg,
+					     cme_table_size));
+	if (ret || size.cm.response != NSS_CMN_RESPONSE_ACK || size.cm.error) {
+		dev_err(core->dev, "IPv%u table-size reply: rc %d response %u error %u\n",
+			v6 ? 6 : 4, ret, size.cm.response, size.cm.error);
+		return ret ?: -EPROTO;
+	}
+	if (size.cm.len < 3 * sizeof(u32) ||
+	    be32_to_cpu(size.num_conn) != count)
+		return -EPROTO;
+
+	ce_size = be32_to_cpu(size.ce_table_size);
+	cme_size = be32_to_cpu(size.cme_table_size);
+	if (!ce_size || !cme_size || ce_size > SZ_16M || cme_size > SZ_16M)
+		return -EOVERFLOW;
+
+	ce = nss_mem_alloc(core, ce_size, 64, &cfg.ce_mem);
+	if (!ce)
+		return -ENOMEM;
+	cme = nss_mem_alloc(core, cme_size, 64, &cfg.cme_mem);
+	if (!cme) {
+		nss_mem_free(core, ce);
+		return -ENOMEM;
+	}
+
+	ret = nss_msg_send_quiet(core, &cfg,
+				 offsetofend(struct nss_conn_cfg_msg, cme_mem));
+	if (ret || cfg.cm.response != NSS_CMN_RESPONSE_ACK || cfg.cm.error) {
+		dev_err(core->dev, "IPv%u table-config reply: rc %d response %u error %u\n",
+			v6 ? 6 : 4, ret, cfg.cm.response, cfg.cm.error);
+		return ret ?: -EPROTO;
+	}
+	if (cfg.cm.len < 3 * sizeof(u32) ||
+	    be32_to_cpu(cfg.num_conn) != count)
+		return -EPROTO;
+
+	*bytes = ce_size + cme_size;
+	dev_info(core->dev, "IPv%u connection capacity %u acknowledged, CE %u CME %u bytes\n",
+		 v6 ? 6 : 4, count, ce_size, cme_size);
+	return 0;
+}
+
+int nss_flow_configure(struct nss_core *core)
+{
+	u32 count = nss_flow_connections, bytes[2] = {};
+	int i, ret;
+
+	guard(mutex)(&nss_flow_lock);
+	/* A later boot may select smaller tables than the previous one. */
+	memset(nss_flow_sweep_index, 0, sizeof(nss_flow_sweep_index));
+	nss_flow_swept = jiffies - HZ;
+	if (count == NSS_FLOW_DEFAULT_CONN)
+		return 0;
+	if (strcmp(core->fw->name, "12.5"))
+		return -EOPNOTSUPP;
+
+	scoped_guard(spinlock_bh, &nss_flow_sync_lock)
+		memset(nss_flow_limit, 0, sizeof(nss_flow_limit));
+	for (i = 0; i < ARRAY_SIZE(nss_flow_limit); i++) {
+		ret = nss_flow_configure_family(core, i, count, &bytes[i]);
+		if (ret) {
+			dev_err(core->dev, "IPv%u connection capacity %u failed: %d; stopping core\n",
+				i ? 6 : 4, count, ret);
+			return ret;
+		}
+	}
+	scoped_guard(spinlock_bh, &nss_flow_sync_lock) {
+		for (i = 0; i < ARRAY_SIZE(nss_flow_limit); i++) {
+			nss_flow_limit[i] = count;
+			nss_flow_table_bytes[i] = bytes[i];
+		}
+	}
+	return 0;
+}
 /* Why a flow was not taken. A flow the firmware does not carry and a flow it
  * was never offered look the same from outside, and so do the several reasons
  * for the first, so each is counted where it is decided.
@@ -724,7 +858,7 @@ static int nss_flow_admit(bool v6)
 {
 	guard(spinlock_bh)(&nss_flow_sync_lock);
 
-	if (nss_flow_installed[v6] >= NSS_FLOW_FAMILY_LIMIT) {
+	if (nss_flow_installed[v6] >= nss_flow_limit[v6]) {
 		nss_flow_full[v6]++;
 		return -ENOSPC;
 	}
@@ -1176,7 +1310,7 @@ static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
 		e->bridged = bridged;
 		e->protocol = basic.key->ip_proto;
 		e->v6 = basic.key->n_proto == htons(ETH_P_IPV6);
-		e->lastused = jiffies;
+		WRITE_ONCE(e->lastused, jiffies);
 
 		ret = rhashtable_insert_fast(&nss_flow_table, &e->node,
 					     nss_flow_ht_params);
@@ -1241,7 +1375,7 @@ static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
 	}
 
 	nss_flow_sync_install(e);
-	e->lastused = jiffies;
+	WRITE_ONCE(e->lastused, jiffies);
 	nss_flow_pushed++;
 
 	return 0;
@@ -1311,7 +1445,7 @@ static void nss_flow_sync_mark_v4(const struct nss_ipv4_conn_sync *r)
 		if (gone) {
 			nss_flow_sync_drop(e);
 		}
-		e->lastused = jiffies;
+		WRITE_ONCE(e->lastused, jiffies);
 		e->cnt[0] += r->flow_rx_packet_count;
 		e->cnt[1] += r->flow_tx_packet_count;
 		e->cnt[2] += r->return_rx_packet_count;
@@ -1341,7 +1475,7 @@ static void nss_flow_sync_mark_v6(const struct nss_ipv6_conn_sync *r)
 		if (gone) {
 			nss_flow_sync_drop(e);
 		}
-		e->lastused = jiffies;
+		WRITE_ONCE(e->lastused, jiffies);
 		e->cnt[0] += r->flow_rx_packet_count;
 		e->cnt[1] += r->flow_tx_packet_count;
 		e->cnt[2] += r->return_rx_packet_count;
@@ -1415,13 +1549,24 @@ void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
  * per-connection sync messages stop arriving on their own, which otherwise
  * cost one message every couple of milliseconds per connection.
  */
+/* Preserve the default table's refresh period when its capacity grows.
+ * Eight replies per family per second can take longer than the kernel's
+ * 30-second flow timeout at 4096 entries, expiring active hardware rules
+ * and queuing unnecessary destroys and creates behind the message mutex.
+ */
+static int nss_flow_sweep_rounds(bool v6)
+{
+	return 8 * DIV_ROUND_UP(READ_ONCE(nss_flow_limit[v6]),
+			       NSS_FLOW_DEFAULT_CONN);
+}
+
 static void nss_flow_sweep_v4(struct nss_core *core)
 {
 	struct nss_ipv4_msg *m __free(kfree) =
 		kzalloc(NSS_EMPTY_BUFFER_SIZE, GFP_KERNEL);
 	struct nss_ipv4_conn_sync_many_msg *s;
-	static u16 index;
-	int rounds = 8;
+	u16 *index = &nss_flow_sweep_index[0];
+	int rounds = nss_flow_sweep_rounds(false);
 	int i;
 
 	if (!m)
@@ -1432,7 +1577,7 @@ static void nss_flow_sweep_v4(struct nss_core *core)
 		memset(m, 0, sizeof(m->cm) + sizeof(*s));
 		m->cm.interface = NSS_INTERFACE_IPV4;
 		m->cm.type = NSS_IPV4_TX_CONN_STATS_SYNC_MANY_MSG;
-		s->index = index;
+		s->index = *index;
 		s->size = NSS_EMPTY_BUFFER_SIZE;
 		if (nss_msg_transact(core, m,
 				     offsetof(struct nss_ipv4_msg, msg) + sizeof(*s),
@@ -1444,8 +1589,8 @@ static void nss_flow_sweep_v4(struct nss_core *core)
 		     (i + 1) * sizeof(s->conn_sync[0]) <= NSS_EMPTY_BUFFER_SIZE;
 		     i++)
 			nss_flow_sync_mark_v4(&s->conn_sync[i]);
-		index = s->next;
-	} while (index && --rounds);
+		*index = s->next;
+	} while (*index && --rounds);
 }
 
 static void nss_flow_sweep_v6(struct nss_core *core)
@@ -1453,8 +1598,8 @@ static void nss_flow_sweep_v6(struct nss_core *core)
 	struct nss_ipv6_msg *m __free(kfree) =
 		kzalloc(NSS_EMPTY_BUFFER_SIZE, GFP_KERNEL);
 	struct nss_ipv6_conn_sync_many_msg *s;
-	static u16 index;
-	int rounds = 8;
+	u16 *index = &nss_flow_sweep_index[1];
+	int rounds = nss_flow_sweep_rounds(true);
 	int i;
 
 	if (!m)
@@ -1465,7 +1610,7 @@ static void nss_flow_sweep_v6(struct nss_core *core)
 		memset(m, 0, sizeof(m->cm) + sizeof(*s));
 		m->cm.interface = NSS_INTERFACE_IPV6;
 		m->cm.type = NSS_IPV6_TX_CONN_STATS_SYNC_MANY_MSG;
-		s->index = index;
+		s->index = *index;
 		s->size = NSS_EMPTY_BUFFER_SIZE;
 		if (nss_msg_transact(core, m,
 				     offsetof(struct nss_ipv6_msg, msg) + sizeof(*s),
@@ -1476,8 +1621,8 @@ static void nss_flow_sweep_v6(struct nss_core *core)
 		     (i + 1) * sizeof(s->conn_sync[0]) <= NSS_EMPTY_BUFFER_SIZE;
 		     i++)
 			nss_flow_sync_mark_v6(&s->conn_sync[i]);
-		index = s->next;
-	} while (index && --rounds);
+		*index = s->next;
+	} while (*index && --rounds);
 }
 
 /* What the kernel asks in place of seeing the packets.
@@ -1487,8 +1632,6 @@ static void nss_flow_sweep_v6(struct nss_core *core)
  * alive. The kernel asks per flow but the firmware answers per table, so one
  * sweep a second serves every flow's answer.
  */
-static unsigned long nss_flow_swept;
-
 static void nss_flow_sweep(struct nss_core *core)
 {
 	if (time_after(jiffies, nss_flow_swept + HZ)) {
@@ -1498,18 +1641,43 @@ static void nss_flow_sweep(struct nss_core *core)
 	}
 }
 
-static int nss_flow_stats(struct nss_core *core, struct flow_cls_offload *f)
+static bool nss_flow_cached_stats(unsigned long key, unsigned long *lastused)
 {
-	unsigned long key = (unsigned long)nss_flow_of(f->cookie);
 	struct nss_flow_entry *e;
+	bool installed;
 
+	rcu_read_lock();
 	e = rhashtable_lookup_fast(&nss_flow_table, &key, nss_flow_ht_params);
-	if (!e || !e->installed)
+	installed = e && READ_ONCE(e->installed);
+	*lastused = installed ? READ_ONCE(e->lastused) : 0;
+	rcu_read_unlock();
+	return installed;
+}
+
+static int nss_flow_stats(struct flow_cls_offload *f)
+{
+	unsigned long key = (unsigned long)nss_flow_of(f->cookie), lastused;
+
+	if (!nss_flow_cached_stats(key, &lastused))
 		return -ENOENT;
 
-	nss_flow_sweep(core);
+	/* One caller sweeps; parallel per-flow stats work uses the RCU cache.
+	 * A larger table must not turn a firmware sweep into thousands of
+	 * sleeping statistics workers behind the global flow mutex.
+	 */
+	{
+		ACQUIRE(mutex_try, sweep_guard)(&nss_flow_lock);
+		if (!ACQUIRE_ERR(mutex_try, &sweep_guard)) {
+			struct nss_core *core = nss_flow_core;
 
-	flow_stats_update(&f->stats, 0, 0, 0, e->lastused,
+			if (core && READ_ONCE(core->running))
+				nss_flow_sweep(core);
+			if (!nss_flow_cached_stats(key, &lastused))
+				return -ENOENT;
+		}
+	}
+
+	flow_stats_update(&f->stats, 0, 0, 0, lastused,
 			  FLOW_ACTION_HW_STATS_DELAYED);
 
 	return 0;
@@ -1547,6 +1715,8 @@ static int nss_flow_block_cb(enum tc_setup_type type, void *type_data,
 
 	if (f->command == FLOW_CLS_REPLACE && nss_flow_capacity_busy(f))
 		return -ENOSPC;
+	if (f->command == FLOW_CLS_STATS)
+		return nss_flow_stats(f);
 
 	guard(mutex)(&nss_flow_lock);
 
@@ -1559,8 +1729,6 @@ static int nss_flow_block_cb(enum tc_setup_type type, void *type_data,
 		return nss_flow_replace(core, f);
 	case FLOW_CLS_DESTROY:
 		return nss_flow_destroy(core, f);
-	case FLOW_CLS_STATS:
-		return nss_flow_stats(core, f);
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -1746,7 +1914,7 @@ int nss_flow_br_add(struct nf_conn *ct, const struct nss_flow_br_dir *dir,
 	}
 
 	nss_flow_sync_install(e);
-	e->lastused = jiffies;
+	WRITE_ONCE(e->lastused, jiffies);
 
 	return 0;
 }
@@ -1834,9 +2002,12 @@ void nss_flow_print(struct seq_file *s)
 
 		seq_printf(s, "resource IPv%u installed %u limit %u full %u refused %u deferred %u retry_ms %u\n",
 			   i ? 6 : 4, READ_ONCE(nss_flow_installed[i]),
-			   NSS_FLOW_FAMILY_LIMIT, READ_ONCE(nss_flow_full[i]),
+			   READ_ONCE(nss_flow_limit[i]), READ_ONCE(nss_flow_full[i]),
 			   p->refused, p->deferred, jiffies_to_msecs(remaining));
 	}
+	seq_printf(s, "capacity requested %u table_bytes IPv4 %u IPv6 %u\n",
+		   nss_flow_connections, nss_flow_table_bytes[0],
+		   nss_flow_table_bytes[1]);
 
 	for (nd = nss_flow_nodes; nd < nss_flow_nodes + ARRAY_SIZE(nss_flow_nodes); nd++) {
 		seq_printf(s, "node %s rx %u tx %u drop %u/%u/%u/%u exceptions",
@@ -1908,9 +2079,8 @@ ssize_t nss_flow_summary(char *buf)
 	}
 	rhashtable_walk_stop(&iter);
 	rhashtable_walk_exit(&iter);
-	/* NSS_FW_DEFAULT_NUM_CONN is 1024 per family; no resize is sent. */
 	return sysfs_emit(buf, "%u %u %u %u\n", v4, v6, v4 + v6,
-			  2 * NSS_FLOW_FAMILY_LIMIT);
+			  READ_ONCE(nss_flow_limit[0]) + READ_ONCE(nss_flow_limit[1]));
 }
 
 /* Halting a core takes every rule it held with it, so the entries only
@@ -1939,8 +2109,12 @@ void nss_flow_flush(void)
 	memset(nss_flow_pppoe_tbl, 0, sizeof(nss_flow_pppoe_tbl));
 	memset(nss_flow_pressure, 0, sizeof(nss_flow_pressure));
 	memset(nss_flow_full, 0, sizeof(nss_flow_full));
-	scoped_guard(spinlock_bh, &nss_flow_sync_lock)
+	scoped_guard(spinlock_bh, &nss_flow_sync_lock) {
 		memset(&nss_flow_buffers, 0, sizeof(nss_flow_buffers));
+		memset(nss_flow_table_bytes, 0, sizeof(nss_flow_table_bytes));
+		nss_flow_limit[0] = NSS_FLOW_DEFAULT_CONN;
+		nss_flow_limit[1] = NSS_FLOW_DEFAULT_CONN;
+	}
 }
 
 int nss_flow_init(void)

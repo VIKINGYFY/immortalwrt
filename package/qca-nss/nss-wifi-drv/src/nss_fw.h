@@ -168,9 +168,29 @@ struct nss_virt_if_config_msg {
 #define NSS_IPV4_TX_DESTROY_RULE_MSG		1
 #define NSS_IPV4_RX_CONN_STATS_SYNC_MSG		3
 #define NSS_IPV4_RX_NODE_STATS_SYNC_MSG		4
+#define NSS_IPV4_TX_CONN_CFG_RULE_MSG		5
 #define NSS_IPV4_TX_CREATE_MC_RULE_MSG		6
 #define NSS_IPV4_TX_CONN_STATS_SYNC_MANY_MSG	7
 #define NSS_IPV4_TX_ACCEL_MODE_CFG_MSG		8
+#define NSS_IPV4_TX_CONN_TABLE_SIZE_MSG		10
+
+/* R50 connection-table negotiation uses network order for counts/sizes,
+ * but native 32-bit DMA addresses for the host-owned CE/CME tables.
+ * IPv4 and IPv6 use the same layouts and message numbers.
+ */
+struct nss_conn_table_size_msg {
+	struct nss_cmn_msg cm;
+	__be32 num_conn;
+	__be32 ce_table_size;
+	__be32 cme_table_size;
+};
+
+struct nss_conn_cfg_msg {
+	struct nss_cmn_msg cm;
+	__be32 num_conn;
+	u32 ce_mem;
+	u32 cme_mem;
+};
 
 /* Where the IPv4 and IPv6 engines accelerate: in the cores, or handed to the
  * switch, which they boot with.
