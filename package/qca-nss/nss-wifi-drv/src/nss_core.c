@@ -1220,9 +1220,9 @@ static int nss_rx_show(struct seq_file *s, void *unused)
 		   core->link_desc_returned, core->tx_posted,
 		   atomic64_read(&core->tx_done));
 
-	/* How many buffers the firmware is holding. It takes one per
-	 * accelerated connection, so a create rule refused for want of a
-	 * buffer is read here rather than inferred.
+	/* Total host buffers lent to the firmware, including WLAN and
+	 * protocol/exception work. This is not a free-buffer count; the N2H
+	 * snapshots in flows distinguish allocation failures from occupancy.
 	 */
 	seq_printf(s, "buffers in firmware custody: %d  desync: %llu\n",
 		   atomic_read(&core->buffers_queued),

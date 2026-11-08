@@ -53,6 +53,28 @@ struct nss_cmn_node_stats {
 #define NSS_NODE_EXCEPTIONS_MAX		96
 #define NSS_ETH_RX_NODE_STATS_SYNC_MSG	0
 
+/* N2H statistics prefix from QSDK R50 nss_n2h.h. The free counts are
+ * snapshots; allocation-failure fields are deltas since the last sync.
+ */
+struct nss_n2h_pbuf_stats {
+	u32 total;
+	u32 free;
+	u32 alloc_with_payload_failed;
+	u32 alloc_without_payload_failed;
+};
+
+struct nss_n2h_buffer_stats {
+	struct nss_cmn_node_stats node;
+	u32 queue_dropped;
+	u32 total_ticks;
+	u32 worst_ticks;
+	u32 iterations;
+	struct nss_n2h_pbuf_stats ocm;
+	struct nss_n2h_pbuf_stats ddr;
+	u32 payload_alloc_failed;
+	u32 payload_free;
+};
+
 /* Dynamic interfaces. */
 
 #define NSS_DYNAMIC_INTERFACE_ALLOC_NODE	0
@@ -162,6 +184,7 @@ struct nss_accel_mode_cfg {
 
 #define NSS_IPV4_RULE_SYNC_REASON_FLUSH		1
 #define NSS_IPV4_RULE_SYNC_REASON_EVICT		2
+#define NSS_IPV4_CR_BUFFER_ALLOC_FAIL_ERROR	4
 #define NSS_IPV4_DR_NO_CONNECTION_ENTRY_ERROR	5
 
 #define NSS_IPV4_RULE_CREATE_FLAG_NO_SEQ_CHECK	0x01
@@ -194,6 +217,7 @@ struct nss_accel_mode_cfg {
 
 #define NSS_IPV6_RULE_SYNC_REASON_FLUSH		1
 #define NSS_IPV6_RULE_SYNC_REASON_EVICT		2
+#define NSS_IPV6_CR_BUFFER_ALLOC_FAIL_ERROR	4
 #define NSS_IPV6_DR_NO_CONNECTION_ENTRY_ERROR	5
 
 #define NSS_IPV6_RULE_CREATE_FLAG_NO_SEQ_CHECK	0x01

@@ -142,6 +142,13 @@ static struct rhashtable nss_flow_table;
  */
 static DEFINE_HASHTABLE(nss_flow_sync_table, 10);
 static DEFINE_SPINLOCK(nss_flow_sync_lock);
+/* No resize is sent: QSDK's default capacity is per address family.
+ * Admission stops firmware LRU eviction cycling active connections through
+ * the serialized command ring while new flows can use software forwarding.
+ */
+#define NSS_FLOW_FAMILY_LIMIT	1024
+static u32 nss_flow_installed[2];
+static u32 nss_flow_full[2];
 static bool nss_flow_ready;
 static struct nss_core *nss_flow_core;
 /* Why a flow was not taken. A flow the firmware does not carry and a flow it
@@ -166,6 +173,61 @@ static const char *const nss_flow_reject_name[] = {
 
 static u32 nss_flow_pushed, nss_flow_bound, nss_flow_reject[NSS_FLOW_REJECT_MAX];
 static int nss_flow_last_ifindex;
+
+/* Resource refusals affect new rules only. Both entry points hold the flow
+ * mutex, so a family has one bounded retry window even under many new flows.
+ * This is independent of the fixed per-family connection admission limit.
+ */
+struct nss_flow_pressure {
+	unsigned long retry_at;
+	u32 refused;
+	u32 deferred;
+	u8 backoff;
+};
+
+static struct nss_flow_pressure nss_flow_pressure[2];
+
+struct nss_flow_buffers {
+	u32 payload_free;
+	u32 ocm_free;
+	u32 ocm_total;
+	u32 ddr_free;
+	u32 ddr_total;
+	u64 payload_failed;
+	u64 pbuf_failed;
+	u64 queue_dropped;
+	u64 syncs;
+};
+
+static struct nss_flow_buffers nss_flow_buffers;
+
+/* Called from NAPI. Reject truncated statistics before reading the prefix. */
+static bool nss_flow_buffer_sync(u32 iface, const struct nss_cmn_msg *cm,
+				 u32 len)
+{
+	const struct nss_n2h_buffer_stats *st = (const void *)(cm + 1);
+	struct nss_flow_buffers *b = &nss_flow_buffers;
+
+	if (iface != NSS_INTERFACE_N2H || cm->type)
+		return false;
+	if (cm->len < sizeof(*st) || len < sizeof(*cm) + sizeof(*st))
+		return true;
+
+	guard(spinlock_bh)(&nss_flow_sync_lock);
+	b->payload_free = st->payload_free;
+	b->ocm_free = st->ocm.free;
+	b->ocm_total = st->ocm.total;
+	b->ddr_free = st->ddr.free;
+	b->ddr_total = st->ddr.total;
+	b->payload_failed += st->payload_alloc_failed;
+	b->pbuf_failed += (u64)st->ocm.alloc_with_payload_failed +
+			  st->ocm.alloc_without_payload_failed +
+			  st->ddr.alloc_with_payload_failed +
+			  st->ddr.alloc_without_payload_failed;
+	b->queue_dropped += st->queue_dropped;
+	b->syncs++;
+	return true;
+}
 
 /* Where in the firmware a packet stopped and why it went to the host. */
 struct nss_flow_node {
@@ -657,6 +719,67 @@ static void nss_flow_encap_get(const struct nss_flow_entry *e,
 	}
 }
 
+/* Admission counts firmware rules, not partially assembled host offers. */
+static int nss_flow_admit(bool v6)
+{
+	guard(spinlock_bh)(&nss_flow_sync_lock);
+
+	if (nss_flow_installed[v6] >= NSS_FLOW_FAMILY_LIMIT) {
+		nss_flow_full[v6]++;
+		return -ENOSPC;
+	}
+	return 0;
+}
+
+/* A resource NACK is judged here instead of printed twice. Back off probes
+ * for 1..8 seconds while packets remain on the host; one ACK ends backoff.
+ */
+static int nss_flow_create(struct nss_core *core, void *msg, size_t len,
+			   bool v6, u32 *fw_err)
+{
+	struct nss_flow_pressure *p = &nss_flow_pressure[v6];
+	struct nss_cmn_msg *cm = msg;
+	unsigned long delay;
+	int ret;
+
+	ret = nss_flow_admit(v6);
+	if (ret)
+		return ret;
+
+	if (p->backoff && time_before(jiffies, p->retry_at)) {
+		p->deferred++;
+		return -EAGAIN;
+	}
+
+	ret = nss_msg_send_quiet(core, msg, len);
+	if (cm->response == NSS_CMN_RESPONSE_EMSG &&
+	    cm->error == NSS_IPV4_CR_BUFFER_ALLOC_FAIL_ERROR) {
+		*fw_err = cm->error;
+		p->refused++;
+		p->backoff = min_t(u8, p->backoff + 1, 4);
+		delay = HZ << (p->backoff - 1);
+		p->retry_at = jiffies + delay;
+		dev_warn_ratelimited(core->dev,
+				     "IPv%u rule buffers exhausted; software forwarding, retry in %u ms\n",
+				     v6 ? 6 : 4, jiffies_to_msecs(delay));
+		return -EAGAIN;
+	}
+
+	if (ret || cm->error) {
+		*fw_err = cm->error;
+		dev_warn_ratelimited(core->dev,
+				     "IPv%u rule create failed: rc %d error %u\n",
+				     v6 ? 6 : 4, ret, cm->error);
+		return ret ?: -EIO;
+	}
+
+	p->backoff = 0;
+	return 0;
+}
+
+static_assert(NSS_IPV4_CR_BUFFER_ALLOC_FAIL_ERROR ==
+	      NSS_IPV6_CR_BUFFER_ALLOC_FAIL_ERROR);
+
 static int nss_flow_send_v4(struct nss_core *core, struct nss_flow_entry *e,
 			    struct nf_conn *ct, u32 *fw_err)
 {
@@ -767,18 +890,8 @@ static int nss_flow_send_v4(struct nss_core *core, struct nss_flow_entry *e,
 
 	m->cm.interface = NSS_INTERFACE_IPV4;
 	m->cm.type = NSS_IPV4_TX_CREATE_RULE_MSG;
-	ret = nss_msg_send(core, m, offsetof(struct nss_ipv4_msg, msg) +
-				    sizeof(*c));
-	if (m->cm.error) {
-		*fw_err = m->cm.error;
-		dev_warn_ratelimited(core->dev,
-				     "v4 rule refused: error %u proto %u if %d->%d\n",
-				     m->cm.error, e->protocol,
-				     c->conn_rule.flow_interface_num,
-				     c->conn_rule.return_interface_num);
-		if (!ret)
-			ret = -EIO;
-	}
+	ret = nss_flow_create(core, m, offsetof(struct nss_ipv4_msg, msg) +
+			      sizeof(*c), false, fw_err);
 
 	return ret;
 }
@@ -886,18 +999,8 @@ static int nss_flow_send_v6(struct nss_core *core, struct nss_flow_entry *e,
 
 	m->cm.interface = NSS_INTERFACE_IPV6;
 	m->cm.type = NSS_IPV6_TX_CREATE_RULE_MSG;
-	ret = nss_msg_send(core, m, offsetof(struct nss_ipv6_msg, msg) +
-				    sizeof(*c));
-	if (m->cm.error) {
-		*fw_err = m->cm.error;
-		dev_warn_ratelimited(core->dev,
-				     "v6 rule refused: error %u proto %u if %d->%d\n",
-				     m->cm.error, e->protocol,
-				     c->conn_rule.flow_interface_num,
-				     c->conn_rule.return_interface_num);
-		if (!ret)
-			ret = -EIO;
-	}
+	ret = nss_flow_create(core, m, offsetof(struct nss_ipv6_msg, msg) +
+			      sizeof(*c), true, fw_err);
 
 	return ret;
 }
@@ -917,10 +1020,23 @@ static u32 nss_flow_sync_hash_v6(u32 protocol, const u32 *flow_ip, u32 flow_iden
 			    jhash_2words(flow_ident, return_ident, protocol), 1);
 }
 
-static void nss_flow_sync_unindex(struct nss_flow_entry *e)
+static bool nss_flow_sync_drop(struct nss_flow_entry *e)
+{
+	lockdep_assert_held(&nss_flow_sync_lock);
+	hash_del(&e->sync_node);
+	if (!e->installed)
+		return false;
+
+	WRITE_ONCE(e->installed, false);
+	nss_flow_installed[e->v6]--;
+	return true;
+}
+
+static bool nss_flow_sync_unindex(struct nss_flow_entry *e)
 {
 	guard(spinlock_bh)(&nss_flow_sync_lock);
-	hash_del(&e->sync_node);
+
+	return nss_flow_sync_drop(e);
 }
 
 static void nss_flow_sync_install(struct nss_flow_entry *e)
@@ -936,50 +1052,45 @@ static void nss_flow_sync_install(struct nss_flow_entry *e)
 					    e->t4.flow_ident, e->t4.return_ip,
 					    e->t4.return_ident);
 	guard(spinlock_bh)(&nss_flow_sync_lock);
+	nss_flow_installed[e->v6]++;
 	WRITE_ONCE(e->installed, true);
 	hash_add(nss_flow_sync_table, &e->sync_node, key);
 }
 
 static void nss_flow_withdraw(struct nss_core *core, struct nss_flow_entry *e)
 {
-	nss_flow_sync_unindex(e);
-	if (!e->installed)
+	if (!nss_flow_sync_unindex(e))
 		return;
 
 	if (e->v6) {
-		struct nss_ipv6_msg *m __free(kfree) =
-			kzalloc(sizeof(*m), GFP_KERNEL);
-
-		if (!m)
-			return;
-		m->msg.rule_destroy.tuple = e->t6;
+		struct {
+			struct nss_cmn_msg cm;
+			struct nss_ipv6_5tuple tuple;
+		} msg = { .tuple = e->t6 }, *m = &msg;
 		m->cm.interface = NSS_INTERFACE_IPV6;
 		m->cm.type = NSS_IPV6_TX_DESTROY_RULE_MSG;
 		/* A connection the firmware already dropped is gone either way. */
 		if (nss_msg_send_quiet(core, m, offsetof(struct nss_ipv6_msg, msg) +
-					   sizeof(m->msg.rule_destroy)) &&
+					   sizeof(m->tuple)) &&
 		    m->cm.error != NSS_IPV6_DR_NO_CONNECTION_ENTRY_ERROR)
 			dev_warn_ratelimited(core->dev,
 					     "v6 rule destroy refused: error %u\n",
 					     m->cm.error);
 	} else {
-		struct nss_ipv4_msg *m __free(kfree) =
-			kzalloc(sizeof(*m), GFP_KERNEL);
-
-		if (!m)
-			return;
-		m->msg.rule_destroy.tuple = e->t4;
+		struct {
+			struct nss_cmn_msg cm;
+			struct nss_ipv4_5tuple tuple;
+		} msg = { .tuple = e->t4 }, *m = &msg;
 		m->cm.interface = NSS_INTERFACE_IPV4;
 		m->cm.type = NSS_IPV4_TX_DESTROY_RULE_MSG;
 		if (nss_msg_send_quiet(core, m, offsetof(struct nss_ipv4_msg, msg) +
-					   sizeof(m->msg.rule_destroy)) &&
+					   sizeof(m->tuple)) &&
 		    m->cm.error != NSS_IPV4_DR_NO_CONNECTION_ENTRY_ERROR)
 			dev_warn_ratelimited(core->dev,
 					     "v4 rule destroy refused: error %u\n",
 					     m->cm.error);
 	}
 
-	e->installed = false;
 }
 
 static void nss_flow_forget(struct nss_core *core, struct nss_flow_entry *e)
@@ -1052,6 +1163,10 @@ static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
 		     test_bit(NF_FLOW_DNAT, &flow->flags)))
 			return nss_flow_reject_at(NSS_FLOW_REJECT_ACTION,
 						  -EOPNOTSUPP, f, 0);
+
+		ret = nss_flow_admit(basic.key->n_proto == htons(ETH_P_IPV6));
+		if (ret)
+			return ret;
 
 		e = kzalloc(sizeof(*e), GFP_KERNEL);
 		if (!e)
@@ -1194,8 +1309,7 @@ static void nss_flow_sync_mark_v4(const struct nss_ipv4_conn_sync *r)
 		if (!e->installed || !nss_flow_is_v4(e, r))
 			continue;
 		if (gone) {
-			hash_del(&e->sync_node);
-			WRITE_ONCE(e->installed, false);
+			nss_flow_sync_drop(e);
 		}
 		e->lastused = jiffies;
 		e->cnt[0] += r->flow_rx_packet_count;
@@ -1225,8 +1339,7 @@ static void nss_flow_sync_mark_v6(const struct nss_ipv6_conn_sync *r)
 		if (!e->installed || !nss_flow_is_v6(e, r))
 			continue;
 		if (gone) {
-			hash_del(&e->sync_node);
-			WRITE_ONCE(e->installed, false);
+			nss_flow_sync_drop(e);
 		}
 		e->lastused = jiffies;
 		e->cnt[0] += r->flow_rx_packet_count;
@@ -1253,7 +1366,8 @@ void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 
 	m4 = container_of_const(ncm, struct nss_ipv4_msg, cm);
 	m6 = container_of_const(ncm, struct nss_ipv6_msg, cm);
-	if (nss_flow_node_sync(iface, ncm, len))
+	if (nss_flow_buffer_sync(iface, ncm, len) ||
+	    nss_flow_node_sync(iface, ncm, len))
 		return;
 
 	if (iface == NSS_INTERFACE_IPV4) {
@@ -1287,8 +1401,7 @@ void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 		if (iface == NSS_INTERFACE_IPV4 ?
 		    nss_flow_is_v4(e, &m4->msg.conn_stats) :
 		    nss_flow_is_v6(e, &m6->msg.conn_stats)) {
-			hash_del(&e->sync_node);
-			WRITE_ONCE(e->installed, false);
+			nss_flow_sync_drop(e);
 		}
 }
 
@@ -1402,6 +1515,27 @@ static int nss_flow_stats(struct nss_core *core, struct flow_cls_offload *f)
 	return 0;
 }
 
+/* New flows rejected at capacity need neither the serialized message path
+ * nor its mutex. Existing entries must still reach refresh/withdrawal, so
+ * check the cookie under RCU and repeat admission under the mutex on entry.
+ * Receive-side retirement shares the counter lock with this snapshot.
+ */
+static bool nss_flow_capacity_busy(struct flow_cls_offload *f)
+{
+	unsigned long key = (unsigned long)nss_flow_of(f->cookie);
+	const struct flow_offload_tuple *tuple = (const void *)f->cookie;
+	struct nss_flow_entry *entry;
+	bool full;
+
+	rcu_read_lock();
+	entry = rhashtable_lookup_fast(&nss_flow_table, &key,
+				       nss_flow_ht_params);
+	full = !entry && nss_flow_admit(tuple->l3proto == NFPROTO_IPV6);
+	rcu_read_unlock();
+
+	return full;
+}
+
 static int nss_flow_block_cb(enum tc_setup_type type, void *type_data,
 			     void *cb_priv)
 {
@@ -1410,6 +1544,9 @@ static int nss_flow_block_cb(enum tc_setup_type type, void *type_data,
 
 	if (type != TC_SETUP_CLSFLOWER)
 		return -EOPNOTSUPP;
+
+	if (f->command == FLOW_CLS_REPLACE && nss_flow_capacity_busy(f))
+		return -ENOSPC;
 
 	guard(mutex)(&nss_flow_lock);
 
@@ -1563,6 +1700,10 @@ int nss_flow_br_add(struct nf_conn *ct, const struct nss_flow_br_dir *dir,
 	if (test_bit(IPS_OFFLOAD_BIT, &ct->status))
 		return -EOPNOTSUPP;
 
+	ret = nss_flow_admit(nf_ct_l3num(ct) == NFPROTO_IPV6);
+	if (ret)
+		return ret;
+
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e)
 		return -ENOMEM;
@@ -1666,6 +1807,7 @@ static void nss_flow_tuple_print(struct seq_file *s,
 
 void nss_flow_print(struct seq_file *s)
 {
+	struct nss_flow_buffers buffers;
 	struct rhashtable_iter iter;
 	struct nss_flow_entry *e;
 	struct nss_flow_node *nd;
@@ -1673,11 +1815,28 @@ void nss_flow_print(struct seq_file *s)
 
 	seq_printf(s, "bound %u pushed %u last-ifindex %d\n",
 		   nss_flow_bound, nss_flow_pushed, nss_flow_last_ifindex);
+	scoped_guard(spinlock_bh, &nss_flow_sync_lock)
+		buffers = nss_flow_buffers;
+	seq_printf(s, "buffers syncs %llu payload_free %u payload_failed %llu pbuf_ocm %u/%u pbuf_ddr %u/%u pbuf_failed %llu queue_dropped %llu\n",
+		   buffers.syncs, buffers.payload_free, buffers.payload_failed,
+		   buffers.ocm_free, buffers.ocm_total,
+		   buffers.ddr_free, buffers.ddr_total,
+		   buffers.pbuf_failed, buffers.queue_dropped);
 	seq_puts(s, "rejected");
 	for (i = 0; i < NSS_FLOW_REJECT_MAX; i++)
 		seq_printf(s, " %s %u", nss_flow_reject_name[i],
 			   nss_flow_reject[i]);
 	seq_putc(s, '\n');
+	for (i = 0; i < ARRAY_SIZE(nss_flow_pressure); i++) {
+		const struct nss_flow_pressure *p = &nss_flow_pressure[i];
+		unsigned long remaining = p->backoff &&
+			time_before(jiffies, p->retry_at) ? p->retry_at - jiffies : 0;
+
+		seq_printf(s, "resource IPv%u installed %u limit %u full %u refused %u deferred %u retry_ms %u\n",
+			   i ? 6 : 4, READ_ONCE(nss_flow_installed[i]),
+			   NSS_FLOW_FAMILY_LIMIT, READ_ONCE(nss_flow_full[i]),
+			   p->refused, p->deferred, jiffies_to_msecs(remaining));
+	}
 
 	for (nd = nss_flow_nodes; nd < nss_flow_nodes + ARRAY_SIZE(nss_flow_nodes); nd++) {
 		seq_printf(s, "node %s rx %u tx %u drop %u/%u/%u/%u exceptions",
@@ -1750,7 +1909,8 @@ ssize_t nss_flow_summary(char *buf)
 	rhashtable_walk_stop(&iter);
 	rhashtable_walk_exit(&iter);
 	/* NSS_FW_DEFAULT_NUM_CONN is 1024 per family; no resize is sent. */
-	return sysfs_emit(buf, "%u %u %u 2048\n", v4, v6, v4 + v6);
+	return sysfs_emit(buf, "%u %u %u %u\n", v4, v6, v4 + v6,
+			  2 * NSS_FLOW_FAMILY_LIMIT);
 }
 
 /* Halting a core takes every rule it held with it, so the entries only
@@ -1777,6 +1937,10 @@ void nss_flow_flush(void)
 	rhashtable_walk_exit(&iter);
 
 	memset(nss_flow_pppoe_tbl, 0, sizeof(nss_flow_pppoe_tbl));
+	memset(nss_flow_pressure, 0, sizeof(nss_flow_pressure));
+	memset(nss_flow_full, 0, sizeof(nss_flow_full));
+	scoped_guard(spinlock_bh, &nss_flow_sync_lock)
+		memset(&nss_flow_buffers, 0, sizeof(nss_flow_buffers));
 }
 
 int nss_flow_init(void)

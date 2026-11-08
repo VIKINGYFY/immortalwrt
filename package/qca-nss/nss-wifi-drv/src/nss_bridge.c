@@ -288,8 +288,17 @@ static void nss_br_free(struct nss_br_conn *e)
 
 static void nss_br_push(struct nss_br_conn *e)
 {
+	int ret;
+
 	e->timeout = nf_ct_expires(e->ct);
-	if (nss_flow_br_add(e->ct, e->dir, e->priority)) {
+	ret = nss_flow_br_add(e->ct, e->dir, e->priority);
+	/* Shared pressure backoff bounds the firmware probes. Keep this
+	 * connection in software while GC retries it once per second; an
+	 * expired conntrack entry is still removed by the normal lifetime.
+	 */
+	if (ret == -EAGAIN || ret == -ENOSPC)
+		return;
+	if (ret) {
 		nss_br_why[NSS_BR_FIRMWARE]++;
 		WRITE_ONCE(e->state, NSS_BR_SKIP);
 		return;
@@ -300,12 +309,9 @@ static void nss_br_push(struct nss_br_conn *e)
 	WRITE_ONCE(e->state, NSS_BR_PUSHED);
 }
 
-/* What one pushed connection needs: a refreshed entry while the firmware
- * reports traffic, or the reason it goes.
- */
-static int nss_br_keep(struct nss_br_conn *e)
+/* A deferred create must still name the same live firmware ports. */
+static int nss_br_ports(struct nss_br_conn *e)
 {
-	unsigned long used;
 	u32 mtu;
 	int d;
 
@@ -325,6 +331,19 @@ static int nss_br_keep(struct nss_br_conn *e)
 		    e->dir[d].ifnum)
 			return NSS_BR_GONE;
 	}
+
+	return NSS_BR_WHY_MAX;
+}
+
+/* Refresh conntrack while the firmware reports traffic. */
+static int nss_br_keep(struct nss_br_conn *e)
+{
+	unsigned long used;
+	int why;
+
+	why = nss_br_ports(e);
+	if (why != NSS_BR_WHY_MAX)
+		return why;
 
 	used = nss_flow_br_used(e->ct);
 	if (!used)
@@ -350,8 +369,11 @@ static void nss_br_tend(struct nss_br_conn *e)
 		why = NSS_BR_CT;
 	else if (READ_ONCE(e->moved))
 		why = NSS_BR_MOVED;
-	else if (state == NSS_BR_READY)
-		nss_br_push(e);
+	else if (state == NSS_BR_READY) {
+		why = nss_br_ports(e);
+		if (why == NSS_BR_WHY_MAX)
+			nss_br_push(e);
+	}
 	else if (state == NSS_BR_PUSHED)
 		why = nss_br_keep(e);
 
