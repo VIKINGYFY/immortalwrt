@@ -3265,8 +3265,16 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		bridge_rtnl = true;
 	}
 
-	guard(mutex)(&priv->flow_lock);
-	guard(mutex)(&priv->vlan_lock);
+	/* Flowtable add work is retried while packets use software forwarding.
+	 * Do not let offers beyond hardware capacity queue sleeping workers
+	 * behind serialized table operations or a concurrent VLAN update.
+	 */
+	ACQUIRE(mutex_try, flow_guard)(&priv->flow_lock);
+	if (ACQUIRE_ERR(mutex_try, &flow_guard))
+		return -EAGAIN;
+	ACQUIRE(mutex_try, vlan_guard)(&priv->vlan_lock);
+	if (ACQUIRE_ERR(mutex_try, &vlan_guard))
+		return -EAGAIN;
 	priv->flow_request_cookie = f->cookie;
 	priv->flow_request_generation++;
 
