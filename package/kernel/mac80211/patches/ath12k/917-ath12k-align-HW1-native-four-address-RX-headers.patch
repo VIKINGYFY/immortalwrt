@@ -1,0 +1,42 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 09 Nov 2026 18:42:00 +0800
+Subject: [PATCH] wifi: ath12k: align HW1 native four-address RX headers
+
+QCN9274 HW1 WBE.1.0 pads a native-WiFi four-address header from 30 to
+32 bytes. Pulling only the IEEE 802.11 header leaves two padding bytes
+before LLC/SNAP. A WDS AP then exposes malformed Ethernet frames and the
+wired client behind the station cannot resolve ARP.
+
+Remove the hardware padding before rebuilding the QoS and crypto fields,
+when the padding and SNAP header are both present. Some receive paths
+already strip the padding, so an unconditional alignment would corrupt
+those frames. Select by HW1 and frame format; leave other RX intact.
+
+On BE10000 ES as the WDS AP, enabling alignment in the same temporary
+module restores ARP, bidirectional traffic, timed PTK renewal and station
+reconnect. Disabling alignment reproduces malformed LLC/SNAP and ARP loss.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
+@@ -989,7 +989,18 @@
+ 	/* pull decapped header */
+ 	hdr = (struct ieee80211_hdr *)msdu->data;
+ 	hdr_len = ieee80211_hdrlen(hdr->frame_control);
+-	skb_pull(msdu, hdr_len);
++	/* WBE.1.0 can retain alignment after a native four-address header.
++	 * Some receive paths already remove it; require padding plus SNAP
++	 * rather than stripping two bytes from every HW1 WDS frame.
++	 */
++	if (dp_pdev->dp->ab->hw_rev == ATH12K_HW_QCN9274_HW10 &&
++	    ieee80211_has_a4(hdr->frame_control) && hdr_len % 4 &&
++	    msdu->len >= ALIGN(hdr_len, 4) + 6 &&
++	    !get_unaligned_le16(msdu->data + hdr_len) &&
++	    !memcmp(msdu->data + ALIGN(hdr_len, 4), "\xaa\xaa\x03\x00\x00", 5))
++		skb_pull(msdu, ALIGN(hdr_len, 4));
++	else
++		skb_pull(msdu, hdr_len);
+ 
+ 	/*  Rebuild qos header */
+ 	hdr->frame_control |= __cpu_to_le16(IEEE80211_STYPE_QOS_DATA);
