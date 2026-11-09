@@ -1,0 +1,45 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 09 Nov 2026 18:13:00 +0800
+Subject: [PATCH] wifi: ath12k: encrypt EAPOL renewal on native-WiFi vdevs
+
+The encrypted EAPOL conversion is gated by Ethernet encapsulation offload.
+QCN9274 HW1 firmware without that service therefore sends PTK renewal M1
+as native-WiFi with no per-frame RAW cipher override. Initial association
+works, but the encrypted renewal times out and disconnects the station.
+
+Use the existing cipher-specific IV/ICV conversion and extension descriptor
+for encrypted EAPOL even when the vdev uses native-WiFi encapsulation.
+Preserve the normal native-WiFi data path and the unencrypted handshake.
+
+On BE10000 ES with QCN9274 HW1, three successive 20-second PTK renewals
+and a 70-second zero-loss ping pass. Disabling this change in the same
+module reproduces the M1 timeout and disconnection.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
+@@ -254,7 +254,9 @@
+ 	switch (ti.encap_type) {
+ 	case HAL_TCL_ENCAP_TYPE_NATIVE_WIFI:
+ 		is_null_frame = ieee80211_is_nullfunc(hdr->frame_control);
+-		if (ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {
++		if ((ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) ||
++		    (skb->protocol == cpu_to_be16(ETH_P_PAE) &&
++		     (skb_cb->flags & ATH12K_SKB_CIPHER_SET))) {
+ 			if ((skb->protocol == cpu_to_be16(ETH_P_PAE) &&
+ 			     !(skb_cb->flags & ATH12K_SKB_CIPHER_SET)) || is_null_frame)
+ 				is_diff_encap = true;
+@@ -276,9 +278,9 @@
+ 						ath12k_dp_tx_get_encrypt_type(skb_cb->cipher);
+ 				}
+ 			}
+-			/* Firmware expects msdu ext descriptor for nwifi/raw packets
+-			 * received in ETH mode. Without this, observed tx fail for
+-			 * Multicast packets in ETH mode.
++			/* Firmware needs an extension for the per-frame RAW cipher
++			 * override, including EAPOL renewal on native-WiFi vdevs.
++			 * ETH-mode native-WiFi frames also need the extension.
+ 			 */
+ 			msdu_ext_desc = true;
+ 		} else {
