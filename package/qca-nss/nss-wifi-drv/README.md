@@ -78,6 +78,10 @@ available to the other. The driver negotiates host-backed tables with the
 firmware before enabling flow steering. Capacity is fixed and requires no
 configuration.
 
+The firmware packet-descriptor pool defaults to 32 MiB (`pbuf_bytes`).
+It is allocated separately from the payload slabs and connection tables;
+it does not change the WLAN payload share or the fixed connection limits.
+
 The connection tables and packet payload pool are separate resources.
 The automatic pool ceiling is 24576 with WLAN and 16384 without it. Relative
 to the previous automatic pools, this permits 8192 additional 4 KiB buffer

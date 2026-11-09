@@ -32,6 +32,7 @@
 #include <linux/rtnetlink.h>
 #include <linux/seq_file.h>
 #include <linux/sysfs.h>
+#include <linux/sizes.h>
 #include <linux/soc/qcom/qca_edma.h>
 #include <linux/soc/qcom/qca_ppe.h>
 
@@ -709,7 +710,7 @@ struct nss_n2h_buf_pool {
 	u64 vaddr[NSS_N2H_PAGES_PER_MSG];
 };
 
-static unsigned int nss_pbuf_bytes = 3100000;
+static unsigned int nss_pbuf_bytes = 32 * SZ_1M;
 module_param_named(pbuf_bytes, nss_pbuf_bytes, uint, 0644);
 MODULE_PARM_DESC(pbuf_bytes, "memory lent for the firmware's packet descriptors");
 
