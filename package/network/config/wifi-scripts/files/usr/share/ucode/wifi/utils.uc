@@ -15,6 +15,11 @@ function phy_index(phy) {
 	return +phy_file(phy, "index");
 }
 
+function phy_order(phy) {
+	return +(readfile(phy_filename(phy, "device_index")) ??
+		phy_file(phy, "index"));
+}
+
 function phy_path_match(phy, path) {
 	let phy_path = realpath(phy_filename(phy, "device"));
 	return substr(phy_path, -length(path)) == path;
@@ -44,7 +49,7 @@ function __find_phy_by_path(phys, paths) {
 			continue;
 		path = split(path, "+");
 		let match = filter(phys, (phy) => phy_path_match(phy, path[0]));
-		match = sort(match, (a, b) => phy_index(a) - phy_index(b));
+		match = sort(match, (a, b) => phy_order(a) - phy_order(b));
 		match = match[+path[1]];
 		if (match)
 			return match;

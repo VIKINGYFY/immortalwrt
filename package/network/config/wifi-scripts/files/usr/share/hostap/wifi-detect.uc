@@ -15,7 +15,8 @@ let prev_board_data = prev_data ? json(prev_data) : null;
 let board_data = json(base_data);
 
 function phy_idx(name) {
-	return +rtrim(readfile(`/sys/class/ieee80211/${name}/index`));
+	return +rtrim(readfile(`/sys/class/ieee80211/${name}/device_index`) ??
+		readfile(`/sys/class/ieee80211/${name}/index`));
 }
 
 function phy_path(name) {

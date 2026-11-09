@@ -1,8 +1,7 @@
 [ "$ACTION" == "add" ] || exit 0
 
-. /lib/functions/qualcommax.sh
-
-PHYNBR=$(qualcommax_phy_index "$DEVPATH") || exit 0
+PHYNBR=$(cat "/sys${DEVPATH}/device_index" 2>/dev/null ||
+	cat "/sys${DEVPATH}/index") || exit 0
 
 . /lib/functions.sh
 . /lib/functions/system.sh

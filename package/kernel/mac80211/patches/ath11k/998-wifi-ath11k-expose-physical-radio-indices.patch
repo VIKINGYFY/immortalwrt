@@ -1,0 +1,120 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 10 Nov 2026 00:50:00 +0800
+Subject: [PATCH] wifi: ath11k: expose physical radio indices for board configuration
+
+Global wiphy numbers advance whenever firmware recovery or a controller
+reload recreates the hardware. Board MAC offsets must follow the physical
+radio rather than that registration counter.
+
+Apply ath12k's topology-derived device slot principle to ath11k using the
+existing device tree. Place integrated IPQ radios first, then QCN9074 chips
+in physical DT path order; retain each chip's firmware pdev order. Ignore
+disabled nodes and hosts. No board aliases or new DT properties are needed.
+Expose the result before wiphy registration so hotplug and configuration
+see the same stable index. Keep firmware pdev IDs and cfg80211's global
+wiphy allocation unchanged. Devices without a known topology retain their
+existing generic enumeration.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -9,6 +9,7 @@
+ #include <linux/etherdevice.h>
+ #include <linux/bitfield.h>
+ #include <linux/inetdevice.h>
++#include <linux/of.h>
+ #include <net/if_inet6.h>
+ #include <net/ipv6.h>
+ 
+@@ -10724,6 +10725,80 @@
+ 	ath11k_peer_rhash_tbl_destroy(ab);
+ }
+ 
++/* Only topologies with a known radio count expose a physical index. */
++static unsigned int ath11k_mac_node_radios(struct device_node *node)
++{
++	if (of_device_is_compatible(node, "qcom,ipq8074-wifi") ||
++	    of_device_is_compatible(node, "qcom,ipq6018-wifi"))
++		return 2;
++	if (of_device_is_compatible(node, "qcom,ipq5018-wifi") ||
++	    of_device_is_compatible(node, "qcom,qcn6122-wifi") ||
++	    of_device_is_compatible(node, "pci17cb,1104"))
++		return 1;
++
++	return 0;
++}
++
++static bool ath11k_mac_node_available(struct device_node *node)
++{
++	struct device_node *parent;
++
++	for (parent = of_node_get(node); parent;
++	     parent = of_get_next_parent(parent)) {
++		if (!of_device_is_available(parent)) {
++			of_node_put(parent);
++			return false;
++		}
++	}
++
++	return true;
++}
++
++static int ath11k_mac_device_index(struct ath11k *ar)
++{
++	struct device_node *node = ar->ab->dev->of_node;
++	struct device_node *other;
++	unsigned int count;
++	bool pci, other_pci;
++	int index = ar->pdev_idx;
++
++	if (!ath11k_mac_node_radios(node))
++		return -ENODATA;
++
++	/* Keep integrated radios first, followed by external chips in physical
++	 * DT path order. This is independent of asynchronous probe completion
++	 * and of cfg80211's monotonically increasing wiphy counter.
++	 */
++	pci = of_device_is_compatible(node, "pci17cb,1104");
++	for_each_node_with_property(other, "compatible") {
++		count = ath11k_mac_node_radios(other);
++		if (!count || !ath11k_mac_node_available(other))
++			continue;
++		other_pci = of_device_is_compatible(other, "pci17cb,1104");
++		if (other_pci < pci ||
++		    (other_pci == pci && strcmp(other->full_name, node->full_name) < 0))
++			index += count;
++	}
++
++	return index;
++}
++
++static ssize_t device_index_show(struct device *dev,
++				 struct device_attribute *attr, char *buf)
++{
++	struct wiphy *wiphy = container_of(dev, struct wiphy, dev);
++	struct ath11k *ar = wiphy_to_ieee80211_hw(wiphy)->priv;
++
++	return sysfs_emit(buf, "%d\n", ath11k_mac_device_index(ar));
++}
++static DEVICE_ATTR_RO(device_index);
++
++static struct attribute *ath11k_mac_attrs[] = {
++	&dev_attr_device_index.attr,
++	NULL,
++};
++ATTRIBUTE_GROUPS(ath11k_mac);
++
+ static int __ath11k_mac_register(struct ath11k *ar)
+ {
+ 	struct ath11k_base *ab = ar->ab;
+@@ -10742,6 +10817,9 @@
+ 	int ret;
+ 	u32 ht_cap = 0;
+ 
++	if (ath11k_mac_device_index(ar) >= 0)
++		ar->hw->wiphy->dev.groups = ath11k_mac_groups;
++
+ 	ath11k_pdev_caps_update(ar);
+ 
+ 	SET_IEEE80211_PERM_ADDR(ar->hw, ar->mac_addr);
