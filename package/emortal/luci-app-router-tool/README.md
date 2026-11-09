@@ -19,6 +19,11 @@ is capitalized. The suffix follows the radio's capabilities (`2.4G`, `5.2G`,
 characters. A custom key must contain 8 to 63 printable ASCII characters,
 supporting both WPA2 and WPA3-SAE.
 
+The 5 GHz and 6 GHz radios use automatic channel selection. The 2.4 GHz
+default remains channel 1. On a wiphy with multiple radios, each radio's
+own band information determines its suffix and bandwidth, so a restricted
+5.8 GHz radio keeps the `5.8G` suffix and an 80 MHz default.
+
 These settings are initialization defaults. Only unmarked, untouched APs with
 `OWRT` / `12345678` / `psk2+ccmp` are initialized. Existing custom credentials,
 STA/mesh/WDS/MLO profiles, and radios with `defaults_done=1` are preserved.

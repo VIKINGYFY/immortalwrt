@@ -16,14 +16,16 @@ function capabilities(board, radio, band) {
 		let info = phy.info;
 		let caps = info?.bands?.[band];
 		if (type(caps) != 'object') continue;
+		let default_channel = caps.default_channel;
 		if (radio.radio != null && '' + radio.radio != '' && type(info.radios) == 'array') {
-			let match = filter(info.radios, entry => '' + entry.index == '' + radio.radio)[0];
-			if (type(match?.bands?.[band]) != 'object') return null;
+			let radio_caps = filter(info.radios, entry => '' + entry.index == '' + radio.radio)[0];
+			if (type(radio_caps?.bands?.[band]) != 'object') return null;
+			default_channel = radio_caps.bands[band].default_channel ?? default_channel;
 		}
 		let modes = array(caps.modes);
 		if (!length(modes)) return null;
 		let width = match('' + caps.max_width, /^\d+$/) ? int(caps.max_width) : 20;
-		return { modes, width, first_channel: caps.default_channel };
+		return { modes, width, first_channel: default_channel };
 	}
 	return null;
 }
@@ -115,10 +117,10 @@ export function synchronize_wireless(uci, board) {
 		if (!caps) continue;
 		let suffix, channel, width;
 		if (band == '2G') { suffix = '2.4G'; channel = '1'; width = 20; }
-		else if (band == '6G') { suffix = '6G'; channel = '33'; width = 160; }
+		else if (band == '6G') { suffix = '6G'; channel = 'auto'; width = 160; }
 		else if (caps.first_channel >= 100) { suffix = '5.8G'; channel = 'auto'; width = 80; }
-		else if (caps.width == 80) { suffix = '5.8G'; channel = '149'; width = 80; }
-		else { suffix = '5.2G'; channel = '36'; width = 160; }
+		else if (caps.width == 80) { suffix = '5.8G'; channel = 'auto'; width = 80; }
+		else { suffix = '5.2G'; channel = 'auto'; width = 160; }
 		let mode = htmode(caps, width);
 		if (!mode) { mark_done(radio['.name']); continue; }
 		load_defaults();
