@@ -35,6 +35,11 @@ does not reset shared EDMA while another instance keeps using it.
 Port arming runs in separate work, so its RTNL acquisition cannot delay
 completion of WLAN recovery.
 
+After a WLAN reset, the recovery hook deauthenticates clients on every BSS
+of the recovered PHY so that they establish fresh keys. It leaves the
+current authenticator configuration intact: reloading hostapd's original
+inline configuration can undo dynamic SSID or security changes.
+
 A core fault stops the processor before its buffers can be released. Pending
 buffer interrupts cannot mark a halted core as newly booted. All WLAN
 instances must release the old rings before the core is loaded again;

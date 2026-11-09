@@ -3,7 +3,7 @@
 # Restart the authenticator sessions on this PHY after its driver is ready.
 nss_wifi_recover_ap() (
 	local phy="${DEVPATH##*/}" index offload object iface path retry=0
-	local lockfile
+	local lockfile found
 
 	case "$phy" in
 		phy*) index="${phy#phy}" ;;
@@ -24,14 +24,20 @@ nss_wifi_recover_ap() (
 			iface="${object#hostapd.}"
 			path=$(readlink -f "/sys/class/net/$iface/phy80211") || continue
 			[ "${path##*/}" = "$phy" ] || continue
-			# All BSSes in this authenticator share the recovered PHY.
-			if ubus -t 5 call "$object" reload >/dev/null 2>&1; then
-				logger -t nss-wifi "renewed AP sessions on $phy after firmware recovery"
-				return 0
+			# Re-read of config_fname would restore the inline configuration
+			# from before dynamic BSS updates. Renew keys without reloading it.
+			if ! ubus -t 5 call "$object" del_client \
+				'{"addr":"ff:ff:ff:ff:ff:ff","deauth":true,"reason":2}' \
+				>/dev/null 2>&1; then
+				logger -t nss-wifi "failed to renew AP sessions on $iface"
+				return 1
 			fi
-			logger -t nss-wifi "failed to renew AP sessions on $phy"
-			return 1
+			found=1
 		done
+		if [ "$found" = 1 ]; then
+			logger -t nss-wifi "renewed AP sessions on $phy after firmware recovery"
+			return 0
+		fi
 		retry=$((retry + 1))
 		sleep 1
 	done
