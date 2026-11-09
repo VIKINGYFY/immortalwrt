@@ -1,0 +1,85 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 09 Nov 2026 21:11:00 +0800
+Subject: [PATCH] netifd: refresh bridge settings of attached wireless APs
+
+Updating wireless_isolate on an AP already attached to a bridge does not
+call system_bridge_addif() again. The old hairpin setting can therefore
+keep forwarding frames between clients after hostapd enables isolation.
+
+Reapply the wireless bridge attributes when ucode updates an attached AP.
+Resolve its current bridge and preserve the normal add-interface path for
+new devices. Include the dummy backend for the new system helper.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/system-linux.c
++++ b/system-linux.c
+@@ -1083,6 +1083,24 @@
+ 	system_bridge_set_proxyarp_wifi(dev, dev->wireless_proxyarp ? "1" : "0");
+ }
+ 
++void system_bridge_refresh_wireless(struct device *dev)
++{
++	char buf[256];
++	char *name;
++	struct device *bridge;
++
++	if (!dev->wireless)
++		return;
++
++	name = system_get_bridge(dev->ifname, buf, sizeof(buf));
++	if (!name)
++		return;
++
++	bridge = device_get(name, 0);
++	if (bridge)
++		system_bridge_set_wireless(bridge, dev);
++}
++
+ int system_bridge_addif(struct device *bridge, struct device *dev)
+ {
+ 	char buf[64];
+--- a/system-dummy.c
++++ b/system-dummy.c
+@@ -50,6 +50,10 @@
+ 	return 0;
+ }
+ 
++void system_bridge_refresh_wireless(struct device *dev)
++{
++}
++
+ int system_bridge_addif(struct device *bridge, struct device *dev)
+ {
+ 	D(SYSTEM, "ip link set %s master %s", dev->ifname, bridge->ifname);
+--- a/system.h
++++ b/system.h
+@@ -250,6 +250,7 @@
+ int system_bridge_addbr(struct device *bridge, struct bridge_config *cfg);
+ int system_bridge_delbr(struct device *bridge);
+ int system_bridge_set_vlan_filtering(struct device *bridge, const struct bridge_config *cfg);
++void system_bridge_refresh_wireless(struct device *dev);
+ int system_bridge_addif(struct device *bridge, struct device *dev);
+ int system_bridge_delif(struct device *bridge, struct device *dev);
+ int system_bridge_vlan(const char *iface, uint16_t vid, int16_t vid_end, bool add, unsigned int vflags);
+--- a/ucode.c
++++ b/ucode.c
+@@ -18,6 +18,7 @@
+ #include <ucode/compiler.h>
+ #include "netifd.h"
+ #include "device.h"
++#include "system.h"
+ #include "interface.h"
+ #include "ucode.h"
+ #include "proto-ucode.h"
+@@ -110,6 +111,10 @@
+ 			dev->bpdu_filter = 1;
+ 	}
+ 
++	/* An AP may already belong to its bridge after a wireless reload. */
++	if (dev->wireless && dev->wireless_ap)
++		system_bridge_refresh_wireless(dev);
++
+ 	return ucv_boolean_new(true);
+ }
+ 
