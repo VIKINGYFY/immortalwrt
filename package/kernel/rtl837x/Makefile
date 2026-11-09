@@ -22,7 +22,7 @@ PKG_EXTMOD_SUBDIRS:=src
 
 include $(INCLUDE_DIR)/package.mk
 
-define KernelPackage/dsa-rtl837x
+define KernelPackage/$(PKG_NAME)
   SUBMENU:=Network Devices
   TITLE:=Realtek RTL8372N DSA switch driver
   KCONFIG:=CONFIG_NET_DSA_TAG_RTL837X_8021AD
@@ -42,4 +42,4 @@ define Build/Compile
 		modules
 endef
 
-$(eval $(call KernelPackage,dsa-rtl837x))
+$(eval $(call KernelPackage,$(PKG_NAME)))
