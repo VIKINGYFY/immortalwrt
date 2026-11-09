@@ -1,0 +1,10 @@
+#!/bin/sh
+# Centralize upgrade-only configuration changes here. The boot defaults
+# runner removes this script after successful completion.
+
+if uci -q get nss-wifi.general.param >/dev/null; then
+	uci -q delete nss-wifi.general.param || exit 1
+	uci -q commit nss-wifi || exit 1
+fi
+
+exit 0

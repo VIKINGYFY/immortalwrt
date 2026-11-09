@@ -540,12 +540,7 @@ static void nss_core_halt(struct nss_core *core)
  * whatever ceiling it is given, and each buffer costs a 4 KB slab object.
  */
 static unsigned int nss_pool_size;
-module_param_named(pool_size, nss_pool_size, uint, 0644);
-MODULE_PARM_DESC(pool_size, "empty buffers lent to firmware; 0 selects 24576 with WLAN, 16384 without");
-
 static unsigned int nss_pool_low;
-module_param_named(pool_low, nss_pool_low, uint, 0644);
-MODULE_PARM_DESC(pool_low, "refill threshold; 0 selects 4352 with WLAN, 4096 without");
 /* The firmware refuses a span narrower than the ring the pool is topped up
  * through, so the asked-for ceiling is not always the one that takes effect.
  * The table of lent buffers is sized from the same answer, and is allocated

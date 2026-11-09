@@ -1,7 +1,7 @@
 # NSS data-plane control
 
 The service chooses WLAN ring ownership before ath11k probes. Change
-`nss-wifi.general.offload` or firmware parameters and reboot to apply them.
+`nss-wifi.general.offload` or `nss-wifi.general.firmware` and reboot to apply them.
 Keep the service enabled even when selecting the host path with `offload=0`.
 An interrupted bring-up leaves `/etc/nss-wifi.pending`; the following boot
 uses host rings. Remove that file before rebooting to retry NSS.
@@ -67,55 +67,41 @@ installed modules and enabled hardware: bit 0 selects AHB, bit 1 PCI, and
 zero selects non-WLAN offload only. Apply a change by rebooting.
 
 With no WLAN targets the automatic payload pool uses 16384 buffers with a
-4096-buffer refill threshold, instead of 24576/4352. Explicit nonzero
-`pool_size` and `pool_low` parameters override these defaults. The shared
+4096-buffer refill threshold, instead of 24576/4352. The shared
 firmware memory requests and descriptor pool are retained for forwarding.
 
 ## Connection tables
 
-NSS12.5 and NSS11.4 default to 4096 bidirectional connections for each of
+NSS12.5 and NSS11.4 use 4096 bidirectional connections for each of
 IPv4 and IPv6, or 8192 combined. Unused capacity in one family is not
 available to the other. The driver negotiates host-backed tables with the
-firmware before enabling flow steering. The `connections` module parameter
-can select 1024, 2048, 3072 or 4096 connections per family. Change parameters
-before booting NSS; changing them while the core is loaded returns `-EBUSY`.
+firmware before enabling flow steering. Capacity is fixed and requires no
+configuration.
 
 The connection tables and packet payload pool are separate resources.
-The automatic pool ceiling is 24576 with WLAN and 16384 without it; explicit
-nonzero `pool_size` overrides it. Relative to the previous automatic pools,
-this permits 8192 additional 4 KiB buffer objects, or 32 MiB, plus table RAM.
+The automatic pool ceiling is 24576 with WLAN and 16384 without it. Relative
+to the previous automatic pools, this permits 8192 additional 4 KiB buffer
+objects, or 32 MiB, plus table RAM.
 The firmware supplies the required connection-entry and match-entry table
 sizes. The driver allocates DMA memory and updates admission limits only
 after both families acknowledge the configuration. The firmware profile
 and available memory constrain which requests can succeed. No PPE SRAM
-tables are enlarged by these parameters.
-
-For example, a WLAN device can explicitly select the smaller built-in
-tables and the previous payload ceiling:
-
-```sh
-uci set nss-wifi.general.param='connections=1024 pool_size=16384'
-uci commit nss-wifi
-reboot
-```
+tables are enlarged.
 
 The status overview reads the running driver's combined capacity, so its
-NSS count shows an upper limit of 8192 with the default configuration and
-2048 with the smaller setting above.
+NSS count shows an upper limit of 8192 once table configuration succeeds.
 
 While WLAN targets are configured, a manual `boot=0` request returns
 `-EBUSY`: stopping NSS alone would leave automatic WLAN recovery without
 its offload core. Use a full WLAN/NSS module teardown or reboot to change
-startup parameters. Coordinated fault recovery and driver removal keep
-their existing paths.
+the offload setting or firmware line. Coordinated fault recovery and driver
+removal keep their existing paths.
 
 A failed or timed-out table handover stops the core before its DMA memory
-is freed; correct the parameters before retrying NSS. The persistent
-bring-up guard described above still applies. Selecting 1024 connections per family
-uses the built-in firmware tables without allocating host connection tables.
+is freed. The persistent bring-up guard described above still applies.
 
 Read `flow_stats` for the installed IPv4, IPv6 and total counts followed by
-the configured combined capacity. Its final value is 8192 by default;
+the configured combined capacity. Its final value is 8192 after handover;
 each family is still limited to 4096. Passive `flows` diagnostics also
 show per-family limits, resource retries and firmware buffer availability.
 Statistics scan budgets grow with the configured table size so active

@@ -102,7 +102,7 @@ nss_state_has() {
 }
 
 nss_start() {
-	local dir fw i param token wlan
+	local dir fw i token wlan
 
 	dir=/sys/bus/platform/devices/39000000.nss
 	# Check before touching pending or boot: repeated service actions must
@@ -152,18 +152,6 @@ nss_start() {
 	fi
 	fw=$(uci -q get nss-wifi.general.firmware) &&
 		printf %s "$fw" > /sys/module/nss_wifi_drv/parameters/firmware
-	for param in $(uci -q get nss-wifi.general.param); do
-		case "$param" in
-			*=*) ;;
-			*) continue ;;
-		esac
-		case "${param%%=*}" in
-			*[!a-zA-Z0-9_]*|'') continue ;;
-		esac
-		if ! echo "${param#*=}" > "/sys/module/nss_wifi_drv/parameters/${param%%=*}" 2>/dev/null; then
-			logger -t nss-wifi "parameter rejected: ${param%%=*}"
-		fi
-	done
 	if [ "$wlan" -ne 0 ]; then
 		modprobe ath11k 2>/dev/null
 		if ! echo 1 > /sys/module/ath11k/parameters/nss_offload 2>/dev/null; then

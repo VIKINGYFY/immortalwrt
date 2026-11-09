@@ -148,8 +148,7 @@ static DEFINE_SPINLOCK(nss_flow_sync_lock);
  * the serialized command ring while new flows can use software forwarding.
  */
 #define NSS_FLOW_BASE_CONN	1024
-#define NSS_FLOW_DEFAULT_CONN	4096
-#define NSS_FLOW_MAX_CONN	4096
+#define NSS_FLOW_CONN		4096
 static u32 nss_flow_limit[2] = {
 	NSS_FLOW_BASE_CONN, NSS_FLOW_BASE_CONN,
 };
@@ -161,34 +160,6 @@ static u32 nss_flow_installed[2];
 static u32 nss_flow_full[2];
 static bool nss_flow_ready;
 static struct nss_core *nss_flow_core;
-static unsigned int nss_flow_connections = NSS_FLOW_DEFAULT_CONN;
-
-/* Ring ownership and table memory are fixed for a core's running lifetime. */
-static int nss_flow_connections_set(const char *val, const struct kernel_param *kp)
-{
-	unsigned int count;
-	int ret;
-
-	ret = kstrtouint(val, 0, &count);
-	if (ret)
-		return ret;
-	if (count < NSS_FLOW_BASE_CONN || count > NSS_FLOW_MAX_CONN ||
-	    count % NSS_FLOW_BASE_CONN)
-		return -EINVAL;
-
-	guard(mutex)(&nss_flow_lock);
-	if (nss_flow_core && READ_ONCE(nss_flow_core->loaded))
-		return -EBUSY;
-	*(unsigned int *)kp->arg = count;
-	return 0;
-}
-
-static const struct kernel_param_ops nss_flow_connections_ops = {
-	.set = nss_flow_connections_set,
-	.get = param_get_uint,
-};
-module_param_cb(connections, &nss_flow_connections_ops, &nss_flow_connections, 0644);
-MODULE_PARM_DESC(connections, "NSS12.5/11.4 connections per family: 4096 default, 1024 to 4096 in steps of 1024; set before boot");
 
 /* Table sizes come from the running image, never from a guessed entry size.
  * Once CFG is sent, keep both DMA blocks until core halt even on a timeout:
@@ -256,15 +227,13 @@ static int nss_flow_configure_family(struct nss_core *core, bool v6,
 
 int nss_flow_configure(struct nss_core *core)
 {
-	u32 count = nss_flow_connections, bytes[2] = {};
+	u32 count = NSS_FLOW_CONN, bytes[2] = {};
 	int i, ret;
 
 	guard(mutex)(&nss_flow_lock);
-	/* A later boot may select smaller tables than the previous one. */
+	/* A core restart begins a fresh statistics scan. */
 	memset(nss_flow_sweep_index, 0, sizeof(nss_flow_sweep_index));
 	nss_flow_swept = jiffies - HZ;
-	if (count == NSS_FLOW_BASE_CONN)
-		return 0;
 	if (strcmp(core->fw->name, "12.5") &&
 	    strcmp(core->fw->name, "11.4"))
 		return -EOPNOTSUPP;
@@ -2008,7 +1977,7 @@ void nss_flow_print(struct seq_file *s)
 			   p->refused, p->deferred, jiffies_to_msecs(remaining));
 	}
 	seq_printf(s, "capacity requested %u table_bytes IPv4 %u IPv6 %u\n",
-		   nss_flow_connections, nss_flow_table_bytes[0],
+		   NSS_FLOW_CONN, nss_flow_table_bytes[0],
 		   nss_flow_table_bytes[1]);
 
 	for (nd = nss_flow_nodes; nd < nss_flow_nodes + ARRAY_SIZE(nss_flow_nodes); nd++) {
