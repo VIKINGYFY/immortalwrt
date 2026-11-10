@@ -1,0 +1,75 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 10 Nov 2026 16:35:15 +0800
+Subject: remoteproc: budget optional core dump memory for recovery
+
+Remote processor recovery copies firmware memory into a resident vmalloc
+buffer. On small-memory routers the dump allocation can invoke the OOM
+killer. Even a successful allocation may leave too little memory for the
+remote processor and network services to recover before the dump expires.
+
+Share a best-effort allocator between the two ELF dump paths. Limit a dump
+to a quarter of currently available memory, leaving headroom for recovery,
+and use NORETRY so allocation failure skips this optional diagnostic.
+The budget is an estimate, not a reservation against concurrent users.
+Keep the dump layout and inline readout mechanism unchanged.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/remoteproc/remoteproc_coredump.c
++++ b/drivers/remoteproc/remoteproc_coredump.c
+@@ -9,10 +9,37 @@
+ #include <linux/devcoredump.h>
+ #include <linux/device.h>
+ #include <linux/kernel.h>
++#include <linux/mm.h>
+ #include <linux/remoteproc.h>
+ #include "remoteproc_internal.h"
+ #include "remoteproc_elf_helpers.h"
+ 
++/* The dump stays resident until userspace consumes it or its timeout expires.
++ * Leave room for firmware recovery and normal users of memory, even when a
++ * best-effort allocation itself would succeed. The estimate is a budget,
++ * not a reservation against concurrent allocations.
++ */
++static void *rproc_coredump_alloc(struct rproc *rproc, size_t size)
++{
++	unsigned long pages = DIV_ROUND_UP(size, PAGE_SIZE);
++	long available = si_mem_available();
++	void *data;
++
++	if (available <= 0 || pages > available / 4) {
++		dev_warn(&rproc->dev,
++			 "skipping coredump: %zu bytes exceed available memory budget\n",
++			 size);
++		return NULL;
++	}
++
++	data = __vmalloc(size, GFP_KERNEL | __GFP_NORETRY | __GFP_NOWARN);
++	if (!data)
++		dev_warn(&rproc->dev, "skipping coredump: cannot allocate %zu bytes\n",
++			 size);
++
++	return data;
++}
++
+ struct rproc_coredump_state {
+ 	struct rproc *rproc;
+ 	void *header;
+@@ -268,7 +295,7 @@
+ 		phnum++;
+ 	}
+ 
+-	data = vmalloc(data_size);
++	data = rproc_coredump_alloc(rproc, data_size);
+ 	if (!data)
+ 		return;
+ 
+@@ -388,7 +415,7 @@
+ 
+ 	data_size += strtbl_size;
+ 
+-	data = vmalloc(data_size);
++	data = rproc_coredump_alloc(rproc, data_size);
+ 	if (!data)
+ 		return;
+ 
