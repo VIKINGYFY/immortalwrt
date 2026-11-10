@@ -71,9 +71,14 @@ service derives the read-only `wlan` module parameter from the build marker,
 installed modules and enabled hardware: bit 0 selects AHB, bit 1 PCI, and
 zero selects non-WLAN offload only. Apply a change by rebooting.
 
-With no WLAN targets the automatic payload pool uses 16384 buffers with a
-4096-buffer refill threshold, instead of 24576/4352. The shared
-firmware memory requests and descriptor pool are retained for forwarding.
+With no WLAN targets the payload pool permits 16384 buffers with a
+4096-buffer refill threshold, instead of 24576/4352. The service loads
+`wlan=0 pbuf_bytes=8388608`, retaining 8 MiB of packet-descriptor memory
+instead of the 32 MiB WLAN default. Standalone connections still
+need packet descriptors, payload buffers and the firmware connection tables.
+This also applies when a multi-profile build enables NSS WLAN integration
+but the installed image contains no ath11k modules. Disabling APs alone
+does not change the selected WLAN buses; reboot after changing the image.
 
 ## Connection tables
 
@@ -83,14 +88,29 @@ available to the other. The driver negotiates host-backed tables with the
 firmware before enabling flow steering. Capacity is fixed and requires no
 configuration.
 
-The firmware packet-descriptor pool defaults to 32 MiB (`pbuf_bytes`).
+With WLAN the firmware packet-descriptor pool defaults to 32 MiB (`pbuf_bytes`).
 It is allocated separately from the payload slabs and connection tables;
 it does not change the WLAN payload share or the fixed connection limits.
+These descriptor pages remain lent until the core stops; changing payload
+watermarks does not release them.
 
 The connection tables and packet payload pool are separate resources.
-The automatic pool ceiling is 24576 with WLAN and 16384 without it. Relative
-to the previous automatic pools, this permits 8192 additional 4 KiB buffer
-objects, or 32 MiB, plus table RAM.
+The payload pool starts with a ceiling of 24576 with WLAN and 16384 without
+it. Fresh firmware statistics track buffers held by WLAN and active
+connections. When demand leaves enough refill reserve for 60 seconds, the
+driver lowers retention to 16384 with WLAN or 8192 without it. Returned
+buffers are freed through the existing SKB path. The driver raises the
+watermark when use approaches the reserve or allocation failures are reported.
+Larger WLAN configurations may keep the maximum because they need more buffers.
+
+The host stops replenishing before lowering a watermark and permits growth
+after the firmware acknowledges it. A failed adjustment disables adaptation
+and restores an acknowledged maximum. If that cannot be confirmed, the
+existing coordinated core recovery resets the firmware before releasing
+its buffers. Passive `rx` diagnostics show the target, idle floor, ceiling,
+use, growth/shrink counts and adjustment errors. Connection capacity remains
+8192 throughout; payload watermarks do not resize the connection tables.
+
 The firmware supplies the required connection-entry and match-entry table
 sizes. The driver allocates DMA memory and updates admission limits only
 after both families acknowledge the configuration. The firmware profile

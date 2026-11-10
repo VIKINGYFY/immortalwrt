@@ -67,6 +67,8 @@
 
 #define NSS_BOOT_TIMEOUT_MS		5000
 
+static void nss_pool_work(struct work_struct *work);
+
 /* Every clock the core needs, at the rate the firmware is built for. The
  * fabric clocks are shared between the two cores; a Wi-Fi data plane boots
  * only core 0, so they are taken from its node along with its own. The core
@@ -501,6 +503,8 @@ static void nss_core_halt(struct nss_core *core)
 	 * nothing of theirs in the switch.
 	 */
 	core->phys_armed = 0;
+	cancel_delayed_work(&core->pool_work);
+
 	nss_bridge_stop();
 	nss_flow_flush();
 	nss_mc_flush();
@@ -600,32 +604,144 @@ struct nss_n2h_wifi_pool {
  * back, so the mark is what a pool settles at: set below what the host is
  * willing to lend it empties as fast as it is filled and a receive ring never
  * fills, set above it the host stops first and the mark is never reached. The
- * low mark is a ring's worth, the point at which a top-up is worth an
- * interrupt. The counts are byte-swapped, as the other control-plane scalars
+ * low mark reserves buffers while the host refills the pool. The counts are
+ * byte-swapped, as the other control-plane scalars
  * on this interface are; the addresses beside them are not.
  */
-static int nss_pool_set(struct nss_core *core, u32 payloads)
+static int nss_pool_water_set(struct nss_core *core, u32 payloads)
 {
 	struct nss_n2h_water_mark wm = {};
-	int ret;
 
 	wm.cm.interface = NSS_INTERFACE_N2H;
 	wm.cm.type = NSS_N2H_SET_WATER_MARK;
 	wm.low_water = cpu_to_be32(nss_pool_low);
 	wm.high_water = cpu_to_be32(payloads);
 
-	/* Recorded before the message goes out, because this is the first one
-	 * after a core boot and the first one is answered late: the firmware
-	 * takes it and the host's wait expires first. A ceiling left unset by
-	 * that is a host that lends nothing at all.
+	return nss_msg_send(core, &wm, sizeof(wm));
+}
+
+/* Boot may receive its first reply late. Permit initial lending before that
+ * exchange; runtime growth, below, waits for an acknowledged higher mark.
+ */
+static int nss_pool_set(struct nss_core *core, u32 payloads)
+{
+	WRITE_ONCE(core->pool_size, payloads);
+	return nss_pool_water_set(core, payloads);
+}
+
+#define NSS_POOL_IDLE_TIME	(60 * HZ)
+#define NSS_POOL_GUARD		1024
+
+/* Called from NAPI only after the entire statistics prefix was checked. A
+ * snapshot of outstanding loans includes WLAN-held and connection buffers;
+ * the free count alone cannot distinguish those consumers.
+ */
+void nss_pool_notify(struct nss_core *core, const struct nss_cmn_msg *cm,
+		     u32 len)
+{
+	const struct nss_n2h_buffer_stats *st = (const void *)(cm + 1);
+	u32 queued;
+	bool pressure;
+
+	if (NSS_INTERFACE_NUM_GET(cm->interface) != NSS_INTERFACE_N2H || cm->type ||
+	    cm->len < sizeof(*st) || len < sizeof(*cm) + sizeof(*st))
+		return;
+
+	queued = clamp_t(int, atomic_read(&core->buffers_queued),
+			 0, nss_pool_ceiling());
+	scoped_guard(spinlock_bh, &core->state_lock) {
+		core->pool_used = queued > st->payload_free ? queued - st->payload_free : 0;
+		core->pool_failed += st->payload_alloc_failed;
+		core->pool_sample_at = jiffies;
+		pressure = st->payload_alloc_failed ||
+			   (u64)core->pool_used + nss_pool_low + NSS_POOL_GUARD >=
+			   core->pool_floor;
+	}
+	if (pressure && READ_ONCE(core->pool_adaptive) &&
+	    READ_ONCE(core->pool_size) < nss_pool_ceiling())
+		mod_delayed_work(system_wq, &core->pool_work, 0);
+}
+
+/* Grow with the refill reserve still available. Shrink only after a full
+ * minute below the smaller pool's reserve, never on a stale sample.
+ */
+static u32 nss_pool_target(struct nss_core *core, u32 used, u32 failed,
+			   unsigned long now)
+{
+	if ((u64)used + nss_pool_low + NSS_POOL_GUARD >= core->pool_floor ||
+	    failed != core->pool_failed_seen) {
+		core->pool_idle_at = now;
+		core->pool_failed_seen = failed;
+		return nss_pool_ceiling();
+	}
+	if (time_before(now, core->pool_idle_at + NSS_POOL_IDLE_TIME))
+		return core->pool_size;
+
+	return core->pool_floor;
+}
+
+static void nss_pool_resize(struct nss_core *core, u32 target)
+{
+	u32 previous = core->pool_size;
+	int ret;
+
+	/* Stop replacing returned buffers before asking the firmware to drain.
+	 * Firmware custody, cookies and DMA mappings remain unchanged.
 	 */
-	core->pool_size = payloads;
+	WRITE_ONCE(core->pool_size, min(previous, target));
+	ret = nss_pool_water_set(core, target);
+	if (!ret) {
+		WRITE_ONCE(core->pool_size, target);
+		if (target > previous)
+			core->pool_grows++;
+		else
+			core->pool_shrinks++;
+		return;
+	}
 
-	ret = nss_msg_send(core, &wm, sizeof(wm));
-	if (ret)
-		return ret;
+	/* A lost reply may already have changed the firmware mark. Restore a
+	 * confirmed maximum, or reset before another image can use these loans.
+	 * A failed adaptive exchange stays disabled across automatic restarts.
+	 */
+	core->pool_errors++;
+	core->pool_adaptive = false;
+	core->pool_disabled = true;
+	dev_warn(core->dev, "payload pool adjustment failed: %d; retaining maximum\n", ret);
+	if (!READ_ONCE(core->running))
+		return;
+	ret = nss_pool_water_set(core, nss_pool_ceiling());
+	if (!ret)
+		WRITE_ONCE(core->pool_size, nss_pool_ceiling());
+	else if (READ_ONCE(core->running))
+		nss_core_fault(core);
+}
 
-	return 0;
+static void nss_pool_work(struct work_struct *work)
+{
+	struct nss_core *core = container_of(to_delayed_work(work),
+					   struct nss_core, pool_work);
+	unsigned long sample;
+	u32 used, failed, target;
+
+	guard(mutex)(&core->lock);
+	if (!core->running || !core->pool_adaptive)
+		return;
+
+	scoped_guard(spinlock_bh, &core->state_lock) {
+		used = core->pool_used;
+		failed = core->pool_failed;
+		sample = core->pool_sample_at;
+	}
+	if (!sample || time_after(jiffies, sample + 3 * HZ)) {
+		core->pool_idle_at = jiffies;
+		goto again;
+	}
+	target = nss_pool_target(core, used, failed, jiffies);
+	if (target != core->pool_size)
+		nss_pool_resize(core, target);
+again:
+	if (core->running && core->pool_adaptive)
+		schedule_delayed_work(&core->pool_work, HZ);
 }
 
 /* Spread host-bound frames over the four data queues by flow, as
@@ -686,6 +802,17 @@ static void nss_pool_configure(struct nss_core *core)
 	dev_info(core->dev, "payload pool %u low %u high %u: %d\n",
 		 be32_to_cpu(p.pool_size), be32_to_cpu(p.low_water),
 		 be32_to_cpu(p.high_water), ret);
+
+	core->pool_floor = max(nss_pool_ceiling() - 8192, 2 * nss_pool_low);
+	core->pool_idle_at = jiffies;
+	scoped_guard(spinlock_bh, &core->state_lock) {
+		core->pool_sample_at = 0;
+		core->pool_failed_seen = core->pool_failed;
+	}
+	core->pool_adaptive = !ret && !core->pool_disabled &&
+		be32_to_cpu(p.low_water) == nss_pool_low &&
+		be32_to_cpu(p.high_water) == nss_pool_ceiling() &&
+		core->pool_floor < nss_pool_ceiling();
 }
 
 /* Memory the firmware carves its own packet descriptors out of.
@@ -854,6 +981,8 @@ static int nss_core_boot(struct nss_core *core)
 
 	lockdep_assert_held(&core->lock);
 
+	if (!READ_ONCE(core->up))
+		return -ESHUTDOWN;
 	if (core->loaded)
 		return -EBUSY;
 
@@ -951,6 +1080,8 @@ static int nss_core_boot(struct nss_core *core)
 	}
 
 	nss_bridge_start(core);
+	if (core->pool_adaptive)
+		schedule_delayed_work(&core->pool_work, HZ);
 
 	return 0;
 
@@ -1239,6 +1370,10 @@ static int nss_rx_show(struct seq_file *s, void *unused)
 	seq_printf(s, "buffers in firmware custody: %d  desync: %llu\n",
 		   atomic_read(&core->buffers_queued),
 		   atomic64_read(&core->rx_desync));
+	seq_printf(s, "payload pool: target %u floor %u ceiling %u used %u grows %u shrinks %u errors %u adaptive %u\n",
+		   core->pool_size, core->pool_floor, nss_pool_ceiling(),
+		   READ_ONCE(core->pool_used), core->pool_grows,
+		   core->pool_shrinks, core->pool_errors, core->pool_adaptive);
 	seq_printf(s, "tx returned twice: %llu\n", core->tx_dup);
 
 	for (i = 0; i < core->ext_seen; i++) {
@@ -1530,6 +1665,7 @@ static int nss_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&core->allocs);
 	init_completion(&core->booted);
 	INIT_WORK(&core->restart, nss_core_restart);
+	INIT_DELAYED_WORK(&core->pool_work, nss_pool_work);
 	INIT_WORK(&core->arm, nss_phys_work);
 	INIT_WORK(&core->edma_reset, nss_edma_reset_work);
 
@@ -1671,6 +1807,7 @@ static void nss_remove(struct platform_device *pdev)
 		nss_core_halt(core);
 	nss_wifili_halted(core);
 	cancel_work_sync(&core->restart);
+	cancel_delayed_work_sync(&core->pool_work);
 	flush_work(&core->arm);
 	flush_work(&core->edma_reset);
 	/* After the halt, which forgets the bound core's node pairs. */

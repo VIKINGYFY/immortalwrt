@@ -136,7 +136,13 @@ nss_start() {
 	# OpenWrt modprobe ignores arguments after the module name. The
 	# directory loader applies parameters while resolving dependencies.
 	mkdir "$LOCK/modules" || return 1
-	printf 'nss-wifi-drv wlan=%s\n' "$wlan" > "$LOCK/modules/nss-wifi"
+	if [ "$wlan" -eq 0 ]; then
+		# Standalone forwarding keeps an 8 MiB descriptor pool instead
+		# of the 32 MiB default used with WLAN receive rings.
+		printf 'nss-wifi-drv wlan=0 pbuf_bytes=8388608\n' > "$LOCK/modules/nss-wifi"
+	else
+		printf 'nss-wifi-drv wlan=%s\n' "$wlan" > "$LOCK/modules/nss-wifi"
+	fi
 	kmodloader "$LOCK/modules/" 2>/dev/null
 	rm -f "$LOCK/modules/nss-wifi"
 	rmdir "$LOCK/modules"
