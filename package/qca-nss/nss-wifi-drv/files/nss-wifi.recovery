@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # NSS peers lose encrypted transmit state across WLAN firmware recovery.
-# Restart the authenticator sessions on this PHY after its driver is ready.
+# Renew AP and Mesh authenticator sessions on this PHY after driver recovery.
 nss_wifi_recover_ap() (
 	local phy="${DEVPATH##*/}" index offload object iface path retry=0
-	local lockfile found
+	local lockfile found mesh_found status network_id reply
 
 	case "$phy" in
 		phy*) index="${phy#phy}" ;;
@@ -34,8 +34,42 @@ nss_wifi_recover_ap() (
 			fi
 			found=1
 		done
+		for object in $(ubus list 'wpa_supplicant.*' 2>/dev/null); do
+			iface="${object#wpa_supplicant.}"
+			path=$(readlink -f "/sys/class/net/$iface/phy80211") || continue
+			[ "${path##*/}" = "$phy" ] || continue
+			case "$iface" in
+				''|*[!a-zA-Z0-9_.:-]*) continue ;;
+			esac
+			status=$(ubus -S -t 5 call "$object" control \
+				'{"command":"STATUS"}' 2>/dev/null | jsonfilter -e '@.result')
+			printf '%s\n' "$status" | grep -qx 'mode=mesh' || continue
+			network_id=$(printf '%s\n' "$status" | \
+				sed -n 's/^id=\([0-9][0-9]*\)$/\1/p')
+			case "$network_id" in
+				''|*[!0-9]*) return 1 ;;
+			esac
+			# Keep the live network, including dynamic settings. A new SAE
+			# session also rebuilds the Mesh paths lost by the NSS nodes.
+			reply=$(ubus -S -t 5 call "$object" control \
+				"{\"command\":\"MESH_GROUP_REMOVE $iface\"}" 2>/dev/null | \
+				jsonfilter -e '@.result')
+			if [ "$reply" = OK ]; then
+				reply=$(ubus -S -t 5 call "$object" control \
+					"{\"command\":\"MESH_GROUP_ADD $network_id\"}" 2>/dev/null | \
+					jsonfilter -e '@.result')
+			fi
+			if [ "$reply" != OK ]; then
+				logger -t nss-wifi "failed to renew Mesh session on $iface"
+				return 1
+			fi
+			mesh_found=1
+			logger -t nss-wifi "renewed Mesh session on $iface after firmware recovery"
+		done
 		if [ "$found" = 1 ]; then
 			logger -t nss-wifi "renewed AP sessions on $phy after firmware recovery"
+		fi
+		if [ "$found" = 1 ] || [ "$mesh_found" = 1 ]; then
 			return 0
 		fi
 		retry=$((retry + 1))

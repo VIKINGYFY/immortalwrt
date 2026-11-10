@@ -94,6 +94,16 @@ it does not change the WLAN payload share or the fixed connection limits.
 These descriptor pages remain lent until the core stops; changing payload
 watermarks does not release them.
 
+After WLAN recovery, a mesh path update that reports a missing firmware
+entry recreates that entry before retrying the update. Other firmware errors
+are returned without retrying.
+
+Encrypted 802.11s recovery also renews the Mesh session on the recovered PHY.
+The recovery helper rejoins the supplicant's current network ID, retaining
+its live settings while recreating SAE keys and Mesh forwarding paths. It
+does not reload a saved wireless configuration. A short Mesh reconnection is
+expected after firmware recovery, as with renewed AP client sessions.
+
 The connection tables and packet payload pool are separate resources.
 The payload pool starts with a ceiling of 24576 with WLAN and 16384 without
 it. Fresh firmware statistics track buffers held by WLAN and active

@@ -99,6 +99,12 @@ static int nss_mesh_msg(struct nss_core *core, int if_num, u32 type,
 
 	ret = nss_msg_send(core, m, offsetof(struct nss_wifi_mesh_msg, msg) +
 				    len);
+	if (m->cm.response == NSS_CMN_RESPONSE_EMSG &&
+	    ((type == NSS_WIFI_MESH_MSG_MPATH_UPDATE &&
+	      m->cm.error == NSS_WIFI_MESH_ERROR_PATH_NOT_FOUND) ||
+	     (type == NSS_WIFI_MESH_MSG_PROXY_PATH_UPDATE &&
+	      m->cm.error == NSS_WIFI_MESH_ERROR_PROXY_PATH_NOT_FOUND)))
+		return -ENOENT;
 	if (!ret && m->cm.error)
 		ret = -EIO;
 
@@ -410,7 +416,7 @@ int nss_wifi_mesh_path(int if_num, enum nss_wifi_mesh_cmd cmd,
 }
 EXPORT_SYMBOL_GPL(nss_wifi_mesh_path);
 
-static void nss_mesh_send(struct nss_mesh *m, const struct nss_mesh_cmd *c)
+static int nss_mesh_send(struct nss_mesh *m, const struct nss_mesh_cmd *c)
 {
 	const struct nss_wifi_mesh_path *p = &c->p;
 	union {
@@ -423,6 +429,7 @@ static void nss_mesh_send(struct nss_mesh *m, const struct nss_mesh_cmd *c)
 	} b = {};
 	size_t len;
 	u32 type;
+	int ret;
 
 	switch (c->cmd) {
 	case NSS_WIFI_MESH_MPATH_ADD:
@@ -494,11 +501,27 @@ static void nss_mesh_send(struct nss_mesh *m, const struct nss_mesh_cmd *c)
 		len = sizeof(struct nss_wifi_mesh_proxy_path_table_dump);
 		break;
 	default:
-		return;
+		return -EINVAL;
 	}
 
-	if (nss_mesh_msg(m->core, m->encap, type, &b, len))
-		m->dropped++;
+	ret = nss_mesh_msg(m->core, m->encap, type, &b, len);
+	if (ret == -ENOENT &&
+	    (c->cmd == NSS_WIFI_MESH_MPATH_UPDATE ||
+	     c->cmd == NSS_WIFI_MESH_MPP_UPDATE)) {
+		struct nss_mesh_cmd add = *c;
+
+		/* Recovery creates empty firmware nodes while mac80211 keeps
+		 * its paths. Recreate a missing entry before applying the
+		 * update; retry only the explicit missing-path response.
+		 */
+		add.cmd = c->cmd == NSS_WIFI_MESH_MPATH_UPDATE ?
+			  NSS_WIFI_MESH_MPATH_ADD : NSS_WIFI_MESH_MPP_ADD;
+		ret = nss_mesh_send(m, &add);
+		if (!ret)
+			ret = nss_mesh_msg(m->core, m->encap, type, &b, len);
+	}
+
+	return ret;
 }
 
 static void nss_mesh_work_fn(struct work_struct *work)
@@ -515,8 +538,8 @@ static void nss_mesh_work_fn(struct work_struct *work)
 		scoped_guard(mutex, &nss_mesh_lock) {
 			struct nss_mesh *m = nss_mesh_find(c->link);
 
-			if (m)
-				nss_mesh_send(m, c);
+			if (m && nss_mesh_send(m, c))
+				m->dropped++;
 		}
 		kfree(c);
 	}
