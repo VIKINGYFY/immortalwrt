@@ -1,37 +1,29 @@
 From: Vignesh Viswanathan <vignesh.viswanathan@oss.qualcomm.com>
-Subject: remoteproc: qcom: add hexagon based WCSS secure PIL driver
-Date: Mon, 03 Aug 2026 16:16:09 +0530
+Date: Tue, 10 Nov 2026 20:57:44 +0800
+Subject: remoteproc: qcom: add WCSS secure PIL with nonblocking dumps
 
 Add support to bring up hexagon based WCSS using secure PIL. All IPQxxxx
 SoCs support secure Peripheral Image Loading (PIL).
 
-Secure PIL image is signed firmware image which only trusted software such
-as TrustZone (TZ) can authenticate and load. Linux kernel will send a
-Peripheral Authentication Service (PAS) request to TZ to authenticate and
-load the PIL images.
+Secure PIL images are authenticated by TrustZone through the Peripheral
+Authentication Service. Retain the qcom_scm_pas_* API and the q6v5 start
+timeout in jiffies when backporting this driver to Linux 6.18.
 
-In order to avoid overloading the existing WCSS driver or PAS driver, we
-came up with this new PAS based IPQ WCSS driver.
+Default to a copied coredump so unattended firmware recovery does not wait
+up to five minutes for userspace to release an inline dump. The generic
+remoteproc memory budget skips optional copies that would leave too little
+memory for recovery. An explicit userspace selection of inline stays valid.
 
+Dropped ipq5424 support.
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@oss.qualcomm.com>
+Tested-by: Vignesh Viswanathan <vignesh.viswanathan@oss.qualcomm.com>
+Link: https://lore.kernel.org/r/20260803-rproc-v14-3-a1f87b0b0ad2@oss.qualcomm.com
 Signed-off-by: Vignesh Viswanathan <vignesh.viswanathan@oss.qualcomm.com>
 Signed-off-by: Manikanta Mylavarapu <manikanta.mylavarapu@oss.qualcomm.com>
 Signed-off-by: Gokul Sriram Palanisamy <gokul.sriram.p@oss.qualcomm.com>
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
-[ Dropped ipq5424 support ]
-Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@oss.qualcomm.com>
-Tested-by: Vignesh Viswanathan <vignesh.viswanathan@oss.qualcomm.com>
-Link: https://lore.kernel.org/r/20260803-rproc-v14-3-a1f87b0b0ad2@oss.qualcomm.com
 Signed-off-by: Varadarajan Narayanan <varadarajan.narayanan@oss.qualcomm.com>
-
-[ Backported to Linux 6.18 by retaining the qcom_scm_pas_* API and the
-  q6v5 start timeout in jiffies. ]
----
- drivers/remoteproc/Kconfig              |  20 ++
- drivers/remoteproc/Makefile             |   1 +
- drivers/remoteproc/qcom_q6v5_wcss_sec.c | 337 ++++++++++++++++++++++++++++++++
- include/linux/remoteproc.h              |   2 +
- 4 files changed, 360 insertions(+)
- create mode 100644 drivers/remoteproc/qcom_q6v5_wcss_sec.c
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/remoteproc/Kconfig
 +++ b/drivers/remoteproc/Kconfig
@@ -356,7 +348,7 @@ Signed-off-by: Varadarajan Narayanan <varadarajan.narayanan@oss.qualcomm.com>
 +	qcom_add_ssr_subdev(rproc, &wcss->ssr_subdev, desc->ss_name);
 +
 +	rproc->auto_boot = desc->auto_boot;
-+	rproc->dump_conf = RPROC_COREDUMP_INLINE;
++	rproc->dump_conf = RPROC_COREDUMP_ENABLED;
 +	rproc_coredump_set_elf_info(rproc, ELFCLASS32, EM_NONE);
 +
 +	ret = devm_rproc_add(&pdev->dev, rproc);
