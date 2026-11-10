@@ -14,3 +14,17 @@
 &wifi2 {
 	qcom,calibration-variant = "Xiaomi-BE7000-ES";
 };
+
+/* The ES board routes the WAN indicator to PHY LED0. */
+&qca8084_phy1 {
+	leds {
+		/delete-node/ led@2;
+
+		led@0 {
+			reg = <0>;
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WAN;
+			active-high;
+		};
+	};
+};
