@@ -1,9 +1,13 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:29:57 +0800
-Subject: [PATCH] wifi: ath12k: own Direct Switch ring indices and RX returns
+Date: Tue, 10 Nov 2026 20:13:17 +0800
+Subject: [PATCH] wifi: ath12k: own Direct Switch rings with the HW1 02903 ABI
 
 Create the native Direct Switch ring client and retain its producer
 and consumer index ownership across firmware and host operations.
+
+Use the QCN9274 HW1 Direct Switch compatibility path only with the
+WBE.1.0-02903 firmware ABI. Remove the obsolete WBE.1.0.r4-00159
+match; other HW1 firmware builds retain the CPU datapath.
 
 Split from:
   package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
@@ -61,8 +65,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +bool ath12k_wifi7_ds_hw1_compat(struct ath12k_base *ab)
 +{
 +	return ab->hw_rev == ATH12K_HW_QCN9274_HW10 &&
-+	       ab->qmi.target.fw_version == 0x1003009f &&
-+	       strstr(ab->qmi.target.fw_build_id, "WBE.1.0.r4-00159");
++	       ab->qmi.target.fw_version == 0x10098b57 &&
++	       strstr(ab->qmi.target.fw_build_id, "WBE.1.0-02903");
 +}
 +
 +/* Only select compatible RX settings after successful DS registration.
