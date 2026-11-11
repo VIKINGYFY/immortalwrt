@@ -291,10 +291,48 @@ static int ppe_active_flows_show(struct seq_file *s, void *data)
 }
 DEFINE_SHOW_ATTRIBUTE(ppe_active_flows);
 
+/* Resource detail is diagnostic-only; active_flows remains the compact
+ * directional counter consumed by periodic status readers.
+ */
+static int ppe_flow_resources_show(struct seq_file *s, void *data)
+{
+	struct qca_ppe_priv *priv = s->private;
+	struct ppe_flow_entry *entry;
+	u32 ipv4 = 0, ipv6 = 0, retired = 0, retired_slots = 0;
+	u32 hosts = 0, nexthops = 0, i;
+
+	guard(mutex)(&priv->flow_lock);
+	list_for_each_entry(entry, &priv->flow_list, list) {
+		if (entry->words[0] & PPE_FLOW_E_TYPE_IPV6)
+			ipv6++;
+		else
+			ipv4++;
+	}
+	list_for_each_entry(entry, &priv->flow_retire_list, list) {
+		retired++;
+		retired_slots += entry->words[0] & PPE_FLOW_E_TYPE_IPV6 ? 2 : 1;
+	}
+	for (i = 0; i < priv->data->num_host_entries; i++)
+		hosts += !!priv->host_ref[i];
+	for (i = 0; i < priv->data->num_nexthop_entries; i++)
+		nexthops += !!priv->nexthop[i].refcount;
+	seq_printf(s, "flow ipv4_directions:%u ipv6_directions:%u active_slots:%u capacity:%u\n",
+		   ipv4, ipv6, ipv4 + 2 * ipv6, priv->data->num_flow_entries);
+	seq_printf(s, "retirement rules:%u slots_budget:%u command_pending:%u\n",
+		   retired, retired_slots, priv->flow_op_busy);
+	seq_printf(s, "host referenced:%u retired:%u capacity:%u nexthop referenced:%u capacity:%u\n",
+		   hosts, priv->host_retire_pending, priv->data->num_host_entries,
+		   nexthops, priv->data->num_nexthop_entries);
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(ppe_flow_resources);
+
 /* The downlink service retains L2/L3 editing and publishes its marker. */
 
 void ppe_flow_offload_debugfs_init(struct qca_ppe_priv *priv)
 {
+	debugfs_create_file("flow_resources", 0400, priv->debugfs, priv,
+			    &ppe_flow_resources_fops);
 	debugfs_create_file("active_flows", 0400, priv->debugfs, priv,
 			    &ppe_active_flows_fops);
 	debugfs_create_file("offload_entries", 0400, priv->debugfs, priv,
@@ -4077,7 +4115,9 @@ static void ppe_sparse_work(struct work_struct *work)
 	list_for_each_entry_safe(entry, tmp, &priv->flow_list, list) {
 		u64 bytes;
 
-
+		/* NSS reports activity for these CPU-port steering rules. */
+		if (entry->steer)
+			continue;
 		if (regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(entry->index), &pkts)) {
 			priv->flow_counter_read_failed++;
 			continue;

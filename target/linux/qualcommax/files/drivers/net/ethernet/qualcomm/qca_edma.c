@@ -13,6 +13,7 @@
 #include <linux/hash.h>
 #include <linux/if_vlan.h>
 #include <linux/interrupt.h>
+#include <linux/ktime.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/log2.h>
@@ -143,12 +144,55 @@ static irqreturn_t edma_rx_irq_handle(int irq, void *ctx)
 	return IRQ_HANDLED;
 }
 
+/* Preserve the first interrupt before queues can be rebuilt. These index
+ * registers have no read-clear side effects; never reread misc status here.
+ */
+static void edma_misc_snapshot(struct edma_priv *priv, u32 status)
+{
+	const struct edma_soc_data *soc = priv->soc;
+	unsigned int i, count;
+
+	if (atomic_cmpxchg(&priv->misc_snapshot_state, 0, 1))
+		return;
+	priv->misc_first_status = status;
+	priv->misc_first_ns = ktime_get_boottime_ns();
+	count = min_t(unsigned int, READ_ONCE(priv->num_queues), EDMA_MAX_QUEUES);
+	priv->misc_first_queues = count;
+	for (i = 0; i < count; i++) {
+		struct edma_error_ring *snap = &priv->misc_first_ring[i];
+		struct edma_queue *q = &priv->q[i];
+
+		snap->txdesc = READ_ONCE(q->txdesc);
+		snap->txcmpl = READ_ONCE(q->txcmpl);
+		snap->rxfill = READ_ONCE(q->rxfill);
+		snap->rxdesc = READ_ONCE(q->rxdesc);
+		snap->tx_prod = readl(priv->base +
+				     EDMA_REG_TXDESC_PROD_IDX(snap->txdesc));
+		snap->tx_cons = readl(priv->base +
+				     EDMA_REG_TXDESC_CONS_IDX(snap->txdesc));
+		snap->txcmpl_prod = readl(priv->base +
+			 EDMA_REG_TXCMPL_PROD_IDX(soc->txcmpl_base, snap->txcmpl));
+		snap->txcmpl_cons = readl(priv->base +
+			 EDMA_REG_TXCMPL_CONS_IDX(soc->txcmpl_base, snap->txcmpl));
+		snap->rxfill_prod = readl(priv->base +
+					 EDMA_REG_RXFILL_PROD_IDX(snap->rxfill));
+		snap->rxfill_cons = readl(priv->base +
+					 EDMA_REG_RXFILL_CONS_IDX(snap->rxfill));
+		snap->rxdesc_prod = readl(priv->base +
+					 EDMA_REG_RXDESC_PROD_IDX(snap->rxdesc));
+		snap->rxdesc_cons = readl(priv->base +
+					 EDMA_REG_RXDESC_CONS_IDX(snap->rxdesc));
+	}
+	atomic_set_release(&priv->misc_snapshot_state, 2);
+}
+
 static irqreturn_t edma_misc_irq_handle(int irq, void *ctx)
 {
 	struct edma_priv *priv = ctx;
 	u32 val;
 
-	regmap_read(priv->regmap, EDMA_REG_MISC_INT_STAT, &val);
+	if (regmap_read(priv->regmap, EDMA_REG_MISC_INT_STAT, &val))
+		return IRQ_NONE;
 	if (!val)
 		return IRQ_NONE;
 
@@ -156,6 +200,7 @@ static irqreturn_t edma_misc_irq_handle(int irq, void *ctx)
 	 * raise the interrupt again at once. Report it and mask it.
 	 */
 	regmap_write(priv->regmap, EDMA_REG_MISC_INT_MASK, 0);
+	edma_misc_snapshot(priv, val);
 	priv->misc_error++;
 	dev_warn(&priv->pdev->dev, "misc error %#x, masked\n", val);
 
@@ -2650,6 +2695,21 @@ static int edma_matrix_snapshot_show(struct seq_file *s, void *data)
 	seq_printf(s, "revision:r3 running:%u carrier:%u mtu:%u queues:%u misc_error:%llu\n",
 		   netif_running(priv->netdev), netif_carrier_ok(priv->netdev),
 		   priv->netdev->mtu, priv->num_queues, priv->misc_error);
+	if (atomic_read_acquire(&priv->misc_snapshot_state) == 2) {
+		seq_printf(s, "misc_first status:%#x boottime_ns:%llu queues:%u\n",
+			   priv->misc_first_status, priv->misc_first_ns,
+			   priv->misc_first_queues);
+		for (i = 0; i < priv->misc_first_queues; i++) {
+			const struct edma_error_ring *snap = &priv->misc_first_ring[i];
+
+			seq_printf(s, "misc_first_queue:%u rings:%u/%u/%u/%u tx_prod:%u tx_cons:%u txcmpl_prod:%u txcmpl_cons:%u rxfill_prod:%u rxfill_cons:%u rxdesc_prod:%u rxdesc_cons:%u\n",
+				   i, snap->txdesc, snap->txcmpl, snap->rxfill, snap->rxdesc,
+				   snap->tx_prod, snap->tx_cons,
+				   snap->txcmpl_prod, snap->txcmpl_cons,
+				   snap->rxfill_prod, snap->rxfill_cons,
+				   snap->rxdesc_prod, snap->rxdesc_cons);
+		}
+	}
 	for (i = 0; i < priv->num_queues; i++) {
 		struct edma_queue *q = &priv->q[i];
 		u32 txp, txc, txcp, txcc, rxfp, rxfc, rxdp, rxdc;
@@ -2752,6 +2812,7 @@ static int edma_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	priv = netdev_priv(netdev);
+	atomic_set(&priv->misc_snapshot_state, 0);
 	mutex_init(&priv->sw_lock);
 	priv->regmap = regmap;
 	priv->base = base;

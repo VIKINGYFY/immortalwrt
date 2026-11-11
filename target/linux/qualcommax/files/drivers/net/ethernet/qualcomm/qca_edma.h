@@ -6,6 +6,7 @@
 #ifndef __QCA_EDMA_H__
 #define __QCA_EDMA_H__
 
+#include <linux/atomic.h>
 #include <linux/dsa/tag_qca.h>
 #include <linux/qca_edma.h>
 #include <linux/etherdevice.h>
@@ -395,6 +396,12 @@ struct edma_queue {
 #define EDMA_MAX_QUEUES 4
 #define EDMA_IRQS_PER_QUEUE 3
 
+struct edma_error_ring {
+	u8 txdesc, txcmpl, rxfill, rxdesc;
+	u32 tx_prod, tx_cons, txcmpl_prod, txcmpl_cons;
+	u32 rxfill_prod, rxfill_cons, rxdesc_prod, rxdesc_cons;
+};
+
 struct dentry;
 
 struct edma_priv {
@@ -417,6 +424,11 @@ struct edma_priv {
 	u16 rx_ugt_thre;
 
 	u64 misc_error;
+	atomic_t misc_snapshot_state;
+	u32 misc_first_status;
+	u64 misc_first_ns;
+	u8 misc_first_queues;
+	struct edma_error_ring misc_first_ring[EDMA_MAX_QUEUES];
 
 	struct edma_queue q[EDMA_MAX_QUEUES];
 	unsigned int num_queues;
