@@ -1,0 +1,47 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=01
+USE_PROCD=1
+
+PROG=/usr/libexec/be10000-fan.uc
+
+is_be10000()
+{
+[ "$(board_name)" = "xiaomi,be10000" ]
+}
+
+set_full_speed()
+{
+local pwm
+
+for pwm in /sys/bus/i2c/devices/*-002f/hwmon/hwmon*/pwm1; do
+[ -e "$pwm" ] && echo 255 >"$pwm"
+done
+}
+
+start_service()
+{
+is_be10000 || return 0
+[ -x "$PROG" ] || return 1
+
+procd_open_instance
+procd_set_param command "$PROG"
+procd_set_param respawn 3600 5 5
+procd_set_param stdout 1
+procd_set_param stderr 1
+procd_close_instance
+}
+
+service_triggers()
+{
+procd_add_reload_trigger fancontrol
+}
+
+stop_service()
+{
+if is_be10000; then
+set_full_speed
+rm -f /var/run/fancontrol.status
+fi
+}

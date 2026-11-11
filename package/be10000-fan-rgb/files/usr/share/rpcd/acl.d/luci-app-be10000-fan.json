@@ -1,0 +1,17 @@
+{
+	"luci-app-be10000-fan": {
+		"description": "Grant access to Fan Control",
+		"read": {
+			"uci": [ "fancontrol" ],
+			"ubus": {
+				"service": [ "list" ]
+			},
+			"file": {
+				"/var/run/fancontrol.status": [ "read" ]
+			}
+		},
+		"write": {
+			"uci": [ "fancontrol" ]
+		}
+	}
+}

@@ -1,0 +1,72 @@
+#!/bin/sh
+
+usage()
+{
+echo "Usage: be10000-rgb {apply|status|on|off|set COLOR [BRIGHTNESS]}"
+}
+
+restart_service()
+{
+/etc/init.d/be10000-rgb restart
+}
+
+case "$1" in
+apply)
+restart_service
+;;
+status)
+/etc/init.d/be10000-rgb running || {
+echo "RGB service is not running"
+exit 1
+}
+[ -r /var/run/be10000-rgb.status ] &&
+cat /var/run/be10000-rgb.status
+;;
+on)
+uci set be10000_rgb.ambient.enabled='1'
+uci commit be10000_rgb
+restart_service
+;;
+off)
+uci set be10000_rgb.ambient.enabled='0'
+uci commit be10000_rgb
+restart_service
+;;
+set)
+color="$2"
+brightness="$3"
+
+case "$color" in
+\#[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])
+;;
+*)
+echo "COLOR must use #RRGGBB format" >&2
+exit 2
+;;
+esac
+
+if [ -n "$brightness" ]; then
+case "$brightness" in
+*[!0-9]*|'')
+echo "BRIGHTNESS must be 0-255" >&2
+exit 2
+;;
+esac
+[ "$brightness" -le 255 ] || {
+echo "BRIGHTNESS must be 0-255" >&2
+exit 2
+}
+uci set be10000_rgb.ambient.brightness="$brightness"
+fi
+
+uci set be10000_rgb.ambient.enabled='1'
+uci set be10000_rgb.ambient.mode='static'
+uci set be10000_rgb.ambient.color="$color"
+uci commit be10000_rgb
+restart_service
+;;
+*)
+usage >&2
+exit 2
+;;
+esac

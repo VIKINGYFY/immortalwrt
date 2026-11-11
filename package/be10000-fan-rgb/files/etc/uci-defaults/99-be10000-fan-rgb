@@ -1,0 +1,16 @@
+#!/bin/sh
+# One-shot: enable the BE10000 fan / RGB services on first boot.
+[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = "xiaomi,be10000" ] || exit 0
+
+for s in be10000-fan-prepare be10000-fan be10000-rgb; do
+	[ -x "/etc/init.d/$s" ] && "/etc/init.d/$s" enable
+done
+
+for s in fancontrol ledbar; do
+	[ -x "/etc/init.d/$s" ] && {
+		"/etc/init.d/$s" stop 2>/dev/null
+		"/etc/init.d/$s" disable 2>/dev/null
+	}
+done
+
+exit 0

@@ -1,0 +1,24 @@
+#!/bin/sh
+
+status=/var/run/fancontrol.status
+[ -r "$status" ] || exit 1
+
+get_value() {
+	awk -F= -v key="$1" '$1 == key { print $2; exit }' "$status"
+}
+
+rpm="$(get_value rpm)"
+pwm="$(get_value pwm)"
+profile="$(get_value profile)"
+active="$(get_value fan_active)"
+
+case "$rpm" in ''|*[!0-9-]*) rpm=-1 ;; esac
+case "$pwm" in ''|*[!0-9-]*) pwm=-1 ;; esac
+case "$active" in 0|1) ;; *) active=0 ;; esac
+case "$profile" in
+	auto|quiet|balanced|performance) ;;
+	*) profile=auto ;;
+esac
+
+printf '{"rpm":%d,"pwm":%d,"profile":"%s","active":%d}\n' \
+	"$rpm" "$pwm" "$profile" "$active"
