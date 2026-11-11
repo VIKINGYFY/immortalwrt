@@ -1,0 +1,45 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 09:32:05 +0800
+Subject: [PATCH] net: ppe: report physical flow budgets in resource diagnostics
+
+Report directional counts, weighted physical flow slots and quarantined
+rule budgets under the resource mutex. IPv6 five-tuples consume two slots.
+Quarantine is an ownership budget, not an exact count of distinct hardware
+rows. Preserve the compact active_flows status interface unchanged.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -4662,16 +4662,31 @@
+ {
+ 	struct ppe_flowtable *ft = seq->private;
+ 	struct ppe_ft_host *host;
++	struct ppe_ft_flow *flow;
++	unsigned int quarantined = 0, quarantine_slots = 0;
+ 	unsigned int hosts = 0;
++	int ipv4, ipv6;
+ 	int bucket;
+ 
+ 	mutex_lock(&ft->lock);
++	ipv4 = atomic_read(&ft->ipv4_flows);
++	ipv6 = atomic_read(&ft->ipv6_flows);
++	list_for_each_entry(flow, &ft->zombies, zombie_node) {
++		quarantined++;
++		quarantine_slots += flow->entry.is_ipv6 ? 2 : 1;
++	}
+ 	hash_for_each(ft->hosts, bucket, host, node)
+ 		hosts++;
+ 	seq_printf(seq, "host active:%u capacity:%u flow active:%d/%d capacity:%u\n",
+ 		   hosts, ft->ppe_dev->variant->num_host_entries,
+ 		   atomic_read(&ft->ipv4_flows), atomic_read(&ft->ipv6_flows),
+ 		   ft->ppe_dev->variant->num_flow_entries);
++	seq_printf(seq,
++		   "flow ipv4_directions:%d ipv6_directions:%d active_slots:%d capacity:%u\n",
++		   ipv4, ipv6, ipv4 + 2 * ipv6,
++		   ft->ppe_dev->variant->num_flow_entries);
++	seq_printf(seq, "quarantine rules:%u slots_budget:%u\n",
++		   quarantined, quarantine_slots);
+ 	for (bucket = 0; bucket < PPE_FT_RES_MAX; bucket++) {
+ 		unsigned long *counts = ft->resource_failures[bucket];
+ 

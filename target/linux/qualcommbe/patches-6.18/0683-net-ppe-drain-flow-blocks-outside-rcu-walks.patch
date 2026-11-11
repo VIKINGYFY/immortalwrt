@@ -1,0 +1,231 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 09:27:50 +0800
+Subject: [PATCH] net: ppe: drain flow blocks outside RCU hash walks
+
+Keep a mutex-protected list of published flows alongside their counters.
+Drain a selected block or the final table in one pass through the ordinary
+hardware retirement transaction. This avoids sleeping under the RCU lock
+held by rhashtable walkers and repeated full walks after each block rule.
+Keep readback, index ownership and quarantine unchanged.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -260,6 +260,7 @@
+  */
+ struct ppe_ft_flow {
+ 	struct rhash_head node;
++	struct list_head active_node;
+ 	struct list_head zombie_node;
+ 	struct rcu_head rcu;
+ 	unsigned long cookie;
+@@ -425,6 +426,7 @@
+ 	/* Serialize rule and resource state. */
+ 	struct mutex lock;
+ 	struct rhashtable flows;
++	struct list_head active_flows;
+ 	struct list_head zombies;
+ 	struct ppe_ft_flow **flow_owners;
+ 	u64 topology_seq;
+@@ -523,8 +525,10 @@
+ }
+ 
+ static void ppe_ft_flow_count_inc(struct ppe_flowtable *ft,
+-				  const struct ppe_ft_flow *flow)
+-{
++				  struct ppe_ft_flow *flow)
++{
++	lockdep_assert_held(&ft->lock);
++	list_add_tail(&flow->active_node, &ft->active_flows);
+ 	if (flow->entry.is_ipv6)
+ 		atomic_inc(&ft->ipv6_flows);
+ 	else
+@@ -532,8 +536,10 @@
+ }
+ 
+ static void ppe_ft_flow_count_dec(struct ppe_flowtable *ft,
+-				  const struct ppe_ft_flow *flow)
+-{
++				  struct ppe_ft_flow *flow)
++{
++	lockdep_assert_held(&ft->lock);
++	list_del_init(&flow->active_node);
+ 	if (flow->entry.is_ipv6)
+ 		atomic_dec(&ft->ipv6_flows);
+ 	else
+@@ -3077,6 +3083,7 @@
+ 
+ 	flow->cookie = f->cookie;
+ 	flow->block = block;
++	INIT_LIST_HEAD(&flow->active_node);
+ 	INIT_LIST_HEAD(&flow->zombie_node);
+ 	flow->index = -1;
+ 	flow->nexthop = -1;
+@@ -4272,18 +4279,10 @@
+ 	return ret;
+ }
+ 
+-static int ppe_ft_flow_destroy(struct ppe_flowtable *ft,
+-			       struct flow_cls_offload *f)
+-{
+-	struct ppe_ft_flow *flow;
+-
+-	mutex_lock(&ft->lock);
+-
+-	flow = rhashtable_lookup_fast(&ft->flows, &f->cookie, ppe_ft_params);
+-	if (!flow) {
+-		mutex_unlock(&ft->lock);
+-		return -ENOENT;
+-	}
++static void ppe_ft_flow_destroy_locked(struct ppe_flowtable *ft,
++				       struct ppe_ft_flow *flow)
++{
++	lockdep_assert_held(&ft->lock);
+ 
+ 	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
+ 	ppe_ft_flow_count_dec(ft, flow);
+@@ -4295,43 +4294,41 @@
+ 		flow = NULL;
+ 	}
+ 
+-	mutex_unlock(&ft->lock);
+ 	kfree_rcu(flow, rcu);
+-
++}
++
++static int ppe_ft_flow_destroy(struct ppe_flowtable *ft,
++			       struct flow_cls_offload *f)
++{
++	struct ppe_ft_flow *flow;
++
++	guard(mutex)(&ft->lock);
++	flow = rhashtable_lookup_fast(&ft->flows, &f->cookie, ppe_ft_params);
++	if (!flow)
++		return -ENOENT;
++
++	ppe_ft_flow_destroy_locked(ft, flow);
+ 	return 0;
+ }
+ 
+-/* Destroy every rule which survived flow-block unbind. The ordinary
+- * destroy path owns the complete, patch-level-specific dependency
+- * release transaction, so teardown cannot drift from it as new resources
+- * are added.
++/* The active list and its objects are stable under ft->lock. Hardware
++ * retirement may sleep, so do not perform it inside an RCU hash walk.
++ * One pass releases a block without revisiting unrelated blocks after
++ * every removal. A NULL block drains all rules left at final teardown.
+  */
+-static void ppe_ft_flow_drain(struct ppe_flowtable *ft)
+-{
+-	struct rhashtable_iter iter;
+-	struct ppe_ft_flow *flow;
+-
+-	rhashtable_walk_enter(&ft->flows, &iter);
+-	rhashtable_walk_start(&iter);
+-	while ((flow = rhashtable_walk_next(&iter))) {
+-		struct flow_cls_offload f = {};
+-		int ret;
+-
+-		if (IS_ERR(flow)) {
+-			if (PTR_ERR(flow) == -EAGAIN)
+-				continue;
+-			break;
+-		}
+-
+-		f.cookie = flow->cookie;
+-		ret = ppe_ft_flow_destroy(ft, &f);
+-		if (ret && ret != -ENOENT)
+-			dev_err(ft->ppe_dev->dev,
+-				"failed to drain flow cookie %lx: %d\n",
+-				f.cookie, ret);
+-	}
+-	rhashtable_walk_stop(&iter);
+-	rhashtable_walk_exit(&iter);
++static void ppe_ft_flow_drain(struct ppe_flowtable *ft,
++			      const struct flow_block *block)
++{
++	struct ppe_ft_flow *flow, *tmp;
++
++	guard(mutex)(&ft->lock);
++	list_for_each_entry_safe(flow, tmp, &ft->active_flows, active_node) {
++		if (block && flow->block != block)
++			continue;
++		if (block)
++			atomic_long_inc(&ft->destroy_calls);
++		ppe_ft_flow_destroy_locked(ft, flow);
++	}
+ }
+ 
+ static void ppe_ft_invalidate_locked(struct ppe_flowtable *ft,
+@@ -4782,50 +4779,8 @@
+ static void ppe_ft_block_release(void *cb_priv)
+ {
+ 	struct ppe_ft_block *fb = cb_priv;
+-	struct ppe_flowtable *ft = fb->ft;
+-	struct rhashtable_iter iter;
+-	struct ppe_ft_flow *flow;
+-	bool found;
+-
+-	do {
+-		struct flow_cls_offload f = { .command = FLOW_CLS_DESTROY };
+-		int ret;
+-
+-		found = false;
+-		mutex_lock(&ft->lock);
+-		rhashtable_walk_enter(&ft->flows, &iter);
+-		rhashtable_walk_start(&iter);
+-		while ((flow = rhashtable_walk_next(&iter))) {
+-			if (IS_ERR(flow)) {
+-				if (PTR_ERR(flow) == -EAGAIN)
+-					continue;
+-				break;
+-			}
+-			if (flow->block != fb->block)
+-				continue;
+-			f.cookie = flow->cookie;
+-			found = true;
+-			break;
+-		}
+-		rhashtable_walk_stop(&iter);
+-		rhashtable_walk_exit(&iter);
+-		mutex_unlock(&ft->lock);
+-
+-		if (!found)
+-			break;
+-		/* Restart the walk after every removal so no entry is skipped.
+-		 * The ordinary destroy path owns hardware readback/quarantine.
+-		 */
+-		atomic_long_inc(&ft->destroy_calls);
+-		ret = ppe_ft_flow_destroy(ft, &f);
+-		if (ret && ret != -ENOENT) {
+-			dev_err(ft->ppe_dev->dev,
+-				"failed to release block flow %lx: %d\n",
+-				f.cookie, ret);
+-			break;
+-		}
+-	} while (found);
+-
++
++	ppe_ft_flow_drain(fb->ft, fb->block);
+ 	kfree(fb);
+ }
+ 
+@@ -5116,6 +5071,7 @@
+ 	atomic_set(&ft->ipv4_flows, 0);
+ 	atomic_set(&ft->ipv6_flows, 0);
+ 	INIT_LIST_HEAD(&ft->block_cb_list);
++	INIT_LIST_HEAD(&ft->active_flows);
+ 	INIT_LIST_HEAD(&ft->zombies);
+ 
+ 	ret = rhashtable_init(&ft->flows, &ppe_ft_params);
+@@ -5209,7 +5165,7 @@
+ 	unregister_switchdev_blocking_notifier(&ft->bridge_nb);
+ 	unregister_netdevice_notifier(&ft->account_nb);
+ 	ppp_unregister_channel_notifier(&ft->ppp_nb);
+-	ppe_ft_flow_drain(ft);
++	ppe_ft_flow_drain(ft, NULL);
+ 	mutex_lock(&ft->lock);
+ 	for (i = 0; i < PPE_FT_PPPOE_SESSIONS; i++) {
+ 		if (!ft->pppoe[i].ref.refcnt)
