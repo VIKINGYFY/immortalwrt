@@ -1,7 +1,6 @@
-From 751fb727c53b6418f17c0416d50c5cae4edf242d Mon Sep 17 00:00:00 2001
 From: Benoit Masson <yahoo@perenite.com>
-Date: Mon, 28 Sep 2026 18:30:00 +0200
-Subject: [PATCH v3] wifi: ath12k: assign device id from the WSI index
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: ath12k: assign device id from the WSI index
 
 Devices of a hardware group are added to ag->ab[] in PCI probe
 completion order (ab->device_id = ag->num_probed++), which is not
@@ -24,14 +23,13 @@ Suggested-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Fixes: 6f245ea0ec6c ("wifi: ath12k: introduce device group abstraction")
 Cc: stable@vger.kernel.org # 6.14+
 Link: https://lore.kernel.org/linux-wireless/20260928213322.98949-1-yahoo@perenite.com/
+
 Signed-off-by: Benoit Masson <yahoo@perenite.com>
----
- drivers/net/wireless/ath/ath12k/core.c | 3 ++-
- 1 file changed, 2 insertions(+), 1 deletion(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -2029,7 +2029,8 @@ exit:
+@@ -2056,7 +2056,8 @@ exit:
  		goto invalid_group;
  	}
  

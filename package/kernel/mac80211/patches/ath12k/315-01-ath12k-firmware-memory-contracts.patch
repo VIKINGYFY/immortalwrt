@@ -1,0 +1,148 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: ath12k: define firmware memory reservations and ownership
+
+Provide named reservation lookup, shared MLO ownership and QMI memory-type contracts before the allocators and recovery consumers.
+
+Split from:
+  315-01-ath12k-share-fixed-mlo-memory.patch - wifi: ath12k: share fixed MLO memory in mixed bus groups
+  317-ath12k-resolve-named-firmware-memory-and-AFC-types.patch - wifi: ath12k: resolve named firmware memory and AFC types
+  338-ath12k-low-memory-host-resources.patch - wifi: ath12k: allocate and release low-memory host resources
+  914-ath12k-allocate-optional-firmware-memory-dynamically.patch - wifi: ath12k: allocate optional firmware memory dynamically
+
+Merged from:
+  315-01-ath12k-share-fixed-mlo-memory.patch - wifi: ath12k: share fixed MLO memory in mixed bus groups
+  317-ath12k-resolve-named-firmware-memory-and-AFC-types.patch - wifi: ath12k: resolve named firmware memory and AFC types
+  338-ath12k-low-memory-host-resources.patch - wifi: ath12k: allocate and release low-memory host resources
+  914-ath12k-allocate-optional-firmware-memory-dynamically.patch - wifi: ath12k: allocate optional firmware memory dynamically
+
+Previous split from (317-ath12k-resolve-named-firmware-memory-and-AFC-types.patch):
+  317-ath12k-use-reserved-pci-host-ddr.patch - wifi: ath12k: use fixed host DDR for PCI firmware
+
+Previous merged from (338-ath12k-low-memory-host-resources.patch):
+  338-ath12k-allow-low-memory-host-datapath.patch
+  339-ath12k-fix-fixed-memory-request-lifetime.patch
+  340-ath12k-bound-low-memory-rx-buffer-allocation.patch
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -664,6 +664,33 @@ struct reserved_mem *ath12k_core_get_res
+ 	return rmem;
+ }
+ 
++struct reserved_mem *ath12k_core_get_rmem_by_name(struct ath12k_base *ab, const char *name)
++{
++	struct device_node *node;
++	struct reserved_mem *rmem;
++	int index;
++
++	index = of_property_match_string(ab->dev->of_node,
++					 "memory-region-names", name);
++	if (index < 0)
++		return NULL;
++
++	node = of_parse_phandle(ab->dev->of_node, "memory-region", index);
++	if (!node) {
++		ath12k_dbg(ab, ATH12K_DBG_BOOT,
++			   "failed to parse memory region %s\n", name);
++		return NULL;
++	}
++
++	rmem = of_reserved_mem_lookup(node);
++	of_node_put(node);
++	if (!rmem)
++		ath12k_dbg(ab, ATH12K_DBG_BOOT,
++			   "unable to get memory region %s\n", name);
++
++	return rmem;
++}
++
+ static inline
+ void ath12k_core_to_group_ref_get(struct ath12k_base *ab)
+ {
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -889,6 +889,8 @@ struct ath12k_mlo_memory {
+ 	struct target_mem_chunk chunk[ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01];
+ 	int mlo_mem_size;
+ 	bool init_done;
++	bool fixed_mem;
++	struct device *alloc_dev;
+ };
+ 
+ struct ath12k_hw_link {
+@@ -1305,6 +1307,7 @@ void ath12k_fw_stats_free(struct ath12k_
+ void ath12k_fw_stats_reset(struct ath12k *ar);
+ struct reserved_mem *ath12k_core_get_reserved_mem(struct ath12k_base *ab,
+ 						  int index);
++struct reserved_mem *ath12k_core_get_rmem_by_name(struct ath12k_base *ab, const char *name);
+ enum ath12k_qmi_mem_mode ath12k_core_get_memory_mode(struct ath12k_base *ab);
+ 
+ static inline const char *ath12k_scan_state_str(enum ath12k_scan_state state)
+--- a/drivers/net/wireless/ath/ath12k/coredump.c
++++ b/drivers/net/wireless/ath/ath12k/coredump.c
+@@ -15,6 +15,7 @@ ath12k_fw_crash_dump_type ath12k_coredum
+ 
+ 	switch (type) {
+ 	case HOST_DDR_REGION_TYPE:
++	case AFC_REGION_TYPE:
+ 		dump_type = FW_CRASH_DUMP_REMOTE_MEM_DATA;
+ 		break;
+ 	case M3_DUMP_REGION_TYPE:
+--- a/drivers/net/wireless/ath/ath12k/qmi.h
++++ b/drivers/net/wireless/ath/ath12k/qmi.h
+@@ -29,6 +29,9 @@
+ #define ATH12K_QMI_FW_MEM_REQ_SEGMENT_CNT	3
+ #define ATH12K_QMI_WLFW_MAX_DEV_MEM_NUM_V01 4
+ #define ATH12K_QMI_DEVMEM_CMEM_INDEX	0
++#define AFC_SLOT_SIZE			0x1000
++#define AFC_MAX_SLOT			2
++#define AFC_MEM_SIZE			(AFC_SLOT_SIZE * AFC_MAX_SLOT)
+ 
+ #define QMI_WLFW_REQUEST_MEM_IND_V01		0x0035
+ #define QMI_WLFW_FW_MEM_READY_IND_V01		0x0037
+@@ -99,6 +102,7 @@ struct target_mem_chunk {
+ 	u32 type;
+ 	u32 prev_size;
+ 	u32 prev_type;
++	bool dma_allocated;
+ 	dma_addr_t paddr;
+ 	union {
+ 		void __iomem *ioaddr;
+@@ -132,6 +136,17 @@ struct dev_mem_info {
+ 	u64 size;
+ };
+ 
++/* Mapping ownership is independent of the latest firmware request/views.
++ * All fields are protected by the hardware group mutex.
++ */
++struct ath12k_qmi_fixed_mem {
++	void __iomem *ioaddr;
++	phys_addr_t paddr;
++	u32 size;
++	u32 type;
++	bool used;
++};
++
+ struct ath12k_qmi {
+ 	struct ath12k_base *ab;
+ 	struct qmi_handle handle;
+@@ -142,6 +157,7 @@ struct ath12k_qmi {
+ 	spinlock_t event_lock; /* spinlock for qmi event list */
+ 	struct ath12k_qmi_ce_cfg ce_cfg;
+ 	struct target_mem_chunk target_mem[ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01];
++	struct ath12k_qmi_fixed_mem fixed_mem[ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01];
+ 	u32 mem_seg_count;
+ 	u32 target_mem_mode;
+ 	bool target_mem_delayed;
+@@ -178,6 +194,7 @@ enum ath12k_qmi_target_mem {
+ 	CALDB_MEM_REGION_TYPE = 0x4,
+ 	MLO_GLOBAL_MEM_REGION_TYPE = 0x8,
+ 	PAGEABLE_MEM_REGION_TYPE = 0x9,
++	AFC_REGION_TYPE = 0xa,
+ 	LPASS_SHARED_V01_REGION_TYPE = 0xb,
+ };
+ 

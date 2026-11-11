@@ -1,14 +1,21 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:29:57 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: track Direct Switch peer and VAP ownership
 
 Connect Direct Switch peer and VAP state to station authorization
 and interface lifecycle operations.
 
-Split from:
-  package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
 
 Merged from:
+  906-04-ath12k-track-Direct-Switch-peers-and-VAPs.patch - wifi: ath12k: track Direct Switch peer and VAP ownership
+  916-ath12k-keep-four-address-peers-on-CPU-path.patch - wifi: ath12k: keep four-address peers on the CPU path
+
+Previous split from (906-04-ath12k-track-Direct-Switch-peers-and-VAPs.patch):
+  906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+
+Previous merged from (906-04-ath12k-track-Direct-Switch-peers-and-VAPs.patch):
   906-01-wifi-ath12k-add-native-PPE-direct-switch.patch
   906-02-wifi-ath12k-fix-IPQ5332-REO-register-offsets.patch
   906-03-wifi-ath12k-batch-native-Direct-Switch-RX-recycling.patch
@@ -24,11 +31,70 @@ Merged from:
 
 Link: https://android.googlesource.com/kernel/msm-modules/wlan-fw-api/+/9ab723333db68e4552672f9e2a5cc6f8e4027894/hw/qcn9224/
 Original-commit: dfa0345057d5ef5dd7670544b833d3a5f92f62c0
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -8143,6 +8143,11 @@ void ath12k_mac_op_sta_set_4addr(struct
+ 				 struct ieee80211_sta *sta, bool enabled)
+ {
+ 	struct ath12k_sta *ahsta = ath12k_sta_to_ahsta(sta);
++	struct ath12k_link_sta *arsta;
++	struct ath12k_link_vif *arvif;
++	struct ath12k_dp *dp;
++	unsigned long links;
++	int link_id, ret;
+ 
+ 	lockdep_assert_wiphy(hw->wiphy);
+ 
+@@ -8153,9 +8158,25 @@ void ath12k_mac_op_sta_set_4addr(struct
+ 	 * during run time. So, add support only for enable case, for
+ 	 * disable case station interface needs to be reconnect.
+ 	 */
+-	if (enabled && !ahsta->enable_4addr) {
+-		if (!ath12k_mac_sta_set_4addr(hw->wiphy, ahsta))
+-			ahsta->enable_4addr = true;
++	if (!enabled || ahsta->enable_4addr ||
++	    ath12k_mac_sta_set_4addr(hw->wiphy, ahsta))
++		return;
++
++	ahsta->enable_4addr = true;
++	/* Authorization may already have submitted a parent-AP DS route. */
++	links = ahsta->links_map;
++	for_each_set_bit(link_id, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
++		arsta = wiphy_dereference(hw->wiphy, ahsta->link[link_id]);
++		if (!arsta || !arsta->arvif || !arsta->arvif->ar)
++			continue;
++		arvif = arsta->arvif;
++		dp = ath12k_ab_to_dp(arvif->ar->ab);
++		if (!dp->ops->ds_peer_setup)
++			continue;
++		ret = dp->ops->ds_peer_setup(arvif->ar, arvif, arsta);
++		if (ret)
++			ath12k_warn(arvif->ar->ab,
++				    "failed to withdraw 4addr Direct Switch route: %d\n", ret);
+ 	}
+ }
+ EXPORT_SYMBOL(ath12k_mac_op_sta_set_4addr);
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -856,3 +856,434 @@
+@@ -54,12 +54,13 @@ bool ath12k_wifi7_ds_hw1_registered(stru
+ enum ath12k_ds_fallback {
+ 	ATH12K_DS_FALLBACK_NONE,
+ 	ATH12K_DS_FALLBACK_MLO,
++	ATH12K_DS_FALLBACK_4ADDR,
+ 	ATH12K_DS_FALLBACK_CONTROL,
+ 	ATH12K_DS_FALLBACK_MAX,
+ };
+ 
+ static const char * const ath12k_ds_fallback_names[] = {
+-	"none", "unsupported-mlo", "control-submit",
++	"none", "unsupported-mlo", "four-address", "control-submit",
+ };
+ 
+ struct ath12k_ds_buffer {
+@@ -862,3 +863,448 @@ bad_cookie:
  	return (done + 3) >> 2;
  }
  
@@ -221,7 +287,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (!ds)
 +		return 0;
 +	lockdep_assert_wiphy(ar->ah->hw->wiphy);
-+	fallback = sta->mlo ? ATH12K_DS_FALLBACK_MLO : ATH12K_DS_FALLBACK_NONE;
++	fallback = sta->mlo ? ATH12K_DS_FALLBACK_MLO :
++		   ahsta->enable_4addr ? ATH12K_DS_FALLBACK_4ADDR :
++		   ATH12K_DS_FALLBACK_NONE;
 +	mutex_lock(&ds->control_lock);
 +	if (ds->stopped || ds->faulted)
 +		goto unlock;
@@ -230,7 +298,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		    peer->vdev == arvif->vdev_id &&
 +		    ether_addr_equal(peer->addr, arsta->addr)) {
 +			peer->authorized |= authorized;
-+			if (authorized && !peer->enabled && !fallback) {
++			/* A four-address peer moves to an AP_VLAN after association.
++			 * Native DS owns only the parent AP netdevice and cannot
++			 * preserve that VLAN or learn the bridged source addresses.
++			 * Return the whole VAP to CPU before withdrawing its route.
++			 */
++			if (peer->fallback != fallback && fallback)
++				ds->fallback_events[fallback]++;
++			peer->fallback = fallback;
++			if (fallback) {
++				ret = ath12k_ds_peer_cpu(ds, peer);
++				goto unlock;
++			}
++			if (authorized && !peer->enabled) {
 +				port = ath12k_ds_bind_vif(ds, arvif);
 +				if (port < 0) {
 +					ret = port;
@@ -301,7 +381,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +int ath12k_wifi7_ds_peer_setup(struct ath12k *ar, struct ath12k_link_vif *arvif,
 +			       struct ath12k_link_sta *arsta)
 +{
-+	if (!ath12k_wifi7_ds_hw1_compat(ar->ab))
++	if (!ath12k_wifi7_ds_hw1_compat(ar->ab) && !arsta->ahsta->enable_4addr)
 +		return 0;
 +	return ath12k_ds_peer_update(ar, arvif, arsta, false);
 +}

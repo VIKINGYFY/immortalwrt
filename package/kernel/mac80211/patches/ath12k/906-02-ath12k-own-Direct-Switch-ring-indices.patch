@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 10 Nov 2026 20:13:17 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: own Direct Switch rings with the HW1 02903 ABI
 
 Create the native Direct Switch ring client and retain its producer
@@ -9,10 +9,17 @@ Use the QCN9274 HW1 Direct Switch compatibility path only with the
 WBE.1.0-02903 firmware ABI. Remove the obsolete WBE.1.0.r4-00159
 match; other HW1 firmware builds retain the CPU datapath.
 
-Split from:
-  package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
 
 Merged from:
+  906-02-ath12k-own-Direct-Switch-ring-indices.patch - wifi: ath12k: own Direct Switch rings with the HW1 02903 ABI
+  919-ath12k-halt-TCL-before-restoring-Direct-Switch-ring-indices.patch - wifi: ath12k: halt TCL before restoring Direct Switch indices
+
+Previous split from (906-02-ath12k-own-Direct-Switch-ring-indices.patch):
+  906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+
+Previous merged from (906-02-ath12k-own-Direct-Switch-ring-indices.patch):
   906-01-wifi-ath12k-add-native-PPE-direct-switch.patch
   906-02-wifi-ath12k-fix-IPQ5332-REO-register-offsets.patch
   906-03-wifi-ath12k-batch-native-Direct-Switch-RX-recycling.patch
@@ -28,11 +35,73 @@ Merged from:
 
 Link: https://android.googlesource.com/kernel/msm-modules/wlan-fw-api/+/9ab723333db68e4552672f9e2a5cc6f8e4027894/hw/qcn9224/
 Original-commit: dfa0345057d5ef5dd7670544b833d3a5f92f62c0
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hal.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hal.c
+@@ -3,6 +3,7 @@
+  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+  */
++#include <linux/iopoll.h>
+ #include "hw.h"
+ #include "hal_desc.h"
+ #include "../hal.h"
+@@ -142,11 +143,28 @@ void ath12k_wifi7_hal_ds_disable(struct
+ }
+ 
+ /* Only called for empty rings before enabling peer/VP routing. */
+-void ath12k_wifi7_hal_ds_set_indices(struct ath12k_base *ab,
++int ath12k_wifi7_hal_ds_set_indices(struct ath12k_base *ab,
+ 				    struct hal_srng *srng, u16 index)
+ {
+ 	u32 offset, reg, misc, words = index * srng->entry_size;
+ 	unsigned long flags;
++	u32 control_reg = HAL_SEQ_WCSS_UMAC_TCL_REG + HAL_TCL1_RING_CMN_CTRL_REG;
++	u32 control = 0, value;
++	int ret;
++
++	/* PPE retains EDMA indices across WLAN reset. Halt the TCL pipeline
++	 * before restoring nonzero pointers, as QSDK does for these rings.
++	 */
++	if (index) {
++		control = ath12k_hif_read32(ab, control_reg);
++		ath12k_hif_write32(ab, control_reg, control | HAL_TCL_PPE2TCL_RING_HALT);
++		ret = read_poll_timeout(ath12k_hif_read32, value, value & HAL_TCL_PPE2TCL_RING_HALT_STATUS,
++				1000, 100000, false, ab, control_reg);
++		if (ret) {
++			ath12k_hif_write32(ab, control_reg, control);
++			return ret;
++		}
++	}
+ 
+ 	if (srng->ring_dir == HAL_SRNG_DIR_SRC)
+ 		offset = HAL_TCL1_RING_MISC_OFFSET(&ab->hal);
+@@ -175,6 +193,9 @@ void ath12k_wifi7_hal_ds_set_indices(str
+ 	reg = srng->hwreg_base[HAL_SRNG_REG_GRP_R0] + offset;
+ 	ath12k_hif_write32(ab, reg, misc);
+ 	spin_unlock_irqrestore(&srng->lock, flags);
++	if (index)
++		ath12k_hif_write32(ab, control_reg, control);
++	return 0;
+ }
+ #endif
+ 
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hal.h
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hal.h
+@@ -44,6 +44,8 @@
+ 
+ /* SW2TCL(x) R0 ring configuration address */
+ #define HAL_TCL1_RING_CMN_CTRL_REG		0x00000020
++#define HAL_TCL_PPE2TCL_RING_HALT			BIT(10)
++#define HAL_TCL_PPE2TCL_RING_HALT_STATUS		BIT(18)
+ #define HAL_TCL1_RING_DSCP_TID_MAP		0x00000240
+ 
+ #define HAL_TCL1_RING_BASE_LSB(hal) \
 --- /dev/null
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -0,0 +1,559 @@
+@@ -0,0 +1,565 @@
 +// SPDX-License-Identifier: BSD-3-Clause-Clear
 +/*
 + * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
@@ -197,11 +266,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +static int ath12k_ds_start_indices(void *priv, u16 tcl, u16 reo)
 +{
 +	struct ath12k_ds *ds = priv;
++	int ret;
 +
-+	ath12k_wifi7_hal_ds_set_indices(ds->dp->ab,
-+				       ath12k_ds_srng(ds, &ds->tcl), tcl);
-+	ath12k_wifi7_hal_ds_set_indices(ds->dp->ab,
-+				       ath12k_ds_srng(ds, &ds->reo), reo);
++	ret = ath12k_wifi7_hal_ds_set_indices(ds->dp->ab,
++					ath12k_ds_srng(ds, &ds->tcl), tcl);
++	if (ret)
++		return ret;
++	ret = ath12k_wifi7_hal_ds_set_indices(ds->dp->ab,
++					ath12k_ds_srng(ds, &ds->reo), reo);
++	if (ret)
++		return ret;
++
 +	ds->hw1_reo = reo;
 +	return 0;
 +}
@@ -592,3 +667,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	.fault = ath12k_ds_transport_fault,
 +};
 +
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.h
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.h
+@@ -13,7 +13,7 @@ struct ath12k_sta;
+ #ifdef CPTCFG_ATH12K_PPE_DS_SUPPORT
+ bool ath12k_wifi7_ds_hw1_compat(struct ath12k_base *ab);
+ bool ath12k_wifi7_ds_hw1_registered(struct ath12k_base *ab);
+-void ath12k_wifi7_hal_ds_set_indices(struct ath12k_base *ab,
++int ath12k_wifi7_hal_ds_set_indices(struct ath12k_base *ab,
+ 				    struct hal_srng *srng, u16 index);
+ void ath12k_wifi7_hal_ds_disable(struct ath12k_base *ab, struct hal_srng *srng);
+ int ath12k_wifi7_ds_stop(struct ath12k_dp *dp);

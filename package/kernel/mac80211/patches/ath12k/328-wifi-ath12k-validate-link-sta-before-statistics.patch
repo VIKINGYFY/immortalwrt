@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -14023,13 +14023,18 @@
+@@ -14023,7 +14023,7 @@ void ath12k_mac_op_link_sta_statistics(s
  				       struct ieee80211_link_sta *link_sta,
  				       struct link_station_info *link_sinfo)
  {
@@ -24,14 +24,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ath12k_fw_stats_req_params params = {};
  	struct ath12k_dp_link_peer *peer;
  	struct ath12k_link_sta *arsta;
- 	struct ath12k *ar;
+@@ -14031,6 +14031,11 @@ void ath12k_mac_op_link_sta_statistics(s
  	s8 signal;
  	bool db2dbm;
-+
+ 
 +	if (!link_sta->sta)
 +		return;
 +
 +	ahsta = ath12k_sta_to_ahsta(link_sta->sta);
- 
++
  	lockdep_assert_wiphy(hw->wiphy);
  
+ 	arsta = wiphy_dereference(hw->wiphy, ahsta->link[link_sta->link_id]);

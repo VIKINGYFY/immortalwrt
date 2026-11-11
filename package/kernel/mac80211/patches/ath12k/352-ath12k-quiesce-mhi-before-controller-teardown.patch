@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:27:29 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: quiesce recovery and MHI on teardown
 
 Firmware recovery powers MHI up before the data path sets PCI INIT_DONE.
@@ -18,23 +18,24 @@ is destroying the radio. Drain QMI events and restart work before the
 device teardown, and reject FW_READY once unregistering starts. This
 prevents the restart worker from unregistering thermal/hwmon twice. Apply
 the same event-before-restart drain order to AHB removal.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -1376,8 +1376,8 @@
+@@ -1376,8 +1376,8 @@ static void ath12k_ahb_remove_prepare(st
  	}
  
  	set_bit(ATH12K_FLAG_UNREGISTERING, &ab->dev_flags);
-+	cancel_work_sync(&ab->qmi.event_work);
- 	cancel_work_sync(&ab->restart_work);
--	cancel_work_sync(&ab->qmi.event_work);
+-	cancel_work_sync(&ab->restart_work);
+ 	cancel_work_sync(&ab->qmi.event_work);
++	cancel_work_sync(&ab->restart_work);
  }
  
  static void ath12k_ahb_free_resources(struct ath12k_base *ab)
 --- a/drivers/net/wireless/ath/ath12k/mhi.c
 +++ b/drivers/net/wireless/ath/ath12k/mhi.c
-@@ -288,6 +288,8 @@
+@@ -288,6 +288,8 @@ void ath12k_mhi_unregister(struct ath12k
  {
  	struct mhi_controller *mhi_ctrl = ab_pci->mhi_ctrl;
  
@@ -43,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mhi_unregister_controller(mhi_ctrl);
  	kfree(mhi_ctrl->irq);
  	mhi_free_controller(mhi_ctrl);
-@@ -513,12 +515,15 @@
+@@ -513,12 +515,15 @@ void ath12k_mhi_stop(struct ath12k_pci *
  	 * workaround, otherwise ath12k_core_resume() will timeout
  	 * during resume.
  	 */
@@ -51,15 +52,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF_KEEP_DEV);
 -	else
 -		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF);
--
--	ath12k_mhi_set_state(ab_pci, ATH12K_MHI_DEINIT);
 +	if (test_bit(ATH12K_MHI_POWER_ON, &ab_pci->mhi_state)) {
 +		if (is_suspend)
 +			ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF_KEEP_DEV);
 +		else
 +			ath12k_mhi_set_state(ab_pci, ATH12K_MHI_POWER_OFF);
 +	}
-+
+ 
+-	ath12k_mhi_set_state(ab_pci, ATH12K_MHI_DEINIT);
 +	if (test_bit(ATH12K_MHI_INIT, &ab_pci->mhi_state))
 +		ath12k_mhi_set_state(ab_pci, ATH12K_MHI_DEINIT);
  }
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath12k_mhi_suspend(struct ath12k_pci *ab_pci)
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
-@@ -1479,7 +1479,10 @@
+@@ -1479,7 +1479,10 @@ void ath12k_pci_power_down(struct ath12k
  {
  	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
  
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  
  	/* restore aspm in case firmware bootup fails */
-@@ -1719,6 +1722,9 @@
+@@ -1719,6 +1722,9 @@ static void ath12k_pci_remove(struct pci
  	set_bit(ATH12K_FLAG_UNREGISTERING, &ab->dev_flags);
  
  	cancel_work_sync(&ab->reset_work);
@@ -91,7 +91,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -4343,6 +4343,9 @@
+@@ -4396,6 +4396,9 @@ static void ath12k_qmi_driver_event_work
  				set_bit(ATH12K_FLAG_QMI_FAIL, &ab->dev_flags);
  			break;
  		case ATH12K_QMI_EVENT_FW_READY:

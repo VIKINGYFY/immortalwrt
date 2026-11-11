@@ -26,11 +26,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -4046,6 +4046,17 @@
- 	if (ret)
+@@ -4047,6 +4047,17 @@ static void ath12k_bss_assoc(struct ath1
  		ath12k_warn(ar->ab, "failed to set vdev %i OBSS PD parameters: %d\n",
  			    arvif->vdev_id, ret);
-+
+ 
 +	if (ar->ab->hw_params->supports_sta_ps &&
 +	    ahvif->vdev_type == WMI_VDEV_TYPE_STA &&
 +	    ahvif->vdev_subtype == WMI_VDEV_SUBTYPE_NONE) {
@@ -41,12 +40,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			ath12k_warn(ar->ab, "failed to set vdev %d stick DTIM policy: %d\n",
 +				    arvif->vdev_id, ret);
 +	}
- 
++
  	if (test_bit(WMI_TLV_SERVICE_11D_OFFLOAD, ar->ab->wmi_ab.svc_map) &&
  	    ahvif->vdev_type == WMI_VDEV_TYPE_STA &&
+ 	    ahvif->vdev_subtype == WMI_VDEV_SUBTYPE_NONE)
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -2331,6 +2331,13 @@
+@@ -2331,6 +2331,13 @@ enum wmi_slot_time {
  	WMI_VDEV_SLOT_TIME_SHORT = 2,
  };
  

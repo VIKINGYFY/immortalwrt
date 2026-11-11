@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -1399,19 +1399,37 @@
+@@ -1399,20 +1399,38 @@ int ath12k_wmi_send_peer_delete_cmd(stru
  {
  	struct ath12k_wmi_pdev *wmi = ar->wmi;
  	struct wmi_peer_delete_cmd *cmd;
@@ -28,11 +28,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	struct wmi_tlv *tlv;
  	struct sk_buff *skb;
 -	int ret;
--
--	skb = ath12k_wmi_alloc_skb(wmi->wmi_ab, sizeof(*cmd));
 +	u8 *ptr;
 +	int len, ret;
-+
+ 
+-	skb = ath12k_wmi_alloc_skb(wmi->wmi_ab, sizeof(*cmd));
 +	len = sizeof(*cmd) + TLV_HDR_SIZE + sizeof(*mlo_params);
 +	skb = ath12k_wmi_alloc_skb(wmi->wmi_ab, len);
  	if (!skb)
@@ -46,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ether_addr_copy(cmd->peer_macaddr.addr, peer_addr);
  	cmd->vdev_id = cpu_to_le32(vdev_id);
-+
+ 
 +	ptr += sizeof(*cmd);
 +	tlv = (struct wmi_tlv *)ptr;
 +	tlv->header = ath12k_wmi_tlv_hdr(WMI_TAG_ARRAY_STRUCT,
@@ -59,12 +58,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				       sizeof(*mlo_params));
 +	/* This driver tears down the complete hardware group during recovery. */
 +	mlo_params->mlo_hw_link_id_bitmap = cpu_to_le32(0);
- 
++
  	ath12k_dbg(ar->ab, ATH12K_DBG_WMI,
  		   "WMI peer delete vdev_id %d peer_addr %pM\n",
+ 		   vdev_id,  peer_addr);
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -2035,6 +2035,7 @@
+@@ -2035,6 +2035,7 @@ enum wmi_tlv_tag {
  	WMI_TAG_RSSI_DBM_CONVERSION_PARAMS_INFO_FIXED_PARAM = 0x427,
  	WMI_TAG_RSSI_DBM_CONVERSION_PARAMS_INFO,
  	WMI_TAG_RSSI_DBM_CONVERSION_TEMP_OFFSET_INFO,
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	WMI_TAG_HALPHY_CTRL_PATH_CMD_FIXED_PARAM = 0x442,
  	WMI_TAG_HALPHY_CTRL_PATH_EVENT_FIXED_PARAM,
  	WMI_TAG_MAX
-@@ -3311,6 +3312,11 @@
+@@ -3311,6 +3312,11 @@ struct wmi_peer_delete_cmd {
  	struct ath12k_wmi_mac_addr_params peer_macaddr;
  } __packed;
  

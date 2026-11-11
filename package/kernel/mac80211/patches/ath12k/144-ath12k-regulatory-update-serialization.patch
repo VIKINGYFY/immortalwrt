@@ -1,5 +1,5 @@
 From: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
-Date: Sun, 08 Nov 2026 10:27:29 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: serialize and deduplicate regulatory updates
 
 ab->new_alpha2 is written under ab->base_lock by the 11d new country code
@@ -11,13 +11,16 @@ firmware. But when ab->new_alpha2 is the same as the country already
 applied at boot time (stored in ab->default_regd), setting it again is
 meaningless. So skip it in that case.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  144-ath12k-regulatory-update-serialization.patch - wifi: ath12k: serialize and deduplicate regulatory updates
+  911-ath12k-preserve-dfs-for-unchanged-regdomain.patch - wifi: ath12k: preserve DFS state for unchanged regulatory rules
+
+Previous merged from (144-ath12k-regulatory-update-serialization.patch):
   144-wifi-ath12k-protect-new_alpha2-access-with-base_lock.patch
   145-wifi-ath12k-skip-setting-country-code-when-unchanged.patch
-
-Based on work by:
-  Baochen Qiang <baochen.qiang@oss.qualcomm.com>
-  Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 
 Original-commit: e9e53baf1c0eb4d03c83b7e431f8095530167811
 Link: https://patch.msgid.link/20260729-ath12k-regd-wait-timeout-v1-3-504aa6e7e93c@oss.qualcomm.com
@@ -30,17 +33,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -15089,11 +15089,29 @@
+@@ -15089,11 +15089,29 @@ static int ath12k_mac_hw_register(struct
  			goto err_unregister_hw;
  		}
  
 -		if (this_ab->hw_params->current_cc_support && this_ab->new_alpha2[0]) {
 +		if (this_ab->hw_params->current_cc_support) {
  			struct wmi_set_current_country_arg current_cc = {};
--
 +			struct ieee80211_regdomain *default_regd;
 +			bool same_cc = false;
-+
+ 
 +			spin_lock_bh(&this_ab->base_lock);
  			memcpy(&current_cc.alpha2, this_ab->new_alpha2, 2);
 -			memcpy(&ar->alpha2, this_ab->new_alpha2, 2);
@@ -63,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  			reinit_completion(&ar->regd_update_completed);
  
-@@ -15104,6 +15122,7 @@
+@@ -15104,6 +15122,7 @@ static int ath12k_mac_hw_register(struct
  					    ret);
  		}
  
@@ -71,3 +73,47 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath12k_fw_stats_init(ar);
  		ath12k_debugfs_register(ar);
  	}
+--- a/drivers/net/wireless/ath/ath12k/reg.c
++++ b/drivers/net/wireless/ath/ath12k/reg.c
+@@ -266,6 +266,25 @@ static void ath12k_copy_regd(struct ieee
+ 		       sizeof(struct ieee80211_reg_rule));
+ }
+ 
++static bool ath12k_regd_is_current(struct wiphy *wiphy,
++				   const struct ieee80211_regdomain *regd)
++{
++	const struct ieee80211_regdomain *wiphy_regd;
++	bool equal = false;
++
++	rcu_read_lock();
++	wiphy_regd = rcu_dereference(wiphy->regd);
++	if (wiphy_regd && wiphy_regd->n_reg_rules == regd->n_reg_rules &&
++	    wiphy_regd->dfs_region == regd->dfs_region &&
++	    !memcmp(wiphy_regd->alpha2, regd->alpha2, sizeof(regd->alpha2)) &&
++	    !memcmp(wiphy_regd->reg_rules, regd->reg_rules,
++		    regd->n_reg_rules * sizeof(regd->reg_rules[0])))
++		equal = true;
++	rcu_read_unlock();
++
++	return equal;
++}
++
+ int ath12k_regd_update(struct ath12k *ar, bool init)
+ {
+ 	struct ath12k_wmi_hal_reg_capabilities_ext_arg *reg_cap;
+@@ -391,7 +410,14 @@ int ath12k_regd_update(struct ath12k *ar
+ 		goto err;
+ 	}
+ 
+-	ret = regulatory_set_wiphy_regd(hw->wiphy, regd_copy);
++	/* Adding a VIF can regenerate unchanged rules for a shared wiphy.
++	 * Reapplying them discards DFS availability established by another
++	 * radio. Keep startup/recovery and every actual rule change intact.
++	 */
++	ret = 0;
++	if (init || ah->state != ATH12K_HW_STATE_ON ||
++	    !ath12k_regd_is_current(hw->wiphy, regd_copy))
++		ret = regulatory_set_wiphy_regd(hw->wiphy, regd_copy);
+ 
+ 	kfree(regd_copy);
+ 

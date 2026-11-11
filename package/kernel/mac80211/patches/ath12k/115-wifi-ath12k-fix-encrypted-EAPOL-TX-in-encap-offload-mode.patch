@@ -1,5 +1,5 @@
 From: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
-Date: Sun, 08 Nov 2026 10:27:29 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: fix encrypted EAPOL TX in encap offload mode
 
 When a vif operates with IEEE80211_OFFLOAD_ENCAP_ENABLED,
@@ -28,17 +28,25 @@ helpers in the TX path to obtain cipher-specific IV and ICV lengths.
 Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01270-QCAHKSWPL_SILICONZ-1
 
 Fixes: d29591d5b52e ("wifi: ath12k: Advertise encapsulation/decapsulation offload support to mac80211")
-Signed-off-by: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
 Reviewed-by: Aishwarya R <aishwarya.r@oss.qualcomm.com>
 Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Link: https://patch.msgid.link/20260729171732.668367-1-reshma.rajkumar@oss.qualcomm.com
+
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Merged from:
+  115-wifi-ath12k-fix-encrypted-EAPOL-TX-in-encap-offload-mode.patch - wifi: ath12k: fix encrypted EAPOL TX in encap offload mode
+  915-ath12k-encrypt-EAPOL-renewal-on-native-WiFi-vdevs.patch - wifi: ath12k: encrypt EAPOL renewal on native-WiFi vdevs
+
+Signed-off-by: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
-@@ -82,6 +82,52 @@
+@@ -82,6 +82,52 @@ enum hal_encrypt_type ath12k_dp_tx_get_e
  }
  EXPORT_SYMBOL(ath12k_dp_tx_get_encrypt_type);
  
@@ -93,7 +101,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				u8 pool_id)
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.h
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.h
-@@ -19,6 +19,8 @@
+@@ -19,6 +19,8 @@ enum hal_tcl_encap_type
  ath12k_dp_tx_get_encap_type(struct ath12k_base *ab, struct sk_buff *skb);
  void ath12k_dp_tx_encap_nwifi(struct sk_buff *skb);
  u8 ath12k_dp_tx_get_tid(struct sk_buff *skb);
@@ -104,11 +112,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath12k_dp_tx_release_txbuf(struct ath12k_dp *dp,
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
-@@ -12,6 +12,49 @@
- #include "hal_desc.h"
+@@ -13,6 +13,49 @@
  #include "hal.h"
  #include "hal_tx.h"
-+
+ 
 +/*
 + * Convert an encrypted EAPOL frame from native-WiFi format to
 + * the layout expected by the firmware RAW encrypt pipeline:
@@ -151,10 +158,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	return 0;
 +}
- 
++
  static void
  ath12k_wifi7_hal_tx_cmd_ext_desc_setup(struct ath12k_base *ab,
-@@ -91,6 +134,7 @@
+ 				       struct hal_tx_msdu_ext_desc *tcl_ext_cmd,
+@@ -91,6 +134,7 @@ int ath12k_wifi7_dp_tx(struct ath12k_pde
  	u32 iova_mask = dp->hw_params->iova_mask;
  	bool is_diff_encap = false;
  	bool is_null_frame = false;
@@ -162,15 +170,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
  		return -ESHUTDOWN;
-@@ -211,9 +255,27 @@
+@@ -210,13 +254,33 @@ tcl_ring_sel:
+ 	switch (ti.encap_type) {
  	case HAL_TCL_ENCAP_TYPE_NATIVE_WIFI:
  		is_null_frame = ieee80211_is_nullfunc(hdr->frame_control);
- 		if (ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {
+-		if (ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {
 -			if (skb->protocol == cpu_to_be16(ETH_P_PAE) || is_null_frame)
++		if ((ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) ||
++		    (skb->protocol == cpu_to_be16(ETH_P_PAE) &&
++		     (skb_cb->flags & ATH12K_SKB_CIPHER_SET))) {
 +			if ((skb->protocol == cpu_to_be16(ETH_P_PAE) &&
 +			     !(skb_cb->flags & ATH12K_SKB_CIPHER_SET)) || is_null_frame)
  				is_diff_encap = true;
  
+-			/* Firmware expects msdu ext descriptor for nwifi/raw packets
+-			 * received in ETH mode. Without this, observed tx fail for
+-			 * Multicast packets in ETH mode.
 +			if (skb->protocol == cpu_to_be16(ETH_P_PAE) &&
 +			    (skb_cb->flags & ATH12K_SKB_CIPHER_SET)) {
 +				if (!eapol_encap_done) {
@@ -188,6 +203,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +						ath12k_dp_tx_get_encrypt_type(skb_cb->cipher);
 +				}
 +			}
- 			/* Firmware expects msdu ext descriptor for nwifi/raw packets
- 			 * received in ETH mode. Without this, observed tx fail for
- 			 * Multicast packets in ETH mode.
++			/* Firmware needs an extension for the per-frame RAW cipher
++			 * override, including EAPOL renewal on native-WiFi vdevs.
++			 * ETH-mode native-WiFi frames also need the extension.
+ 			 */
+ 			msdu_ext_desc = true;
+ 		} else {

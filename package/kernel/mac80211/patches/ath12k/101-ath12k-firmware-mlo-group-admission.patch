@@ -1,23 +1,17 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 04 Nov 2026 16:09:08 +0800
-Subject: [PATCH] wifi: ath12k: keep unsupported MLO devices independent
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: ath12k: admit only compatible firmware into MLO groups
 
-QCN9274 HW1.0 uses the legacy WBE.1.0 firmware ABI. No compatible MLO
-firmware is available for the supported HW1.0 images, so do not expose
-single-chip MLO or join these devices to an inter-device WSI group.
-Preserve their local datapath IDs and normal non-MLO operation.
+Keep unsupported HW1 and other PCIe firmware out of MLO groups before assigning partner datapath IDs. Separate group admission from HW1 descriptor and register ABI compatibility.
 
-Other PCIe devices without the MLO firmware feature also need separate
-hardware groups: assigning partner device IDs before rejecting MLO
-selects cookie tables and return-buffer managers the firmware does not
-use. Preserve graph-based grouping for MLO-capable PCIe firmware and
-AHB split firmware, which has no firmware feature bitmap.
+Split from:
+  912-ath12k-keep-non-mlo-pcie-devices-independent.patch - wifi: ath12k: keep unsupported MLO devices independent
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -2114,6 +2114,14 @@
+@@ -1988,6 +1988,14 @@ static struct ath12k_hw_group *ath12k_co
  	if (ath12k_ftm_mode)
  		goto invalid_group;
  
@@ -32,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* The grouping of multiple devices will be done based on device tree file.
  	 * The platforms that do not have any valid group information would have
  	 * each device to be part of its own invalid group.
-@@ -2325,6 +2333,11 @@
+@@ -2199,6 +2207,11 @@ void ath12k_core_hw_group_set_mlo_capabl
  
  	if (ag->num_devices == 1) {
  		ab = ag->ab[0];

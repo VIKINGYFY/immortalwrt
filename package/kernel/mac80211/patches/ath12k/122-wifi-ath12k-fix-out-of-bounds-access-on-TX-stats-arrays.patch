@@ -1,7 +1,6 @@
 From: Pardeep Kaur <pardeep.kaur@oss.qualcomm.com>
-Date: Thu, 6 Aug 2026 17:39:20 +0530
-Subject: [PATCH ath-next v2 1/8] wifi: ath12k: fix out-of-bounds access on
- TX stats arrays
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: ath12k: fix out-of-bounds access on  TX stats arrays
 
 The fw_tx_status[], tx_wbm_rel_source[], and tqm_rel_reason[] arrays
 are indexed directly by values read from hardware without bounds checks.
@@ -16,14 +15,13 @@ the ath12k codebase.
 Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6.r1-00402-QCAHKSWPL_SILICONZ-1
 
 Fixes: c5c62287e690 ("wifi: ath12k: Add device dp stats support")
+
 Signed-off-by: Pardeep Kaur <pardeep.kaur@oss.qualcomm.com>
----
- drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c | 15 ++++++++++++---
- 1 file changed, 12 insertions(+), 3 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
-@@ -582,7 +582,10 @@ ath12k_dp_tx_process_htt_tx_complete(str
+@@ -584,7 +584,10 @@ ath12k_dp_tx_process_htt_tx_complete(str
  
  	wbm_status = le32_get_bits(status_desc->info0,
  				   HTT_TX_WBM_COMP_INFO0_STATUS);
@@ -35,7 +33,7 @@ Signed-off-by: Pardeep Kaur <pardeep.kaur@oss.qualcomm.com>
  
  	switch (wbm_status) {
  	case HAL_WBM_REL_HTT_TX_COMP_STATUS_OK:
-@@ -984,11 +987,17 @@ void ath12k_wifi7_dp_tx_completion_handl
+@@ -986,11 +989,17 @@ void ath12k_wifi7_dp_tx_completion_handl
  		/* Find the HAL_WBM_RELEASE_INFO0_REL_SRC_MODULE value */
  		buf_rel_source = le32_get_bits(tx_status->info0,
  					       HAL_WBM_RELEASE_INFO0_REL_SRC_MODULE);

@@ -1,14 +1,14 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:29:57 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: allocate and recycle Direct Switch TX buffers
 
 Implement Direct Switch TX buffer lookup, completion recycling and
 statistics while retaining the existing DMA ownership rules.
 
-Split from:
-  package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+Previous split from (906-03-ath12k-recycle-Direct-Switch-TX-buffers.patch):
+  906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
 
-Merged from:
+Previous merged from (906-03-ath12k-recycle-Direct-Switch-TX-buffers.patch):
   906-01-wifi-ath12k-add-native-PPE-direct-switch.patch
   906-02-wifi-ath12k-fix-IPQ5332-REO-register-offsets.patch
   906-03-wifi-ath12k-batch-native-Direct-Switch-RX-recycling.patch
@@ -24,11 +24,12 @@ Merged from:
 
 Link: https://android.googlesource.com/kernel/msm-modules/wlan-fw-api/+/9ab723333db68e4552672f9e2a5cc6f8e4027894/hw/qcn9224/
 Original-commit: dfa0345057d5ef5dd7670544b833d3a5f92f62c0
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -557,3 +557,302 @@
+@@ -563,3 +563,302 @@ static const struct qcom_ppe_ds_ops ath1
  	.fault = ath12k_ds_transport_fault,
  };
  

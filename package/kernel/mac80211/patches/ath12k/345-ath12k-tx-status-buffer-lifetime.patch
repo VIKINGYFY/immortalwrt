@@ -1,11 +1,11 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: release TX status buffers on completion and setup failure
 
 Consolidate consecutive changes within this functional responsibility.
 Retain the final implementation and its error handling directly.
 
-Merged from:
+Previous merged from (345-ath12k-tx-status-buffer-lifetime.patch):
   345-ath12k-fix-tx-completion-buffer-lifetime.patch
   347-ath12k-free-tx-status-on-datapath-setup-failure.patch
 
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c
-@@ -316,6 +316,7 @@ tcl_ring_sel:
+@@ -318,6 +318,7 @@ tcl_ring_sel:
  		/* hdr is pointing to a wrong place after alignment,
  		 * so refresh it for later use.
  		 */
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		hdr = (void *)skb->data;
  	}
  map:
-@@ -351,6 +352,8 @@ skip_htt_meta:
+@@ -353,6 +354,8 @@ skip_htt_meta:
  	}
  
  	tx_desc->skb = skb;
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	tx_desc->mac_id = dp_link_vif->pdev_idx;
  	ti.desc_id = tx_desc->desc_id;
  	ti.data_len = skb->len;
-@@ -437,27 +440,30 @@ skip_htt_meta:
+@@ -439,27 +442,30 @@ skip_htt_meta:
  
  	ath12k_wifi7_hal_tx_cmd_desc_setup(ab, hal_tcl_desc, &ti);
  
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  fail_remove_tx_buf:
  	ath12k_dp_tx_release_txbuf(dp, tx_desc, pool_id);
-@@ -500,6 +506,7 @@ ath12k_dp_tx_htt_tx_complete_buf(struct
+@@ -502,6 +508,7 @@ ath12k_dp_tx_htt_tx_complete_buf(struct
  	rcu_read_lock();
  	dp_pdev = ath12k_dp_to_pdev_dp(dp, pdev_id);
  	if (!dp_pdev) {
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		rcu_read_unlock();
  		return;
  	}
-@@ -846,7 +853,8 @@ static void ath12k_wifi7_dp_tx_complete_
+@@ -848,7 +855,8 @@ static void ath12k_wifi7_dp_tx_complete_
  	 * Might end up reporting it out-of-band from HTT stats.
  	 */
  
@@ -126,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	peer = ath12k_dp_link_peer_find_by_peerid(dp_pdev, ts->peer_id);
  	if (!peer || !peer->sta) {
-@@ -880,6 +888,8 @@ ath12k_wifi7_dp_tx_status_parse(struct a
+@@ -882,6 +890,8 @@ ath12k_wifi7_dp_tx_status_parse(struct a
  {
  	u32 info0 = le32_to_cpu(desc->rate_stats.info0);
  
@@ -135,7 +135,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ts->buf_rel_source =
  		le32_get_bits(desc->info0, HAL_WBM_COMPL_TX_INFO0_REL_SRC_MODULE);
  	if (ts->buf_rel_source != HAL_WBM_REL_SRC_MODULE_FW &&
-@@ -901,6 +911,7 @@ ath12k_wifi7_dp_tx_status_parse(struct a
+@@ -903,6 +913,7 @@ ath12k_wifi7_dp_tx_status_parse(struct a
  				     HAL_WBM_COMPL_TX_INFO2_ACK_FRAME_RSSI);
  
  	if (info0 & HAL_TX_RATE_STATS_INFO0_VALID) {
@@ -143,7 +143,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ts->pkt_type = u32_get_bits(info0, HAL_TX_RATE_STATS_INFO0_PKT_TYPE);
  		ts->mcs = u32_get_bits(info0, HAL_TX_RATE_STATS_INFO0_MCS);
  		ts->sgi = u32_get_bits(info0, HAL_TX_RATE_STATS_INFO0_SGI);
-@@ -994,10 +1005,13 @@ void ath12k_wifi7_dp_tx_completion_handl
+@@ -996,10 +1007,13 @@ void ath12k_wifi7_dp_tx_completion_handl
  
  		rel_status = le32_get_bits(tx_status->info0,
  					   HAL_WBM_COMPL_TX_INFO0_TQM_RELEASE_REASON);
@@ -161,7 +161,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		/* Release descriptor as soon as extracting necessary info
  		 * to reduce contention
-@@ -1009,12 +1023,19 @@ void ath12k_wifi7_dp_tx_completion_handl
+@@ -1011,12 +1025,19 @@ void ath12k_wifi7_dp_tx_completion_handl
  			continue;
  		}
  

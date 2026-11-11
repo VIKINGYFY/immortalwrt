@@ -1,5 +1,5 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Sun, 08 Nov 2026 10:27:29 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: implement MLO v2 topology association and peer maps
 
 Qualcomm's multi-chip firmware supports a version 2 MLO topology TLV that
@@ -20,20 +20,17 @@ supplies the AST index and cache set used by the data path. The driver
 currently consumes only the first two values and entirely ignores the
 matching MLO peer unmap event.
 
-Merged from:
+Previous merged from (332-ath12k-mlo-v2-firmware-protocol.patch):
   332-wifi-ath12k-advertise-MLO-v2-adjacency-topology.patch
   333-wifi-ath12k-align-MLO-peer-assoc-ABI.patch
   334-wifi-ath12k-handle-complete-MLO-peer-map-events.patch
-
-Based on work by:
-  JiaY-shi <shi05275@163.com>
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/dp_htt.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_htt.c
-@@ -582,6 +582,7 @@
+@@ -582,6 +582,7 @@ static void ath12k_dp_htt_mlo_peer_map_h
  	struct htt_resp_msg *resp = (struct htt_resp_msg *)skb->data;
  	struct htt_t2h_mlo_peer_map_event *ev = &resp->mlo_peer_map_ev;
  	u16 raw_peer_id, peer_id, addr_h16;
@@ -41,13 +38,25 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 peer_addr[ETH_ALEN];
  	int ret;
  
-@@ -600,25 +601,36 @@
+@@ -600,25 +601,36 @@ static void ath12k_dp_htt_mlo_peer_map_h
  	ath12k_dp_get_mac_addr(le32_to_cpu(ev->mac_addr_l32), addr_h16,
  			       peer_addr);
  
 -	ath12k_dbg(ab, ATH12K_DBG_DP_HTT, "htt mlo peer map peer %pM id %u\n",
 -		   peer_addr, peer_id);
--
++	hw_peer_id = le32_get_bits(ev->ast_info,
++				   HTT_T2H_MLO_PEER_MAP_AST_IDX);
++	ast_hash = le32_get_bits(ev->ast_info,
++				 HTT_T2H_MLO_PEER_MAP_CACHE_SET_NUM);
++
++	ret = ath12k_dp_peer_mlo_map_event(ab, peer_addr, peer_id,
++					  ast_hash, hw_peer_id);
++	if (ret)
++		ath12k_warn(ab,
++			    "failed to map mlo peer %pM id %u ast %u/%u: %d\n",
++			    peer_addr, peer_id, hw_peer_id, ast_hash, ret);
++}
+ 
 -	/*
 -	 * Fix up the dp_peer entry created with ATH12K_MLO_PEER_ID_PENDING
 -	 * earlier; on chips with host_alloc_ml_id == false this is the only
@@ -63,20 +72,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			ath12k_warn(ab,
 -				    "failed to fix up peer id %u for dp peer %pM: %d\n",
 -				    peer_id, peer_addr, ret);
--	}
-+	hw_peer_id = le32_get_bits(ev->ast_info,
-+				   HTT_T2H_MLO_PEER_MAP_AST_IDX);
-+	ast_hash = le32_get_bits(ev->ast_info,
-+				 HTT_T2H_MLO_PEER_MAP_CACHE_SET_NUM);
-+
-+	ret = ath12k_dp_peer_mlo_map_event(ab, peer_addr, peer_id,
-+					  ast_hash, hw_peer_id);
-+	if (ret)
-+		ath12k_warn(ab,
-+			    "failed to map mlo peer %pM id %u ast %u/%u: %d\n",
-+			    peer_addr, peer_id, hw_peer_id, ast_hash, ret);
-+}
-+
 +static void ath12k_dp_htt_mlo_peer_unmap_handler(struct ath12k_base *ab,
 +						 struct sk_buff *skb)
 +{
@@ -87,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ath12k_warn(ab, "unexpected htt mlo peer unmap event len %u\n",
 +			    skb->len);
 +		return;
-+	}
+ 	}
 +
 +	peer_id = le32_get_bits(*info0,
 +				HTT_T2H_MLO_PEER_UNMAP_INFO0_MLO_PEER_ID);
@@ -97,19 +92,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  void ath12k_dp_htt_htc_t2h_msg_handler(struct ath12k_base *ab,
-@@ -707,6 +719,9 @@
- 		break;
+@@ -708,6 +720,9 @@ void ath12k_dp_htt_htc_t2h_msg_handler(s
  	case HTT_T2H_MSG_TYPE_MLO_RX_PEER_MAP:
  		ath12k_dp_htt_mlo_peer_map_handler(ab, skb);
-+		break;
+ 		break;
 +	case HTT_T2H_MSG_TYPE_MLO_RX_PEER_UNMAP:
 +		ath12k_dp_htt_mlo_peer_unmap_handler(ab, skb);
- 		break;
++		break;
  	default:
  		ath12k_dbg(ab, ATH12K_DBG_DP_HTT, "dp_htt event %d not handled\n",
+ 			   type);
 --- a/drivers/net/wireless/ath/ath12k/dp_htt.h
 +++ b/drivers/net/wireless/ath/ath12k/dp_htt.h
-@@ -931,6 +931,7 @@
+@@ -931,6 +931,7 @@ enum htt_t2h_msg_type {
  	HTT_T2H_MSG_TYPE_BKPRESSURE_EVENT_IND = 0x24,
  	HTT_T2H_MSG_TYPE_MLO_TIMESTAMP_OFFSET_IND = 0x28,
  	HTT_T2H_MSG_TYPE_MLO_RX_PEER_MAP = 0x29,
@@ -117,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	HTT_T2H_MSG_TYPE_PEER_MAP3	= 0x2b,
  	HTT_T2H_MSG_TYPE_VDEV_TXRX_STATS_PERIODIC_IND = 0x2c,
  };
-@@ -977,12 +978,18 @@
+@@ -977,12 +978,18 @@ struct htt_t2h_peer_unmap_event {
  
  #define HTT_T2H_MLO_PEER_MAP_INFO0_MLO_PEER_ID		GENMASK(23, 8)
  #define HTT_T2H_MLO_PEER_MAP_INFO1_MAC_ADDR_H16		GENMASK(15, 0)
@@ -139,18 +134,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct htt_resp_msg {
 --- a/drivers/net/wireless/ath/ath12k/dp_peer.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_peer.c
-@@ -703,18 +703,27 @@
+@@ -703,18 +703,27 @@ void ath12k_dp_link_peer_reset_rx_stats(
  		memset(rx_stats, 0, sizeof(*rx_stats));
  }
  
 -int ath12k_dp_peer_fixup_peer_id(struct ath12k_base *ab,
 -				 const u8 *peer_addr, u16 peer_id)
--{
--	struct ath12k_dp_link_peer *link_peer;
 +int ath12k_dp_peer_mlo_map_event(struct ath12k_base *ab,
 +				 const u8 *peer_addr, u16 peer_id,
 +				 u16 ast_hash, u16 hw_peer_id)
-+{
+ {
+-	struct ath12k_dp_link_peer *link_peer;
 +	struct ath12k_dp_link_peer *link_peer, *mlo_link_peer;
  	struct ath12k_dp_peer *dp_peer = NULL;
  	struct ath12k_hw_group *ag = ab->ag;
@@ -173,7 +167,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	for (i = 0; i < ag->num_hw; i++) {
  		ah = ag->ah[i];
-@@ -736,8 +745,34 @@
+@@ -736,8 +745,34 @@ int ath12k_dp_peer_fixup_peer_id(struct
  
  	/* dp_hw->peer_lock is held */
  
@@ -210,7 +204,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	for (i = 0; i < ATH12K_NUM_MAX_LINKS; i++) {
  		link_peer = rcu_dereference_protected(dp_peer->link_peers[i],
-@@ -746,11 +781,39 @@
+@@ -746,11 +781,39 @@ int ath12k_dp_peer_fixup_peer_id(struct
  			link_peer->ml_id = peer_id;
  	}
  
@@ -254,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +}
 --- a/drivers/net/wireless/ath/ath12k/dp_peer.h
 +++ b/drivers/net/wireless/ath/ath12k/dp_peer.h
-@@ -183,6 +183,8 @@
+@@ -183,6 +183,8 @@ struct ath12k_dp_peer *ath12k_dp_peer_fi
  struct ath12k_dp_link_peer *
  ath12k_dp_link_peer_find_by_peerid(struct ath12k_pdev_dp *dp_pdev, u16 peer_id);
  void ath12k_dp_link_peer_free(struct ath12k_dp_link_peer *peer);
@@ -267,7 +261,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -63,6 +63,43 @@
+@@ -63,6 +63,43 @@ static const struct qmi_elem_info wlfw_h
  	},
  };
  
@@ -311,12 +305,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct qmi_elem_info qmi_wlanfw_host_cap_req_msg_v01_ei[] = {
  	{
  		.data_type	= QMI_OPT_FLAG,
-@@ -505,6 +542,25 @@
- 		.tlv_type	= 0x27,
- 		.offset		= offsetof(struct qmi_wlanfw_host_cap_req_msg_v01,
+@@ -507,6 +544,25 @@ static const struct qmi_elem_info qmi_wl
  					   feature_list),
-+	},
-+	{
+ 	},
+ 	{
 +		.data_type	= QMI_OPT_FLAG,
 +		.elem_len	= 1,
 +		.elem_size	= sizeof(u8),
@@ -334,10 +326,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		.offset		= offsetof(struct qmi_wlanfw_host_cap_req_msg_v01,
 +					   mlo_chip_info_v2),
 +		.ei_array	= wlfw_host_mlo_chip_info_s_v02_ei,
- 	},
- 	{
++	},
++	{
  		.data_type	= QMI_EOTI,
-@@ -2086,12 +2142,85 @@
+ 		.array_type	= NO_ARRAY,
+ 		.tlv_type	= QMI_COMMON_TLV_TYPE,
+@@ -2086,12 +2142,85 @@ static void ath12k_host_cap_hw_link_id_i
  	ag->hw_link_id_init_done = true;
  }
  
@@ -424,23 +418,23 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 hw_link_id = 0;
  	int i, j, ret;
  
-@@ -2111,6 +2240,15 @@
+@@ -2114,6 +2243,15 @@ static int ath12k_host_cap_parse_mlo(str
+ 		return -EINVAL;
+ 	}
  
- 	if (ab->device_id == ATH12K_INVALID_DEVICE_ID) {
- 		ath12k_err(ab, "failed to send MLO cap due to invalid device id\n");
-+		return -EINVAL;
-+	}
-+
 +	use_v2 = ag->num_devices > 1;
 +	max_num_chips = use_v2 ? QMI_WLFW_MAX_NUM_MLO_CHIPS_V2_V01 :
 +				 QMI_WLFW_MAX_NUM_MLO_CHIPS_V01;
 +	if (ag->num_devices > max_num_chips) {
 +		ath12k_err(ab, "MLO group has too many devices: %d\n",
 +			   ag->num_devices);
- 		return -EINVAL;
- 	}
- 
-@@ -2137,47 +2275,67 @@
++		return -EINVAL;
++	}
++
+ 	req->mlo_capable_valid = 1;
+ 	req->mlo_capable = 1;
+ 	req->mlo_chip_id_valid = 1;
+@@ -2137,47 +2275,67 @@ static int ath12k_host_cap_parse_mlo(str
  		ath12k_host_cap_hw_link_id_init(ag);
  
  	for (i = 0; i < ag->num_devices; i++) {
@@ -474,12 +468,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		ath12k_dbg(ab, ATH12K_DBG_QMI, "mlo device id %d num_link %d\n",
 -			   info->chip_id, info->num_local_links);
--
++			   chip_info->chip_id, chip_info->num_local_links);
+ 
 -		for (j = 0; j < info->num_local_links; j++) {
 -			info->hw_link_id[j] = partner_ab->wsi_info.hw_link_id_base + j;
 -			info->valid_mlo_link_id[j] = 1;
-+			   chip_info->chip_id, chip_info->num_local_links);
-+
 +		for (j = 0; j < chip_info->num_local_links; j++) {
 +			chip_info->hw_link_id[j] =
 +				partner_ab->wsi_info.hw_link_id_base + j;
@@ -527,7 +520,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	req->mlo_num_chips_valid = 0;
 --- a/drivers/net/wireless/ath/ath12k/qmi.h
 +++ b/drivers/net/wireless/ath/ath12k/qmi.h
-@@ -161,7 +161,7 @@
+@@ -174,7 +174,7 @@ struct ath12k_qmi {
  	struct dev_mem_info dev_mem[ATH12K_QMI_WLFW_MAX_DEV_MEM_NUM_V01];
  };
  
@@ -536,7 +529,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define QMI_WLANFW_HOST_CAP_REQ_V01			0x0034
  #define QMI_WLANFW_HOST_CAP_RESP_MSG_V01_MAX_LEN	7
  #define QMI_WLFW_HOST_CAP_RESP_V01			0x0034
-@@ -194,13 +194,21 @@
+@@ -207,7 +207,9 @@ enum qmi_wlanfw_host_build_type {
  };
  
  #define QMI_WLFW_MAX_NUM_MLO_CHIPS_V01 3
@@ -546,19 +539,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  struct wlfw_host_mlo_chip_info_s_v01 {
  	u8 chip_id;
- 	u8 num_local_links;
- 	u8 hw_link_id[QMI_WLFW_MAX_NUM_MLO_LINKS_PER_CHIP_V01];
+@@ -216,6 +218,12 @@ struct wlfw_host_mlo_chip_info_s_v01 {
  	u8 valid_mlo_link_id[QMI_WLFW_MAX_NUM_MLO_LINKS_PER_CHIP_V01];
-+};
-+
+ };
+ 
 +struct wlfw_host_mlo_chip_info_s_v02 {
 +	struct wlfw_host_mlo_chip_info_s_v01 mlo_chip_info;
 +	u8 num_adj_chips;
 +	struct wlfw_host_mlo_chip_info_s_v01 mlo_adj_chip_info[QMI_WLFW_MAX_NUM_MLO_ADJ_CHIPS_V01];
- };
- 
++};
++
  enum ath12k_qmi_cnss_feature {
-@@ -260,6 +268,9 @@
+ 	CNSS_FEATURE_MIN_ENUM_VAL_V01 = INT_MIN,
+ 	CNSS_QDSS_CFG_MISS_V01 = 3,
+@@ -273,6 +281,9 @@ struct qmi_wlanfw_host_cap_req_msg_v01 {
  	u8 mlo_num_chips;
  	u8 mlo_chip_info_valid;
  	struct wlfw_host_mlo_chip_info_s_v01 mlo_chip_info[QMI_WLFW_MAX_NUM_MLO_CHIPS_V01];
@@ -570,7 +564,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -4005,6 +4005,16 @@
+@@ -4005,6 +4005,16 @@ struct wmi_peer_assoc_mlo_params {
  	__le32 emlsr_trans_timeout_us;
  	__le32 emlsr_trans_delay_us;
  	__le32 emlsr_padding_delay_us;

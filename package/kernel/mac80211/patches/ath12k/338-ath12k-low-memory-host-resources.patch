@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:27:29 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: allocate and release low-memory host resources
 
 Consolidate consecutive changes within this functional responsibility.
@@ -9,7 +9,18 @@ Remove the unused host-only qcom,ath12k-low-memory profile override.
 Keep normal firmware memory profiles, RX allocation and fixed-memory
 ownership. Boards choose slab RX independently through qcom,rx-skb-slab.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Split from:
+  338-ath12k-low-memory-host-resources.patch - wifi: ath12k: allocate and release low-memory host resources
+
 Merged from:
+  338-ath12k-low-memory-host-resources.patch - wifi: ath12k: allocate and release low-memory host resources
+  351-wifi-ath12k-refill-rx-buffers-and-expose-progress.patch - wifi: ath12k: service RX returns and refill buffers
+  910-ath12k-allow-slab-backed-rx-buffers.patch - wifi: ath12k: allow slab-backed RX buffers independently
+
+Previous merged from (338-ath12k-low-memory-host-resources.patch):
   338-ath12k-allow-low-memory-host-datapath.patch
   339-ath12k-fix-fixed-memory-request-lifetime.patch
   340-ath12k-bound-low-memory-rx-buffer-allocation.patch
@@ -17,9 +28,62 @@ Merged from:
 Signed-off-by: JiaY-shi <shi05275@163.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/drivers/net/wireless/ath/ath12k/ahb.c
++++ b/drivers/net/wireless/ath/ath12k/ahb.c
+@@ -705,13 +705,28 @@ static int ath12k_ahb_config_ext_irq(str
+ 				irq_grp->irqs[num_irq++] = reo2host_exception;
+ 
+ 			if (ring_mask->rx_wbm_rel[i] & BIT(j) &&
+-			    num_irq < ATH12K_EXT_IRQ_NUM_MAX)
+-				irq_grp->irqs[num_irq++] = wbm2host_rx_release;
++			    num_irq < ATH12K_EXT_IRQ_NUM_MAX) {
++				irq_idx = wbm2host_rx_release;
++				/* IPQ5332 returns RX errors through WBM SW3. The
++				 * legacy RX release vector is a separate error
++				 * ring; the fourth completion vector serves SW3.
++				 */
++				if (ab->hw_rev == ATH12K_HW_IPQ5332_HW10)
++					irq_idx = wbm2host_tx_completions_ring1 -
++						  HAL_WBM2SW_REL_ERR_RING_NUM;
++				irq_grp->irqs[num_irq++] = irq_idx;
++			}
+ 
+ 			if (ring_mask->reo_status[i] & BIT(j) &&
+ 			    num_irq < ATH12K_EXT_IRQ_NUM_MAX)
+ 				irq_grp->irqs[num_irq++] = reo2host_status;
+ 
++			if (ring_mask->host2rxdma[i] & BIT(j) &&
++			    j < ab->hw_params->max_radios &&
++			    num_irq < ATH12K_EXT_IRQ_NUM_MAX)
++				irq_grp->irqs[num_irq++] =
++					host2rxdma_host_buf_ring_mac1 - j;
++
+ 			if (ring_mask->rx_mon_dest[i] & BIT(j) &&
+ 			    num_irq < ATH12K_EXT_IRQ_NUM_MAX)
+ 				irq_grp->irqs[num_irq++] =
+@@ -725,14 +740,18 @@ static int ath12k_ahb_config_ext_irq(str
+ 
+ 			irq = platform_get_irq_byname(ab->pdev,
+ 						      irq_name[irq_idx]);
++			if (irq < 0)
++				return irq;
+ 			ab->irq_num[irq_idx] = irq;
+ 			irq_set_status_flags(irq, IRQ_NOAUTOEN | IRQ_DISABLE_UNLAZY);
+ 			ret = devm_request_irq(ab->dev, irq,
+ 					       ath12k_ahb_ext_interrupt_handler,
+ 					       IRQF_TRIGGER_RISING,
+ 					       irq_name[irq_idx], irq_grp);
+-			if (ret)
++			if (ret) {
+ 				ath12k_warn(ab, "failed request_irq for %d\n", irq);
++				return ret;
++			}
+ 		}
+ 	}
+ 
 --- a/drivers/net/wireless/ath/ath12k/ce.c
 +++ b/drivers/net/wireless/ath/ath12k/ce.c
-@@ -69,7 +69,7 @@
+@@ -69,7 +69,7 @@ static int ath12k_ce_rx_post_pipe(struct
  
  	spin_lock_bh(&ab->ce.ce_lock);
  	while (pipe->rx_buf_needed) {
@@ -30,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			goto exit;
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -47,6 +47,7 @@
+@@ -47,6 +47,7 @@ ath12k_mem_profile_based_param ath12k_me
  		.max_client_dbs = 128,
  		.max_client_dbs_sbs = 128,
  		.dp_params = {
@@ -38,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.tx_comp_ring_size = 32768,
  			.rxdma_monitor_buf_ring_size = 4096,
  			.rxdma_monitor_dst_ring_size = 8192,
-@@ -61,6 +62,7 @@
+@@ -61,6 +62,7 @@ ath12k_mem_profile_based_param ath12k_me
  		.max_client_dbs = 64,
  		.max_client_dbs_sbs = 64,
  		.dp_params = {
@@ -46,9 +110,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.tx_comp_ring_size = 16384,
  			.rxdma_monitor_buf_ring_size = 256,
  			.rxdma_monitor_dst_ring_size = 512,
+@@ -1843,6 +1845,11 @@ int ath12k_core_pre_init(struct ath12k_b
+ 	const struct ath12k_mem_profile_based_param *param;
+ 
+ 	param = &ath12k_mem_profile_based_param[ab->target_mem_mode];
++	/* Long-lived RX ring entries can pin mostly unused shared page fragments.
++	 * Allow slab-backed buffers without reducing host or firmware capacity.
++	 */
++	ab->low_memory_rx = of_property_read_bool(ab->dev->of_node,
++						"qcom,rx-skb-slab");
+ 	ab->profile_param = param;
+ 	ath12k_fw_map(ab);
+ 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -945,6 +945,7 @@
+@@ -945,6 +945,7 @@ struct ath12k_wsi_info {
  };
  
  struct ath12k_dp_profile_params {
@@ -56,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 tx_comp_ring_size;
  	u32 rxdma_monitor_buf_ring_size;
  	u32 rxdma_monitor_dst_ring_size;
-@@ -1170,6 +1171,7 @@
+@@ -1170,6 +1171,7 @@ struct ath12k_base {
  	struct ath12k_reg_freq reg_freq_5ghz;
  	struct ath12k_reg_freq reg_freq_6ghz;
  	const struct ath12k_mem_profile_based_param *profile_param;
@@ -64,7 +140,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	enum ath12k_qmi_mem_mode target_mem_mode;
  
  	/* FIXME: Define this field in a ag equivalent object available
-@@ -1280,6 +1282,20 @@
+@@ -1280,6 +1282,20 @@ struct ath12k_fw_stats_pdev {
  	s32 mpdu_errs;
  };
  
@@ -87,16 +163,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ath12k_core_pre_init(struct ath12k_base *ab);
 --- a/drivers/net/wireless/ath/ath12k/debugfs.c
 +++ b/drivers/net/wireless/ath/ath12k/debugfs.c
-@@ -3,6 +3,8 @@
-  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+@@ -4,6 +4,8 @@
   * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
   */
-+
-+#include <linux/seq_file.h>
  
++#include <linux/seq_file.h>
++
  #include "core.h"
  #include "dp_tx.h"
-@@ -1212,13 +1214,28 @@
+ #include "debug.h"
+@@ -1212,13 +1214,28 @@ static const struct file_operations fops
  	.llseek = default_llseek,
  };
  
@@ -132,7 +208,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath12k_debugfs_soc_create(struct ath12k_base *ab)
 --- a/drivers/net/wireless/ath/ath12k/dp_mon.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_mon.c
-@@ -44,15 +44,15 @@
+@@ -44,15 +44,15 @@ struct sk_buff
  	struct sk_buff *skb;
  	dma_addr_t paddr;
  
@@ -151,7 +227,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	paddr = dma_map_single(ab->dev, skb->data,
-@@ -601,14 +601,14 @@
+@@ -601,14 +601,14 @@ int ath12k_dp_mon_buf_replenish(struct a
  	ath12k_hal_srng_access_begin(ab, srng);
  
  	while (req_entries > 0) {
@@ -170,7 +246,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		paddr = dma_map_single(ab->dev, skb->data,
-@@ -690,15 +690,15 @@
+@@ -690,15 +690,15 @@ int ath12k_dp_mon_status_bufs_replenish(
  	num_remain = req_entries;
  
  	while (num_remain > 0) {
@@ -192,7 +268,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		paddr = dma_map_single(ab->dev, skb->data,
 --- a/drivers/net/wireless/ath/ath12k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
-@@ -114,15 +114,15 @@
+@@ -114,15 +114,15 @@ int ath12k_dp_rx_bufs_replenish(struct a
  	}
  
  	while (num_remain > 0) {
@@ -211,7 +287,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				 skb->data);
  		}
  
-@@ -138,13 +138,13 @@
+@@ -138,13 +138,13 @@ int ath12k_dp_rx_bufs_replenish(struct a
  		if (!rx_desc)
  			goto fail_dma_unmap;
  
@@ -226,7 +302,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		list_del(&rx_desc->list);
  		ATH12K_SKB_RXCB(skb)->paddr = paddr;
  
-@@ -1702,7 +1702,7 @@
+@@ -1713,7 +1713,7 @@ int ath12k_dp_rx_alloc(struct ath12k_bas
  	ret = ath12k_dp_srng_setup(ab,
  				   &dp->rx_refill_buf_ring.refill_buf_ring,
  				   HAL_RXDMA_BUF, 0, 0,
@@ -235,329 +311,44 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		ath12k_warn(ab, "failed to setup rx_refill_buf_ring\n");
  		return ret;
---- a/drivers/net/wireless/ath/ath12k/qmi.c
-+++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2721,10 +2721,81 @@
- 	chunk->size = 0;
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
+@@ -126,16 +126,23 @@ static int ath12k_wifi7_dp_service_srng(
+ 	if (dp->hw_params->ring_mask->reo_status[grp_id])
+ 		ath12k_wifi7_dp_rx_process_reo_status(dp);
+ 
+-	if (dp->hw_params->ring_mask->host2rxdma[grp_id]) {
++	/* TODO: Implement handler for other interrupts */
++
++done:
++	/* Recycled descriptors may be on the free list after a burst. Normal
++	 * RX groups lack the refill IRQ, and an exhausted packet budget must
++	 * not skip a low-water refill. The common helper checks ring space.
++	 */
++	if (dp->hw_params->ring_mask->host2rxdma[grp_id] ||
++	    dp->hw_params->ring_mask->rx[grp_id] ||
++	    dp->hw_params->ring_mask->rx_err[grp_id] ||
++	    dp->hw_params->ring_mask->rx_wbm_rel[grp_id]) {
+ 		struct dp_rxdma_ring *rx_ring = &dp->rx_refill_buf_ring;
+ 		LIST_HEAD(list);
+ 
+ 		ath12k_dp_rx_bufs_replenish(dp, rx_ring, &list, 0);
+ 	}
+ 
+-	/* TODO: Implement handler for other interrupts */
+-
+-done:
+ 	return tot_work_done;
  }
  
-+static void ath12k_qmi_unmap_fixed_mem(struct ath12k_base *ab,
-+				      struct ath12k_qmi_fixed_mem *mem)
-+{
-+	lockdep_assert_held(&ab->ag->mutex);
-+
-+	if (!mem->ioaddr)
-+		return;
-+
-+	iounmap(mem->ioaddr);
-+
-+	memset(mem, 0, sizeof(*mem));
-+}
-+
-+static void ath12k_qmi_begin_fixed_request(struct ath12k_base *ab)
-+{
-+	int i;
-+
-+	lockdep_assert_held(&ab->ag->mutex);
-+
-+	for (i = 0; i < ARRAY_SIZE(ab->qmi.fixed_mem); i++)
-+		ab->qmi.fixed_mem[i].used = false;
-+}
-+
-+static void ath12k_qmi_prune_fixed_mem(struct ath12k_base *ab)
-+{
-+	int i;
-+
-+	for (i = 0; i < ARRAY_SIZE(ab->qmi.fixed_mem); i++) {
-+		if (!ab->qmi.fixed_mem[i].used)
-+			ath12k_qmi_unmap_fixed_mem(ab, &ab->qmi.fixed_mem[i]);
-+	}
-+}
-+
-+static int ath12k_qmi_map_fixed_mem(struct ath12k_base *ab, int idx,
-+				   phys_addr_t paddr, u32 size, u32 type)
-+{
-+	struct ath12k_qmi_fixed_mem *mem = &ab->qmi.fixed_mem[idx];
-+	struct target_mem_chunk *chunk = &ab->qmi.target_mem[idx];
-+	void __iomem *ioaddr;
-+
-+	lockdep_assert_held(&ab->ag->mutex);
-+	if (!size)
-+		return -EINVAL;
-+
-+	if (!mem->ioaddr || mem->paddr != paddr || mem->size != size ||
-+	    mem->type != type) {
-+		/* Keep the previous owner reachable if mapping the replacement fails. */
-+		ioaddr = ioremap(paddr, size);
-+		if (!ioaddr)
-+			return -EIO;
-+
-+		ath12k_qmi_unmap_fixed_mem(ab, mem);
-+		mem->ioaddr = ioaddr;
-+		mem->paddr = paddr;
-+		mem->size = size;
-+		mem->type = type;
-+	}
-+
-+	mem->used = true;
-+	chunk->paddr = mem->paddr;
-+	chunk->v.ioaddr = mem->ioaddr;
-+	chunk->size = size;
-+	chunk->type = type;
-+	return 0;
-+}
-+
- static void ath12k_qmi_free_target_mem_chunk(struct ath12k_base *ab)
- {
- 	struct ath12k_hw_group *ag = ab->ag;
-+	struct target_mem_chunk unused = {};
- 	int i, mlo_idx;
-+
-+	lockdep_assert_held(&ag->mutex);
-+	for (i = 0; i < ARRAY_SIZE(ab->qmi.fixed_mem); i++)
-+		ath12k_qmi_unmap_fixed_mem(ab, &ab->qmi.fixed_mem[i]);
+--- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
+@@ -2052,7 +2052,7 @@ int ath12k_wifi7_dp_rx_process_wbm_err(s
+ 		partner_dp = ath12k_dp_hw_grp_to_dp(dp_hw_grp, device_id);
+ 		rx_ring = &partner_dp->rx_refill_buf_ring;
  
- 	for (i = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
- 		if (ab->qmi.target_mem[i].type == MLO_GLOBAL_MEM_REGION_TYPE) {
-@@ -2734,9 +2805,7 @@
- 							      mlo_idx);
- 			mlo_idx++;
- 		} else {
--			if (test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags) &&
--			    ab->qmi.target_mem[i].v.ioaddr) {
--				iounmap(ab->qmi.target_mem[i].v.ioaddr);
-+			if (test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags)) {
- 				ab->qmi.target_mem[i].v.ioaddr = NULL;
- 			} else {
- 				if (!ab->qmi.target_mem[i].v.addr)
-@@ -2751,6 +2820,11 @@
+-		ath12k_dp_rx_bufs_replenish(dp, rx_ring,
++		ath12k_dp_rx_bufs_replenish(partner_dp, rx_ring,
+ 					    &rx_desc_used_list[device_id],
+ 					    num_buffs_reaped[device_id]);
  	}
- 
- 	if (!ag->num_started && ag->mlo_mem.init_done) {
-+		/* A shorter request may no longer contain an MLO view. Release by
-+		 * group ownership, never by the new request's segment count.
-+		 */
-+		for (i = 0; i < ARRAY_SIZE(ag->mlo_mem.chunk); i++)
-+			ath12k_qmi_free_mlo_mem_chunk(ab, &unused, i);
- 		ag->mlo_mem.init_done = false;
- 		ag->mlo_mem.mlo_mem_size = 0;
- 		ag->mlo_mem.fixed_mem = false;
-@@ -3003,11 +3077,13 @@
- 	struct target_mem_chunk *chunk;
- 	struct ath12k_hw_group *ag = ab->ag;
- 	struct reserved_mem *rmem;
--	size_t avail_rmem_size;
-+	u32 type, size;
-+	const char *name;
- 	int i, idx, mlo_idx, ret;
- 	int mlo_size = 0;
- 
- 	mutex_lock(&ag->mutex);
-+	ath12k_qmi_begin_fixed_request(ab);
- 
- 	if (!ag->mlo_mem.init_done) {
- 		memset(ag->mlo_mem.chunk, 0, sizeof(ag->mlo_mem.chunk));
-@@ -3017,77 +3093,37 @@
- 	}
- 
- 	for (i = 0, idx = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
--		switch (ab->qmi.target_mem[i].type) {
-+		type = ab->qmi.target_mem[i].type;
-+		size = ab->qmi.target_mem[i].size;
-+		switch (type) {
- 		case HOST_DDR_REGION_TYPE:
--			rmem = ath12k_core_get_reserved_mem(ab, 0);
--			if (!rmem) {
--				ret = -ENODEV;
--				goto out;
-+		case BDF_MEM_REGION_TYPE:
-+		case CALDB_MEM_REGION_TYPE:
-+		case M3_DUMP_REGION_TYPE:
-+			name = type == CALDB_MEM_REGION_TYPE ? "q6-caldb" :
-+			       type == M3_DUMP_REGION_TYPE ? "m3-dump" :
-+			       "host-ddr-mem";
-+			rmem = ath12k_core_get_rmem_by_name(ab, name);
-+			if (!rmem && type == CALDB_MEM_REGION_TYPE) {
-+				/* Preserve the optional CALDB zero-address contract. */
-+				ab->qmi.target_mem[idx].paddr = 0;
-+				ab->qmi.target_mem[idx].v.ioaddr = NULL;
-+				ab->qmi.target_mem[idx].size = size;
-+				ab->qmi.target_mem[idx].type = type;
-+			} else {
-+				if (!rmem) {
-+					ret = -ENODEV;
-+					goto out;
-+				}
-+				if (size > rmem->size) {
-+					ret = -EINVAL;
-+					goto out;
-+				}
-+				ret = ath12k_qmi_map_fixed_mem(ab, idx, rmem->base,
-+							     size, type);
-+				if (ret)
-+					goto out;
- 			}
--
--			avail_rmem_size = rmem->size;
--			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
--				ath12k_dbg(ab, ATH12K_DBG_QMI,
--					   "failed to assign mem type %u req size %u avail size %zu\n",
--					   ab->qmi.target_mem[i].type,
--					   ab->qmi.target_mem[i].size,
--					   avail_rmem_size);
--				ret = -EINVAL;
--				goto out;
--			}
--
--			ab->qmi.target_mem[idx].paddr = rmem->base;
--			ab->qmi.target_mem[idx].v.ioaddr =
--				ioremap(ab->qmi.target_mem[idx].paddr,
--					ab->qmi.target_mem[i].size);
--			if (!ab->qmi.target_mem[idx].v.ioaddr) {
--				ret = -EIO;
--				goto out;
--			}
--			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
--			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
--			idx++;
--			break;
--		case BDF_MEM_REGION_TYPE:
--			rmem = ath12k_core_get_reserved_mem(ab, 0);
--			if (!rmem) {
--				ret = -ENODEV;
--				goto out;
--			}
--
--			avail_rmem_size = rmem->size - ab->hw_params->bdf_addr_offset;
--			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
--				ath12k_dbg(ab, ATH12K_DBG_QMI,
--					   "failed to assign mem type %u req size %u avail size %zu\n",
--					   ab->qmi.target_mem[i].type,
--					   ab->qmi.target_mem[i].size,
--					   avail_rmem_size);
--				ret = -EINVAL;
--				goto out;
--			}
--			ab->qmi.target_mem[idx].paddr =
--				rmem->base + ab->hw_params->bdf_addr_offset;
--			ab->qmi.target_mem[idx].v.ioaddr =
--				ioremap(ab->qmi.target_mem[idx].paddr,
--					ab->qmi.target_mem[i].size);
--			if (!ab->qmi.target_mem[idx].v.ioaddr) {
--				ret = -EIO;
--				goto out;
--			}
--			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
--			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
--			idx++;
--			break;
--		case CALDB_MEM_REGION_TYPE:
--			/* Cold boot calibration is not enabled in Ath12k. Hence,
--			 * assign paddr = 0.
--			 * Once cold boot calibration is enabled add support to
--			 * assign reserved memory from DT.
--			 */
--			ab->qmi.target_mem[idx].paddr = 0;
--			ab->qmi.target_mem[idx].v.ioaddr = NULL;
--			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
--			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
- 			idx++;
- 			break;
- 		case MLO_GLOBAL_MEM_REGION_TYPE:
-@@ -3112,41 +3148,12 @@
- 			idx++;
- 			mlo_idx++;
- 			break;
--		case M3_DUMP_REGION_TYPE:
--			rmem = ath12k_core_get_reserved_mem(ab, 1);
--			if (!rmem) {
--				ret = -EINVAL;
--				goto out;
--			}
--
--			avail_rmem_size = rmem->size;
--			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
--				ath12k_dbg(ab, ATH12K_DBG_QMI,
--					   "failed to assign mem type %u req size %u avail size %zu\n",
--					   ab->qmi.target_mem[i].type,
--					   ab->qmi.target_mem[i].size,
--					   avail_rmem_size);
--				ret = -EINVAL;
--				goto out;
--			}
--
--			ab->qmi.target_mem[idx].paddr = rmem->base;
--			ab->qmi.target_mem[idx].v.ioaddr =
--				ioremap(ab->qmi.target_mem[idx].paddr,
--					ab->qmi.target_mem[i].size);
--			if (!ab->qmi.target_mem[idx].v.ioaddr) {
--				ret = -EIO;
--				goto out;
--			}
--			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
--			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
--			idx++;
--			break;
- 		default:
- 			ath12k_warn(ab, "qmi ignore invalid mem req type %u\n",
- 				    ab->qmi.target_mem[i].type);
- 			break;
- 		}
-+
- 	}
- 	ab->qmi.mem_seg_count = idx;
- 
-@@ -3160,10 +3167,12 @@
- 		goto out;
- 	}
- 
-+	ath12k_qmi_prune_fixed_mem(ab);
- 	mutex_unlock(&ag->mutex);
- 
- 	return 0;
- out:
-+
- 	ath12k_qmi_free_target_mem_chunk(ab);
- 	mutex_unlock(&ag->mutex);
- 	return ret;
-@@ -4147,9 +4156,11 @@
- 	ath12k_dbg(ab, ATH12K_DBG_QMI, "qmi firmware request memory request\n");
- 
- 	if (msg->mem_seg_len == 0 ||
--	    msg->mem_seg_len > ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01)
-+	    msg->mem_seg_len > ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01) {
- 		ath12k_warn(ab, "Invalid memory segment length: %u\n",
- 			    msg->mem_seg_len);
-+		return;
-+	}
- 
- 	ab->qmi.mem_seg_count = msg->mem_seg_len;
- 
---- a/drivers/net/wireless/ath/ath12k/qmi.h
-+++ b/drivers/net/wireless/ath/ath12k/qmi.h
-@@ -135,6 +135,17 @@
- 	u64 size;
- };
- 
-+/* Mapping ownership is independent of the latest firmware request/views.
-+ * All fields are protected by the hardware group mutex.
-+ */
-+struct ath12k_qmi_fixed_mem {
-+	void __iomem *ioaddr;
-+	phys_addr_t paddr;
-+	u32 size;
-+	u32 type;
-+	bool used;
-+};
-+
- struct ath12k_qmi {
- 	struct ath12k_base *ab;
- 	struct qmi_handle handle;
-@@ -145,6 +156,7 @@
- 	spinlock_t event_lock; /* spinlock for qmi event list */
- 	struct ath12k_qmi_ce_cfg ce_cfg;
- 	struct target_mem_chunk target_mem[ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01];
-+	struct ath12k_qmi_fixed_mem fixed_mem[ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01];
- 	u32 mem_seg_count;
- 	u32 target_mem_mode;
- 	bool target_mem_delayed;

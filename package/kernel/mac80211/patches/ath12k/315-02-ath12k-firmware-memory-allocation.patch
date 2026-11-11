@@ -1,0 +1,725 @@
+From: JiaY-shi <shi05275@163.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: ath12k: own fixed and dynamic firmware memory
+
+Use the final per-segment DMA ownership, bounded AHB host-DDR views, optional CALDB/M3 allocation and shared MLO pool directly. Preserve fixed-region and coherent-DMA release APIs without intermediate map/unmap implementations.
+
+Split from:
+  315-01-ath12k-share-fixed-mlo-memory.patch - wifi: ath12k: share fixed MLO memory in mixed bus groups
+  317-ath12k-resolve-named-firmware-memory-and-AFC-types.patch - wifi: ath12k: resolve named firmware memory and AFC types
+  338-ath12k-low-memory-host-resources.patch - wifi: ath12k: allocate and release low-memory host resources
+  914-ath12k-allocate-optional-firmware-memory-dynamically.patch - wifi: ath12k: allocate optional firmware memory dynamically
+
+Merged from:
+  315-01-ath12k-share-fixed-mlo-memory.patch - wifi: ath12k: share fixed MLO memory in mixed bus groups
+  317-ath12k-resolve-named-firmware-memory-and-AFC-types.patch - wifi: ath12k: resolve named firmware memory and AFC types
+  338-ath12k-low-memory-host-resources.patch - wifi: ath12k: allocate and release low-memory host resources
+  342-ath12k-support-host-ddr-view-within-wcss-memory.patch - wifi: ath12k: support host DDR view within WCSS memory
+  913-ath12k-allocate-afc-memory-in-dynamic-path.patch - wifi: ath12k: allocate AFC memory in dynamic path
+  914-ath12k-allocate-optional-firmware-memory-dynamically.patch - wifi: ath12k: allocate optional firmware memory dynamically
+
+Previous split from (317-ath12k-resolve-named-firmware-memory-and-AFC-types.patch):
+  317-ath12k-use-reserved-pci-host-ddr.patch - wifi: ath12k: use fixed host DDR for PCI firmware
+
+Previous merged from (338-ath12k-low-memory-host-resources.patch):
+  338-ath12k-allow-low-memory-host-datapath.patch
+  339-ath12k-fix-fixed-memory-request-lifetime.patch
+  340-ath12k-bound-low-memory-rx-buffer-allocation.patch
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -2508,11 +2508,16 @@ void ath12k_qmi_reset_mlo_mem(struct ath
+ 	for (i = 0; i < ARRAY_SIZE(ag->mlo_mem.chunk); i++) {
+ 		mlo_chunk = &ag->mlo_mem.chunk[i];
+ 
+-		if (mlo_chunk->v.addr)
+-			/* TODO: Mode 0 recovery is the default mode hence resetting the
+-			 * whole memory region for now. Once Mode 1 support is added, this
+-			 * needs to be handled properly
+-			 */
++		if (!mlo_chunk->v.addr)
++			continue;
++
++		/* TODO: Mode 0 recovery is the default mode hence resetting the
++		 * whole memory region for now. Once Mode 1 support is added, this
++		 * needs to be handled properly
++		 */
++		if (ag->mlo_mem.fixed_mem)
++			memset_io(mlo_chunk->v.ioaddr, 0, mlo_chunk->size);
++		else
+ 			memset(mlo_chunk->v.addr, 0, mlo_chunk->size);
+ 	}
+ }
+@@ -2523,78 +2528,165 @@ static void ath12k_qmi_free_mlo_mem_chun
+ {
+ 	struct ath12k_hw_group *ag = ab->ag;
+ 	struct target_mem_chunk *mlo_chunk;
+-	bool fixed_mem;
++	struct device *alloc_dev;
+ 
+ 	lockdep_assert_held(&ag->mutex);
+ 
+ 	if (!ag->mlo_mem.init_done || ag->num_started)
+ 		return;
+ 
+-	if (idx >= ARRAY_SIZE(ag->mlo_mem.chunk)) {
++	if (ag->mlo_mem.fixed_mem) {
++		mlo_chunk = &ag->mlo_mem.chunk[0];
++		if (!idx && mlo_chunk->v.ioaddr) {
++			iounmap(mlo_chunk->v.ioaddr);
++			memset(mlo_chunk, 0, sizeof(*mlo_chunk));
++		}
++	} else if (idx >= ARRAY_SIZE(ag->mlo_mem.chunk)) {
+ 		ath12k_warn(ab, "invalid index for MLO memory chunk free: %d\n", idx);
+ 		return;
+-	}
+-
+-	fixed_mem = test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags);
+-	mlo_chunk = &ag->mlo_mem.chunk[idx];
++	} else {
++		mlo_chunk = &ag->mlo_mem.chunk[idx];
++		if (!mlo_chunk->v.addr)
++			goto clear_chunk;
+ 
+-	if (fixed_mem && mlo_chunk->v.ioaddr) {
+-		iounmap(mlo_chunk->v.ioaddr);
+-		mlo_chunk->v.ioaddr = NULL;
+-	} else if (mlo_chunk->v.addr) {
+-		dma_free_coherent(ab->dev,
++		alloc_dev = ag->mlo_mem.alloc_dev ?: ab->dev;
++		dma_free_coherent(alloc_dev,
+ 				  mlo_chunk->size,
+ 				  mlo_chunk->v.addr,
+ 				  mlo_chunk->paddr);
+-		mlo_chunk->v.addr = NULL;
++		memset(mlo_chunk, 0, sizeof(*mlo_chunk));
+ 	}
+ 
+-	mlo_chunk->paddr = 0;
+-	mlo_chunk->size = 0;
+-	if (fixed_mem)
+-		chunk->v.ioaddr = NULL;
+-	else
+-		chunk->v.addr = NULL;
++clear_chunk:
++	chunk->v.addr = NULL;
+ 	chunk->paddr = 0;
+ 	chunk->size = 0;
+ }
+ 
++static void ath12k_qmi_unmap_fixed_mem(struct ath12k_base *ab,
++				      struct ath12k_qmi_fixed_mem *mem)
++{
++	lockdep_assert_held(&ab->ag->mutex);
++
++	if (!mem->ioaddr)
++		return;
++
++	iounmap(mem->ioaddr);
++
++	memset(mem, 0, sizeof(*mem));
++}
++
++static void ath12k_qmi_begin_fixed_request(struct ath12k_base *ab)
++{
++	int i;
++
++	lockdep_assert_held(&ab->ag->mutex);
++
++	for (i = 0; i < ARRAY_SIZE(ab->qmi.fixed_mem); i++)
++		ab->qmi.fixed_mem[i].used = false;
++}
++
++static void ath12k_qmi_free_dma_chunk(struct ath12k_base *ab,
++				      struct target_mem_chunk *chunk)
++{
++	if (!chunk->dma_allocated)
++		return;
++
++	dma_free_coherent(ab->dev, chunk->prev_size,
++			  chunk->v.addr, chunk->paddr);
++	chunk->v.addr = NULL;
++	chunk->paddr = 0;
++	chunk->prev_size = 0;
++	chunk->dma_allocated = false;
++}
++
++static void ath12k_qmi_prune_fixed_mem(struct ath12k_base *ab)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(ab->qmi.fixed_mem); i++) {
++		if (!ab->qmi.fixed_mem[i].used)
++			ath12k_qmi_unmap_fixed_mem(ab, &ab->qmi.fixed_mem[i]);
++	}
++
++	for (i = ab->qmi.mem_seg_count; i < ARRAY_SIZE(ab->qmi.target_mem); i++)
++		ath12k_qmi_free_dma_chunk(ab, &ab->qmi.target_mem[i]);
++}
++
++static int ath12k_qmi_map_fixed_mem(struct ath12k_base *ab, int idx,
++				   phys_addr_t paddr, u32 size, u32 type)
++{
++	struct ath12k_qmi_fixed_mem *mem = &ab->qmi.fixed_mem[idx];
++	struct target_mem_chunk *chunk = &ab->qmi.target_mem[idx];
++	void __iomem *ioaddr;
++
++	lockdep_assert_held(&ab->ag->mutex);
++	if (!size)
++		return -EINVAL;
++
++	if (!mem->ioaddr || mem->paddr != paddr || mem->size != size ||
++	    mem->type != type) {
++		/* Keep the previous owner reachable if mapping the replacement fails. */
++		ioaddr = ioremap(paddr, size);
++		if (!ioaddr)
++			return -EIO;
++
++		ath12k_qmi_unmap_fixed_mem(ab, mem);
++		mem->ioaddr = ioaddr;
++		mem->paddr = paddr;
++		mem->size = size;
++		mem->type = type;
++	}
++
++	ath12k_qmi_free_dma_chunk(ab, chunk);
++	mem->used = true;
++	chunk->paddr = mem->paddr;
++	chunk->v.ioaddr = mem->ioaddr;
++	chunk->size = size;
++	chunk->type = type;
++	return 0;
++}
++
+ static void ath12k_qmi_free_target_mem_chunk(struct ath12k_base *ab)
+ {
+ 	struct ath12k_hw_group *ag = ab->ag;
+-	int i, mlo_idx;
++	struct target_mem_chunk unused = {};
++	struct target_mem_chunk *chunk;
++	int i;
+ 
+-	for (i = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
+-		if (ab->qmi.target_mem[i].type == MLO_GLOBAL_MEM_REGION_TYPE) {
+-			ath12k_qmi_free_mlo_mem_chunk(ab,
+-						      &ab->qmi.target_mem[i],
+-						      mlo_idx++);
+-		} else {
+-			if (test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags) &&
+-			    ab->qmi.target_mem[i].v.ioaddr) {
+-				iounmap(ab->qmi.target_mem[i].v.ioaddr);
+-				ab->qmi.target_mem[i].v.ioaddr = NULL;
+-			} else {
+-				if (!ab->qmi.target_mem[i].v.addr)
+-					continue;
+-				dma_free_coherent(ab->dev,
+-						  ab->qmi.target_mem[i].prev_size,
+-						  ab->qmi.target_mem[i].v.addr,
+-						  ab->qmi.target_mem[i].paddr);
+-				ab->qmi.target_mem[i].v.addr = NULL;
+-			}
+-		}
++	lockdep_assert_held(&ag->mutex);
++	for (i = 0; i < ARRAY_SIZE(ab->qmi.fixed_mem); i++)
++		ath12k_qmi_unmap_fixed_mem(ab, &ab->qmi.fixed_mem[i]);
++
++	for (i = 0; i < ARRAY_SIZE(ab->qmi.target_mem); i++) {
++		chunk = &ab->qmi.target_mem[i];
++		ath12k_qmi_free_dma_chunk(ab, chunk);
++		chunk->v.addr = NULL;
++		chunk->paddr = 0;
++		chunk->dma_allocated = false;
+ 	}
+ 
+ 	if (!ag->num_started && ag->mlo_mem.init_done) {
++		/* A shorter request may no longer contain an MLO view. Release by
++		 * group ownership, never by the new request's segment count.
++		 */
++		for (i = 0; i < ARRAY_SIZE(ag->mlo_mem.chunk); i++)
++			ath12k_qmi_free_mlo_mem_chunk(ab, &unused, i);
+ 		ag->mlo_mem.init_done = false;
+ 		ag->mlo_mem.mlo_mem_size = 0;
++		ag->mlo_mem.fixed_mem = false;
++		put_device(ag->mlo_mem.alloc_dev);
++		ag->mlo_mem.alloc_dev = NULL;
+ 	}
+ }
+ 
+ static int ath12k_qmi_alloc_chunk(struct ath12k_base *ab,
+ 				  struct target_mem_chunk *chunk)
+ {
++	/* Fixed mappings and group-owned MLO views are not DMA allocations. */
++	if (!chunk->dma_allocated)
++		chunk->v.addr = NULL;
++
+ 	/* Firmware reloads in recovery/resume.
+ 	 * In such cases, no need to allocate memory for FW again.
+ 	 */
+@@ -2604,9 +2696,7 @@ static int ath12k_qmi_alloc_chunk(struct
+ 			goto this_chunk_done;
+ 
+ 		/* cannot reuse the existing chunk */
+-		dma_free_coherent(ab->dev, chunk->prev_size,
+-				  chunk->v.addr, chunk->paddr);
+-		chunk->v.addr = NULL;
++		ath12k_qmi_free_dma_chunk(ab, chunk);
+ 	}
+ 
+ 	chunk->v.addr = dma_alloc_coherent(ab->dev,
+@@ -2629,27 +2719,155 @@ static int ath12k_qmi_alloc_chunk(struct
+ 	}
+ 	chunk->prev_type = chunk->type;
+ 	chunk->prev_size = chunk->size;
++	chunk->dma_allocated = true;
++	if (test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags) &&
++	    (chunk->type == M3_DUMP_REGION_TYPE ||
++	     chunk->type == CALDB_MEM_REGION_TYPE))
++		ath12k_info(ab, "allocated firmware memory type %u addr %pad size %u\n",
++			    chunk->type, &chunk->paddr, chunk->size);
+ this_chunk_done:
+ 	return 0;
+ }
+ 
++static int ath12k_qmi_get_mlo_reserved_mem(struct ath12k_hw_group *ag,
++					    struct reserved_mem **rmem)
++{
++	struct ath12k_base *partner_ab;
++	bool fixed_mem = false;
++	int i;
++
++	lockdep_assert_held(&ag->mutex);
++	*rmem = NULL;
++
++	for (i = 0; i < ag->num_devices; i++) {
++		partner_ab = ag->ab[i];
++		if (!partner_ab)
++			continue;
++
++		/* MLO memory may be reserved independently of the host DDR. */
++		if (of_property_match_string(partner_ab->dev->of_node,
++					     "memory-region-names",
++					     "mlo-global-mem") >= 0)
++			fixed_mem = true;
++
++		*rmem = ath12k_core_get_rmem_by_name(partner_ab, "mlo-global-mem");
++		if (*rmem)
++			return 0;
++	}
++
++	return fixed_mem ? -ENODEV : 0;
++}
++
++static int ath12k_qmi_assign_mlo_mem_chunk(struct ath12k_base *ab,
++					    struct target_mem_chunk *chunk,
++					    size_t offset, u32 size)
++{
++	struct ath12k_hw_group *ag = ab->ag;
++	struct target_mem_chunk *mlo_chunk;
++	struct reserved_mem *rmem;
++	u32 total_size;
++	int i, ret;
++
++	lockdep_assert_held(&ag->mutex);
++
++	ath12k_qmi_free_dma_chunk(ab, chunk);
++	ret = ath12k_qmi_get_mlo_reserved_mem(ag, &rmem);
++	if (ret) {
++		ath12k_err(ab, "fixed MLO memory is missing from device tree\n");
++		return ret;
++	}
++
++	if (rmem) {
++		mlo_chunk = &ag->mlo_mem.chunk[0];
++		if (!mlo_chunk->v.ioaddr) {
++			mlo_chunk->paddr = rmem->base;
++			mlo_chunk->size = rmem->size;
++			mlo_chunk->type = MLO_GLOBAL_MEM_REGION_TYPE;
++			mlo_chunk->v.ioaddr = ioremap(rmem->base, rmem->size);
++			if (!mlo_chunk->v.ioaddr) {
++				memset(mlo_chunk, 0, sizeof(*mlo_chunk));
++				return -EIO;
++			}
++
++			ag->mlo_mem.fixed_mem = true;
++			memset_io(mlo_chunk->v.ioaddr, 0, mlo_chunk->size);
++			ath12k_info(ab, "mapped fixed MLO memory addr %pa size %u\n",
++				    &mlo_chunk->paddr, mlo_chunk->size);
++		}
++
++		if (offset > mlo_chunk->size || size > mlo_chunk->size - offset) {
++			ath12k_err(ab,
++				   "MLO request offset %zu size %u exceeds reserved size %u\n",
++				   offset, size, mlo_chunk->size);
++			return -EINVAL;
++		}
++
++		chunk->paddr = mlo_chunk->paddr + offset;
++		chunk->v.ioaddr = (u8 __iomem *)mlo_chunk->v.ioaddr + offset;
++		chunk->size = size;
++		chunk->type = MLO_GLOBAL_MEM_REGION_TYPE;
++		return 0;
++	}
++
++	/* Firmware partners can describe the same shared memory with different
++	 * segment boundaries. Allocate one group-owned pool and return views.
++	 */
++	mlo_chunk = &ag->mlo_mem.chunk[0];
++	if (!mlo_chunk->paddr) {
++		total_size = 0;
++		for (i = 0; i < ab->qmi.mem_seg_count; i++) {
++			if (ab->qmi.target_mem[i].type != MLO_GLOBAL_MEM_REGION_TYPE)
++				continue;
++			if (ab->qmi.target_mem[i].size > U32_MAX - total_size)
++				return -EINVAL;
++			total_size += ab->qmi.target_mem[i].size;
++		}
++		if (!total_size || total_size > INT_MAX ||
++		    (ag->mlo_mem.mlo_mem_size &&
++				    total_size != ag->mlo_mem.mlo_mem_size))
++			return -EINVAL;
++
++		mlo_chunk->size = total_size;
++		mlo_chunk->type = MLO_GLOBAL_MEM_REGION_TYPE;
++		ret = ath12k_qmi_alloc_chunk(ab, mlo_chunk);
++		if (ret)
++			return ret;
++		ag->mlo_mem.alloc_dev = get_device(ab->dev);
++		memset(mlo_chunk->v.addr, 0, mlo_chunk->size);
++		ath12k_info(ab, "allocated MLO memory addr %pad size %u\n",
++			    &mlo_chunk->paddr, mlo_chunk->size);
++	}
++
++	if (offset > mlo_chunk->size || size > mlo_chunk->size - offset)
++		return -EINVAL;
++
++	chunk->paddr = mlo_chunk->paddr + offset;
++	chunk->v.addr = (u8 *)mlo_chunk->v.addr + offset;
++	chunk->size = size;
++	chunk->type = MLO_GLOBAL_MEM_REGION_TYPE;
++
++	return 0;
++}
++
+ static int ath12k_qmi_alloc_target_mem_chunk(struct ath12k_base *ab)
+ {
+-	struct target_mem_chunk *chunk, *mlo_chunk;
++	struct target_mem_chunk *chunk;
+ 	struct ath12k_hw_group *ag = ab->ag;
+-	int i, mlo_idx, ret;
+-	int mlo_size = 0;
++	int i, ret;
++	u32 mlo_size = 0;
+ 
+ 	mutex_lock(&ag->mutex);
+ 
+ 	if (!ag->mlo_mem.init_done) {
+ 		memset(ag->mlo_mem.chunk, 0, sizeof(ag->mlo_mem.chunk));
+ 		ag->mlo_mem.init_done = true;
++		ag->mlo_mem.fixed_mem = false;
++		ag->mlo_mem.alloc_dev = NULL;
+ 	}
+ 
+ 	ab->qmi.target_mem_delayed = false;
+ 
+-	for (i = 0, mlo_idx = 0; i < ab->qmi.mem_seg_count; i++) {
++	for (i = 0; i < ab->qmi.mem_seg_count; i++) {
+ 		chunk = &ab->qmi.target_mem[i];
+ 
+ 		/* Allocate memory for the region and the functionality supported
+@@ -2657,6 +2875,15 @@ static int ath12k_qmi_alloc_target_mem_c
+ 		 * allocate memory, assigns NULL and FW will handle this without crashing.
+ 		 */
+ 		switch (chunk->type) {
++		case AFC_REGION_TYPE:
++			if (chunk->size > AFC_MEM_SIZE) {
++				ath12k_err(ab,
++					   "AFC memory request size %u exceeds limit %u\n",
++					   chunk->size, AFC_MEM_SIZE);
++				ret = -EINVAL;
++				goto err;
++			}
++			fallthrough;
+ 		case HOST_DDR_REGION_TYPE:
+ 		case M3_DUMP_REGION_TYPE:
+ 		case PAGEABLE_MEM_REGION_TYPE:
+@@ -2667,6 +2894,10 @@ static int ath12k_qmi_alloc_target_mem_c
+ 				goto err;
+ 			break;
+ 		case MLO_GLOBAL_MEM_REGION_TYPE:
++			if (chunk->size > U32_MAX - mlo_size) {
++				ret = -EINVAL;
++				goto err;
++			}
+ 			mlo_size += chunk->size;
+ 			if (ag->mlo_mem.mlo_mem_size &&
+ 			    mlo_size > ag->mlo_mem.mlo_mem_size) {
+@@ -2676,31 +2907,17 @@ static int ath12k_qmi_alloc_target_mem_c
+ 				goto err;
+ 			}
+ 
+-			mlo_chunk = &ag->mlo_mem.chunk[mlo_idx];
+-			if (mlo_chunk->paddr) {
+-				if (chunk->size != mlo_chunk->size) {
+-					ath12k_err(ab, "QMI MLO chunk memory allocation failure for index %d, requested size %d is more than allocated size %d",
+-						   mlo_idx, chunk->size, mlo_chunk->size);
+-					ret = -EINVAL;
+-					goto err;
+-				}
+-			} else {
+-				mlo_chunk->size = chunk->size;
+-				mlo_chunk->type = chunk->type;
+-				ret = ath12k_qmi_alloc_chunk(ab, mlo_chunk);
+-				if (ret)
+-					goto err;
+-				memset(mlo_chunk->v.addr, 0, mlo_chunk->size);
+-			}
+-
+-			chunk->paddr = mlo_chunk->paddr;
+-			chunk->v.addr = mlo_chunk->v.addr;
+-			mlo_idx++;
++			ret = ath12k_qmi_assign_mlo_mem_chunk(ab, chunk,
++							      mlo_size - chunk->size,
++							chunk->size);
++			if (ret)
++				goto err;
+ 
+ 			break;
+ 		default:
+ 			ath12k_warn(ab, "memory type %u not supported\n",
+ 				    chunk->type);
++			ath12k_qmi_free_dma_chunk(ab, chunk);
+ 			chunk->paddr = 0;
+ 			chunk->v.addr = NULL;
+ 			break;
+@@ -2716,6 +2933,9 @@ static int ath12k_qmi_alloc_target_mem_c
+ 		goto err;
+ 	}
+ 
++	for (i = ab->qmi.mem_seg_count; i < ARRAY_SIZE(ab->qmi.target_mem); i++)
++		ath12k_qmi_free_dma_chunk(ab, &ab->qmi.target_mem[i]);
++
+ 	mutex_unlock(&ag->mutex);
+ 
+ 	return 0;
+@@ -2738,112 +2958,98 @@ err:
+ 
+ static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
+ {
++	struct target_mem_chunk *chunk;
++	struct ath12k_hw_group *ag = ab->ag;
+ 	struct reserved_mem *rmem;
+-	size_t avail_rmem_size;
++	u32 type, size, host_offset = 0;
++	size_t offset;
++	const char *name;
+ 	int i, idx, ret;
++	u32 mlo_size = 0;
++
++	/* A host DDR view can share the remoteproc WCSS reservation. */
++	of_property_read_u32(ab->dev->of_node, "qcom,host-ddr-offset",
++			     &host_offset);
++
++	mutex_lock(&ag->mutex);
++	ath12k_qmi_begin_fixed_request(ab);
++
++	if (!ag->mlo_mem.init_done) {
++		memset(ag->mlo_mem.chunk, 0, sizeof(ag->mlo_mem.chunk));
++		ag->mlo_mem.init_done = true;
++		ag->mlo_mem.fixed_mem = false;
++		ag->mlo_mem.alloc_dev = NULL;
++	}
+ 
+ 	for (i = 0, idx = 0; i < ab->qmi.mem_seg_count; i++) {
+-		switch (ab->qmi.target_mem[i].type) {
++		type = ab->qmi.target_mem[i].type;
++		size = ab->qmi.target_mem[i].size;
++		switch (type) {
+ 		case HOST_DDR_REGION_TYPE:
+-			rmem = ath12k_core_get_reserved_mem(ab, 0);
++		case BDF_MEM_REGION_TYPE:
++			name = "host-ddr-mem";
++			offset = host_offset;
++			rmem = ath12k_core_get_rmem_by_name(ab, name);
+ 			if (!rmem) {
+ 				ret = -ENODEV;
+ 				goto out;
+ 			}
+-
+-			avail_rmem_size = rmem->size;
+-			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
+-				ath12k_dbg(ab, ATH12K_DBG_QMI,
+-					   "failed to assign mem type %u req size %u avail size %zu\n",
+-					   ab->qmi.target_mem[i].type,
+-					   ab->qmi.target_mem[i].size,
+-					   avail_rmem_size);
++			if (offset > rmem->size || size > rmem->size - offset) {
+ 				ret = -EINVAL;
+ 				goto out;
+ 			}
+-
+-			ab->qmi.target_mem[idx].paddr = rmem->base;
+-			ab->qmi.target_mem[idx].v.ioaddr =
+-				ioremap(ab->qmi.target_mem[idx].paddr,
+-					ab->qmi.target_mem[i].size);
+-			if (!ab->qmi.target_mem[idx].v.ioaddr) {
+-				ret = -EIO;
++			ret = ath12k_qmi_map_fixed_mem(ab, idx, rmem->base + offset,
++						       size, type);
++			if (ret)
+ 				goto out;
+-			}
+-			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
+-			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
+ 			idx++;
+ 			break;
+-		case BDF_MEM_REGION_TYPE:
+-			rmem = ath12k_core_get_reserved_mem(ab, 0);
+-			if (!rmem) {
++		case CALDB_MEM_REGION_TYPE:
++		case M3_DUMP_REGION_TYPE:
++			name = type == CALDB_MEM_REGION_TYPE ? "q6-caldb" : "m3-dump";
++			rmem = ath12k_core_get_rmem_by_name(ab, name);
++			if (rmem) {
++				if (size > rmem->size) {
++					ret = -EINVAL;
++					goto out;
++				}
++				ret = ath12k_qmi_map_fixed_mem(ab, idx, rmem->base,
++							       size, type);
++			} else if (of_property_match_string(ab->dev->of_node,
++							  "memory-region-names", name) >= 0) {
+ 				ret = -ENODEV;
+-				goto out;
+-			}
+-
+-			avail_rmem_size = rmem->size - ab->hw_params->bdf_addr_offset;
+-			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
+-				ath12k_dbg(ab, ATH12K_DBG_QMI,
+-					   "failed to assign mem type %u req size %u avail size %zu\n",
+-					   ab->qmi.target_mem[i].type,
+-					   ab->qmi.target_mem[i].size,
+-					   avail_rmem_size);
+-				ret = -EINVAL;
+-				goto out;
++			} else {
++				chunk = &ab->qmi.target_mem[idx];
++				chunk->size = size;
++				chunk->type = type;
++				ret = ath12k_qmi_alloc_chunk(ab, chunk);
+ 			}
+-			ab->qmi.target_mem[idx].paddr =
+-				rmem->base + ab->hw_params->bdf_addr_offset;
+-			ab->qmi.target_mem[idx].v.ioaddr =
+-				ioremap(ab->qmi.target_mem[idx].paddr,
+-					ab->qmi.target_mem[i].size);
+-			if (!ab->qmi.target_mem[idx].v.ioaddr) {
+-				ret = -EIO;
++			if (ret)
+ 				goto out;
+-			}
+-			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
+-			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
+-			idx++;
+-			break;
+-		case CALDB_MEM_REGION_TYPE:
+-			/* Cold boot calibration is not enabled in Ath12k. Hence,
+-			 * assign paddr = 0.
+-			 * Once cold boot calibration is enabled add support to
+-			 * assign reserved memory from DT.
+-			 */
+-			ab->qmi.target_mem[idx].paddr = 0;
+-			ab->qmi.target_mem[idx].v.ioaddr = NULL;
+-			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
+-			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
+ 			idx++;
+ 			break;
+-		case M3_DUMP_REGION_TYPE:
+-			rmem = ath12k_core_get_reserved_mem(ab, 1);
+-			if (!rmem) {
++		case MLO_GLOBAL_MEM_REGION_TYPE:
++			chunk = &ab->qmi.target_mem[i];
++			if (chunk->size > U32_MAX - mlo_size) {
+ 				ret = -EINVAL;
+ 				goto out;
+ 			}
+-
+-			avail_rmem_size = rmem->size;
+-			if (avail_rmem_size < ab->qmi.target_mem[i].size) {
+-				ath12k_dbg(ab, ATH12K_DBG_QMI,
+-					   "failed to assign mem type %u req size %u avail size %zu\n",
+-					   ab->qmi.target_mem[i].type,
+-					   ab->qmi.target_mem[i].size,
+-					   avail_rmem_size);
++			mlo_size += chunk->size;
++			if (ag->mlo_mem.mlo_mem_size &&
++			    mlo_size > ag->mlo_mem.mlo_mem_size) {
++				ath12k_err(ab,
++					   "QMI MLO memory request %d exceeds allocated size %d\n",
++					   mlo_size, ag->mlo_mem.mlo_mem_size);
+ 				ret = -EINVAL;
+ 				goto out;
+ 			}
+ 
+-			ab->qmi.target_mem[idx].paddr = rmem->base;
+-			ab->qmi.target_mem[idx].v.ioaddr =
+-				ioremap(ab->qmi.target_mem[idx].paddr,
+-					ab->qmi.target_mem[i].size);
+-			if (!ab->qmi.target_mem[idx].v.ioaddr) {
+-				ret = -EIO;
++			ret = ath12k_qmi_assign_mlo_mem_chunk(ab,
++							&ab->qmi.target_mem[idx],
++							mlo_size - chunk->size,
++							chunk->size);
++			if (ret)
+ 				goto out;
+-			}
+-			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
+-			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
+ 			idx++;
+ 			break;
+ 		default:
+@@ -2851,12 +3057,28 @@ static int ath12k_qmi_assign_target_mem_
+ 				    ab->qmi.target_mem[i].type);
+ 			break;
+ 		}
++
+ 	}
+ 	ab->qmi.mem_seg_count = idx;
+ 
++	if (!ag->mlo_mem.mlo_mem_size) {
++		ag->mlo_mem.mlo_mem_size = mlo_size;
++	} else if (ag->mlo_mem.mlo_mem_size != mlo_size) {
++		ath12k_err(ab,
++			   "QMI MLO memory size error, expected %d requested %d\n",
++			   ag->mlo_mem.mlo_mem_size, mlo_size);
++		ret = -EINVAL;
++		goto out;
++	}
++
++	ath12k_qmi_prune_fixed_mem(ab);
++	mutex_unlock(&ag->mutex);
++
+ 	return 0;
+ out:
++
+ 	ath12k_qmi_free_target_mem_chunk(ab);
++	mutex_unlock(&ag->mutex);
+ 	return ret;
+ }
+ 
+@@ -3838,9 +4060,11 @@ static void ath12k_qmi_msg_mem_request_c
+ 	ath12k_dbg(ab, ATH12K_DBG_QMI, "qmi firmware request memory request\n");
+ 
+ 	if (msg->mem_seg_len == 0 ||
+-	    msg->mem_seg_len > ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01)
++	    msg->mem_seg_len > ATH12K_QMI_WLANFW_MAX_NUM_MEM_SEG_V01) {
+ 		ath12k_warn(ab, "Invalid memory segment length: %u\n",
+ 			    msg->mem_seg_len);
++		return;
++	}
+ 
+ 	ab->qmi.mem_seg_count = msg->mem_seg_len;
+ 

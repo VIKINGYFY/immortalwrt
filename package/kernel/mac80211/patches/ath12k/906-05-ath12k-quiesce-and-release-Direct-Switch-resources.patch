@@ -1,14 +1,21 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:29:57 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: quiesce and release Direct Switch resources
 
 Coordinate Direct Switch startup, shutdown and quarantine before
 releasing shared DMA rings, buffers and group resources.
 
-Split from:
-  package/kernel/mac80211/patches/ath12k/906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
 
 Merged from:
+  906-05-ath12k-quiesce-and-release-Direct-Switch-resources.patch - wifi: ath12k: quiesce and release Direct Switch resources
+  918-ath12k-deliver-Direct-Switch-EAPOL-to-control-port.patch - wifi: ath12k: deliver Direct Switch EAPOL to the control port
+
+Previous split from (906-05-ath12k-quiesce-and-release-Direct-Switch-resources.patch):
+  906-ath12k-native-ppe-direct-switch.patch - wifi: ath12k: implement native PPE Direct Switch DMA and buffer ownership
+
+Previous merged from (906-05-ath12k-quiesce-and-release-Direct-Switch-resources.patch):
   906-01-wifi-ath12k-add-native-PPE-direct-switch.patch
   906-02-wifi-ath12k-fix-IPQ5332-REO-register-offsets.patch
   906-03-wifi-ath12k-batch-native-Direct-Switch-RX-recycling.patch
@@ -24,11 +31,12 @@ Merged from:
 
 Link: https://android.googlesource.com/kernel/msm-modules/wlan-fw-api/+/9ab723333db68e4552672f9e2a5cc6f8e4027894/hw/qcn9224/
 Original-commit: dfa0345057d5ef5dd7670544b833d3a5f92f62c0
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -736,6 +736,7 @@
+@@ -736,6 +736,7 @@ void ath12k_core_to_group_ref_put(struct
  
  static void ath12k_core_stop(struct ath12k_base *ab)
  {
@@ -36,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_link_sta_rhash_tbl_destroy(ab);
  
  	ath12k_core_to_group_ref_put(ab);
-@@ -1090,7 +1091,12 @@
+@@ -1090,7 +1091,12 @@ static void ath12k_core_hw_group_stop(st
  
  	lockdep_assert_held(&ag->mutex);
  
@@ -50,17 +58,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	for (i = ag->num_devices - 1; i >= 0; i--) {
  		ab = ag->ab[i];
-@@ -1104,9 +1110,6 @@
- 
+@@ -1105,9 +1111,6 @@ static void ath12k_core_hw_group_stop(st
  	/* Unregister MAC (drops wiphys) only after per-device cleanup */
  	ath12k_mac_unregister(ag);
--
+ 
 -	/* Teardown MLO state after MAC unregister for symmetry */
 -	ath12k_mac_mlo_teardown(ag);
- 
+-
  	ath12k_mac_destroy(ag);
  }
-@@ -1468,6 +1471,8 @@
+ 
+@@ -1468,6 +1471,8 @@ static int ath12k_core_reconfigure_on_cr
  {
  	int ret, total_vdev;
  
@@ -69,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_lock(&ab->core_lock);
  	ath12k_link_sta_rhash_tbl_destroy(ab);
  	ath12k_thermal_unregister(ab);
-@@ -1724,6 +1729,10 @@
+@@ -1724,6 +1729,10 @@ static void ath12k_core_restart(struct w
  	ret = ath12k_core_reconfigure_on_crash(ab);
  	if (ret) {
  		ath12k_err(ab, "failed to reconfigure driver on crash recovery\n");
@@ -80,7 +88,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  	}
  
-@@ -1816,6 +1825,7 @@
+@@ -1816,6 +1825,7 @@ static void ath12k_core_reset(struct wor
  	ath12k_core_post_reconfigure_recovery(ab);
  
  	ath12k_dbg(ab, ATH12K_DBG_BOOT, "waiting recovery start...\n");
@@ -90,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_hif_ce_irq_disable(ab);
 --- a/drivers/net/wireless/ath/ath12k/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/dp.c
-@@ -141,6 +141,7 @@
+@@ -141,6 +141,7 @@ void ath12k_dp_srng_cleanup(struct ath12
  
  	ring->vaddr_unaligned = NULL;
  }
@@ -98,20 +106,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static int ath12k_dp_srng_find_ring_in_mask(int ring_num, const u8 *grp_mask)
  {
-@@ -162,6 +163,12 @@
- 	const struct ath12k_hal_tcl_to_wbm_rbm_map *map;
+@@ -163,6 +164,12 @@ static int ath12k_dp_srng_calculate_msi_
  	const u8 *grp_mask;
  	int i;
-+
+ 
 +	/* Native DS rings share the existing group-0 NAPI instance. */
 +	if (type == HAL_PPE2TCL || type == HAL_REO2PPE ||
 +	    (type == HAL_WBM2SW_RELEASE && ring_num == 6 &&
 +	     ath12k_ab_to_dp(ab)->ds))
 +		return 0;
- 
++
  	switch (type) {
  	case HAL_WBM2SW_RELEASE:
-@@ -290,7 +297,16 @@
+ 		if (ring_num == HAL_WBM2SW_REL_ERR_RING_NUM) {
+@@ -290,7 +297,16 @@ int ath12k_dp_srng_setup(struct ath12k_b
  	params.num_entries = num_entries;
  	ath12k_dp_srng_msi_setup(ab, &params, type, ring_num + mac_id);
  
@@ -128,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case HAL_REO_DST:
  		params.intr_batch_cntr_thres_entries =
  					HAL_SRNG_INT_BATCH_THRESHOLD_RX;
-@@ -316,7 +332,8 @@
+@@ -316,7 +332,8 @@ int ath12k_dp_srng_setup(struct ath12k_b
  		params.intr_timer_thres_us = HAL_SRNG_INT_TIMER_THRESHOLD_RX;
  		break;
  	case HAL_WBM2SW_RELEASE:
@@ -138,31 +146,30 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			params.intr_batch_cntr_thres_entries =
  					HAL_SRNG_INT_BATCH_THRESHOLD_TX;
  			params.intr_timer_thres_us =
-@@ -359,18 +376,14 @@
+@@ -359,19 +376,15 @@ int ath12k_dp_srng_setup(struct ath12k_b
  
  	return 0;
  }
--
++EXPORT_SYMBOL_GPL(ath12k_dp_srng_setup);
+ 
 -static int ath12k_dp_tx_get_bank_profile(struct ath12k_base *ab,
 -					 struct ath12k_link_vif *arvif,
 -					 struct ath12k_dp *dp)
--{
-+EXPORT_SYMBOL_GPL(ath12k_dp_srng_setup);
-+
 +int ath12k_dp_tx_get_bank_config(struct ath12k_dp *dp, u32 bank_config)
-+{
+ {
 +	struct ath12k_base *ab = dp->ab;
  	int bank_id = DP_INVALID_BANK_ID;
  	int i;
 -	u32 bank_config;
  	bool configure_register = false;
--
+ 
 -	/* convert vdev params into hal_tx_bank_config */
 -	bank_config = ath12k_dp_arch_tx_get_vdev_bank_config(dp, arvif);
- 
+-
  	spin_lock_bh(&dp->tx_bank_lock);
  	/* TODO: implement using idr kernel framework*/
-@@ -411,6 +424,15 @@
+ 	for (i = 0; i < dp->num_bank_profiles; i++) {
+@@ -411,6 +424,15 @@ inc_ref_and_return:
  
  	return bank_id;
  }
@@ -178,7 +185,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  void ath12k_dp_tx_put_bank_profile(struct ath12k_dp *dp, u8 bank_id)
  {
-@@ -418,6 +440,7 @@
+@@ -418,6 +440,7 @@ void ath12k_dp_tx_put_bank_profile(struc
  	dp->bank_profiles[bank_id].num_users--;
  	spin_unlock_bh(&dp->tx_bank_lock);
  }
@@ -186,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static void ath12k_dp_deinit_bank_profiles(struct ath12k_base *ab)
  {
-@@ -1030,7 +1053,7 @@
+@@ -1030,7 +1053,7 @@ static void ath12k_dp_cc_cleanup(struct
  				dma_unmap_single(ab->dev,
  						 ATH12K_SKB_RXCB(skb)->paddr,
  						 skb->len + skb_tailroom(skb),
@@ -195,19 +202,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				dev_kfree_skb_any(skb);
  			}
  
-@@ -1144,6 +1167,11 @@
- {
+@@ -1145,6 +1168,11 @@ static void ath12k_dp_cleanup(struct ath
  	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
  	int i;
-+
+ 
 +	if (dp->ops->ds_cleanup && dp->ops->ds_cleanup(dp))
 +		return;
 +	if (dp->ds_quarantined)
 +		return;
- 
++
  	ath12k_dp_link_peer_rhash_tbl_destroy(dp);
  
-@@ -1510,10 +1538,13 @@
+ 	if (!dp->ab)
+@@ -1510,10 +1538,13 @@ static int ath12k_dp_setup(struct ath12k
  	spin_lock_init(&dp->reo_cmd_lock);
  	spin_lock_init(&dp->reo_rxq_flush_lock);
  
@@ -224,7 +231,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	dp->reo_cmd_cache_flush_count = 0;
  	dp->idle_link_rbm =
-@@ -1580,6 +1611,12 @@
+@@ -1580,6 +1611,12 @@ static int ath12k_dp_setup(struct ath12k
  	for (i = 0; i < HAL_DSCP_TID_MAP_TBL_NUM_ENTRIES_MAX; i++)
  		ath12k_hal_tx_set_dscp_tid_map(ab, i);
  
@@ -237,7 +244,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath12k_dp_rx_alloc(ab);
  	if (ret)
  		goto fail_dp_rx_free;
-@@ -1589,6 +1626,8 @@
+@@ -1589,6 +1626,8 @@ static int ath12k_dp_setup(struct ath12k
  	return 0;
  
  fail_dp_rx_free:
@@ -246,7 +253,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_dp_rx_free(ab);
  
  fail_cmn_reoq_cleanup:
-@@ -1618,6 +1657,51 @@
+@@ -1618,6 +1657,51 @@ rhash_destroy:
  	return ret;
  }
  
@@ -300,18 +307,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath12k_dp_cleanup(dp->ab);
 --- a/drivers/net/wireless/ath/ath12k/dp_peer.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_peer.c
-@@ -61,6 +61,10 @@
- ath12k_dp_link_peer_find_by_addr(struct ath12k_dp *dp, const u8 *addr)
+@@ -62,6 +62,10 @@ ath12k_dp_link_peer_find_by_addr(struct
  {
  	lockdep_assert_held(&dp->dp_lock);
-+
+ 
 +	/* NULL while firmware recovery rebuilds the datapath */
 +	if (!dp->rhead_peer_addr)
 +		return NULL;
- 
++
  	return rhashtable_lookup_fast(dp->rhead_peer_addr, addr,
  				      dp->rhash_peer_addr_param);
-@@ -251,7 +255,9 @@
+ }
+@@ -251,7 +255,9 @@ static int ath12k_dp_link_peer_rhash_add
  		goto err_free;
  	}
  
@@ -321,7 +328,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  
-@@ -274,14 +280,23 @@
+@@ -274,14 +280,23 @@ int ath12k_dp_link_peer_rhash_tbl_init(s
  
  void ath12k_dp_link_peer_rhash_tbl_destroy(struct ath12k_dp *dp)
  {
@@ -349,29 +356,29 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ath12k_dp_link_peer_rhash_insert(struct ath12k_dp *dp,
-@@ -290,6 +305,9 @@
- 	struct ath12k_dp_link_peer *tmp;
+@@ -291,6 +306,9 @@ static int ath12k_dp_link_peer_rhash_ins
  
  	lockdep_assert_held(&dp->dp_lock);
-+
+ 
 +	if (!dp->rhead_peer_addr)
 +		return -ENODEV;
- 
++
  	tmp = rhashtable_lookup_get_insert_fast(dp->rhead_peer_addr, &peer->rhash_addr,
  						dp->rhash_peer_addr_param);
-@@ -307,6 +325,9 @@
- 	int ret;
+ 	if (!tmp)
+@@ -308,6 +326,9 @@ static int ath12k_dp_link_peer_rhash_rem
  
  	lockdep_assert_held(&dp->dp_lock);
-+
+ 
 +	if (!dp->rhead_peer_addr)
 +		return 0;
- 
++
  	ret = rhashtable_remove_fast(dp->rhead_peer_addr, &peer->rhash_addr,
  				     dp->rhash_peer_addr_param);
+ 	if (ret && ret != -ENOENT)
 --- a/drivers/net/wireless/ath/ath12k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
-@@ -68,6 +68,32 @@
+@@ -68,6 +68,32 @@ static void ath12k_dp_rx_enqueue_free(st
  	spin_unlock_bh(&dp->rx_desc_lock);
  }
  
@@ -404,7 +411,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Returns number of Rx buffers replenished */
  int ath12k_dp_rx_bufs_replenish(struct ath12k_dp *dp,
  				struct dp_rxdma_ring *rx_ring,
-@@ -126,9 +152,10 @@
+@@ -126,9 +152,10 @@ int ath12k_dp_rx_bufs_replenish(struct a
  				 skb->data);
  		}
  
@@ -416,7 +423,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (dma_mapping_error(dp->dev, paddr))
  			goto fail_free_skb;
  
-@@ -158,7 +185,7 @@
+@@ -158,7 +185,7 @@ int ath12k_dp_rx_bufs_replenish(struct a
  
  fail_dma_unmap:
  	dma_unmap_single(dp->dev, paddr, skb->len + skb_tailroom(skb),
@@ -427,7 +434,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  out:
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -5900,7 +5900,7 @@
+@@ -5900,7 +5900,7 @@ abort:
  		links_map = ahvif->links_map;
  		for_each_set_bit(link_id, &links_map, ATH12K_NUM_MAX_LINKS) {
  			arvif = wiphy_dereference(hw->wiphy, ahvif->link[link_id]);
@@ -436,7 +443,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				continue;
  
  			ar = arvif->ar;
-@@ -7185,6 +7185,14 @@
+@@ -7185,6 +7185,14 @@ static int ath12k_mac_station_remove(str
  	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
  
  	wiphy_work_cancel(ar->ah->hw->wiphy, &arsta->update_wk);
@@ -451,7 +458,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (ahvif->vdev_type == WMI_VDEV_TYPE_STA) {
  		ath12k_bss_disassoc(ar, arvif);
-@@ -7236,7 +7244,7 @@
+@@ -7236,7 +7244,7 @@ static int ath12k_mac_station_add(struct
  	struct ieee80211_vif *vif = ath12k_ahvif_to_vif(arvif->ahvif);
  	struct ieee80211_sta *sta = ath12k_ahsta_to_sta(arsta->ahsta);
  	struct ath12k_wmi_peer_create_arg peer_param = {};
@@ -460,20 +467,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ath12k_link_sta *temp_arsta;
  
  	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
-@@ -7300,6 +7308,12 @@
- 			ath12k_warn(ab, "failed to setup dp for peer %pM on vdev %i (%d)\n",
+@@ -7301,6 +7309,12 @@ static int ath12k_mac_station_add(struct
  				    arsta->addr, arvif->vdev_id, ret);
  			goto free_peer;
-+		}
+ 		}
 +		if (ath12k_ab_to_dp(ab)->ops->ds_peer_setup) {
 +			ds_ret = ath12k_ab_to_dp(ab)->ops->ds_peer_setup(ar, arvif, arsta);
 +			if (ds_ret)
 +				ath12k_warn(ab, "Direct Switch peer metadata setup unavailable: %d\n",
 +					    ds_ret);
- 		}
++		}
  	}
  
-@@ -7393,7 +7407,7 @@
+ 	if (ab->hw_params->vdev_start_delay &&
+@@ -7393,7 +7407,7 @@ static void ath12k_mac_ml_station_remove
  	bool is_recovery = false;
  	unsigned long links;
  	struct ath12k *ar;
@@ -482,7 +489,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 link_id;
  
  	lockdep_assert_wiphy(ah->hw->wiphy);
-@@ -7417,16 +7431,27 @@
+@@ -7417,16 +7431,27 @@ static void ath12k_mac_ml_station_remove
  	for_each_set_bit(link_id, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
  		arvif = wiphy_dereference(ah->hw->wiphy, ahvif->link[link_id]);
  		arsta = wiphy_dereference(ah->hw->wiphy, ahsta->link[link_id]);
@@ -518,7 +525,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		ath12k_mac_free_unassign_link_sta(ah, ahsta, link_id);
  	}
-@@ -7512,6 +7537,13 @@
+@@ -7512,6 +7537,13 @@ static int ath12k_mac_handle_link_sta_st
  				    arsta->addr);
  			goto exit;
  		}
@@ -532,7 +539,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (ath12k_wmi_supports_6ghz_cc_ext(ar) &&
  		    arvif->ahvif->vdev_type == WMI_VDEV_TYPE_STA) {
-@@ -7528,6 +7560,8 @@
+@@ -7528,6 +7560,8 @@ static int ath12k_mac_handle_link_sta_st
  	 */
  	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
  		   new_state == IEEE80211_STA_ASSOC) {
@@ -541,7 +548,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath12k_mac_station_unauthorize(ar, arvif, arsta);
  
  	/* IEEE80211_STA_ASSOC -> IEEE80211_STA_AUTH: disassoc peer connected to
-@@ -11127,10 +11161,14 @@
+@@ -11148,11 +11182,15 @@ static int ath12k_mac_vdev_delete(struct
  	struct ath12k_base *ab = ar->ab;
  	unsigned long time_left;
  	int ret = 0;
@@ -550,13 +557,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	lockdep_assert_wiphy(ath12k_ar_to_hw(ar)->wiphy);
  
  	reinit_completion(&ar->vdev_delete_done);
-+
+ 
 +	if (ath12k_ab_to_dp(ab)->ops->ds_vif_remove)
 +		ath12k_ab_to_dp(ab)->ops->ds_vif_remove(arvif, true, false);
- 
++
  	if (test_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags) &&
  	    list_empty(&arvif->list))
-@@ -11161,8 +11199,12 @@
+ 		goto err_vdev_del;
+@@ -11182,8 +11220,12 @@ static int ath12k_mac_vdev_delete(struct
  
  	ath12k_dbg(ab, ATH12K_DBG_MAC, "vdev %pM deleted, vdev_id %d\n",
  		   vif->addr, arvif->vdev_id);
@@ -569,7 +577,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spin_lock_bh(&ar->data_lock);
  	if (!list_empty(&arvif->list))
  		list_del_init(&arvif->list);
-@@ -15165,10 +15207,12 @@
+@@ -15186,10 +15228,12 @@ static int ath12k_mac_hw_register(struct
  	ieee80211_hw_set(hw, REPORTS_LOW_ACK);
  	ieee80211_hw_set(hw, NO_VIRTUAL_MONITOR);
  
@@ -584,7 +592,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (cap->nss_ratio_enabled)
  		ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
-@@ -15422,6 +15466,7 @@
+@@ -15443,6 +15487,7 @@ static void ath12k_mac_setup(struct ath1
  	init_completion(&ar->scan.completed);
  	init_completion(&ar->scan.on_channel);
  	init_completion(&ar->mlo_setup_done);
@@ -592,7 +600,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	init_completion(&ar->completed_11d_scan);
  	init_completion(&ar->regd_update_completed);
  	init_completion(&ar->thermal.wmi_sync);
-@@ -15528,8 +15573,12 @@
+@@ -15549,8 +15594,12 @@ static int __ath12k_mac_mlo_teardown(str
  	if (num_link == 0)
  		return 0;
  
@@ -605,7 +613,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath12k_warn(ab, "failed to send MLO teardown WMI command for pdev %d: %d\n",
  			    ar->pdev_idx, ret);
  		return ret;
-@@ -15586,20 +15635,42 @@
+@@ -15607,20 +15656,42 @@ void ath12k_mac_mlo_teardown(struct ath1
  {
  	struct ath12k_hw *ah;
  	struct ath12k *ar;
@@ -655,7 +663,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
-@@ -1756,25 +1756,38 @@
+@@ -1756,16 +1756,25 @@ static void ath12k_pci_hw_group_power_do
  	if (!ag)
  		return;
  
@@ -664,43 +672,30 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ath12k_core_hw_group_cleanup(ag);
 +
  	mutex_lock(&ag->mutex);
--
 +	if (test_and_set_bit(ATH12K_GROUP_FLAG_SHUTDOWN, &ag->flags))
 +		goto unlock;
-+
+ 
 +	ath12k_dp_ds_stop_group(ag);
  	for (i = 0; i < ag->num_devices; i++) {
  		ab = ag->ab[i];
  		if (!ab)
  			continue;
  
+-		ath12k_pci_power_down(ab, false);
 +		/* Mixed groups include AHB devices; never cast them to PCI state. */
 +		ath12k_hif_power_down(ab, false);
-+	}
-+
+ 	}
+ 
 +unlock:
-+	mutex_unlock(&ag->mutex);
-+}
-+
-+static void ath12k_pci_shutdown(struct pci_dev *pdev)
-+{
-+	struct ath12k_base *ab = pci_get_drvdata(pdev);
-+	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
-+
-+	ath12k_pci_set_irq_affinity_hint(ab_pci, NULL);
+ 	mutex_unlock(&ag->mutex);
+ }
+ 
+@@ -1775,6 +1784,10 @@ static void ath12k_pci_shutdown(struct p
+ 	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
+ 
+ 	ath12k_pci_set_irq_affinity_hint(ab_pci, NULL);
 +	if (!ab->ag || test_bit(ATH12K_FLAG_QMI_FAIL, &ab->dev_flags)) {
- 		ath12k_pci_power_down(ab, false);
--	}
--
--	mutex_unlock(&ag->mutex);
--}
--
--static void ath12k_pci_shutdown(struct pci_dev *pdev)
--{
--	struct ath12k_base *ab = pci_get_drvdata(pdev);
--	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
--
--	ath12k_pci_set_irq_affinity_hint(ab_pci, NULL);
++		ath12k_pci_power_down(ab, false);
 +		return;
 +	}
  	ath12k_pci_hw_group_power_down(ab->ag);
@@ -708,7 +703,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/peer.c
 +++ b/drivers/net/wireless/ath/ath12k/peer.c
-@@ -563,6 +563,9 @@
+@@ -563,6 +563,9 @@ static int ath12k_link_sta_rhash_insert(
  
  	lockdep_assert_held(&ab->base_lock);
  
@@ -718,7 +713,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	tmp = rhashtable_lookup_get_insert_fast(ab->rhead_sta_addr, &arsta->rhash_addr,
  						ab->rhash_sta_addr_param);
  	if (!tmp)
-@@ -580,6 +583,9 @@
+@@ -580,6 +583,9 @@ static int ath12k_link_sta_rhash_remove(
  
  	lockdep_assert_held(&ab->base_lock);
  
@@ -728,7 +723,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = rhashtable_remove_fast(ab->rhead_sta_addr, &arsta->rhash_addr,
  				     ab->rhash_sta_addr_param);
  	if (ret && ret != -ENOENT)
-@@ -646,7 +652,9 @@
+@@ -646,7 +652,9 @@ int ath12k_link_sta_rhash_tbl_init(struc
  		goto err_free;
  	}
  
@@ -738,31 +733,31 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  
-@@ -658,12 +666,19 @@
+@@ -658,12 +666,19 @@ err_free:
  
  void ath12k_link_sta_rhash_tbl_destroy(struct ath12k_base *ab)
  {
 -	if (!ab->rhead_sta_addr)
+-		return;
 +	struct rhashtable *tbl;
-+
-+	/* Users hold base_lock, clear the pointer under it before freeing */
-+	spin_lock_bh(&ab->base_lock);
-+	tbl = ab->rhead_sta_addr;
-+	ab->rhead_sta_addr = NULL;
-+	spin_unlock_bh(&ab->base_lock);
-+
-+	if (!tbl)
- 		return;
  
 -	rhashtable_destroy(ab->rhead_sta_addr);
 -	kfree(ab->rhead_sta_addr);
--	ab->rhead_sta_addr = NULL;
++	/* Users hold base_lock, clear the pointer under it before freeing */
++	spin_lock_bh(&ab->base_lock);
++	tbl = ab->rhead_sta_addr;
+ 	ab->rhead_sta_addr = NULL;
++	spin_unlock_bh(&ab->base_lock);
++
++	if (!tbl)
++		return;
++
 +	rhashtable_destroy(tbl);
 +	kfree(tbl);
  }
  
  struct ath12k_link_sta *ath12k_link_sta_find_by_addr(struct ath12k_base *ab,
-@@ -671,6 +686,10 @@
+@@ -671,6 +686,10 @@ struct ath12k_link_sta *ath12k_link_sta_
  {
  	lockdep_assert_held(&ab->base_lock);
  
@@ -783,11 +778,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static int ath12k_wifi7_dp_service_srng(struct ath12k_dp *dp,
  					struct ath12k_ext_irq_grp *irq_grp,
-@@ -27,6 +28,14 @@
- 	int tot_work_done = 0;
+@@ -28,6 +29,14 @@ static int ath12k_wifi7_dp_service_srng(
  	enum dp_monitor_mode monitor_mode;
  	u8 ring_mask;
-+
+ 
 +	if (!grp_id) {
 +		work_done = ath12k_wifi7_ds_service(dp, budget);
 +		budget -= work_done;
@@ -795,10 +789,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		if (budget <= 0)
 +			goto done;
 +	}
- 
++
  	if (dp->hw_params->ring_mask->tx[grp_id]) {
  		i = fls(dp->hw_params->ring_mask->tx[grp_id]) - 1;
-@@ -148,6 +157,14 @@
+ 		if (i < dp->hw_params->max_tx_ring)
+@@ -148,6 +157,14 @@ done:
  }
  
  static struct ath12k_dp_arch_ops ath12k_wifi7_dp_arch_ops = {
@@ -813,7 +808,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.service_srng = ath12k_wifi7_dp_service_srng,
  	.tx_get_vdev_bank_config = ath12k_wifi7_dp_tx_get_vdev_bank_config,
  	.reo_cmd_send = ath12k_wifi7_dp_reo_cmd_send,
-@@ -180,10 +197,23 @@
+@@ -180,10 +197,23 @@ struct ath12k_dp *ath12k_wifi7_dp_device
  
  	dp->ops = &ath12k_wifi7_dp_arch_ops;
  
@@ -839,7 +834,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
-@@ -732,7 +732,7 @@
+@@ -732,7 +732,7 @@ try_again:
  		rxcb = ATH12K_SKB_RXCB(msdu);
  		dma_unmap_single(partner_dp->dev, rxcb->paddr,
  				 msdu->len + skb_tailroom(msdu),
@@ -848,7 +843,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		num_buffs_reaped[device_id]++;
  		dp->device_stats.reo_rx[ring_id][dp->device_id]++;
-@@ -1320,7 +1320,7 @@
+@@ -1320,7 +1320,7 @@ ath12k_wifi7_dp_process_rx_err_buf(struc
  	rxcb = ATH12K_SKB_RXCB(msdu);
  	dma_unmap_single(dp->dev, rxcb->paddr,
  			 msdu->len + skb_tailroom(msdu),
@@ -857,7 +852,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (drop) {
  		dev_kfree_skb_any(msdu);
-@@ -1400,7 +1400,7 @@
+@@ -1400,7 +1400,7 @@ static int ath12k_dp_h_msdu_buffer_type(
  	list_add_tail(&desc_info->list, list);
  	rxcb = ATH12K_SKB_RXCB(msdu);
  	dma_unmap_single(dp->dev, rxcb->paddr, msdu->len + skb_tailroom(msdu),
@@ -866,7 +861,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dev_kfree_skb_any(msdu);
  
  	return 0;
-@@ -1975,7 +1975,7 @@
+@@ -1975,7 +1975,7 @@ int ath12k_wifi7_dp_rx_process_wbm_err(s
  		rxcb = ATH12K_SKB_RXCB(msdu);
  		dma_unmap_single(partner_dp->dev, rxcb->paddr,
  				 msdu->len + skb_tailroom(msdu),
@@ -877,7 +872,132 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		total_num_buffs_reaped++;
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -1287,3 +1287,240 @@
+@@ -8,6 +8,7 @@
+  * normal completions recycle buffers without passing payloads to mac80211.
+  */
+ #include <linux/module.h>
++#include <linux/netfilter.h>
+ #include <linux/hashtable.h>
+ #include <linux/delay.h>
+ #include <linux/debugfs.h>
+@@ -71,6 +72,8 @@ struct ath12k_ds_buffer {
+ };
+ 
+ struct ath12k_ds_vp {
++	struct nf_hook_ops control_hook;
++	bool control_registered;
+ 	struct ath12k_vif *vif;
+ 	struct net_device *dev;
+ 	int port, bank;
+@@ -90,6 +93,7 @@ struct ath12k_ds_peer {
+ };
+ 
+ struct ath12k_ds {
++	atomic64_t control_rx;
+ 	struct ath12k_dp *dp;
+ 	struct qcom_ppe_ds *handle;
+ 	struct dp_srng tcl, reo, complete;
+@@ -600,6 +604,7 @@ static int ath12k_ds_stats_show(struct s
+ 	seq_printf(seq, "tx_complete:%lld rx_recycled:%lld bad_cookie:%lld tx_exception:%lld\n",
+ 		   atomic64_read(&ds->tx_completed), atomic64_read(&ds->rx_recycled),
+ 		   atomic64_read(&ds->bad_cookie), atomic64_read(&ds->tx_exception));
++	seq_printf(seq, "control_port_rx:%lld\n", atomic64_read(&ds->control_rx));
+ 	seq_printf(seq, "tx_acked:%lld tx_dropped:%lld\n",
+ 		   atomic64_read(&ds->tx_acked), atomic64_read(&ds->tx_dropped));
+ 	for (i = 0; i < ATH12K_DS_VP_COUNT; i++)
+@@ -905,6 +910,58 @@ static int ath12k_ds_start(struct ath12k
+ 	return ret;
+ }
+ 
++/* DS RX bypasses mac80211. Keep encrypted EAPOL on the owning AP's
++ * nl80211 control port before the bridge can consume it.
++ */
++static unsigned int ath12k_ds_control_rx(void *priv, struct sk_buff *skb,
++				       const struct nf_hook_state *state)
++{
++	struct ath12k_ds *ds = priv;
++	struct net_device *dev = state->in;
++	struct ath12k_ds_peer *peer;
++	const struct ethhdr *eth;
++	bool authorized = false;
++	int mac_len;
++
++	if (skb->protocol != cpu_to_be16(ETH_P_PAE) ||
++	    !dev || !dev->ieee80211_ptr || READ_ONCE(ds->stopped) ||
++	    READ_ONCE(ds->faulted) || !skb_mac_header_was_set(skb))
++		return NF_ACCEPT;
++	mac_len = skb->data - skb_mac_header(skb);
++	if (mac_len < ETH_HLEN || (unsigned int)mac_len > skb_headroom(skb))
++		return NF_ACCEPT;
++	eth = eth_hdr(skb);
++	if (!ether_addr_equal(eth->h_dest, dev->dev_addr))
++		return NF_ACCEPT;
++
++	spin_lock_bh(&ds->peer_lock);
++	hash_for_each_possible(ds->peer_vps, peer, hash,
++			       ether_addr_to_u64(eth->h_source)) {
++		if (peer->dev == dev && READ_ONCE(peer->enabled) &&
++		    READ_ONCE(peer->authorized) &&
++		    ether_addr_equal(peer->addr, eth->h_source)) {
++			authorized = true;
++			break;
++		}
++	}
++	spin_unlock_bh(&ds->peer_lock);
++	if (!authorized || !cfg80211_rx_control_port(dev, skb, false, -1))
++		return NF_ACCEPT;
++
++	atomic64_inc(&ds->control_rx);
++	dev_kfree_skb_any(skb);
++	return NF_STOLEN;
++}
++
++static void ath12k_ds_control_unregister(struct ath12k_ds_vp *vp)
++{
++	if (!vp->control_registered)
++		return;
++	nf_unregister_net_hook(dev_net(vp->dev), &vp->control_hook);
++	synchronize_net();
++	vp->control_registered = false;
++}
++
+ static int ath12k_ds_bind_vif(struct ath12k_ds *ds, struct ath12k_link_vif *arvif)
+ {
+ 	struct ath12k_vif *vif = arvif->ahvif;
+@@ -955,6 +1012,16 @@ static int ath12k_ds_bind_vif(struct ath
+ 	dev_hold(vp->dev);
+ 	vp->port = port;
+ 	vp->bank = bank;
++	vp->control_hook.hook = ath12k_ds_control_rx;
++	vp->control_hook.priv = ds;
++	vp->control_hook.pf = NFPROTO_NETDEV;
++	vp->control_hook.hooknum = NF_NETDEV_INGRESS;
++	vp->control_hook.dev = vp->dev;
++	vp->control_hook.priority = INT_MIN;
++	ret = nf_register_net_hook(dev_net(vp->dev), &vp->control_hook);
++	if (ret)
++		return ret;
++	vp->control_registered = true;
+ 	return port;
+ }
+ 
+@@ -1234,6 +1301,7 @@ void ath12k_wifi7_ds_vif_remove(struct a
+ 				vp = &ds->vps[i];
+ 				if (vp->vif != arvif->ahvif)
+ 					continue;
++				ath12k_ds_control_unregister(vp);
+ 				vp->vif = NULL;
+ 				vp->closing = true;
+ 				if (vp->dev) {
+@@ -1265,6 +1333,7 @@ void ath12k_wifi7_ds_vif_remove(struct a
+ 			if (vp->vif != arvif->ahvif)
+ 				continue;
+ 			if (before) {
++				ath12k_ds_control_unregister(vp);
+ 				vp->closing = true;
+ 				ret = qcom_ppe_ds_vp_route(ds->handle, vp->port, false);
+ 				for (retry = 0; !ret && retry < 200; retry++) {
+@@ -1308,3 +1377,243 @@ void ath12k_wifi7_ds_vif_remove(struct a
  	}
  }
  
@@ -981,6 +1101,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	if (!ds)
 +		return 0;
++	for (i = 0; i < ATH12K_DS_VP_COUNT; i++)
++		ath12k_ds_control_unregister(&ds->vps[i]);
++
 +	cancel_work_sync(&ds->fault_work);
 +	debugfs_remove(ds->debugfs);
 +	ds->debugfs = NULL;

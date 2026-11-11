@@ -1,5 +1,5 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Sat, 25 Jul 2026 16:30:00 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: allow API-1 AHB devices in MLO groups
 
 The firmware feature bitmap is carried by the firmware-2.bin API and the
@@ -12,13 +12,11 @@ has no API-2 feature bitmap. Partner PCI devices continue to require the
 MLO firmware feature bit.
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
----
- drivers/net/wireless/ath/ath12k/core.c | 12 ++++++++++++
- 1 file changed, 12 insertions(+)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -2238,14 +2238,26 @@ void ath12k_core_hw_group_set_mlo_capabl
+@@ -2256,14 +2256,26 @@ void ath12k_core_hw_group_set_mlo_capabl
  		if (!ab)
  			continue;
  

@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "ahb.h"
  #include "core.h"
  #include "dp_tx.h"
-@@ -1207,6 +1208,20 @@
+@@ -1207,6 +1208,20 @@ err_mlo_teardown:
  	return ret;
  }
  
@@ -45,16 +45,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath12k_core_hw_group_start(struct ath12k_hw_group *ag)
  {
  	struct ath12k_base *ab;
-@@ -1221,6 +1236,12 @@
- 			goto err_mac_destroy;
- 		}
+@@ -1223,6 +1238,12 @@ static int ath12k_core_hw_group_start(st
  		goto core_pdev_create;
-+	}
-+
+ 	}
+ 
 +	for (i = 0; i < ag->num_devices; i++) {
 +		ab = ag->ab[i];
 +		if (ab)
 +			ath12k_core_get_mac_address(ab);
- 	}
- 
++	}
++
  	ret = ath12k_mac_allocate(ag);
+ 	if (WARN_ON(ret))
+ 		return ret;

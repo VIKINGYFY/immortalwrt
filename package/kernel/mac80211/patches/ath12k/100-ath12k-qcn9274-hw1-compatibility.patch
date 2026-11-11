@@ -1,21 +1,48 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:27:29 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: support QCN9274 HW1 startup and RX
 
 Consolidate consecutive changes within this functional responsibility.
 Retain the final implementation and its error handling directly.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  100-ath12k-qcn9274-hw1-compatibility.patch - wifi: ath12k: support QCN9274 HW1 startup and RX
+  917-ath12k-align-HW1-native-four-address-RX-headers.patch - wifi: ath12k: align HW1 native four-address RX headers
+
+Previous merged from (100-ath12k-qcn9274-hw1-compatibility.patch):
   100-01-ath12k-prevent-ltssm-startup-crash.patch
   100-02-wifi-ath12k-restore-qcn9274-hw10-rx-support.patch
 
-
-diff --git a/drivers/net/wireless/ath/ath12k/pci.c b/drivers/net/wireless/ath/ath12k/pci.c
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/drivers/net/wireless/ath/ath12k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
+@@ -962,7 +962,18 @@ static void ath12k_dp_rx_h_undecap_nwifi
+ 	/* pull decapped header */
+ 	hdr = (struct ieee80211_hdr *)msdu->data;
+ 	hdr_len = ieee80211_hdrlen(hdr->frame_control);
+-	skb_pull(msdu, hdr_len);
++	/* WBE.1.0 can retain alignment after a native four-address header.
++	 * Some receive paths already remove it; require padding plus SNAP
++	 * rather than stripping two bytes from every HW1 WDS frame.
++	 */
++	if (dp_pdev->dp->ab->hw_rev == ATH12K_HW_QCN9274_HW10 &&
++	    ieee80211_has_a4(hdr->frame_control) && hdr_len % 4 &&
++	    msdu->len >= ALIGN(hdr_len, 4) + 6 &&
++	    !get_unaligned_le16(msdu->data + hdr_len) &&
++	    !memcmp(msdu->data + ALIGN(hdr_len, 4), "\xaa\xaa\x03\x00\x00", 5))
++		skb_pull(msdu, ALIGN(hdr_len, 4));
++	else
++		skb_pull(msdu, hdr_len);
+ 
+ 	/*  Rebuild qos header */
+ 	hdr->frame_control |= __cpu_to_le16(IEEE80211_STYPE_QOS_DATA);
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
-@@ -249,6 +249,9 @@
+@@ -249,6 +249,9 @@ static void ath12k_pci_enable_ltssm(stru
  	u32 val;
  	int i;
  
@@ -27,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* PCIE link seems very unstable after the Hot Reset*/
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
-@@ -2122,15 +2122,23 @@
+@@ -2122,15 +2122,23 @@ int ath12k_dp_rxdma_ring_sel_config_qcn9
  	tlv_filter.offset_valid = true;
  	tlv_filter.rx_packet_offset = hal_rx_desc_sz;
  
@@ -35,9 +62,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		ath12k_hal_rx_desc_get_mpdu_start_offset_qcn9274();
 -	tlv_filter.rx_msdu_end_offset =
 -		ath12k_hal_rx_desc_get_msdu_end_offset_qcn9274();
--
--	tlv_filter.rx_mpdu_start_wmask = ath12k_hal_rx_mpdu_start_wmask_get_qcn9274();
--	tlv_filter.rx_msdu_end_wmask = ath12k_hal_rx_msdu_end_wmask_get_qcn9274();
 +	if (ab->hw_rev == ATH12K_HW_QCN9274_HW10) {
 +		/* WBE.1.0 does not support the compact TLV word masks. */
 +		tlv_filter.rx_mpdu_start_offset =
@@ -49,7 +73,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			ath12k_hal_rx_desc_get_mpdu_start_offset_qcn9274();
 +		tlv_filter.rx_msdu_end_offset =
 +			ath12k_hal_rx_desc_get_msdu_end_offset_qcn9274();
-+
+ 
+-	tlv_filter.rx_mpdu_start_wmask = ath12k_hal_rx_mpdu_start_wmask_get_qcn9274();
+-	tlv_filter.rx_msdu_end_wmask = ath12k_hal_rx_msdu_end_wmask_get_qcn9274();
 +		tlv_filter.rx_mpdu_start_wmask = ath12k_hal_rx_mpdu_start_wmask_get_qcn9274();
 +		tlv_filter.rx_msdu_end_wmask = ath12k_hal_rx_msdu_end_wmask_get_qcn9274();
 +	}
@@ -74,12 +100,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.hw_regs = &qcn9274_v1_regs,
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -1096,6 +1096,378 @@
- 		.wbm_ring_num = 4,
- 		.rbm_id = HAL_RX_BUF_RBM_SW4_BM,
+@@ -1098,6 +1098,378 @@ ath12k_hal_tcl_to_wbm_rbm_map_qcn9274[DP
  	},
-+};
-+
+ };
+ 
 +/* Full RX TLV accessors for the WBE.1.0 firmware used by hw1.0. */
 +static bool ath12k_hal_rx_desc_get_first_msdu_qcn9274_hw10(struct hal_rx_desc *desc)
 +{
@@ -450,9 +474,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	.reo_status_dec_tlv_hdr = ath12k_hal_reo_status_dec_tlv_hdr_qcn9274,
 +	.mon_rx_status_dec_tlv_hdr = ath12k_hal_decode_tlv64_hdr,
 +	.get_tlv_hdr_align = ath12k_hal_get_tlv64_hdr_align,
- };
- 
++};
++
  const struct hal_ops hal_qcn9274_ops = {
+ 	.create_srng_config = ath12k_hal_srng_create_config_qcn9274,
+ 	.rx_desc_set_msdu_len = ath12k_hal_rx_desc_set_msdu_len_qcn9274,
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.h
 @@ -14,6 +14,7 @@
@@ -465,7 +491,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  extern const struct ath12k_hw_regs ipq5332_regs;
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_rx_desc.h
-@@ -1454,6 +1454,13 @@
+@@ -1454,6 +1454,13 @@ struct rx_msdu_end_qcn9274_compact {
   *
   */
  
@@ -479,7 +505,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct hal_rx_desc_qcn9274_compact {
  	struct rx_msdu_end_qcn9274_compact msdu_end;
  	struct rx_mpdu_start_qcn9274_compact mpdu_start;
-@@ -1499,6 +1506,7 @@
+@@ -1499,6 +1506,7 @@ struct hal_rx_desc_qcc2072 {
  
  struct hal_rx_desc {
  	union {
@@ -489,7 +515,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct hal_rx_desc_qcc2072 qcc2072;
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -382,7 +382,7 @@
+@@ -382,7 +382,7 @@ static const struct ath12k_hw_params ath
  			ath12k_wifi7_target_service_to_ce_map_wlan_qcn9274,
  		.svc_to_ce_map_len = 18,
  
@@ -498,7 +524,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.num_rxdma_per_pdev = 1,
  		.num_rxdma_dst_ring = 0,
  		.rx_mac_buf_ring = false,
-@@ -398,7 +398,7 @@
+@@ -398,7 +398,7 @@ static const struct ath12k_hw_params ath
  		.download_calib = true,
  		.supports_suspend = false,
  		.tcl_ring_retry = true,

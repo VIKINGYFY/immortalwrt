@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 25 Oct 2026 14:06:01 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: release firmware at core teardown
 
 Core pre-init maps the API2 container before PCI IRQ, MHI, HAL and CE
@@ -9,10 +9,10 @@ container with its core owner, after bus resources and workqueues stop.
 Keep firmware pointers valid for MHI teardown and recovery.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -2368,6 +2368,7 @@ void ath12k_core_free(struct ath12k_base
+@@ -2375,6 +2375,7 @@ void ath12k_core_free(struct ath12k_base
  	ath12k_wmi_free();
  	destroy_workqueue(ab->workqueue_aux);
  	destroy_workqueue(ab->workqueue);
