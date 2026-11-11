@@ -14,7 +14,8 @@ define Package/be10000-fan-rgb
   CATEGORY:=Utilities
   TITLE:=Xiaomi BE10000 smart fan and RGB ambient LED controls
   DEPENDS:=+ucode +ucode-mod-fs +ucode-mod-uci +ucode-mod-uloop \
-	+coreutils-timeout +luci-base +rpcd +rpcd-mod-file
+	+coreutils-timeout +luci-base +rpcd +rpcd-mod-file \
+	+kmod-hwmon-emc2305
   CONFFILES:=/etc/config/be10000_rgb /etc/config/fancontrol
 endef
 
