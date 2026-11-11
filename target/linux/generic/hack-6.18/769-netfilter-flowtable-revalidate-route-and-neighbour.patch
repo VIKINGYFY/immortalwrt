@@ -1,0 +1,142 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 13:50:00 +0800
+Subject: [PATCH] netfilter: flowtable: revalidate routed direct destinations
+
+Direct flow paths discarded their dst references and never checked a
+changed route or next-hop MAC while hardware counters kept them alive.
+Preserve the routed destination and the neighbour MAC seen during path
+discovery. Reuse GC process context to retire only flows whose
+destination cookie, neighbour address or valid state changed, in both
+software and hardware. Ordinary REACHABLE/STALE refreshes stay cached.
+Pure bridge flows keep their existing FDB checks, and PPP/tunnel paths
+need no invented Ethernet neighbour.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/include/net/netfilter/nf_flow_table.h
++++ b/include/net/netfilter/nf_flow_table.h
+@@ -163,6 +163,10 @@
+ 			u32		iifidx;
+ 		} tc;
+ 	};
++	struct dst_entry		*route_cache;
++	u32				route_cookie;
++	u8				neigh_ha[ETH_ALEN];
++	bool				neigh_valid;
+ 	u32				upper_ifidx[NF_FLOW_TABLE_UPPER_MAX];
+ };
+ 
+@@ -228,6 +232,7 @@
+ 			u32			hw_ifindex;
+ 			u8			h_source[ETH_ALEN];
+ 			u8			h_dest[ETH_ALEN];
++			u8			h_neigh[ETH_ALEN];
+ 			u8			bridge_path:1,
+ 						bridge_vlan:1,
+ 						port_vlans:2;
+--- a/net/netfilter/nf_flow_table_core.c
++++ b/net/netfilter/nf_flow_table_core.c
+@@ -5,6 +5,9 @@
+ #include <linux/netfilter.h>
+ #include <linux/rhashtable.h>
+ #include <linux/if_vlan.h>
++#include <linux/if_arp.h>
++#include <linux/etherdevice.h>
++#include <net/neighbour.h>
+ #include <linux/netdevice.h>
+ #include <net/ip.h>
+ #include <net/ip6_route.h>
+@@ -135,7 +138,22 @@
+ 		flow_tuple->bridge_vlan = route->tuple[dir].out.bridge_vlan;
+ 		flow_tuple->port_vlans = route->tuple[dir].out.port_vlans;
+ 		flow_tuple->out.hw_ifidx = route->tuple[dir].out.hw_ifindex;
+-		dst_release(dst);
++		/* The hardware never executes dst_check() or resolves neighbours.
++		 * Retain the routed destination for the common GC; pure bridge
++		 * flows use flow_offload_bridge_init() and leave this NULL.
++		 */
++		flow_tuple->route_cache = dst;
++		if (flow_tuple->l3proto == NFPROTO_IPV6)
++			flow_tuple->route_cookie = rt6_get_cookie(dst_rt6_info(dst));
++		if (dst->dev->type == ARPHRD_ETHER) {
++			/* Legacy xt_FLOWOFFLOAD paths predate h_neigh. */
++			const u8 *ha = route->tuple[dir].out.h_neigh;
++
++			if (!is_valid_ether_addr(ha))
++				ha = route->tuple[dir].out.h_dest;
++			ether_addr_copy(flow_tuple->neigh_ha, ha);
++			flow_tuple->neigh_valid = true;
++		}
+ 		break;
+ 	case FLOW_OFFLOAD_XMIT_XFRM:
+ 	case FLOW_OFFLOAD_XMIT_NEIGH:
+@@ -155,6 +173,7 @@
+ static void nft_flow_dst_release(struct flow_offload *flow,
+ 				 enum flow_offload_tuple_dir dir)
+ {
++	dst_release(flow->tuplehash[dir].tuple.route_cache);
+ 	if (flow->tuplehash[dir].tuple.xmit_type == FLOW_OFFLOAD_XMIT_NEIGH ||
+ 	    flow->tuplehash[dir].tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)
+ 		dst_release(flow->tuplehash[dir].tuple.dst_cache);
+@@ -576,6 +595,41 @@
+ 	nf_ct_put(ct);
+ }
+ 
++/* Run from GC process context. Compare only the neighbour used by this
++ * direction: ordinary REACHABLE/STALE refreshes do not retire a flow.
++ * The reply source is the post-NAT destination, just as in path discovery.
++ */
++static bool nf_flow_route_valid(struct flow_offload *flow, int dir)
++{
++	const struct flow_offload_tuple *tuple = &flow->tuplehash[dir].tuple;
++	struct dst_entry *dst = tuple->route_cache;
++	const void *daddr = &flow->ct->tuplehash[!dir].tuple.src.u3;
++	struct neighbour *neigh;
++	bool valid;
++
++	if (!dst) {
++		if (tuple->xmit_type == FLOW_OFFLOAD_XMIT_NEIGH ||
++		    tuple->xmit_type == FLOW_OFFLOAD_XMIT_XFRM)
++			return dst_check(tuple->dst_cache, tuple->dst_cookie);
++		return true;
++	}
++	if (!dst_check(dst, tuple->route_cookie))
++		return false;
++	if (!tuple->neigh_valid)
++		return true;
++
++	neigh = dst_neigh_lookup(dst, daddr);
++	if (!neigh)
++		return false;
++	read_lock_bh(&neigh->lock);
++	valid = (neigh->nud_state & NUD_VALID) &&
++		ether_addr_equal(tuple->neigh_ha, neigh->ha);
++	read_unlock_bh(&neigh->lock);
++	neigh_release(neigh);
++
++	return valid;
++}
++
+ static bool nf_flow_dst_valid(struct nf_flowtable *flow_table,
+ 			      struct flow_offload *flow, int dir)
+ {
+@@ -588,6 +642,9 @@
+ 	u16 vid = 0;
+ 	int i;
+ 
++	if (!nf_flow_route_valid(flow, dir))
++		return false;
++
+ 	if (!tuple->bridge_path)
+ 		return true;
+ 
+--- a/net/netfilter/nf_flow_table_path.c
++++ b/net/netfilter/nf_flow_table_path.c
+@@ -271,6 +271,7 @@
+ 	if (info.xmit_type == FLOW_OFFLOAD_XMIT_DIRECT) {
+ 		memcpy(route->tuple[dir].out.h_source, info.h_source, ETH_ALEN);
+ 		memcpy(route->tuple[dir].out.h_dest, info.h_dest, ETH_ALEN);
++		ether_addr_copy(route->tuple[dir].out.h_neigh, ha);
+ 		route->tuple[dir].out.bridge_path = info.bridge_path;
+ 		route->tuple[dir].out.bridge_vlan = info.bridge_vlan;
+ 		route->tuple[dir].out.port_vlans = info.port_vlans;
