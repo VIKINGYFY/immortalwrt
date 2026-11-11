@@ -1,0 +1,296 @@
+From: Felix Fietkau <nbd@nbd.name>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: mac80211: expose stream classification offload operations
+
+Expose SCS programming, flow-priority queries, flow flush and retained MSCS flow notifications to drivers. Keep this adapter contract separate from the classifier engine and debugfs.
+
+Split from:
+  440-wifi-mac80211-classify-transmitted-MSDUs-with-SCS.patch - wifi: mac80211: classify transmitted MSDUs with SCS
+  443-wifi-mac80211-add-the-sta_set_scs-driver-op.patch - wifi: mac80211: add the sta_set_scs driver op
+  448-wifi-mac80211-add-a-flow-priority-query.patch - wifi: mac80211: add a flow priority query
+  449-wifi-mac80211-add-the-flow-offload-flush-op.patch - wifi: mac80211: add the flow offload flush op
+  450-wifi-mac80211-keep-learned-MSCS-entries-of-offloaded.patch - wifi: mac80211: keep learned MSCS entries of offloaded flows
+  475-wifi-mac80211-mark-frames-whose-priority-does-not-fo.patch - wifi: mac80211: mark frames whose priority does not follow the DSCP
+
+Merged from:
+  440-wifi-mac80211-classify-transmitted-MSDUs-with-SCS.patch - wifi: mac80211: classify transmitted MSDUs with SCS
+  443-wifi-mac80211-add-the-sta_set_scs-driver-op.patch - wifi: mac80211: add the sta_set_scs driver op
+  448-wifi-mac80211-add-a-flow-priority-query.patch - wifi: mac80211: add a flow priority query
+  449-wifi-mac80211-add-the-flow-offload-flush-op.patch - wifi: mac80211: add the flow offload flush op
+  450-wifi-mac80211-keep-learned-MSCS-entries-of-offloaded.patch - wifi: mac80211: keep learned MSCS entries of offloaded flows
+  475-wifi-mac80211-mark-frames-whose-priority-does-not-fo.patch - wifi: mac80211: mark frames whose priority does not follow the DSCP
+
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/include/net/mac80211.h
++++ b/include/net/mac80211.h
+@@ -1129,6 +1129,12 @@ enum mac80211_tx_info_flags {
+  * @IEEE80211_TX_CTRL_DONT_USE_RATE_MASK: Don't use rate mask for this frame
+  *	which is transmitted due to scanning or offchannel TX, not in normal
+  *	operation on the interface.
++ * @IEEE80211_TX_CTRL_STREAM_CLASSIFIED: SCS or MSCS set the priority of this
++ *	frame, so it does not follow from the frame contents.
++ * @IEEE80211_TX_CTRL_EXPLICIT_UP: the priority of this frame is not the one
++ *	that cfg80211_dscp_to_up() without a QoS map gives its DSCP, or not 0
++ *	for a frame without a DSCP. A device that classifies an 802.3 frame by
++ *	its DSCP itself must take skb->priority for this frame.
+  * @IEEE80211_TX_CTRL_MLO_LINK: If not @IEEE80211_LINK_UNSPECIFIED, this
+  *	frame should be transmitted on the specific link. This really is
+  *	only relevant for frames that do not have data present, and is
+@@ -1150,6 +1156,8 @@ enum mac80211_tx_control_flags {
+ 	IEEE80211_TX_CTRL_DONT_REORDER		= BIT(8),
+ 	IEEE80211_TX_CTRL_MCAST_MLO_FIRST_TX	= BIT(9),
+ 	IEEE80211_TX_CTRL_DONT_USE_RATE_MASK	= BIT(10),
++	IEEE80211_TX_CTRL_STREAM_CLASSIFIED	= BIT(11),
++	IEEE80211_TX_CTRL_EXPLICIT_UP		= BIT(12),
+ 	IEEE80211_TX_CTRL_MLO_LINK		= 0xf0000000,
+ };
+ 
+@@ -5088,6 +5096,72 @@ struct ieee80211_ops {
+ 			  struct cfg80211_pmsr_request *request);
+ 	void (*abort_pmsr)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 			   struct cfg80211_pmsr_request *request);
++	/**
++	 * @sta_set_scs:
++	 * Called with the SCS descriptors that a station requested, after
++	 * cfg80211 validated them. Optional, only reached when the wiphy
++	 * advertises %NL80211_EXT_FEATURE_SCS. Without it, every descriptor
++	 * with a QoS Characteristics element is declined.
++	 *
++	 * - The results arrive zeroed, which means accepted. Write only
++	 *   refusals, in the result entry of the same index.
++	 * - Decline a descriptor only when its traffic description cannot
++	 *   be served. mac80211 classifies frames in software either way.
++	 * - A declined add or change keeps the previous descriptor of that
++	 *   SCSID. An accepted one without a traffic description replaces
++	 *   the device state of that SCSID.
++	 * - A removal only drops driver state, the result is ignored. A
++	 *   station going away drops its rules without a call.
++	 * - After a hardware restart every stored rule is passed again as
++	 *   an add, one per call, and the result is ignored.
++	 * - A negative return fails the whole request and leaves the rule
++	 *   set unchanged, so the driver must leave the device as it was.
++	 * - The descriptors belong to the MLD, not to one link.
++	 *
++	 * Called with the wiphy mutex held. This callback may sleep.
++	 */
++	int (*sta_set_scs)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
++			   struct ieee80211_sta *sta,
++			   struct cfg80211_scs_desc * const *desc,
++			   struct cfg80211_scs_result *res, u8 n_desc);
++	/**
++	 * @flow_offload_flush:
++	 * Called after the SCS or MSCS rules of a station changed, or after
++	 * the learned MSCS priority of one flow changed. Any priority that
++	 * ieee80211_sta_flow_prio() returned before is stale, so the driver
++	 * must drop the hardware flow entries that use it. With a %NULL
++	 * @key, every entry of the station is stale. Otherwise only the
++	 * entries whose flow, masked to @fields, equals @key are stale.
++	 * @key describes the frames to the station. The driver also drops
++	 * the entries of the same flow in the direction from the station,
++	 * since mac80211 learns an MSCS priority only from frames that it
++	 * receives.
++	 * Optional, only needed by drivers that use ieee80211_sta_flow_prio().
++	 *
++	 * Called with the wiphy mutex held. This callback may sleep.
++	 */
++	void (*flow_offload_flush)(struct ieee80211_hw *hw,
++				   struct ieee80211_vif *vif,
++				   struct ieee80211_sta *sta,
++				   const struct cfg80211_flow_key *key,
++				   u32 fields);
++	/**
++	 * @flow_offload_idle:
++	 * Called before a learned MSCS entry of a station expires. Return
++	 * the time in seconds since the hardware last forwarded a frame of
++	 * the flow whose tuple, masked to @fields, equals @key, or a
++	 * negative error when no offloaded entry matches. The learned entry
++	 * then survives as long as the hardware forwards the flow, and
++	 * @flow_offload_flush is called for the flow, so that its next
++	 * frames from the station reach mac80211. Optional.
++	 *
++	 * Called with the wiphy mutex held. This callback may sleep.
++	 */
++	int (*flow_offload_idle)(struct ieee80211_hw *hw,
++				 struct ieee80211_vif *vif,
++				 struct ieee80211_sta *sta,
++				 const struct cfg80211_flow_key *key,
++				 u32 fields);
+ 	int (*set_tid_config)(struct ieee80211_hw *hw,
+ 			      struct ieee80211_vif *vif,
+ 			      struct ieee80211_sta *sta,
+@@ -6810,6 +6884,29 @@ struct ieee80211_sta *ieee80211_find_sta
+ 					 const u8 *addr);
+ 
+ /**
++ * ieee80211_sta_flow_prio - look up the user priority of a flow
++ *
++ * @pubsta: the station the flow is sent to
++ * @info: the flow as it is sent to @pubsta, after any address translation
++ * @dscp: the DSCP of a packet of the flow, or negative if unknown. Used
++ *	for the QoS map fallback only, when no SCS or MSCS rule matches.
++ * @prio: filled with the user priority, left untouched if no rule matches
++ *	and @dscp is negative
++ *
++ * For drivers that forward flows in hardware without passing the frames
++ * through mac80211. The result is the priority that the software path
++ * assigns to frames of this flow.
++ *
++ * Must be called under RCU lock. Does not sleep.
++ *
++ * Return: 0 on success, or a negative error if a rule refers to a field
++ *	that @info does not carry. Such a flow must not be offloaded.
++ */
++int ieee80211_sta_flow_prio(struct ieee80211_sta *pubsta,
++			    const struct cfg80211_flow_info *info, int dscp,
++			    u8 *prio);
++
++/**
+  * ieee80211_find_sta_by_ifaddr - find a station on hardware
+  *
+  * @hw: pointer as obtained from ieee80211_alloc_hw()
+--- a/net/mac80211/driver-ops.h
++++ b/net/mac80211/driver-ops.h
+@@ -1552,6 +1552,80 @@ static inline void drv_del_nan_func(stru
+ 	trace_drv_return_void(local);
+ }
+ 
++static inline int drv_sta_set_scs(struct ieee80211_local *local,
++				  struct ieee80211_sub_if_data *sdata,
++				  struct sta_info *sta,
++				  struct cfg80211_scs_desc * const *desc,
++				  struct cfg80211_scs_result *res, u8 n_desc)
++{
++	int ret;
++
++	might_sleep();
++	lockdep_assert_wiphy(local->hw.wiphy);
++
++	if (!local->ops->sta_set_scs || !sta->uploaded)
++		return 0;
++
++	sdata = get_bss_sdata(sdata);
++	if (!check_sdata_in_driver(sdata))
++		return -EIO;
++
++	trace_drv_sta_set_scs(local, sdata, &sta->sta, n_desc);
++	ret = local->ops->sta_set_scs(&local->hw, &sdata->vif, &sta->sta, desc,
++				      res, n_desc);
++	trace_drv_return_int(local, ret);
++
++	return ret;
++}
++
++static inline void drv_flow_offload_flush(struct ieee80211_local *local,
++					  struct ieee80211_sub_if_data *sdata,
++					  struct sta_info *sta,
++					  const struct cfg80211_flow_key *key,
++					  u32 fields)
++{
++	might_sleep();
++	lockdep_assert_wiphy(local->hw.wiphy);
++
++	if (!local->ops->flow_offload_flush || !sta->uploaded)
++		return;
++
++	sdata = get_bss_sdata(sdata);
++	if (!check_sdata_in_driver(sdata))
++		return;
++
++	trace_drv_flow_offload_flush(local, sdata, &sta->sta);
++	local->ops->flow_offload_flush(&local->hw, &sdata->vif, &sta->sta, key,
++				       fields);
++	trace_drv_return_void(local);
++}
++
++static inline int drv_flow_offload_idle(struct ieee80211_local *local,
++					struct ieee80211_sub_if_data *sdata,
++					struct sta_info *sta,
++					const struct cfg80211_flow_key *key,
++					u32 fields)
++{
++	int ret;
++
++	might_sleep();
++	lockdep_assert_wiphy(local->hw.wiphy);
++
++	if (!local->ops->flow_offload_idle || !sta->uploaded)
++		return -ENOENT;
++
++	sdata = get_bss_sdata(sdata);
++	if (!check_sdata_in_driver(sdata))
++		return -EIO;
++
++	trace_drv_flow_offload_idle(local, sdata, &sta->sta);
++	ret = local->ops->flow_offload_idle(&local->hw, &sdata->vif, &sta->sta,
++					    key, fields);
++	trace_drv_return_int(local, ret);
++
++	return ret;
++}
++
+ static inline int drv_set_tid_config(struct ieee80211_local *local,
+ 				     struct ieee80211_sub_if_data *sdata,
+ 				     struct ieee80211_sta *sta,
+--- a/net/mac80211/trace.h
++++ b/net/mac80211/trace.h
+@@ -1029,6 +1029,47 @@ DECLARE_EVENT_CLASS(sta_event,
+ 	)
+ );
+ 
++TRACE_EVENT(drv_sta_set_scs,
++	TP_PROTO(struct ieee80211_local *local,
++		 struct ieee80211_sub_if_data *sdata,
++		 struct ieee80211_sta *sta, u8 n_desc),
++
++	TP_ARGS(local, sdata, sta, n_desc),
++
++	TP_STRUCT__entry(
++		LOCAL_ENTRY
++		VIF_ENTRY
++		STA_ENTRY
++		__field(u8, n_desc)
++	),
++
++	TP_fast_assign(
++		LOCAL_ASSIGN;
++		VIF_ASSIGN;
++		STA_ASSIGN;
++		__entry->n_desc = n_desc;
++	),
++
++	TP_printk(
++		LOCAL_PR_FMT  VIF_PR_FMT  STA_PR_FMT " %d descriptors",
++		LOCAL_PR_ARG, VIF_PR_ARG, STA_PR_ARG, __entry->n_desc
++	)
++);
++
++DEFINE_EVENT(sta_event, drv_flow_offload_flush,
++	TP_PROTO(struct ieee80211_local *local,
++		 struct ieee80211_sub_if_data *sdata,
++		 struct ieee80211_sta *sta),
++	TP_ARGS(local, sdata, sta)
++);
++
++DEFINE_EVENT(sta_event, drv_flow_offload_idle,
++	TP_PROTO(struct ieee80211_local *local,
++		 struct ieee80211_sub_if_data *sdata,
++		 struct ieee80211_sta *sta),
++	TP_ARGS(local, sdata, sta)
++);
++
+ DEFINE_EVENT(sta_event, drv_sta_statistics,
+ 	TP_PROTO(struct ieee80211_local *local,
+ 		 struct ieee80211_sub_if_data *sdata,
+--- a/net/mac80211/util.c
++++ b/net/mac80211/util.c
+@@ -1744,6 +1744,8 @@ static void ieee80211_reconfig_stations(
+ 		     state < sta->sta_state; state++)
+ 			WARN_ON(drv_sta_state(local, sta->sdata, sta, state,
+ 					      state + 1));
++
++		ieee80211_sta_scs_reconfig(sta);
+ 	}
+ }
+ 

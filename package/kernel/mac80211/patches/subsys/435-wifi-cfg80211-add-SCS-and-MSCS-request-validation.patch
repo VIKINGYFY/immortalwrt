@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 28 Aug 2026 10:04:32 +0200
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: cfg80211: add SCS and MSCS request validation
 
 The element parsers validate each classifier element on its own. Add
@@ -24,6 +24,7 @@ An MSCS descriptor needs a classifier mask unless it is a removal, and
 a non-zero stream timeout.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/cfg80211.h
 +++ b/include/net/cfg80211.h
@@ -74,6 +75,32 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * struct cfg80211_scs_verdict - result of an SCS evaluation
   *
   * @match: an SCS descriptor matched the MSDU
+--- a/include/uapi/linux/nl80211.h
++++ b/include/uapi/linux/nl80211.h
+@@ -6199,6 +6199,23 @@ enum nl80211_tx_power_setting {
+ };
+ 
+ /**
++ * enum nl80211_scs_req_type - SCS or MSCS request type
++ *
++ * The values match the Request Type field of the descriptor on the air.
++ *
++ * @NL80211_SCS_REQ_ADD: create the stream, replacing an active one of the
++ *	same identifier
++ * @NL80211_SCS_REQ_REMOVE: terminate the stream
++ * @NL80211_SCS_REQ_CHANGE: modify an active stream, leaving it in force if
++ *	the request is declined
++ */
++enum nl80211_scs_req_type {
++	NL80211_SCS_REQ_ADD,
++	NL80211_SCS_REQ_REMOVE,
++	NL80211_SCS_REQ_CHANGE,
++};
++
++/**
+  * enum nl80211_tid_config - TID config state
+  * @NL80211_TID_CONFIG_ENABLE: Enable config for the TID
+  * @NL80211_TID_CONFIG_DISABLE: Disable config for the TID
 --- a/net/wireless/core.h
 +++ b/net/wireless/core.h
 @@ -646,6 +646,8 @@ int cfg80211_parse_tclas(const u8 *elems
@@ -87,7 +114,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #define EXPORT_SYMBOL_IF_CFG80211_KUNIT(sym) EXPORT_SYMBOL_IF_KUNIT(sym)
 --- a/net/wireless/scs.c
 +++ b/net/wireless/scs.c
-@@ -882,3 +882,96 @@ void cfg80211_scs_evaluate(struct cfg802
+@@ -912,3 +912,96 @@ void cfg80211_scs_evaluate(struct cfg802
  	}
  }
  EXPORT_SYMBOL(cfg80211_scs_evaluate);
@@ -184,29 +211,3 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	/* A zero timeout would expire every entry at the next collection */
 +	return remove || desc->stream_timeout;
 +}
---- a/include/uapi/linux/nl80211.h
-+++ b/include/uapi/linux/nl80211.h
-@@ -6199,6 +6199,23 @@ enum nl80211_tx_power_setting {
- };
- 
- /**
-+ * enum nl80211_scs_req_type - SCS or MSCS request type
-+ *
-+ * The values match the Request Type field of the descriptor on the air.
-+ *
-+ * @NL80211_SCS_REQ_ADD: create the stream, replacing an active one of the
-+ *	same identifier
-+ * @NL80211_SCS_REQ_REMOVE: terminate the stream
-+ * @NL80211_SCS_REQ_CHANGE: modify an active stream, leaving it in force if
-+ *	the request is declined
-+ */
-+enum nl80211_scs_req_type {
-+	NL80211_SCS_REQ_ADD,
-+	NL80211_SCS_REQ_REMOVE,
-+	NL80211_SCS_REQ_CHANGE,
-+};
-+
-+/**
-  * enum nl80211_tid_config - TID config state
-  * @NL80211_TID_CONFIG_ENABLE: Enable config for the TID
-  * @NL80211_TID_CONFIG_DISABLE: Disable config for the TID

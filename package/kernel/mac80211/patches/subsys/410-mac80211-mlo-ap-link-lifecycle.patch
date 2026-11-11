@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Thu, 05 Nov 2026 15:55:19 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: mac80211: preserve active AP links and MBSSID lifetime
 
 Since stop_ap works per link, ___cfg80211_stop_ap() stops one link of an AP
@@ -19,16 +19,23 @@ which walks every active link of the interface. The stop of one link of an
 AP MLD thus takes apart the MBSSID set of each other link and stops the
 interfaces of those sets, on radios that keep running.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  410-mac80211-mlo-ap-link-lifecycle.patch - wifi: mac80211: preserve active AP links and MBSSID lifetime
+  458-wifi-mac80211-send-MLO-group-frames-only-on-links-wi.patch - wifi: mac80211: send MLO group frames only on links with a  running AP
+  479-wifi-mac80211-wait-for-RCU-only-when-a-vif-link-is-r.patch - wifi: mac80211: wait for RCU only when a vif link is removed
+
+Previous merged from (410-mac80211-mlo-ap-link-lifecycle.patch):
   410-wifi-cfg80211-keep-the-interface-state-while-another-AP-link-beacons.patch
   411-wifi-mac80211-keep-the-carrier-while-another-AP-link-beacons.patch
   412-wifi-mac80211-stop-only-the-MBSSID-set-of-the-stopped-AP-link.patch
 
-Based on work by:
-  Felix Fietkau <nbd@nbd.name>
-
 Original-commit: ce8ef1122015eea58c300485a330320985a27a19
 Original-commit: 73a2d8189877717fc31ce69167a38cc02197a1d0
+Fixes: 963d0e8d08d9 ("wifi: mac80211: optionally implement MLO multicast TX")
+Fixes: b2e8434f1829 ("wifi: mac80211: set up/tear down client vif links properly")
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
 Signed-off-by: ViKing <viking.yfy@qq.com>
@@ -202,6 +209,93 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ieee80211_stop(struct net_device *dev)
+--- a/net/mac80211/link.c
++++ b/net/mac80211/link.c
+@@ -195,6 +195,9 @@ static void ieee80211_tear_down_links(st
+ 	LIST_HEAD(keys);
+ 	unsigned int link_id;
+ 
++	if (!mask)
++		return;
++
+ 	for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS; link_id++) {
+ 		if (!(mask & BIT(link_id)))
+ 			continue;
+--- a/net/mac80211/tx.c
++++ b/net/mac80211/tx.c
+@@ -3951,6 +3951,32 @@ static bool ieee80211_drop_unauth_port(s
+ 	return true;
+ }
+ 
++/* a stopped link of an AP MLD stays in active_links until the link goes */
++static bool ieee80211_ap_link_running(struct ieee80211_sub_if_data *sdata,
++				      unsigned int link_id)
++{
++	struct ieee80211_sub_if_data *ap = container_of(sdata->bss,
++					   struct ieee80211_sub_if_data, u.ap);
++	struct ieee80211_link_data *link = rcu_dereference(ap->link[link_id]);
++
++	return link && rcu_access_pointer(link->u.ap.beacon);
++}
++
++/* the AP of the link of a group addressed frame can stop after the enqueue */
++static bool ieee80211_tx_link_stopped(struct ieee80211_sub_if_data *sdata,
++				      struct ieee80211_tx_info *info)
++{
++	unsigned int link_id = u32_get_bits(info->control.flags,
++					    IEEE80211_TX_CTRL_MLO_LINK);
++
++	if (link_id == IEEE80211_LINK_UNSPECIFIED ||
++	    (sdata->vif.type != NL80211_IFTYPE_AP &&
++	     sdata->vif.type != NL80211_IFTYPE_AP_VLAN))
++		return false;
++
++	return !ieee80211_ap_link_running(sdata, link_id);
++}
++
+ struct sk_buff *ieee80211_tx_dequeue(struct ieee80211_hw *hw,
+ 				     struct ieee80211_txq *txq)
+ {
+@@ -4015,6 +4041,11 @@ begin:
+ 	tx.skb = skb;
+ 	tx.sdata = vif_to_sdata(info->control.vif);
+ 
++	if (!txq->sta && ieee80211_tx_link_stopped(tx.sdata, info)) {
++		ieee80211_free_txskb(&local->hw, skb);
++		goto begin;
++	}
++
+ 	if (txq->sta) {
+ 		tx.sta = container_of(txq->sta, struct sta_info, sta);
+ 
+@@ -4628,11 +4659,26 @@ static void ieee80211_mlo_multicast_tx_o
+ 	__ieee80211_subif_start_xmit(out, sdata->dev, 0, ctrl_flags, NULL);
+ }
+ 
++static u16 ieee80211_mlo_multicast_links(struct ieee80211_sub_if_data *sdata)
++{
++	unsigned long active = sdata->vif.active_links;
++	unsigned int link_id;
++	u16 links = 0;
++
++	rcu_read_lock();
++	for_each_set_bit(link_id, &active, IEEE80211_MLD_MAX_NUM_LINKS)
++		if (ieee80211_ap_link_running(sdata, link_id))
++			links |= BIT(link_id);
++	rcu_read_unlock();
++
++	return links;
++}
++
+ static void ieee80211_mlo_multicast_tx(struct net_device *dev,
+ 				       struct sk_buff *skb)
+ {
+ 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+-	unsigned long links = sdata->vif.active_links;
++	unsigned long links = ieee80211_mlo_multicast_links(sdata);
+ 	unsigned int link;
+ 	u32 ctrl_flags = IEEE80211_TX_CTRL_MCAST_MLO_FIRST_TX;
+ 
 --- a/net/wireless/ap.c
 +++ b/net/wireless/ap.c
 @@ -35,12 +35,15 @@ static int ___cfg80211_stop_ap(struct cf

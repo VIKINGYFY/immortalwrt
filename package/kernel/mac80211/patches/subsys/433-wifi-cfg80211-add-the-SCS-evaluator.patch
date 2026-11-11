@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 28 Aug 2026 10:04:32 +0200
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: cfg80211: add the SCS evaluator
 
 Add cfg80211_scs_evaluate(), which walks the active SCS descriptors of
@@ -15,11 +15,20 @@ IPv6 next header. Without a frame it does not match.
 Add struct cfg80211_scs_desc, which holds the part of a parsed
 descriptor that the evaluator reads.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Merged from:
+  433-wifi-cfg80211-add-the-SCS-evaluator.patch - wifi: cfg80211: add the SCS evaluator
+  446-wifi-cfg80211-report-an-undecided-SCS-evaluation.patch - wifi: cfg80211: report an undecided SCS evaluation
+  466-wifi-cfg80211-match-SCS-descriptors-on-their-client-.patch - wifi: cfg80211: match SCS descriptors on their client address
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/cfg80211.h
 +++ b/include/net/cfg80211.h
-@@ -4277,6 +4277,40 @@ bool cfg80211_flow_key_build(const struc
+@@ -4277,6 +4277,44 @@ bool cfg80211_flow_key_build(const struc
  			     struct cfg80211_flow_key *key);
  
  /**
@@ -43,11 +52,15 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 + * struct cfg80211_scs_verdict - result of an SCS evaluation
 + *
 + * @match: an SCS descriptor matched the MSDU
++ * @undecided: a descriptor that did not match selects a parameter that the
++ *	MSDU lacks. A caller that evaluates a flow instead of a frame must
++ *	not derive a flow rule from this verdict.
 + * @scsid: identifier of the matching descriptor
 + * @up: user priority to assign
 + */
 +struct cfg80211_scs_verdict {
 +	bool match;
++	bool undecided;
 +	u8 scsid;
 +	u8 up;
 +};
@@ -62,7 +75,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * NAN uses two interface types:
 --- a/net/wireless/scs.c
 +++ b/net/wireless/scs.c
-@@ -690,3 +690,195 @@ bool cfg80211_flow_key_build(const struc
+@@ -690,3 +690,225 @@ bool cfg80211_flow_key_build(const struc
  	return true;
  }
  EXPORT_SYMBOL(cfg80211_flow_key_build);
@@ -132,14 +145,18 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +}
 +
 +static bool tclas_filter_match(const struct cfg80211_tclas *t,
-+			       const struct cfg80211_flow_info *info)
++			       const struct cfg80211_flow_info *info,
++			       bool *undecided)
 +{
 +	const struct cfg80211_tclas_filter *f = &t->filter;
 +	u8 buf[CFG80211_TCLAS_FILTER_LEN], *p;
 +	unsigned int i, off;
 +
-+	if (!info->skb)
++	if (!info->skb) {
++		*undecided = true;
++
 +		return false;
++	}
 +
 +	if (!tclas_filter_offset(info, f, &off))
 +		return false;
@@ -156,16 +173,19 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +}
 +
 +static bool tclas_match(const struct cfg80211_tclas *t,
-+			const struct cfg80211_flow_info *info)
++			const struct cfg80211_flow_info *info, bool *undecided)
 +{
 +	struct cfg80211_flow_key key;
 +
 +	if (t->type == CFG80211_TCLAS_FILTER)
-+		return tclas_filter_match(t, info);
++		return tclas_filter_match(t, info, undecided);
 +
 +	if (!cfg80211_flow_key_build(info, t->fields, CFG80211_FLOW_AS_IS,
-+				     &key))
++				     &key)) {
++		*undecided = true;
++
 +		return false;
++	}
 +
 +	return !memcmp(&key, &t->key, sizeof(key));
 +}
@@ -183,13 +203,14 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +}
 +
 +static bool scs_desc_match(const struct cfg80211_scs_desc *desc,
-+			   const struct cfg80211_flow_info *info)
++			   const struct cfg80211_flow_info *info,
++			   bool *undecided)
 +{
 +	unsigned int i;
 +	bool any = false;
 +
 +	for (i = 0; i < desc->n_tclas; i++) {
-+		if (tclas_match(&desc->tclas[i], info)) {
++		if (tclas_match(&desc->tclas[i], info, undecided)) {
 +			any = true;
 +			continue;
 +		}
@@ -199,6 +220,22 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	}
 +
 +	return any;
++}
++
++/* The client is not a classifier parameter, so it does not add to the count */
++static bool scs_desc_client_match(const struct cfg80211_scs_desc *desc,
++				  const struct cfg80211_flow_info *info,
++				  bool *undecided)
++{
++	if (is_zero_ether_addr(desc->client))
++		return true;
++
++	if (!(info->present & FLOW_F(ETH_DA))) {
++		*undecided = true;
++		return false;
++	}
++
++	return ether_addr_equal(desc->client, info->key.da);
 +}
 +
 +static u16 scs_desc_param_count(const struct cfg80211_scs_desc *desc)
@@ -230,7 +267,8 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 + * @verdict: receives the result
 + *
 + * When several descriptors match, the one with the most classifier parameters
-+ * wins. An equal count keeps the first.
++ * wins. An equal count keeps the first. A descriptor with a client only
++ * matches an MSDU addressed to that client.
 + */
 +void cfg80211_scs_evaluate(struct cfg80211_scs_desc * const *desc, u8 n_desc,
 +			   const struct cfg80211_flow_info *info,
@@ -242,10 +280,15 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	memset(verdict, 0, sizeof(*verdict));
 +
 +	for (i = 0; i < n_desc; i++) {
++		bool undecided = false;
 +		u16 count;
 +
-+		if (!scs_desc_match(desc[i], info))
++		if (!scs_desc_client_match(desc[i], info, &undecided) ||
++		    !scs_desc_match(desc[i], info, &undecided)) {
++			/* A missing parameter only matters without a match */
++			verdict->undecided |= undecided;
 +			continue;
++		}
 +
 +		count = scs_desc_param_count(desc[i]);
 +		if (count <= best)

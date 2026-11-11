@@ -2,7 +2,8 @@
 
 Keep the standard PatchDir order: build, subsys, common ath, individual ath
 drivers and the remaining vendors. Kernel-version-labelled backports retain
-exact filenames/content, including the Raspberry Pi 6.12 series. The build
+their filenames, order and provenance, including the Raspberry Pi 6.12 series.
+Standard Quilt context refresh is allowed with identical expanded source. The build
 unaligned-header backport also retains its Linux 6.12 source reference.
 
 | Area | Responsibilities |
@@ -36,3 +37,27 @@ capability parser once each. Bridge and routed flowtables request the upstream
 IEEE80211 terminal path; ath11k/ath12k do not duplicate it with AP-only callbacks.
 PPDU limits remain separate. The sole PPDU-limit and 394 management-link units
 have no series subindex.
+
+SCS/MSCS uses final per-client state and learning (439), software classification
+hooks (440), driver offload operations (443), and diagnostics (444). The
+classifier engine is introduced once, without a temporary single-MSCS store
+or debugfs iterator that a later patch replaces. cfg80211 parsing, validation
+and netlink protocol remain separate from mac80211's implementation.
+
+ath12k firmware-memory contracts (315-01), allocation ownership (315-02), and
+root-PD recovery (315-03) are separate units. Named reservations, bounded AHB
+host-DDR views, optional DMA allocation and shared MLO pools retain their final
+ownership rules directly. Host RX profiles remain independent. HW1 descriptor
+compatibility (100) is separate from firmware MLO group admission (101).
+
+Direct Switch ring ownership contains the bounded TCL halt/restore sequence;
+peer/VAP handling contains four-address CPU fallback; lifecycle integration
+contains control-port delivery. ath11k management TX IDR cleanup remains a
+separate lifetime unit. NSS ring descriptions, host-ring handover, VDEV data,
+authorization and interface unwind own their associated repairs, including
+QCN9074 bus addressing and host TX software allocation. Recovery producer
+ordering and experimental NSS controls retain separate responsibilities.
+
+Use basenames, original subjects and preserved provenance chains in
+`Split from:` and `Merged from:`. Standard Quilt refresh also covers version-
+labelled backports while retaining their original source provenance.

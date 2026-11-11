@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 28 Aug 2026 10:04:32 +0200
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: cfg80211: add set_scs and set_mscs driver ops
 
 Add the ops that install the SCS descriptors and the MSCS of one peer,
@@ -16,6 +16,7 @@ request as a whole. A peer has at most one active MSCS, so set_mscs
 returns a single status.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/cfg80211.h
 +++ b/include/net/cfg80211.h
@@ -35,7 +36,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * struct cfg80211_mscs_desc - the MSCS of one peer
   *
   * @req_type: add, remove or change
-@@ -5419,6 +5428,13 @@ struct mgmt_frame_regs {
+@@ -5423,6 +5432,13 @@ struct mgmt_frame_regs {
   *
   * @set_qos_map: Set QoS mapping information to the driver
   *
@@ -49,7 +50,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * @set_ap_chanwidth: Set the AP (including P2P GO) mode channel width for the
   *	given interface This is used e.g. for dynamic HT 20/40 MHz channel width
   *	changes during the lifetime of the BSS.
-@@ -5832,6 +5848,13 @@ struct cfg80211_ops {
+@@ -5836,6 +5852,13 @@ struct cfg80211_ops {
  			       struct net_device *dev,
  			       struct cfg80211_qos_map *qos_map);
  
@@ -63,6 +64,28 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	int	(*set_ap_chanwidth)(struct wiphy *wiphy, struct net_device *dev,
  				    unsigned int link_id,
  				    struct cfg80211_chan_def *chandef);
+--- a/include/uapi/linux/nl80211.h
++++ b/include/uapi/linux/nl80211.h
+@@ -7291,6 +7291,10 @@ enum nl80211_feature_flags {
+  *	%NL80211_CMD_ADV_TTLM_ENDED. A link that the mapping disables or
+  *	enables is a critical update (35.3.10), so the request also needs
+  *	%NL80211_EXT_FEATURE_BEACON_CRIT_UPDATE.
++ * @NL80211_EXT_FEATURE_SCS: Driver supports the stream classification
++ *	service, configured with %NL80211_CMD_SET_SCS.
++ * @NL80211_EXT_FEATURE_MSCS: Driver supports the mirrored stream
++ *	classification service, configured with %NL80211_CMD_SET_MSCS.
+  *
+  * @NUM_NL80211_EXT_FEATURES: number of extended features.
+  * @MAX_NL80211_EXT_FEATURES: highest extended feature index.
+@@ -7378,6 +7382,8 @@ enum nl80211_ext_feature_index {
+ 	NL80211_EXT_FEATURE_UPDATE_BEACON,
+ 	NL80211_EXT_FEATURE_BEACON_CRIT_UPDATE,
+ 	NL80211_EXT_FEATURE_AP_ADV_TTLM,
++	NL80211_EXT_FEATURE_SCS,
++	NL80211_EXT_FEATURE_MSCS,
+ 
+ 	/* add new features before the definition below */
+ 	NUM_NL80211_EXT_FEATURES,
 --- a/net/wireless/core.c
 +++ b/net/wireless/core.c
 @@ -968,6 +968,16 @@ int wiphy_register(struct wiphy *wiphy)
@@ -181,25 +204,3 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  TRACE_EVENT(rdev_add_tx_ts,
  	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev,
  		 u8 tsid, const u8 *peer, u8 user_prio, u16 admitted_time),
---- a/include/uapi/linux/nl80211.h
-+++ b/include/uapi/linux/nl80211.h
-@@ -7291,6 +7291,10 @@ enum nl80211_feature_flags {
-  *	%NL80211_CMD_ADV_TTLM_ENDED. A link that the mapping disables or
-  *	enables is a critical update (35.3.10), so the request also needs
-  *	%NL80211_EXT_FEATURE_BEACON_CRIT_UPDATE.
-+ * @NL80211_EXT_FEATURE_SCS: Driver supports the stream classification
-+ *	service, configured with %NL80211_CMD_SET_SCS.
-+ * @NL80211_EXT_FEATURE_MSCS: Driver supports the mirrored stream
-+ *	classification service, configured with %NL80211_CMD_SET_MSCS.
-  *
-  * @NUM_NL80211_EXT_FEATURES: number of extended features.
-  * @MAX_NL80211_EXT_FEATURES: highest extended feature index.
-@@ -7378,6 +7382,8 @@ enum nl80211_ext_feature_index {
- 	NL80211_EXT_FEATURE_UPDATE_BEACON,
- 	NL80211_EXT_FEATURE_BEACON_CRIT_UPDATE,
- 	NL80211_EXT_FEATURE_AP_ADV_TTLM,
-+	NL80211_EXT_FEATURE_SCS,
-+	NL80211_EXT_FEATURE_MSCS,
- 
- 	/* add new features before the definition below */
- 	NUM_NL80211_EXT_FEATURES,

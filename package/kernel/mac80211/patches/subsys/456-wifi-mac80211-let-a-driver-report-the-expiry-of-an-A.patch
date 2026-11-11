@@ -1,7 +1,6 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Fri, 30 Oct 2026 22:23:01 +0800
-Subject: [PATCH] wifi: mac80211: let a driver report the expiry of an AP
- Removal Timer
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: mac80211: let a driver report the expiry of an AP  Removal Timer
 
 A driver with NL80211_EXT_FEATURE_AP_REMOVAL_TIMER_OFFLOAD learns of the
 expiry from a device event, which can come in atomic context, while
@@ -14,13 +13,11 @@ removes the interface, which comes after the stop of the interface, so
 the teardown of the interface cancels the work as well.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -6126,6 +6126,21 @@ void ieee80211_crit_update_done(struct i
+@@ -6131,6 +6131,21 @@ void ieee80211_crit_update_done(struct i
  				unsigned int link_id, u32 crit_update_id);
  
  /**

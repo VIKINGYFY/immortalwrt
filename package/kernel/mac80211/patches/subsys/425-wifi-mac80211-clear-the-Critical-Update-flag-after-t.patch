@@ -1,7 +1,6 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 10 Oct 2026 08:00:00 +0200
-Subject: [PATCH] wifi: mac80211: clear the Critical Update flag after the
- DTIM Beacon
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: mac80211: clear the Critical Update flag after the  DTIM Beacon
 
 mac80211 sends the beacon head of user space as it is, so the Critical
 Update flag stays in the Beacon frames until user space updates the
@@ -36,7 +35,8 @@ after a channel switch or a colour change keeps the ID that user space
 gave for it.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/include/linux/ieee80211.h
 +++ b/include/linux/ieee80211.h
 @@ -1384,6 +1384,8 @@ struct ieee80211_tdls_data {
@@ -371,7 +371,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		wiphy_hrtimer_work_cancel(link->sdata->local->hw.wiphy,
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -5668,6 +5668,46 @@ ieee80211_beacon_add_mbssid(struct sk_bu
+@@ -5714,6 +5714,46 @@ ieee80211_beacon_add_mbssid(struct sk_bu
  			     beacon->mbssid_ies->elem[i].len);
  }
  
@@ -418,7 +418,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static struct sk_buff *
  __ieee80211_beacon_get_ap(struct ieee80211_hw *hw,
  			  struct ieee80211_vif *vif,
-@@ -5709,6 +5749,8 @@ __ieee80211_beacon_get_ap(struct ieee802
+@@ -5755,6 +5795,8 @@ __ieee80211_beacon_get_ap(struct ieee802
  	skb_put_data(skb, beacon->head, beacon->head_len);
  
  	ieee80211_beacon_add_tim(sdata, link, &ap->ps, skb, is_template);

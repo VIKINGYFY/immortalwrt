@@ -1,7 +1,6 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 11 Oct 2026 20:00:00 +0200
-Subject: [PATCH] wifi: mac80211: pass the advertised TID-to-link mapping to
- the driver
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: mac80211: pass the advertised TID-to-link mapping to  the driver
 
 Pass a request for an advertised TID-to-link mapping of an AP MLD to the
 driver, and let the driver report each step to user space with
@@ -22,7 +21,8 @@ advertised mapping. mac80211 writes the field before it protects the
 Beacon frame, so the MIC stays valid.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
 @@ -4719,6 +4719,21 @@ struct ieee80211_prep_tx_info {
@@ -223,6 +223,27 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static inline void
  drv_prep_add_interface(struct ieee80211_local *local,
  		       enum nl80211_iftype type)
+--- a/net/mac80211/ieee80211_i.h
++++ b/net/mac80211/ieee80211_i.h
+@@ -1121,6 +1121,8 @@ static inline u32 ieee80211_crit_update_
+ 	return (u64)val >> 32;
+ }
+ 
++#define IEEE80211_ADV_TTLM_DURATION_SET	BIT(31)
++
+ struct ieee80211_link_data_ap {
+ 	struct beacon_data __rcu *beacon;
+ 	struct probe_resp __rcu *probe_resp;
+@@ -1135,6 +1137,9 @@ struct ieee80211_link_data_ap {
+ 
+ 	/* IEEE80211_CRIT_UPDATE() */
+ 	atomic64_t crit_update;
++
++	/* IEEE80211_ADV_TTLM_DURATION_SET | duration, or 0 */
++	u32 adv_ttlm_duration;
+ };
+ 
+ struct ieee80211_link_data {
 --- a/net/mac80211/trace.h
 +++ b/net/mac80211/trace.h
 @@ -3302,6 +3302,63 @@ TRACE_EVENT(stop_queue,
@@ -289,30 +310,9 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  TRACE_EVENT(drv_can_neg_ttlm,
  	    TP_PROTO(struct ieee80211_local *local,
  		     struct ieee80211_sub_if_data *sdata,
---- a/net/mac80211/ieee80211_i.h
-+++ b/net/mac80211/ieee80211_i.h
-@@ -1121,6 +1121,8 @@ static inline u32 ieee80211_crit_update_
- 	return (u64)val >> 32;
- }
- 
-+#define IEEE80211_ADV_TTLM_DURATION_SET	BIT(31)
-+
- struct ieee80211_link_data_ap {
- 	struct beacon_data __rcu *beacon;
- 	struct probe_resp __rcu *probe_resp;
-@@ -1135,6 +1137,9 @@ struct ieee80211_link_data_ap {
- 
- 	/* IEEE80211_CRIT_UPDATE() */
- 	atomic64_t crit_update;
-+
-+	/* IEEE80211_ADV_TTLM_DURATION_SET | duration, or 0 */
-+	u32 adv_ttlm_duration;
- };
- 
- struct ieee80211_link_data {
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -5708,6 +5708,40 @@ static void ieee80211_beacon_crit_update
+@@ -5754,6 +5754,40 @@ static void ieee80211_beacon_crit_update
  	}
  }
  
@@ -353,7 +353,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static struct sk_buff *
  __ieee80211_beacon_get_ap(struct ieee80211_hw *hw,
  			  struct ieee80211_vif *vif,
-@@ -5769,6 +5803,8 @@ __ieee80211_beacon_get_ap(struct ieee802
+@@ -5815,6 +5849,8 @@ __ieee80211_beacon_get_ap(struct ieee802
  	if (beacon->tail)
  		skb_put_data(skb, beacon->tail, beacon->tail_len);
  

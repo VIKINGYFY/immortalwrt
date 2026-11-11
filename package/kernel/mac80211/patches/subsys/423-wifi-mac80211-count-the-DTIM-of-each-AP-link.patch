@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Fri, 30 Oct 2026 22:23:01 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: mac80211: count the DTIM of each AP link
 
 __ieee80211_beacon_add_tim() counts the DTIM in sdata->u.ap.ps, which
@@ -21,9 +21,8 @@ is in the directory of each link; for another AP it stays in the
 directory of the interface.
 
 Fixes: 6e8912a50375 ("wifi: mac80211: return a beacon for a specific link")
-Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
 
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/cfg.c
@@ -108,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	netif_carrier_on(sdata->dev);
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -5228,6 +5228,10 @@ static void __ieee80211_beacon_add_tim(s
+@@ -5274,6 +5274,10 @@ static void __ieee80211_beacon_add_tim(s
  	bool mcast_traffic = false, have_bits = false;
  	struct ieee80211_bss_conf *link_conf = link->conf;
  	bool s1g = ieee80211_get_link_sband(link)->band == NL80211_BAND_S1GHZ;
@@ -119,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Generate bitmap for TIM only if there are any STAs in power save
  	 * mode. */
-@@ -5238,19 +5242,19 @@ static void __ieee80211_beacon_add_tim(s
+@@ -5284,19 +5288,19 @@ static void __ieee80211_beacon_add_tim(s
  					  IEEE80211_MAX_AID + 1);
  
  	if (!is_template) {
@@ -144,7 +143,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mcast_traffic = true;
  
  	ps->dtim_bc_mc = mcast_traffic;
-@@ -6353,6 +6357,7 @@ ieee80211_get_buffered_bc(struct ieee802
+@@ -6399,6 +6403,7 @@ ieee80211_get_buffered_bc(struct ieee802
  	struct ps_data *ps;
  	struct ieee80211_tx_info *info;
  	struct ieee80211_chanctx_conf *chanctx_conf;
@@ -152,7 +151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	sdata = vif_to_sdata(vif);
  
-@@ -6370,13 +6375,15 @@ ieee80211_get_buffered_bc(struct ieee802
+@@ -6416,13 +6421,15 @@ ieee80211_get_buffered_bc(struct ieee802
  			goto out;
  
  		ps = &sdata->u.ap.ps;
