@@ -9,7 +9,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
-@@ -811,6 +811,40 @@
+@@ -811,6 +811,40 @@ endif
  CFLAGS += -DTLS_DEFAULT_CIPHERS=\"$(CONFIG_TLS_DEFAULT_CIPHERS)\"
  endif
  
@@ -50,17 +50,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifeq ($(CONFIG_TLS), gnutls)
  ifndef CONFIG_CRYPTO
  # default to libgcrypt
-@@ -990,7 +1024,9 @@
+@@ -990,9 +1024,11 @@ endif
  
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-wrap.o
+ endif
+ endif
 +endif
- endif
- endif
  ifdef NEED_AES_EAX
-@@ -1002,15 +1038,21 @@
+ AESOBJS += ../src/crypto/aes-eax.o
+ NEED_AES_CTR=y
+@@ -1002,38 +1038,48 @@ AESOBJS += ../src/crypto/aes-siv.o
  NEED_AES_CTR=y
  endif
  ifdef NEED_AES_CTR
@@ -71,39 +73,45 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef NEED_AES_ENCBLOCK
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-encblock.o
-+endif
  endif
++endif
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-omac1.o
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
-@@ -1018,8 +1060,10 @@
+ ifdef NEED_AES_UNWRAP
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  NEED_AES_DEC=y
  AESOBJS += ../src/crypto/aes-unwrap.o
+ endif
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
-@@ -1029,7 +1073,9 @@
+ ifdef NEED_AES_CBC
+ NEED_AES_DEC=y
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-cbc.o
+ endif
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
-@@ -1048,12 +1094,16 @@
+ ifdef NEED_AES_DEC
+ ifdef CONFIG_INTERNAL_AES
+ AESOBJS += ../src/crypto/aes-internal-dec.o
+@@ -1048,12 +1094,16 @@ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -120,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef CONFIG_INTERNAL_SHA1
  SHA1OBJS += ../src/crypto/sha1-internal.o
  ifdef NEED_FIPS186_2_PRF
-@@ -1062,14 +1112,20 @@
+@@ -1062,16 +1112,22 @@ endif
  endif
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -137,21 +145,27 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef NEED_TLS_PRF
 +ifneq ($(CONFIG_TLS), mbedtls)
  SHA1OBJS += ../src/crypto/sha1-tlsprf.o
+ endif
+ endif
 +endif
- endif
- endif
  
-@@ -1081,7 +1137,9 @@
+ ifdef NEED_SHA1
+ OBJS += $(SHA1OBJS)
+@@ -1081,11 +1137,13 @@ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/md5.o
+ endif
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
-@@ -1138,32 +1196,46 @@
+ 
+ ifdef NEED_MD5
+ ifdef CONFIG_INTERNAL_MD5
+@@ -1138,59 +1196,81 @@ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -176,29 +190,29 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef NEED_TLS_PRF_SHA384
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha384-tlsprf.o
-+endif
  endif
++endif
  ifdef NEED_HMAC_SHA256_KDF
  CFLAGS += -DCONFIG_HMAC_SHA256_KDF
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha256-kdf.o
-+endif
  endif
++endif
  ifdef NEED_HMAC_SHA384_KDF
  CFLAGS += -DCONFIG_HMAC_SHA384_KDF
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha384-kdf.o
-+endif
  endif
++endif
  ifdef NEED_HMAC_SHA512_KDF
  CFLAGS += -DCONFIG_HMAC_SHA512_KDF
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha512-kdf.o
-+endif
  endif
++endif
  ifdef NEED_SHA384
  CFLAGS += -DCONFIG_SHA384
-@@ -1171,12 +1243,16 @@
+ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -211,11 +225,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +endif
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha384-prf.o
-+endif
  endif
++endif
  ifdef NEED_SHA512
  CFLAGS += -DCONFIG_SHA512
-@@ -1184,12 +1260,16 @@
+ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -228,21 +242,26 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +endif
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha512-prf.o
-+endif
  endif
++endif
  
  ifdef CONFIG_INTERNAL_SHA384
-@@ -1235,7 +1315,9 @@
+ CFLAGS += -DCONFIG_INTERNAL_SHA384
+@@ -1235,11 +1315,13 @@ HOBJS += $(SHA1OBJS)
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  HOBJS += ../src/crypto/md5.o
+ endif
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
-@@ -1424,7 +1506,9 @@
+ 
+ ifdef CONFIG_RADIUS_SERVER
+ CFLAGS += -DRADIUS_SERVER
+@@ -1424,7 +1506,9 @@ NOBJS += ../src/utils/trace.o
  endif
  
  HOBJS += hlr_auc_gw.o ../src/utils/common.o ../src/utils/wpa_debug.o ../src/utils/os_$(CONFIG_OS).o ../src/utils/wpabuf.o ../src/crypto/milenage.o
@@ -252,7 +271,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef CONFIG_INTERNAL_AES
  HOBJS += ../src/crypto/aes-internal.o
  HOBJS += ../src/crypto/aes-internal-enc.o
-@@ -1447,6 +1531,7 @@
+@@ -1447,6 +1531,7 @@ SOBJS += ../src/common/sae.o
  SOBJS += ../src/common/sae_pk.o
  SOBJS += ../src/common/dragonfly.o
  SOBJS += $(AESOBJS)
@@ -260,7 +279,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
-@@ -1460,17 +1545,22 @@
+@@ -1460,17 +1545,22 @@ endif
  SOBJS += ../src/crypto/sha256-prf.o
  SOBJS += ../src/crypto/sha384-prf.o
  SOBJS += ../src/crypto/sha512-prf.o
@@ -285,14 +304,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  _OBJS_VAR := NOBJS
 --- a/hostapd/defconfig
 +++ b/hostapd/defconfig
-@@ -6,8 +6,18 @@
+@@ -6,9 +6,19 @@
  # just setting VARIABLE=n is not disabling that variable.
  #
  # This file is included in Makefile, so variables like CFLAGS and LIBS can also
 -# be modified from here. In most cass, these lines should use += in order not
 +# be modified from here. In most cases, these lines should use += in order not
  # to override previous values of the variables.
-+
+ 
 +# Uncomment following two lines and fix the paths if you have installed TLS
 +# libraries in a non-default location
 +#CFLAGS += -I/usr/local/openssl/include
@@ -302,10 +321,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +# the kerberos files are not in the default include path. Following line can be
 +# used to fix build issues on such systems (krb5.h not found).
 +#CFLAGS += -I/usr/include/kerberos
- 
++
  # Driver interface for wired authenticator
  #CONFIG_DRIVER_WIRED=y
-@@ -274,6 +284,7 @@
+ 
+@@ -274,6 +284,7 @@ CONFIG_IPV6=y
  # openssl = OpenSSL (default)
  # gnutls = GnuTLS
  # internal = Internal TLSv1 implementation (experimental)
@@ -7712,7 +7732,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +CFLAGS += -Werror
 --- a/tests/hwsim/example-hostapd.config
 +++ b/tests/hwsim/example-hostapd.config
-@@ -4,6 +4,7 @@
+@@ -4,6 +4,7 @@ CONFIG_DRIVER_NONE=y
  CONFIG_DRIVER_NL80211=y
  CONFIG_RSN_PREAUTH=y
  
@@ -7720,16 +7740,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #CONFIG_TLS=internal
  #CONFIG_INTERNAL_LIBTOMMATH=y
  #CONFIG_INTERNAL_LIBTOMMATH_FAST=y
-@@ -37,6 +38,9 @@
+@@ -39,6 +40,9 @@ endif
+ ifeq ($(CONFIG_TLS), wolfssl)
  CONFIG_EAP_PWD=y
  endif
- ifeq ($(CONFIG_TLS), wolfssl)
++ifeq ($(CONFIG_TLS), mbedtls)
 +CONFIG_EAP_PWD=y
 +endif
-+ifeq ($(CONFIG_TLS), mbedtls)
- CONFIG_EAP_PWD=y
- endif
  CONFIG_EAP_EKE=y
+ CONFIG_PKCS12=y
+ CONFIG_RADIUS_SERVER=y
 --- a/tests/hwsim/example-wpa_supplicant.config
 +++ b/tests/hwsim/example-wpa_supplicant.config
 @@ -2,6 +2,7 @@
@@ -7740,19 +7760,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #CONFIG_TLS=internal
  #CONFIG_INTERNAL_LIBTOMMATH=y
  #CONFIG_INTERNAL_LIBTOMMATH_FAST=y
-@@ -39,6 +40,9 @@
+@@ -41,6 +42,9 @@ endif
+ ifeq ($(CONFIG_TLS), wolfssl)
  CONFIG_EAP_PWD=y
  endif
- ifeq ($(CONFIG_TLS), wolfssl)
++ifeq ($(CONFIG_TLS), mbedtls)
 +CONFIG_EAP_PWD=y
 +endif
-+ifeq ($(CONFIG_TLS), mbedtls)
- CONFIG_EAP_PWD=y
- endif
  
+ CONFIG_USIM_SIMULATOR=y
+ CONFIG_SIM_SIMULATOR=y
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
-@@ -1320,6 +1320,29 @@
+@@ -1320,6 +1320,29 @@ endif
  CFLAGS += -DTLS_DEFAULT_CIPHERS=\"$(CONFIG_TLS_DEFAULT_CIPHERS)\"
  endif
  
@@ -7782,27 +7802,31 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifeq ($(CONFIG_TLS), gnutls)
  ifndef CONFIG_CRYPTO
  # default to libgcrypt
-@@ -1512,7 +1535,9 @@
+@@ -1512,9 +1535,11 @@ endif
  
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  NEED_INTERNAL_AES_WRAP=y
+ endif
+ endif
 +endif
- endif
- endif
  ifdef CONFIG_OPENSSL_INTERNAL_AES_WRAP
-@@ -1528,7 +1553,9 @@
+ # Seems to be needed at least with BoringSSL
+ NEED_INTERNAL_AES_WRAP=y
+@@ -1528,9 +1553,11 @@ endif
  
  ifdef NEED_INTERNAL_AES_WRAP
  ifneq ($(CONFIG_TLS), linux)
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-unwrap.o
+ endif
+ endif
 +endif
- endif
- endif
  ifdef NEED_AES_EAX
-@@ -1540,23 +1567,31 @@
+ AESOBJS += ../src/crypto/aes-eax.o
+ NEED_AES_CTR=y
+@@ -1540,35 +1567,45 @@ AESOBJS += ../src/crypto/aes-siv.o
  NEED_AES_CTR=y
  endif
  ifdef NEED_AES_CTR
@@ -7813,38 +7837,42 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef NEED_AES_ENCBLOCK
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-encblock.o
-+endif
  endif
++endif
  NEED_AES_ENC=y
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-omac1.o
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
  ifdef NEED_AES_WRAP
  NEED_AES_ENC=y
  ifdef NEED_INTERNAL_AES_WRAP
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-wrap.o
+ endif
+ endif
 +endif
- endif
- endif
  ifdef NEED_AES_CBC
-@@ -1564,7 +1599,9 @@
+ NEED_AES_ENC=y
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  AESOBJS += ../src/crypto/aes-cbc.o
+ endif
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
-@@ -1583,12 +1620,16 @@
+ ifdef NEED_AES_ENC
+ ifdef CONFIG_INTERNAL_AES
+ AESOBJS += ../src/crypto/aes-internal-enc.o
+@@ -1583,12 +1620,16 @@ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -7861,7 +7889,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef CONFIG_INTERNAL_SHA1
  SHA1OBJS += ../src/crypto/sha1-internal.o
  ifdef NEED_FIPS186_2_PRF
-@@ -1600,15 +1641,21 @@
+@@ -1600,29 +1641,37 @@ CFLAGS += -DCONFIG_NO_PBKDF2
  else
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -7879,21 +7907,27 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef NEED_TLS_PRF
 +ifneq ($(CONFIG_TLS), mbedtls)
  SHA1OBJS += ../src/crypto/sha1-tlsprf.o
+ endif
+ endif
 +endif
- endif
- endif
  
-@@ -1617,7 +1664,9 @@
+ ifndef CONFIG_FIPS
+ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  MD5OBJS += ../src/crypto/md5.o
+ endif
+ endif
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
-@@ -1677,12 +1726,17 @@
+ ifdef NEED_MD5
+ ifdef CONFIG_INTERNAL_MD5
+ MD5OBJS += ../src/crypto/md5-internal.o
+@@ -1677,12 +1726,17 @@ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -7911,7 +7945,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef CONFIG_INTERNAL_SHA256
  SHA256OBJS += ../src/crypto/sha256-internal.o
  endif
-@@ -1695,22 +1749,32 @@
+@@ -1695,50 +1749,68 @@ CFLAGS += -DCONFIG_INTERNAL_SHA512
  SHA256OBJS += ../src/crypto/sha512-internal.o
  endif
  ifdef NEED_TLS_PRF_SHA256
@@ -7922,29 +7956,29 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef NEED_TLS_PRF_SHA384
 +ifneq ($(CONFIG_TLS), mbedtls)
  SHA256OBJS += ../src/crypto/sha384-tlsprf.o
-+endif
  endif
++endif
  ifdef NEED_HMAC_SHA256_KDF
  CFLAGS += -DCONFIG_HMAC_SHA256_KDF
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha256-kdf.o
-+endif
  endif
++endif
  ifdef NEED_HMAC_SHA384_KDF
  CFLAGS += -DCONFIG_HMAC_SHA384_KDF
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha384-kdf.o
-+endif
  endif
++endif
  ifdef NEED_HMAC_SHA512_KDF
  CFLAGS += -DCONFIG_HMAC_SHA512_KDF
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha512-kdf.o
-+endif
  endif
++endif
  OBJS += $(SHA256OBJS)
  ifdef NEED_SHA384
-@@ -1718,26 +1782,34 @@
+ ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
  ifneq ($(CONFIG_TLS), gnutls)
  ifneq ($(CONFIG_TLS), wolfssl)
@@ -7958,8 +7992,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  CFLAGS += -DCONFIG_SHA384
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha384-prf.o
-+endif
  endif
++endif
  ifdef NEED_SHA512
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), linux)
@@ -7975,20 +8009,24 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  CFLAGS += -DCONFIG_SHA512
 +ifneq ($(CONFIG_TLS), mbedtls)
  OBJS += ../src/crypto/sha512-prf.o
-+endif
  endif
++endif
  
  ifdef NEED_ASN1
-@@ -1913,7 +1985,9 @@
+ OBJS += ../src/tls/asn1.o
+@@ -1913,10 +1985,12 @@ ifdef CONFIG_FIPS
  CFLAGS += -DCONFIG_FIPS
  ifneq ($(CONFIG_TLS), openssl)
  ifneq ($(CONFIG_TLS), wolfssl)
 +ifneq ($(CONFIG_TLS), mbedtls)
  $(error CONFIG_FIPS=y requires CONFIG_TLS=openssl)
+ endif
+ endif
+ endif
 +endif
- endif
- endif
- endif
+ 
+ OBJS += $(SHA1OBJS) $(DESOBJS)
+ 
 --- a/wpa_supplicant/defconfig
 +++ b/wpa_supplicant/defconfig
 @@ -10,8 +10,8 @@
@@ -8002,15 +8040,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #CFLAGS += -I/usr/local/openssl/include
  #LIBS += -L/usr/local/openssl/lib
  
-@@ -19,6 +19,7 @@
- # the kerberos files are not in the default include path. Following line can be
+@@ -20,6 +20,7 @@
  # used to fix build issues on such systems (krb5.h not found).
  #CFLAGS += -I/usr/include/kerberos
-+
  
++
  # Driver interface for generic Linux wireless extensions
  # Note: WEXT is deprecated in the current Linux kernel version and no new
-@@ -329,6 +330,7 @@
+ # functionality is added to it. nl80211-based interface is the new
+@@ -329,6 +330,7 @@ CONFIG_BACKEND=file
  # openssl = OpenSSL (default)
  # gnutls = GnuTLS
  # internal = Internal TLSv1 implementation (experimental)

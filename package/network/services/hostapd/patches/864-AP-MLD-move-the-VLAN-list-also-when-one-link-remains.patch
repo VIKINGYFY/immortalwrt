@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1519,6 +1519,7 @@
+@@ -1519,6 +1519,7 @@ void hostapd_config_free_eap_user(struct
  void hostapd_config_free_eap_users(struct hostapd_eap_user *user);
  void hostapd_config_clear_wpa_psk(struct hostapd_wpa_psk **p);
  void hostapd_config_clear_rxkhs(struct hostapd_bss_config *conf);
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int hostapd_maclist_found(struct mac_acl_entry *list, int num_entries,
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1718,14 +1718,15 @@
+@@ -1718,14 +1718,15 @@ void hostapd_free_hapd_data(struct hosta
  /* hostapd_mld_move_vlan_list - Move the VLAN list to the new first bss
   *
   * This function is used to copy the reference to the VLAN list from the old
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -6838,16 +6839,9 @@
+@@ -6838,16 +6839,9 @@ int hostapd_mld_remove_link(struct hosta
  	if (dl_list_empty(&mld->links)) {
  		mld->fbss = NULL;
  	} else {

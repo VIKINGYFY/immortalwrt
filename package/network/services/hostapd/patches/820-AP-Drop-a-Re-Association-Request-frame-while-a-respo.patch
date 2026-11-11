@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -5550,6 +5550,37 @@
+@@ -5550,6 +5550,37 @@ static const u8 * auth_peer_link_addr(st
  #endif /* CONFIG_IEEE80211BE */
  
  
@@ -80,7 +80,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void handle_auth(struct hostapd_data *hapd,
  			const struct ieee80211_mgmt *mgmt, size_t len,
  			int rssi, int from_queue)
-@@ -5944,6 +5975,9 @@
+@@ -5944,6 +5975,9 @@ static void handle_auth(struct hostapd_d
  
  	sta->last_seq_ctrl = seq_ctrl;
  	sta->last_subtype = WLAN_FC_STYPE_AUTH;
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_MBO
  	sta->auth_rssi = rssi;
  #endif /* CONFIG_MBO */
-@@ -8861,6 +8895,7 @@
+@@ -8861,6 +8895,7 @@ void fils_hlp_finish_assoc(struct hostap
  				    sta->fils_pending_assoc_is_reassoc,
  				    sta->fils_pending_assoc_req,
  				    sta->fils_pending_assoc_req_len, 0, 0);
@@ -98,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_free(sta->fils_pending_assoc_req);
  	sta->fils_pending_assoc_req = NULL;
  	sta->fils_pending_assoc_req_len = 0;
-@@ -9139,6 +9174,13 @@
+@@ -9139,6 +9174,13 @@ static void handle_assoc(struct hostapd_
  			       seq_ctrl);
  		return;
  	}
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sta->last_seq_ctrl = seq_ctrl;
  	sta->last_subtype = reassoc ? WLAN_FC_STYPE_REASSOC_REQ :
  		WLAN_FC_STYPE_ASSOC_REQ;
-@@ -9448,6 +9490,8 @@
+@@ -9448,6 +9490,8 @@ static void handle_assoc(struct hostapd_
  					    NULL : sta,
  					    mgmt->sa, resp, reassoc,
  					    pos, left, rssi, omit_rsnxe);
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (set_beacon)
  		ieee802_11_update_beacons(hapd->iface);
-@@ -10388,6 +10432,7 @@
+@@ -10388,6 +10432,7 @@ static void handle_assoc_cb(struct hosta
  #ifdef CONFIG_ENC_ASSOC
  	epp_sta = sta->epp_sta;
  #endif /* CONFIG_ENC_ASSOC */
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ap_sta_is_mld(hapd, sta) &&
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -276,6 +276,7 @@
+@@ -276,6 +276,7 @@ struct sta_info {
  	u16 last_seq_ctrl;
  	/* Last Authentication/(Re)Association Request/Action frame subtype */
  	u8 last_subtype;

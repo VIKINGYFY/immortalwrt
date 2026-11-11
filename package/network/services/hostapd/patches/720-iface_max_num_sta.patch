@@ -10,35 +10,35 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3029,6 +3029,14 @@
- 		    bss->max_num_sta > MAX_STA_COUNT) {
- 			wpa_printf(MSG_ERROR, "Line %d: Invalid max_num_sta=%d; allowed range 0..%d",
+@@ -3031,6 +3031,14 @@ static int hostapd_config_fill(struct ho
  				   line, bss->max_num_sta, MAX_STA_COUNT);
-+			return 1;
-+		}
+ 			return 1;
+ 		}
 +	} else if (os_strcmp(buf, "iface_max_num_sta") == 0) {
 +		conf->max_num_sta = atoi(pos);
 +		if (conf->max_num_sta < 0 ||
 +		    conf->max_num_sta > MAX_STA_COUNT) {
 +			wpa_printf(MSG_ERROR, "Line %d: Invalid max_num_sta=%d; allowed range 0..%d",
 +				   line, conf->max_num_sta, MAX_STA_COUNT);
- 			return 1;
- 		}
++			return 1;
++		}
  	} else if (os_strcmp(buf, "wpa") == 0) {
+ 		bss->wpa = atoi(pos);
+ 	} else if (os_strcmp(buf, "extended_key_id") == 0) {
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1129,6 +1129,8 @@
- 
+@@ -1130,6 +1130,8 @@ struct hostapd_config {
  	unsigned int track_sta_max_num;
  	unsigned int track_sta_max_age;
-+
-+	int max_num_sta;
  
++	int max_num_sta;
++
  	char country[3]; /* first two octets: country code as described in
  			  * ISO/IEC 3166-1. Third octet:
+ 			  * ' ' (ascii 32): all environments
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -1769,7 +1769,7 @@
+@@ -1769,7 +1769,7 @@ void handle_probe_req(struct hostapd_dat
  	if (hapd->conf->no_probe_resp_if_max_sta &&
  	    is_multicast_ether_addr(mgmt->da) &&
  	    is_multicast_ether_addr(mgmt->bssid) &&
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   " since no room for additional STA",
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -288,6 +288,29 @@
+@@ -288,6 +288,29 @@ static int hostapd_remove_hapd_iface(str
  	return 0;
  }
  
@@ -81,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -913,6 +913,7 @@
+@@ -913,6 +913,7 @@ int hostapd_owe_trans_get_info(struct ho
  bool hostapd_owe_trans_static(struct hostapd_bss_config *conf);
  void hostapd_owe_update_trans(struct hostapd_iface *iface);
  void hostapd_ocv_check_csa_sa_query(void *eloop_ctx, void *timeout_ctx);

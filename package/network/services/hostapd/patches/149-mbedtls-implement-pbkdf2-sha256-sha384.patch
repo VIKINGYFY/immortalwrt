@@ -11,19 +11,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/crypto_mbedtls.c
 +++ b/src/crypto/crypto_mbedtls.c
-@@ -150,6 +150,11 @@
- #if !defined(CONFIG_NO_PBKDF2)
+@@ -151,6 +151,11 @@
  #define CRYPTO_MBEDTLS_PBKDF2_SHA1
  #endif /* pbkdf2_sha1() */
-+
+ 
 +#if defined(CONFIG_NAN) || defined(CONFIG_NAN_USD)
 +#define CRYPTO_MBEDTLS_PBKDF2_SHA256
 +#define CRYPTO_MBEDTLS_PBKDF2_SHA384
 +#endif /* pbkdf2_sha256() pbkdf2_sha384() */
- 
++
  #if defined(EAP_IKEV2) \
   || defined(EAP_IKEV2_DYNAMIC) \
-@@ -933,19 +938,22 @@
+  || defined(EAP_SERVER_IKEV2) /* CONFIG_EAP_IKEV2=y */
+@@ -933,19 +938,22 @@ int des_encrypt(const u8 *clear, const u
  #endif
  
  
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (md_info == NULL)
  		return -1;
  	mbedtls_md_context_t ctx;
-@@ -953,10 +961,38 @@
+@@ -953,13 +961,41 @@ int pbkdf2_sha1(const char *passphrase,
  	int ret = mbedtls_md_setup(&ctx, md_info, 1)
  	       || mbedtls_pkcs5_pbkdf2_hmac(&ctx,
  			(const u8 *)passphrase, os_strlen(passphrase),
@@ -62,9 +62,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mbedtls_md_free(&ctx);
  	return ret;
    #endif
-+}
-+#endif
-+
+ }
+ #endif
+ 
 +#ifdef CRYPTO_MBEDTLS_PBKDF2_SHA1
 +/* sha1-pbkdf2.c */
 +int pbkdf2_sha1(const char *passphrase, const u8 *ssid, size_t ssid_len,
@@ -90,6 +90,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	return crypto_mbedtls_pbkdf2(MBEDTLS_MD_SHA384, passphrase,
 +	                             salt, salt_len, iterations, buf, buflen);
- }
- #endif
++}
++#endif
++
+ 
+ /*#include "aes.h"*/ /* prototypes also included in "crypto.h" */
  

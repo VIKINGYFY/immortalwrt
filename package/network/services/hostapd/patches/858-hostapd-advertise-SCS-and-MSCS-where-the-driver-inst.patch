@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -141,7 +141,8 @@
+@@ -141,7 +141,8 @@ u8 * hostapd_eid_eht_capab(struct hostap
  	os_memset(cap, 0, sizeof(*cap));
  	cap->mac_cap = host_to_le16(eht_cap->mac_cap);
  #ifdef CONFIG_ROBUST_AV
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_memcpy(cap->phy_cap, eht_cap->phy_cap, EHT_PHY_CAPAB_LEN);
 --- a/src/ap/ieee802_11_shared.c
 +++ b/src/ap/ieee802_11_shared.c
-@@ -437,6 +437,10 @@
+@@ -437,6 +437,10 @@ static void hostapd_ext_capab_byte(struc
  	case 6: /* Bits 48-55 */
  		if (hapd->conf->ssid.utf8_ssid)
  			*pos |= 0x01; /* Bit 48 - UTF-8 SSID */
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
  	case 7: /* Bits 56-63 */
  		break;
-@@ -482,6 +486,10 @@
+@@ -482,6 +486,10 @@ static void hostapd_ext_capab_byte(struc
  		if (mbssid_complete)
  			*pos |= 0x01; /* Bit 80 - Complete List of NonTxBSSID
  				       * Profiles */

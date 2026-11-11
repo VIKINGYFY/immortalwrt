@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  out_unlock:
  	mutex_unlock(&bus->mdio_lock);
  	return ret;
-@@ -56,37 +67,41 @@
+@@ -56,37 +67,41 @@ out_unlock:
  static int rtl837x_mdio_read(void *ctx, u32 reg, u32 *val)
  {
  	struct realtek_priv *priv = ctx;
@@ -133,7 +133,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = 0;
  
  out_unlock:
-@@ -178,6 +193,11 @@
+@@ -178,6 +193,11 @@ static int rtl837x_mdio_probe(struct mdi
  		return ret;
  	}
  
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	priv->mdio_addr = mdiodev->addr;
  	priv->bus = mdiodev->bus;
  	priv->dev = dev;
-@@ -196,14 +216,14 @@
+@@ -196,14 +216,14 @@ static int rtl837x_mdio_probe(struct mdi
  	dev_set_drvdata(dev, priv);
  
  	/* Request the reset asserted; the polarity comes from the DT flag */
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* This chip takes a long time to fully reset */
  		usleep_range(50000, 51100);
  		gpiod_set_value_cansleep(priv->reset, 0);
-@@ -211,6 +231,11 @@
+@@ -211,6 +231,11 @@ static int rtl837x_mdio_probe(struct mdi
  		dev_dbg(dev, "deasserted RESET\n");
  	}
  
@@ -174,7 +174,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = priv->ops->detect(priv);
  	if (ret) {
  		dev_err(dev, "unable to detect switch\n");
-@@ -228,6 +253,15 @@
+@@ -228,6 +253,15 @@ static int rtl837x_mdio_probe(struct mdi
  	if (var->pl_mac_ops)
  		priv->ds->phylink_mac_ops = var->pl_mac_ops;
  
@@ -190,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = dsa_register_switch(priv->ds);
  	if (ret) {
  		dev_err(priv->dev, "unable to register switch ret = %d\n", ret);
-@@ -238,15 +272,24 @@
+@@ -238,15 +272,24 @@ static int rtl837x_mdio_probe(struct mdi
  	if (of_property_read_bool(np, "gpio-controller")) {
  		ret = rtl837x_gpiochip_init(priv);
  		if (ret)
@@ -217,7 +217,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void rtl837x_mdio_remove(struct mdio_device *mdiodev)
-@@ -258,17 +301,12 @@
+@@ -258,17 +301,12 @@ static void rtl837x_mdio_remove(struct m
  
  	rtl837x_debug_proc_deinit(priv);
  

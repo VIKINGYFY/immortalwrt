@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/tls_mbedtls.c
 +++ b/src/crypto/tls_mbedtls.c
-@@ -198,6 +198,8 @@
+@@ -198,6 +198,8 @@ struct tls_connection {
  	struct wpabuf *pull_buf;
  	size_t pull_buf_offset;
  
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int established:1;
  	unsigned int resumed:1;
  	unsigned int verify_peer:1;
-@@ -451,6 +453,7 @@
+@@ -451,6 +453,7 @@ struct tls_connection * tls_connection_i
  		/* check for CRL refresh if inheriting from global config */
  		tls_mbedtls_refresh_crl(global);
  
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		conn->verify_peer = conn->tls_conf->verify_peer;
  		if (tls_mbedtls_ssl_setup(conn) != 0) {
  			tls_connection_deinit(global, conn);
-@@ -1916,6 +1919,7 @@
+@@ -1916,6 +1919,7 @@ int tls_connection_set_params(void *tls_
  
  	if (tls_mbedtls_set_params(tls_conf, params) != 0)
  		return -1;
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	conn->verify_peer = tls_conf->verify_peer;
  
  	return tls_mbedtls_ssl_setup(conn);
-@@ -1927,7 +1931,7 @@
+@@ -1927,7 +1931,7 @@ int tls_connection_set_params(void *tls_
  static int tls_mbedtls_clienthello_session_ticket_prep (struct tls_connection *conn,
                                                          const u8 *data, size_t len)
  {
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -1;
  	if (conn->clienthello_session_ticket)
  		tls_connection_deinit_clienthello_session_ticket(conn);
-@@ -2063,6 +2067,22 @@
+@@ -2063,6 +2067,22 @@ int tls_global_set_verify(void *tls_ctx,
  }
  
  
@@ -97,15 +97,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int tls_connection_set_verify(void *tls_ctx, struct tls_connection *conn,
  			      int verify_peer, unsigned int flags,
  			      const u8 *session_ctx, size_t session_ctx_len)
-@@ -2070,8 +2090,21 @@
+@@ -2070,8 +2090,21 @@ int tls_connection_set_verify(void *tls_
  	/*(EAP server-side calls this from eap_server_tls_ssl_init())*/
  	if (conn == NULL)
  		return -1;
--
--	conn->tls_conf->flags |= flags;/* TODO: reprocess flags, if necessary */
 +	if (conn->tls_conf == NULL) /* tls_global_set_params() not called */
 +		return -1;
-+
+ 
+-	conn->tls_conf->flags |= flags;/* TODO: reprocess flags, if necessary */
 +	/* Don't modify tls_conf, it may be shared with other connections. */
 +	conn->flags = flags;
 +
@@ -121,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	int authmode;
  	switch (verify_peer) {
-@@ -2359,7 +2392,7 @@
+@@ -2359,7 +2392,7 @@ struct wpabuf * tls_connection_handshake
  	 *  since ticket write and parse callbacks take (mbedtls_ssl_session *)
  	 *  param instead of (mbedtls_ssl_context *) param) */
  	int use_session_ticket_cb = (conn->session_ticket_cb != NULL)
@@ -130,7 +129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (use_session_ticket_cb)
  		mbedtls_ssl_conf_session_tickets_cb(&conn->tls_conf->conf,
  		                                    tls_mbedtls_ssl_ticket_write,
-@@ -2542,9 +2575,14 @@
+@@ -2542,9 +2575,14 @@ int tls_connection_resumed(void *tls_ctx
  int tls_connection_set_cipher_list(void *tls_ctx, struct tls_connection *conn,
  				   u8 *ciphers)
  {
@@ -146,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int nids = -1, id;
  	for ( ; *ciphers != TLS_CIPHER_NONE; ++ciphers) {
  		switch (*ciphers) {
-@@ -3220,7 +3258,7 @@
+@@ -3220,7 +3258,7 @@ tls_mbedtls_verify_cert_event (struct tl
  	}
  
  	struct tls_conf *tls_conf = conn->tls_conf;
@@ -155,7 +154,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    || global->cert_in_cb) {
  		certbuf = wpabuf_alloc_copy(crt->raw.p, crt->raw.len);
  		ev.peer_cert.cert = certbuf;
-@@ -3373,7 +3411,7 @@
+@@ -3373,7 +3411,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  		*flags &= ~MBEDTLS_X509_BADCRL_FUTURE;
  	}
  

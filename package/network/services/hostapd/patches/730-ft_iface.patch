@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3245,6 +3245,8 @@
+@@ -3245,6 +3245,8 @@ static int hostapd_config_fill(struct ho
  			return 1;
  		}
  #ifdef CONFIG_IEEE80211R_AP
@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    hexstr2bin(pos, bss->mobility_domain,
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -285,6 +285,7 @@
+@@ -285,6 +285,7 @@ struct airtime_sta_weight {
  struct hostapd_bss_config {
  	char iface[IFNAMSIZ + 1];
  	char bridge[IFNAMSIZ + 1];
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int bridge_hairpin; /* hairpin_mode on bridge members */
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -1936,8 +1936,12 @@
+@@ -1936,8 +1936,12 @@ int hostapd_setup_wpa(struct hostapd_dat
  	    wpa_key_mgmt_ft(hapd->conf->wpa_key_mgmt)) {
  		const char *ft_iface;
  

@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/wps_supplicant.h
 +++ b/wpa_supplicant/wps_supplicant.h
-@@ -9,14 +9,13 @@
+@@ -9,6 +9,7 @@
  #ifndef WPS_SUPPLICANT_H
  #define WPS_SUPPLICANT_H
  
@@ -23,11 +23,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct wpa_scan_results;
  
  #ifdef CONFIG_WPS
- 
+@@ -16,8 +17,6 @@ struct wpa_scan_results;
  #include "wps/wps.h"
  #include "wps/wps_defs.h"
--
--struct wpa_bss;
  
+-struct wpa_bss;
+-
  struct wps_new_ap_settings {
  	const char *ssid_hex;
+ 	const char *auth;

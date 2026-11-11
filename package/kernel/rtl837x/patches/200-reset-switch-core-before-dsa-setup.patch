@@ -8,7 +8,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -545,6 +545,37 @@
+@@ -545,6 +545,37 @@ static int rtl837x_get_chip_info(struct
  	return -ENODEV;
  }
  
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int rtl8372n_detect(struct realtek_priv *priv)
  {
  	const struct rtl837x_chip_info *chip_info;
-@@ -2454,6 +2485,7 @@
+@@ -2454,6 +2485,7 @@ static const struct dsa_switch_ops rtl83
  
  static const struct rtl837x_ops rtl8372n_ops = {
  	.detect		= rtl8372n_detect,
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.get_mib_counter = rtl8372n_get_mib_counter,
 --- a/src/rtl837x_mdio.c
 +++ b/src/rtl837x_mdio.c
-@@ -242,6 +242,12 @@
+@@ -242,6 +242,12 @@ static int rtl837x_mdio_probe(struct mdi
  		return ret;
  	}
  

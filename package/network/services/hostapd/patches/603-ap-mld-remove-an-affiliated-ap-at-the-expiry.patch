@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2875,6 +2875,15 @@
+@@ -2875,6 +2875,15 @@ static int __ieee802_11_set_beacon(struc
  		return -1;
  	}
  
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -1;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -497,6 +497,245 @@
+@@ -497,6 +497,245 @@ static void hostapd_link_remove_timeout_
  }
  
  
@@ -367,33 +367,30 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void hostapd_link_remove_timeout_handler(void *eloop_data,
  						void *user_ctx)
  {
-@@ -510,13 +749,12 @@
+@@ -510,13 +749,12 @@ static void hostapd_link_remove_timeout_
  		   hapd->mld_link_id,
  		   hapd->eht_mld_link_removal_count);
  
-+	if (!hapd->eht_mld_link_removal_count) {
-+		hostapd_link_remove_expire(hapd);
-+		return;
-+	}
-+
- 	ieee802_11_set_beacon(hapd);
+-	ieee802_11_set_beacon(hapd);
 -
--	if (!hapd->eht_mld_link_removal_count) {
+ 	if (!hapd->eht_mld_link_removal_count) {
 -		hostapd_free_link_stas(hapd);
--		return;
--	}
--
++		hostapd_link_remove_expire(hapd);
+ 		return;
+ 	}
+ 
++	ieee802_11_set_beacon(hapd);
  	hostapd_link_remove_timeout_register(hapd);
  }
  
-@@ -529,8 +767,28 @@
+@@ -529,9 +767,29 @@ int hostapd_link_remove(struct hostapd_d
  	    count > 0xffff)
  		return -1;
  
 -	if (hapd->eht_mld_link_removal_count)
 +	if (hostapd_link_remove_pending(hapd))
  		return 0;
-+
+ 
 +	if (hapd->csa_in_progress)
 +		return -1;
 +
@@ -413,10 +410,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			   hapd->mld_link_id);
 +		return -1;
 +	}
- 
++
  	wpa_printf(MSG_DEBUG,
  		   "MLD: Remove link_id=%u in %u beacons",
-@@ -542,10 +800,9 @@
+ 		   hapd->mld_link_id, count);
+@@ -542,10 +800,9 @@ int hostapd_link_remove(struct hostapd_d
  	if (hapd->eht_mld_bss_param_change == 255)
  		hapd->eht_mld_bss_param_change = 0;
  
@@ -428,7 +426,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -556,7 +813,10 @@
+@@ -556,7 +813,10 @@ void hostapd_free_hapd_data(struct hosta
  {
  #ifdef CONFIG_IEEE80211BE
  	eloop_cancel_timeout(hostapd_link_remove_timeout_handler, hapd, NULL);
@@ -441,7 +439,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_free(hapd->probereq_cb);
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -542,6 +542,8 @@
+@@ -542,6 +542,8 @@ struct hostapd_data {
  	u16 eht_mld_link_removal_start;
  	u16 eht_mld_link_removal_count;
  	struct os_reltime eht_mld_link_removal_due;
@@ -450,7 +448,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  
  #ifdef CONFIG_NAN_USD
-@@ -994,6 +996,10 @@
+@@ -994,6 +996,10 @@ struct hostapd_data * hostapd_mld_get_li
  					       u8 link_id);
  int hostapd_link_remove(struct hostapd_data *hapd, u32 count);
  bool hostapd_link_remove_critical_update(struct hostapd_data *hapd);
@@ -463,7 +461,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u8 hostapd_get_mld_id(struct hostapd_data *hapd);
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -10823,10 +10823,16 @@
+@@ -10823,10 +10823,16 @@ void ieee802_11_mgmt_cb(struct hostapd_d
  	case WLAN_FC_STYPE_DEAUTH:
  		wpa_printf(MSG_DEBUG, "mgmt::deauth cb");
  		handle_deauth_cb(hapd, mgmt, len, ok);
@@ -482,7 +480,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG, "mgmt::action cb ok=%d", ok);
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -355,6 +355,7 @@
+@@ -355,6 +355,7 @@ struct sta_info {
  	struct mld_info mld_info;
  	u8 mld_assoc_link_id;
  	struct link_reconf_req_list *reconf_req;

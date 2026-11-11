@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8144,7 +8144,7 @@
+@@ -8144,7 +8144,7 @@ int ieee80211_ml_process_link(struct hos
  		   hapd->mld_link_id, sta->aid);
  
  	sta->flags |= WLAN_STA_AUTH | WLAN_STA_ASSOC_REQ_OK;
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -1661,6 +1661,43 @@
+@@ -1661,6 +1661,43 @@ int ap_sta_set_vlan(struct hostapd_data
  }
  
  
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -450,6 +450,8 @@
+@@ -450,6 +450,8 @@ int ap_sta_wps_cancel(struct hostapd_dat
  int ap_sta_bind_vlan(struct hostapd_data *hapd, struct sta_info *sta);
  int ap_sta_set_vlan(struct hostapd_data *hapd, struct sta_info *sta,
  		    struct vlan_description *vlan_desc);

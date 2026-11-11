@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1651,6 +1651,30 @@
+@@ -1651,6 +1651,30 @@ void ml_deinit_link_reconf_req(struct li
  }
  
  
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void hostapd_link_reconf_resp_tx_status(struct hostapd_data *hapd,
  					struct sta_info *sta,
  					const struct ieee80211_mgmt *mgmt,
-@@ -1701,22 +1725,17 @@
+@@ -1701,24 +1725,19 @@ void hostapd_link_reconf_resp_tx_status(
  			   "; revert link additions",
  			   MAC2STR(mgmt->da));
  
@@ -94,18 +94,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		hostapd_ml_reconf_adds_revert(hapd, req_list,
 +					      req_list->links_add_ok);
  		goto exit;
-+	}
-+
+ 	}
+ 
 +	dl_list_for_each(info, &req_list->add_req, struct link_reconf_req_info,
 +			 list) {
 +		if (req_list->links_add_ok & BIT(info->link_id))
 +			ap_sta_link_event(hapd, WPA_EVENT_LINK_STA_ADDED,
 +					  req_list->sta_mld_addr,
 +					  info->link_id);
- 	}
- 
++	}
++
  	if (dl_list_empty(&req_list->del_req))
-@@ -1801,27 +1820,9 @@
+ 		goto exit;
+ 
+@@ -1801,27 +1820,9 @@ void hostapd_link_reconf_resp_tx_status(
  		}
  
  		/* Free as a link STA */
@@ -136,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  exit:
-@@ -1915,31 +1916,20 @@
+@@ -1915,31 +1916,20 @@ hostapd_reject_all_reconf_req(struct hos
  			      struct link_reconf_req_list *req_list)
  {
  	struct link_reconf_req_info *info;
@@ -171,7 +173,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG, "MLD: Reject add-link=%u with status=%u",
  			   info->link_id, status);
  		pos += 2;
-@@ -2664,14 +2654,10 @@
+@@ -2664,14 +2654,10 @@ hostapd_validate_link_reconf_req(struct
  						  req_list->sta_mld_addr);
  
  			if (lsta)
@@ -187,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		info->status = status;
-@@ -2693,14 +2679,14 @@
+@@ -2693,14 +2679,14 @@ hostapd_validate_link_reconf_req(struct
  	    (links_del_ok && !(valid_links & links_del_ok))) {
  		wpa_printf(MSG_INFO,
  			   "MLD: Links requested failed to satisfy valid links");
@@ -204,7 +206,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	valid_links |= links_add_ok;
-@@ -2709,7 +2695,7 @@
+@@ -2709,7 +2695,7 @@ hostapd_validate_link_reconf_req(struct
  		if (!recover_from_zero_links(&links_del_ok, &recovery_link)) {
  			wpa_printf(MSG_INFO,
  				   "MLD: Total-links validation failed");
@@ -213,7 +215,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  		/* Add the recovery link back to valid_links */
  		valid_links |= BIT(recovery_link);
-@@ -2723,6 +2709,10 @@
+@@ -2723,6 +2709,10 @@ hostapd_validate_link_reconf_req(struct
  	assoc_sta->reconf_req = req_list;
  
  	return true;
@@ -224,7 +226,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -2857,6 +2847,10 @@
+@@ -2857,6 +2847,10 @@ skip_oci_validation:
  
  out:
  	if (ret) {
@@ -237,7 +239,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			assoc_sta->reconf_req = NULL;
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -674,6 +674,44 @@
+@@ -674,6 +674,44 @@ void hostapd_free_stas(struct hostapd_da
  
  
  #ifdef CONFIG_IEEE80211BE
@@ -284,7 +286,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct sta_info *sta, *prev;
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -494,6 +494,7 @@
+@@ -494,6 +494,7 @@ static inline void ap_sta_set_mld(struct
  void ap_sta_free_sta_profile(struct mld_info *info);
  void ap_sta_free_ml_kem_data(struct eap_over_auth_data *auth_data);
  

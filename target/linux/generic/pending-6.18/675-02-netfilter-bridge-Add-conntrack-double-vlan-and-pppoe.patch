@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/include/linux/netfilter_bridge.h
 +++ b/include/linux/netfilter_bridge.h
-@@ -10,6 +10,12 @@
+@@ -10,6 +10,12 @@ struct nf_bridge_frag_data {
  	bool    vlan_present;
  	u16     vlan_tci;
  	__be16  vlan_proto;
@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/netfilter/nf_tables.h>
  #include <net/netfilter/nf_tables.h>
  
-@@ -147,7 +148,8 @@
+@@ -147,7 +148,8 @@ static void br_skb_cb_restore(struct sk_
  }
  
  static unsigned int nf_ct_br_defrag4(struct sk_buff *skb,
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	u16 zone_id = NF_CT_DEFAULT_ZONE_ID;
  	enum ip_conntrack_info ctinfo;
-@@ -158,6 +160,9 @@
+@@ -158,6 +160,9 @@ static unsigned int nf_ct_br_defrag4(str
  	if (!ip_is_fragment(ip_hdr(skb)))
  		return NF_ACCEPT;
  
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ct = nf_ct_get(skb, &ctinfo);
  	if (ct)
  		zone_id = nf_ct_zone_id(nf_ct_zone(ct), CTINFO2DIR(ctinfo));
-@@ -170,6 +175,8 @@
+@@ -170,6 +175,8 @@ static unsigned int nf_ct_br_defrag4(str
  	if (!err) {
  		br_skb_cb_restore(skb, &cb, IPCB(skb)->frag_max_size);
  		skb->ignore_df = 1;
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return NF_ACCEPT;
  	}
  
-@@ -177,7 +184,8 @@
+@@ -177,7 +184,8 @@ static unsigned int nf_ct_br_defrag4(str
  }
  
  static unsigned int nf_ct_br_defrag6(struct sk_buff *skb,
@@ -89,7 +89,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  #if IS_ENABLED(CONFIG_NF_DEFRAG_IPV6)
  	u16 zone_id = NF_CT_DEFAULT_ZONE_ID;
-@@ -186,6 +194,9 @@
+@@ -186,6 +194,9 @@ static unsigned int nf_ct_br_defrag6(str
  	const struct nf_conn *ct;
  	int err;
  
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ct = nf_ct_get(skb, &ctinfo);
  	if (ct)
  		zone_id = nf_ct_zone_id(nf_ct_zone(ct), CTINFO2DIR(ctinfo));
-@@ -199,7 +210,12 @@
+@@ -199,7 +210,12 @@ static unsigned int nf_ct_br_defrag6(str
  		return NF_STOLEN;
  
  	br_skb_cb_restore(skb, &cb, IP6CB(skb)->frag_max_size);
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #else
  	return NF_ACCEPT;
  #endif
-@@ -241,59 +257,140 @@
+@@ -241,59 +257,140 @@ static int nf_ct_br_ipv6_check(const str
  	return 0;
  }
  
@@ -273,7 +273,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static unsigned int nf_ct_bridge_in(void *priv, struct sk_buff *skb,
-@@ -346,12 +443,22 @@
+@@ -346,12 +443,22 @@ nf_ct_bridge_refrag(struct sk_buff *skb,
  				  struct sk_buff *))
  {
  	struct nf_bridge_frag_data data;
@@ -297,7 +297,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case htons(ETH_P_IP):
  		nf_br_ip_fragment(state->net, state->sk, skb, &data, output);
  		break;
-@@ -372,11 +479,49 @@
+@@ -372,11 +479,49 @@ static int nf_ct_bridge_frag_restore(str
  {
  	int err;
  
@@ -351,7 +351,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (data->vlan_present)
  		__vlan_hwaccel_put_tag(skb, data->vlan_proto, data->vlan_tci);
  	else if (skb_vlan_tag_present(skb))
-@@ -386,6 +531,10 @@
+@@ -386,6 +531,10 @@ static int nf_ct_bridge_frag_restore(str
  	skb_reset_mac_header(skb);
  
  	return 0;

@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -728,7 +728,8 @@
+@@ -728,7 +728,8 @@ void ap_free_link_sta(struct hostapd_dat
  
  void hostapd_free_link_stas(struct hostapd_data *hapd)
  {
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	sta = hapd->sta_list;
  	while (sta) {
-@@ -742,7 +743,10 @@
+@@ -742,7 +743,10 @@ void hostapd_free_link_stas(struct hosta
  			   MAC2STR(prev->addr));
  		ap_sta_link_event(hapd, WPA_EVENT_LINK_STA_REMOVED, prev->addr,
  				  hapd->mld_link_id);

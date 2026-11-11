@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -631,7 +631,7 @@
+@@ -631,7 +631,7 @@ u64 hostapd_link_remove_ms(struct hostap
  }
  
  
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		hapd->eht_mld_link_removal_offload ||
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -1038,6 +1038,7 @@
+@@ -1038,6 +1038,7 @@ void hostapd_link_remove_tx_status(struc
  void hostapd_link_remove_expired(struct hostapd_data *hapd, u16 links);
  bool hostapd_link_remove_beacon_held(struct hostapd_data *hapd);
  void hostapd_link_remove_beacon_set(struct hostapd_data *hapd);
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u8 hostapd_get_mld_id(struct hostapd_data *hapd);
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8032,6 +8032,13 @@
+@@ -8032,6 +8032,13 @@ int ieee80211_ml_process_link(struct hos
  		goto out;
  	}
  
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_INFO, "MLD: link: Station already exists");
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1230,6 +1230,12 @@
+@@ -1230,6 +1230,12 @@ static u16 hostapd_mld_validate_assoc_in
  		return WLAN_STATUS_SUCCESS;
  	}
  

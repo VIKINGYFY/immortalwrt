@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -12505,6 +12505,8 @@
+@@ -12505,6 +12505,8 @@ static int nl80211_switch_channel(void *
  	    (ret = nl80211_put_freq_params(msg, &settings->freq_params, bss)) ||
  	    (settings->block_tx &&
  	     nla_put_flag(msg, NL80211_ATTR_CH_SWITCH_BLOCK_TX)) ||
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    (settings->link_id != NL80211_DRV_LINK_ID_NA &&
  	     nla_put_u8(msg, NL80211_ATTR_MLO_LINK_ID, settings->link_id)))
  		goto error;
-@@ -13299,6 +13301,7 @@
+@@ -13299,6 +13301,7 @@ static int nl80211_join_mesh(struct i802
  	}
  	ret = 0;
  	drv->assoc_freq = bss->flink->freq = params->freq.freq;
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  fail:
 --- a/src/drivers/driver_nl80211.h
 +++ b/src/drivers/driver_nl80211.h
-@@ -221,6 +221,7 @@
+@@ -221,6 +221,7 @@ struct wpa_driver_nl80211_data {
  	unsigned int qca_ap_allowed_freqs:1;
  	unsigned int connect_ext_vendor_cmd_avail:1;
  	unsigned int support_ap_scan:1;

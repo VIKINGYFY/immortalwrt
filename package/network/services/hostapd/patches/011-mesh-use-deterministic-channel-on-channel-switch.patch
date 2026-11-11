@@ -25,21 +25,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  enum dfs_channel_type {
-@@ -535,8 +536,13 @@
+@@ -535,9 +536,14 @@ dfs_get_valid_channel(struct hostapd_ifa
  	int num_available_chandefs;
  	int chan_idx, chan_idx2;
  	int sec_chan_idx_80p80 = -1;
 +	bool is_mesh = false;
  	int i;
  	u32 _rand;
-+
+ 
 +#ifdef CONFIG_MESH
 +	is_mesh = iface->mconf;
 +#endif
- 
++
  	wpa_printf(MSG_DEBUG, "DFS: Selecting random channel");
  	*secondary_channel = 0;
-@@ -557,8 +563,20 @@
+ 	*oper_centr_freq_seg0_idx = 0;
+@@ -557,8 +563,20 @@ dfs_get_valid_channel(struct hostapd_ifa
  	if (num_available_chandefs == 0)
  		return NULL;
  

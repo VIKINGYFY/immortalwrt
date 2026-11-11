@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -10,6 +10,7 @@
+@@ -10,6 +10,7 @@ endif
  obj-$(CONFIG_RTL8372N_DSA) += rtl8372n_dsa.o
  
  rtl8372n_dsa-objs := rtl8372n.o
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  rtl8372n_dsa-objs += rtl837x_mdio.o
 --- a/src/rtl837x.h
 +++ b/src/rtl837x.h
-@@ -41,7 +41,12 @@
+@@ -41,7 +41,12 @@ struct rtl837x_led {
  	u8 led_id;
  };
  
@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct device *dev;
  	struct regmap		*map;
  	struct mutex		map_lock;	/* Protects regmap access */
-@@ -157,4 +162,20 @@
+@@ -157,4 +162,20 @@ int rtl837x_sds_reg_bits_read(struct rea
  
  extern const struct rtl837x_variant rtl8372n_variant;
  

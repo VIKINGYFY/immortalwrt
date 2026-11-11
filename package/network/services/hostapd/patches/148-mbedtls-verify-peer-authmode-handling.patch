@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/tls_mbedtls.c
 +++ b/src/crypto/tls_mbedtls.c
-@@ -138,7 +138,7 @@
+@@ -138,7 +138,7 @@ struct tls_conf {
  	mbedtls_ssl_config conf;
  	struct tls_global *global;
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int verify_depth0_only:1;
  	unsigned int check_crl:2;           /*(needs :2 bits for 0, 1, 2)*/
  	unsigned int check_crl_strict:1;    /*(needs :1 bit  for 0, 1)*/
-@@ -202,7 +202,7 @@
+@@ -202,7 +202,7 @@ struct tls_connection {
  
  	unsigned int established:1;
  	unsigned int resumed:1;
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int is_server:1;
  
  	mbedtls_ssl_context ssl;
-@@ -514,6 +514,37 @@
+@@ -514,6 +514,37 @@ char * tls_connection_peer_serial_num(vo
  
  static void tls_pull_buf_reset(struct tls_connection *conn);
  
@@ -94,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int tls_connection_shutdown(void *tls_ctx, struct tls_connection *conn)
  {
  	/* Note: this function called from eap_peer_tls_reauth_init()
-@@ -532,7 +563,13 @@
+@@ -532,7 +563,13 @@ int tls_connection_shutdown(void *tls_ct
  
  	/* RFE: prepare for session resumption? (see doc in crypto/tls.h) */
  
@@ -109,7 +109,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -1621,16 +1658,18 @@
+@@ -1621,16 +1658,18 @@ static int tls_mbedtls_set_certs(struct
  		return -1;
  	}
  
@@ -138,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mbedtls_ssl_conf_ca_chain(&tls_conf->conf,
  		                          &tls_conf->ca_cert,
  		                          tls_conf->crl);
-@@ -2106,15 +2145,11 @@
+@@ -2106,15 +2145,11 @@ int tls_connection_set_verify(void *tls_
  		return -1;
  	}
  
@@ -149,23 +149,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -	default: authmode = MBEDTLS_SSL_VERIFY_NONE;     break;
 -	}
 -	mbedtls_ssl_set_hs_authmode(&conn->ssl, authmode);
--
--	if ((conn->verify_peer = (authmode != MBEDTLS_SSL_VERIFY_NONE)))
 +	/* Treat unknown verify_peer as REQUIRED, matching OpenSSL. */
 +	conn->verify_peer = (0 <= verify_peer && verify_peer <= 2) ? verify_peer : 1;
-+
+ 
+-	if ((conn->verify_peer = (authmode != MBEDTLS_SSL_VERIFY_NONE)))
 +	tls_connection_apply_authmode(conn);
 +	if (conn->verify_peer)
  		mbedtls_ssl_set_verify(&conn->ssl, tls_mbedtls_verify_cb, conn);
  	else
  		mbedtls_ssl_set_verify(&conn->ssl, NULL, NULL);
-@@ -2378,9 +2413,6 @@
- 		if (tls_connection_set_params(tls_ctx, conn, &params) != 0)
+@@ -2379,9 +2414,6 @@ struct wpabuf * tls_connection_handshake
  			return NULL;
  	}
--
+ 
 -	if (conn->verify_peer) /*(call here might be redundant; nbd)*/
 -		mbedtls_ssl_set_verify(&conn->ssl, tls_mbedtls_verify_cb, conn);
- 
+-
    #ifdef TLS_MBEDTLS_SESSION_TICKETS
  	if (conn->clienthello_session_ticket)
+ 		/*(starting handshake for EAP-FAST and EAP-TEAP)*/

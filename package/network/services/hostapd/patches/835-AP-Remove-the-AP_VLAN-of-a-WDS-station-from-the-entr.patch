@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -10756,6 +10756,7 @@
+@@ -10756,6 +10756,7 @@ skip_update:
  			   MAC2STR(sta->addr), ifname_id);
  		ret = hostapd_set_wds_sta(hapd, ifname_wds, sta->addr,
  					  ifname_id, 1);
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!ret)
  			hostapd_set_wds_encryption(hapd, sta, ifname_wds);
  	}
-@@ -11161,6 +11162,7 @@
+@@ -11161,6 +11162,7 @@ void ieee802_11_rx_from_unknown(struct h
  			sta->flags |= WLAN_STA_WDS;
  			ret = hostapd_set_wds_sta(hapd, ifname_wds,
  						  sta->addr, ifname_id, 1);
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  							   ifname_wds);
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -403,15 +403,11 @@
+@@ -403,15 +403,11 @@ void ap_free_sta(struct hostapd_data *ha
  	ap_sta_set_authorized(hapd, sta, 0);
  	hostapd_set_sta_flags(hapd, sta);
  
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ifname_id = sta->wds_ifname_id;
  
  		if (ap_sta_is_mld(hapd, sta)) {
-@@ -424,6 +420,9 @@
+@@ -424,6 +420,9 @@ void ap_free_sta(struct hostapd_data *ha
  
  				psta = ap_get_sta(phapd, sta->addr);
  				if (psta) {
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				}
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -177,6 +177,7 @@
+@@ -177,6 +177,7 @@ struct sta_info {
  	unsigned int ecsa_supported:1;
  	unsigned int added_unassoc:1;
  	unsigned int pending_wds_enable:1;

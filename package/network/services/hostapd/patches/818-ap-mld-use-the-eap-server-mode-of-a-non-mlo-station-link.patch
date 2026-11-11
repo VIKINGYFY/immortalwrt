@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -1053,6 +1053,18 @@
+@@ -1053,6 +1053,18 @@ static void handle_eap(struct hostapd_da
  }
  
  
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct eapol_state_machine *
  ieee802_1x_alloc_eapol_sm(struct hostapd_data *hapd, struct sta_info *sta)
  {
-@@ -1068,7 +1080,8 @@
+@@ -1068,7 +1080,8 @@ ieee802_1x_alloc_eapol_sm(struct hostapd
  	return eapol_auth_alloc(hapd->eapol_auth, sta->addr, flags,
  				sta->wps_ie, sta->p2p_ie, sta,
  				sta->identity, sta->radius_cui, hapd->wps,
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/eap_server/eap.h
 +++ b/src/eap_server/eap.h
-@@ -274,9 +274,11 @@
+@@ -274,9 +274,11 @@ struct eap_config {
  struct eap_session_data {
  	const struct wpabuf *assoc_wps_ie;
  	/* The links of an AP MLD share the EAP server configuration, while
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_TESTING_OPTIONS
 --- a/src/eap_server/eap_i.h
 +++ b/src/eap_server/eap_i.h
-@@ -190,6 +190,7 @@
+@@ -190,6 +190,7 @@ struct eap_sm {
  	struct wpabuf *assoc_p2p_ie;
  	struct wps_context *wps;
  	void *msg_ctx;
@@ -81,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/eap_server/eap_server.c
 +++ b/src/eap_server/eap_server.c
-@@ -222,7 +222,7 @@
+@@ -222,7 +222,7 @@ SM_STATE(EAP, INITIALIZE)
  {
  	SM_ENTRY(EAP, INITIALIZE);
  
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/*
  		 * Need to allow internal Identity method to be used instead
  		 * of passthrough at the beginning of reauthentication.
-@@ -861,7 +861,7 @@
+@@ -861,7 +861,7 @@ SM_STATE(EAP, INITIATE_RECEIVED)
  	os_memcpy(nai, parse.keyname, parse.keyname_len);
  	nai[parse.keyname_len] = '\0';
  
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/*
  		 * In passthrough case, EAP-Initiate/Re-auth replaces
  		 * EAP Identity exchange. Use keyName-NAI as the user identity
-@@ -1351,7 +1351,7 @@
+@@ -1351,7 +1351,7 @@ SM_STEP(EAP)
  		else if (sm->decision == DECISION_INITIATE_REAUTH_START)
  			SM_ENTER(EAP, INITIATE_REAUTH_START);
  #ifdef CONFIG_ERP
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			SM_ENTER(EAP, INITIATE_RECEIVED);
  #endif /* CONFIG_ERP */
  		else
-@@ -1361,7 +1361,7 @@
+@@ -1361,7 +1361,7 @@ SM_STEP(EAP)
  		SM_ENTER(EAP, SEND_REQUEST);
  		break;
  	case EAP_INITIATE_RECEIVED:
@@ -117,7 +117,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			SM_ENTER(EAP, SELECT_ACTION);
  		break;
  	case EAP_TIMEOUT_FAILURE:
-@@ -1721,7 +1721,7 @@
+@@ -1721,7 +1721,7 @@ static enum eap_type eap_sm_Policy_getNe
  
  static int eap_sm_Policy_getDecision(struct eap_sm *sm)
  {
@@ -126,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG, "EAP: getDecision: -> PASSTHROUGH");
  		return DECISION_PASSTHROUGH;
  	}
-@@ -1870,6 +1870,7 @@
+@@ -1870,6 +1870,7 @@ struct eap_sm * eap_server_sm_init(void
  		sm->assoc_p2p_ie = wpabuf_dup(sess->assoc_p2p_ie);
  	sm->wps = sess->wps;
  	sm->msg_ctx = sess->msg_ctx;
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_TESTING_OPTIONS
 --- a/src/eapol_auth/eapol_auth_sm.c
 +++ b/src/eapol_auth/eapol_auth_sm.c
-@@ -789,7 +789,7 @@
+@@ -789,7 +789,7 @@ eapol_auth_alloc(struct eapol_authentica
  		 int flags, const struct wpabuf *assoc_wps_ie,
  		 const struct wpabuf *assoc_p2p_ie, void *sta_ctx,
  		 const char *identity, const char *radius_cui,
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct eapol_state_machine *sm;
  	struct eap_session_data eap_sess;
-@@ -848,6 +848,7 @@
+@@ -848,6 +848,7 @@ eapol_auth_alloc(struct eapol_authentica
  	eap_sess.peer_addr = addr;
  	eap_sess.wps = wps;
  	eap_sess.msg_ctx = msg_ctx;
@@ -155,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (sm->eap == NULL) {
 --- a/src/eapol_auth/eapol_auth_sm.h
 +++ b/src/eapol_auth/eapol_auth_sm.h
-@@ -74,7 +74,7 @@
+@@ -74,7 +74,7 @@ eapol_auth_alloc(struct eapol_authentica
  		 int flags, const struct wpabuf *assoc_wps_ie,
  		 const struct wpabuf *assoc_p2p_ie, void *sta_ctx,
  		 const char *identity, const char *radius_cui,
@@ -166,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int eapol_auth_dump_state(struct eapol_state_machine *sm, char *buf,
 --- a/src/radius/radius_server.c
 +++ b/src/radius/radius_server.c
-@@ -665,6 +665,7 @@
+@@ -665,6 +665,7 @@ radius_server_get_new_session(struct rad
  	os_memset(&eap_sess, 0, sizeof(eap_sess));
  	eap_sess.wps = data->eap_cfg->wps;
  	eap_sess.msg_ctx = data->eap_cfg->msg_ctx;

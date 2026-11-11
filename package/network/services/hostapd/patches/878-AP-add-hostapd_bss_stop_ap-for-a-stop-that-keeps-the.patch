@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1971,6 +1971,21 @@
+@@ -1971,6 +1971,21 @@ void hostapd_bss_deinit_no_free(struct h
  }
  
  
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @iface: Pointer to interface data
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -897,6 +897,7 @@
+@@ -897,6 +897,7 @@ int hostapd_reload_iface(struct hostapd_
  int hostapd_reload_bss_only(struct hostapd_data *bss);
  int hostapd_disable_iface(struct hostapd_iface *hapd_iface);
  void hostapd_bss_deinit_no_free(struct hostapd_data *hapd);
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int hostapd_add_iface(struct hapd_interfaces *ifaces, char *buf);
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -2408,6 +2408,28 @@
+@@ -2408,6 +2408,28 @@ void hostapd_free_mld_partner_stas(struc
  		ap_sta_remove_link_sta(hapd, sta);
  	}
  }
@@ -89,7 +89,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -526,6 +526,7 @@
+@@ -526,6 +526,7 @@ void ap_sta_mld_info_copy(struct mld_inf
  void ap_free_link_sta(struct hostapd_data *lhapd, struct sta_info *lsta);
  void hostapd_free_link_stas(struct hostapd_data *hapd);
  void hostapd_free_mld_partner_stas(struct hostapd_data *hapd);

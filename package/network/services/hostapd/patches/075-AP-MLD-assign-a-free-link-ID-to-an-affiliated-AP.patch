@@ -18,24 +18,24 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -3139,10 +3139,14 @@
+@@ -3139,11 +3139,15 @@ static void hostapd_mld_ref_inc(struct h
  }
  
  
 -static void hostapd_mld_ref_dec(struct hostapd_mld *mld)
--{
 +static void hostapd_mld_ref_dec(struct hostapd_data *hapd)
-+{
+ {
 +	struct hostapd_mld *mld = hapd->mld;
 +
  	if (!mld)
  		return;
-+
-+	mld->used_link_ids &= ~BIT(hapd->mld_link_id);
  
++	mld->used_link_ids &= ~BIT(hapd->mld_link_id);
++
  	if (!mld->refcount) {
  		wpa_printf(MSG_ERROR, "AP MLD %s: Ref count underflow",
-@@ -3165,7 +3169,7 @@
+ 			   mld->name);
+@@ -3165,7 +3169,7 @@ void hostapd_interface_free(struct hosta
  			break;
  #ifdef CONFIG_IEEE80211BE
  		if (iface->bss[j])
@@ -44,13 +44,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  		wpa_printf(MSG_DEBUG, "%s: free hapd %p",
  			   __func__, iface->bss[j]);
-@@ -3190,12 +3194,39 @@
+@@ -3190,12 +3194,39 @@ struct hostapd_iface * hostapd_alloc_ifa
  
  
  #ifdef CONFIG_IEEE80211BE
 -static void hostapd_bss_alloc_link_id(struct hostapd_data *hapd)
--{
--	hapd->mld_link_id = hapd->mld->next_link_id++;
 +
 +static int hostapd_mld_unused_link_id(struct hostapd_mld *mld)
 +{
@@ -68,7 +66,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +static int hostapd_bss_alloc_link_id(struct hostapd_data *hapd,
 +				     struct hostapd_mld *mld)
-+{
+ {
+-	hapd->mld_link_id = hapd->mld->next_link_id++;
 +	int link_id = hostapd_mld_unused_link_id(mld);
 +
 +	if (link_id < 0) {
@@ -81,15 +80,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	hapd->mld_link_id = link_id;
  	wpa_printf(MSG_DEBUG, "AP MLD: %s: Link ID %d assigned.",
 -		   hapd->mld->name, hapd->mld_link_id);
--}
 +		   mld->name, hapd->mld_link_id);
 +	return 0;
-+}
+ }
 +
  #endif /* CONFIG_IEEE80211BE */
  
  
-@@ -3221,14 +3252,12 @@
+@@ -3221,14 +3252,12 @@ void hostapd_bss_setup_multi_link(struct
  		if (!mld || os_strcmp(conf->iface, mld->name) != 0)
  			continue;
  
@@ -107,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	mld = os_zalloc(sizeof(struct hostapd_mld));
  	if (!mld)
-@@ -3244,12 +3273,12 @@
+@@ -3244,12 +3273,12 @@ void hostapd_bss_setup_multi_link(struct
  
  	/* Initialize MLD control interfaces early to allow external monitoring
  	 * of link setup operations. */
@@ -122,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	all_mld = os_realloc_array(interfaces->mld, interfaces->mld_count + 1,
  				   sizeof(struct hostapd_mld *));
-@@ -3994,7 +4023,7 @@
+@@ -3994,7 +4023,7 @@ int hostapd_add_iface(struct hapd_interf
  				hostapd_config_free_bss(hapd->conf);
  				hapd->conf = NULL;
  #ifdef CONFIG_IEEE80211BE
@@ -131,7 +129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  				os_free(hapd);
  				return -1;
-@@ -4088,7 +4117,7 @@
+@@ -4088,7 +4117,7 @@ fail:
  				hostapd_bss_link_deinit(hapd);
  				hostapd_cleanup(hapd);
  #ifdef CONFIG_IEEE80211BE
@@ -140,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  				os_free(hapd);
  				hapd_iface->bss[i] = NULL;
-@@ -4123,7 +4152,7 @@
+@@ -4123,7 +4152,7 @@ static int hostapd_remove_bss(struct hos
  		hostapd_config_free_bss(hapd->conf);
  		hapd->conf = NULL;
  #ifdef CONFIG_IEEE80211BE
@@ -151,7 +149,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -546,6 +546,8 @@
+@@ -546,6 +546,8 @@ struct hostapd_mld {
  	char name[IFNAMSIZ + 1];
  	u8 mld_addr[ETH_ALEN];
  	u8 next_link_id;

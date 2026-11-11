@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -669,6 +669,11 @@
+@@ -669,6 +669,11 @@ void hostapd_free_link_stas(struct hosta
  
  		wpa_printf(MSG_DEBUG, "Removing link station from MLD " MACSTR,
  			   MAC2STR(prev->addr));
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ap_free_sta(hapd, prev);
  	}
  }
-@@ -2122,6 +2127,14 @@
+@@ -2122,6 +2127,14 @@ int ap_sta_pending_delayed_1x_auth_fail_
  
  
  #ifdef CONFIG_IEEE80211BE
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -505,6 +505,8 @@
+@@ -505,6 +505,8 @@ void ap_sta_restore_wpa_sm(struct hostap
  			   struct wpa_state_machine *prev_sm);
  int ap_sta_reset_prev_assoc(struct hostapd_data *hapd, struct sta_info *sta,
  			    struct wpa_state_machine *prev_sm);

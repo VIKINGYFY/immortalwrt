@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/netfilter/nf_flow_table_core.c
 +++ b/net/netfilter/nf_flow_table_core.c
-@@ -13,6 +13,7 @@
+@@ -14,6 +14,7 @@
  #include <net/netfilter/nf_conntrack_core.h>
  #include <net/netfilter/nf_conntrack_l4proto.h>
  #include <net/netfilter/nf_conntrack_tuple.h>
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static DEFINE_MUTEX(flowtable_lock);
  static LIST_HEAD(flowtables);
-@@ -775,6 +776,19 @@
+@@ -776,6 +777,19 @@ int nf_flow_table_init(struct nf_flowtab
  }
  EXPORT_SYMBOL_GPL(nf_flow_table_init);
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void nf_flow_table_do_cleanup(struct nf_flowtable *flow_table,
  				     struct flow_offload *flow, void *data)
  {
-@@ -786,8 +800,8 @@
+@@ -787,8 +801,8 @@ static void nf_flow_table_do_cleanup(str
  	}
  
  	if (net_eq(nf_ct_net(flow->ct), dev_net(dev)) &&
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		flow_offload_teardown(flow);
  }
  
-@@ -876,10 +890,16 @@
+@@ -877,10 +891,16 @@ static int nf_flow_table_netdev_event(st
  {
  	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
  
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return NOTIFY_DONE;
  }
-@@ -888,6 +908,46 @@
+@@ -889,6 +909,46 @@ static struct notifier_block flow_offloa
  	.notifier_call	= nf_flow_table_netdev_event,
  };
  
@@ -126,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int __init nf_flow_table_module_init(void)
  {
  	int ret;
-@@ -908,8 +968,14 @@
+@@ -909,8 +969,14 @@ static int __init nf_flow_table_module_i
  	if (ret)
  		goto out_bpf;
  
@@ -141,7 +141,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  out_bpf:
  	nf_flow_table_offload_exit();
  out_offload:
-@@ -919,6 +985,7 @@
+@@ -920,6 +986,7 @@ out_offload:
  
  static void __exit nf_flow_table_module_exit(void)
  {
@@ -151,7 +151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	nf_flow_table_offload_exit();
 --- a/net/bridge/br_vlan.c
 +++ b/net/bridge/br_vlan.c
-@@ -1931,6 +1931,11 @@
+@@ -1931,6 +1931,11 @@ void br_vlan_notify(const struct net_bri
  	/* right now notifications are done only with rtnl held */
  	ASSERT_RTNL();
  

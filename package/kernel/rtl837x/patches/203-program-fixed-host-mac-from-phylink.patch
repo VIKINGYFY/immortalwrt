@@ -8,7 +8,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -1139,6 +1139,33 @@
+@@ -1139,6 +1139,33 @@ static void rtl8372n_phylink_mac_config(
  		state->pause);
  }
  
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void rtl8372n_phylink_mac_link_down(struct phylink_config *config,
  					   unsigned int mode,
  					   phy_interface_t interface)
-@@ -1147,6 +1174,10 @@
+@@ -1147,6 +1174,10 @@ static void rtl8372n_phylink_mac_link_do
  	struct dsa_port *dp = dsa_phylink_to_port(config);
  
  	priv = dp->ds->priv;
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!rtl8372n_is_serdes_port(dp->index))
  		return;
-@@ -1164,6 +1195,11 @@
+@@ -1164,6 +1195,11 @@ static void rtl8372n_phylink_mac_link_up
  	struct dsa_port *dp = dsa_phylink_to_port(config);
  
  	priv = dp->ds->priv;

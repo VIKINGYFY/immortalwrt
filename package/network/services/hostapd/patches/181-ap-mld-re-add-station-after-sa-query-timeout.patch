@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -5869,15 +5869,8 @@
+@@ -5869,15 +5869,8 @@ static void handle_auth(struct hostapd_d
  				  hapd->own_addr, ETH_ALEN);
  		}
  
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -8796,6 +8789,10 @@
+@@ -8796,6 +8789,10 @@ static void handle_assoc(struct hostapd_
  	bool set_beacon = false;
  	bool mld_addrs_not_translated = false;
  	bool epp_sta = false;
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (len < IEEE80211_HDRLEN + (reassoc ? sizeof(mgmt->u.reassoc_req) :
  				      sizeof(mgmt->u.assoc_req))) {
-@@ -9016,6 +9013,26 @@
+@@ -9016,6 +9013,26 @@ static void handle_assoc(struct hostapd_
  		goto fail;
  	}
  
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/*
  	 * sta->capability is used in check_assoc_ies() for RRM enabled
  	 * capability element.
-@@ -9068,6 +9085,16 @@
+@@ -9068,6 +9085,16 @@ static void handle_assoc(struct hostapd_
  		goto fail;
  	}
  
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sta->listen_interval = listen_interval;
  
  	if (hapd->iface->current_mode &&
-@@ -9153,6 +9180,10 @@
+@@ -9153,6 +9180,10 @@ static void handle_assoc(struct hostapd_
  #endif /* CONFIG_FILS */
  
   fail:
@@ -120,12 +120,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * In case of a successful response, add the station to the driver.
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -274,6 +274,48 @@
- 			}
- 		}
+@@ -276,6 +276,48 @@ void clear_wpa_sm_for_all_sta(struct hos
  	}
-+}
-+
+ }
+ 
 +
 +void ap_sta_free_wpa_sm(struct hostapd_data *hapd, struct sta_info *sta)
 +{
@@ -166,12 +164,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		return -1;
 +	sta->flags |= WLAN_STA_AUTH;
 +	return 0;
- }
- 
++}
++
  #endif /* CONFIG_IEEE80211BE */
+ 
+ 
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -500,6 +500,11 @@
+@@ -500,6 +500,11 @@ void clear_wpa_sm_for_each_partner_link(
  					struct sta_info *psta);
  void clear_wpa_sm_for_all_sta(struct hostapd_data *hapd,
  			      struct wpa_state_machine *wpa_sm);

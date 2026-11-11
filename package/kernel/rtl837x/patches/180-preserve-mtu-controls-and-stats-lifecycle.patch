@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -1464,25 +1464,19 @@
+@@ -1464,25 +1464,19 @@ static int rtl8372n_port_set_bcast_flood
  				      BIT(port), enable);
  }
  
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int rtl8372n_port_pre_bridge_flags(struct dsa_switch *ds, int port,
-@@ -2053,6 +2047,67 @@
+@@ -2053,6 +2047,67 @@ static int rtl8372n_setup_port(struct re
  	return 0;
  }
  
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void rtl8372n_stats_update(struct realtek_priv *priv, int port)
  {
  	static const int idx[] = {
-@@ -2093,7 +2148,7 @@
+@@ -2093,7 +2148,7 @@ static void rtl8372n_stats_update(struct
  	if (ret)
  		return;
  
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	stats->rx_packets = cnt[RTL837X_MIB_ifInUcastPkts] +
  			    cnt[RTL837X_MIB_ifInMulticastPkts] +
-@@ -2120,7 +2175,7 @@
+@@ -2120,7 +2175,7 @@ static void rtl8372n_stats_update(struct
  	stats->tx_window_errors = cnt[RTL837X_MIB_dot3StatsLateCollisions];
  	stats->tx_errors = stats->tx_aborted_errors + stats->tx_window_errors;
  
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void rtl8372n_stats_poll(struct work_struct *work)
-@@ -2139,9 +2194,9 @@
+@@ -2139,9 +2194,9 @@ static void rtl8372n_get_stats64(struct
  	struct rtl8372n *chip_data = priv->chip_data;
  	struct rtl8372n_port *p = &chip_data->ports[port];
  
@@ -143,7 +143,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void rtl8372n_stats_start(struct dsa_switch *ds)
-@@ -2168,6 +2223,10 @@
+@@ -2168,6 +2223,10 @@ static void rtl8372n_teardown(struct dsa
  
  	dsa_switch_for_each_available_port(dp, ds)
  		cancel_delayed_work_sync(&chip_data->ports[dp->index].mib_work);
@@ -154,7 +154,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  // TODO: init chip based on rtl837x_chip_info
-@@ -2348,6 +2407,10 @@
+@@ -2348,6 +2407,10 @@ static const struct dsa_switch_ops rtl83
  	.get_eth_phy_stats = rtl8372n_get_phy_stats,
  	.get_eth_mac_stats = rtl8372n_get_mac_stats,
  	.get_eth_ctrl_stats = rtl8372n_get_ctrl_stats,

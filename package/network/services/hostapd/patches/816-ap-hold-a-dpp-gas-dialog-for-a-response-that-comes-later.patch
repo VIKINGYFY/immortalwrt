@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/gas_serv.c
 +++ b/src/ap/gas_serv.c
-@@ -1720,16 +1720,32 @@
+@@ -1720,16 +1720,32 @@ done:
  
  
  #ifdef CONFIG_DPP
@@ -42,10 +42,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				 int prot, struct wpabuf *buf, int freq)
  {
  	struct wpabuf *tx_buf;
--
--	if (wpabuf_len(buf) > hapd->conf->gas_frag_limit ||
 +	int pending = !wpabuf_len(buf);
-+
+ 
+-	if (wpabuf_len(buf) > hapd->conf->gas_frag_limit ||
 +	if (pending || wpabuf_len(buf) > hapd->conf->gas_frag_limit ||
  	    hapd->conf->gas_comeback_delay) {
  		struct gas_dialog_info *di;
@@ -59,11 +58,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (hapd->conf->gas_comeback_delay) {
  			/* Testing - allow overriding of the delay value */
-@@ -1784,6 +1800,22 @@
- 				wpabuf_head(tx_buf),
+@@ -1785,6 +1801,22 @@ void gas_serv_req_dpp_processing(struct
  				wpabuf_len(tx_buf));
  	wpabuf_free(tx_buf);
-+}
+ }
 +
 +
 +/* Takes `buf` and answers 0 where a dialog waits for it, else -1. */
@@ -79,10 +77,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	dialog->sd_resp = buf;
 +	dialog->sd_resp_pos = 0;
 +	return 0;
- }
++}
  #endif /* CONFIG_DPP */
  
-@@ -1969,6 +2001,22 @@
+ 
+@@ -1969,6 +2001,22 @@ static void gas_serv_rx_gas_comeback_req
  		goto send_resp;
  	}
  
@@ -107,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		frag_len = hapd->conf->gas_frag_limit;
 --- a/src/ap/gas_serv.h
 +++ b/src/ap/gas_serv.h
-@@ -98,5 +98,7 @@
+@@ -98,5 +98,7 @@ void gas_serv_deinit(struct hostapd_data
  void gas_serv_req_dpp_processing(struct hostapd_data *hapd,
  				 const u8 *sa, u8 dialog_token,
  				 int prot, struct wpabuf *buf, int freq);

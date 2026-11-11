@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -1091,6 +1091,19 @@
+@@ -1091,6 +1091,19 @@ static u8 * hostapd_probe_resp_fill_elem
  }
  
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void hostapd_gen_probe_resp(struct hostapd_data *hapd,
  				   struct probe_resp_params *params)
  {
-@@ -1130,7 +1143,7 @@
+@@ -1130,7 +1143,7 @@ static void hostapd_gen_probe_resp(struc
  
  	/* hardware or low-level driver will setup seq_ctrl and timestamp */
  	params->resp->u.probe_resp.capab_info =
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	pos = hostapd_probe_resp_fill_elems(hapd_probed, params,
  					    params->resp->u.probe_resp.variable,
-@@ -2399,7 +2412,7 @@
+@@ -2399,7 +2412,7 @@ int ieee802_11_build_ap_params(struct ho
  		host_to_le16(hapd->iconf->beacon_int);
  
  	/* hardware or low-level driver will setup seq_ctrl and timestamp */
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	head->u.beacon.capab_info = host_to_le16(capab_info);
  	pos = &head->u.beacon.variable[0];
  
-@@ -3076,8 +3089,12 @@
+@@ -3076,8 +3089,12 @@ static size_t hostapd_add_sta_profile(st
  	/* Include len for capab info */
  	sta_profile_len += sizeof(le16);
  	if (sta_profile) {
@@ -82,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -450,7 +450,52 @@
+@@ -450,7 +450,52 @@ static int hostapd_broadcast_wep_set(str
  
  
  #ifdef CONFIG_IEEE80211BE
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static void hostapd_link_remove_timeout_handler(void *eloop_data,
  						void *user_ctx)
-@@ -469,44 +514,51 @@
+@@ -469,44 +514,51 @@ static void hostapd_link_remove_timeout_
  
  	if (!hapd->eht_mld_link_removal_count) {
  		hostapd_free_link_stas(hapd);
@@ -147,26 +147,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -	eloop_register_timeout(0, TU_TO_USEC(hapd->iconf->beacon_int),
 -			       hostapd_link_remove_timeout_handler,
 -			       hapd, NULL);
--}
--
--
 +	hostapd_link_remove_timeout_register(hapd);
-+}
-+
-+
+ }
+ 
+ 
 +/* A repeated request must not set the AP Removal Timer back (IEEE Std
 + * 802.11be-2024, 35.3.6.3). */
  int hostapd_link_remove(struct hostapd_data *hapd, u32 count)
  {
 -	if (!hapd->conf->mld_ap)
--		return -1;
 +	if (!hapd->conf->mld_ap || !hapd->mld || !hapd->started || !count ||
 +	    count > 0xffff)
-+		return -1;
-+
+ 		return -1;
+ 
 +	if (hapd->eht_mld_link_removal_count)
 +		return 0;
- 
++
  	wpa_printf(MSG_DEBUG,
  		   "MLD: Remove link_id=%u in %u beacons",
  		   hapd->mld_link_id, count);
@@ -201,7 +197,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_free(hapd->probereq_cb);
  	hapd->probereq_cb = NULL;
  	hapd->num_probereq_cb = 0;
-@@ -666,11 +718,6 @@
+@@ -666,11 +718,6 @@ void hostapd_free_hapd_data(struct hosta
  
  #ifdef CONFIG_IEEE80211AX
  	eloop_cancel_timeout(hostapd_switch_color_timeout_handler, hapd, NULL);
@@ -215,7 +211,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -539,9 +539,9 @@
+@@ -539,9 +539,9 @@ struct hostapd_data {
  	 * total, additional 7 characters required. */
  	char ctrl_sock_iface[IFNAMSIZ + 7 + 1];
  
@@ -228,7 +224,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  
  #ifdef CONFIG_NAN_USD
-@@ -993,6 +993,7 @@
+@@ -993,6 +993,7 @@ int hostapd_mbssid_get_bss_index(struct
  struct hostapd_data * hostapd_mld_get_link_bss(struct hostapd_data *hapd,
  					       u8 link_id);
  int hostapd_link_remove(struct hostapd_data *hapd, u32 count);
@@ -238,7 +234,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u8 hostapd_get_mld_id(struct hostapd_data *hapd);
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -782,7 +782,6 @@
+@@ -782,7 +782,6 @@ out:
  static size_t hostapd_eid_eht_reconf_ml_len(struct hostapd_data *hapd)
  {
  	size_t len = 0;
@@ -246,7 +242,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct hostapd_data *link_bss;
  
  	if (!hapd->conf->mld_ap || !hapd->mld)
-@@ -795,7 +794,6 @@
+@@ -795,7 +794,6 @@ static size_t hostapd_eid_eht_reconf_ml_
  	/* Element header (3), Multi-Link Control (2), Common Info (1) */
  	if (len)
  		len += 3 + 2 + 1;
@@ -254,7 +250,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return len;
  }
-@@ -803,7 +801,6 @@
+@@ -803,7 +801,6 @@ static size_t hostapd_eid_eht_reconf_ml_
  
  static u8 * hostapd_eid_eht_reconf_ml(struct hostapd_data *hapd, u8 *eid)
  {
@@ -262,7 +258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct hostapd_data *other_hapd;
  	u16 control;
  	u8 *pos = eid;
-@@ -852,9 +849,6 @@
+@@ -852,9 +849,6 @@ static u8 * hostapd_eid_eht_reconf_ml(st
  
  	wpa_hexdump(MSG_DEBUG, "MLD: Reconfiguration ML", eid, eid[1] + 2);
  	return pos;

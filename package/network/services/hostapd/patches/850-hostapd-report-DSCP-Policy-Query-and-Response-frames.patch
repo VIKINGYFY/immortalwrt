@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9867,7 +9867,7 @@
+@@ -9867,7 +9867,7 @@ static void handle_beacon(struct hostapd
  
  #ifdef CONFIG_ROBUST_AV
  static void hostapd_dscp_action(struct hostapd_data *hapd, struct sta_info *sta,
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	u8 subtype;
  
-@@ -9882,9 +9882,13 @@
+@@ -9882,9 +9882,13 @@ static void hostapd_dscp_action(struct h
  	subtype = *pos++;
  	switch (subtype) {
  	case QM_DSCP_POLICY_QUERY:
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		hostapd_handle_dscp_policy_response(hapd, sta, pos, end - pos);
  		break;
  	default:
-@@ -9924,7 +9928,8 @@
+@@ -9924,7 +9928,8 @@ static int hostapd_action_vs(struct host
  				   "DSCP: Ignoring unprotected frame");
  			return -1;
  		}

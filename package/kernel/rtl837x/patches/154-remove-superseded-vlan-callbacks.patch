@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -609,85 +609,6 @@
+@@ -609,85 +609,6 @@ static int rtl8372n_set_vlan_4k(struct r
  	return 0;
  }
  
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int rtl8372n_get_mib_counter(struct realtek_priv *priv,
  				    int port,
  		const struct rtl837x_mib_counter *mib,
-@@ -1529,108 +1450,6 @@
+@@ -1529,108 +1450,6 @@ static void rtl8372n_get_ctrl_stats(stru
  	mutex_unlock(&priv->mib_lock);
  }
  
@@ -209,7 +209,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /*
   * The well-known bridge group address 01:80:C2:00:00:00 is treated by the
   * hardware as an ordinary L2 multicast address, so BPDUs received on one port
-@@ -1671,136 +1490,6 @@
+@@ -1671,136 +1490,6 @@ static int rtl8372n_set_bpdu_l2mc_cpu_tr
  	return rtl837x_lut_del(priv, entry.addr);
  }
  

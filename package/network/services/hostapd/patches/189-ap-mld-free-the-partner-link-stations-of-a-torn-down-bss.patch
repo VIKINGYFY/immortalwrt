@@ -19,18 +19,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -637,6 +637,10 @@
- void hostapd_free_stas(struct hostapd_data *hapd)
+@@ -638,6 +638,10 @@ void hostapd_free_stas(struct hostapd_da
  {
  	struct sta_info *sta, *prev;
-+
+ 
 +#ifdef CONFIG_IEEE80211BE
 +	hostapd_free_mld_partner_stas(hapd);
 +#endif /* CONFIG_IEEE80211BE */
- 
++
  	sta = hapd->sta_list;
  
-@@ -2157,6 +2161,22 @@
+ 	while (sta) {
+@@ -2157,6 +2161,22 @@ static void ap_sta_remove_link_sta(struc
  		}
  	}
  }
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -494,6 +494,7 @@
+@@ -494,6 +494,7 @@ void ap_sta_free_sta_profile(struct mld_
  void ap_sta_free_ml_kem_data(struct eap_over_auth_data *auth_data);
  
  void hostapd_free_link_stas(struct hostapd_data *hapd);

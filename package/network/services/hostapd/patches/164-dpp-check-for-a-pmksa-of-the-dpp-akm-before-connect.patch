@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/bss.c
 +++ b/wpa_supplicant/bss.c
-@@ -2016,6 +2016,29 @@
+@@ -2016,6 +2016,29 @@ u16 wpa_bss_get_usable_links(struct wpa_
  
  
  /**
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @bss: BSS table entry
 --- a/wpa_supplicant/bss.h
 +++ b/wpa_supplicant/bss.h
-@@ -228,6 +228,8 @@
+@@ -228,6 +228,8 @@ void calculate_update_time(const struct
  
  u16 wpa_bss_get_usable_links(struct wpa_supplicant *wpa_s, struct wpa_bss *bss,
  			     struct wpa_ssid *ssid, u16 *missing_links);
@@ -70,10 +70,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u16 wpa_bss_parse_reconf_ml_element(struct wpa_supplicant *wpa_s,
 --- a/wpa_supplicant/dpp_supplicant.c
 +++ b/wpa_supplicant/dpp_supplicant.c
-@@ -4572,24 +4572,54 @@
+@@ -4572,24 +4572,54 @@ static int wpas_dpp_start_private_peer_i
  #endif /* CONFIG_DPP3 */
  
  
+-int wpas_dpp_check_connect(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
 +static bool wpas_dpp_pmksa_exists(struct wpa_supplicant *wpa_s,
 +				  struct wpa_ssid *ssid, struct wpa_bss *bss)
 +{
@@ -97,39 +98,38 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +
 +bool wpas_dpp_intro_needed(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
-+			   struct wpa_bss *bss)
-+{
-+	const u8 *rsn;
-+	struct wpa_ie_data ied;
-+
+ 			   struct wpa_bss *bss)
+ {
+-	struct os_time now;
+-	struct wpabuf *msg;
+-	unsigned int wait_time;
+ 	const u8 *rsn;
+ 	struct wpa_ie_data ied;
+-	size_t len;
+ 
+-	if (!(ssid->key_mgmt & WPA_KEY_MGMT_DPP) || !bss)
+-		return 0; /* Not using DPP AKM - continue */
 +	if (!(ssid->key_mgmt & WPA_KEY_MGMT_DPP))
 +		return false; /* Not using DPP AKM */
-+	rsn = wpa_bss_get_rsne(wpa_s, bss, ssid, false);
-+	if (rsn && wpa_parse_wpa_ie(rsn, 2 + rsn[1], &ied) == 0 &&
-+	    !(ied.key_mgmt & WPA_KEY_MGMT_DPP))
+ 	rsn = wpa_bss_get_rsne(wpa_s, bss, ssid, false);
+ 	if (rsn && wpa_parse_wpa_ie(rsn, 2 + rsn[1], &ied) == 0 &&
+ 	    !(ied.key_mgmt & WPA_KEY_MGMT_DPP))
+-		return 0; /* AP does not support DPP AKM - continue */
+-	if (wpa_sm_pmksa_exists(wpa_s->wpa, bss->bssid, wpa_s->own_addr, ssid))
+-		return 0; /* PMKSA exists for DPP AKM - continue */
 +		return false; /* AP does not support DPP AKM */
 +	return !wpas_dpp_pmksa_exists(wpa_s, ssid, bss);
 +}
 +
 +
- int wpas_dpp_check_connect(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
- 			   struct wpa_bss *bss)
- {
- 	struct os_time now;
- 	struct wpabuf *msg;
- 	unsigned int wait_time;
--	const u8 *rsn;
--	struct wpa_ie_data ied;
- 	size_t len;
- 
--	if (!(ssid->key_mgmt & WPA_KEY_MGMT_DPP) || !bss)
--		return 0; /* Not using DPP AKM - continue */
--	rsn = wpa_bss_get_rsne(wpa_s, bss, ssid, false);
--	if (rsn && wpa_parse_wpa_ie(rsn, 2 + rsn[1], &ied) == 0 &&
--	    !(ied.key_mgmt & WPA_KEY_MGMT_DPP))
--		return 0; /* AP does not support DPP AKM - continue */
--	if (wpa_sm_pmksa_exists(wpa_s->wpa, bss->bssid, wpa_s->own_addr, ssid))
--		return 0; /* PMKSA exists for DPP AKM - continue */
++int wpas_dpp_check_connect(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
++			   struct wpa_bss *bss)
++{
++	struct os_time now;
++	struct wpabuf *msg;
++	unsigned int wait_time;
++	size_t len;
++
 +	if (!bss || !wpas_dpp_intro_needed(wpa_s, ssid, bss))
 +		return 0;
  
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    !ssid->dpp_csign) {
 --- a/wpa_supplicant/dpp_supplicant.h
 +++ b/wpa_supplicant/dpp_supplicant.h
-@@ -33,6 +33,8 @@
+@@ -33,6 +33,8 @@ int wpas_dpp_pkex_remove(struct wpa_supp
  void wpas_dpp_stop(struct wpa_supplicant *wpa_s);
  int wpas_dpp_init(struct wpa_supplicant *wpa_s);
  void wpas_dpp_deinit(struct wpa_supplicant *wpa_s);
@@ -148,7 +148,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int wpas_dpp_controller_start(struct wpa_supplicant *wpa_s, const char *cmd);
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -1780,9 +1780,9 @@
+@@ -1780,9 +1780,9 @@ skip_assoc_disallow:
  #endif /* CONFIG_MBO */
  
  #ifdef CONFIG_DPP
@@ -163,7 +163,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (debug_print)
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -4789,8 +4789,7 @@
+@@ -4789,8 +4789,7 @@ static u8 * wpas_populate_assoc_ies(
  		const u8 *addr = bss->bssid;
  
  		if (!(wpa_s->drv_flags & WPA_DRIVER_FLAGS_SME) &&

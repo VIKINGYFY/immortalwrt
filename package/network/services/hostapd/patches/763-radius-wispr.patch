@@ -9,7 +9,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -2024,6 +2024,25 @@
+@@ -2024,6 +2024,25 @@ static int ieee802_1x_update_vlan(struct
  }
  #endif /* CONFIG_NO_VLAN */
  
@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /**
   * ieee802_1x_receive_auth - Process RADIUS frames from Authentication Server
-@@ -2140,6 +2159,7 @@
+@@ -2140,6 +2159,7 @@ ieee802_1x_receive_auth(struct radius_ms
  		ieee802_1x_check_hs20(hapd, sta, msg,
  				      session_timeout_set ?
  				      (int) session_timeout : -1);
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		sm->eap_if->aaaFail = true;
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -123,6 +123,7 @@
+@@ -123,6 +123,7 @@ struct sta_info {
  	u8 supported_rates[WLAN_SUPP_RATES_MAX];
  	int supported_rates_len;
  	u8 qosinfo; /* Valid when WLAN_STA_WMM is set */
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool epp_eap_done; /* Indicates if an EPP STA has completed EAP
 --- a/src/radius/radius.c
 +++ b/src/radius/radius.c
-@@ -1387,6 +1387,35 @@
+@@ -1387,6 +1387,35 @@ radius_msg_get_cisco_keys(struct radius_
  	return keys;
  }
  
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			     const u8 *req_authenticator,
 --- a/src/radius/radius.h
 +++ b/src/radius/radius.h
-@@ -232,6 +232,10 @@
+@@ -232,6 +232,10 @@ enum {
  	RADIUS_VENDOR_ATTR_WFA_HS20_T_C_URL = 10,
  };
  
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef _MSC_VER
  #pragma pack(pop)
  #endif /* _MSC_VER */
-@@ -304,6 +308,7 @@
+@@ -304,6 +308,7 @@ radius_msg_get_ms_keys(struct radius_msg
  struct radius_ms_mppe_keys *
  radius_msg_get_cisco_keys(struct radius_msg *msg, struct radius_msg *sent_msg,
  			  const u8 *secret, size_t secret_len);

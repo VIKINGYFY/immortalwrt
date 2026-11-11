@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -5267,6 +5267,16 @@
+@@ -5267,6 +5267,16 @@ static int hostapd_config_fill(struct ho
  		conf->punct_acs_threshold = val;
  	} else if (os_strcmp(buf, "mld_ap") == 0) {
  		bss->mld_ap = !!atoi(pos);
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_ERROR, "Line %d: Invalid mld_addr",
 --- a/hostapd/hostapd.conf
 +++ b/hostapd/hostapd.conf
-@@ -1168,6 +1168,12 @@
+@@ -1168,6 +1168,12 @@ wmm_ac_vo_acm=0
  # 1 = yes (MLO)
  #mld_ap=0
  
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  # as the AP MLD MAC address. If not set, the current interface hardware address
 --- a/src/ap/ap_config.c
 +++ b/src/ap/ap_config.c
-@@ -191,6 +191,9 @@
+@@ -191,6 +191,9 @@ void hostapd_config_defaults_bss(struct
  #endif /* CONFIG_PASN */
  	bss->urnm_mfpr_x20 = -1;
  	bss->urnm_mfpr = -1;
@@ -63,36 +63,35 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bss->pmksa_caching_privacy = 0;
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1015,6 +1015,9 @@
- 
+@@ -1016,6 +1016,9 @@ struct hostapd_bss_config {
  	/* The AP's MLD MAC address within the AP MLD */
  	u8 mld_addr[ETH_ALEN];
-+
+ 
 +	/* The link ID of the AP within the AP MLD, -1 to assign one */
 +	int mld_link_id;
- 
++
  #ifdef CONFIG_TESTING_OPTIONS
  	/*
+ 	 * If set indicate the AP as disabled in the RNR element included in the
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -3277,13 +3277,23 @@
+@@ -3277,13 +3277,23 @@ static int hostapd_mld_unused_link_id(st
  static int hostapd_bss_alloc_link_id(struct hostapd_data *hapd,
  				     struct hostapd_mld *mld)
  {
 -	int link_id = hostapd_mld_unused_link_id(mld);
 +	int link_id = hapd->conf->mld_link_id;
-+
+ 
+-	if (link_id < 0) {
+-		wpa_printf(MSG_ERROR, "AP MLD %s: No free link ID", mld->name);
 +	if (link_id >= 0 && (mld->used_link_ids & BIT(link_id))) {
 +		wpa_printf(MSG_ERROR, "AP MLD %s: Link ID %d already in use",
 +			   mld->name, link_id);
-+		return -1;
-+	}
- 
- 	if (link_id < 0) {
--		wpa_printf(MSG_ERROR, "AP MLD %s: No free link ID", mld->name);
--		return -1;
--	}
+ 		return -1;
+ 	}
 -	mld->next_link_id = (link_id + 1) % MAX_NUM_MLD_LINKS;
++
++	if (link_id < 0) {
 +		link_id = hostapd_mld_unused_link_id(mld);
 +		if (link_id < 0) {
 +			wpa_printf(MSG_ERROR, "AP MLD %s: No free link ID",

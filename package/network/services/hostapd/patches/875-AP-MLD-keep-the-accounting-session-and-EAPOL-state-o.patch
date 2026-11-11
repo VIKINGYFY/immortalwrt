@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/accounting.c
 +++ b/src/ap/accounting.c
-@@ -572,6 +572,38 @@
+@@ -572,6 +572,38 @@ void accounting_mld_first_bss_moved(stru
  						   accounting_interim_error_cb,
  						   first);
  }
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/accounting.h
 +++ b/src/ap/accounting.h
-@@ -39,6 +39,13 @@
+@@ -39,6 +39,13 @@ static inline void accounting_mld_first_
  						  struct hostapd_data *first)
  {
  }
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #else /* CONFIG_NO_ACCOUNTING */
  int accounting_sta_get_id(struct hostapd_data *hapd, struct sta_info *sta);
  void accounting_sta_start(struct hostapd_data *hapd, struct sta_info *sta);
-@@ -47,6 +54,9 @@
+@@ -47,6 +54,9 @@ int accounting_init(struct hostapd_data
  void accounting_deinit(struct hostapd_data *hapd);
  void accounting_mld_first_bss_moved(struct hostapd_data *old,
  				    struct hostapd_data *first);
@@ -114,7 +114,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  static u16 ieee80211_eht_ppet_size(u16 ppe_thres_hdr, const u8 *phy_cap_info)
-@@ -1695,7 +1697,8 @@
+@@ -1695,7 +1697,8 @@ static void hostapd_ml_reconf_adds_rever
  
  
  /* Makes the STA of the non-AP MLD on link_id its association STA, which takes
@@ -124,7 +124,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct sta_info * hostapd_ml_move_assoc_sta(struct hostapd_data *hapd,
  					    struct sta_info *sta, u8 link_id,
  					    struct hostapd_data **assoc_hapd)
-@@ -1719,6 +1722,8 @@
+@@ -1719,6 +1722,8 @@ struct sta_info * hostapd_ml_move_assoc_
  	wpa_reset_assoc_sm_info(assoc_sta->wpa_sm, (*assoc_hapd)->wpa_auth,
  				link_id);
  	ap_sta_move_session_timeouts(hapd, sta, *assoc_hapd, assoc_sta);
@@ -135,13 +135,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		  sizeof(sta->scs_active));
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -1550,6 +1550,30 @@
- #endif /* CONFIG_NO_RADIUS */
+@@ -1553,6 +1553,30 @@ void ieee802_1x_free_station(struct host
+ }
  
- 	eapol_auth_free(sm);
-+}
-+
-+
+ 
 +/* The links of an AP MLD share the authenticator, so the state machine of a
 + * non-AP MLD goes on with the STA that becomes its association STA. */
 +void ieee802_1x_move_station(struct hostapd_data *new_hapd,
@@ -163,12 +160,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	sta->eapol_sm = NULL;
 +	sm->sta = new_sta;
 +	new_sta->eapol_sm = sm;
- }
- 
- 
++}
++
++
+ #ifndef CONFIG_NO_RADIUS
+ static void ieee802_1x_decapsulate_radius(struct hostapd_data *hapd,
+ 					  struct sta_info *sta)
 --- a/src/ap/ieee802_1x.h
 +++ b/src/ap/ieee802_1x.h
-@@ -22,6 +22,8 @@
+@@ -22,6 +22,8 @@ void ieee802_1x_receive(struct hostapd_d
  			size_t len, enum frame_encryption encrypted);
  void ieee802_1x_new_station(struct hostapd_data *hapd, struct sta_info *sta);
  void ieee802_1x_free_station(struct hostapd_data *hapd, struct sta_info *sta);
@@ -179,7 +179,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ieee802_1x_set_sta_authorized(struct hostapd_data *hapd,
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -1077,10 +1077,10 @@
+@@ -1077,10 +1077,10 @@ void ap_sta_session_warning_timeout(stru
  
  
  #ifdef CONFIG_IEEE80211BE
@@ -196,7 +196,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -452,6 +452,10 @@
+@@ -452,6 +452,10 @@ void ap_sta_no_session_timeout(struct ho
  			       struct sta_info *sta);
  void ap_sta_session_warning_timeout(struct hostapd_data *hapd,
  				    struct sta_info *sta, int warning_time);

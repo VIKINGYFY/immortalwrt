@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -866,8 +866,70 @@
+@@ -866,8 +866,70 @@ void hostapd_link_remove_tx_status(struc
  }
  
  
@@ -114,7 +114,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void hostapd_link_remove_notify_stas(struct hostapd_data *hapd)
  {
  	struct hostapd_data *tx_hapd;
-@@ -927,6 +989,7 @@
+@@ -927,6 +989,7 @@ static void hostapd_link_remove_expire_s
  	unsigned int wait_us;
  
  	hostapd_free_link_stas(hapd);
@@ -124,7 +124,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!hapd->eht_mld_link_removal_tx) {
 --- a/src/ap/ieee802_11.h
 +++ b/src/ap/ieee802_11.h
-@@ -332,6 +332,9 @@
+@@ -332,6 +332,9 @@ void ieee80211_ml_build_assoc_resp(struc
  void ieee802_11_rx_protected_eht_action(struct hostapd_data *hapd,
  					const struct ieee80211_mgmt *mgmt,
  					size_t len);
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					const struct ieee80211_mgmt *mgmt,
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1688,14 +1688,42 @@
+@@ -1688,14 +1688,42 @@ static void hostapd_ml_reconf_adds_rever
  }
  
  
@@ -181,7 +181,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct link_reconf_req_list *req_list;
  	struct link_reconf_req_info *info;
  	uint8_t link_id;
-@@ -1798,35 +1826,16 @@
+@@ -1798,35 +1826,16 @@ void hostapd_link_reconf_resp_tx_status(
  			}
  			wpa_printf(MSG_DEBUG, "MLD: New assoc link=%d", i);
  
@@ -221,7 +221,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* Free as a link STA */
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -8330,6 +8330,11 @@
+@@ -8330,6 +8330,11 @@ void wpa_reset_assoc_sm_info(struct wpa_
  			     u8 mld_assoc_link_id)
  {
  #ifdef CONFIG_IEEE80211BE

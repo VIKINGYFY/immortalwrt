@@ -445,7 +445,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  	/* Can't setup nat info for confirmed ct. */
  	if (nf_ct_is_confirmed(ct))
-@@ -793,7 +991,31 @@ nf_nat_setup_info(struct nf_conn *ct,
+@@ -794,7 +992,31 @@ nf_nat_setup_info(struct nf_conn *ct,
  	nf_ct_invert_tuple(&curr_tuple,
  			   &ct->tuplehash[IP_CT_DIR_REPLY].tuple);
  
@@ -477,7 +477,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  	if (!nf_ct_tuple_equal(&new_tuple, &curr_tuple)) {
  		struct nf_conntrack_tuple reply;
-@@ -809,14 +1031,25 @@ nf_nat_setup_info(struct nf_conn *ct,
+@@ -810,14 +1032,25 @@ nf_nat_setup_info(struct nf_conn *ct,
  			ct->status |= IPS_DST_NAT;
  
  		if (nfct_help(ct) && !nfct_seqadj(ct))
@@ -504,7 +504,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  		srchash = hash_by_src(net, nf_ct_zone(ct),
  				      &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
  		lock = &nf_nat_locks[srchash % CONNTRACK_LOCKS];
-@@ -834,6 +1067,68 @@ nf_nat_setup_info(struct nf_conn *ct,
+@@ -835,6 +1068,68 @@ nf_nat_setup_info(struct nf_conn *ct,
  
  	return NF_ACCEPT;
  }
@@ -573,7 +573,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  EXPORT_SYMBOL(nf_nat_setup_info);
  
  static unsigned int
-@@ -995,6 +1290,15 @@ static int nf_nat_proto_remove(struct nf
+@@ -996,6 +1291,15 @@ static int nf_nat_proto_remove(struct nf
  static void nf_nat_cleanup_conntrack(struct nf_conn *ct)
  {
  	unsigned int h;
@@ -589,7 +589,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  
  	h = hash_by_src(nf_ct_net(ct), nf_ct_zone(ct), &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
  	spin_lock_bh(&nf_nat_locks[h % CONNTRACK_LOCKS]);
-@@ -1352,12 +1656,28 @@ static int __init nf_nat_init(void)
+@@ -1353,12 +1657,28 @@ static int __init nf_nat_init(void)
  	if (!nf_nat_bysource)
  		return -ENOMEM;
  
@@ -619,7 +619,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  		return ret;
  	}
  
-@@ -1374,6 +1694,9 @@ static int __init nf_nat_init(void)
+@@ -1375,6 +1695,9 @@ static int __init nf_nat_init(void)
  		nf_ct_helper_expectfn_destroy(&follow_master_nat);
  		unregister_pernet_subsys(&nat_net_ops);
  		kvfree(nf_nat_bysource);
@@ -629,7 +629,7 @@ Signed-off-by: Akhilesh Samineni <akhilesh.samineni@broadcom.com>
  	}
  
  	return ret;
-@@ -1391,6 +1714,9 @@ static void __exit nf_nat_cleanup(void)
+@@ -1392,6 +1715,9 @@ static void __exit nf_nat_cleanup(void)
  	synchronize_net();
  	nf_ct_helper_expectfn_destroy(&follow_master_nat);
  	kvfree(nf_nat_bysource);

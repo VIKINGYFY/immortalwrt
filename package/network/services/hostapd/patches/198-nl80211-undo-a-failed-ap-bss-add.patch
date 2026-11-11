@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -9936,8 +9936,12 @@
+@@ -9936,8 +9936,12 @@ static int wpa_driver_nl80211_if_add(voi
  		new_bss->added_if = added;
  
  		/* Set interface mode to NL80211_IFTYPE_AP */
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (bridge &&
  		    i802_check_bridge(drv, new_bss, bridge, ifname) < 0) {
-@@ -9967,8 +9971,16 @@
+@@ -9967,8 +9971,16 @@ static int wpa_driver_nl80211_if_add(voi
  		nl80211_init_bss(new_bss);
  
  		/* Subscribe management frames for this WPA_IF_AP_BSS */

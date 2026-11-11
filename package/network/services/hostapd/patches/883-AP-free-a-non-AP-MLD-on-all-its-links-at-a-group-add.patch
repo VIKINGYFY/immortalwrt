@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ctrl_iface_ap.c
 +++ b/src/ap/ctrl_iface_ap.c
-@@ -696,7 +696,7 @@
+@@ -696,7 +696,7 @@ int hostapd_ctrl_iface_deauthenticate(st
  		if (sta)
  			ap_sta_deauthenticate(hapd, sta, reason);
  		else if (addr[0] == 0xff)
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return 0;
-@@ -761,7 +761,7 @@
+@@ -761,7 +761,7 @@ int hostapd_ctrl_iface_disassociate(stru
  		if (sta)
  			ap_sta_disassociate(hapd, sta, reason);
  		else if (addr[0] == 0xff)
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1963,10 +1963,7 @@
+@@ -1963,10 +1963,7 @@ static int hostapd_flush_old_stations(st
  
  static void hostapd_bss_stas_leave(struct hostapd_data *hapd)
  {
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -2447,6 +2447,15 @@
+@@ -2447,6 +2447,15 @@ void hostapd_free_link_sta_mlds(struct h
  #endif /* CONFIG_IEEE80211BE */
  
  
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -446,6 +446,7 @@
+@@ -446,6 +446,7 @@ void ap_free_sta(struct hostapd_data *ha
  void ap_free_sta_all_links(struct hostapd_data *hapd, struct sta_info *sta);
  void ap_sta_ip6addr_del(struct hostapd_data *hapd, struct sta_info *sta);
  void hostapd_free_stas(struct hostapd_data *hapd);

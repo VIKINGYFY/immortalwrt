@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/dpp_supplicant.c
 +++ b/wpa_supplicant/dpp_supplicant.c
-@@ -2782,6 +2782,28 @@
+@@ -2782,6 +2782,28 @@ wpas_dpp_rx_reconfig_auth_conf(struct wp
  #endif /* CONFIG_DPP2 */
  
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void wpas_dpp_rx_peer_disc_resp(struct wpa_supplicant *wpa_s,
  				       const u8 *src,
  				       const u8 *buf, size_t len)
-@@ -2924,7 +2946,7 @@
+@@ -2924,7 +2946,7 @@ static void wpas_dpp_rx_peer_disc_resp(s
  	entry->expiration = rnow.sec + seconds;
  	entry->reauth_time = rnow.sec + seconds;
  	entry->network_ctx = ssid;
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	wpa_msg(wpa_s, MSG_INFO, DPP_EVENT_INTRO "peer=" MACSTR
  		" status=%u version=%u", MAC2STR(src), status[0], peer_version);
-@@ -4077,7 +4099,7 @@
+@@ -4077,7 +4099,7 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
  	entry->expiration = rnow.sec + seconds;
  	entry->reauth_time = rnow.sec + seconds;
  	entry->network_ctx = ssid;
