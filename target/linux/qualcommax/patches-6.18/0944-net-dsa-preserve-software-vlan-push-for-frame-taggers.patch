@@ -1,0 +1,32 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: dsa: preserve software VLAN insertion for frame taggers
+
+Disable conduit VLAN TX features when a tagger writes into the Ethernet frame. Keep this packet-layout policy independent of flowtable block ownership.
+
+Split from:
+  0943-net-dsa-flowtable-and-vlan-transport.patch - net: dsa: coordinate flowtable forwarding and VLAN transport
+
+Previous merged from (0943-net-dsa-flowtable-and-vlan-transport.patch):
+  0943-net-dsa-offer-a-flowtable-to-the-switch-before-the-conduit.patch
+  0944-net-dsa-keep-TX-VLAN-offload-off-under-a-tag-in-the-frame.patch
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/net/dsa/user.c
++++ b/net/dsa/user.c
+@@ -2877,6 +2877,13 @@ void dsa_user_setup_tagger(struct net_de
+ 	user->hw_features |= NETIF_F_HW_TC;
+ 	if (user->needed_tailroom)
+ 		user->features &= ~(NETIF_F_SG | NETIF_F_FRAGLIST);
++	/* A tag the conduit inserts would land in front of the one written
++	 * into the frame, so the VLAN tag is pushed before it.
++	 */
++	if (cpu_dp->tag_ops->needed_headroom ||
++	    cpu_dp->tag_ops->needed_tailroom)
++		user->features &= ~(NETIF_F_HW_VLAN_CTAG_TX |
++				    NETIF_F_HW_VLAN_STAG_TX);
+ 	if (ds->needs_standalone_vlan_filtering)
+ 		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
+ 

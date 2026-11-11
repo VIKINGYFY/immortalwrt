@@ -1,5 +1,5 @@
 From: Manikanta Mylavarapu <quic_mmanikan@quicinc.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] remoteproc: qcom: provide secure WCSS PIL and platform bindings
 
 Add new binding document for hexagon based WCSS secure PIL remoteproc.
@@ -10,27 +10,34 @@ SoCs support secure Peripheral Image Loading (PIL).
 
 Enable nodes required for q6 remoteproc bring up.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  0186-remoteproc-qcom-secure-wcss-pil.patch - remoteproc: qcom: provide secure WCSS PIL and platform bindings
+  0808-remoteproc-qcom-wcss-sec-firmware-startup.patch - remoteproc: qcom: complete secure WCSS firmware startup
+
+Previous merged from (0186-remoteproc-qcom-secure-wcss-pil.patch):
   0186-dt-bindings-remoteproc-qcom-document-hexagon-based-wcss-secure-pil.patch
   0188-remoteproc-qcom-add-hexagon-based-wcss-secure-pil-driver.patch
   0189-arm64-dts-qcom-ipq5018-add-nodes-to-bringup-q6.patch
 
-Based on work by:
-  George Moussalem <george.moussalem@outlook.com>
-  Gokul Sriram Palanisamy <gokul.sriram.p@oss.qualcomm.com>
-  Gokul Sriram Palanisamy <quic_gokulsri@quicinc.com>
-  Manikanta Mylavarapu <quic_mmanikan@quicinc.com>
-  Vignesh Viswanathan <vignesh.viswanathan@oss.qualcomm.com>
+Previous merged from (0808-remoteproc-qcom-wcss-sec-firmware-startup.patch):
+  0808-remoteproc-qcom-wcss-sec-add-split-firmware-support.patch
+  0809-remoteproc-qcom-wcss-sec-enable-PRNG-clock.patch
+  0810-remoteproc-qcom-wcss-sec-add-ipq8074-compatible.patch
 
 Original-commit: db128ef0282b8cc41816caf39a03fa17d10fa865
 Original-commit: 47d46157200bb5f67e540a87c67aab9cde62f8a4
 Original-commit: 553461c1f1ae9b2ac50bce5ed5de15092cc04d29
+Original-commit: 0000000000000000000000000000000000000000
 
 Signed-off-by: Manikanta Mylavarapu <quic_mmanikan@quicinc.com>
 Signed-off-by: Gokul Sriram Palanisamy <quic_gokulsri@quicinc.com>
 Signed-off-by: Vignesh Viswanathan <vignesh.viswanathan@oss.qualcomm.com>
 Signed-off-by: Gokul Sriram Palanisamy <gokul.sriram.p@oss.qualcomm.com>
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
+Signed-off-by: Robert Marko <robimarko@gmail.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- /dev/null
@@ -173,7 +180,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +    };
 --- a/arch/arm64/boot/dts/qcom/ipq5018.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5018.dtsi
-@@ -168,6 +168,11 @@
+@@ -162,6 +162,11 @@
  			reg = <0x0 0x4ac00000 0x0 0x200000>;
  			no-map;
  		};
@@ -185,7 +192,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	};
  
  	soc: soc@0 {
-@@ -758,6 +763,41 @@
+@@ -752,6 +757,41 @@
  			};
  		};
  
@@ -227,7 +234,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		pcie1: pcie@80000000 {
  			compatible = "qcom,pcie-ipq5018";
  			reg = <0x80000000 0xf1d>,
-@@ -1032,4 +1072,28 @@
+@@ -1026,4 +1066,28 @@
  			     <GIC_PPI 4 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
  			     <GIC_PPI 1 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
  	};
@@ -296,7 +303,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  qcom_wcnss_pil-y			+= qcom_wcnss.o
 --- /dev/null
 +++ b/drivers/remoteproc/qcom_q6v5_wcss_sec.c
-@@ -0,0 +1,406 @@
+@@ -0,0 +1,443 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (C) 2016-2018 Linaro Ltd.
@@ -324,6 +331,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +#define Q6_WAIT_TIMEOUT			(5 * HZ)
 +
++#define MAX_FIRMWARE			3
++
 +struct wcss_sec {
 +	struct device *dev;
 +	struct qcom_rproc_glink glink_subdev;
@@ -334,6 +343,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	void *mem_region;
 +	size_t mem_size;
 +	const struct wcss_data *desc;
++	const char **firmware;
 +
 +	struct mbox_client mbox_client;
 +	struct mbox_chan *mbox_chan;
@@ -436,7 +446,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	struct wcss_sec *wcss = rproc->priv;
 +	struct device *dev = wcss->dev;
-+	int ret;
++	const struct firmware *fw_hdl;
++	int i, ret;
 +
 +	if (wcss->desc->use_tmelcom) {
 +		wcss->metadata = qcom_mdt_read_metadata(fw, &wcss->metadata_len,
@@ -460,6 +471,28 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				    wcss->mem_phys, wcss->mem_size, &wcss->mem_reloc);
 +		if (ret)
 +			return ret;
++
++		for (i = 1; i < MAX_FIRMWARE; i++) {
++			if (!wcss->firmware[i])
++				continue;
++
++			ret = request_firmware(&fw_hdl, wcss->firmware[i], dev);
++
++			if (ret)
++				continue;
++
++			ret = qcom_mdt_load_no_init(dev, fw_hdl, wcss->firmware[i],
++						    wcss->mem_region, wcss->mem_phys,
++						    wcss->mem_size, &wcss->mem_reloc);
++
++			release_firmware(fw_hdl);
++
++			if (ret) {
++				dev_err(dev, "error %d loading firmware %s\n",
++					ret, wcss->firmware[i]);
++				return ret;
++			}
++		}
 +	}
 +
 +	qcom_pil_info_store("wcss", wcss->mem_phys, wcss->mem_size);
@@ -589,18 +622,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	struct rproc *rproc;
 +	struct wcss_sec *wcss;
 +	struct clk *sleep_clk;
++	struct clk *prng_clk;
 +	struct clk *int_clk;
-+	const char *fw_name = NULL;
++	const char **firmware = NULL;
 +	const struct wcss_data *desc = of_device_get_match_data(&pdev->dev);
 +	int ret;
 +
-+	ret = of_property_read_string(pdev->dev.of_node, "firmware-name",
-+				      &fw_name);
++	firmware = devm_kcalloc(&pdev->dev, MAX_FIRMWARE,
++				sizeof(*firmware), GFP_KERNEL);
++
++	ret = of_property_read_string_array(pdev->dev.of_node, "firmware-name",
++					    firmware, MAX_FIRMWARE);
 +	if (ret < 0)
 +		return ret;
 +
 +	rproc = devm_rproc_alloc(&pdev->dev, desc->ss_name, &wcss_sec_ops,
-+				 fw_name, sizeof(*wcss));
++				 firmware[0], sizeof(*wcss));
 +	if (!rproc) {
 +		dev_err(&pdev->dev, "failed to allocate rproc\n");
 +		return -ENOMEM;
@@ -609,6 +646,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	wcss = rproc->priv;
 +	wcss->dev = &pdev->dev;
 +	wcss->desc = desc;
++	wcss->firmware = firmware;
 +
 +	ret = wcss_sec_alloc_memory_region(wcss);
 +	if (ret)
@@ -623,6 +661,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (IS_ERR(int_clk))
 +		return dev_err_probe(&pdev->dev, PTR_ERR(int_clk),
 +				     "Failed to get interconnect clock\n");
++
++	prng_clk = devm_clk_get_optional_enabled(&pdev->dev, "prng");
++	if (IS_ERR(prng_clk))
++		return dev_err_probe(&pdev->dev, PTR_ERR(prng_clk),
++				     "Failed to get prng clock\n");
 +
 +	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
 +			     WCSS_CRASH_REASON, NULL, NULL);
@@ -686,6 +729,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	{ .compatible = "qcom,ipq5018-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
 +	{ .compatible = "qcom,ipq5332-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
 +	{ .compatible = "qcom,ipq5424-wcss-sec-pil", .data = &wcss_sec_ipq5424_res_init },
++	{ .compatible = "qcom,ipq8074-wcss-sec-pil", .data = &wcss_sec_ipq9574_res_init },
 +	{ .compatible = "qcom,ipq9574-wcss-sec-pil", .data = &wcss_sec_ipq9574_res_init },
 +	{ },
 +};

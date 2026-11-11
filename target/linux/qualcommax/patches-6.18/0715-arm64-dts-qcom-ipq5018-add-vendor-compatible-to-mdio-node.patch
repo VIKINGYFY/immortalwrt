@@ -1,5 +1,5 @@
 From: George Moussalem <george.moussalem@outlook.com>
-Date: Wed, 28 May 2025 08:37:28 +0400
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] arm64: dts: qcom: ipq5018: Add vendor compatible to mdio bus
 
 QCA SSDK needs to register the MDIO bus in its driver. Without a proper reference,
@@ -7,9 +7,11 @@ it will crash. Since it tries to look up the MDIO bus using compatible strings t
 aren't upstreamed, add the vendor compatible.
 
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/arch/arm64/boot/dts/qcom/ipq5018.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5018.dtsi
-@@ -246,7 +246,7 @@
+@@ -240,7 +240,7 @@
  		};
  
  		mdio0: mdio@88000 {

@@ -1,16 +1,13 @@
 From: Ziyang Huang <hzyitc@outlook.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] mtd: qpic: limit raw and SPI NAND IDs to four bytes
 
 QPIC use a reg (NAND_READ_ID) to transport the ID, so the max bytes of ID
 is a word (4Bytes).
 
-Merged from:
+Previous merged from (0411-mtd-qpic-four-byte-nand-id.patch):
   0411-mtd-rawnand-qpic-only-support-max-4-bytes-ID.patch
   0412-mtd-spinand-qpic-only-support-max-4-bytes-ID.patch
-
-Based on work by:
-  Ziyang Huang <hzyitc@outlook.com>
 
 Original-commit: ce4d8b3c5e866a8c515608cf623990e1471a69c7
 Original-commit: cf5225a6e279995a574a5ed97cb227b5e076ed8e
@@ -31,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		memorg->pages_per_eraseblock = type->erasesize /
 --- a/drivers/mtd/nand/spi/core.c
 +++ b/drivers/mtd/nand/spi/core.c
-@@ -1409,7 +1409,7 @@ int spinand_match_and_init(struct spinan
+@@ -1428,7 +1428,7 @@ int spinand_match_and_init(struct spinan
  		if (rdid_method != info->devid.method)
  			continue;
  

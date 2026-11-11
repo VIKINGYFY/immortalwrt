@@ -1,31 +1,22 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
-Subject: [PATCH] net: dsa: coordinate flowtable forwarding and VLAN transport
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: dsa: offer flowtable blocks to the owning switch
 
-A flowtable bound to a DSA user port is forwarded to the conduit netdev by
-dsa_user_setup_ft_block(), for a flow engine that sits on the conduit as
-mtk_eth's does. It does not go through ds->ops->port_setup_tc, so a switch
-that owns its flow engine is never offered the flowtable.
+Offer a user-port flowtable to a switch which owns the hardware engine before trying the conduit, and remember the bind owner for unbind. Keep VLAN tag insertion policy in its separate transport unit.
 
-A user port takes its features from the conduit's vlan_features. When those
-carry NETIF_F_HW_VLAN_CTAG_TX, a switch whose tagger writes into the frame
-gets its VLAN tag inserted by the conduit in front of the switch tag, where
-the switch does not parse it. This happens to a switch stacked behind a
-port of another switch whose conduit inserts VLAN tags.
+Split from:
+  0943-net-dsa-flowtable-and-vlan-transport.patch - net: dsa: coordinate flowtable forwarding and VLAN transport
 
-Merged from:
+Previous merged from (0943-net-dsa-flowtable-and-vlan-transport.patch):
   0943-net-dsa-offer-a-flowtable-to-the-switch-before-the-conduit.patch
   0944-net-dsa-keep-TX-VLAN-offload-off-under-a-tag-in-the-frame.patch
-
-Based on work by:
-  Julius Bairaktaris <julius@bairaktaris.de>
 
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -293,6 +293,12 @@ struct dsa_port {
+@@ -299,6 +299,12 @@ struct dsa_port {
  
  	u8			setup:1;
  
@@ -40,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -1737,15 +1737,30 @@ static int dsa_user_setup_tc_block(struc
+@@ -1752,15 +1752,30 @@ static int dsa_user_setup_tc_block(struc
  	}
  }
  
@@ -75,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int dsa_user_setup_tc(struct net_device *dev, enum tc_setup_type type,
-@@ -1758,7 +1773,7 @@ static int dsa_user_setup_tc(struct net_
+@@ -1773,7 +1788,7 @@ static int dsa_user_setup_tc(struct net_
  	case TC_SETUP_BLOCK:
  		return dsa_user_setup_tc_block(dev, type_data);
  	case TC_SETUP_FT:
@@ -84,17 +75,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		break;
  	}
-@@ -2847,6 +2862,13 @@ void dsa_user_setup_tagger(struct net_de
- 	user->hw_features |= NETIF_F_HW_TC;
- 	if (user->needed_tailroom)
- 		user->features &= ~(NETIF_F_SG | NETIF_F_FRAGLIST);
-+	/* A tag the conduit inserts would land in front of the one written
-+	 * into the frame, so the VLAN tag is pushed before it.
-+	 */
-+	if (cpu_dp->tag_ops->needed_headroom ||
-+	    cpu_dp->tag_ops->needed_tailroom)
-+		user->features &= ~(NETIF_F_HW_VLAN_CTAG_TX |
-+				    NETIF_F_HW_VLAN_STAG_TX);
- 	if (ds->needs_standalone_vlan_filtering)
- 		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
- 

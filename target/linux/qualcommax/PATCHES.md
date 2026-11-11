@@ -1,7 +1,8 @@
 # Qualcomm AX patch responsibilities
 
-Keep kernel-version-labelled backports unchanged, including their filenames,
-headers, hunks and order. Other changes are organized by functional purpose,
+Keep kernel-version-labelled backport filenames, order and upstream provenance.
+Standard Quilt context refresh is allowed when expanded source stays identical.
+Other changes are organized by functional purpose,
 not by collecting every modification to one source file or SoC.
 
 | Area | Responsibilities |
@@ -46,3 +47,14 @@ MAC/calibration cells, CPU corners and memory layouts stay in their applicable
 board or family include. Differences in register cell widths, UNIPHY counts,
 NSS cores, clock names/rates, IRQ numbers and regulator data describe hardware;
 they must not be flattened into a common include for cosmetic consistency.
+
+IPQ5018 multi-PD boot owns its internal-radio MSA exception from the first
+implementation. CPU frequency resources describe the final supported OPPs
+directly. IPQ6018 secure WLAN device-tree wiring and SMP2P crash acknowledgement
+remain separate units. DSA flowtable block ownership (0943), software VLAN
+insertion for frame taggers (0944), generic VLAN-upper filtering (0963-01)
+and the QCA transport consumer (0963-02) have independent responsibilities.
+
+Use patch basenames in `Split from:` and `Merged from:` entries. Retain the
+original subjects and existing provenance chains. Version-labelled patches
+follow the same standard Quilt refresh while retaining their source references.

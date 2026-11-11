@@ -1,5 +1,5 @@
 From: Ziyang Huang <hzyitc@outlook.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] remoteproc: qcom: complete IPQ5018 multi-PD clocks and boot arguments
 
 Use managed clock enable so probe failure and remove disable all clocks
@@ -14,20 +14,25 @@ run on the Q6 processor which in turn boots the user PDs for internal
 the user PD process know details like what PCIE index, user PD ID, and
 reset GPIO is used. These are otherwise hardcoded in the firmware.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  0813-remoteproc-qcom-ipq5018-multipd-boot.patch - remoteproc: qcom: complete IPQ5018 multi-PD clocks and boot arguments
+  0818-remoteproc-qcom_q6v5_mpd-skip-MSA-lock-for-internal-radio.patch - remoteproc: qcom_q6v5_mpd: skip MSA lock for internal radio
+
+Previous merged from (0813-remoteproc-qcom-ipq5018-multipd-boot.patch):
   0813-remoteproc-qcom_q6v5_mpd-enable-clocks.patch
   0814-remoteproc-qcom_q6v5_mpd-support-ipq5018.patch
   0815-remoteproc-qcom_q6v5_mpd-add-support-for-passing-v1-bootargs.patch
 
-Based on work by:
-  George Moussalem <george.moussalem@outlook.com>
-  Ziyang Huang <hzyitc@outlook.com>
-
 Original-commit: e83215d5d22946885fa388d375b12f1b991a43c1
 Original-commit: 4ae334127f073aa5f7c9209c9f0a17fd9e331db1
+Link: https://patches.linaro.org/patch/660628/
 
 Signed-off-by: Ziyang Huang <hzyitc@outlook.com>
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
+Signed-off-by: Alan Gao <1226010136@qq.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/remoteproc/qcom_q6v5_mpd.c
@@ -54,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const struct wcss_data *desc;
  	const char **firmware;
  	struct userpd *upd[MAX_UPD];
-@@ -89,11 +95,13 @@ struct userpd {
+@@ -89,11 +95,14 @@ struct userpd {
  	struct qcom_rproc_ssr ssr_subdev;
  	struct qcom_q6v5 q6;
  	void *irq_group;
@@ -64,11 +69,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct wcss_data {
  	u32 pasid;
  	bool share_upd_info_to_q6;
++	bool skip_msa_lock_internal_radio;
 +	u8 bootargs_version;
  };
  
  /**
-@@ -139,43 +147,70 @@ static int q6_wcss_start(struct rproc *r
+@@ -139,43 +148,76 @@ static int q6_wcss_start(struct rproc *r
  
  static int q6_wcss_spawn_pd(struct rproc *rproc)
  {
@@ -104,13 +110,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	struct q6_wcss *wcss = rpd_rproc->priv;
  	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
 -	int ret;
++	bool skip_msa_lock = wcss->desc->skip_msa_lock_internal_radio &&
++			     upd->pd_asid == 1;
 +	int ret, err;
  
- 	ret = qcom_scm_msa_lock(pasid);
- 	if (ret) {
- 		dev_err(upd->dev, "failed to power up pd\n");
+-	ret = qcom_scm_msa_lock(pasid);
+-	if (ret) {
+-		dev_err(upd->dev, "failed to power up pd\n");
 -		return ret;
-+		goto shutdown_parent;
++	if (!skip_msa_lock) {
++		ret = qcom_scm_msa_lock(pasid);
++		if (ret) {
++			dev_err(upd->dev, "failed to power up pd\n");
++			goto shutdown_parent;
++		}
  	}
  
  	if (upd->q6.spawn_bit) {
@@ -136,9 +149,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	return 0;
 +
 +unlock_msa:
-+	err = qcom_scm_msa_unlock(pasid);
-+	if (err)
-+		dev_warn(upd->dev, "failed to unlock pd: %d\n", err);
++	if (!skip_msa_lock) {
++		err = qcom_scm_msa_unlock(pasid);
++		if (err)
++			dev_warn(upd->dev, "failed to unlock pd: %d\n", err);
++	}
 +	upd->q6.running = false;
 +shutdown_parent:
 +	if (upd->parent_booted) {
@@ -148,7 +163,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -185,6 +220,12 @@ static int q6_wcss_stop(struct rproc *rp
+@@ -185,6 +227,12 @@ static int q6_wcss_stop(struct rproc *rp
  	const struct wcss_data *desc = wcss->desc;
  	int ret;
  
@@ -161,33 +176,42 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = qcom_scm_pas_shutdown(desc->pasid);
  	if (ret) {
  		dev_err(wcss->dev, "not able to shutdown\n");
-@@ -224,6 +265,7 @@ static int wcss_pd_stop(struct rproc *rp
+@@ -224,7 +272,10 @@ static int wcss_pd_stop(struct rproc *rp
  {
  	struct userpd *upd = rproc->priv;
  	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
 +	struct q6_wcss *wcss = rpd_rproc->priv;
  	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
++	bool skip_msa_lock = wcss->desc->skip_msa_lock_internal_radio &&
++			     upd->pd_asid == 1;
  	int ret;
  
-@@ -235,13 +277,24 @@ static int wcss_pd_stop(struct rproc *rp
+ 	if (rproc->state != RPROC_CRASHED && upd->q6.stop_bit) {
+@@ -235,13 +286,26 @@ static int wcss_pd_stop(struct rproc *rp
  		}
  	}
  
+-	ret = qcom_scm_msa_unlock(pasid);
+-	if (ret) {
+-		dev_err(upd->dev, "failed to power down pd\n");
+-		return ret;
 +	if (upd->pd_asid == 1) {
 +		ret = qcom_scm_internal_wifi_shutdown(wcss->desc->pasid);
 +		if (ret) {
 +			dev_err(upd->dev, "failed to power down internal radio\n");
 +			return ret;
 +		}
-+	}
-+
- 	ret = qcom_scm_msa_unlock(pasid);
- 	if (ret) {
- 		dev_err(upd->dev, "failed to power down pd\n");
- 		return ret;
  	}
  
 -	rproc_shutdown(rpd_rproc);
++	if (!skip_msa_lock) {
++		ret = qcom_scm_msa_unlock(pasid);
++		if (ret) {
++			dev_err(upd->dev, "failed to power down pd\n");
++			return ret;
++		}
++	}
++
 +	if (upd->parent_booted) {
 +		rproc_shutdown(rpd_rproc);
 +		upd->parent_booted = false;
@@ -195,7 +219,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -279,10 +332,13 @@ static void *q6_wcss_da_to_va(struct rpr
+@@ -279,10 +343,13 @@ static void *q6_wcss_da_to_va(struct rpr
  static int share_upd_bootinfo_to_q6(struct rproc *rproc)
  {
  	int i, ret;
@@ -209,7 +233,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct userpd *upd;
  	struct userpd_boot_info upd_bootinfo = {0};
  	const struct firmware *fw;
-@@ -304,10 +360,47 @@ static int share_upd_bootinfo_to_q6(stru
+@@ -304,10 +371,47 @@ static int share_upd_bootinfo_to_q6(stru
  	}
  
  	/*Version*/
@@ -258,7 +282,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < ARRAY_SIZE(wcss->upd); i++)
  		if (wcss->upd[i])
  			cnt++;
-@@ -363,12 +456,14 @@ static int q6_wcss_load(struct rproc *rp
+@@ -363,12 +467,14 @@ static int q6_wcss_load(struct rproc *rp
  
  	/* Share user pd boot info to Q6 remote processor */
  	if (desc->share_upd_info_to_q6) {
@@ -279,7 +303,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -436,17 +531,21 @@ static int wcss_pd_load(struct rproc *rp
+@@ -436,17 +542,21 @@ static int wcss_pd_load(struct rproc *rp
  	struct userpd *upd = rproc->priv;
  	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
  	struct q6_wcss *wcss = rpd_rproc->priv;
@@ -306,7 +330,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static unsigned long q6_wcss_panic(struct rproc *rproc)
-@@ -757,6 +856,11 @@ static int q6_wcss_probe(struct platform
+@@ -757,6 +867,11 @@ static int q6_wcss_probe(struct platform
  	if (ret)
  		goto free_rproc;
  
@@ -318,13 +342,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
  			     WCSS_CRASH_REASON, NULL, NULL);
  	if (ret)
-@@ -808,9 +912,17 @@ static void q6_wcss_remove(struct platfo
+@@ -808,9 +923,18 @@ static void q6_wcss_remove(struct platfo
  	platform_set_drvdata(pdev, NULL);
  }
  
 +static const struct wcss_data q6_ipq5018_res_init = {
 +	.pasid = MPD_WCNSS_PAS_ID,
 +	.share_upd_info_to_q6 = true,
++	.skip_msa_lock_internal_radio = true,
 +	.bootargs_version = VERSION1,
 +	// .mdt_load_sec = qcom_mdt_load_pd_seg,
 +};
@@ -336,7 +361,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  static const struct wcss_data q6_ipq9574_res_init = {
-@@ -818,6 +930,7 @@ static const struct wcss_data q6_ipq9574
+@@ -818,6 +942,7 @@ static const struct wcss_data q6_ipq9574
  };
  
  static const struct of_device_id q6_wcss_of_match[] = {

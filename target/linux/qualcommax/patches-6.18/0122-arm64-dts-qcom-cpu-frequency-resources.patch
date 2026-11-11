@@ -1,5 +1,5 @@
 From: Robert Marko <robimarko@gmail.com>
-Date: Thu, 29 Oct 2026 09:46:42 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] arm64: dts: qcom: complete CPU frequency and cooling resources
 
 Now that CPU clock is exposed and can be controlled, add the necessary
@@ -17,27 +17,44 @@ table for SoC.
 Adjust the supported hardware mask in the IPQ6018 CPU operating point table
 so the described operating points are available to the platform.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  0122-arm64-dts-qcom-cpu-frequency-resources.patch - arm64: dts: qcom: complete CPU frequency and cooling resources
+  0912-arm64-dts-qcom-ipq5018-remove-800MHz-OPP.patch - arm64: dts: qcom: ipq5018: remove the 800 MHz OPP
+
+Previous merged from (0122-arm64-dts-qcom-cpu-frequency-resources.patch):
   0122-arm64-dts-ipq8074-add-CPU-clock.patch
   0123-arm64-dts-ipq8074-add-cooling-cells-to-CPU-nodes.patch
   0129-arm64-dts-qcom-ipq8074-add-QFPROM-fuses.patch
   0130-arm64-dts-qcom-ipq8074-add-CPU-OPP-table.patch
   0131-arm64-dts-qcom-ipq6018-change-CPU-OPP-table.patch
 
-Based on work by:
-  OpenWrt community <openwrt-devel@lists.openwrt.org>
-  Robert Marko <robimarko@gmail.com>
-
 Original-commit: cb3ef99c1553565e1dc0301ccd5c1c0fa2d15c15
 Original-commit: 347ca56e86c99021fad059b9a8ef101245b8507e
 Original-commit: 04d2fc6a551bbd972a6428059b45ce79cb9de9d7
 Original-commit: a20c4e8738a00087aa5d53fe5148ed484e23d229
 
-Refresh against the explicit IPQ8074 CMN PLL clock topology.
-
 Signed-off-by: Robert Marko <robimarko@gmail.com>
+Signed-off-by: Robert Senderek <robert.senderek@10g.pl>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/arch/arm64/boot/dts/qcom/ipq5018.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5018.dtsi
+@@ -94,12 +94,6 @@
+ 		compatible = "operating-points-v2";
+ 		opp-shared;
+ 
+-		opp-800000000 {
+-			opp-hz = /bits/ 64 <800000000>;
+-			opp-microvolt = <1100000>;
+-			clock-latency-ns = <200000>;
+-		};
+-
+ 		opp-1008000000 {
+ 			opp-hz = /bits/ 64 <1008000000>;
+ 			opp-microvolt = <1100000>;
 --- a/arch/arm64/boot/dts/qcom/ipq6018.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq6018.dtsi
 @@ -118,28 +118,28 @@

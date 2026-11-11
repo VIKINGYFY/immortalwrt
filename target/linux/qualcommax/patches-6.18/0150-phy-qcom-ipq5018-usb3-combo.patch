@@ -1,5 +1,5 @@
 From: George Moussalem <george.moussalem@outlook.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] phy: qcom: support IPQ5018 PCIe and USB3 combo PHY
 
 Describe the USB3 PHY found in the IPQ5018 SoC, so add the compatible
@@ -39,7 +39,7 @@ Add the USB3 UNIPHY to the USB controller node for USB3 support. In
 addition, switch to the pipe clock supplied by the USB3 UNIPHY instead of
 the UTMI clock.
 
-Merged from:
+Previous merged from (0150-phy-qcom-ipq5018-usb3-combo.patch):
   0150-dt-bindings-phy-qcom-ipq5332-uniphy-pcie-Document-th.patch
   0151-phy-qualcomm-qcom-uniphy-pcie-28lp-Convert-to-PCIe-U.patch
   0152-phy-qualcomm-qcom-uniphy-pcie-usb3-28lp-Refactor-ini.patch
@@ -50,9 +50,6 @@ Merged from:
   0157-dt-bindings-usb-qcom-snps-dwc3-Add-clocks-for-USB3-o.patch
   0158-arm64-dts-qcom-ipq5018-Add-clocks-required-for-USB3-.patch
   0159-arm64-dts-qcom-ipq5018-Add-Super-Speed-UNIPHY-to-USB.patch
-
-Based on work by:
-  George Moussalem <george.moussalem@outlook.com>
 
 Original-commit: b1c13a2a9d815dafebe26181791dedf403d85ec7
 Original-commit: 6ff42f4d8717b05ad36a70ac18b9373902ea9625
@@ -197,7 +194,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
      then:
 --- a/arch/arm64/boot/dts/qcom/ipq5018.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5018.dtsi
-@@ -189,6 +189,23 @@
+@@ -183,6 +183,23 @@
  			status = "disabled";
  		};
  
@@ -221,7 +218,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		pcie1_phy: phy@7e000 {
  			compatible = "qcom,ipq5018-uniphy-pcie-phy";
  			reg = <0x0007e000 0x800>;
-@@ -446,7 +463,7 @@
+@@ -440,7 +457,7 @@
  				 <&sleep_clk>,
  				 <&pcie0_phy>,
  				 <&pcie1_phy>,
@@ -230,7 +227,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				 <&gephy_rx_clk>,
  				 <&gephy_tx_clk>,
  				 <0>,
-@@ -597,11 +614,15 @@
+@@ -591,11 +608,15 @@
  			clocks = <&gcc GCC_USB0_MASTER_CLK>,
  				 <&gcc GCC_SYS_NOC_USB0_AXI_CLK>,
  				 <&gcc GCC_USB0_SLEEP_CLK>,
@@ -248,7 +245,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			assigned-clocks = <&gcc GCC_USB0_MOCK_UTMI_CLK>;
  			assigned-clock-rates = <60000000>;
  
-@@ -616,10 +637,8 @@
+@@ -610,10 +631,8 @@
  
  			resets = <&gcc GCC_USB0_BCR>;
  
