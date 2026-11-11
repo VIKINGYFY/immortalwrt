@@ -108,6 +108,7 @@ static struct nss_flow_pppoe nss_flow_pppoe_tbl[4];
 struct nss_flow_entry {
 	struct rhash_head node;
 	struct hlist_node sync_node;
+	struct list_head retire_node;
 	struct rcu_head rcu;	/* the debugfs walker holds no lock */
 	unsigned long flow;
 	struct nss_flow_dir dir[FLOW_OFFLOAD_DIR_MAX];
@@ -115,6 +116,9 @@ struct nss_flow_entry {
 	u8 protocol;
 	bool v6;
 	bool installed;
+	bool pending;	/* CREATE may have reached firmware without an ACK */
+	u8 retire_attempts;
+	int retire_errno;
 	bool bridged;
 	bool learned;	/* bridge learner, rather than a flowtable, owns it */
 	struct nss_flow_pppoe *pppoe;
@@ -137,6 +141,11 @@ static const struct rhashtable_params nss_flow_ht_params = {
 static DEFINE_MUTEX(nss_flow_lock);
 static LIST_HEAD(nss_flow_blocks);
 static struct rhashtable nss_flow_table;
+static LIST_HEAD(nss_flow_retire_list);
+static void nss_flow_retire_work(struct work_struct *work);
+static DECLARE_DELAYED_WORK(nss_flow_retire_worker, nss_flow_retire_work);
+#define NSS_FLOW_RETIRE_RETRIES	3
+#define NSS_FLOW_RETIRE_BATCH	16
 /* The cookie table owns lifetime; this index only matches firmware syncs.
  * Receive-side notifications and process-side sweeps share the short lock.
  * A tuple is immutable while its entry is linked here.
@@ -157,6 +166,11 @@ static u32 nss_flow_table_bytes[2];
 static u16 nss_flow_sweep_index[2];
 static unsigned long nss_flow_swept;
 static u32 nss_flow_installed[2];
+static u32 nss_flow_pending[2];
+static u32 nss_flow_retiring[2];
+static u64 nss_flow_retire_errors, nss_flow_retire_recovered;
+static u64 nss_flow_retire_halts;
+static u64 nss_flow_sweep_skipped[2];
 static u32 nss_flow_full[2];
 static bool nss_flow_ready;
 static struct nss_core *nss_flow_core;
@@ -829,7 +843,8 @@ static int nss_flow_admit(bool v6)
 {
 	guard(spinlock_bh)(&nss_flow_sync_lock);
 
-	if (nss_flow_installed[v6] >= nss_flow_limit[v6]) {
+	if (nss_flow_installed[v6] + nss_flow_pending[v6] >=
+	    nss_flow_limit[v6]) {
 		nss_flow_full[v6]++;
 		return -ENOSPC;
 	}
@@ -839,11 +854,13 @@ static int nss_flow_admit(bool v6)
 /* A resource NACK is judged here instead of printed twice. Back off probes
  * for 1..8 seconds while packets remain on the host; one ACK ends backoff.
  */
-static int nss_flow_create(struct nss_core *core, void *msg, size_t len,
-			   bool v6, u32 *fw_err)
+static int nss_flow_create(struct nss_core *core, struct nss_flow_entry *e,
+			   void *msg, size_t len, u32 *fw_err)
 {
+	bool v6 = e->v6, pending;
 	struct nss_flow_pressure *p = &nss_flow_pressure[v6];
 	struct nss_cmn_msg *cm = msg;
+	struct nss_flow_entry *old;
 	unsigned long delay;
 	int ret;
 
@@ -851,12 +868,28 @@ static int nss_flow_create(struct nss_core *core, void *msg, size_t len,
 	if (ret)
 		return ret;
 
+	/* A cookie can be reused while an older tuple is still retiring.
+	 * Never let a delayed delete remove the replacement rule.
+	 */
+	list_for_each_entry(old, &nss_flow_retire_list, retire_node) {
+		if (old->v6 != v6)
+			continue;
+		if (v6 ? !memcmp(&old->t6, &e->t6, sizeof(e->t6)) :
+			 !memcmp(&old->t4, &e->t4, sizeof(e->t4)))
+			return -EAGAIN;
+	}
+
 	if (p->backoff && time_before(jiffies, p->retry_at)) {
 		p->deferred++;
 		return -EAGAIN;
 	}
 
-	ret = nss_msg_send_quiet(core, msg, len);
+	ret = nss_msg_send_tracked(core, msg, len, &pending);
+	if (pending || (!ret && cm->error)) {
+		guard(spinlock_bh)(&nss_flow_sync_lock);
+		e->pending = true;
+		nss_flow_pending[v6]++;
+	}
 	if (cm->response == NSS_CMN_RESPONSE_EMSG &&
 	    cm->error == NSS_IPV4_CR_BUFFER_ALLOC_FAIL_ERROR) {
 		*fw_err = cm->error;
@@ -995,8 +1028,8 @@ static int nss_flow_send_v4(struct nss_core *core, struct nss_flow_entry *e,
 
 	m->cm.interface = NSS_INTERFACE_IPV4;
 	m->cm.type = NSS_IPV4_TX_CREATE_RULE_MSG;
-	ret = nss_flow_create(core, m, offsetof(struct nss_ipv4_msg, msg) +
-			      sizeof(*c), false, fw_err);
+	ret = nss_flow_create(core, e, m, offsetof(struct nss_ipv4_msg, msg) +
+			      sizeof(*c), fw_err);
 
 	return ret;
 }
@@ -1104,8 +1137,8 @@ static int nss_flow_send_v6(struct nss_core *core, struct nss_flow_entry *e,
 
 	m->cm.interface = NSS_INTERFACE_IPV6;
 	m->cm.type = NSS_IPV6_TX_CREATE_RULE_MSG;
-	ret = nss_flow_create(core, m, offsetof(struct nss_ipv6_msg, msg) +
-			      sizeof(*c), true, fw_err);
+	ret = nss_flow_create(core, e, m, offsetof(struct nss_ipv6_msg, msg) +
+			      sizeof(*c), fw_err);
 
 	return ret;
 }
@@ -1157,15 +1190,22 @@ static void nss_flow_sync_install(struct nss_flow_entry *e)
 					    e->t4.flow_ident, e->t4.return_ip,
 					    e->t4.return_ident);
 	guard(spinlock_bh)(&nss_flow_sync_lock);
+	if (!nss_flow_installed[e->v6])
+		nss_flow_sweep_index[e->v6] = 0;
 	nss_flow_installed[e->v6]++;
 	WRITE_ONCE(e->installed, true);
 	hash_add(nss_flow_sync_table, &e->sync_node, key);
 }
 
-static void nss_flow_withdraw(struct nss_core *core, struct nss_flow_entry *e)
+static int nss_flow_withdraw(struct nss_core *core, struct nss_flow_entry *e)
 {
-	if (!nss_flow_sync_unindex(e))
-		return;
+	int ret;
+
+	if (!READ_ONCE(e->installed) && !e->pending)
+		return 0;
+	/* Do not wait out the same lost command for every retiring rule. */
+	if (READ_ONCE(core->msg.lost) && !completion_done(&core->msg.done))
+		return -EAGAIN;
 
 	if (e->v6) {
 		struct {
@@ -1174,13 +1214,11 @@ static void nss_flow_withdraw(struct nss_core *core, struct nss_flow_entry *e)
 		} msg = { .tuple = e->t6 }, *m = &msg;
 		m->cm.interface = NSS_INTERFACE_IPV6;
 		m->cm.type = NSS_IPV6_TX_DESTROY_RULE_MSG;
-		/* A connection the firmware already dropped is gone either way. */
-		if (nss_msg_send_quiet(core, m, offsetof(struct nss_ipv6_msg, msg) +
-					   sizeof(m->tuple)) &&
-		    m->cm.error != NSS_IPV6_DR_NO_CONNECTION_ENTRY_ERROR)
-			dev_warn_ratelimited(core->dev,
-					     "v6 rule destroy refused: error %u\n",
-					     m->cm.error);
+		ret = nss_msg_send_quiet(core, m, offsetof(struct nss_ipv6_msg, msg) +
+					       sizeof(m->tuple));
+		if (ret && m->cm.response == NSS_CMN_RESPONSE_EMSG &&
+		    m->cm.error == NSS_IPV6_DR_NO_CONNECTION_ENTRY_ERROR)
+			ret = 0;
 	} else {
 		struct {
 			struct nss_cmn_msg cm;
@@ -1188,23 +1226,94 @@ static void nss_flow_withdraw(struct nss_core *core, struct nss_flow_entry *e)
 		} msg = { .tuple = e->t4 }, *m = &msg;
 		m->cm.interface = NSS_INTERFACE_IPV4;
 		m->cm.type = NSS_IPV4_TX_DESTROY_RULE_MSG;
-		if (nss_msg_send_quiet(core, m, offsetof(struct nss_ipv4_msg, msg) +
-					   sizeof(m->tuple)) &&
-		    m->cm.error != NSS_IPV4_DR_NO_CONNECTION_ENTRY_ERROR)
-			dev_warn_ratelimited(core->dev,
-					     "v4 rule destroy refused: error %u\n",
-					     m->cm.error);
+		ret = nss_msg_send_quiet(core, m, offsetof(struct nss_ipv4_msg, msg) +
+					       sizeof(m->tuple));
+		if (ret && m->cm.response == NSS_CMN_RESPONSE_EMSG &&
+		    m->cm.error == NSS_IPV4_DR_NO_CONNECTION_ENTRY_ERROR)
+			ret = 0;
 	}
 
+	if (ret)
+		return ret;
+	nss_flow_sync_unindex(e);
+	if (e->pending) {
+		guard(spinlock_bh)(&nss_flow_sync_lock);
+		e->pending = false;
+		nss_flow_pending[e->v6]--;
+	}
+	return 0;
+}
+
+static void nss_flow_release(struct nss_core *core, struct nss_flow_entry *e)
+{
+	if (e->pppoe)
+		nss_flow_pppoe_put(core, e->pppoe);
+	kfree_rcu(e, rcu);
+}
+
+static void nss_flow_retire(struct nss_flow_entry *e, int ret)
+{
+	lockdep_assert_held(&nss_flow_lock);
+	rhashtable_remove_fast(&nss_flow_table, &e->node, nss_flow_ht_params);
+	e->retire_errno = ret;
+	list_add_tail(&e->retire_node, &nss_flow_retire_list);
+	nss_flow_retiring[e->v6]++;
+	nss_flow_retire_errors++;
+	schedule_delayed_work(&nss_flow_retire_worker, HZ);
 }
 
 static void nss_flow_forget(struct nss_core *core, struct nss_flow_entry *e)
 {
+	int ret = e->pending ? -EINPROGRESS : nss_flow_withdraw(core, e);
+
+	if (ret) {
+		nss_flow_retire(e, ret);
+		return;
+	}
 	rhashtable_remove_fast(&nss_flow_table, &e->node, nss_flow_ht_params);
-	nss_flow_withdraw(core, e);
-	if (e->pppoe)
-		nss_flow_pppoe_put(core, e->pppoe);
-	kfree_rcu(e, rcu);
+	nss_flow_release(core, e);
+}
+
+/* Keep uncertain rules and their dependencies until firmware confirms the
+ * delete. Bound each successful batch, but retry a failed head before later
+ * rules so a large backlog cannot postpone containment of a stuck core.
+ */
+static void nss_flow_retire_work(struct work_struct *work)
+{
+	struct nss_flow_entry *e;
+	struct nss_core *core;
+	unsigned long deadline = jiffies + msecs_to_jiffies(20);
+	int ret, budget = NSS_FLOW_RETIRE_BATCH;
+
+	guard(mutex)(&nss_flow_lock);
+	core = nss_flow_core;
+	if (!core || !READ_ONCE(core->running) ||
+	    list_empty(&nss_flow_retire_list))
+		return;
+	do {
+		e = list_first_entry(&nss_flow_retire_list, struct nss_flow_entry,
+				     retire_node);
+		ret = nss_flow_withdraw(core, e);
+		if (ret) {
+			e->retire_errno = ret;
+			if (++e->retire_attempts >= NSS_FLOW_RETIRE_RETRIES) {
+				dev_err(core->dev,
+					"flow retirement failed: %d; resetting core\n", ret);
+				nss_flow_retire_halts++;
+				nss_core_fault(core);
+				return;
+			}
+			schedule_delayed_work(&nss_flow_retire_worker, HZ);
+			return;
+		}
+		list_del(&e->retire_node);
+		nss_flow_retiring[e->v6]--;
+		nss_flow_retire_recovered++;
+		nss_flow_release(core, e);
+	} while (!list_empty(&nss_flow_retire_list) && --budget &&
+		 time_before(jiffies, deadline));
+	if (!list_empty(&nss_flow_retire_list))
+		schedule_delayed_work(&nss_flow_retire_worker, 1);
 }
 
 static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
@@ -1278,6 +1387,7 @@ static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
 			return -ENOMEM;
 
 		e->flow = key;
+		INIT_LIST_HEAD(&e->retire_node);
 		e->bridged = bridged;
 		e->protocol = basic.key->ip_proto;
 		e->v6 = basic.key->n_proto == htons(ETH_P_IPV6);
@@ -1293,8 +1403,10 @@ static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
 
 	old = e->dir[dir];
 	ret = nss_flow_take_dir(core, e, dir, f);
-	if (ret)
+	if (ret) {
+		e->dir[dir] = old;
 		goto drop;
+	}
 
 	if (!e->dir[FLOW_OFFLOAD_DIR_ORIGINAL].seen ||
 	    !e->dir[FLOW_OFFLOAD_DIR_REPLY].seen)
@@ -1308,7 +1420,13 @@ static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
 		if (ether_addr_equal(old.mac, e->dir[dir].mac) &&
 		    old.ifnum == e->dir[dir].ifnum)
 			return 0;
-		nss_flow_withdraw(core, e);
+		ret = nss_flow_withdraw(core, e);
+		if (ret) {
+			/* Retirement still owns the firmware's old interface. */
+			e->dir[dir] = old;
+			nss_flow_retire(e, ret);
+			return ret;
+		}
 	}
 
 	if (!flow->ct) {
@@ -1607,8 +1725,18 @@ static void nss_flow_sweep(struct nss_core *core)
 {
 	if (time_after(jiffies, nss_flow_swept + HZ)) {
 		nss_flow_swept = jiffies;
-		nss_flow_sweep_v4(core);
-		nss_flow_sweep_v6(core);
+		if (READ_ONCE(nss_flow_installed[0])) {
+			nss_flow_sweep_v4(core);
+		} else {
+			nss_flow_sweep_index[0] = 0;
+			nss_flow_sweep_skipped[0]++;
+		}
+		if (READ_ONCE(nss_flow_installed[1])) {
+			nss_flow_sweep_v6(core);
+		} else {
+			nss_flow_sweep_index[1] = 0;
+			nss_flow_sweep_skipped[1]++;
+		}
 	}
 }
 
@@ -1736,6 +1864,18 @@ void nss_flow_withdraw_dev(const struct net_device *dev)
 		if (e)
 			nss_flow_forget(nss_flow_core, e);
 	} while (e);
+
+	/* Interface numbers may be freed after unbind returns. Stop firmware
+	 * before any rule still referring to this interface can outlive it.
+	 */
+	list_for_each_entry(e, &nss_flow_retire_list, retire_node) {
+		if (e->dir[0].ifindex != dev->ifindex &&
+		    e->dir[1].ifindex != dev->ifindex)
+			continue;
+		nss_flow_retire_halts++;
+		nss_core_fault(nss_flow_core);
+		break;
+	}
 }
 
 /* Take the flow table's block on @dev. A wireless device's driver forwards
@@ -1848,6 +1988,7 @@ int nss_flow_br_add(struct nf_conn *ct, const struct nss_flow_br_dir *dir,
 		return -ENOMEM;
 
 	e->flow = (unsigned long)ct;
+	INIT_LIST_HEAD(&e->retire_node);
 	e->bridged = true;
 	e->learned = true;
 	e->protocol = nf_ct_protonum(ct);
@@ -1952,6 +2093,7 @@ void nss_flow_print(struct seq_file *s)
 	struct nss_flow_node *nd;
 	int i;
 
+	guard(mutex)(&nss_flow_lock);
 	seq_printf(s, "bound %u pushed %u last-ifindex %d\n",
 		   nss_flow_bound, nss_flow_pushed, nss_flow_last_ifindex);
 	scoped_guard(spinlock_bh, &nss_flow_sync_lock)
@@ -1979,6 +2121,21 @@ void nss_flow_print(struct seq_file *s)
 	seq_printf(s, "capacity requested %u table_bytes IPv4 %u IPv6 %u\n",
 		   NSS_FLOW_CONN, nss_flow_table_bytes[0],
 		   nss_flow_table_bytes[1]);
+	seq_printf(s, "retirement pending_create %u/%u retiring %u/%u errors %llu recovered %llu core_resets %llu\n",
+		   READ_ONCE(nss_flow_pending[0]), READ_ONCE(nss_flow_pending[1]),
+		   nss_flow_retiring[0], nss_flow_retiring[1],
+		   nss_flow_retire_errors, nss_flow_retire_recovered,
+		   nss_flow_retire_halts);
+	seq_printf(s, "sweep empty_skipped %llu/%llu cursor %u/%u\n",
+		   nss_flow_sweep_skipped[0], nss_flow_sweep_skipped[1],
+		   nss_flow_sweep_index[0], nss_flow_sweep_index[1]);
+	list_for_each_entry(e, &nss_flow_retire_list, retire_node) {
+		seq_printf(s, "retiring IPv%u installed %u pending %u attempts %u errno %d",
+			   e->v6 ? 6 : 4, READ_ONCE(e->installed), e->pending,
+			   e->retire_attempts, e->retire_errno);
+		nss_flow_tuple_print(s, e);
+		seq_putc(s, '\n');
+	}
 
 	for (nd = nss_flow_nodes; nd < nss_flow_nodes + ARRAY_SIZE(nss_flow_nodes); nd++) {
 		seq_printf(s, "node %s rx %u tx %u drop %u/%u/%u/%u exceptions",
@@ -2060,8 +2217,9 @@ ssize_t nss_flow_summary(char *buf)
 void nss_flow_flush(void)
 {
 	struct rhashtable_iter iter;
-	struct nss_flow_entry *e;
+	struct nss_flow_entry *e, *tmp;
 
+	cancel_delayed_work_sync(&nss_flow_retire_worker);
 	guard(mutex)(&nss_flow_lock);
 
 	rhashtable_walk_enter(&nss_flow_table, &iter);
@@ -2076,11 +2234,18 @@ void nss_flow_flush(void)
 	}
 	rhashtable_walk_stop(&iter);
 	rhashtable_walk_exit(&iter);
+	list_for_each_entry_safe(e, tmp, &nss_flow_retire_list, retire_node) {
+		nss_flow_sync_unindex(e);
+		list_del(&e->retire_node);
+		kfree_rcu(e, rcu);
+	}
+	memset(nss_flow_retiring, 0, sizeof(nss_flow_retiring));
 
 	memset(nss_flow_pppoe_tbl, 0, sizeof(nss_flow_pppoe_tbl));
 	memset(nss_flow_pressure, 0, sizeof(nss_flow_pressure));
 	memset(nss_flow_full, 0, sizeof(nss_flow_full));
 	scoped_guard(spinlock_bh, &nss_flow_sync_lock) {
+		memset(nss_flow_pending, 0, sizeof(nss_flow_pending));
 		memset(&nss_flow_buffers, 0, sizeof(nss_flow_buffers));
 		memset(nss_flow_table_bytes, 0, sizeof(nss_flow_table_bytes));
 		nss_flow_limit[0] = NSS_FLOW_BASE_CONN;
@@ -2118,6 +2283,8 @@ void nss_flow_exit(void)
 	if (!nss_flow_ready)
 		return;
 
+	cancel_delayed_work_sync(&nss_flow_retire_worker);
+	WARN_ON(!list_empty(&nss_flow_retire_list));
 	flow_indr_dev_unregister(nss_flow_indr_cb, &nss_flow_blocks, NULL);
 	rhashtable_free_and_destroy(&nss_flow_table, nss_flow_free, NULL);
 	nss_flow_ready = false;

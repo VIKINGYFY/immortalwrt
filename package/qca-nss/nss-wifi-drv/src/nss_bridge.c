@@ -21,6 +21,7 @@
 #include <linux/if_bridge.h>
 #include <linux/if_vlan.h>
 #include <linux/netfilter.h>
+#include <linux/moduleparam.h>
 #include <linux/netfilter_bridge.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
@@ -52,12 +53,13 @@ enum nss_br_why {
 	NSS_BR_IDLE_DROP,
 	NSS_BR_MOVED,
 	NSS_BR_GONE,		/* a port left the firmware */
+	NSS_BR_POLICY,		/* excluded by the firewall bridge scope */
 	NSS_BR_WHY_MAX,
 };
 
 static const char *const nss_br_why_name[] = {
 	"port", "vlan", "ct", "full", "firmware",
-	"dying", "idle", "moved", "gone",
+	"dying", "idle", "moved", "gone", "policy",
 };
 
 struct nss_br_conn {
@@ -83,6 +85,28 @@ static u32 nss_br_n, nss_br_pushed, nss_br_why[NSS_BR_WHY_MAX];
 
 static void nss_br_gc(struct work_struct *work);
 static DECLARE_DELAYED_WORK(nss_br_work, nss_br_gc);
+
+/* With a firewall bridge selection, let its flowtable own the allowed
+ * bridges. The fallback learner must not bypass an explicitly excluded one.
+ */
+static bool nss_br_enabled = true;
+
+static int nss_br_set_enabled(const char *val, const struct kernel_param *kp)
+{
+	int ret = param_set_bool(val, kp);
+
+	if (!ret && READ_ONCE(nss_br_core))
+		mod_delayed_work(system_percpu_wq, &nss_br_work, 0);
+	return ret;
+}
+
+static const struct kernel_param_ops nss_br_enabled_ops = {
+	.set = nss_br_set_enabled,
+	.get = param_get_bool,
+};
+module_param_cb(bridge_offload, &nss_br_enabled_ops, &nss_br_enabled, 0600);
+MODULE_PARM_DESC(bridge_offload, "Fallback bridge learning; firewall selections use nf_flowtable instead");
+
 
 static struct nss_br_conn *nss_br_find(const struct nf_conn *ct)
 {
@@ -153,6 +177,9 @@ static unsigned int nss_br_hook(void *priv, struct sk_buff *skb,
 	bool kick = false;
 	int dir, why;
 	u8 proto;
+
+	if (!READ_ONCE(nss_br_enabled))
+		return NF_ACCEPT;
 
 	ct = nf_ct_get(skb, &ctinfo);
 	if (!ct || test_bit(IPS_OFFLOAD_BIT, &ct->status) ||
@@ -363,7 +390,9 @@ static void nss_br_tend(struct nss_br_conn *e)
 	u8 state = smp_load_acquire(&e->state);
 	int why = NSS_BR_WHY_MAX;
 
-	if (nf_ct_is_dying(e->ct))
+	if (!READ_ONCE(nss_br_enabled))
+		why = NSS_BR_POLICY;
+	else if (nf_ct_is_dying(e->ct))
 		why = NSS_BR_DYING;
 	else if (test_bit(IPS_OFFLOAD_BIT, &e->ct->status))
 		why = NSS_BR_CT;

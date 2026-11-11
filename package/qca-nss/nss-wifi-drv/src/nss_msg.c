@@ -119,7 +119,7 @@ MODULE_PARM_DESC(msg_trace, "dump every control message sent to the firmware");
  * connection-statistics sweep.
  */
 static int nss_msg_xact(struct nss_core *core, void *msg, size_t len,
-			size_t room, bool quiet)
+				size_t room, bool quiet, bool *pending)
 {
 	struct nss_cmn_msg *ncm = msg;
 	struct nss_h2n_ring *ring = &core->h2n[NSS_H2N_RING_COMMAND];
@@ -129,6 +129,8 @@ static int nss_msg_xact(struct nss_core *core, void *msg, size_t len,
 	u32 next;
 	int ret;
 
+	if (pending)
+		*pending = false;
 	if (len < sizeof(*ncm) || len > NSS_MSG_BUF_SIZE ||
 	    room < len || room > NSS_MSG_BUF_SIZE)
 		return -EMSGSIZE;
@@ -189,6 +191,8 @@ static int nss_msg_xact(struct nss_core *core, void *msg, size_t len,
 		WRITE_ONCE(map->h2n_hlos_index[NSS_H2N_RING_COMMAND], next);
 	}
 
+	if (pending)
+		*pending = true;
 	nss_doorbell(core, NSS_H2N_INTR_DATA_CMD);
 
 	if (!wait_for_completion_timeout(&core->msg.done, timeout)) {
@@ -202,9 +206,13 @@ static int nss_msg_xact(struct nss_core *core, void *msg, size_t len,
 	switch (ncm->response) {
 	case NSS_CMN_RESPONSE_ACK:
 	case NSS_CMN_RESPONSE_NOTIFY:	/* answered in the same buffer */
+		if (pending)
+			*pending = false;
 		ret = 0;
 		break;
 	case NSS_CMN_RESPONSE_EMSG:
+		if (pending)
+			*pending = false;
 		if (!quiet)
 			dev_err(core->dev, "interface %u type %u refused: %u\n",
 				ncm->interface, ncm->type, ncm->error);
@@ -224,18 +232,27 @@ static int nss_msg_xact(struct nss_core *core, void *msg, size_t len,
 
 int nss_msg_transact(struct nss_core *core, void *msg, size_t len, size_t room)
 {
-	return nss_msg_xact(core, msg, len, room, false);
+	return nss_msg_xact(core, msg, len, room, false, NULL);
 }
 
 int nss_msg_send(struct nss_core *core, void *msg, size_t len)
 {
-	return nss_msg_xact(core, msg, len, len, false);
+	return nss_msg_xact(core, msg, len, len, false, NULL);
 }
 
 /* For a sender that judges the refusal itself. */
 int nss_msg_send_quiet(struct nss_core *core, void *msg, size_t len)
 {
-	return nss_msg_xact(core, msg, len, len, true);
+	return nss_msg_xact(core, msg, len, len, true, NULL);
+}
+
+/* A published command without a definitive reply can still change firmware
+ * state. Flow ownership must survive that result until retirement or halt.
+ */
+int nss_msg_send_tracked(struct nss_core *core, void *msg, size_t len,
+			 bool *pending)
+{
+	return nss_msg_xact(core, msg, len, len, true, pending);
 }
 
 /* Whether the firmware has a node of this kind to give, and what it calls it.

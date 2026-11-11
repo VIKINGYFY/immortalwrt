@@ -1,33 +1,22 @@
 #!/bin/sh
-# fw4 include, run after every firewall (re)load.
-#
-# fw4 fills its flow table from each interface's main device, and a modem
-# interface has none: its raw-IP device is only the layer-3 device. Without
-# the device in the table, the kernel offers none of its connections for
-# offload. nss-wifi-drv takes the device's flow block, and the firmware
-# carries the connections it can route; without the driver the device only
-# joins the software fast path.
+# fw4 include and NSS startup hook. Upstream fw4 now discovers L3 devices,
+# including raw-IP modems, so no separate flowtable edits are needed here.
+# A selected bridge scope belongs to nf_flowtable; stop the independent
+# fallback learner so it cannot re-learn connections on excluded bridges.
 
-ft=$(nft list flowtable inet fw4 ft 2>/dev/null) || exit 0
-case "$ft" in
-*"flags offload"*) ;;
-*) exit 0 ;;
-esac
-counter=
-case "$ft" in
-*counter*) counter="counter;" ;;
-esac
-
-for dev in $(ubus call network.interface dump 2>/dev/null |
-	     jsonfilter -e '@.interface[@.up=true].l3_device' | sort -u); do
-	[ "$(cat "/sys/class/net/$dev/type" 2>/dev/null)" = 519 ] || continue
-	case "$ft" in
-	*"\"$dev\""*) continue ;;
-	esac
-	# An update replaces the table's flags with the ones it names.
-	nft add flowtable inet fw4 ft \
-		"{ hook ingress priority filter; devices = { \"$dev\" }; flags offload; $counter }" ||
-		logger -t nss-wifi "flow table refused $dev"
+param=/sys/module/nss_wifi_drv/parameters/bridge_offload
+[ -w "$param" ] || exit 0
+bridge_offload=1
+for option in flow_offloading flow_offloading_hw; do
+	value=$(uci -q get "firewall.@defaults[0].$option")
+	case "$value" in 1|true|on|yes) ;; *) bridge_offload=0 ;; esac
 done
-
-exit 0
+value=$(uci -q get 'firewall.@defaults[0].flow_offloading_bridge')
+case "$value" in 0|false|off|no) bridge_offload=0 ;; esac
+for option in flow_offloading_bridge_devices flow_offloading_bridge_exclude; do
+	[ -z "$(uci -q get "firewall.@defaults[0].$option")" ] || bridge_offload=0
+done
+printf '%s\n' "$bridge_offload" > "$param" || {
+	logger -t nss-wifi "failed to apply firewall bridge scope"
+	exit 1
+}

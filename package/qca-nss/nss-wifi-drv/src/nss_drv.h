@@ -512,6 +512,8 @@ void nss_doorbell(struct nss_core *core, u32 intr);
 int nss_msg_init(struct nss_core *core);
 int nss_msg_send(struct nss_core *core, void *msg, size_t len);
 int nss_msg_send_quiet(struct nss_core *core, void *msg, size_t len);
+int nss_msg_send_tracked(struct nss_core *core, void *msg, size_t len,
+			 bool *pending);
 int nss_msg_transact(struct nss_core *core, void *msg, size_t len, size_t room);
 bool nss_msg_complete(struct nss_core *core, const struct n2h_descriptor *desc);
 int nss_msg_probe(struct nss_core *core, struct seq_file *s);

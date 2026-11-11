@@ -553,8 +553,20 @@ static unsigned int nss_pool_low;
  */
 unsigned int nss_pool_ceiling(void)
 {
-	bool wlan = nss_wifili_expected();
+	return READ_ONCE(nss_pool_size);
+}
 
+/* Enumerating PCI takes driver-core spinlocks which cannot be reacquired
+ * from NAPI interrupting the enumerator. Choose immutable pool limits in
+ * process context before receive rings or their refill path can run.
+ */
+static void nss_pool_defaults(void)
+{
+	bool wlan;
+
+	if (nss_pool_size && nss_pool_low)
+		return;
+	wlan = nss_wifili_expected();
 	if (!nss_pool_size)
 		nss_pool_size = wlan ? 24576 : 16384;
 	if (!nss_pool_low)
@@ -563,8 +575,6 @@ unsigned int nss_pool_ceiling(void)
 		nss_pool_low = NSS_RING_ENTRIES;
 	if (nss_pool_size < 2 * nss_pool_low)
 		nss_pool_size = 2 * nss_pool_low;
-
-	return nss_pool_size;
 }
 
 #define NSS_N2H_RPS_CFG			1
@@ -992,6 +1002,7 @@ static int nss_core_boot(struct nss_core *core)
 		return -EAGAIN;
 	}
 
+	nss_pool_defaults();
 	ret = nss_clocks_enable(core);
 	if (ret)
 		return ret;

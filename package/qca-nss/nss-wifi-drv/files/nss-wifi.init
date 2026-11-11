@@ -158,6 +158,7 @@ nss_start() {
 	fi
 	fw=$(uci -q get nss-wifi.general.firmware) &&
 		printf %s "$fw" > /sys/module/nss_wifi_drv/parameters/firmware
+	/usr/share/nss-wifi/flowtable.sh || return 1
 	if [ "$wlan" -ne 0 ]; then
 		modprobe ath11k 2>/dev/null
 		if ! echo 1 > /sys/module/ath11k/parameters/nss_offload 2>/dev/null; then
