@@ -1,0 +1,102 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 13:50:00 +0800
+Subject: [PATCH] firewall4: scope transparent bridge flow offload
+
+Keep global bridge discovery by default. Allow exact bridge selection or
+exclusion, and match the bridge identity as well as physical ingress devices
+so VLAN bridges sharing a lower device cannot bypass the selection. Run the
+learning rule after ordinary forward filters. Bridges with asymmetric or
+per-packet ACLs must be excluded from connection caching.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/root/usr/share/firewall4/templates/ruleset.uc
++++ b/root/usr/share/firewall4/templates/ruleset.uc
+@@ -493,7 +493,8 @@
+ delete flowtable bridge fw4 fb
+ {% endif %}
+ 
+-{% let bridge_devices = fw4.resolve_bridge_devices(flowtable_devices); %}
++{% let bridge_offload = fw4.resolve_bridge_offload(flowtable_devices); %}
++{% let bridge_devices = bridge_offload.devices; %}
+ {% if (length(bridge_devices) > 0): %}
+ table bridge fw4 {
+ 	#
+@@ -508,9 +509,9 @@
+ {% endif %}
+ 	}
+ 
+-	chain forward {
+-		type filter hook forward priority filter; policy accept;
+-		meta l4proto { tcp, udp } flow offload @fb;
++	chain flow_offload {
++		type filter hook forward priority 2147483647; policy accept;
++		meta ibrname {{ fw4.set(bridge_offload.bridges, true) }} meta l4proto { tcp, udp } flow offload @fb;
+ 	}
+ }
+ {% endif %}
+--- a/root/usr/share/ucode/fw4.uc
++++ b/root/usr/share/ucode/fw4.uc
+@@ -653,32 +653,36 @@
+ 		return false;
+ 	},
+ 
+-	resolve_bridge_devices: function(devices) {
+-		let bridge_devs = [];
++	resolve_bridge_offload: function(devices) {
++		let ports = [], bridges = [];
+ 
+-		if (!length(devices))
+-			return bridge_devs;
++		if (!length(devices) || !this.default_option("flow_offloading_bridge"))
++			return { devices: [], bridges: [] };
+ 
+-		let devstatus = {};
++		let allow = this.default_option("flow_offloading_bridge_devices") || [];
++		let exclude = this.default_option("flow_offloading_bridge_exclude") || [];
+ 		let bus = ubus.connect();
+-		if (bus) {
+-			devstatus = bus.call("network.device", "status") || {};
+-			bus.disconnect();
+-		}
+-
++		let devstatus = bus ? (bus.call("network.device", "status") || {}) : {};
++		bus?.disconnect();
+ 		let dir = fs.opendir("/sys/class/net");
+ 		let entry;
+ 
+ 		if (dir) {
+-			while ((entry = dir.read()) != null)
+-				if (fs.access(`/sys/class/net/${entry}/brport`))
+-					push(bridge_devs,
+-						...resolve_lower_devices(devstatus, entry));
+-
++			while ((entry = dir.read()) != null) {
++				if (!fs.access(`/sys/class/net/${entry}/brport`))
++					continue;
++				let master = fs.readlink(`/sys/class/net/${entry}/master`);
++				let bridge = master ? pop(split(master, "/")) : null;
++
++				if (!bridge || (length(allow) && !(bridge in allow)) || bridge in exclude)
++					continue;
++				push(bridges, bridge);
++				push(ports, ...resolve_lower_devices(devstatus, entry, this.kernel >= 0x06110000));
++			}
+ 			dir.close();
+ 		}
+ 
+-		return sort(uniq(bridge_devs));
++		return { devices: sort(uniq(ports)), bridges: sort(uniq(bridges)) };
+ 	},
+ 
+ 	read_state: function() {
+@@ -2208,6 +2212,9 @@
+ 			disable_ipv6: [ "bool", null, UNSUPPORTED ],
+ 			flow_offloading: [ "bool", "0" ],
+ 			flow_offloading_hw: [ "bool", "0" ],
++			flow_offloading_bridge: [ "bool", "1" ],
++			flow_offloading_bridge_devices: [ "string", null, PARSE_LIST ],
++			flow_offloading_bridge_exclude: [ "string", null, PARSE_LIST ],
+ 
+ 			auto_includes: [ "bool", "1" ]
+ 		});

@@ -1,0 +1,53 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 15:10:00 +0800
+Subject: [PATCH] firewall4: keep state matching live while verdict maps retire
+
+An in-flight rule can still reference its old anonymous verdict map after a
+commit switches the global generation. Retiring map elements then makes a
+valid established connection miss its accept verdict and reach REJECT.
+The PPE flowtable drain widens this interval, resetting existing TCP flows
+during restart even when the nft transaction has no filtering gap.
+
+Use the state bitmask directly, retaining the optional invalid-state drop as
+a separate rule. No anonymous set or verdict map is needed for these tests.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/root/usr/share/firewall4/templates/ruleset.uc
++++ b/root/usr/share/firewall4/templates/ruleset.uc
+@@ -118,7 +118,10 @@
+ 		iif "lo" accept comment "!fw4: Accept traffic from loopback"
+ 
+ {% fw4.includes('chain-prepend', 'input') %}
+-		ct state vmap { established : accept, related : accept{% if (fw4.default_option("drop_invalid")): %}, invalid : drop{% endif %} } comment "!fw4: Handle inbound flows"
++		ct state established,related accept comment "!fw4: Handle inbound flows"
++{% if (fw4.default_option("drop_invalid")): %}
++		ct state invalid drop comment "!fw4: Drop invalid inbound packets"
++{% endif %}
+ {% if (fw4.default_option("synflood_protect") && fw4.default_option("synflood_rate")): %}
+ 		tcp flags & (fin | syn | rst | ack) == syn jump syn_flood comment "!fw4: Rate limit TCP syn packets"
+ {% endif %}
+@@ -141,7 +144,10 @@
+ 		meta l4proto { tcp, udp } flow offload @ft;
+ {% endif %}
+ {% fw4.includes('chain-prepend', 'forward') %}
+-		ct state vmap { established : accept, related : accept{% if (fw4.default_option("drop_invalid")): %}, invalid : drop{% endif %} } comment "!fw4: Handle forwarded flows"
++		ct state established,related accept comment "!fw4: Handle forwarded flows"
++{% if (fw4.default_option("drop_invalid")): %}
++		ct state invalid drop comment "!fw4: Drop invalid forwarded packets"
++{% endif %}
+ {% for (let rule in fw4.rules("forward")): %}
+ 		{%+ include("rule.uc", { fw4, zone: (rule.src?.zone?.log_limit ? rule.src.zone : rule.dest?.zone), rule }) %}
+ {% endfor %}
+@@ -160,7 +166,10 @@
+ 		oif "lo" accept comment "!fw4: Accept traffic towards loopback"
+ 
+ {% fw4.includes('chain-prepend', 'output') %}
+-		ct state vmap { established : accept, related : accept{% if (fw4.default_option("drop_invalid")): %}, invalid : drop{% endif %} } comment "!fw4: Handle outbound flows"
++		ct state established,related accept comment "!fw4: Handle outbound flows"
++{% if (fw4.default_option("drop_invalid")): %}
++		ct state invalid drop comment "!fw4: Drop invalid outbound packets"
++{% endif %}
+ {% for (let rule in fw4.rules("output")): %}
+ 		{%+ include("rule.uc", { fw4, zone: null, rule }) %}
+ {% endfor %}

@@ -1,22 +1,24 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 13:00:00 +0800
+Date: Wed, 11 Nov 2026 13:50:00 +0800
 Subject: [PATCH] firewall4: enable SONiC fullcone on WAN by default
+
+
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/root/etc/config/firewall
 +++ b/root/etc/config/firewall
-@@ -5,6 +5,9 @@ config defaults
+@@ -3,6 +3,9 @@
+ 	option input		REJECT
+ 	option output		ACCEPT
  	option forward		REJECT
- # Uncomment this line to disable ipv6 rules
- #	option disable_ipv6	1
 +	option flow_offloading	1
 +	option flow_offloading_hw	1
 +	option fullcone		1
  
  config zone
  	option name		lan
-@@ -21,6 +24,7 @@ config zone
+@@ -19,6 +22,7 @@
  	option output		ACCEPT
  	option forward		DROP
  	option masq		1

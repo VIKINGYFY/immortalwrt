@@ -1,0 +1,118 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 13:50:00 +0800
+Subject: [PATCH] firewall4: replace owned tables atomically on restart
+
+Render and validate one batch under the firewall lock, replacing inet and
+bridge tables in a single nft transaction. Suppress flowtable deletions from
+the already-deleted tables. Keep the old rules and state if rendering or
+validation fails, remove stale bridge rules on stop, and support restarting
+a stopped firewall. Based on the upstream atomic restart idea in c22c2f2,
+with local bridge ownership and render-error handling included.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/root/sbin/fw4
++++ b/root/sbin/fw4
+@@ -33,7 +33,7 @@
+ 		esac
+ 
+ 		ACTION=start \
+-			utpl -S $MAIN | nft $VERBOSE -f $STDIN
++			utpl -S $MAIN | nft $VERBOSE -f $STDIN || return $?
+ 
+ 		ACTION=includes \
+ 			utpl -S $MAIN
+@@ -49,12 +49,50 @@
+ 	{
+ 		flock -x 1000
+ 
+-		nft delete table inet fw4
++		printf 'table inet fw4\ndelete table inet fw4\ntable bridge fw4\ndelete table bridge fw4\n' |
++			nft $VERBOSE -f $STDIN || return $?
+ 		rm -f $STATE
+ 
+ 	} 1000>$LOCK
+ }
+ 
++# Render and validate once, then replace both owned tables in one transaction.
++# Suppress template deletions of flowtables inside the tables we replace.
++restart() {
++	{
++		flock -x 1000
++
++		local batch saved had_state=0 result
++		batch=$(mktemp /tmp/fw4-restart.XXXXXX) || return 1
++		saved=$(mktemp /tmp/fw4-state.XXXXXX) || { rm -f "$batch"; return 1; }
++		if [ -f "$STATE" ]; then
++			cp -p "$STATE" "$saved" || { rm -f "$batch" "$saved"; return 1; }
++			had_state=1
++		fi
++		rm -f "$STATE"
++		{
++			printf 'table inet fw4\ndelete table inet fw4\ntable bridge fw4\ndelete table bridge fw4\n'
++			FW4_RESTART=1 ACTION=start utpl -S $MAIN
++		} > "$batch"
++		result=$?
++		if [ "$result" -eq 0 ]; then
++			nft $VERBOSE -c -f "$batch" && nft $VERBOSE -f "$batch"
++			result=$?
++		fi
++		if [ "$result" -ne 0 ]; then
++			if [ "$had_state" -eq 1 ]; then
++				cp -p "$saved" "$STATE"
++			else
++				rm -f "$STATE"
++			fi
++		else
++			ACTION=includes utpl -S $MAIN
++		fi
++		rm -f "$batch" "$saved"
++		return "$result"
++	} 1000>$LOCK
++}
++
+ flush() {
+ 	{
+ 		flock -x 1000
+@@ -70,7 +108,7 @@
+ 
+ reload_sets() {
+ 	ACTION=reload-sets \
+-		flock -x $LOCK utpl -S $MAIN | nft $VERBOSE -f $STDIN
++		flock -x $LOCK utpl -S $MAIN | nft $VERBOSE -f $STDIN || return $?
+ }
+ 
+ lookup() {
+@@ -105,9 +143,7 @@
+ 		flush
+ 	;;
+ 	restart)
+-		QUIET=1 print | nft ${VERBOSE} -c -f $STDIN || die "The rendered ruleset contains errors, not doing firewall restart."
+-		stop || rm -f $STATE
+-		start
++		restart || die "Firewall restart failed; the previous ruleset was kept."
+ 	;;
+ 	check)
+ 		if [ -n "$QUIET" ]; then
+--- a/root/usr/share/ucode/fw4.uc
++++ b/root/usr/share/ucode/fw4.uc
+@@ -638,6 +638,9 @@
+ 	},
+ 
+ 	check_flowtable: function() {
++		if (getenv("FW4_RESTART") == "1")
++			return false;
++
+ 		for (let item in nft_json_command("list", "flowtables", "inet"))
+ 			if (item.flowtable?.table == "fw4" && item.flowtable?.name == "ft")
+ 				return true;
+@@ -646,6 +649,9 @@
+ 	},
+ 
+ 	check_bridge_flowtable: function() {
++		if (getenv("FW4_RESTART") == "1")
++			return false;
++
+ 		for (let item in nft_json_command("list", "flowtables", "bridge"))
+ 			if (item.flowtable?.table == "fw4" && item.flowtable?.name == "fb")
+ 				return true;
