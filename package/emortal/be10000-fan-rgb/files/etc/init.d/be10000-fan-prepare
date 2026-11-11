@@ -1,0 +1,58 @@
+#!/bin/sh /etc/rc.common
+# Ensure the EMC230x fan controller is bound before be10000-fan starts.
+# The I2C bus number depends on how many QUP buses the board DTS enables,
+# so locate the *-002f client instead of hardcoding 0-002f / 1-002f.
+
+START=98
+STOP=02
+
+start() {
+	local board client dev fan_file attempt
+
+	board="$(cat /tmp/sysinfo/board_name 2>/dev/null)"
+	[ "$board" = "xiaomi,be10000" ] || return 0
+
+	modprobe emc2305 2>/dev/null
+
+	client="$(ls -d /sys/bus/i2c/devices/*-002f 2>/dev/null | head -n1)"
+	[ -n "$client" ] || {
+		logger -t be10000-fan "EMC230x I2C client not found"
+		return 1
+	}
+	dev="$(basename "$client")"
+
+	attempt=0
+	while [ "$attempt" -lt 5 ]; do
+		if [ -d /sys/bus/i2c/drivers/emc2305 ] &&
+		   [ ! -L "$client/driver" ]; then
+			echo "$dev" > /sys/bus/i2c/drivers/emc2305/bind 2>/dev/null
+		fi
+
+		fan_file="$(echo /sys/bus/i2c/devices/*-002f/hwmon/hwmon*/pwm1)"
+		[ -e "$fan_file" ] && break
+
+		attempt=$((attempt + 1))
+		sleep 1
+	done
+
+	[ -e "$fan_file" ] || {
+		logger -t be10000-fan "EMC230x PWM device was not ready"
+		return 1
+	}
+
+	# The legacy JiaY-shi daemon and the old ledbar service both write the
+	# same sysfs nodes; keep them off so only be10000-fan/rgb own the hardware.
+	for s in fancontrol ledbar; do
+		[ -x "/etc/init.d/$s" ] && {
+			"/etc/init.d/$s" stop 2>/dev/null
+			"/etc/init.d/$s" disable 2>/dev/null
+		}
+	done
+
+	/etc/init.d/be10000-fan enable
+	logger -t be10000-fan "EMC230x ready at $fan_file"
+}
+
+stop() {
+	return 0
+}
