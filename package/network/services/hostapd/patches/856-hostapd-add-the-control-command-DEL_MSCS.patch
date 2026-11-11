@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 27 Oct 2026 13:29:58 +0000
+Date: Wed, 11 Nov 2026 12:18:46 +0800
 Subject: [PATCH] hostapd: add the control command DEL_MSCS
 
 Remove the MSCS of an associated station and tell the station with an
@@ -22,7 +22,8 @@ exists.
 Co-developed-by: Howard Hsu <howard-yh.hsu@mediatek.com>
 Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
 @@ -67,6 +67,7 @@
@@ -33,10 +34,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #include "wps/wps_defs.h"
  #include "wps/wps.h"
  #include "fst/fst_ctrl_iface.h"
-@@ -919,6 +920,18 @@ static int hostapd_ctrl_send_unsolicited
+@@ -917,6 +918,18 @@
+ 							   num_policies);
+ 	os_free(policy_ids);
  	return ret;
- }
- 
++}
++
 +
 +static int hostapd_ctrl_iface_del_mscs(struct hostapd_data *hapd,
 +				       const char *cmd)
@@ -47,52 +50,55 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +		return -1;
 +
 +	return hostapd_del_mscs(hapd, addr);
-+}
-+
+ }
+ 
  #endif /* CONFIG_ROBUST_AV */
- 
- 
-@@ -4865,6 +4878,9 @@ static int hostapd_ctrl_iface_receive_pr
- 	} else if (os_strncmp(buf, "SEND_UNSOLICITED_DSCP_REQ ", 26) == 0) {
- 		if (hostapd_ctrl_send_unsolicited_dscp_req(hapd, buf + 26))
+@@ -4866,6 +4879,11 @@
+ 		if (hostapd_ctrl_afc_send_request(hapd, buf + 16) < 0)
  			reply_len = -1;
+ #endif /* CONFIG_AFC */
++#ifdef CONFIG_ROBUST_AV
 +	} else if (os_strncmp(buf, "DEL_MSCS ", 9) == 0) {
 +		if (hostapd_ctrl_iface_del_mscs(hapd, buf + 9))
 +			reply_len = -1;
- #endif /* CONFIG_ROBUST_AV */
++#endif /* CONFIG_ROBUST_AV */
  	} else {
  		os_memcpy(reply, "UNKNOWN COMMAND\n", 16);
+ 		reply_len = 16;
 --- a/hostapd/hostapd_cli.c
 +++ b/hostapd/hostapd_cli.c
-@@ -947,6 +947,13 @@ static int hostapd_cli_cmd_send_unsolici
- 	return wpa_ctrl_command(ctrl, cmd);
- }
+@@ -945,6 +945,13 @@
+ 	}
  
+ 	return wpa_ctrl_command(ctrl, cmd);
++}
++
 +
 +static int hostapd_cli_cmd_del_mscs(struct wpa_ctrl *ctrl, int argc,
 +				    char *argv[])
 +{
 +	return hostapd_cli_cmd(ctrl, "DEL_MSCS", 1, argc, argv);
-+}
-+
+ }
+ 
  #endif /* CONFIG_ROBUST_AV */
- 
- 
-@@ -2038,6 +2045,8 @@ static const struct hostapd_cli_cmd host
+@@ -2030,6 +2037,8 @@
  	{"send_unsolicited_dscp_req", hostapd_cli_cmd_send_unsolicited_dscp_req,
  	 NULL,
  	 "<addr>, [reset=], [policy_id_list=], Send unsolicited DSCP request"},
 +	{ "del_mscs", hostapd_cli_cmd_del_mscs, NULL,
 +	  "<addr> = Remove the MSCS of a station" },
  #endif /* CONFIG_ROBUST_AV */
- 	{ NULL, NULL, NULL, NULL }
- };
+ #ifdef CONFIG_AFC
+ 	{ "afc_get_request", hostapd_cli_cmd_afc_get_request, NULL,
 --- a/src/ap/scs.c
 +++ b/src/ap/scs.c
-@@ -290,6 +290,34 @@ out:
- }
+@@ -287,6 +287,34 @@
  
- 
+ out:
+ 	send_mscs_response(hapd, da, body[2], status);
++}
++
++
 +/* Remove the MSCS of a station and tell it with an unsolicited MSCS Response */
 +int hostapd_del_mscs(struct hostapd_data *hapd, const u8 *addr)
 +{
@@ -118,15 +124,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	send_mscs_response(hapd, sta->addr, 0, status);
 +
 +	return 0;
-+}
-+
-+
- /*
-  * The MSCS Descriptor element of a (Re)Association Request: the response
-  * carries the outcome in the MSCS Status subelement of an MSCS Descriptor
+ }
+ 
+ 
 --- a/src/ap/scs.h
 +++ b/src/ap/scs.h
-@@ -13,5 +13,6 @@ void hostapd_handle_robust_av_streaming(
+@@ -13,5 +13,6 @@
  					const u8 *buf, size_t len);
  u8 * hostapd_eid_mscs_assoc(struct hostapd_data *hapd, struct sta_info *sta,
  			    const u8 *ies, size_t ies_len, u8 *eid);

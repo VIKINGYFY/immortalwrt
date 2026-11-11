@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 22:14:55 +0200
+Date: Wed, 11 Nov 2026 12:19:02 +0800
 Subject: [PATCH] hostapd: keep the SCSIDs of a station one space
 
 The kernel identifies an SCS rule of a peer by its SCSID alone, for the
@@ -28,16 +28,23 @@ A move of the association of a non-AP MLD to another link STA moves
 the SCSIDs of its configured rules as well.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
- src/ap/scs.c      | 125 ++++++++++++++++++++++++++++++++++++----------
- src/ap/sta_info.h |   1 +
- src/ap/ubus.c     |  18 +++++--
- src/ap/ubus.h     |   5 +-
- 4 files changed, 115 insertions(+), 34 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/src/ap/ieee802_11_eht.c
++++ b/src/ap/ieee802_11_eht.c
+@@ -1725,6 +1725,9 @@
+ 	os_memset(sta->scs_active, 0, sizeof(sta->scs_active));
+ 	assoc_sta->mscs_active = sta->mscs_active;
+ 	sta->mscs_active = false;
++	os_memcpy(assoc_sta->scs_configured, sta->scs_configured,
++		  sizeof(sta->scs_configured));
++	os_memset(sta->scs_configured, 0, sizeof(sta->scs_configured));
+ #endif /* CONFIG_ROBUST_AV */
+ 	return assoc_sta;
+ }
 --- a/src/ap/scs.c
 +++ b/src/ap/scs.c
-@@ -63,14 +63,15 @@ static void robust_av_notify(struct host
+@@ -63,14 +63,15 @@
  		return;
  
  	hostapd_ubus_notify_robust_av(hapd, sta, kind, elem, elem_len,
@@ -55,32 +62,40 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  {
  	u8 elem[2 + MSCS_DESCRIPTOR_FIXED_LEN];
  	size_t len;
-@@ -92,22 +93,39 @@ static void robust_av_notify_removed(str
+@@ -92,22 +93,39 @@
  
  	hostapd_ubus_notify_robust_av(hapd, sta, kind, elem, len,
  				      WLAN_STATUS_TCLAS_PROCESSING_TERMINATED,
 -				      true);
-+				      true, configured);
- }
- 
- 
+-}
+-
+-
 -static bool scs_id_active(struct sta_info *sta, u8 scsid)
+-{
+-	return sta->scs_active[scsid / 8] & BIT(scsid % 8);
+-}
+-
+-
+-static void scs_id_set(struct sta_info *sta, u8 scsid, bool active)
+-{
+-	if (active)
+-		sta->scs_active[scsid / 8] |= BIT(scsid % 8);
++				      true, configured);
++}
++
++
 +/*
 + * The SCSIDs of a station are one space for its own requests (scs_active)
 + * and for the rules that the AP configures (scs_configured).
 + */
 +static bool scs_id_test(const u8 *map, u8 scsid)
- {
--	return sta->scs_active[scsid / 8] & BIT(scsid % 8);
++{
 +	return map[scsid / 8] & BIT(scsid % 8);
- }
- 
- 
--static void scs_id_set(struct sta_info *sta, u8 scsid, bool active)
++}
++
++
 +static void scs_id_mark(u8 *map, u8 scsid, bool set)
- {
--	if (active)
--		sta->scs_active[scsid / 8] |= BIT(scsid % 8);
++{
 +	if (set)
 +		map[scsid / 8] |= BIT(scsid % 8);
  	else
@@ -102,7 +117,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -119,18 +137,39 @@ static u16 hostapd_scs_desc_set(struct h
+@@ -119,14 +137,35 @@
  	if (hostapd_drv_set_scs(hapd, sta->addr, desc, &status))
  		return WLAN_STATUS_REQUEST_DECLINED;
  
@@ -115,10 +130,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	scs_id_track(sta->scs_active, desc, status);
  
  	return status;
- }
- 
- 
- /*
++}
++
++
++/*
 + * The request of the station takes precedence over a configured rule with
 + * the same SCSID, so that rule leaves the driver first. Returns false where
 + * the driver keeps it.
@@ -141,14 +156,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	scs_id_mark(sta->scs_configured, scsid, false);
 +
 +	return true;
-+}
-+
-+
-+/*
-  * The optional elements of an SCS Descriptor element of Request Type Add or
-  * Change. The TCLAS elements and the TCLAS Processing element go to the
-  * driver as one list, in the order received, in *tclas, which the caller
-@@ -189,9 +228,11 @@ static bool scs_desc_elems_parse(const s
+ }
+ 
+ 
+@@ -189,9 +228,11 @@
  }
  
  
@@ -161,7 +172,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  {
  	struct hostapd_scs_desc desc;
  	u8 *tclas = NULL;
-@@ -215,7 +256,7 @@ static u16 hostapd_process_scs_descripto
+@@ -215,7 +256,7 @@
  		goto out;
  	}
  
@@ -170,7 +181,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	switch (desc.req_type) {
  	case SCS_REQ_ADD:
-@@ -235,6 +276,13 @@ static u16 hostapd_process_scs_descripto
+@@ -235,6 +276,13 @@
  	    !scs_desc_elems_parse(scs, &desc, &tclas))
  		goto out;
  
@@ -184,7 +195,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	status = hostapd_scs_desc_set(hapd, sta, &desc);
  
  out:
-@@ -435,7 +483,7 @@ int hostapd_del_mscs(struct hostapd_data
+@@ -435,7 +483,7 @@
  
  	sta->mscs_active = false;
  	send_mscs_response(hapd, sta->addr, 0, status);
@@ -193,7 +204,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	return 0;
  }
-@@ -443,7 +491,8 @@ int hostapd_del_mscs(struct hostapd_data
+@@ -443,7 +491,8 @@
  
  /*
   * The driver dropped the streams of a station with its entry: report each
@@ -203,7 +214,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   */
  void hostapd_robust_av_sta_removed(struct hostapd_data *hapd, const u8 *addr)
  {
-@@ -455,15 +504,18 @@ void hostapd_robust_av_sta_removed(struc
+@@ -455,15 +504,18 @@
  		return;
  
  	for (id = 1; id < 256; id++) {
@@ -212,10 +223,11 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			continue;
 -		scs_id_set(sta, id, false);
 -		robust_av_notify_removed(hapd, sta, HOSTAPD_ROBUST_AV_SCS, id);
+-	}
 +		scs_id_mark(sta->scs_active, id, false);
 +		robust_av_notify_removed(hapd, sta, HOSTAPD_ROBUST_AV_SCS, id,
 +					 false);
- 	}
++	}
 +	os_memset(sta->scs_configured, 0, sizeof(sta->scs_configured));
  
  	if (sta->mscs_active) {
@@ -226,7 +238,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  }
  
-@@ -536,7 +588,14 @@ static int robust_av_configure_scs(struc
+@@ -536,7 +588,14 @@
  		goto out;
  	}
  
@@ -241,7 +253,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  out:
  	os_free(tclas);
  	return ret;
-@@ -570,15 +629,19 @@ static int robust_av_configure_mscs(stru
+@@ -570,15 +629,19 @@
  /*
   * A rule that the AP configures on behalf of the network, for example for a
   * Multi-AP Controller (EasyMesh 6.1, 20.2.4), and not at the request of the
@@ -264,7 +276,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   */
  int hostapd_robust_av_configure(struct hostapd_data *hapd, const u8 *addr,
  				const u8 *client,
-@@ -641,6 +704,8 @@ static void hostapd_handle_scs_req(struc
+@@ -641,6 +704,8 @@
  		return;
  
  	for_each_element(elem, body + 3, len - 3) {
@@ -273,7 +285,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		if (count == 255) {
  			wpa_printf(MSG_DEBUG, "SCS: Too many SCS Descriptors");
  			break;
-@@ -651,10 +716,15 @@ static void hostapd_handle_scs_req(struc
+@@ -651,10 +716,15 @@
  			break;
  		}
  
@@ -292,23 +304,11 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		count++;
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -389,6 +389,7 @@ struct sta_info {
+@@ -385,6 +385,7 @@
  	u8 unsolicited_dialog_token;
  	struct dscp_policy_state dscp_state;
  	u8 scs_active[32]; /* bitmap of the SCSIDs with an active stream */
 +	u8 scs_configured[32]; /* bitmap of the SCSIDs of configured rules */
  	bool mscs_active;
  #endif /* CONFIG_ROBUST_AV */
- };
---- a/src/ap/ieee802_11_eht.c
-+++ b/src/ap/ieee802_11_eht.c
-@@ -1681,6 +1681,9 @@ struct sta_info * hostapd_ml_move_assoc_
- 	os_memset(sta->scs_active, 0, sizeof(sta->scs_active));
- 	assoc_sta->mscs_active = sta->mscs_active;
- 	sta->mscs_active = false;
-+	os_memcpy(assoc_sta->scs_configured, sta->scs_configured,
-+		  sizeof(sta->scs_configured));
-+	os_memset(sta->scs_configured, 0, sizeof(sta->scs_configured));
- #endif /* CONFIG_ROBUST_AV */
- 	return assoc_sta;
- }
+ #ifdef CONFIG_IEEE80211AX

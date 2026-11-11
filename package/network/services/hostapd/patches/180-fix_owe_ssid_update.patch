@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:46:55 +0200
+Date: Wed, 11 Nov 2026 12:12:56 +0800
 Subject: [PATCH] OWE: Refresh the transition mode information of owe_transition_ifname
 
 hostapd_owe_trans_get_info() copies the BSSID and the SSID of the BSS
@@ -19,11 +19,11 @@ configured owe_transition_bssid and owe_transition_ssid keep their
 precedence over owe_transition_ifname.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -125,6 +125,9 @@ void hostapd_reconfig_encryption(struct
+@@ -125,6 +125,9 @@
  }
  
  
@@ -33,7 +33,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void hostapd_reload_bss(struct hostapd_data *hapd)
  {
  	struct hostapd_ssid *ssid;
-@@ -201,6 +204,7 @@ static void hostapd_reload_bss(struct ho
+@@ -201,6 +204,7 @@
  		/* try to continue */
  	}
  	wpa_printf(MSG_DEBUG, "Reconfigured interface %s", hapd->conf->iface);
@@ -41,7 +41,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -528,6 +532,9 @@ void hostapd_free_hapd_data(struct hosta
+@@ -528,6 +532,9 @@
  	hapd->started = 0;
  	hapd->beacon_set_done = 0;
  	hapd->beacon_started = 0;
@@ -51,7 +51,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	wpa_printf(MSG_DEBUG, "%s(%s)", __func__, hapd->conf->iface);
  	accounting_deinit(hapd);
-@@ -2507,9 +2514,23 @@ void fst_hostapd_fill_iface_obj(struct h
+@@ -2513,9 +2520,23 @@
  
  #ifdef CONFIG_OWE
  
@@ -76,7 +76,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	size_t i;
  
  	for (i = 0; i < iface->num_bss; i++) {
-@@ -2526,17 +2547,12 @@ static int hostapd_owe_iface_iter(struct
+@@ -2532,17 +2553,12 @@
  			   MAC2STR(bss->own_addr),
  			   wpa_ssid_txt(bss->conf->ssid.ssid,
  					bss->conf->ssid.ssid_len));
@@ -97,7 +97,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return 1;
  	}
  
-@@ -2544,20 +2560,55 @@ static int hostapd_owe_iface_iter(struct
+@@ -2550,20 +2566,55 @@
  }
  
  
@@ -158,23 +158,14 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -2593,21 +2644,30 @@ static int hostapd_owe_iface_iter2(struc
+@@ -2599,18 +2650,27 @@
  #endif /* CONFIG_OWE */
  
  
--static void hostapd_owe_update_trans(struct hostapd_iface *iface)
 +static void hostapd_owe_update_trans_ifaces(struct hapd_interfaces *interfaces,
 +					    struct hostapd_iface *iface)
- {
- #ifdef CONFIG_OWE
--	/* Check whether the enabled BSS can complete OWE transition mode
--	 * configuration for any pending interface. */
--	if (!iface->interfaces ||
--	    !iface->interfaces->for_each_interface)
--		hostapd_owe_iface_iter2(iface, NULL);
--	else
--		iface->interfaces->for_each_interface(
--			iface->interfaces, hostapd_owe_iface_iter2, NULL);
++{
++#ifdef CONFIG_OWE
 +	/* Check whether the changed BSS completes, changes or removes the OWE
 +	 * transition mode information of any interface. */
 +	if (!interfaces || !interfaces->for_each_interface) {
@@ -185,20 +176,27 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +
 +	interfaces->for_each_interface(interfaces, hostapd_owe_iface_iter2,
 +				       NULL);
- #endif /* CONFIG_OWE */
- }
- 
- 
-+static void hostapd_owe_update_trans(struct hostapd_iface *iface)
-+{
-+	hostapd_owe_update_trans_ifaces(iface->interfaces, iface);
++#endif /* CONFIG_OWE */
 +}
 +
 +
- static void hostapd_interface_setup_failure_handler(void *eloop_ctx,
- 						    void *timeout_ctx)
+ static void hostapd_owe_update_trans(struct hostapd_iface *iface)
  {
-@@ -3820,6 +3880,7 @@ int hostapd_disable_iface(struct hostapd
+-#ifdef CONFIG_OWE
+-	/* Check whether the enabled BSS can complete OWE transition mode
+-	 * configuration for any pending interface. */
+-	if (!iface->interfaces ||
+-	    !iface->interfaces->for_each_interface)
+-		hostapd_owe_iface_iter2(iface, NULL);
+-	else
+-		iface->interfaces->for_each_interface(
+-			iface->interfaces, hostapd_owe_iface_iter2, NULL);
+-#endif /* CONFIG_OWE */
++	hostapd_owe_update_trans_ifaces(iface->interfaces, iface);
+ }
+ 
+ 
+@@ -3831,6 +3891,7 @@
  		   hapd_iface->bss[0]->conf->iface);
  	hostapd_set_state(hapd_iface, HAPD_IFACE_DISABLED);
  	hostapd_refresh_all_iface_beacons(hapd_iface);
@@ -206,7 +204,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return 0;
  }
  
-@@ -4165,6 +4226,7 @@ static int hostapd_remove_bss(struct hos
+@@ -4176,6 +4237,7 @@
  	for (i = idx; i < iface->conf->num_bss; i++)
  		iface->conf->bss[i] = iface->conf->bss[i + 1];
  
@@ -214,7 +212,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return 0;
  }
  
-@@ -4179,8 +4241,12 @@ int hostapd_remove_iface(struct hapd_int
+@@ -4190,8 +4252,12 @@
  		if (hapd_iface == NULL)
  			return -1;
  		if (!os_strcmp(hapd_iface->conf->bss[0]->iface, buf)) {
@@ -230,7 +228,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		for (j = 0; j < hapd_iface->conf->num_bss; j++) {
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -281,6 +281,12 @@ struct hostapd_data {
+@@ -271,6 +271,12 @@
  	struct wps_context *wps;
  
  	int beacon_set_done;
@@ -243,7 +241,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct wpabuf *wps_beacon_ie;
  	struct wpabuf *wps_probe_resp_ie;
  #ifdef CONFIG_WPS
-@@ -853,6 +859,7 @@ hostapd_switch_channel_fallback(struct h
+@@ -849,6 +855,7 @@
  void hostapd_cleanup_cs_params(struct hostapd_data *hapd);
  void hostapd_periodic_iface(struct hostapd_iface *iface);
  int hostapd_owe_trans_get_info(struct hostapd_data *hapd);
@@ -253,17 +251,18 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  void hostapd_switch_color(struct hostapd_data *hapd, u64 bitmap);
 --- a/src/ap/ieee802_11_shared.c
 +++ b/src/ap/ieee802_11_shared.c
-@@ -873,10 +873,22 @@ u8 hostapd_mbo_ie_len(struct hostapd_dat
+@@ -905,10 +905,22 @@
  
  
  #ifdef CONFIG_OWE
 -static int hostapd_eid_owe_trans_enabled(struct hostapd_data *hapd)
+-{
+-	return hapd->conf->owe_transition_ssid_len > 0 &&
+-		!is_zero_ether_addr(hapd->conf->owe_transition_bssid);
 +static void hostapd_owe_trans_info(struct hostapd_data *hapd,
 +				   const u8 **bssid, const u8 **ssid,
 +				   size_t *ssid_len)
- {
--	return hapd->conf->owe_transition_ssid_len > 0 &&
--		!is_zero_ether_addr(hapd->conf->owe_transition_bssid);
++{
 +	struct hostapd_bss_config *conf = hapd->conf;
 +
 +	if (hostapd_owe_trans_static(conf)) {
@@ -279,7 +278,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  #endif /* CONFIG_OWE */
  
-@@ -884,9 +896,13 @@ static int hostapd_eid_owe_trans_enabled
+@@ -916,9 +928,13 @@
  size_t hostapd_eid_owe_trans_len(struct hostapd_data *hapd)
  {
  #ifdef CONFIG_OWE
@@ -295,16 +294,17 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #else /* CONFIG_OWE */
  	return 0;
  #endif /* CONFIG_OWE */
-@@ -898,13 +914,14 @@ u8 * hostapd_eid_owe_trans(struct hostap
+@@ -930,13 +946,14 @@
  {
  #ifdef CONFIG_OWE
  	u8 *pos = eid;
 -	size_t elen;
-+	const u8 *bssid, *ssid;
-+	size_t elen, ssid_len;
- 
+-
 -	if (hapd->conf->owe_transition_ifname[0] &&
 -	    !hostapd_eid_owe_trans_enabled(hapd))
++	const u8 *bssid, *ssid;
++	size_t elen, ssid_len;
++
 +	if (hapd->conf->owe_transition_ifname[0] && !hapd->owe_trans_ssid_len)
  		hostapd_owe_trans_get_info(hapd);
  
@@ -314,7 +314,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return pos;
  
  	elen = hostapd_eid_owe_trans_len(hapd);
-@@ -919,12 +936,11 @@ u8 * hostapd_eid_owe_trans(struct hostap
+@@ -951,12 +968,11 @@
  	WPA_PUT_BE24(pos, OUI_WFA);
  	pos += 3;
  	*pos++ = OWE_OUI_TYPE;

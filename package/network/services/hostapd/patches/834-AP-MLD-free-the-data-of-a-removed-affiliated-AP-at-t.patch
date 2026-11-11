@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 02:00:00 +0200
+Date: Wed, 11 Nov 2026 12:16:29 +0800
 Subject: [PATCH] AP MLD: free the data of a removed affiliated AP at the
  expiry
 
@@ -72,10 +72,32 @@ only BSS, set the interface state to DISABLED, as upstream does at the
 expiry (hostapd_disable_iface()).
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/ap/ap_drv_ops.c
++++ b/src/ap/ap_drv_ops.c
+@@ -742,7 +742,7 @@
+ 	if (hostapd_set_freq_params(&data, &info))
+ 		return -1;
+ 
+-	if (hapd->driver == NULL)
++	if (hapd->driver == NULL || hapd->drv_priv == NULL)
+ 		return 0;
+ 	if (hapd->driver->set_freq == NULL)
+ 		return 0;
+@@ -1185,7 +1185,8 @@
+ 		.eht.punct_bitmap = hostapd_get_punct_bitmap(hapd),
+ 	};
+ 
+-	if (!hapd->driver || !hapd->driver->start_dfs_cac || !cmode)
++	if (!hapd->driver || !hapd->driver->start_dfs_cac || !hapd->drv_priv ||
++	    !cmode)
+ 		return 0;
+ 
+ 	if (!iface->conf->ieee80211h) {
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -752,6 +752,39 @@ void hostapd_mld_beacons_update(struct h
+@@ -752,6 +752,39 @@
  }
  
  
@@ -115,7 +137,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void hostapd_link_remove_finish(void *eloop_data, void *user_ctx)
  {
  	struct hostapd_data *hapd = eloop_data;
-@@ -767,7 +800,18 @@ static void hostapd_link_remove_finish(v
+@@ -767,7 +800,18 @@
  	wpa_printf(MSG_DEBUG, "MLD: Removal timer expired, link_id=%u stopped",
  		   hapd->mld_link_id);
  
@@ -134,7 +156,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	hostapd_mld_beacons_update(hapd);
  
  	hostapd_ucode_bss_cb(hapd, "bss_link_removed");
-@@ -4272,6 +4316,8 @@ void hostapd_interface_free(struct hosta
+@@ -4283,6 +4327,8 @@
  		if (iface->bss[j])
  			hostapd_mld_ref_dec(iface->bss[j]);
  #endif /* CONFIG_IEEE80211BE */
@@ -143,24 +165,3 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		wpa_printf(MSG_DEBUG, "%s: free hapd %p",
  			   __func__, iface->bss[j]);
  		os_free(iface->bss[j]);
---- a/src/ap/ap_drv_ops.c
-+++ b/src/ap/ap_drv_ops.c
-@@ -703,7 +703,7 @@ int hostapd_set_freq(struct hostapd_data
- 				    NULL, hostapd_get_punct_bitmap(hapd)))
- 		return -1;
- 
--	if (hapd->driver == NULL)
-+	if (hapd->driver == NULL || hapd->drv_priv == NULL)
- 		return 0;
- 	if (hapd->driver->set_freq == NULL)
- 		return 0;
-@@ -1129,7 +1129,8 @@ int hostapd_start_dfs_cac(struct hostapd
- 	int res;
- 	struct hostapd_hw_modes *cmode = iface->current_mode;
- 
--	if (!hapd->driver || !hapd->driver->start_dfs_cac || !cmode)
-+	if (!hapd->driver || !hapd->driver->start_dfs_cac || !hapd->drv_priv ||
-+	    !cmode)
- 		return 0;
- 
- 	if (!iface->conf->ieee80211h) {

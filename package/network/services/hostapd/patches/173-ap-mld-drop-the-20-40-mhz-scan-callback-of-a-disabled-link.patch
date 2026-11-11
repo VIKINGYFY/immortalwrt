@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 13:15:06 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] AP MLD: Drop the 20/40 MHz scan callback of a disabled link
 
 For EVENT_SCAN_RESULTS, wpa_supplicant_event() calls the scan callback
@@ -14,12 +14,13 @@ MLD link in HAPD_IFACE_HT_SCAN.
 Drop the callback when the setup timers stop.
 
 Fixes: 9b682e72d9d1 ("AP MLD: Find the link that is waiting for scan events")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hw_features.c
 +++ b/src/ap/hw_features.c
-@@ -612,6 +612,10 @@ static void ap_ht40_scan_retry(void *elo
+@@ -612,6 +612,10 @@
  void hostapd_stop_setup_timers(struct hostapd_iface *iface)
  {
  	eloop_cancel_timeout(ap_ht40_scan_retry, iface, NULL);

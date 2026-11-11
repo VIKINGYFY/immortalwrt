@@ -1,5 +1,5 @@
 From: Denton Gentry <denny@geekhold.com>
-Date: Tue, 20 Oct 2026 14:44:39 +0200
+Date: Wed, 11 Nov 2026 12:14:15 +0800
 Subject: [PATCH] hostapd_cli: Treat UNKNOWN COMMAND as a failure of the STA commands
 
 wpa_ctrl_command_sta() only treats a "FAIL" reply as a failure. Any
@@ -17,11 +17,11 @@ copy of wpa_ctrl_command_sta().
 
 Signed-off-by: Denton Gentry <denny@geekhold.com>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/hostapd_cli.c
 +++ b/hostapd/hostapd_cli.c
-@@ -763,7 +763,8 @@ static int wpa_ctrl_command_sta(struct w
+@@ -763,7 +763,8 @@
  	}
  
  	buf[len] = '\0';

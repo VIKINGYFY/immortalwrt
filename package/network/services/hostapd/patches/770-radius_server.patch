@@ -1,27 +1,29 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Thu, 16 Mar 2023 11:35:50 +0100
+Date: Wed, 11 Nov 2026 12:15:19 +0800
 Subject: [PATCH] hostapd: add experimental radius server
 
 This can be used to run a standalone EAP server that can be used from
 other APs. It uses json as user database format and can automatically
 handle reload.
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
-@@ -63,6 +63,10 @@ endif
+@@ -62,6 +62,10 @@
+ 
  OBJS += main.o
  OBJS += config_file.o
- 
++
 +ifdef CONFIG_RADIUS_SERVER
 +OBJS += radius.o
 +endif
-+
+ 
  OBJS += ../src/ap/hostapd.o
  OBJS += ../src/ap/wpa_auth_glue.o
- OBJS += ../src/ap/drv_callbacks.o
 --- a/hostapd/main.c
 +++ b/hostapd/main.c
-@@ -41,6 +41,7 @@ struct hapd_global {
+@@ -41,6 +41,7 @@
  
  static struct hapd_global global;
  
@@ -29,7 +31,7 @@ handle reload.
  
  #ifndef CONFIG_NO_HOSTAPD_LOGGER
  static void hostapd_logger_cb(void *ctx, const u8 *addr, unsigned int module,
-@@ -863,6 +864,11 @@ int main(int argc, char *argv[])
+@@ -863,6 +864,11 @@
  	if (os_program_init())
  		return -1;
  
@@ -43,7 +45,7 @@ handle reload.
  	interfaces.config_read_cb = hostapd_config_read;
 --- a/src/radius/radius_server.c
 +++ b/src/radius/radius_server.c
-@@ -63,6 +63,12 @@ struct radius_server_counters {
+@@ -63,6 +63,12 @@
  	u32 unknown_acct_types;
  };
  
@@ -56,7 +58,7 @@ handle reload.
  /**
   * struct radius_session - Internal RADIUS server data for a session
   */
-@@ -89,7 +95,7 @@ struct radius_session {
+@@ -89,7 +95,7 @@
  	unsigned int macacl:1;
  	unsigned int t_c_filtering:1;
  
@@ -65,7 +67,7 @@ handle reload.
  
  	u32 t_c_timestamp; /* Last read T&C timestamp from user DB */
  };
-@@ -373,6 +379,7 @@ static void radius_server_session_free(s
+@@ -373,6 +379,7 @@
  	radius_msg_free(sess->last_reply);
  	os_free(sess->username);
  	os_free(sess->nas_ip);
@@ -73,7 +75,7 @@ handle reload.
  	os_free(sess);
  	if (data)
  		data->num_sess--;
-@@ -534,6 +541,36 @@ radius_server_erp_find_key(struct radius
+@@ -534,6 +541,36 @@
  }
  #endif /* CONFIG_ERP */
  
@@ -110,7 +112,7 @@ handle reload.
  
  static struct radius_session *
  radius_server_get_new_session(struct radius_server_data *data,
-@@ -587,9 +624,13 @@ radius_server_get_new_session(struct rad
+@@ -587,9 +624,13 @@
  		eap_user_free(tmp);
  		return NULL;
  	}
@@ -125,7 +127,7 @@ handle reload.
  
  	sess->username = os_malloc(user_len * 4 + 1);
  	if (sess->username == NULL) {
-@@ -924,11 +965,10 @@ radius_server_encapsulate_eap(struct rad
+@@ -924,11 +965,10 @@
  	}
  
  	if (code == RADIUS_CODE_ACCESS_ACCEPT) {
@@ -141,7 +143,7 @@ handle reload.
  				wpa_printf(MSG_ERROR, "Could not add RADIUS attribute");
  				radius_msg_free(msg);
  				return NULL;
-@@ -1024,11 +1064,10 @@ radius_server_macacl(struct radius_serve
+@@ -1024,11 +1064,10 @@
  	}
  
  	if (code == RADIUS_CODE_ACCESS_ACCEPT) {
@@ -157,7 +159,7 @@ handle reload.
  				wpa_printf(MSG_ERROR, "Could not add RADIUS attribute");
  				radius_msg_free(msg);
  				return NULL;
-@@ -2336,7 +2375,12 @@ static int radius_server_get_eap_user(vo
+@@ -2336,7 +2375,12 @@
  	ret = data->get_eap_user(data->conf_ctx, identity, identity_len,
  				 phase2, user);
  	if (ret == 0 && user) {

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Mon, 26 Oct 2026 19:00:00 +0100
+Date: Wed, 11 Nov 2026 12:19:17 +0800
 Subject: [PATCH] AP: free a non-AP MLD on all its links at a group addressed
  drop
 
@@ -20,10 +20,11 @@ hostapd_free_link_sta_mlds() before hostapd_free_stas(), and use it for
 the group addressed drops and in hostapd_bss_stas_leave().
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ctrl_iface_ap.c
 +++ b/src/ap/ctrl_iface_ap.c
-@@ -682,7 +682,7 @@ int hostapd_ctrl_iface_deauthenticate(st
+@@ -696,7 +696,7 @@
  		if (sta)
  			ap_sta_deauthenticate(hapd, sta, reason);
  		else if (addr[0] == 0xff)
@@ -32,7 +33,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  
  	return 0;
-@@ -747,7 +747,7 @@ int hostapd_ctrl_iface_disassociate(stru
+@@ -761,7 +761,7 @@
  		if (sta)
  			ap_sta_disassociate(hapd, sta, reason);
  		else if (addr[0] == 0xff)
@@ -43,7 +44,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return 0;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1963,10 +1963,7 @@ static int hostapd_flush_old_stations(st
+@@ -1963,10 +1963,7 @@
  
  static void hostapd_bss_stas_leave(struct hostapd_data *hapd)
  {
@@ -57,7 +58,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -2440,6 +2440,15 @@ void hostapd_free_link_sta_mlds(struct h
+@@ -2447,6 +2447,15 @@
  #endif /* CONFIG_IEEE80211BE */
  
  
@@ -75,7 +76,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  {
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -445,6 +445,7 @@ void ap_free_sta(struct hostapd_data *ha
+@@ -446,6 +446,7 @@
  void ap_free_sta_all_links(struct hostapd_data *hapd, struct sta_info *sta);
  void ap_sta_ip6addr_del(struct hostapd_data *hapd, struct sta_info *sta);
  void hostapd_free_stas(struct hostapd_data *hapd);

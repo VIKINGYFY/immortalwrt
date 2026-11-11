@@ -1,5 +1,5 @@
 From: "Leon M. George" <leon@georgemail.eu>
-Date: Wed, 11 Sep 2019 15:22:55 +0200
+Date: Wed, 11 Nov 2026 12:13:48 +0800
 Subject: [PATCH] hostapd: declare struct wpa_bss early
 
 wps_supplicant.h assumes that 'struct wpa_bss' is forward declared if
@@ -11,9 +11,11 @@ wps_supplicant.h:113:15: warning: 'struct wpa_bss' declared inside parameter lis
                ^~~~~~~
 This patch forward declares 'struct wpa_bss' regardless.
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/wpa_supplicant/wps_supplicant.h
 +++ b/wpa_supplicant/wps_supplicant.h
-@@ -9,6 +9,7 @@
+@@ -9,14 +9,13 @@
  #ifndef WPS_SUPPLICANT_H
  #define WPS_SUPPLICANT_H
  
@@ -21,12 +23,11 @@ This patch forward declares 'struct wpa_bss' regardless.
  struct wpa_scan_results;
  
  #ifdef CONFIG_WPS
-@@ -16,8 +17,6 @@ struct wpa_scan_results;
+ 
  #include "wps/wps.h"
  #include "wps/wps_defs.h"
- 
--struct wpa_bss;
 -
+-struct wpa_bss;
+ 
  struct wps_new_ap_settings {
  	const char *ssid_hex;
- 	const char *auth;

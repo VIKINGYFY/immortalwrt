@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 11:20:46 +0200
+Date: Wed, 11 Nov 2026 12:18:01 +0800
 Subject: [PATCH] DSCP: remove an invalidated policy from the list of the station
 
 invalidate_policy_by_id() freed the fields of the policy and left a
@@ -16,10 +16,11 @@ hostapd_handle_dscp_policy_response() also printed the address of a
 NULL station; return before the print.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/robust_av.c
 +++ b/src/ap/robust_av.c
-@@ -1454,13 +1454,22 @@ static void invalidate_policy_by_id(stru
+@@ -1454,13 +1454,22 @@
  	for (i = 0; i < sta->num_dscp_policies; i++) {
  		struct hostapd_dscp_policy *policy = sta->policies[i];
  
@@ -49,7 +50,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  }
  
-@@ -1578,7 +1587,10 @@ int hostapd_handle_dscp_policy_response(
+@@ -1578,7 +1587,10 @@
  	u8 response_control;
  	u8 count;
  

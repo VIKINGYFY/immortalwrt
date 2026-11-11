@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 23 Oct 2026 22:30:00 +0200
+Date: Wed, 11 Nov 2026 12:16:17 +0800
 Subject: [PATCH] AP MLD: Refuse a link addition while the link is not started
 
 A link of an AP MLD joins the AP MLD in hostapd_driver_init(), before
@@ -19,10 +19,11 @@ Refuse the addition of such a link, as for a link that the AP MLD does
 not have.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -2308,6 +2308,12 @@ hostapd_parse_link_reconf_req_sta_profil
+@@ -2357,6 +2357,12 @@
  		goto add_to_list;
  	}
  

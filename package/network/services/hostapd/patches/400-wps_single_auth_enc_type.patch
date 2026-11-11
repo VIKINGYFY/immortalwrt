@@ -1,13 +1,15 @@
 From: Felix Fietkau <nbd@openwrt.org>
-Date: Sat, 9 Jul 2011 07:19:55 +0000
+Date: Wed, 11 Nov 2026 12:14:15 +0800
 Subject: [PATCH] hostapd: only advertise a single encryption type via WPS if
  multiple are supported
 
 Fixes windows 7 interop issues
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/wps_hostapd.c
 +++ b/src/ap/wps_hostapd.c
-@@ -395,9 +395,8 @@ static int hapd_wps_reconfig_in_memory(s
+@@ -395,9 +395,8 @@
  				bss->wpa_pairwise |= WPA_CIPHER_GCMP;
  			else
  				bss->wpa_pairwise |= WPA_CIPHER_CCMP;
@@ -18,7 +20,7 @@ Fixes windows 7 interop issues
  			bss->wpa_pairwise |= WPA_CIPHER_TKIP;
  #endif /* CONFIG_NO_TKIP */
  		bss->rsn_pairwise = bss->wpa_pairwise;
-@@ -1183,8 +1182,7 @@ int hostapd_init_wps(struct hostapd_data
+@@ -1183,8 +1182,7 @@
  					  WPA_CIPHER_GCMP_256)) {
  			wps->encr_types |= WPS_ENCR_AES;
  			wps->encr_types_rsn |= WPS_ENCR_AES;

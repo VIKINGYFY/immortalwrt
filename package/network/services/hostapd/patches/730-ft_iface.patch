@@ -1,16 +1,18 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 4 Jun 2021 09:12:07 +0200
+Date: Wed, 11 Nov 2026 12:15:19 +0800
 Subject: [PATCH] hostapd: configure inter-AP communication interface for
  802.11r
 
 In setups using VLAN bridge filtering, hostapd may need to communicate using
 a VLAN interface on top of the bridge, instead of using the bridge directly
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3202,6 +3202,8 @@ static int hostapd_config_fill(struct ho
- 		wpa_printf(MSG_INFO,
- 			   "Line %d: Obsolete peerkey parameter ignored", line);
+@@ -3245,6 +3245,8 @@
+ 			return 1;
+ 		}
  #ifdef CONFIG_IEEE80211R_AP
 +	} else if (os_strcmp(buf, "ft_iface") == 0) {
 +		os_strlcpy(bss->ft_iface, pos, sizeof(bss->ft_iface));
@@ -19,7 +21,7 @@ a VLAN interface on top of the bridge, instead of using the bridge directly
  		    hexstr2bin(pos, bss->mobility_domain,
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -285,6 +285,7 @@ struct airtime_sta_weight {
+@@ -285,6 +285,7 @@
  struct hostapd_bss_config {
  	char iface[IFNAMSIZ + 1];
  	char bridge[IFNAMSIZ + 1];
@@ -29,7 +31,7 @@ a VLAN interface on top of the bridge, instead of using the bridge directly
  	int bridge_hairpin; /* hairpin_mode on bridge members */
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -1930,8 +1930,12 @@ int hostapd_setup_wpa(struct hostapd_dat
+@@ -1936,8 +1936,12 @@
  	    wpa_key_mgmt_ft(hapd->conf->wpa_key_mgmt)) {
  		const char *ft_iface;
  

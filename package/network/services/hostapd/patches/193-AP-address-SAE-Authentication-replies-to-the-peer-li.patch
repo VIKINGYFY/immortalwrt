@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 4 Aug 2026 19:08:03 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] AP MLD: Address SAE Authentication frames to the peer link address
 
 The SAE senders address their frames to sta->addr, which for a non-AP
@@ -24,11 +24,11 @@ mld_info.links[].peer_addr for transaction 1, as IEEE Std
 handle_auth_cb() finds the station by the same address.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -1092,7 +1092,7 @@ static int auth_sae_send_commit(struct h
+@@ -1671,7 +1671,7 @@
  		status = hapd->conf->sae_commit_status;
  	}
  #endif /* CONFIG_TESTING_OPTIONS */
@@ -37,7 +37,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  				    WLAN_AUTH_SAE, 1,
  				    status, wpabuf_head(data),
  				    wpabuf_len(data), "sae-send-commit");
-@@ -1113,7 +1113,7 @@ static int auth_sae_send_confirm(struct
+@@ -1692,7 +1692,7 @@
  	if (data == NULL)
  		return WLAN_STATUS_UNSPECIFIED_FAILURE;
  
@@ -46,7 +46,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  				    WLAN_AUTH_SAE, 2,
  				    WLAN_STATUS_SUCCESS, wpabuf_head(data),
  				    wpabuf_len(data), "sae-send-confirm");
-@@ -2068,7 +2068,7 @@ reply:
+@@ -2663,7 +2663,7 @@
  		    !data && end - pos >= 2)
  			data = wpabuf_alloc_copy(pos, 2);
  
@@ -57,10 +57,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  				data ? wpabuf_head(data) : (u8 *) "",
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -95,6 +95,21 @@ struct sta_info * ap_get_link_sta(struct
+@@ -94,6 +94,21 @@
+ 	return NULL;
+ }
  #endif /* CONFIG_IEEE80211BE */
- 
- 
++
++
 +/* The Authentication frames to a non-AP MLD go to the address of its STA on the
 + * link (IEEE Std 802.11be-2024, 11.3.4.3), not to the MLD MAC address. */
 +const u8 * ap_sta_link_addr(struct hostapd_data *hapd, struct sta_info *sta)
@@ -74,14 +76,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +
 +	return sta->addr;
 +}
-+
-+
+ 
+ 
  #ifdef CONFIG_P2P
- struct sta_info * ap_get_sta_p2p(struct hostapd_data *hapd, const u8 *addr)
- {
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -391,6 +391,7 @@ int ap_for_each_sta(struct hostapd_data
+@@ -406,6 +406,7 @@
  struct sta_info * ap_get_sta(struct hostapd_data *hapd, const u8 *sta);
  struct sta_info * ap_get_link_sta(struct hostapd_data *hapd,
  				  const u8 *link_addr);

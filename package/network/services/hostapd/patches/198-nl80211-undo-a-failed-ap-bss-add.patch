@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 08:00:41 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] nl80211: Undo a failed AP BSS add
 
 wpa_driver_nl80211_if_add() links the new i802_bss into the driver and
@@ -16,11 +16,11 @@ Undo the add on both failures, as the other error paths of the function
 do.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -9822,8 +9822,12 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -9936,8 +9936,12 @@
  		new_bss->added_if = added;
  
  		/* Set interface mode to NL80211_IFTYPE_AP */
@@ -34,7 +34,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  		if (bridge &&
  		    i802_check_bridge(drv, new_bss, bridge, ifname) < 0) {
-@@ -9853,8 +9857,16 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -9967,8 +9971,16 @@
  		nl80211_init_bss(new_bss);
  
  		/* Subscribe management frames for this WPA_IF_AP_BSS */

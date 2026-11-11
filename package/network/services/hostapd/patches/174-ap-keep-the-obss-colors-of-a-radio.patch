@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:57:30 +0200
+Date: Wed, 11 Nov 2026 12:12:56 +0800
 Subject: [PATCH] AP: Keep the OBSS colours of a radio
 
 hostapd kept the colours to avoid in color_collision_bitmap of a BSS.
@@ -21,11 +21,11 @@ the colour of a BSS Color In Use report per station, until the station
 cancels it or leaves. A colour change avoids the colours of both sets.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -1311,6 +1311,12 @@ static int hostapd_ctrl_iface_set(struct
+@@ -1461,6 +1461,12 @@
  		} else if (os_strcasecmp(cmd, "transition_disable") == 0) {
  			wpa_auth_set_transition_disable(hapd->wpa_auth,
  							hapd->conf->transition_disable);
@@ -38,7 +38,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		}
  
  #ifdef CONFIG_TESTING_OPTIONS
-@@ -2588,7 +2594,7 @@ static int hostapd_ctrl_iface_color_chan
+@@ -2738,7 +2744,7 @@
  			return -1;
  		}
  
@@ -47,7 +47,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  		for (i = 0; i < iface->num_bss; i++)
  			ieee802_11_set_beacon(iface->bss[i]);
-@@ -2603,7 +2609,7 @@ static int hostapd_ctrl_iface_color_chan
+@@ -2753,7 +2759,7 @@
  			return -1;
  		}
  
@@ -56,7 +56,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  		for (i = 0; i < iface->num_bss; i++)
  			ieee802_11_set_beacon(iface->bss[i]);
-@@ -2620,7 +2626,7 @@ static int hostapd_ctrl_iface_color_chan
+@@ -2770,7 +2776,7 @@
  	/* IEEE Std 802.11-2024, 26.17.3.4: BSS Color Disabled shall be 1 during
  	 * the time leading up to the BSS color change TBTT.
  	 */
@@ -67,7 +67,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		struct hostapd_data *bss = iface->bss[i];
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2555,7 +2555,7 @@ static void hostapd_event_color_change(s
+@@ -2556,7 +2556,7 @@
  			 * subsequent beacon rebuilds advertise the new color
  			 * as enabled.
  			 */
@@ -76,7 +76,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		}
  
  		bss->cca_in_progress = 0;
-@@ -2987,6 +2987,8 @@ void wpa_supplicant_event(void *ctx, enu
+@@ -2988,6 +2988,8 @@
  					data->bss_color_collision.link_id);
  		wpa_printf(MSG_DEBUG, "BSS color collision on %s",
  			   hapd->conf->iface);
@@ -87,7 +87,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		break;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -375,6 +375,10 @@ int hostapd_reload_config(struct hostapd
+@@ -375,6 +375,10 @@
  	}
  
  	iface->conf = newconf;
@@ -98,7 +98,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	hostapd_config_free(oldconf);
  
  
-@@ -798,6 +802,9 @@ static void hostapd_cleanup_iface(struct
+@@ -798,6 +802,9 @@
  	hostapd_afc_stop(iface);
  	eloop_cancel_timeout(hostapd_interface_setup_failure_handler, iface,
  			     NULL);
@@ -108,7 +108,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	hostapd_cleanup_iface_partial(iface);
  	hostapd_config_free(iface->conf);
-@@ -5098,6 +5105,7 @@ void hostapd_switch_color_timeout_handle
+@@ -5122,6 +5129,7 @@
  	struct hostapd_data *hapd = (struct hostapd_data *) eloop_data;
  	os_time_t delta_t;
  	unsigned int b;
@@ -116,13 +116,14 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	int i, r;
  
  	 /* CCA can be triggered once the handler constantly receives
-@@ -5114,11 +5122,12 @@ void hostapd_switch_color_timeout_handle
+@@ -5138,11 +5146,12 @@
  	 * hostapd_fill_cca_settings()) and any incidental beacon rebuild
  	 * during the CCA countdown carry the correct Disabled=1 state.
  	 */
 -	hapd->iface->conf->he_op.he_bss_color_disabled = 1;
+-
 +	hostapd_bss_color_disabled_set(hapd->iface, 1);
- 
++
 +	avoided = hostapd_bss_colors_avoided(hapd->iface);
  	r = os_random() % HE_OPERATION_BSS_COLOR_MAX;
  	for (i = 0; i < HE_OPERATION_BSS_COLOR_MAX; i++) {
@@ -131,7 +132,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			break;
  
  		r = (r + 1) % HE_OPERATION_BSS_COLOR_MAX;
-@@ -5128,7 +5137,7 @@ void hostapd_switch_color_timeout_handle
+@@ -5152,7 +5161,7 @@
  		/* There are no free colors so turn BSS coloring off */
  		wpa_printf(MSG_INFO,
  			   "No free colors left, turning off BSS coloring");
@@ -140,7 +141,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		hapd->iface->conf->he_op.he_bss_color = os_random() % 63 + 1;
  		for (b = 0; b < hapd->iface->num_bss; b++)
  			ieee802_11_set_beacon(hapd->iface->bss[b]);
-@@ -5161,6 +5170,132 @@ void hostapd_switch_color_timeout_handle
+@@ -5185,6 +5194,132 @@
  }
  
  
@@ -273,7 +274,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  bool hostapd_is_cca_in_progress(struct hostapd_iface *iface)
  {
  	size_t i;
-@@ -5184,7 +5319,6 @@ void hostapd_switch_color(struct hostapd
+@@ -5208,7 +5343,6 @@
  	if (os_get_reltime(&now))
  		return;
  
@@ -283,7 +284,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (eloop_is_timeout_registered(hostapd_switch_color_timeout_handler,
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -356,7 +356,6 @@ struct hostapd_data {
+@@ -346,7 +346,6 @@
  	unsigned int cca_c_off_proberesp;
  	struct os_reltime first_color_collision;
  	struct os_reltime last_color_collision;
@@ -291,7 +292,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211AX */
  
  #ifdef CONFIG_P2P
-@@ -793,6 +792,15 @@ struct hostapd_iface {
+@@ -789,6 +788,15 @@
  		bool data_valid;
  	} afc;
  #endif /* CONFIG_AFC */
@@ -307,7 +308,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  };
  
  /* hostapd.c */
-@@ -848,6 +856,12 @@ int hostapd_owe_trans_get_info(struct ho
+@@ -844,6 +852,12 @@
  void hostapd_ocv_check_csa_sa_query(void *eloop_ctx, void *timeout_ctx);
  
  void hostapd_switch_color(struct hostapd_data *hapd, u64 bitmap);
@@ -320,7 +321,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  void hostapd_cleanup_cca_params(struct hostapd_data *hapd);
  #ifdef CONFIG_AFC
  int hostap_afc_get_chan_max_eirp_power(struct hostapd_iface *iface, bool psd,
-@@ -955,6 +969,7 @@ void free_beacon_data(struct beacon_data
+@@ -951,6 +965,7 @@
  int hostapd_fill_cca_settings(struct hostapd_data *hapd,
  			      struct cca_settings *settings);
  void hostapd_switch_color_timeout_handler(void *eloop_data, void *user_ctx);
@@ -330,11 +331,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -359,6 +359,12 @@ struct sta_info {
- #ifdef CONFIG_IEEE8021X_AUTH
- 	struct eap_over_auth_data eap_auth_data;
- #endif /* CONFIG_IEEE8021X_AUTH */
-+
+@@ -375,6 +375,11 @@
+ 	u8 unsolicited_dialog_token;
+ 	struct dscp_policy_state dscp_state;
+ #endif /* CONFIG_ROBUST_AV */
 +#ifdef CONFIG_IEEE80211AX
 +	/* The colour of the last BSS Color In Use report of the station, 0 for
 +	 * none or a cancelled report */
@@ -345,7 +345,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/wnm_ap.c
 +++ b/src/ap/wnm_ap.c
-@@ -753,6 +753,7 @@ static void ieee802_11_rx_wnm_event_repo
+@@ -753,6 +753,7 @@
  		wpa_printf(MSG_DEBUG,
  			   "WNM: BSS color collision bitmap 0x%llx reported by "
  			   MACSTR, (unsigned long long) bitmap, MAC2STR(addr));
@@ -353,7 +353,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		hostapd_switch_color(hapd->iface->bss[0], bitmap);
  		break;
  	case WNM_EVENT_TYPE_BSS_COLOR_IN_USE:
-@@ -771,17 +772,15 @@ static void ieee802_11_rx_wnm_event_repo
+@@ -771,17 +772,15 @@
  				   MACSTR, color, MAC2STR(addr));
  			return;
  		}

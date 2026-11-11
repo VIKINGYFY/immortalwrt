@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 11:21:08 +0200
+Date: Wed, 11 Nov 2026 12:18:01 +0800
 Subject: [PATCH] hostapd: report DSCP Policy Query and Response frames on ubus
 
 EasyMesh 6.1 section 20.2.4 has a Multi-AP Agent tunnel the body of each
@@ -14,10 +14,11 @@ frame of a BSS that advertises the capability. Unprotected frames stay
 dropped.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8352,7 +8352,7 @@ static void handle_beacon(struct hostapd
+@@ -9867,7 +9867,7 @@
  
  #ifdef CONFIG_ROBUST_AV
  static void hostapd_dscp_action(struct hostapd_data *hapd, struct sta_info *sta,
@@ -26,7 +27,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  {
  	u8 subtype;
  
-@@ -8367,9 +8367,13 @@ static void hostapd_dscp_action(struct h
+@@ -9882,9 +9882,13 @@
  	subtype = *pos++;
  	switch (subtype) {
  	case QM_DSCP_POLICY_QUERY:
@@ -40,7 +41,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		hostapd_handle_dscp_policy_response(hapd, sta, pos, end - pos);
  		break;
  	default:
-@@ -8409,7 +8413,8 @@ static int hostapd_action_vs(struct host
+@@ -9924,7 +9928,8 @@
  				   "DSCP: Ignoring unprotected frame");
  			return -1;
  		}

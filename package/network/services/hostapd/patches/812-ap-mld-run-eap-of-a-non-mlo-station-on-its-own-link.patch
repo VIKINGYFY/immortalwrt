@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:29:29 +0200
+Date: Wed, 11 Nov 2026 12:15:44 +0800
 Subject: [PATCH] AP MLD: Run EAP of a non-MLO station on its own link
 
 Since commit a213fee11da3 ("AP: MLO: Make IEEE 802.1X SM, authserv, and
@@ -37,11 +37,11 @@ RADIUS server gives its sessions those of its EAP server configuration,
 as before.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/authsrv.c
 +++ b/src/ap/authsrv.c
-@@ -37,10 +37,33 @@ static int hostapd_sim_db_cb_sta(struct
+@@ -37,10 +37,33 @@
  }
  
  
@@ -78,7 +78,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* RADIUS_SERVER */
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1877,12 +1877,84 @@ static struct sta_info * hostapd_das_fin
+@@ -1877,12 +1877,84 @@
  }
  
  
@@ -140,6 +140,8 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  					struct radius_das_attrs *attr)
  {
 -	if (!hapd->wpa_auth)
+-		return -1;
+-	return wpa_auth_radius_das_disconnect_pmksa(hapd->wpa_auth, attr);
 +#ifdef CONFIG_IEEE80211BE
 +	struct hostapd_data *link;
 +#endif /* CONFIG_IEEE80211BE */
@@ -150,8 +152,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +
 +#ifdef CONFIG_IEEE80211BE
 +	if (!hapd->conf->mld_ap || !hapd->mld)
- 		return -1;
--	return wpa_auth_radius_das_disconnect_pmksa(hapd->wpa_auth, attr);
++		return -1;
 +
 +	for_each_mld_link(link, hapd) {
 +		if (link != hapd && link->wpa_auth &&
@@ -165,7 +166,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -1896,7 +1968,7 @@ hostapd_das_disconnect(void *ctx, struct
+@@ -1896,7 +1968,7 @@
  	if (hostapd_das_nas_mismatch(hapd, attr))
  		return RADIUS_DAS_NAS_MISMATCH;
  
@@ -174,7 +175,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (sta == NULL) {
  		if (multi) {
  			wpa_printf(MSG_DEBUG,
-@@ -1935,7 +2007,7 @@ hostapd_das_coa(void *ctx, struct radius
+@@ -1935,7 +2007,7 @@
  	if (hostapd_das_nas_mismatch(hapd, attr))
  		return RADIUS_DAS_NAS_MISMATCH;
  
@@ -185,7 +186,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			wpa_printf(MSG_DEBUG,
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -1067,7 +1067,8 @@ ieee802_1x_alloc_eapol_sm(struct hostapd
+@@ -1067,7 +1067,8 @@
  	}
  	return eapol_auth_alloc(hapd->eapol_auth, sta->addr, flags,
  				sta->wps_ie, sta->p2p_ie, sta,
@@ -195,13 +196,14 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -1972,14 +1973,37 @@ static int ieee802_1x_select_radius_iden
+@@ -1975,14 +1976,37 @@
  
  
  static struct eapol_state_machine *
 -ieee802_1x_search_radius_identifier(struct hostapd_data *hapd, u8 identifier)
+-{
 +ieee802_1x_search_radius_identifier(struct hostapd_data **hapd, u8 identifier)
- {
++{
 +	struct hostapd_data *first = *hapd;
  	struct sta_id_search id_search;
 +#ifdef CONFIG_IEEE80211BE
@@ -236,7 +238,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -2064,7 +2088,7 @@ ieee802_1x_receive_auth(struct radius_ms
+@@ -2067,7 +2091,7 @@
  	int override_eapReq = 0;
  	struct radius_hdr *hdr = radius_msg_get_hdr(msg);
  
@@ -245,7 +247,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (!sm) {
  		wpa_printf(MSG_DEBUG,
  			   "IEEE 802.1X: Could not find matching station for this RADIUS message");
-@@ -2334,11 +2358,40 @@ static void ieee802_1x_rekey(void *eloop
+@@ -2337,11 +2361,40 @@
  #endif /* CONFIG_WEP */
  
  
@@ -287,7 +289,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  #ifdef CONFIG_WPS
  
-@@ -2380,8 +2433,8 @@ static void ieee802_1x_aaa_send(void *ct
+@@ -2383,8 +2436,8 @@
  				const u8 *data, size_t datalen)
  {
  #ifndef CONFIG_NO_RADIUS
@@ -297,7 +299,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	ieee802_1x_encapsulate_radius(hapd, sta, data, datalen);
  #endif /* CONFIG_NO_RADIUS */
-@@ -2391,8 +2444,8 @@ static void ieee802_1x_aaa_send(void *ct
+@@ -2394,8 +2447,8 @@
  static bool _ieee802_1x_finished(void *ctx, void *sta_ctx, int success,
  				 int preauth, bool logoff)
  {
@@ -307,38 +309,40 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	if (preauth) {
  		rsn_preauth_finished(hapd, sta, success);
-@@ -2403,11 +2456,11 @@ static bool _ieee802_1x_finished(void *c
+@@ -2406,11 +2459,11 @@
  }
  
  
 -static int ieee802_1x_get_eap_user(void *ctx, const u8 *identity,
 -				   size_t identity_len, int phase2,
 -				   struct eap_user *user)
+-{
+-	struct hostapd_data *hapd = ctx;
 +static int ieee802_1x_get_eap_user(void *ctx, void *sta_ctx,
 +				   const u8 *identity, size_t identity_len,
 +				   int phase2, struct eap_user *user)
- {
--	struct hostapd_data *hapd = ctx;
++{
 +	struct hostapd_data *hapd = ieee802_1x_sta_bss(ctx, sta_ctx);
  	const struct hostapd_eap_user *eap_user;
  	int i;
  	int rv = -1;
-@@ -2454,12 +2507,9 @@ out:
+@@ -2457,12 +2510,9 @@
  static int ieee802_1x_sta_entry_alive(void *ctx, const u8 *addr)
  {
  	struct hostapd_data *hapd = ctx;
 -	struct sta_info *sta;
- 
+-
 -	sta = ap_get_sta(hapd, addr);
 -	if (!sta || !sta->eapol_sm)
 -		return 0;
 -	return 1;
++
 +	return !!ap_get_sta_mld_links(&hapd, addr,
 +				      ieee802_1x_sta_has_eapol_sm);
  }
  
  
-@@ -2492,8 +2542,8 @@ static void ieee802_1x_logger(void *ctx,
+@@ -2495,8 +2545,8 @@
  static void ieee802_1x_set_port_authorized(void *ctx, void *sta_ctx,
  					   int authorized)
  {
@@ -348,7 +352,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	ieee802_1x_set_sta_authorized(hapd, sta, authorized);
  }
-@@ -2501,8 +2551,8 @@ static void ieee802_1x_set_port_authoriz
+@@ -2504,8 +2554,8 @@
  
  static void _ieee802_1x_abort_auth(void *ctx, void *sta_ctx)
  {
@@ -358,7 +362,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	ieee802_1x_abort_auth(hapd, sta);
  }
-@@ -2513,8 +2563,8 @@ static void _ieee802_1x_tx_key(void *ctx
+@@ -2516,8 +2566,8 @@
  {
  #ifndef CONFIG_FIPS
  #ifndef CONFIG_NO_RC4
@@ -370,10 +374,13 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_NO_RC4 */
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -77,6 +77,50 @@ struct sta_info * ap_get_sta(struct host
- }
- 
- 
+@@ -75,6 +75,50 @@
+ 	while (s != NULL && os_memcmp(s->addr, sta, 6) != 0)
+ 		s = s->hnext;
+ 	return s;
++}
++
++
 +/**
 + * ap_get_sta_mld_links - Find a station entry on a BSS or the links of its MLD
 + * @hapd: BSS to search first; set to the BSS of the returned entry
@@ -415,15 +422,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +#endif /* CONFIG_IEEE80211BE */
 +
 +	return NULL;
-+}
-+
-+
- #ifdef CONFIG_IEEE80211BE
- struct sta_info * ap_get_link_sta(struct hostapd_data *hapd,
- 				  const u8 *link_addr)
+ }
+ 
+ 
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -392,6 +392,10 @@ int ap_for_each_sta(struct hostapd_data
+@@ -407,6 +407,10 @@
  			      void *ctx),
  		    void *ctx);
  struct sta_info * ap_get_sta(struct hostapd_data *hapd, const u8 *sta);
@@ -436,7 +440,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  const u8 * ap_sta_link_addr(struct hostapd_data *hapd, struct sta_info *sta);
 --- a/src/eap_server/eap.h
 +++ b/src/eap_server/eap.h
-@@ -272,6 +272,10 @@ struct eap_config {
+@@ -273,6 +273,10 @@
  
  struct eap_session_data {
  	const struct wpabuf *assoc_wps_ie;
@@ -449,7 +453,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef CONFIG_TESTING_OPTIONS
 --- a/src/eap_server/eap_i.h
 +++ b/src/eap_server/eap_i.h
-@@ -188,6 +188,8 @@ struct eap_sm {
+@@ -188,6 +188,8 @@
  
  	struct wpabuf *assoc_wps_ie;
  	struct wpabuf *assoc_p2p_ie;
@@ -460,7 +464,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/eap_server/eap_server.c
 +++ b/src/eap_server/eap_server.c
-@@ -268,7 +268,7 @@ SM_STATE(EAP, INITIALIZE)
+@@ -268,7 +268,7 @@
  	sm->num_rounds_short = 0;
  	sm->method_pending = METHOD_PENDING_NONE;
  
@@ -469,7 +473,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		MACSTR, MAC2STR(sm->peer_addr));
  }
  
-@@ -300,7 +300,7 @@ SM_STATE(EAP, PICK_UP_METHOD)
+@@ -300,7 +300,7 @@
  		}
  	}
  
@@ -478,7 +482,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		"method=%u", sm->currentMethod);
  }
  
-@@ -325,7 +325,7 @@ SM_STATE(EAP, RETRANSMIT)
+@@ -325,7 +325,7 @@
  			sm->eap_if.eapReq = true;
  	}
  
@@ -487,7 +491,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		MAC2STR(sm->peer_addr));
  }
  
-@@ -586,7 +586,7 @@ try_another_method:
+@@ -586,7 +586,7 @@
  	else
  		sm->methodState = METHOD_PROPOSED;
  
@@ -496,7 +500,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		"vendor=%u method=%u", vendor, sm->currentMethod);
  	eap_log_msg(sm, "Propose EAP method vendor=%u method=%u",
  		    vendor, sm->currentMethod);
-@@ -642,7 +642,7 @@ SM_STATE(EAP, TIMEOUT_FAILURE)
+@@ -642,7 +642,7 @@
  
  	sm->eap_if.eapTimeout = true;
  
@@ -505,7 +509,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		WPA_EVENT_EAP_TIMEOUT_FAILURE MACSTR, MAC2STR(sm->peer_addr));
  }
  
-@@ -657,7 +657,7 @@ SM_STATE(EAP, FAILURE)
+@@ -657,7 +657,7 @@
  	sm->lastReqData = NULL;
  	sm->eap_if.eapFail = true;
  
@@ -514,7 +518,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		MACSTR, MAC2STR(sm->peer_addr));
  }
  
-@@ -674,7 +674,7 @@ SM_STATE(EAP, SUCCESS)
+@@ -674,7 +674,7 @@
  		sm->eap_if.eapKeyAvailable = true;
  	sm->eap_if.eapSuccess = true;
  
@@ -523,7 +527,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		MACSTR, MAC2STR(sm->peer_addr));
  }
  
-@@ -761,7 +761,7 @@ static void erp_send_finish_reauth(struc
+@@ -761,7 +761,7 @@
  
  	if ((flags & 0x80) || !erp) {
  		sm->eap_if.eapFail = true;
@@ -532,7 +536,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			MACSTR, MAC2STR(sm->peer_addr));
  		return;
  	}
-@@ -789,7 +789,7 @@ static void erp_send_finish_reauth(struc
+@@ -789,7 +789,7 @@
  			sm->eap_if.eapKeyData, sm->eap_if.eapKeyDataLen);
  	sm->eap_if.eapSuccess = true;
  
@@ -541,7 +545,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		MACSTR, MAC2STR(sm->peer_addr));
  }
  
-@@ -1024,7 +1024,7 @@ SM_STATE(EAP, RETRANSMIT2)
+@@ -1024,7 +1024,7 @@
  			sm->eap_if.eapReq = true;
  	}
  
@@ -550,7 +554,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		MAC2STR(sm->peer_addr));
  }
  
-@@ -1117,7 +1117,7 @@ SM_STATE(EAP, TIMEOUT_FAILURE2)
+@@ -1117,7 +1117,7 @@
  
  	sm->eap_if.eapTimeout = true;
  
@@ -559,7 +563,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		WPA_EVENT_EAP_TIMEOUT_FAILURE2 MACSTR, MAC2STR(sm->peer_addr));
  }
  
-@@ -1129,7 +1129,7 @@ SM_STATE(EAP, FAILURE2)
+@@ -1129,7 +1129,7 @@
  	eap_copy_buf(&sm->eap_if.eapReqData, sm->eap_if.aaaEapReqData);
  	sm->eap_if.eapFail = true;
  
@@ -568,7 +572,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		MAC2STR(sm->peer_addr));
  }
  
-@@ -1158,7 +1158,7 @@ SM_STATE(EAP, SUCCESS2)
+@@ -1158,7 +1158,7 @@
  	 */
  	sm->start_reauth = true;
  
@@ -577,7 +581,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		MAC2STR(sm->peer_addr));
  }
  
-@@ -1868,6 +1868,8 @@ struct eap_sm * eap_server_sm_init(void
+@@ -1868,6 +1868,8 @@
  		sm->assoc_wps_ie = wpabuf_dup(sess->assoc_wps_ie);
  	if (sess->assoc_p2p_ie)
  		sm->assoc_p2p_ie = wpabuf_dup(sess->assoc_p2p_ie);
@@ -588,7 +592,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef CONFIG_TESTING_OPTIONS
 --- a/src/eap_server/eap_server_wsc.c
 +++ b/src/eap_server/eap_server_wsc.c
-@@ -103,10 +103,10 @@ static void * eap_wsc_init(struct eap_sm
+@@ -103,10 +103,10 @@
  	data->registrar = registrar;
  
  	os_memset(&cfg, 0, sizeof(cfg));
@@ -601,7 +605,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			wpa_printf(MSG_INFO, "EAP-WSC: WPS Registrar not "
  				   "initialized");
  			os_free(data);
-@@ -132,7 +132,7 @@ static void * eap_wsc_init(struct eap_sm
+@@ -132,7 +132,7 @@
  	cfg.peer_addr = sm->peer_addr;
  #ifdef CONFIG_P2P
  	if (sm->assoc_p2p_ie) {
@@ -612,7 +616,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			cfg.use_psk_key = 1;
 --- a/src/eapol_auth/eapol_auth_sm.c
 +++ b/src/eapol_auth/eapol_auth_sm.c
-@@ -788,7 +788,8 @@ struct eapol_state_machine *
+@@ -788,7 +788,8 @@
  eapol_auth_alloc(struct eapol_authenticator *eapol, const u8 *addr,
  		 int flags, const struct wpabuf *assoc_wps_ie,
  		 const struct wpabuf *assoc_p2p_ie, void *sta_ctx,
@@ -622,7 +626,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  {
  	struct eapol_state_machine *sm;
  	struct eap_session_data eap_sess;
-@@ -845,6 +846,8 @@ eapol_auth_alloc(struct eapol_authentica
+@@ -845,6 +846,8 @@
  	eap_sess.assoc_wps_ie = assoc_wps_ie;
  	eap_sess.assoc_p2p_ie = assoc_p2p_ie;
  	eap_sess.peer_addr = addr;
@@ -631,7 +635,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	sm->eap = eap_server_sm_init(sm, &eapol_cb, eapol->conf.eap_cfg,
  				     &eap_sess);
  	if (sm->eap == NULL) {
-@@ -1029,8 +1032,9 @@ static int eapol_sm_get_eap_user(void *c
+@@ -1029,8 +1032,9 @@
  {
  	struct eapol_state_machine *sm = ctx;
  
@@ -645,16 +649,16 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/eapol_auth/eapol_auth_sm.h
 +++ b/src/eapol_auth/eapol_auth_sm.h
-@@ -14,6 +14,8 @@
+@@ -13,6 +13,8 @@
+ #define EAPOL_SM_WAIT_START BIT(1)
  #define EAPOL_SM_USES_WPA BIT(2)
  #define EAPOL_SM_FROM_PMKSA_CACHE BIT(3)
- 
-+struct wps_context;
 +
++struct wps_context;
+ 
  struct eapol_auth_config {
  	const struct eap_config *eap_cfg;
- 	int eap_reauth_period;
-@@ -48,8 +50,9 @@ struct eapol_auth_cb {
+@@ -48,8 +50,9 @@
  			 size_t datalen);
  	bool (*finished)(void *ctx, void *sta_ctx, int success, int preauth,
  			 bool logoff);
@@ -666,7 +670,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	int (*sta_entry_alive)(void *ctx, const u8 *addr);
  	void (*logger)(void *ctx, const u8 *addr, eapol_logger_level level,
  		       const char *txt);
-@@ -70,7 +73,8 @@ struct eapol_state_machine *
+@@ -70,7 +73,8 @@
  eapol_auth_alloc(struct eapol_authenticator *eapol, const u8 *addr,
  		 int flags, const struct wpabuf *assoc_wps_ie,
  		 const struct wpabuf *assoc_p2p_ie, void *sta_ctx,
@@ -678,7 +682,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  int eapol_auth_dump_state(struct eapol_state_machine *sm, char *buf,
 --- a/src/radius/radius_server.c
 +++ b/src/radius/radius_server.c
-@@ -663,6 +663,8 @@ radius_server_get_new_session(struct rad
+@@ -663,6 +663,8 @@
  	srv_log(sess, "New session created");
  
  	os_memset(&eap_sess, 0, sizeof(eap_sess));

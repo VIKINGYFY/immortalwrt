@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 11:30:00 +0200
+Date: Wed, 11 Nov 2026 12:16:55 +0800
 Subject: [PATCH] nl80211: keep the netdev of a BSS that becomes the first BSS
 
 Depends on 601-ucode_support.patch.
@@ -21,10 +21,11 @@ owner stays. Also move drv->ifindex to the new first BSS, as the
 removal of a first BSS does.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -12098,10 +12098,15 @@ static int driver_nl80211_set_first_bss(
+@@ -12223,10 +12223,15 @@
  		if (tbss->next != bss)
  			continue;
  

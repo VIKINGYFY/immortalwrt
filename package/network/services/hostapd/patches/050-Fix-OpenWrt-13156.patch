@@ -1,6 +1,5 @@
-From 26cd9bafc1d25e602952ee86cd2a5b8c3a995490 Mon Sep 17 00:00:00 2001
 From: Stijn Tintel <stijn@linux-ipv6.be>
-Date: Fri, 28 Jul 2023 16:27:47 +0300
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] Revert "Do prune_association only after the STA is
  authorized"
 
@@ -12,15 +11,13 @@ devices and drivers with the same limitation, so revert to the orginal
 behavior for now, until we have a better solution in place.
 
 Ref: https://github.com/openwrt/openwrt/issues/13156
+
 Signed-off-by: Stijn Tintel <stijn@linux-ipv6.be>
----
- src/ap/hostapd.c  | 14 +++++++++++---
- src/ap/sta_info.c |  3 ---
- 2 files changed, 11 insertions(+), 6 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -4173,6 +4173,8 @@ int hostapd_remove_iface(struct hapd_int
+@@ -4184,6 +4184,8 @@
  void hostapd_new_assoc_sta(struct hostapd_data *hapd, struct sta_info *sta,
  			   int reassoc)
  {
@@ -29,7 +26,7 @@ Signed-off-by: Stijn Tintel <stijn@linux-ipv6.be>
  	if (hapd->tkip_countermeasures) {
  		hostapd_drv_sta_deauth(hapd, sta->addr,
  				       WLAN_REASON_MICHAEL_MIC_FAILURE);
-@@ -4180,10 +4182,16 @@ void hostapd_new_assoc_sta(struct hostap
+@@ -4191,10 +4193,16 @@
  	}
  
  #ifdef CONFIG_IEEE80211BE
@@ -51,7 +48,7 @@ Signed-off-by: Stijn Tintel <stijn@linux-ipv6.be>
  	ap_sta_clear_assoc_timeout(hapd, sta);
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -1746,24 +1746,10 @@ bool ap_sta_set_authorized_flag(struct h
+@@ -1775,24 +1775,10 @@
  	if (!!authorized == !!(sta->flags & WLAN_STA_AUTHORIZED))
  		return false;
  

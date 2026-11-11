@@ -1,29 +1,24 @@
-From 4bb69d15477e0f2b00e166845341dc933de47c58 Mon Sep 17 00:00:00 2001
 From: Antonio Quartulli <ordex@autistici.org>
-Date: Sun, 3 Jun 2012 18:22:56 +0200
+Date: Wed, 11 Nov 2026 12:14:24 +0800
 Subject: [PATCHv2 601/602] wpa_supplicant: add new config params to be used
  with the ibss join command
 
 Signed-hostap: Antonio Quartulli <ordex@autistici.org>
----
- src/drivers/driver.h            |    6 +++
- wpa_supplicant/config.c         |   96 +++++++++++++++++++++++++++++++++++++++
- wpa_supplicant/config_ssid.h    |    6 +++
- wpa_supplicant/wpa_supplicant.c |   23 +++++++---
- 4 files changed, 124 insertions(+), 7 deletions(-)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -1024,6 +1024,9 @@ struct wpa_driver_associate_params {
+@@ -1035,6 +1035,9 @@
+ 	 * This can be %NULL, if ap_scan=2 mode is used and the driver is
  	 * responsible for selecting with which BSS to associate. */
  	const u8 *bssid;
- 
++
 +	unsigned char rates[WLAN_SUPP_RATES_MAX];
 +	int mcast_rate;
-+
+ 
  	/**
  	 * bssid_hint - BSSID of a proposed AP
- 	 *
 --- a/wpa_supplicant/config.c
 +++ b/wpa_supplicant/config.c
 @@ -18,6 +18,7 @@
@@ -34,19 +29,26 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  #include "config.h"
  
  
-@@ -2593,6 +2594,97 @@ static char * wpa_config_write_pasn_grou
- #endif /* CONFIG_PASN */
- 
- 
+@@ -2627,6 +2628,15 @@
+ 	}
+ 	os_free(ssid->security_profiles);
+ 	ssid->security_profiles = vals;
++	return 0;
++}
++
++
 +static int wpa_config_parse_mcast_rate(const struct parse_data *data,
 +				       struct wpa_ssid *ssid, int line,
 +				       const char *value)
 +{
 +	ssid->mcast_rate = (int)(strtod(value, NULL) * 10);
-+
-+	return 0;
-+}
-+
+ 
+ 	return 0;
+ }
+@@ -2640,6 +2650,87 @@
+ }
+ #endif /* NO_CONFIG_WRITE */
+ 
 +#ifndef NO_CONFIG_WRITE
 +static char * wpa_config_write_mcast_rate(const struct parse_data *data,
 +					  struct wpa_ssid *ssid)
@@ -128,11 +130,10 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
 +	return value;
 +}
 +#endif /* NO_CONFIG_WRITE */
-+
+ 
  /* Helper macros for network block parser */
  
- #ifdef OFFSET
-@@ -2903,6 +2995,8 @@ static const struct parse_data ssid_fiel
+@@ -2958,6 +3049,8 @@
  	{ INT(ap_max_inactivity) },
  	{ INT(dtim_period) },
  	{ INT(beacon_int) },
@@ -143,7 +144,7 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  	{ INT_RANGE(macsec_integ_only, 0, 1) },
 --- a/wpa_supplicant/config_ssid.h
 +++ b/wpa_supplicant/config_ssid.h
-@@ -911,6 +911,9 @@ struct wpa_ssid {
+@@ -911,6 +911,9 @@
  	 */
  	void *parent_cred;
  
@@ -155,7 +156,7 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  	 * macsec_policy - Determines the policy for MACsec secure session
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -4938,6 +4938,12 @@ static void wpas_start_assoc_cb(struct w
+@@ -5781,6 +5781,12 @@
  			params.beacon_int = ssid->beacon_int;
  		else
  			params.beacon_int = wpa_s->conf->beacon_int;

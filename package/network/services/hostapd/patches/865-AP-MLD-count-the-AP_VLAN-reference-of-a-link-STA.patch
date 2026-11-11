@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 18:00:00 +0200
+Date: Wed, 11 Nov 2026 12:18:57 +0800
 Subject: [PATCH] AP MLD: count the AP_VLAN reference of a link STA
 
 Upstream fix: hostap main 741d70dd8e32 has the same code; to be
@@ -18,10 +18,11 @@ Take the reference where the VLAN ID is copied, as ap_sta_set_vlan()
 does for an existing entry.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -6681,7 +6681,7 @@ int ieee80211_ml_process_link(struct hos
+@@ -8144,7 +8144,7 @@
  		   hapd->mld_link_id, sta->aid);
  
  	sta->flags |= WLAN_STA_AUTH | WLAN_STA_ASSOC_REQ_OK;
@@ -32,7 +33,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -1654,6 +1654,43 @@ int ap_sta_set_vlan(struct hostapd_data
+@@ -1661,6 +1661,43 @@
  }
  
  
@@ -78,7 +79,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  {
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -449,6 +449,8 @@ int ap_sta_wps_cancel(struct hostapd_dat
+@@ -450,6 +450,8 @@
  int ap_sta_bind_vlan(struct hostapd_data *hapd, struct sta_info *sta);
  int ap_sta_set_vlan(struct hostapd_data *hapd, struct sta_info *sta,
  		    struct vlan_description *vlan_desc);

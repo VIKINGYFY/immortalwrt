@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 18 Oct 2026 10:00:00 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] build_features: indicate CONFIG_INTERWORKING
 
 A program that configures hostapd cannot tell whether the build holds
@@ -7,9 +7,11 @@ CONFIG_INTERWORKING, which SET_QOS_MAP_SET and SEND_QOS_MAP_CONF need.
 Answer "interworking" in has_feature(), so that `hostapd -vinterworking`
 tells it.
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/utils/build_features.h
 +++ b/src/utils/build_features.h
-@@ -69,6 +69,10 @@ static inline int has_feature(const char
+@@ -69,6 +69,10 @@
  	if (!strcmp(feat, "dpp-map"))
  		return 1;
  #endif

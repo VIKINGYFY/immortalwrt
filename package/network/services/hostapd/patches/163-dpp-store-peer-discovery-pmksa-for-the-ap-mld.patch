@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:41:40 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] DPP: Store the Network Introduction PMKSA for the AP MLD as well
 
 wpas_dpp_rx_peer_disc_resp() adds the PMKSA under the address of the
@@ -14,11 +14,11 @@ commit 0de2f1865d31 ("AP MLD: Store PMKSA from DPP to both per-link and
 MLD-level cache"). Do the same for the Private Peer Introduction.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/dpp_supplicant.c
 +++ b/wpa_supplicant/dpp_supplicant.c
-@@ -2775,6 +2775,28 @@ wpas_dpp_rx_reconfig_auth_conf(struct wp
+@@ -2782,6 +2782,28 @@
  #endif /* CONFIG_DPP2 */
  
  
@@ -47,7 +47,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void wpas_dpp_rx_peer_disc_resp(struct wpa_supplicant *wpa_s,
  				       const u8 *src,
  				       const u8 *buf, size_t len)
-@@ -2917,7 +2939,7 @@ static void wpas_dpp_rx_peer_disc_resp(s
+@@ -2924,7 +2946,7 @@
  	entry->expiration = rnow.sec + seconds;
  	entry->reauth_time = rnow.sec + seconds;
  	entry->network_ctx = ssid;
@@ -56,7 +56,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	wpa_msg(wpa_s, MSG_INFO, DPP_EVENT_INTRO "peer=" MACSTR
  		" status=%u version=%u", MAC2STR(src), status[0], peer_version);
-@@ -4070,7 +4092,7 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
+@@ -4077,7 +4099,7 @@
  	entry->expiration = rnow.sec + seconds;
  	entry->reauth_time = rnow.sec + seconds;
  	entry->network_ctx = ssid;

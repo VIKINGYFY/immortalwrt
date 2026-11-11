@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 25 Oct 2026 07:30:00 +0200
+Date: Wed, 11 Nov 2026 12:19:11 +0800
 Subject: [PATCH] AP MLD: advertise TID-to-link mapping negotiation support
 
 hostapd_eid_eht_basic_ml_common() clears the TID-To-Link Mapping
@@ -12,10 +12,11 @@ subfield for its AP interface type without that support, and the value
 2 is reserved, so both still give 0.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -523,8 +523,8 @@ u8 * hostapd_eid_eht_basic_ml_common(str
+@@ -529,8 +529,8 @@
  	mld_cap &= ~EHT_ML_MLD_CAPA_MAX_NUM_SIM_LINKS_MASK;
  	mld_cap |= active_links & EHT_ML_MLD_CAPA_MAX_NUM_SIM_LINKS_MASK;
  

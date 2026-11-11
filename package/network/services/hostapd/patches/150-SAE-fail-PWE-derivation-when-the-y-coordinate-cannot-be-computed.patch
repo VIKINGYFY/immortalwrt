@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:21:23 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] SAE: Fail PWE derivation when the y coordinate cannot be computed
 
 Since sae_derive_pwe_ecc() computes the y coordinate itself, its "Could
@@ -20,12 +20,13 @@ mesh_rsn_build_sae_commit().
 Return -1 on this path like on the other error paths of the function.
 
 Fixes: 6c380f4c87fb ("SAE: Derive the y coordinate for PWE with own implementation")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/common/common_module_tests.c
 +++ b/src/common/common_module_tests.c
-@@ -517,6 +517,49 @@ fail:
+@@ -518,6 +518,49 @@
  }
  
  
@@ -75,17 +76,17 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static int sae_pk_tests(void)
  {
  #ifdef CONFIG_SAE_PK
-@@ -790,6 +833,7 @@ int common_module_tests(void)
+@@ -957,6 +1000,7 @@
  	if (ieee802_11_parse_tests() < 0 ||
  	    gas_tests() < 0 ||
  	    sae_tests() < 0 ||
 +	    sae_pwe_failure_tests() < 0 ||
  	    sae_pk_tests() < 0 ||
  	    pasn_tests() < 0 ||
- 	    rsn_ie_parse_tests() < 0)
+ 	    dpp_tests() < 0 ||
 --- a/src/common/sae.c
 +++ b/src/common/sae.c
-@@ -425,6 +425,7 @@ static int sae_derive_pwe_ecc(struct sae
+@@ -425,6 +425,7 @@
  	    crypto_bignum_to_bin(y, x_y + SAE_MAX_ECC_PRIME_LEN,
  				 SAE_MAX_ECC_PRIME_LEN, prime_len) < 0) {
  		wpa_printf(MSG_DEBUG, "SAE: Could not solve y");

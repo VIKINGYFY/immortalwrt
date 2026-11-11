@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 03:00:00 +0200
+Date: Wed, 11 Nov 2026 12:16:55 +0800
 Subject: [PATCH] AP MLD: keep the association of a non-AP MLD at a link
  removal
 
@@ -37,10 +37,11 @@ A non-MLD STA and a non-AP MLD with no such link get their frame as
 before.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -866,8 +866,70 @@ void hostapd_link_remove_tx_status(struc
+@@ -866,8 +866,70 @@
  }
  
  
@@ -113,7 +114,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void hostapd_link_remove_notify_stas(struct hostapd_data *hapd)
  {
  	struct hostapd_data *tx_hapd;
-@@ -927,6 +989,7 @@ static void hostapd_link_remove_expire_s
+@@ -927,6 +989,7 @@
  	unsigned int wait_us;
  
  	hostapd_free_link_stas(hapd);
@@ -123,7 +124,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (!hapd->eht_mld_link_removal_tx) {
 --- a/src/ap/ieee802_11.h
 +++ b/src/ap/ieee802_11.h
-@@ -326,6 +326,9 @@ void ieee80211_ml_build_assoc_resp(struc
+@@ -332,6 +332,9 @@
  void ieee802_11_rx_protected_eht_action(struct hostapd_data *hapd,
  					const struct ieee80211_mgmt *mgmt,
  					size_t len);
@@ -135,7 +136,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  					const struct ieee80211_mgmt *mgmt,
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1644,14 +1644,42 @@ static void hostapd_ml_reconf_adds_rever
+@@ -1688,14 +1688,42 @@
  }
  
  
@@ -180,7 +181,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct link_reconf_req_list *req_list;
  	struct link_reconf_req_info *info;
  	uint8_t link_id;
-@@ -1754,35 +1782,16 @@ void hostapd_link_reconf_resp_tx_status(
+@@ -1798,35 +1826,16 @@
  			}
  			wpa_printf(MSG_DEBUG, "MLD: New assoc link=%d", i);
  
@@ -220,7 +221,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		/* Free as a link STA */
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -8229,6 +8229,11 @@ void wpa_reset_assoc_sm_info(struct wpa_
+@@ -8330,6 +8330,11 @@
  			     u8 mld_assoc_link_id)
  {
  #ifdef CONFIG_IEEE80211BE

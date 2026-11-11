@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 23 Oct 2026 22:45:00 +0200
+Date: Wed, 11 Nov 2026 12:16:22 +0800
 Subject: [PATCH] AP MLD: Keep the ML information of a station whose
  association after a timed out SA Query fails
 
@@ -20,10 +20,11 @@ back after the response, which carries the per-link profiles of the
 request.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -7533,6 +7533,7 @@ static void handle_assoc(struct hostapd_
+@@ -9047,6 +9047,7 @@
  #ifdef CONFIG_IEEE80211BE
  	bool reset_prev_assoc = false;
  	struct wpa_state_machine *prev_wpa_sm = NULL;
@@ -31,7 +32,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211BE */
  
  	if (len < IEEE80211_HDRLEN + (reassoc ? sizeof(mgmt->u.reassoc_req) :
-@@ -7782,6 +7783,7 @@ static void handle_assoc(struct hostapd_
+@@ -9300,6 +9301,7 @@
  		reset_prev_assoc = true;
  		prev_wpa_sm = sta->wpa_sm;
  		sta->wpa_sm = NULL;
@@ -39,10 +40,11 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -8037,6 +8039,14 @@ static void handle_assoc(struct hostapd_
+@@ -9554,6 +9556,14 @@
+ 					    pos, left, rssi, omit_rsnxe);
  	if (sta)
  		assoc_resp_pending_set(sta, resp, reply_res);
- 
++
 +#ifdef CONFIG_IEEE80211BE
 +	/* After the response, which carries the profiles of the request */
 +	if (reset_prev_assoc) {
@@ -50,13 +52,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +		ap_sta_mld_info_copy(&sta->mld_info, &prev_mld_info);
 +	}
 +#endif /* CONFIG_IEEE80211BE */
-+
+ 
  	if (set_beacon)
  		ieee802_11_update_beacons(hapd->iface);
- 
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -2369,6 +2369,19 @@ void ap_sta_free_sta_profile(struct mld_
+@@ -2398,6 +2398,19 @@
  		info->links[i].resp_sta_profile = NULL;
  	}
  }
@@ -75,13 +76,13 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +}
  #endif /* CONFIG_IEEE80211BE */
  
- bool ap_sta_is_mld(struct hostapd_data *hapd,
+ 
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -476,6 +476,7 @@ bool ap_sta_is_mld(struct hostapd_data *
- void ap_sta_set_mld(struct sta_info *sta, bool mld);
+@@ -492,6 +492,7 @@
  
  void ap_sta_free_sta_profile(struct mld_info *info);
+ void ap_sta_free_ml_kem_data(struct eap_over_auth_data *auth_data);
 +void ap_sta_mld_info_copy(struct mld_info *dst, const struct mld_info *src);
  
  void ap_free_link_sta(struct hostapd_data *lhapd, struct sta_info *lsta);

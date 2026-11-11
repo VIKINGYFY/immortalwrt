@@ -1,6 +1,5 @@
-From 224b12dd5d8d96212ae21c83f7a9f1bc63204d2b Mon Sep 17 00:00:00 2001
 From: Karsten Sperling <ksperling@apple.com>
-Date: Sat, 27 Jun 2026 22:25:45 +1200
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] hostapd: Pass BSS tls_flags to tls_global_set_params
 
 The tls.h API accepts TLS_CONN_* flags both in tls_init
@@ -33,11 +32,13 @@ DISABLE_SESSION_TICKET, which is later re-configured per connection in
 tls_connection_set_verify.
 
 Link: https://patchwork.ozlabs.org/project/hostap/patch/7D82EE78-32F5-40B4-9169-336E5A19A8F2@apple.com/
+
 Signed-off-by: Karsten Sperling <ksperling@apple.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/authsrv.c
 +++ b/src/ap/authsrv.c
-@@ -437,6 +437,7 @@ int authsrv_init(struct hostapd_data *ha
+@@ -439,6 +439,7 @@
  		params.ocsp_stapling_response_multi =
  			hapd->conf->ocsp_stapling_response_multi;
  		params.check_cert_subject = hapd->conf->check_cert_subject;

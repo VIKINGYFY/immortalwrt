@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:42:25 +0200
+Date: Wed, 11 Nov 2026 12:13:13 +0800
 Subject: [PATCH] AP MLD: Remove a link only when it is on the list
 
 hostapd_bss_link_deinit() takes hapd->started to mean that the BSS is
@@ -15,11 +15,11 @@ hapd->link.next is NULL exactly when the node is on no list. Skip the
 removal in that case.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -5572,6 +5572,11 @@ int hostapd_mld_remove_link(struct hosta
+@@ -5596,6 +5596,11 @@
  	if (!mld)
  		return -1;
  

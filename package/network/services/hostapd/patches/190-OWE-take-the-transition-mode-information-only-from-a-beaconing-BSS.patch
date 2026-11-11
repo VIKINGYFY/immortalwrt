@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 15:20:31 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] OWE: Take the transition mode information only from a beaconing BSS
 
 hostapd_owe_iface_iter() accepts any started BSS as the source of the
@@ -16,11 +16,11 @@ of a BSS whose own interface the driver disabled to its interface
 enable.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2738,9 +2738,15 @@ void ieee802_11_free_ap_params(struct wp
+@@ -2812,9 +2812,15 @@
  
  
  /* A start_disabled BSS beacons only after ieee802_11_start_beacon() */
@@ -37,7 +37,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return false;
  
  	wpa_printf(MSG_DEBUG, "%s: Beacon frames held for start_disabled BSS",
-@@ -3391,8 +3397,14 @@ int ieee802_11_set_beacon(struct hostapd
+@@ -3479,8 +3485,14 @@
  
  int ieee802_11_start_beacon(struct hostapd_data *hapd)
  {
@@ -55,7 +55,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/beacon.h
 +++ b/src/ap/beacon.h
-@@ -18,6 +18,7 @@ void handle_probe_req(struct hostapd_dat
+@@ -18,6 +18,7 @@
  void ieee802_11_set_beacon_per_bss_only(struct hostapd_data *hapd);
  int ieee802_11_set_beacon(struct hostapd_data *hapd);
  int ieee802_11_start_beacon(struct hostapd_data *hapd);
@@ -65,7 +65,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  int ieee802_11_build_ap_params(struct hostapd_data *hapd,
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2585,6 +2585,7 @@ static void hostapd_iface_enable(struct
+@@ -2586,6 +2586,7 @@
  			hostapd_reconfig_encryption(hapd);
  		hapd->reenable_beacon = 1;
  		ieee802_11_set_beacon(hapd);
@@ -73,7 +73,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef NEED_AP_MLME
  	} else if (hapd->disabled && hapd->iface->cac_started) {
  		wpa_printf(MSG_DEBUG, "DFS: restarting pending CAC");
-@@ -2599,6 +2600,7 @@ static void hostapd_iface_disable(struct
+@@ -2600,6 +2601,7 @@
  	hostapd_free_stas(hapd);
  	wpa_msg(hapd->msg_ctx, MSG_INFO, INTERFACE_DISABLED);
  	hapd->disabled = 1;
@@ -83,7 +83,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -125,9 +125,6 @@ void hostapd_reconfig_encryption(struct
+@@ -125,9 +125,6 @@
  }
  
  
@@ -93,7 +93,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void hostapd_reload_bss(struct hostapd_data *hapd)
  {
  	struct hostapd_ssid *ssid;
-@@ -2547,7 +2544,8 @@ static int hostapd_owe_iface_iter(struct
+@@ -2553,7 +2550,8 @@
  			   MAC2STR(bss->own_addr),
  			   wpa_ssid_txt(bss->conf->ssid.ssid,
  					bss->conf->ssid.ssid_len));
@@ -103,7 +103,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		    !bss->conf->ssid.ssid_len ||
  		    is_zero_ether_addr(bss->own_addr))
  			continue;
-@@ -2620,7 +2618,7 @@ static int hostapd_owe_iface_iter2(struc
+@@ -2626,7 +2624,7 @@
  		struct hostapd_data *bss = iface->bss[i];
  		int res;
  
@@ -112,7 +112,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			continue;
  		if (bss->iface->state != HAPD_IFACE_ENABLED) {
  			wpa_printf(MSG_DEBUG,
-@@ -2662,7 +2660,7 @@ static void hostapd_owe_update_trans_ifa
+@@ -2668,7 +2666,7 @@
  }
  
  
@@ -123,7 +123,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -860,6 +860,7 @@ void hostapd_cleanup_cs_params(struct ho
+@@ -856,6 +856,7 @@
  void hostapd_periodic_iface(struct hostapd_iface *iface);
  int hostapd_owe_trans_get_info(struct hostapd_data *hapd);
  bool hostapd_owe_trans_static(struct hostapd_bss_config *conf);

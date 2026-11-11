@@ -1,5 +1,5 @@
 From: David Bauer <mail@david-bauer.net>
-Date: Sat, 27 Nov 2021 22:08:28 +0100
+Date: Wed, 11 Nov 2026 12:14:24 +0800
 Subject: [PATCH] hostapd: add OpenWrt specific statistic counters
 
 This adds a new struct for storing statistics not (yet) tracked by
@@ -8,9 +8,11 @@ hostapd regarding RRM and WNM activity.
 These statistics can be read using the get_status hostapd interface ubus
 method.
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -190,6 +190,21 @@ struct mld_link_info {
+@@ -177,6 +177,21 @@
  };
  
  /**
@@ -32,19 +34,19 @@ method.
   * struct hostapd_data - hostapd per-BSS data structure
   */
  struct hostapd_data {
-@@ -204,6 +219,9 @@ struct hostapd_data {
+@@ -190,6 +205,9 @@
+ 	unsigned int beacon_started:1;
  
  	u8 own_addr[ETH_ALEN];
- 
++
 +	/* OpenWrt specific statistics */
 +	struct hostapd_openwrt_stats openwrt_stats;
-+
+ 
  	int num_sta; /* number of entries in sta_list */
  	struct sta_info *sta_list; /* STA info list head */
- #define STA_HASH_SIZE 256
 --- a/src/ap/rrm.c
 +++ b/src/ap/rrm.c
-@@ -269,6 +269,8 @@ static void hostapd_send_nei_report_resp
+@@ -277,6 +277,8 @@
  		}
  	}
  
@@ -55,7 +57,7 @@ method.
  	wpabuf_free(buf);
 --- a/src/ap/wnm_ap.c
 +++ b/src/ap/wnm_ap.c
-@@ -410,6 +410,7 @@ static int ieee802_11_send_bss_trans_mgm
+@@ -410,6 +410,7 @@
  	mgmt->u.action.u.bss_tm_req.validity_interval = 1;
  	pos = mgmt->u.action.u.bss_tm_req.variable;
  
@@ -63,7 +65,7 @@ method.
  	wpa_printf(MSG_DEBUG, "WNM: Send BSS Transition Management Request to "
  		   MACSTR " dialog_token=%u req_mode=0x%x disassoc_timer=%u "
  		   "validity_interval=%u",
-@@ -813,10 +814,12 @@ int ieee802_11_rx_wnm_action_ap(struct h
+@@ -813,10 +814,12 @@
  					       plen);
  		return 0;
  	case WNM_BSS_TRANS_MGMT_QUERY:
@@ -76,7 +78,7 @@ method.
  		ieee802_11_rx_bss_trans_mgmt_resp(hapd, mgmt->sa, payload,
  						  plen);
  		return 0;
-@@ -864,6 +867,7 @@ int wnm_send_disassoc_imminent(struct ho
+@@ -864,6 +867,7 @@
  
  	pos = mgmt->u.action.u.bss_tm_req.variable;
  
@@ -84,7 +86,7 @@ method.
  	wpa_printf(MSG_DEBUG, "WNM: Send BSS Transition Management Request frame to indicate imminent disassociation (disassoc_timer=%d) to "
  		   MACSTR, disassoc_timer, MAC2STR(sta->addr));
  	if (hostapd_drv_send_mlme(hapd, buf, pos - buf, 0, NULL, 0, 0) < 0) {
-@@ -946,6 +950,7 @@ int wnm_send_ess_disassoc_imminent(struc
+@@ -946,6 +950,7 @@
  		return -1;
  	}
  
@@ -92,7 +94,7 @@ method.
  	if (disassoc_timer) {
  		/* send disassociation frame after time-out */
  		set_disassoc_timer(hapd, sta, disassoc_timer);
-@@ -1029,6 +1034,7 @@ int wnm_send_bss_tm_req(struct hostapd_d
+@@ -1029,6 +1034,7 @@
  	}
  	os_free(buf);
  

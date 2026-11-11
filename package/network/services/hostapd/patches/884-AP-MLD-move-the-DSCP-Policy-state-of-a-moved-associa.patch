@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 27 Oct 2026 13:28:52 +0000
+Date: Wed, 11 Nov 2026 12:19:17 +0800
 Subject: [PATCH] AP MLD: move the DSCP Policy state of a moved association
 
 hostapd_ml_move_assoc_sta() gives the association of a non-AP MLD to
@@ -12,7 +12,8 @@ Move the policies, the DSCP Policy state and the dialog token to the
 new association STA.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
 @@ -20,6 +20,7 @@
@@ -23,7 +24,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  
  static u16 ieee80211_eht_ppet_size(u16 ppe_thres_hdr, const u8 *phy_cap_info)
-@@ -1681,6 +1682,16 @@ struct sta_info * hostapd_ml_move_assoc_
+@@ -1725,6 +1726,16 @@
  	accounting_sta_move(hapd, sta, *assoc_hapd, assoc_sta);
  	ieee802_1x_move_station(*assoc_hapd, sta, assoc_sta);
  #ifdef CONFIG_ROBUST_AV

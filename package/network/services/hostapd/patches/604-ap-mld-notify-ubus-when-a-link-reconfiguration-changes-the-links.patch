@@ -1,6 +1,5 @@
-From fdbf763b921e2b184daf341612154453d5bf8bb7 Mon Sep 17 00:00:00 2001
 From: Felix Fietkau <nbd@nbd.name>
-Date: Thu, 1 Oct 2026 08:59:58 +0200
+Date: Wed, 11 Nov 2026 12:14:33 +0800
 Subject: [PATCH] AP MLD: notify ubus when a link reconfiguration changes a
  station's links
 
@@ -22,13 +21,11 @@ without it, an added link that was undone stays valid on the station,
 and the next sta-links-changed names it. The two land together.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
- src/ap/ieee802_11_eht.c | 6 +++---
- 1 file changed, 3 insertions(+), 3 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1688,9 +1688,6 @@ void hostapd_link_reconf_resp_tx_status(
+@@ -1732,9 +1732,6 @@
  					  info->link_id);
  	}
  
@@ -38,13 +35,13 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	dl_list_for_each(info, &req_list->del_req, struct link_reconf_req_info,
  			 list) {
  		if (info->status != WLAN_STATUS_SUCCESS)
-@@ -1775,6 +1772,9 @@ void hostapd_link_reconf_resp_tx_status(
+@@ -1818,6 +1815,9 @@
+ 				  link_id);
  		ap_free_link_sta(lhapd, lsta);
  	}
- 
++
 +	if (req_list->links_add_ok || req_list->links_del_ok)
 +		hostapd_ubus_notify_sta_links(assoc_hapd, assoc_sta);
-+
+ 
  exit:
  	ml_deinit_link_reconf_req(&req_list);
- 	if (assoc_sta && assoc_sta->reconf_req)

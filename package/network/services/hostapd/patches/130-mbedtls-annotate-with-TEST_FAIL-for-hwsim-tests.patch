@@ -1,16 +1,15 @@
-From 31bd19e0e0254b910cccfd3ddc6a6a9222bbcfc0 Mon Sep 17 00:00:00 2001
 From: Glenn Strauss <gstrauss@gluelogic.com>
-Date: Sun, 9 Oct 2022 05:12:17 -0400
+Date: Wed, 11 Nov 2026 12:12:08 +0800
 Subject: [PATCH 3/7] mbedtls: annotate with TEST_FAIL() for hwsim tests
 
+
+
 Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
----
- src/crypto/crypto_mbedtls.c | 124 ++++++++++++++++++++++++++++++++++++
- 1 file changed, 124 insertions(+)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/crypto_mbedtls.c
 +++ b/src/crypto/crypto_mbedtls.c
-@@ -280,6 +280,9 @@ __attribute_noinline__
+@@ -280,6 +280,9 @@
  static int md_vector(size_t num_elem, const u8 *addr[], const size_t *len,
                       u8 *mac, mbedtls_md_type_t md_type)
  {
@@ -20,7 +19,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_md_context_t ctx;
  	mbedtls_md_init(&ctx);
  	if (mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0) != 0){
-@@ -343,6 +346,9 @@ __attribute_noinline__
+@@ -343,6 +346,9 @@
  static int sha384_512_vector(size_t num_elem, const u8 *addr[],
                               const size_t *len, u8 *mac, int is384)
  {
@@ -30,7 +29,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	struct mbedtls_sha512_context ctx;
  	mbedtls_sha512_init(&ctx);
    #if MBEDTLS_VERSION_MAJOR >= 3
-@@ -375,6 +381,9 @@ int sha384_vector(size_t num_elem, const
+@@ -375,6 +381,9 @@
  #include <mbedtls/sha256.h>
  int sha256_vector(size_t num_elem, const u8 *addr[], const size_t *len, u8 *mac)
  {
@@ -40,7 +39,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	struct mbedtls_sha256_context ctx;
  	mbedtls_sha256_init(&ctx);
    #if MBEDTLS_VERSION_MAJOR >= 3
-@@ -397,6 +406,9 @@ int sha256_vector(size_t num_elem, const
+@@ -397,6 +406,9 @@
  #include <mbedtls/sha1.h>
  int sha1_vector(size_t num_elem, const u8 *addr[], const size_t *len, u8 *mac)
  {
@@ -50,7 +49,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	struct mbedtls_sha1_context ctx;
  	mbedtls_sha1_init(&ctx);
    #if MBEDTLS_VERSION_MAJOR >= 3
-@@ -419,6 +431,9 @@ int sha1_vector(size_t num_elem, const u
+@@ -419,6 +431,9 @@
  #include <mbedtls/md5.h>
  int md5_vector(size_t num_elem, const u8 *addr[], const size_t *len, u8 *mac)
  {
@@ -60,7 +59,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	struct mbedtls_md5_context ctx;
  	mbedtls_md5_init(&ctx);
    #if MBEDTLS_VERSION_MAJOR >= 3
-@@ -441,6 +456,9 @@ int md5_vector(size_t num_elem, const u8
+@@ -441,6 +456,9 @@
  #include <mbedtls/md4.h>
  int md4_vector(size_t num_elem, const u8 *addr[], const size_t *len, u8 *mac)
  {
@@ -70,7 +69,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	struct mbedtls_md4_context ctx;
  	mbedtls_md4_init(&ctx);
  	mbedtls_md4_starts_ret(&ctx);
-@@ -460,6 +478,9 @@ static int hmac_vector(const u8 *key, si
+@@ -460,6 +478,9 @@
                         const u8 *addr[], const size_t *len, u8 *mac,
                         mbedtls_md_type_t md_type)
  {
@@ -80,7 +79,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_md_context_t ctx;
  	mbedtls_md_init(&ctx);
  	if (mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1) != 0){
-@@ -571,6 +592,9 @@ static int hmac_kdf_expand(const u8 *prk
+@@ -571,6 +592,9 @@
                             const char *label, const u8 *info, size_t info_len,
                             u8 *okm, size_t okm_len, mbedtls_md_type_t md_type)
  {
@@ -90,7 +89,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md_type);
    #ifdef MBEDTLS_HKDF_C
  	if (label == NULL)  /* RFC 5869 HKDF-Expand when (label == NULL) */
-@@ -663,6 +687,9 @@ static int hmac_prf_bits(const u8 *key,
+@@ -663,6 +687,9 @@
                           const u8 *data, size_t data_len, u8 *buf,
                           size_t buf_len_bits, mbedtls_md_type_t md_type)
  {
@@ -100,7 +99,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_md_context_t ctx;
  	mbedtls_md_init(&ctx);
  	const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md_type);
-@@ -938,6 +965,9 @@ int pbkdf2_sha1(const char *passphrase,
+@@ -938,6 +965,9 @@
  
  static void *aes_crypt_init_mode(const u8 *key, size_t len, int mode)
  {
@@ -110,7 +109,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_aes_context *aes = os_malloc(sizeof(*aes));
  	if (!aes)
  		return NULL;
-@@ -996,6 +1026,9 @@ void aes_decrypt_deinit(void *ctx)
+@@ -996,6 +1026,9 @@
  /* aes-wrap.c */
  int aes_wrap(const u8 *kek, size_t kek_len, int n, const u8 *plain, u8 *cipher)
  {
@@ -120,7 +119,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_nist_kw_context ctx;
  	mbedtls_nist_kw_init(&ctx);
  	size_t olen;
-@@ -1010,6 +1043,9 @@ int aes_wrap(const u8 *kek, size_t kek_l
+@@ -1010,6 +1043,9 @@
  /* aes-unwrap.c */
  int aes_unwrap(const u8 *kek, size_t kek_len, int n, const u8 *cipher, u8 *plain)
  {
@@ -130,7 +129,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_nist_kw_context ctx;
  	mbedtls_nist_kw_init(&ctx);
  	size_t olen;
-@@ -1041,6 +1077,9 @@ int omac1_aes_vector(
+@@ -1041,6 +1077,9 @@
      const u8 *key, size_t key_len, size_t num_elem, const u8 *addr[],
      const size_t *len, u8 *mac)
  {
@@ -140,7 +139,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_cipher_type_t cipher_type;
  	switch (key_len) {
  	case 16: cipher_type = MBEDTLS_CIPHER_AES_128_ECB; break;
-@@ -1103,6 +1142,9 @@ int omac1_aes_256(const u8 *key, const u
+@@ -1103,6 +1142,9 @@
  /* aes-encblock.c */
  int aes_128_encrypt_block(const u8 *key, const u8 *in, u8 *out)
  {
@@ -150,7 +149,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_aes_context aes;
  	mbedtls_aes_init(&aes);
  	int ret = mbedtls_aes_setkey_enc(&aes, key, 128)
-@@ -1118,6 +1160,9 @@ int aes_128_encrypt_block(const u8 *key,
+@@ -1118,6 +1160,9 @@
  int aes_ctr_encrypt(const u8 *key, size_t key_len, const u8 *nonce,
  		    u8 *data, size_t data_len)
  {
@@ -160,7 +159,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	unsigned char counter[MBEDTLS_AES_BLOCK_SIZE];
  	unsigned char stream_block[MBEDTLS_AES_BLOCK_SIZE];
  	os_memcpy(counter, nonce, MBEDTLS_AES_BLOCK_SIZE);/*(must be writable)*/
-@@ -1160,11 +1205,17 @@ static int aes_128_cbc_oper(const u8 *ke
+@@ -1160,11 +1205,17 @@
  
  int aes_128_cbc_encrypt(const u8 *key, const u8 *iv, u8 *data, size_t data_len)
  {
@@ -178,7 +177,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	return aes_128_cbc_oper(key, iv, data, data_len, MBEDTLS_AES_DECRYPT);
  }
  
-@@ -1407,6 +1458,10 @@ int crypto_hash_finish(struct crypto_has
+@@ -1407,6 +1458,10 @@
  	}
  	mbedtls_md_free(mctx);
  	os_free(mctx);
@@ -189,7 +188,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	return 0;
  }
  
-@@ -1421,6 +1476,9 @@ int crypto_hash_finish(struct crypto_has
+@@ -1421,6 +1476,9 @@
  
  struct crypto_bignum *crypto_bignum_init(void)
  {
@@ -199,7 +198,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_mpi *bn = os_malloc(sizeof(*bn));
  	if (bn)
  		mbedtls_mpi_init(bn);
-@@ -1429,6 +1487,9 @@ struct crypto_bignum *crypto_bignum_init
+@@ -1429,6 +1487,9 @@
  
  struct crypto_bignum *crypto_bignum_init_set(const u8 *buf, size_t len)
  {
@@ -209,7 +208,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_mpi *bn = os_malloc(sizeof(*bn));
  	if (bn) {
  		mbedtls_mpi_init(bn);
-@@ -1442,6 +1503,9 @@ struct crypto_bignum *crypto_bignum_init
+@@ -1442,6 +1503,9 @@
  
  struct crypto_bignum *crypto_bignum_init_uint(unsigned int val)
  {
@@ -219,7 +218,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
    #if 0 /*(hostap use of this interface passes int, not uint)*/
  	val = host_to_be32(val);
  	return crypto_bignum_init_set((const u8 *)&val, sizeof(val));
-@@ -1467,6 +1531,9 @@ void crypto_bignum_deinit(struct crypto_
+@@ -1467,6 +1531,9 @@
  int crypto_bignum_to_bin(const struct crypto_bignum *a,
  			 u8 *buf, size_t buflen, size_t padlen)
  {
@@ -229,7 +228,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	size_t n = mbedtls_mpi_size((mbedtls_mpi *)a);
  	if (n < padlen)
  		n = padlen;
-@@ -1477,6 +1544,9 @@ int crypto_bignum_to_bin(const struct cr
+@@ -1477,6 +1544,9 @@
  
  int crypto_bignum_rand(struct crypto_bignum *r, const struct crypto_bignum *m)
  {
@@ -239,7 +238,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	/*assert(r != m);*//* r must not be same as m for mbedtls_mpi_random()*/
    #if MBEDTLS_VERSION_NUMBER >= 0x021B0000 /* mbedtls 2.27.0 */
  	return mbedtls_mpi_random((mbedtls_mpi *)r, 0, (mbedtls_mpi *)m,
-@@ -1513,6 +1583,9 @@ int crypto_bignum_exptmod(const struct c
+@@ -1513,6 +1583,9 @@
  			  const struct crypto_bignum *c,
  			  struct crypto_bignum *d)
  {
@@ -249,7 +248,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	/* (check if input params match d; d is the result) */
  	/* (a == d) is ok in current mbedtls implementation */
  	if (b == d || c == d) { /*(not ok; store result in intermediate)*/
-@@ -1540,6 +1613,9 @@ int crypto_bignum_inverse(const struct c
+@@ -1540,6 +1613,9 @@
  			  const struct crypto_bignum *b,
  			  struct crypto_bignum *c)
  {
@@ -259,7 +258,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	return mbedtls_mpi_inv_mod((mbedtls_mpi *)c,
  				   (const mbedtls_mpi *)a,
  				   (const mbedtls_mpi *)b) ? -1 : 0;
-@@ -1549,6 +1625,9 @@ int crypto_bignum_sub(const struct crypt
+@@ -1549,6 +1625,9 @@
  		      const struct crypto_bignum *b,
  		      struct crypto_bignum *c)
  {
@@ -269,7 +268,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	return mbedtls_mpi_sub_mpi((mbedtls_mpi *)c,
  				   (const mbedtls_mpi *)a,
  				   (const mbedtls_mpi *)b) ? -1 : 0;
-@@ -1558,6 +1637,9 @@ int crypto_bignum_div(const struct crypt
+@@ -1558,6 +1637,9 @@
  		      const struct crypto_bignum *b,
  		      struct crypto_bignum *c)
  {
@@ -279,7 +278,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	/*(most current use of this crypto.h interface has a == c (result),
  	 * so store result in an intermediate to avoid overwritten input)*/
  	mbedtls_mpi R;
-@@ -1575,6 +1657,9 @@ int crypto_bignum_addmod(const struct cr
+@@ -1575,6 +1657,9 @@
  			 const struct crypto_bignum *c,
  			 struct crypto_bignum *d)
  {
@@ -289,7 +288,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	return mbedtls_mpi_add_mpi((mbedtls_mpi *)d,
  				   (const mbedtls_mpi *)a,
  				   (const mbedtls_mpi *)b)
-@@ -1588,6 +1673,9 @@ int crypto_bignum_mulmod(const struct cr
+@@ -1588,6 +1673,9 @@
  			 const struct crypto_bignum *c,
  			 struct crypto_bignum *d)
  {
@@ -299,7 +298,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	return mbedtls_mpi_mul_mpi((mbedtls_mpi *)d,
  				   (const mbedtls_mpi *)a,
  				   (const mbedtls_mpi *)b)
-@@ -1600,6 +1688,9 @@ int crypto_bignum_sqrmod(const struct cr
+@@ -1600,6 +1688,9 @@
  			 const struct crypto_bignum *b,
  			 struct crypto_bignum *c)
  {
@@ -309,7 +308,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
    #if 1
  	return crypto_bignum_mulmod(a, a, b, c);
    #else
-@@ -1650,6 +1741,9 @@ int crypto_bignum_is_odd(const struct cr
+@@ -1650,6 +1741,9 @@
  int crypto_bignum_legendre(const struct crypto_bignum *a,
  			   const struct crypto_bignum *p)
  {
@@ -319,7 +318,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	/* Security Note:
  	 * mbedtls_mpi_exp_mod() is not documented to run in constant time,
  	 * though mbedtls/library/bignum.c uses constant_time_internal.h funcs.
-@@ -1702,6 +1796,9 @@ int crypto_mod_exp(const u8 *base, size_
+@@ -1702,6 +1796,9 @@
  		   const u8 *modulus, size_t modulus_len,
  		   u8 *result, size_t *result_len)
  {
@@ -329,7 +328,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_mpi bn_base, bn_exp, bn_modulus, bn_result;
  	mbedtls_mpi_init(&bn_base);
  	mbedtls_mpi_init(&bn_exp);
-@@ -1769,6 +1866,9 @@ static int crypto_mbedtls_dh_init_public
+@@ -1769,6 +1866,9 @@
  int crypto_dh_init(u8 generator, const u8 *prime, size_t prime_len, u8 *privkey,
  		   u8 *pubkey)
  {
@@ -339,7 +338,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
    #if 0 /*(crypto_dh_init() duplicated (and identical) in crypto_*.c modules)*/
  	size_t pubkey_len, pad;
  
-@@ -1810,6 +1910,9 @@ int crypto_dh_derive_secret(u8 generator
+@@ -1810,6 +1910,9 @@
  			    const u8 *pubkey, size_t pubkey_len,
  			    u8 *secret, size_t *len)
  {
@@ -349,7 +348,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
    #if 0
  	if (pubkey_len > prime_len ||
  	    (pubkey_len == prime_len &&
-@@ -2512,6 +2615,9 @@ const struct crypto_ec_point * crypto_ec
+@@ -2512,6 +2615,9 @@
  
  struct crypto_ec_point *crypto_ec_point_init(struct crypto_ec *e)
  {
@@ -359,7 +358,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	mbedtls_ecp_point *p = os_malloc(sizeof(*p));
  	if (p != NULL)
  		mbedtls_ecp_point_init(p);
-@@ -2536,6 +2642,9 @@ int crypto_ec_point_x(struct crypto_ec *
+@@ -2536,6 +2642,9 @@
  int crypto_ec_point_to_bin(struct crypto_ec *e,
  			   const struct crypto_ec_point *point, u8 *x, u8 *y)
  {
@@ -369,7 +368,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	/* crypto.h documents crypto_ec_point_to_bin() output is big-endian */
  	size_t len = CRYPTO_EC_plen(e);
  	if (x) {
-@@ -2563,6 +2672,9 @@ int crypto_ec_point_to_bin(struct crypto
+@@ -2563,6 +2672,9 @@
  struct crypto_ec_point * crypto_ec_point_from_bin(struct crypto_ec *e,
  						  const u8 *val)
  {
@@ -379,7 +378,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	size_t len = CRYPTO_EC_plen(e);
  	mbedtls_ecp_point *p = os_malloc(sizeof(*p));
  	u8 buf[1+MBEDTLS_MPI_MAX_SIZE*2];
-@@ -2615,6 +2727,9 @@ int crypto_ec_point_add(struct crypto_ec
+@@ -2615,6 +2727,9 @@
  			const struct crypto_ec_point *b,
  			struct crypto_ec_point *c)
  {
@@ -389,7 +388,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	/* mbedtls does not provide an mbedtls_ecp_point add function */
  	mbedtls_mpi one;
  	mbedtls_mpi_init(&one);
-@@ -2631,6 +2746,9 @@ int crypto_ec_point_mul(struct crypto_ec
+@@ -2631,6 +2746,9 @@
  			const struct crypto_bignum *b,
  			struct crypto_ec_point *res)
  {
@@ -399,7 +398,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	return mbedtls_ecp_mul(
  		(mbedtls_ecp_group *)e, (mbedtls_ecp_point *)res,
  		(const mbedtls_mpi *)b, (const mbedtls_ecp_point *)p,
-@@ -2639,6 +2757,9 @@ int crypto_ec_point_mul(struct crypto_ec
+@@ -2639,6 +2757,9 @@
  
  int crypto_ec_point_invert(struct crypto_ec *e, struct crypto_ec_point *p)
  {
@@ -409,7 +408,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	if (mbedtls_ecp_get_type((mbedtls_ecp_group *)e)
  	    == MBEDTLS_ECP_TYPE_MONTGOMERY) {
  		/* e.g. MBEDTLS_ECP_DP_CURVE25519 and MBEDTLS_ECP_DP_CURVE448 */
-@@ -2751,6 +2872,9 @@ struct crypto_bignum *
+@@ -2751,6 +2872,9 @@
  crypto_ec_point_compute_y_sqr(struct crypto_ec *e,
  			      const struct crypto_bignum *x)
  {

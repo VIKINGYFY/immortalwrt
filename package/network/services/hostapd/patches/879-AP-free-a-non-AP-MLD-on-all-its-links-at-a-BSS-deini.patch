@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Mon, 26 Oct 2026 14:00:00 +0100
+Date: Wed, 11 Nov 2026 12:19:17 +0800
 Subject: [PATCH] AP: free a non-AP MLD on all its links at a BSS deinit
 
 Depends on 878-AP-add-hostapd_bss_stop_ap-for-a-stop-that-keeps-the.patch.
@@ -17,16 +17,18 @@ hostapd_bss_stop_ap() already frees such a non-AP MLD on all its links
 first. Share that part with hostapd_bss_deinit_no_free().
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1961,10 +1961,19 @@ static int hostapd_flush_old_stations(st
+@@ -1961,10 +1961,19 @@
  }
  
  
 -void hostapd_bss_deinit_no_free(struct hostapd_data *hapd)
+-{
 +static void hostapd_bss_stas_leave(struct hostapd_data *hapd)
- {
++{
 +#ifdef CONFIG_IEEE80211BE
 +	hostapd_free_link_sta_mlds(hapd);
 +#endif /* CONFIG_IEEE80211BE */
@@ -41,7 +43,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef CONFIG_WEP
  	hostapd_clear_wep(hapd);
  #endif /* CONFIG_WEP */
-@@ -1975,12 +1984,7 @@ void hostapd_bss_deinit_no_free(struct h
+@@ -1975,12 +1984,7 @@
   * free them first. The keys of the BSS stay for the next start. */
  void hostapd_bss_stop_ap(struct hostapd_data *hapd)
  {

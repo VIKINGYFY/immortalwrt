@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 13:38:14 +0200
+Date: Wed, 11 Nov 2026 12:18:56 +0800
 Subject: [PATCH] hostapd: report SCS and MSCS requests on ubus and apply disallow
  lists
 
@@ -23,10 +23,11 @@ the Controller's QoS Management Policy with REQUEST_DECLINED.
   station from the driver, and the MSCS that DEL_MSCS removes.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -160,6 +160,7 @@ int hostapd_drv_set_secure_ranging_ctx(s
+@@ -162,6 +162,7 @@
  
  
  #include "drivers/driver.h"
@@ -34,7 +35,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  int hostapd_drv_wnm_oper(struct hostapd_data *hapd,
  			 enum wnm_oper oper, const u8 *peer,
-@@ -211,6 +212,10 @@ static inline int hostapd_drv_get_inact_
+@@ -213,6 +214,10 @@
  static inline int hostapd_drv_sta_remove(struct hostapd_data *hapd,
  					 const u8 *addr)
  {
@@ -47,7 +48,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return hapd->driver->sta_remove(hapd->drv_priv, addr);
 --- a/src/ap/scs.c
 +++ b/src/ap/scs.c
-@@ -50,6 +50,52 @@ bool hostapd_is_robust_av_scs_disabled(s
+@@ -50,6 +50,52 @@
  }
  
  
@@ -100,21 +101,21 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static bool scs_id_active(struct sta_info *sta, u8 scsid)
  {
  	return sta->scs_active[scsid / 8] & BIT(scsid % 8);
-@@ -109,6 +155,13 @@ static u16 hostapd_process_scs_descripto
- 		goto out;
- 	}
+@@ -106,6 +152,13 @@
  
+ 	if (!desc.id) {
+ 		wpa_printf(MSG_DEBUG, "SCS: SCSID 0 is invalid");
++		goto out;
++	}
++
 +	if (hostapd_ubus_robust_av_disallowed(hapd, HOSTAPD_ROBUST_AV_SCS,
 +					      sta->addr)) {
 +		wpa_printf(MSG_DEBUG, "SCS: " MACSTR " is disallowed",
 +			   MAC2STR(sta->addr));
-+		goto out;
-+	}
-+
- 	active = scs_id_active(sta, desc.id);
+ 		goto out;
+ 	}
  
- 	switch (desc.req_type) {
-@@ -210,6 +263,13 @@ static u16 hostapd_set_mscs(struct hosta
+@@ -210,6 +263,13 @@
  	desc.up_limit = elem[3] & 0x07;
  	desc.stream_timeout = WPA_GET_LE32(&elem[4]);
  
@@ -128,7 +129,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	switch (desc.req_type) {
  	case SCS_REQ_ADD:
  	case SCS_REQ_CHANGE:
-@@ -297,6 +357,9 @@ static void hostapd_handle_mscs_req(stru
+@@ -297,6 +357,9 @@
  	}
  
  	status = hostapd_set_mscs(hapd, sta, &elem[2], elem[1]);
@@ -138,17 +139,17 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  out:
  	send_mscs_response(hapd, da, body[2], status);
-@@ -326,12 +389,40 @@ int hostapd_del_mscs(struct hostapd_data
+@@ -326,8 +389,36 @@
  
  	sta->mscs_active = false;
  	send_mscs_response(hapd, sta->addr, 0, status);
 +	robust_av_notify_removed(hapd, sta, HOSTAPD_ROBUST_AV_MSCS, 0);
  
  	return 0;
- }
- 
- 
- /*
++}
++
++
++/*
 + * The driver dropped the streams of a station with its entry: report each
 + * stream of the station as removed (EasyMesh 6.1, 20.2.4).
 + */
@@ -172,14 +173,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +		sta->mscs_active = false;
 +		robust_av_notify_removed(hapd, sta, HOSTAPD_ROBUST_AV_MSCS, 0);
 +	}
-+}
-+
-+
-+/*
-  * The MSCS Descriptor element of a (Re)Association Request: the response
-  * carries the outcome in the MSCS Status subelement of an MSCS Descriptor
-  * element (IEEE Std 802.11-2024, 11.25.3).
-@@ -349,6 +440,9 @@ u8 * hostapd_eid_mscs_assoc(struct hosta
+ }
+ 
+ 
+@@ -349,6 +440,9 @@
  
  	sta = robust_av_sta(&hapd, sta);
  	status = hostapd_set_mscs(hapd, sta, &req[2], req[1]);
@@ -189,7 +186,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	*pos++ = WLAN_EID_EXTENSION;
  	*pos++ = MSCS_DESCRIPTOR_FIXED_LEN + 4;
-@@ -416,6 +510,9 @@ static void hostapd_handle_scs_req(struc
+@@ -416,6 +510,9 @@
  		}
  
  		status = hostapd_process_scs_descriptor(hapd, sta, elem);
@@ -201,7 +198,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		count++;
 --- a/src/ap/scs.h
 +++ b/src/ap/scs.h
-@@ -15,5 +15,6 @@ u8 * hostapd_eid_mscs_assoc(struct hosta
+@@ -15,5 +15,6 @@
  			    const u8 *ies, size_t ies_len, u8 *eid);
  int hostapd_del_mscs(struct hostapd_data *hapd, const u8 *addr);
  bool hostapd_is_robust_av_scs_disabled(struct hostapd_data *hapd);

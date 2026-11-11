@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:44:08 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] wpa_supplicant: Clamp the off-channel TX wait time to the driver limit
 
 offchannel_send_action() limits the wait time to max_remain_on_chan
@@ -19,11 +19,11 @@ Clamp the wait time on the driver TX path as well, so that every caller
 gets the same limit.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/offchannel.c
 +++ b/wpa_supplicant/offchannel.c
-@@ -245,7 +245,8 @@ void offchannel_send_action_tx_status(
+@@ -245,7 +245,8 @@
   * @bssid: Action frame BSSID
   * @buf: Frame to transmit starting from the Category field
   * @len: Length of @buf in bytes
@@ -33,7 +33,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * @tx_cb: Callback function for indicating TX status or %NULL for no callback
   * @no_cck: Whether CCK rates are to be disallowed for TX rate selection
   * Returns: 0 on success or -1 on failure
-@@ -309,6 +310,8 @@ int offchannel_send_action(struct wpa_su
+@@ -309,6 +310,8 @@
  		int ret;
  
  		iface = wpas_get_tx_interface(wpa_s, src);

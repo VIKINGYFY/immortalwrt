@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Wed, 5 Aug 2026 19:13:43 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] AP MLD: Find the station by link address in the association TX status
 
 A non-AP MLD station is stored under its MLD MAC address. If the driver
@@ -13,12 +13,12 @@ sent.
 Also look up the station by its link address, as handle_auth_cb() does.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8710,6 +8710,12 @@ static void handle_assoc_cb(struct hosta
- 	int new_assoc = 1;
+@@ -10274,6 +10274,12 @@
+ 	bool epp_sta = false;
  
  	sta = ap_get_sta(hapd, mgmt->da);
 +#ifdef CONFIG_IEEE80211BE

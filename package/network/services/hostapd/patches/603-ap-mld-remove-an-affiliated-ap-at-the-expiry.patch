@@ -1,6 +1,5 @@
-From a18addfc7f1855a5798b9a438ee94efd85947e0c Mon Sep 17 00:00:00 2001
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 29 Sep 2026 09:48:03 +0200
+Date: Wed, 11 Nov 2026 12:14:33 +0800
 Subject: [PATCH] AP MLD: remove an affiliated AP at the expiry of its timer
 
 Depends on 602-ap-mld-announce-the-removal-of-an-affiliated-ap.patch,
@@ -100,17 +99,11 @@ The limits of this timing:
   they had until the switch ends.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
- src/ap/beacon.c     |    9 ++
- src/ap/hostapd.c    |  272 ++++++++++++++++++++++++++++++++++++++++++++++++++-
- src/ap/hostapd.h    |    6 +
- src/ap/ieee802_11.c |    6 +
- src/ap/sta_info.h   |    1 
- 5 files changed, 288 insertions(+), 6 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2800,6 +2800,15 @@ static int __ieee802_11_set_beacon(struc
+@@ -2875,6 +2875,15 @@
  		return -1;
  	}
  
@@ -128,7 +121,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return -1;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -497,6 +497,245 @@ static void hostapd_link_remove_timeout_
+@@ -497,6 +497,245 @@
  }
  
  
@@ -374,30 +367,33 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void hostapd_link_remove_timeout_handler(void *eloop_data,
  						void *user_ctx)
  {
-@@ -510,13 +749,12 @@ static void hostapd_link_remove_timeout_
+@@ -510,13 +749,12 @@
  		   hapd->mld_link_id,
  		   hapd->eht_mld_link_removal_count);
  
--	ieee802_11_set_beacon(hapd);
--
- 	if (!hapd->eht_mld_link_removal_count) {
--		hostapd_free_link_stas(hapd);
++	if (!hapd->eht_mld_link_removal_count) {
 +		hostapd_link_remove_expire(hapd);
- 		return;
- 	}
- 
-+	ieee802_11_set_beacon(hapd);
++		return;
++	}
++
+ 	ieee802_11_set_beacon(hapd);
+-
+-	if (!hapd->eht_mld_link_removal_count) {
+-		hostapd_free_link_stas(hapd);
+-		return;
+-	}
+-
  	hostapd_link_remove_timeout_register(hapd);
  }
  
-@@ -529,9 +767,29 @@ int hostapd_link_remove(struct hostapd_d
+@@ -529,8 +767,28 @@
  	    count > 0xffff)
  		return -1;
  
 -	if (hapd->eht_mld_link_removal_count)
 +	if (hostapd_link_remove_pending(hapd))
  		return 0;
- 
++
 +	if (hapd->csa_in_progress)
 +		return -1;
 +
@@ -417,11 +413,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +			   hapd->mld_link_id);
 +		return -1;
 +	}
-+
+ 
  	wpa_printf(MSG_DEBUG,
  		   "MLD: Remove link_id=%u in %u beacons",
- 		   hapd->mld_link_id, count);
-@@ -542,10 +800,9 @@ int hostapd_link_remove(struct hostapd_d
+@@ -542,10 +800,9 @@
  	if (hapd->eht_mld_bss_param_change == 255)
  		hapd->eht_mld_bss_param_change = 0;
  
@@ -433,7 +428,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return 0;
  }
  
-@@ -556,7 +813,10 @@ void hostapd_free_hapd_data(struct hosta
+@@ -556,7 +813,10 @@
  {
  #ifdef CONFIG_IEEE80211BE
  	eloop_cancel_timeout(hostapd_link_remove_timeout_handler, hapd, NULL);
@@ -446,7 +441,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	os_free(hapd->probereq_cb);
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -553,6 +553,8 @@ struct hostapd_data {
+@@ -542,6 +542,8 @@
  	u16 eht_mld_link_removal_start;
  	u16 eht_mld_link_removal_count;
  	struct os_reltime eht_mld_link_removal_due;
@@ -455,7 +450,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211BE */
  
  #ifdef CONFIG_NAN_USD
-@@ -998,6 +1000,10 @@ struct hostapd_data * hostapd_mld_get_li
+@@ -994,6 +996,10 @@
  					       u8 link_id);
  int hostapd_link_remove(struct hostapd_data *hapd, u32 count);
  bool hostapd_link_remove_critical_update(struct hostapd_data *hapd);
@@ -468,7 +463,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  u8 hostapd_get_mld_id(struct hostapd_data *hapd);
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9206,10 +9206,16 @@ void ieee802_11_mgmt_cb(struct hostapd_d
+@@ -10823,10 +10823,16 @@
  	case WLAN_FC_STYPE_DEAUTH:
  		wpa_printf(MSG_DEBUG, "mgmt::deauth cb");
  		handle_deauth_cb(hapd, mgmt, len, ok);
@@ -487,7 +482,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		wpa_printf(MSG_DEBUG, "mgmt::action cb ok=%d", ok);
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -347,6 +347,7 @@ struct sta_info {
+@@ -355,6 +355,7 @@
  	struct mld_info mld_info;
  	u8 mld_assoc_link_id;
  	struct link_reconf_req_list *reconf_req;

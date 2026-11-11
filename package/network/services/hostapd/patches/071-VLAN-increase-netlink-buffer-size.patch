@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:26:26 +0200
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] VLAN: Set up a dynamic VLAN interface without its RTM_NEWLINK event
 
 With CONFIG_FULL_DYNAMIC_VLAN, vlan_add_dynamic() creates the interface
@@ -17,22 +17,22 @@ vlan_if_add() already sets it up. vlan_newlink() ignores the later
 event for a VLAN that it configured.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/vlan_init.c
 +++ b/src/ap/vlan_init.c
-@@ -227,9 +227,13 @@ struct hostapd_vlan * vlan_add_dynamic(s
+@@ -227,8 +227,12 @@
  	if (vlan_if_add(hapd, n, 0)) {
  		hapd->conf->vlan = n->next;
  		os_free(n);
 -		n = NULL;
+-	}
 +		return NULL;
- 	}
- 
++	}
++
 +#ifdef CONFIG_FULL_DYNAMIC_VLAN
 +	vlan_newlink(n->ifname, hapd);
 +#endif /* CONFIG_FULL_DYNAMIC_VLAN */
-+
+ 
  	return n;
  }
- 

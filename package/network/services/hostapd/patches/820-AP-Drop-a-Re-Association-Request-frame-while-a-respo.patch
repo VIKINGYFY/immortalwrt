@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Wed, 21 Oct 2026 19:30:00 +0200
+Date: Wed, 11 Nov 2026 12:16:08 +0800
 Subject: [PATCH] AP: Drop a (Re)Association Request frame while a response
  is pending
 
@@ -36,11 +36,13 @@ status does not delay that request. PASN is the exception: it does not
 start the association over.
 
 Fixes: 5f5db9366cde ("AP: MLO: Process Multi-Link element from (Re)Association Request frame")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -4257,6 +4257,37 @@ static const u8 * auth_peer_link_addr(st
+@@ -5550,6 +5550,37 @@
  #endif /* CONFIG_IEEE80211BE */
  
  
@@ -78,7 +80,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void handle_auth(struct hostapd_data *hapd,
  			const struct ieee80211_mgmt *mgmt, size_t len,
  			int rssi, int from_queue)
-@@ -4651,6 +4682,9 @@ static void handle_auth(struct hostapd_d
+@@ -5944,6 +5975,9 @@
  
  	sta->last_seq_ctrl = seq_ctrl;
  	sta->last_subtype = WLAN_FC_STYPE_AUTH;
@@ -88,7 +90,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef CONFIG_MBO
  	sta->auth_rssi = rssi;
  #endif /* CONFIG_MBO */
-@@ -7348,6 +7382,7 @@ void fils_hlp_finish_assoc(struct hostap
+@@ -8861,6 +8895,7 @@
  				    sta->fils_pending_assoc_is_reassoc,
  				    sta->fils_pending_assoc_req,
  				    sta->fils_pending_assoc_req_len, 0, 0);
@@ -96,7 +98,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	os_free(sta->fils_pending_assoc_req);
  	sta->fils_pending_assoc_req = NULL;
  	sta->fils_pending_assoc_req_len = 0;
-@@ -7621,6 +7656,13 @@ static void handle_assoc(struct hostapd_
+@@ -9139,6 +9174,13 @@
  			       seq_ctrl);
  		return;
  	}
@@ -110,7 +112,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	sta->last_seq_ctrl = seq_ctrl;
  	sta->last_subtype = reassoc ? WLAN_FC_STYPE_REASSOC_REQ :
  		WLAN_FC_STYPE_ASSOC_REQ;
-@@ -7930,6 +7972,8 @@ static void handle_assoc(struct hostapd_
+@@ -9448,6 +9490,8 @@
  					    NULL : sta,
  					    mgmt->sa, resp, reassoc,
  					    pos, left, rssi, omit_rsnxe);
@@ -119,18 +121,17 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	if (set_beacon)
  		ieee802_11_update_beacons(hapd->iface);
-@@ -8824,6 +8868,8 @@ static void handle_assoc_cb(struct hosta
- 		return;
- 	}
- 
+@@ -10388,6 +10432,7 @@
+ #ifdef CONFIG_ENC_ASSOC
+ 	epp_sta = sta->epp_sta;
+ #endif /* CONFIG_ENC_ASSOC */
 +	assoc_resp_pending_clear(sta);
-+
+ 
  #ifdef CONFIG_IEEE80211BE
  	if (ap_sta_is_mld(hapd, sta) &&
- 	    hapd->mld_link_id != sta->mld_assoc_link_id) {
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -269,6 +269,7 @@ struct sta_info {
+@@ -276,6 +276,7 @@
  	u16 last_seq_ctrl;
  	/* Last Authentication/(Re)Association Request/Action frame subtype */
  	u8 last_subtype;

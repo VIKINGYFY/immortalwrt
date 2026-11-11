@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:56:27 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] AP MLD: Remove a link that is not set up from the links of the station
 
 hostapd_ml_process_reconf_link() sets up each added link while it
@@ -37,11 +37,11 @@ AP-STA-DISCONNECTED with the MLD address. This applies to the link
 deletion of Link Reconfiguration as well.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1607,6 +1607,30 @@ void ml_deinit_link_reconf_req(struct li
+@@ -1651,6 +1651,30 @@
  }
  
  
@@ -72,7 +72,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  void hostapd_link_reconf_resp_tx_status(struct hostapd_data *hapd,
  					struct sta_info *sta,
  					const struct ieee80211_mgmt *mgmt,
-@@ -1657,24 +1681,19 @@ void hostapd_link_reconf_resp_tx_status(
+@@ -1701,22 +1725,17 @@
  			   "; revert link additions",
  			   MAC2STR(mgmt->da));
  
@@ -94,20 +94,18 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +		hostapd_ml_reconf_adds_revert(hapd, req_list,
 +					      req_list->links_add_ok);
  		goto exit;
- 	}
- 
++	}
++
 +	dl_list_for_each(info, &req_list->add_req, struct link_reconf_req_info,
 +			 list) {
 +		if (req_list->links_add_ok & BIT(info->link_id))
 +			ap_sta_link_event(hapd, WPA_EVENT_LINK_STA_ADDED,
 +					  req_list->sta_mld_addr,
 +					  info->link_id);
-+	}
-+
- 	if (dl_list_empty(&req_list->del_req))
- 		goto exit;
+ 	}
  
-@@ -1757,27 +1776,9 @@ void hostapd_link_reconf_resp_tx_status(
+ 	if (dl_list_empty(&req_list->del_req))
+@@ -1801,27 +1820,9 @@
  		}
  
  		/* Free as a link STA */
@@ -138,7 +136,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  
  exit:
-@@ -1871,31 +1872,20 @@ hostapd_reject_all_reconf_req(struct hos
+@@ -1915,31 +1916,20 @@
  			      struct link_reconf_req_list *req_list)
  {
  	struct link_reconf_req_info *info;
@@ -173,7 +171,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		wpa_printf(MSG_DEBUG, "MLD: Reject add-link=%u with status=%u",
  			   info->link_id, status);
  		pos += 2;
-@@ -2615,14 +2605,10 @@ hostapd_validate_link_reconf_req(struct
+@@ -2664,14 +2654,10 @@
  						  req_list->sta_mld_addr);
  
  			if (lsta)
@@ -189,7 +187,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		}
  
  		info->status = status;
-@@ -2644,14 +2630,14 @@ hostapd_validate_link_reconf_req(struct
+@@ -2693,14 +2679,14 @@
  	    (links_del_ok && !(valid_links & links_del_ok))) {
  		wpa_printf(MSG_INFO,
  			   "MLD: Links requested failed to satisfy valid links");
@@ -206,7 +204,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  
  	valid_links |= links_add_ok;
-@@ -2660,7 +2646,7 @@ hostapd_validate_link_reconf_req(struct
+@@ -2709,7 +2695,7 @@
  		if (!recover_from_zero_links(&links_del_ok, &recovery_link)) {
  			wpa_printf(MSG_INFO,
  				   "MLD: Total-links validation failed");
@@ -215,7 +213,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		}
  		/* Add the recovery link back to valid_links */
  		valid_links |= BIT(recovery_link);
-@@ -2674,6 +2660,10 @@ hostapd_validate_link_reconf_req(struct
+@@ -2723,6 +2709,10 @@
  	assoc_sta->reconf_req = req_list;
  
  	return true;
@@ -226,7 +224,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -2808,6 +2798,10 @@ skip_oci_validation:
+@@ -2857,6 +2847,10 @@
  
  out:
  	if (ret) {
@@ -239,7 +237,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			assoc_sta->reconf_req = NULL;
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -639,6 +639,44 @@ void hostapd_free_stas(struct hostapd_da
+@@ -674,6 +674,44 @@
  
  
  #ifdef CONFIG_IEEE80211BE
@@ -286,9 +284,9 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct sta_info *sta, *prev;
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -478,6 +478,7 @@ static inline void ap_sta_set_mld(struct
- 
+@@ -494,6 +494,7 @@
  void ap_sta_free_sta_profile(struct mld_info *info);
+ void ap_sta_free_ml_kem_data(struct eap_over_auth_data *auth_data);
  
 +void ap_free_link_sta(struct hostapd_data *lhapd, struct sta_info *lsta);
  void hostapd_free_link_stas(struct hostapd_data *hapd);

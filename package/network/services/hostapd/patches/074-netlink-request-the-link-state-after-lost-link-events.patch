@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:25:11 +0200
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] netlink: Request the link state after lost link events
 
 If the receive queue of the RTMGRP_LINK socket of netlink_init() is
@@ -18,11 +18,11 @@ AF_BRIDGE port event, since it reports neither removed interfaces nor
 bridge ports.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/netlink.c
 +++ b/src/drivers/netlink.c
-@@ -17,9 +17,74 @@
+@@ -17,7 +17,72 @@
  struct netlink_data {
  	struct netlink_config *cfg;
  	int sock;
@@ -30,8 +30,8 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	u32 dump_seq;
 +	bool dump_again;
  };
- 
- 
++
++
 +static u32 netlink_seq_next(struct netlink_data *netlink)
 +{
 +	if (++netlink->seq == 0)
@@ -92,12 +92,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	if (netlink->dump_again)
 +		netlink_links_request(netlink);
 +}
-+
-+
+ 
+ 
  static void netlink_receive_link(struct netlink_data *netlink,
- 				 void (*cb)(void *ctx, struct ifinfomsg *ifi,
- 					    u8 *buf, size_t len),
-@@ -47,6 +112,12 @@ try_again:
+@@ -47,6 +112,12 @@
  	fromlen = sizeof(from);
  	left = recvfrom(sock, buf, sizeof(buf), MSG_DONTWAIT,
  			(struct sockaddr *) &from, &fromlen);
@@ -110,7 +108,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (left < 0) {
  		if (errno != EINTR && errno != EAGAIN)
  			wpa_printf(MSG_INFO, "netlink: recvfrom failed: %s",
-@@ -65,6 +136,10 @@ try_again:
+@@ -65,6 +136,10 @@
  			netlink_receive_link(netlink, netlink->cfg->dellink_cb,
  					     h);
  			break;
@@ -121,7 +119,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		}
  
  		h = NLMSG_NEXT(h, left);
-@@ -184,7 +259,6 @@ int netlink_send_oper_ifla(struct netlin
+@@ -184,7 +259,6 @@
  		char opts[16];
  	} req;
  	struct rtattr *rta;
@@ -129,7 +127,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	ssize_t ret;
  
  	os_memset(&req, 0, sizeof(req));
-@@ -192,7 +266,7 @@ int netlink_send_oper_ifla(struct netlin
+@@ -192,7 +266,7 @@
  	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
  	req.hdr.nlmsg_type = RTM_SETLINK;
  	req.hdr.nlmsg_flags = NLM_F_REQUEST;
@@ -158,7 +156,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #define RTM_SETLINK (RTM_BASE + 3)
  
  #define NLMSG_ALIGNTO 4
-@@ -90,6 +95,12 @@ struct nlmsghdr
+@@ -90,6 +95,12 @@
  	u32 nlmsg_pid;
  };
  

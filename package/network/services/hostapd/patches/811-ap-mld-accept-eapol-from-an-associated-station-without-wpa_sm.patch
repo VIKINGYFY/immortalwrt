@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:13:52 +0200
+Date: Wed, 11 Nov 2026 12:15:44 +0800
 Subject: [PATCH] AP MLD: Accept EAPOL from an associated station without wpa_sm
 
 For an AP MLD, hostapd_event_eapol_rx() accepts only a station entry
@@ -16,12 +16,13 @@ Handle link_id in EAPOL RX handler"). An entry with a wpa_sm keeps
 priority.
 
 Fixes: a5188103220d ("AP MLD: Handle link_id in EAPOL RX handler")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2132,10 +2132,18 @@ static void hostapd_event_eapol_rx(struc
+@@ -2133,10 +2133,18 @@
  				   int link_id)
  {
  	struct hostapd_data *orig_hapd = hapd;

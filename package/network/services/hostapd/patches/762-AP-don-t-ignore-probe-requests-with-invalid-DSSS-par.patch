@@ -1,6 +1,5 @@
-From a329773522953892d9bb4548482d42fc93fea329 Mon Sep 17 00:00:00 2001
 From: David Bauer <mail@david-bauer.net>
-Date: Thu, 27 Jun 2024 18:45:19 +0200
+Date: Wed, 11 Nov 2026 12:15:19 +0800
 Subject: [PATCH] AP: don't ignore probe-requests with invalid DSSS params
 
 Don't ignore probe requests which contain an invalid DS parameter for the
@@ -22,13 +21,11 @@ lead to more probe responses being sent, however it does fix very
 frequent connection issues for these clients on 2.4 GHz.
 
 Signed-off-by: David Bauer <mail@david-bauer.net>
----
- src/ap/beacon.c | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -1552,7 +1552,7 @@ void handle_probe_req(struct hostapd_dat
+@@ -1591,7 +1591,7 @@
  	 * is less likely to see them (Probe Request frame sent on a
  	 * neighboring, but partially overlapping, channel).
  	 */

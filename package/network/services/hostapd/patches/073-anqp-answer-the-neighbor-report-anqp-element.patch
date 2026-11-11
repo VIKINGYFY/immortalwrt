@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:39:52 +0200
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] ANQP: Answer the Neighbor Report ANQP-element from the neighbor DB
 
 hostapd answers the Neighbor Report ANQP-element (Info ID 272, IEEE Std
@@ -15,14 +15,17 @@ because IEEE Std 802.11-2024, 11.22.3.3.1 orders the ANQP-elements of a
 response by nondecreasing Info ID.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/gas_serv.c
 +++ b/src/ap/gas_serv.c
-@@ -233,6 +233,42 @@ static int anqp_add_override(struct host
- }
+@@ -285,6 +285,42 @@
+ 	}
  
- 
+ 	return 0;
++}
++
++
 +/* Use the SSID filter of hostapd_send_nei_report_resp() so that an
 + * unassociated station does not learn the BSSs of other SSIDs. */
 +static size_t anqp_neighbor_report_len(struct hostapd_data *hapd,
@@ -56,13 +59,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	}
 +
 +	return len;
-+}
-+
-+
- static void anqp_add_capab_list(struct hostapd_data *hapd,
- 				struct wpabuf **_buf)
- {
-@@ -279,7 +315,8 @@ static void anqp_add_capab_list(struct h
+ }
+ 
+ 
+@@ -334,7 +370,8 @@
  		wpabuf_put_le16(buf, ANQP_TDLS_CAPABILITY);
  	if (get_anqp_elem(hapd, ANQP_EMERGENCY_NAI))
  		wpabuf_put_le16(buf, ANQP_EMERGENCY_NAI);
@@ -72,7 +72,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		wpabuf_put_le16(buf, ANQP_NEIGHBOR_REPORT);
  #ifdef CONFIG_FILS
  	if (!dl_list_empty(&hapd->conf->fils_realms) ||
-@@ -862,6 +899,42 @@ static void anqp_add_mbo_cell_data_conn_
+@@ -919,6 +956,42 @@
  #endif /* CONFIG_MBO */
  
  
@@ -115,17 +115,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static size_t anqp_get_required_len(struct hostapd_data *hapd,
  				    const u16 *infoid,
  				    unsigned int num_infoid)
-@@ -1046,6 +1119,20 @@ gas_serv_build_gas_resp_payload(struct h
- 		}
- 	}
- 
-+	/* IEEE Std 802.11-2024, 11.22.3.3.1 orders the ANQP-elements of a
-+	 * response by nondecreasing Info ID, and rx_anqp_query_list_id() puts
-+	 * only Info IDs above 272, or a configured one below 257, into
-+	 * extra_req. */
-+	if (request & ANQP_REQ_NEIGHBOR_REPORT) {
-+		prev_len = wpabuf_len(buf);
-+		anqp_add_neighbor_report(hapd, &buf);
+@@ -1096,6 +1169,20 @@
+ 	if (request & ANQP_REQ_EMERGENCY_NAI) {
+ 		prev_len = wpabuf_len(buf);
+ 		anqp_add_elem(hapd, &buf, ANQP_EMERGENCY_NAI);
 +		if (wpabuf_len(buf) > max_len) {
 +			wpa_printf(MSG_INFO,
 +				   "ANQP: ANQP-element would go beyond maximum GAS response length - skip");
@@ -133,21 +126,28 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +		}
 +	}
 +
- 	for (i = 0; i < num_extra_req; i++) {
- 		prev_len = wpabuf_len(buf);
- #ifdef CONFIG_FILS
-@@ -1241,6 +1328,11 @@ static void rx_anqp_query_list_id(struct
++	/* IEEE Std 802.11-2024, 11.22.3.3.1 orders the ANQP-elements of a
++	 * response by nondecreasing Info ID, and rx_anqp_query_list_id() puts
++	 * only Info IDs above 272, or a configured one below 257, into
++	 * extra_req. */
++	if (request & ANQP_REQ_NEIGHBOR_REPORT) {
++		prev_len = wpabuf_len(buf);
++		anqp_add_neighbor_report(hapd, &buf);
+ 		if (wpabuf_len(buf) > max_len) {
+ 			wpa_printf(MSG_INFO,
+ 				   "ANQP: ANQP-element would go beyond maximum GAS response length - skip");
+@@ -1297,6 +1384,11 @@
+ 		set_anqp_req(ANQP_REQ_EMERGENCY_NAI,
  			     "Emergency NAI",
  			     get_anqp_elem(hapd, info_id) != NULL, qi);
- 		break;
++		break;
 +	case ANQP_NEIGHBOR_REPORT:
 +		set_anqp_req(ANQP_REQ_NEIGHBOR_REPORT, "Neighbor Report",
 +			     get_anqp_elem(hapd, info_id) ||
 +			     anqp_neighbor_report_payload_len(hapd), qi);
-+		break;
+ 		break;
  	default:
  #ifdef CONFIG_FILS
- 		if (info_id == ANQP_FILS_REALM_INFO &&
 --- a/src/ap/gas_serv.h
 +++ b/src/ap/gas_serv.h
 @@ -40,6 +40,9 @@

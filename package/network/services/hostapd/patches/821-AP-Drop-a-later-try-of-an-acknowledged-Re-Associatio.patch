@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Wed, 21 Oct 2026 23:50:00 +0200
+Date: Wed, 11 Nov 2026 12:16:09 +0800
 Subject: [PATCH] AP: Drop a later try of an acknowledged (Re)Association
  Request frame
 
@@ -40,10 +40,11 @@ IEEE Std 802.11-2024 duplicate detection (10.3.2.14) uses only the
 Retry bit and the sequence number, so it does not apply to these frames.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -4288,6 +4288,58 @@ static bool assoc_resp_pending(struct st
+@@ -5581,6 +5581,58 @@
  }
  
  
@@ -102,7 +103,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void handle_auth(struct hostapd_data *hapd,
  			const struct ieee80211_mgmt *mgmt, size_t len,
  			int rssi, int from_queue)
-@@ -4683,8 +4735,10 @@ static void handle_auth(struct hostapd_d
+@@ -5976,8 +6028,10 @@
  	sta->last_seq_ctrl = seq_ctrl;
  	sta->last_subtype = WLAN_FC_STYPE_AUTH;
  	/* PASN does not start the association over */
@@ -114,7 +115,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef CONFIG_MBO
  	sta->auth_rssi = rssi;
  #endif /* CONFIG_MBO */
-@@ -7663,6 +7717,14 @@ static void handle_assoc(struct hostapd_
+@@ -9181,6 +9235,14 @@
  			       seq_ctrl);
  		return;
  	}
@@ -129,27 +130,27 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	sta->last_seq_ctrl = seq_ctrl;
  	sta->last_subtype = reassoc ? WLAN_FC_STYPE_REASSOC_REQ :
  		WLAN_FC_STYPE_ASSOC_REQ;
-@@ -8895,6 +8957,8 @@ static void handle_assoc_cb(struct hosta
+@@ -10458,6 +10520,8 @@
+ 		status = le_to_host16(mgmt->u.reassoc_resp.status_code);
  	else
  		status = le_to_host16(mgmt->u.assoc_resp.status_code);
- 
-+	assoc_resp_ack_set(sta, ok, status);
 +
++	assoc_resp_ack_set(sta, ok, status);
+ 
  	if (!ok) {
  		hostapd_logger(hapd, mgmt->da, HOSTAPD_MODULE_IEEE80211,
- 			       HOSTAPD_LEVEL_DEBUG,
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -475,6 +475,8 @@ void ap_free_sta(struct hostapd_data *ha
+@@ -512,6 +512,8 @@
+ 	wpabuf_free(sta->assoc_frame_taxonomy);
  	sta->assoc_frame_taxonomy = NULL;
  #endif /* CONFIG_TAXONOMY */
- 
-+	ap_sta_clear_assoc_req(sta);
 +
++	ap_sta_clear_assoc_req(sta);
+ 
  	ht40_intolerant_remove(hapd->iface, sta);
  
- #ifdef CONFIG_P2P
-@@ -1905,15 +1907,25 @@ const u8 * ap_sta_wpa_get_dpp_pkhash(str
+@@ -1934,15 +1936,25 @@
  }
  
  
@@ -179,7 +180,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return true;
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -270,6 +270,10 @@ struct sta_info {
+@@ -277,6 +277,10 @@
  	/* Last Authentication/(Re)Association Request/Action frame subtype */
  	u8 last_subtype;
  	struct os_reltime assoc_resp_pending_since;
@@ -190,7 +191,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  #ifdef CONFIG_MBO
  	u8 cell_capa; /* 0 = unknown (not an MBO STA); otherwise,
-@@ -439,6 +443,7 @@ const u8 * ap_sta_wpa_get_dpp_pkhash(str
+@@ -454,6 +458,7 @@
  void ap_sta_disconnect(struct hostapd_data *hapd, struct sta_info *sta,
  		       const u8 *addr, u16 reason);
  

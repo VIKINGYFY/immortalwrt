@@ -1,8 +1,12 @@
 From: Jo-Philipp Wich <jow@openwrt.org>
-Date: Mon, 12 Dec 2011 17:26:13 +0000
+Date: Wed, 11 Nov 2026 12:13:54 +0800
 Subject: [PATCH] hostapd: support optional argument for the -v switch of
  hostapd and wpa_supplicant to query build features, e.g. hostapd -veap to
  test whether 802.11i support is compiled in
+
+
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/main.c
 +++ b/hostapd/main.c
@@ -15,7 +19,7 @@ Subject: [PATCH] hostapd: support optional argument for the -v switch of
  
  struct hapd_global {
  	void **drv_priv;
-@@ -891,7 +891,7 @@ int main(int argc, char *argv[])
+@@ -891,7 +891,7 @@
  	wpa_supplicant_event = hostapd_wpa_event;
  	wpa_supplicant_event_global = hostapd_wpa_event_global;
  	for (;;) {
@@ -24,7 +28,7 @@ Subject: [PATCH] hostapd: support optional argument for the -v switch of
  		if (c < 0)
  			break;
  		switch (c) {
-@@ -928,6 +928,8 @@ int main(int argc, char *argv[])
+@@ -928,6 +928,8 @@
  			break;
  #endif /* CONFIG_DEBUG_LINUX_TRACING */
  		case 'v':
@@ -43,16 +47,16 @@ Subject: [PATCH] hostapd: support optional argument for the -v switch of
  #include "crypto/crypto.h"
  #include "fst/fst.h"
  #include "wpa_supplicant_i.h"
-@@ -213,7 +214,7 @@ int main(int argc, char *argv[])
+@@ -216,7 +217,7 @@
  
  	for (;;) {
  		c = getopt(argc, argv,
--			   "b:Bc:C:D:de:f:g:G:hi:I:KLMm:No:O:p:P:qsTtuvWyz:");
-+			   "b:Bc:C:D:de:f:g:G:hi:I:KLMm:No:O:p:P:qsTtuv::Wyz:");
+-			   "b:Bc:C:D:de:f:g:G:hi:I:KLMm:No:O:p:P:qsTtuvWx:yz:");
++			   "b:Bc:C:D:de:f:g:G:hi:I:KLMm:No:O:p:P:qsTtuv::Wx:yz:");
  		if (c < 0)
  			break;
  		switch (c) {
-@@ -314,8 +315,12 @@ int main(int argc, char *argv[])
+@@ -317,8 +318,12 @@
  			break;
  #endif /* CONFIG_CTRL_IFACE_DBUS_NEW */
  		case 'v':

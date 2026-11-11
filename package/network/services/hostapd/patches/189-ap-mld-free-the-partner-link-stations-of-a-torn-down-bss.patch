@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:53:01 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] AP MLD: Free the partner link stations of a BSS that is torn down
 
 hostapd_free_stas() frees the stations of a BSS. For a non-AP MLD whose
@@ -15,22 +15,22 @@ When the whole AP MLD goes down, the first link frees the partner link
 stations that the later links would free with their own BSS.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -603,6 +603,10 @@ void hostapd_free_stas(struct hostapd_da
+@@ -637,6 +637,10 @@
+ void hostapd_free_stas(struct hostapd_data *hapd)
  {
  	struct sta_info *sta, *prev;
- 
++
 +#ifdef CONFIG_IEEE80211BE
 +	hostapd_free_mld_partner_stas(hapd);
 +#endif /* CONFIG_IEEE80211BE */
-+
+ 
  	sta = hapd->sta_list;
  
- 	while (sta) {
-@@ -2128,6 +2132,22 @@ static void ap_sta_remove_link_sta(struc
+@@ -2157,6 +2161,22 @@
  		}
  	}
  }
@@ -55,8 +55,8 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -478,6 +478,7 @@ static inline void ap_sta_set_mld(struct
- void ap_sta_free_sta_profile(struct mld_info *info);
+@@ -494,6 +494,7 @@
+ void ap_sta_free_ml_kem_data(struct eap_over_auth_data *auth_data);
  
  void hostapd_free_link_stas(struct hostapd_data *hapd);
 +void hostapd_free_mld_partner_stas(struct hostapd_data *hapd);

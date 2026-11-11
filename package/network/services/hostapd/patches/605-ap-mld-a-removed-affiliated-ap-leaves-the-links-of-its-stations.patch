@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Thu, 1 Oct 2026 09:02:45 +0200
+Date: Wed, 11 Nov 2026 12:14:33 +0800
 Subject: [PATCH] AP MLD: notify ubus when a removed affiliated AP leaves the
  links of its stations
 
@@ -18,10 +18,11 @@ This depends on 604 (hostapd_ubus_notify_sta_links()) and on 199
 (ap_free_link_sta() in hostapd_free_link_stas()).
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -693,7 +693,8 @@ void ap_free_link_sta(struct hostapd_dat
+@@ -728,7 +728,8 @@
  
  void hostapd_free_link_stas(struct hostapd_data *hapd)
  {
@@ -31,7 +32,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	sta = hapd->sta_list;
  	while (sta) {
-@@ -707,7 +708,10 @@ void hostapd_free_link_stas(struct hosta
+@@ -742,7 +743,10 @@
  			   MAC2STR(prev->addr));
  		ap_sta_link_event(hapd, WPA_EVENT_LINK_STA_REMOVED, prev->addr,
  				  hapd->mld_link_id);

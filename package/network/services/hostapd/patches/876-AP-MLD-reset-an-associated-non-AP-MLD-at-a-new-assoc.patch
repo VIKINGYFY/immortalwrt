@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 25 Oct 2026 17:00:00 +0100
+Date: Wed, 11 Nov 2026 12:19:17 +0800
 Subject: [PATCH] AP MLD: reset an associated non-AP MLD at a new association
 
 A non-AP MLD that is associated can send a new (Re)Association Request
@@ -27,10 +27,11 @@ the TX status of the response is handled. A refused request restores
 the earlier association link.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -7582,6 +7582,7 @@ static void handle_assoc(struct hostapd_
+@@ -9091,6 +9091,7 @@
  	bool reset_prev_assoc = false;
  	struct wpa_state_machine *prev_wpa_sm = NULL;
  	struct mld_info prev_mld_info;
@@ -38,7 +39,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211BE */
  
  	if (len < IEEE80211_HDRLEN + (reassoc ? sizeof(mgmt->u.reassoc_req) :
-@@ -7823,8 +7824,9 @@ static void handle_assoc(struct hostapd_
+@@ -9336,8 +9337,9 @@
  	 * and FILS keep keys of the authentication in the state machine, so
  	 * only Open System and SAE authentication are covered.
  	 */
@@ -50,7 +51,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	    FULL_AP_CLIENT_STATE_SUPP(hapd->iface->drv_flags) &&
  	    (sta->auth_alg == WLAN_AUTH_OPEN ||
  	     sta->auth_alg == WLAN_AUTH_SAE)) {
-@@ -7832,6 +7834,9 @@ static void handle_assoc(struct hostapd_
+@@ -9345,6 +9347,9 @@
  		prev_wpa_sm = sta->wpa_sm;
  		sta->wpa_sm = NULL;
  		ap_sta_mld_info_copy(&prev_mld_info, &sta->mld_info);
@@ -60,7 +61,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -7996,8 +8001,10 @@ static void handle_assoc(struct hostapd_
+@@ -9509,8 +9514,10 @@
  	}
   fail:
  #ifdef CONFIG_IEEE80211BE

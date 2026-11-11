@@ -1,5 +1,5 @@
 From: Markus Theil <markus.theil@tu-ilmenau.de>
-Date: Tue, 20 Oct 2026 14:34:10 +0200
+Date: Wed, 11 Nov 2026 12:11:39 +0800
 Subject: [PATCH] nl80211: Set HANDLE_DFS for the channel switch of a mesh
 
 nl80211_channel_switch() rejects with -EINVAL a channel switch to a
@@ -17,11 +17,11 @@ for the channel switch of a mesh peer
 
 Signed-off-by: Markus Theil <markus.theil@tu-ilmenau.de>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -12380,6 +12380,8 @@ static int nl80211_switch_channel(void *
+@@ -12505,6 +12505,8 @@
  	    (ret = nl80211_put_freq_params(msg, &settings->freq_params, bss)) ||
  	    (settings->block_tx &&
  	     nla_put_flag(msg, NL80211_ATTR_CH_SWITCH_BLOCK_TX)) ||
@@ -30,7 +30,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	    (settings->link_id != NL80211_DRV_LINK_ID_NA &&
  	     nla_put_u8(msg, NL80211_ATTR_MLO_LINK_ID, settings->link_id)))
  		goto error;
-@@ -13174,6 +13176,7 @@ static int nl80211_join_mesh(struct i802
+@@ -13299,6 +13301,7 @@
  	}
  	ret = 0;
  	drv->assoc_freq = bss->flink->freq = params->freq.freq;
@@ -40,7 +40,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  fail:
 --- a/src/drivers/driver_nl80211.h
 +++ b/src/drivers/driver_nl80211.h
-@@ -221,6 +221,7 @@ struct wpa_driver_nl80211_data {
+@@ -221,6 +221,7 @@
  	unsigned int qca_ap_allowed_freqs:1;
  	unsigned int connect_ext_vendor_cmd_avail:1;
  	unsigned int support_ap_scan:1;

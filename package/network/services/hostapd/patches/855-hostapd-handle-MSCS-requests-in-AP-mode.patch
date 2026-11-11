@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 27 Oct 2026 13:29:58 +0000
+Date: Wed, 11 Nov 2026 12:18:23 +0800
 Subject: [PATCH] hostapd: handle MSCS requests in AP mode
 
 Answer the MSCS Request frame of an associated station with an MSCS
@@ -29,31 +29,43 @@ its MSCS as well.
 Co-developed-by: Howard Hsu <howard-yh.hsu@mediatek.com>
 Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -6972,6 +6972,9 @@ static u16 send_assoc_resp(struct hostap
+@@ -8443,6 +8443,9 @@
  	u16 res = WLAN_STATUS_SUCCESS;
  
- 	buflen = sizeof(struct ieee80211_mgmt) + 1024;
+ 	buflen = sizeof(struct ieee80211_mgmt) + 1224;
 +#ifdef CONFIG_ROBUST_AV
 +	buflen += 14; /* MSCS Descriptor element with an MSCS Status */
 +#endif /* CONFIG_ROBUST_AV */
  #ifdef CONFIG_FILS
  	if (sta && sta->fils_hlp_resp)
  		buflen += wpabuf_len(sta->fils_hlp_resp);
-@@ -7149,6 +7152,11 @@ static u16 send_assoc_resp(struct hostap
+@@ -8636,6 +8639,11 @@
+ #ifdef CONFIG_TESTING_OPTIONS
  rsnxe_done:
  #endif /* CONFIG_TESTING_OPTIONS */
- 
++
 +#ifdef CONFIG_ROBUST_AV
 +	if (sta && status_code == WLAN_STATUS_SUCCESS)
 +		p = hostapd_eid_mscs_assoc(hapd, sta, ies, ies_len, p);
 +#endif /* CONFIG_ROBUST_AV */
-+
+ 
  #ifdef CONFIG_IEEE80211BE
  	if (hostapd_is_eht_enabled(hapd)) {
- 		if (hapd->conf->mld_ap)
+--- a/src/ap/ieee802_11_eht.c
++++ b/src/ap/ieee802_11_eht.c
+@@ -1716,6 +1716,8 @@
+ 	os_memcpy(assoc_sta->scs_active, sta->scs_active,
+ 		  sizeof(sta->scs_active));
+ 	os_memset(sta->scs_active, 0, sizeof(sta->scs_active));
++	assoc_sta->mscs_active = sta->mscs_active;
++	sta->mscs_active = false;
+ #endif /* CONFIG_ROBUST_AV */
+ 	return assoc_sta;
+ }
 --- a/src/ap/scs.c
 +++ b/src/ap/scs.c
 @@ -15,6 +15,9 @@
@@ -66,7 +78,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  /*
   * The links of an AP MLD each hold a station entry of a non-AP MLD; the entry
   * of the association link holds the streams, whichever link a request takes.
-@@ -169,6 +172,158 @@ out:
+@@ -169,6 +172,158 @@
  }
  
  
@@ -225,7 +237,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void send_scs_response(struct hostapd_data *hapd, const u8 *da,
  			      u8 dialog_token, const struct wpabuf *duples,
  			      u8 count)
-@@ -258,6 +413,9 @@ void hostapd_handle_robust_av_streaming(
+@@ -258,6 +413,9 @@
  	case ROBUST_AV_SCS_REQ:
  		hostapd_handle_scs_req(sta_hapd, sta, mgmt->sa, body, len);
  		break;
@@ -251,34 +263,23 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* SCS_H */
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -389,6 +389,7 @@ struct sta_info {
+@@ -385,6 +385,7 @@
  	u8 unsolicited_dialog_token;
  	struct dscp_policy_state dscp_state;
  	u8 scs_active[32]; /* bitmap of the SCSIDs with an active stream */
 +	bool mscs_active;
  #endif /* CONFIG_ROBUST_AV */
- };
- 
+ #ifdef CONFIG_IEEE80211AX
+ 	/* The colour of the last BSS Color In Use report of the station, 0 for
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -3212,6 +3212,9 @@ static int nl80211_action_subscribe_ap(s
+@@ -3212,6 +3212,9 @@
+ #ifdef CONFIG_ROBUST_AV
  	/* Robust AV Streaming - SCS Request */
  	if (nl80211_register_action_frame(bss, (u8 *) "\x13\x00", 2) < 0)
- 		ret = -1;
++		ret = -1;
 +	/* Robust AV Streaming - MSCS Request */
 +	if (nl80211_register_action_frame(bss, (u8 *) "\x13\x04", 2) < 0)
-+		ret = -1;
+ 		ret = -1;
  #endif /* CONFIG_ROBUST_AV */
  	/* Vendor-specific Protected */
- 	if (nl80211_register_action_frame(bss, (u8 *) "\x7e", 1) < 0)
---- a/src/ap/ieee802_11_eht.c
-+++ b/src/ap/ieee802_11_eht.c
-@@ -1672,6 +1672,8 @@ struct sta_info * hostapd_ml_move_assoc_
- 	os_memcpy(assoc_sta->scs_active, sta->scs_active,
- 		  sizeof(sta->scs_active));
- 	os_memset(sta->scs_active, 0, sizeof(sta->scs_active));
-+	assoc_sta->mscs_active = sta->mscs_active;
-+	sta->mscs_active = false;
- #endif /* CONFIG_ROBUST_AV */
- 	return assoc_sta;
- }

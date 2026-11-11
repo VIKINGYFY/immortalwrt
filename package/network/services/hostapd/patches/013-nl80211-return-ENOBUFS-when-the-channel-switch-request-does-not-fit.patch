@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:50:27 +0200
+Date: Wed, 11 Nov 2026 12:11:39 +0800
 Subject: [PATCH] nl80211: Return -ENOBUFS when the channel switch request does not fit
 
 nl80211_switch_channel() stores the result of nl80211_put_freq_params()
@@ -12,12 +12,13 @@ Return -ENOBUFS for a failure to add an attribute, as before the
 conversion from the NLA_PUT macros.
 
 Fixes: a862e4a38fa2 ("nl80211: Continue getting rid of NLA_PUT* macro use")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -12376,15 +12376,20 @@ static int nl80211_switch_channel(void *
+@@ -12501,15 +12501,20 @@
  
  	if (!(msg = nl80211_bss_msg(bss, 0, NL80211_CMD_CHANNEL_SWITCH)) ||
  	    nla_put_u32(msg, NL80211_ATTR_CH_SWITCH_COUNT,

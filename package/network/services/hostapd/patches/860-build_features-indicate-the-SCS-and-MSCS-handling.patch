@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 13:38:19 +0200
+Date: Wed, 11 Nov 2026 12:18:56 +0800
 Subject: [PATCH] build_features: indicate the SCS and MSCS handling
 
 A program that configures hostapd cannot tell whether the build handles
@@ -8,10 +8,11 @@ handling does not. Answer "robust-av-scs" in has_feature(), so that
 `hostapd -vrobust-av-scs` tells it.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/utils/build_features.h
 +++ b/src/utils/build_features.h
-@@ -76,6 +76,8 @@ static inline int has_feature(const char
+@@ -76,6 +76,8 @@
  #ifdef CONFIG_ROBUST_AV
  	if (!strcmp(feat, "robust-av"))
  		return 1;

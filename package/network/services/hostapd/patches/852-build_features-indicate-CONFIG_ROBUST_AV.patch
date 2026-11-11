@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 11:23:05 +0200
+Date: Wed, 11 Nov 2026 12:18:01 +0800
 Subject: [PATCH] build_features: indicate CONFIG_ROBUST_AV
 
 A program that configures hostapd cannot tell whether the build holds
@@ -8,10 +8,11 @@ frames need. Answer "robust-av" in has_feature(), so that
 `hostapd -vrobust-av` tells it.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/utils/build_features.h
 +++ b/src/utils/build_features.h
-@@ -73,6 +73,10 @@ static inline int has_feature(const char
+@@ -73,6 +73,10 @@
  	if (!strcmp(feat, "interworking"))
  		return 1;
  #endif

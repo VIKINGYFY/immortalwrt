@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:42:46 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] AP MLD: Block a scan only while a partner link scans
 
 hostapd_driver_scan() refuses a scan with -EBUSY while a partner link of
@@ -18,12 +18,13 @@ callback instead of the interface state. The HT 20/40 MHz coexistence
 scan sets the scan callback as well, so it stays covered.
 
 Fixes: 76f8cfd6a206 ("AP MLD: Fix ACS and HT scan related issues")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -784,7 +784,9 @@ int hostapd_driver_scan(struct hostapd_d
+@@ -823,7 +823,9 @@
  
  	if (!hapd->iface->scan_cb && hapd->conf->mld_ap &&
  	    hapd->iface->interfaces) {
@@ -34,7 +35,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		unsigned int i;
  
  		for (i = 0; i < hapd->iface->interfaces->count; i++) {
-@@ -799,9 +801,9 @@ int hostapd_driver_scan(struct hostapd_d
+@@ -838,9 +840,9 @@
  			h_hapd = h_iface->bss[0];
  
  			if (hostapd_is_ml_partner(hapd, h_hapd) &&

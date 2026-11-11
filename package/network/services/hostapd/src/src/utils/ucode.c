@@ -165,6 +165,10 @@ uc_value_t *uc_wpa_freq_info(uc_vm_t *vm, size_t nargs)
 		return NULL;
 	}
 
+	/* No 320 MHz segment in 6 GHz can contain these upper primaries. */
+	if (freq_val > 5950 && width == 3 && channel > 221)
+		return NULL;
+
 	ret = ucv_object_new(vm);
 	ucv_object_add(ret, "op_class", ucv_int64_new(op_class));
 	ucv_object_add(ret, "channel", ucv_int64_new(channel));
@@ -193,6 +197,11 @@ uc_value_t *uc_wpa_freq_info(uc_vm_t *vm, size_t nargs)
 	tmp_channel = channel - center_ofs;
 	tmp_channel &= ~((8 << width) - 1);
 	center_idx = tmp_channel + center_ofs + (4 << width) - 1;
+	/* The final 320 MHz segment overlaps the preceding one: its centre
+	 * is channel 191, rather than the out-of-band channel 223.
+	 */
+	if (freq_val > 5950 && width == 3 && center_idx > 191)
+		center_idx = 191;
 
 	ucv_object_add(ret, "center_seg0_idx", ucv_int64_new(center_idx));
 	center_idx = (center_idx - channel) * 5 + freq_val;

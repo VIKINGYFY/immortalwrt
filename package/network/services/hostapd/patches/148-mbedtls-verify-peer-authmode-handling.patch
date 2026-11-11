@@ -1,6 +1,5 @@
-From 763d8473f277591801c63de2abe48403eb1e7957 Mon Sep 17 00:00:00 2001
 From: Karsten Sperling <ksperling@apple.com>
-Date: Mon, 3 Aug 2026 16:47:22 +1200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] mbedtls: make verify_peer / authmode handling more consistent
 
 tls_conf->verify_peer and tls_connection->verify_peer were both
@@ -35,10 +34,11 @@ tls_connection_shutdown() returns -1 on failure rather than an Mbed TLS
 error code.
 
 Signed-off-by: Karsten Sperling <ksperling@apple.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/tls_mbedtls.c
 +++ b/src/crypto/tls_mbedtls.c
-@@ -138,7 +138,7 @@ struct tls_conf {
+@@ -138,7 +138,7 @@
  	mbedtls_ssl_config conf;
  	struct tls_global *global;
  
@@ -47,7 +47,7 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
  	unsigned int verify_depth0_only:1;
  	unsigned int check_crl:2;           /*(needs :2 bits for 0, 1, 2)*/
  	unsigned int check_crl_strict:1;    /*(needs :1 bit  for 0, 1)*/
-@@ -202,7 +202,7 @@ struct tls_connection {
+@@ -202,7 +202,7 @@
  
  	unsigned int established:1;
  	unsigned int resumed:1;
@@ -56,7 +56,7 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
  	unsigned int is_server:1;
  
  	mbedtls_ssl_context ssl;
-@@ -514,6 +514,37 @@ char * tls_connection_peer_serial_num(vo
+@@ -514,6 +514,37 @@
  
  static void tls_pull_buf_reset(struct tls_connection *conn);
  
@@ -94,7 +94,7 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
  int tls_connection_shutdown(void *tls_ctx, struct tls_connection *conn)
  {
  	/* Note: this function called from eap_peer_tls_reauth_init()
-@@ -532,7 +563,13 @@ int tls_connection_shutdown(void *tls_ct
+@@ -532,7 +563,13 @@
  
  	/* RFE: prepare for session resumption? (see doc in crypto/tls.h) */
  
@@ -109,7 +109,7 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
  }
  
  
-@@ -1621,16 +1658,18 @@ static int tls_mbedtls_set_certs(struct
+@@ -1621,16 +1658,18 @@
  		return -1;
  	}
  
@@ -138,7 +138,7 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
  		mbedtls_ssl_conf_ca_chain(&tls_conf->conf,
  		                          &tls_conf->ca_cert,
  		                          tls_conf->crl);
-@@ -2106,15 +2145,11 @@ int tls_connection_set_verify(void *tls_
+@@ -2106,15 +2145,11 @@
  		return -1;
  	}
  
@@ -149,22 +149,23 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
 -	default: authmode = MBEDTLS_SSL_VERIFY_NONE;     break;
 -	}
 -	mbedtls_ssl_set_hs_authmode(&conn->ssl, authmode);
+-
+-	if ((conn->verify_peer = (authmode != MBEDTLS_SSL_VERIFY_NONE)))
 +	/* Treat unknown verify_peer as REQUIRED, matching OpenSSL. */
 +	conn->verify_peer = (0 <= verify_peer && verify_peer <= 2) ? verify_peer : 1;
- 
--	if ((conn->verify_peer = (authmode != MBEDTLS_SSL_VERIFY_NONE)))
++
 +	tls_connection_apply_authmode(conn);
 +	if (conn->verify_peer)
  		mbedtls_ssl_set_verify(&conn->ssl, tls_mbedtls_verify_cb, conn);
  	else
  		mbedtls_ssl_set_verify(&conn->ssl, NULL, NULL);
-@@ -2379,9 +2414,6 @@ struct wpabuf * tls_connection_handshake
+@@ -2378,9 +2413,6 @@
+ 		if (tls_connection_set_params(tls_ctx, conn, &params) != 0)
  			return NULL;
  	}
- 
+-
 -	if (conn->verify_peer) /*(call here might be redundant; nbd)*/
 -		mbedtls_ssl_set_verify(&conn->ssl, tls_mbedtls_verify_cb, conn);
--
+ 
    #ifdef TLS_MBEDTLS_SESSION_TICKETS
  	if (conn->clienthello_session_ticket)
- 		/*(starting handshake for EAP-FAST and EAP-TEAP)*/

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:40:34 +0200
+Date: Wed, 11 Nov 2026 12:13:13 +0800
 Subject: [PATCH] AP MLD: Reset the station when association follows a timed out SA Query
 
 A non-AP MLD that lost its association without a Deauthentication frame
@@ -30,11 +30,11 @@ keep keys of the authentication in the state machine. Limit it to
 drivers with full AP client state, as in handle_auth().
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -4576,15 +4576,8 @@ static void handle_auth(struct hostapd_d
+@@ -5869,15 +5869,8 @@
  				  hapd->own_addr, ETH_ALEN);
  		}
  
@@ -52,10 +52,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -7213,6 +7206,10 @@ static void handle_assoc(struct hostapd_
- 	int omit_rsnxe = 0;
+@@ -8796,6 +8789,10 @@
  	bool set_beacon = false;
  	bool mld_addrs_not_translated = false;
+ 	bool epp_sta = false;
 +#ifdef CONFIG_IEEE80211BE
 +	bool reset_prev_assoc = false;
 +	struct wpa_state_machine *prev_wpa_sm = NULL;
@@ -63,7 +63,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	if (len < IEEE80211_HDRLEN + (reassoc ? sizeof(mgmt->u.reassoc_req) :
  				      sizeof(mgmt->u.assoc_req))) {
-@@ -7429,6 +7426,26 @@ static void handle_assoc(struct hostapd_
+@@ -9016,6 +9013,26 @@
  		goto fail;
  	}
  
@@ -90,7 +90,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	/*
  	 * sta->capability is used in check_assoc_ies() for RRM enabled
  	 * capability element.
-@@ -7481,6 +7498,16 @@ static void handle_assoc(struct hostapd_
+@@ -9068,6 +9085,16 @@
  		goto fail;
  	}
  
@@ -107,7 +107,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	sta->listen_interval = listen_interval;
  
  	if (hapd->iface->current_mode &&
-@@ -7566,6 +7593,10 @@ static void handle_assoc(struct hostapd_
+@@ -9153,6 +9180,10 @@
  #endif /* CONFIG_FILS */
  
   fail:
@@ -120,10 +120,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	 * In case of a successful response, add the station to the driver.
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -275,6 +275,48 @@ void clear_wpa_sm_for_all_sta(struct hos
+@@ -274,6 +274,48 @@
+ 			}
+ 		}
  	}
- }
- 
++}
++
 +
 +void ap_sta_free_wpa_sm(struct hostapd_data *hapd, struct sta_info *sta)
 +{
@@ -164,14 +166,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +		return -1;
 +	sta->flags |= WLAN_STA_AUTH;
 +	return 0;
-+}
-+
+ }
+ 
  #endif /* CONFIG_IEEE80211BE */
- 
- 
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -484,6 +484,11 @@ void clear_wpa_sm_for_each_partner_link(
+@@ -500,6 +500,11 @@
  					struct sta_info *psta);
  void clear_wpa_sm_for_all_sta(struct hostapd_data *hapd,
  			      struct wpa_state_machine *wpa_sm);

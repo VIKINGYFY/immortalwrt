@@ -1,6 +1,5 @@
-From 9dea5017f44bb8aaf4cd2e5264167c643ccfa0c1 Mon Sep 17 00:00:00 2001
 From: Karsten Sperling <ksperling@apple.com>
-Date: Sat, 27 Jun 2026 22:20:38 +1200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] mbedtls: improve TLS version range handling
 
 Avoid modifying tls_conf->flags in tls_mbedtls_set_allowed_tls_vers().
@@ -20,18 +19,20 @@ MBEDTLS_SSL_PROTO_TLS1_3. MBEDTLS_SSL_MINOR_VERSION_4 is a protocol
 constant that is defined unconditionally.
 
 Signed-off-by: Karsten Sperling <ksperling@apple.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/tls_mbedtls.c
 +++ b/src/crypto/tls_mbedtls.c
-@@ -663,21 +663,21 @@ static int tls_mbedtls_data_is_pem(const
+@@ -663,20 +663,20 @@
  }
  
  
 -static void tls_mbedtls_set_allowed_tls_vers(struct tls_conf *tls_conf,
 -                                             mbedtls_ssl_config *conf)
+-{
 +static int tls_mbedtls_set_allowed_tls_vers(const struct tls_conf *tls_conf,
 +                                            mbedtls_ssl_config *conf)
- {
++{
 +	unsigned int flags = tls_conf->flags;
 +
    #if !defined(TLS_MBEDTLS_TLS13)
@@ -43,17 +44,17 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
 -	if (tls_conf->flags & TLS_CONN_SUITEB) {
 -		tls_conf->flags |= TLS_CONN_DISABLE_TLSv1_0;
 -		tls_conf->flags |= TLS_CONN_DISABLE_TLSv1_1;
+-	}
+-
+-	const unsigned int flags = tls_conf->flags;
 +	if (flags & TLS_CONN_SUITEB) {
 +		flags |= TLS_CONN_DISABLE_TLSv1_0;
 +		flags |= TLS_CONN_DISABLE_TLSv1_1;
- 	}
++	}
  
--	const unsigned int flags = tls_conf->flags;
--
  	/* attempt to map flags to min and max TLS protocol version */
  
- 	int min = (flags & TLS_CONN_DISABLE_TLSv1_0)
-@@ -703,19 +703,24 @@ static void tls_mbedtls_set_allowed_tls_
+@@ -703,18 +703,23 @@
  	if ((flags & TLS_CONN_ENABLE_TLSv1_2) && min > 2) min = 2;
  	if ((flags & TLS_CONN_ENABLE_TLSv1_1) && min > 1) min = 1;
  	if ((flags & TLS_CONN_ENABLE_TLSv1_0) && min > 0) min = 0;
@@ -76,17 +77,16 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
 +		min = 2;
  	}
    #endif
- 
++
 +	if (max < min) {
 +		emsg(MSG_ERROR, "All supported TLS protocol versions disabled");
 +		return -1;
 +	}
 +	wpa_printf(MSG_DEBUG, "MTLS: configuring version range: TLSv1.%d - TLSv1.%d", min, max);
-+
+ 
    #if MBEDTLS_VERSION_NUMBER >= 0x03020000 /* mbedtls 3.2.0 */
  	/* MBEDTLS_SSL_VERSION_TLS1_2 = 0x0303 *//*!< (D)TLS 1.2 */
- 	/* MBEDTLS_SSL_VERSION_TLS1_3 = 0x0304 *//*!< (D)TLS 1.3 */
-@@ -724,10 +729,6 @@ static void tls_mbedtls_set_allowed_tls_
+@@ -724,10 +729,6 @@
  	mbedtls_ssl_conf_min_tls_version(conf, min);
  	mbedtls_ssl_conf_max_tls_version(conf, max);
    #else
@@ -97,7 +97,7 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
  	/* MBEDTLS_SSL_MINOR_VERSION_0  0 *//*!< SSL v3.0 */
  	/* MBEDTLS_SSL_MINOR_VERSION_1  1 *//*!< TLS v1.0 */
  	/* MBEDTLS_SSL_MINOR_VERSION_2  2 *//*!< TLS v1.1 */
-@@ -736,6 +737,8 @@ static void tls_mbedtls_set_allowed_tls_
+@@ -736,6 +737,8 @@
  	mbedtls_ssl_conf_min_version(conf, MBEDTLS_SSL_MAJOR_VERSION_3, min+1);
  	mbedtls_ssl_conf_max_version(conf, MBEDTLS_SSL_MAJOR_VERSION_3, max+1);
    #endif
@@ -106,7 +106,7 @@ Signed-off-by: Karsten Sperling <ksperling@apple.com>
  }
  
  
-@@ -1827,7 +1830,8 @@ static int tls_mbedtls_set_params(struct
+@@ -1827,7 +1830,8 @@
  		mbedtls_ssl_conf_dhm_min_bitlen(&tls_conf->conf, 3072);
  	}
  

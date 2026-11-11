@@ -1,18 +1,15 @@
-From c8dba4bd750269bcc80fed3d546e2077cb4cdf0e Mon Sep 17 00:00:00 2001
 From: Glenn Strauss <gstrauss@gluelogic.com>
-Date: Tue, 19 Jul 2022 20:02:21 -0400
+Date: Wed, 11 Nov 2026 12:12:08 +0800
 Subject: [PATCH 2/7] mbedtls: fips186_2_prf()
 
+
+
 Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
----
- hostapd/Makefile            |  4 ---
- src/crypto/crypto_mbedtls.c | 60 +++++++++++++++++++++++++++++++++++++
- wpa_supplicant/Makefile     |  4 ---
- 3 files changed, 60 insertions(+), 8 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
-@@ -796,10 +796,6 @@ endif
+@@ -825,10 +825,6 @@
  OBJS += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
  HOBJS += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
  SOBJS += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
@@ -25,23 +22,24 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  LIBS += -lmbedx509
 --- a/src/crypto/crypto_mbedtls.c
 +++ b/src/crypto/crypto_mbedtls.c
-@@ -132,6 +132,12 @@
- #define CRYPTO_MBEDTLS_HMAC_KDF_SHA512
+@@ -130,6 +130,12 @@
  #endif
- 
+ #if defined(CONFIG_HMAC_SHA512_KDF)
+ #define CRYPTO_MBEDTLS_HMAC_KDF_SHA512
++#endif
++
 +#if defined(EAP_SIM) || defined(EAP_SIM_DYNAMIC) || defined(EAP_SERVER_SIM) \
 + || defined(EAP_AKA) || defined(EAP_AKA_DYNAMIC) || defined(EAP_SERVER_AKA)
 +/* EAP_SIM=y EAP_AKA=y */
 +#define CRYPTO_MBEDTLS_FIPS186_2_PRF
-+#endif
-+
+ #endif
+ 
  #if defined(EAP_FAST) || defined(EAP_FAST_DYNAMIC) || defined(EAP_SERVER_FAST) \
-  || defined(EAP_TEAP) || defined(EAP_TEAP_DYNAMIC) || defined(EAP_SERVER_FAST)
- #define CRYPTO_MBEDTLS_SHA1_T_PRF
-@@ -813,6 +819,60 @@ int sha1_t_prf(const u8 *key, size_t key
+@@ -812,6 +818,60 @@
+ }
  
  #endif /* CRYPTO_MBEDTLS_SHA1_T_PRF */
- 
++
 +#ifdef CRYPTO_MBEDTLS_FIPS186_2_PRF
 +
 +/* fips_prf_internal.c sha1-internal.c */
@@ -95,13 +93,12 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
 +}
 +
 +#endif /* CRYPTO_MBEDTLS_FIPS186_2_PRF */
-+
- #endif /* MBEDTLS_SHA1_C */
  
+ #endif /* MBEDTLS_SHA1_C */
  
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
-@@ -1287,10 +1287,6 @@ endif
+@@ -1331,10 +1331,6 @@
  OBJS += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
  OBJS_p += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
  OBJS_priv += ../src/crypto/crypto_$(CONFIG_CRYPTO).o

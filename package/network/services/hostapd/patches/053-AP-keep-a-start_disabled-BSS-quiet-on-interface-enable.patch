@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:18:53 +0200
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] AP: Keep a start_disabled BSS quiet on interface enable
 
 A BSS with start_disabled=1 starts without Beacon frames. They start
@@ -18,11 +18,11 @@ NL80211_CMD_STOP_AP on interface disable. A start_disabled BSS that
 beacons before the interface disable starts beaconing again on enable.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2768,6 +2768,7 @@ static int __ieee802_11_set_beacon(struc
+@@ -2843,6 +2843,7 @@
  #endif /* CONFIG_IEEE80211AX */
  
  	hapd->beacon_set_done = 1;
@@ -32,7 +32,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return -1;
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2542,7 +2542,8 @@ static void hostapd_iface_enable(struct
+@@ -2543,7 +2543,8 @@
  		else
  			hostapd_reconfig_encryption(hapd);
  		hapd->reenable_beacon = 1;
@@ -44,7 +44,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		wpa_printf(MSG_DEBUG, "DFS: restarting pending CAC");
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -523,6 +523,7 @@ void hostapd_free_hapd_data(struct hosta
+@@ -523,6 +523,7 @@
  	}
  	hapd->started = 0;
  	hapd->beacon_set_done = 0;
@@ -54,7 +54,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	accounting_deinit(hapd);
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -200,6 +200,7 @@ struct hostapd_data {
+@@ -187,6 +187,7 @@
  	unsigned int started:1;
  	unsigned int disabled:1;
  	unsigned int reenable_beacon:1;

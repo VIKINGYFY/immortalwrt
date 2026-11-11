@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:51:35 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] AP MLD: Build the Reconfiguration ML element from the AP MLD links
 
 hostapd_eid_eht_reconf_ml() looks for links with a pending removal among
@@ -15,25 +15,23 @@ Take the links from the AP MLD, and count the element in the buffer
 length of both frames.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -6799,8 +6799,10 @@ static u16 send_assoc_resp(struct hostap
- 		buflen += 3 + sizeof(struct ieee80211_eht_operation);
- 		if (hapd->iconf->punct_bitmap)
+@@ -8277,8 +8277,7 @@
  			buflen += EHT_OPER_DISABLED_SUBCHAN_BITMAP_SIZE;
--		if (ap_sta_is_mld(hapd, sta))
-+		if (ap_sta_is_mld(hapd, sta)) {
+ 		if (ap_sta_is_mld(hapd, sta)) {
  			buflen += hostapd_eid_eht_ml_tid_to_link_map_len(hapd);
+-			buflen += hostapd_eid_eht_basic_ml_len(hapd, sta,
+-							       false, true);
 +			buflen += hostapd_eid_eht_ml_assoc_len(hapd, sta);
-+		}
+ 		}
  	}
  #endif /* CONFIG_IEEE80211BE */
- 
 --- a/src/ap/ieee802_11.h
 +++ b/src/ap/ieee802_11.h
-@@ -126,6 +126,8 @@ u8 * hostapd_eid_eht_ml_beacon(struct ho
+@@ -126,6 +126,8 @@
  			       u8 *eid, bool include_mld_id);
  u8 * hostapd_eid_eht_ml_assoc(struct hostapd_data *hapd, struct sta_info *info,
  			      u8 *eid);
@@ -44,28 +42,19 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  				     bool include_mld_id, bool include_bpcc);
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -745,29 +745,36 @@ out:
+@@ -779,29 +779,36 @@
  }
  
  
--static u8 * hostapd_eid_eht_reconf_ml(struct hostapd_data *hapd, u8 *eid)
 +static size_t hostapd_eid_eht_reconf_ml_len(struct hostapd_data *hapd)
- {
++{
 +	size_t len = 0;
- #ifdef CONFIG_TESTING_OPTIONS
--	struct hostapd_data *other_hapd;
--	u16 control;
--	u8 *pos = eid;
--	unsigned int i;
++#ifdef CONFIG_TESTING_OPTIONS
 +	struct hostapd_data *link_bss;
- 
--	wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML");
++
 +	if (!hapd->conf->mld_ap || !hapd->mld)
 +		return 0;
- 
--	/* First check if the element needs to be added */
--	for (i = 0; i < hapd->iface->interfaces->count; i++) {
--		other_hapd = hapd->iface->interfaces->iface[i]->bss[0];
++
 +	for_each_mld_link(link_bss, hapd)
 +		if (link_bss->eht_mld_link_removal_count)
 +			len += 2 + 5;
@@ -74,30 +63,40 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	if (len)
 +		len += 3 + 2 + 1;
 +#endif /* CONFIG_TESTING_OPTIONS */
- 
--		wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML: %u",
--			   other_hapd->eht_mld_link_removal_count);
++
 +	return len;
 +}
- 
++
++
+ static u8 * hostapd_eid_eht_reconf_ml(struct hostapd_data *hapd, u8 *eid)
+ {
+ #ifdef CONFIG_TESTING_OPTIONS
+ 	struct hostapd_data *other_hapd;
+ 	u16 control;
+ 	u8 *pos = eid;
+-	unsigned int i;
+-
+-	wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML");
+-
+-	/* First check if the element needs to be added */
+-	for (i = 0; i < hapd->iface->interfaces->count; i++) {
+-		other_hapd = hapd->iface->interfaces->iface[i]->bss[0];
+-
+-		wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML: %u",
+-			   other_hapd->eht_mld_link_removal_count);
+-
 -		if (other_hapd->eht_mld_link_removal_count)
 -			break;
 -	}
- 
+-
 -	/* No link is going to be removed */
 -	if (i == hapd->iface->interfaces->count)
-+static u8 * hostapd_eid_eht_reconf_ml(struct hostapd_data *hapd, u8 *eid)
-+{
-+#ifdef CONFIG_TESTING_OPTIONS
-+	struct hostapd_data *other_hapd;
-+	u16 control;
-+	u8 *pos = eid;
 +
 +	if (!hostapd_eid_eht_reconf_ml_len(hapd))
  		return eid;
  
  	wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML: Adding element");
-@@ -786,8 +793,7 @@ static u8 * hostapd_eid_eht_reconf_ml(st
+@@ -820,8 +827,7 @@
  	*pos++ = 1;
  
  	/* Add the per station profiles */
@@ -107,7 +106,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		if (!other_hapd->eht_mld_link_removal_count)
  			continue;
  
-@@ -888,11 +894,23 @@ u8 * hostapd_eid_eht_ml_assoc(struct hos
+@@ -932,11 +938,23 @@
  }
  
  
@@ -126,8 +125,8 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  				     struct mld_info *info,
  				     bool include_mld_id)
  {
--	return hostapd_eid_eht_ml_len(info, include_mld_id, false);
-+	return hostapd_eid_eht_ml_len(info, include_mld_id, false) +
+-	return hostapd_eid_eht_ml_len(hapd, info, include_mld_id, false);
++	return hostapd_eid_eht_ml_len(hapd, info, include_mld_id, false) +
 +		hostapd_eid_eht_reconf_ml_len(hapd);
  }
  

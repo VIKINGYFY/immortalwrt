@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 03:30:00 +0200
+Date: Wed, 11 Nov 2026 12:16:55 +0800
 Subject: [PATCH] AP MLD: accept the association link in M2 of a rekeying
 
 IEEE Std 802.11be-2024, 12.7.6.3 has message 2 of a rekeying carry an
@@ -22,10 +22,11 @@ initial 4-way handshake, the KDE of the association link is still
 refused.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -3828,6 +3828,14 @@ static int wpa_auth_validate_ml_kdes_m2(
+@@ -3834,6 +3834,14 @@
  			n_links++;
  			continue;
  		}

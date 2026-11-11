@@ -1,5 +1,5 @@
 From: John Crispin <john@phrozen.org>
-Date: Tue, 6 Oct 2026 07:59:32 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] ACS: Scan for all links of an AP MLD with one request
 
 The links of an AP MLD share one wiphy, and the kernel runs one scan per
@@ -25,11 +25,11 @@ debug level.
 
 Signed-off-by: John Crispin <john@phrozen.org>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/acs.c
 +++ b/src/ap/acs.c
-@@ -310,6 +310,14 @@ static const struct bw_item *bw_desc[] =
+@@ -310,6 +310,14 @@
  static int acs_request_scan(struct hostapd_iface *iface);
  static int acs_survey_is_sufficient(struct freq_survey *survey);
  static void acs_scan_retry(void *eloop_data, void *user_data);
@@ -44,7 +44,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  
  static void acs_clean_chan_surveys(struct hostapd_channel_data *chan)
-@@ -357,6 +365,14 @@ void acs_cleanup(struct hostapd_iface *i
+@@ -357,6 +365,14 @@
  	iface->acs_num_completed_scans = 0;
  	iface->acs_num_retries = 0;
  	eloop_cancel_timeout(acs_scan_retry, iface, NULL);
@@ -59,7 +59,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -1357,37 +1373,124 @@ fail:
+@@ -1357,37 +1373,124 @@
  }
  
  
@@ -165,16 +165,25 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (err) {
  		wpa_printf(MSG_ERROR, "ACS: Failed to get survey data");
 -		goto fail;
-+		for (i = 0; i < n; i++)
-+			acs_scan_failed(ifaces[i]);
-+		return;
- 	}
- 
+-	}
+-
 -	if (++iface->acs_num_completed_scans < iface->conf->acs_num_scans) {
 -		err = acs_request_scan(iface);
 -		if (err && err != -EBUSY) {
 -			wpa_printf(MSG_ERROR, "ACS: Failed to request scan");
 -			goto fail;
+-		}
+-
++		for (i = 0; i < n; i++)
++			acs_scan_failed(ifaces[i]);
+ 		return;
+ 	}
+ 
+-	acs_study(iface);
+-	return;
+-fail:
+-	hostapd_acs_completed(iface, 1);
+-	acs_fail(iface);
 +	/* EVENT_SCAN_RESULTS may still go on to call the scan_cb of the
 +	 * partners, so a scan started from here would be taken as completed
 +	 * at once. Continue every link from the event loop instead. */
@@ -187,64 +196,53 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +		} else {
 +			eloop_cancel_timeout(acs_scan_retry, h, NULL);
 +			eloop_register_timeout(0, 0, acs_scan_next, h, NULL);
- 		}
--
--		return;
- 	}
--
--	acs_study(iface);
--	return;
--fail:
--	hostapd_acs_completed(iface, 1);
--	acs_fail(iface);
++		}
++	}
  }
  
  
-@@ -1425,34 +1528,71 @@ static int * acs_request_scan_add_freqs(
+@@ -1425,33 +1528,70 @@
  }
  
  
 -static int acs_request_scan(struct hostapd_iface *iface)
-+static int acs_num_scan_channels(struct hostapd_iface *iface)
- {
+-{
 -	struct wpa_driver_scan_params params;
 -	int i, *freq, ret;
 -	int num_channels;
++static int acs_num_scan_channels(struct hostapd_iface *iface)
++{
  	struct hostapd_hw_modes *mode;
-+	int i, num_channels = 0;
- 
+-
 -	os_memset(&params, 0, sizeof(params));
 -
 -	num_channels = 0;
++	int i, num_channels = 0;
++
  	for (i = 0; i < iface->num_hw_features; i++) {
  		mode = &iface->hw_features[i];
  		if (!hostapd_hw_skip_mode(iface, mode))
  			num_channels += mode->num_channels;
  	}
  
--	params.freqs = os_calloc(num_channels + 1, sizeof(params.freqs[0]));
--	if (params.freqs == NULL)
--		return -1;
 +	return num_channels;
 +}
 +
- 
--	freq = params.freqs;
++
 +static int * acs_add_scan_freqs(struct hostapd_iface *iface, int *start,
 +				int *next)
 +{
 +	struct hostapd_hw_modes *mode;
 +	int *added, *end, *pos;
 +	int i;
- 
++
 +	end = next;
- 	for (i = 0; i < iface->num_hw_features; i++) {
- 		mode = &iface->hw_features[i];
- 		if (!hostapd_hw_skip_mode(iface, mode))
--			freq = acs_request_scan_add_freqs(iface, mode, freq);
++	for (i = 0; i < iface->num_hw_features; i++) {
++		mode = &iface->hw_features[i];
++		if (!hostapd_hw_skip_mode(iface, mode))
 +			end = acs_request_scan_add_freqs(iface, mode, end);
- 	}
- 
++	}
++
 +	for (added = next; added < end; added++) {
 +		for (pos = start; pos < next; pos++)
 +			if (*pos == *added)
@@ -273,18 +271,24 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	for (i = 0; i < n; i++)
 +		num_channels += acs_num_scan_channels(partners[i]);
 +
-+	params.freqs = os_calloc(num_channels + 1, sizeof(params.freqs[0]));
-+	if (params.freqs == NULL)
-+		return -1;
-+
+ 	params.freqs = os_calloc(num_channels + 1, sizeof(params.freqs[0]));
+ 	if (params.freqs == NULL)
+ 		return -1;
+ 
+-	freq = params.freqs;
+-
+-	for (i = 0; i < iface->num_hw_features; i++) {
+-		mode = &iface->hw_features[i];
+-		if (!hostapd_hw_skip_mode(iface, mode))
+-			freq = acs_request_scan_add_freqs(iface, mode, freq);
+-	}
 +	freq = acs_add_scan_freqs(iface, params.freqs, params.freqs);
 +	for (i = 0; i < n; i++)
 +		freq = acs_add_scan_freqs(partners[i], params.freqs, freq);
-+
+ 
  	*freq = 0;
  
- 	if (params.freqs == freq) {
-@@ -1484,7 +1624,8 @@ static int acs_request_scan(struct hosta
+@@ -1484,7 +1624,8 @@
  			return -1;
  		}
  
@@ -294,7 +298,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			   "Failed to request acs scan ret=%d (%s) - try to scan after %d seconds",
  			   ret, strerror(-ret), ACS_SCAN_RETRY_INTERVAL);
  		eloop_cancel_timeout(acs_scan_retry, iface, NULL);
-@@ -1501,6 +1642,17 @@ static int acs_request_scan(struct hosta
+@@ -1501,6 +1642,17 @@
  
  	iface->scan_cb = acs_scan_complete;
  
@@ -314,7 +318,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -774,6 +774,32 @@ bool hostapd_drv_nl80211(struct hostapd_
+@@ -813,6 +813,32 @@
  }
  
  
@@ -347,7 +351,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  int hostapd_driver_scan(struct hostapd_data *hapd,
  			struct wpa_driver_scan_params *params)
  {
-@@ -782,31 +808,12 @@ int hostapd_driver_scan(struct hostapd_d
+@@ -821,31 +847,12 @@
  	if (hapd->conf->mld_ap)
  		params->link_id = hapd->mld_link_id;
  
@@ -387,7 +391,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -89,6 +89,7 @@ hostapd_get_hw_feature_data(struct hosta
+@@ -91,6 +91,7 @@
  			    u16 *flags, u8 *dfs_domain);
  int hostapd_drv_none(struct hostapd_data *hapd);
  bool hostapd_drv_nl80211(struct hostapd_data *hapd);
@@ -397,20 +401,21 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  struct wpa_scan_results * hostapd_driver_get_scan_results(
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2235,22 +2235,13 @@ static void hostapd_single_channel_get_s
+@@ -2236,21 +2236,12 @@
  }
  
  
 -void hostapd_event_get_survey(struct hostapd_iface *iface,
 -			      struct survey_results *survey_results)
+-{
+-	struct freq_survey *survey, *tmp;
 +static void hostapd_survey_list_add(struct hostapd_iface *iface,
 +				    struct survey_results *survey_results,
 +				    bool copy)
- {
--	struct freq_survey *survey, *tmp;
++{
 +	struct freq_survey *survey, *tmp, *entry;
  	struct hostapd_channel_data *chan;
- 
+-
 -	if (dl_list_empty(&survey_results->survey_list)) {
 -		wpa_printf(MSG_DEBUG, "No survey data received");
 -		return;
@@ -420,16 +425,17 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 -		hostapd_single_channel_get_survey(iface, survey_results);
 -		return;
 -	}
--
+ 
  	dl_list_for_each_safe(survey, tmp, &survey_results->survey_list,
  			      struct freq_survey, list) {
- 		chan = hostapd_get_mode_channel(iface, survey->freq);
-@@ -2261,17 +2252,68 @@ void hostapd_event_get_survey(struct hos
+@@ -2262,17 +2253,68 @@
  		if (!(chan->flag & HOSTAPD_CHAN_SURVEY_LIST_INITIALIZED))
  			continue;
  
 -		dl_list_del(&survey->list);
 -		dl_list_add_tail(&chan->survey_list, &survey->list);
+-
+-		hostapd_update_nf(iface, chan, survey);
 +		if (copy) {
 +			entry = os_memdup(survey, sizeof(*survey));
 +			if (!entry)
@@ -439,8 +445,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +			dl_list_del(&entry->list);
 +		}
 +		dl_list_add_tail(&chan->survey_list, &entry->list);
- 
--		hostapd_update_nf(iface, chan, survey);
++
 +		hostapd_update_nf(iface, chan, entry);
  
  		iface->chans_surveyed++;
@@ -496,7 +501,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef NEED_AP_MLME
  
  static void hostapd_event_iface_unavailable(struct hostapd_data *hapd)
-@@ -2836,6 +2878,8 @@ void wpa_supplicant_event(void *ctx, enu
+@@ -2837,6 +2879,8 @@
  			data->connect_failed_reason.code);
  		break;
  	case EVENT_SURVEY:

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 3 Oct 2026 22:00:00 +0200
+Date: Wed, 11 Nov 2026 12:14:33 +0800
 Subject: [PATCH] AP: notify ubus of a BSS Color change
 
 A ubus subscriber that reports the BSS Color of a radio and the colours
@@ -23,10 +23,11 @@ Send the bss-color-change ubus notification:
   is added or leaves it, and not at each repeated collision event.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2577,6 +2577,8 @@ static void hostapd_event_color_change(s
+@@ -2578,6 +2578,8 @@
  			hostapd_cleanup_cca_params(bss);
  		}
  	}
@@ -37,7 +38,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -5586,10 +5586,12 @@ void hostapd_switch_color_timeout_handle
+@@ -5610,10 +5610,12 @@
  		hapd->iface->conf->he_op.he_bss_color = os_random() % 63 + 1;
  		for (b = 0; b < hapd->iface->num_bss; b++)
  			ieee802_11_set_beacon(hapd->iface->bss[b]);
@@ -50,7 +51,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -5662,7 +5664,11 @@ static void hostapd_bss_colors_in_use_ag
+@@ -5686,7 +5688,11 @@
  				       hostapd_bss_colors_in_use_timeout,
  				       iface, NULL);
  

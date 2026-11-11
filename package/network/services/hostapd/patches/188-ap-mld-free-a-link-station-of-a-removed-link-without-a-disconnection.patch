@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:52:37 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] AP MLD: Free a link station of a removed link without a disconnection
 
 When LINK_REMOVE takes a link out of the AP MLD,
@@ -18,11 +18,11 @@ Link Reconfiguration addition also sets the authorized flag of the new
 link station without AP-STA-CONNECTED.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -634,6 +634,11 @@ void hostapd_free_link_stas(struct hosta
+@@ -669,6 +669,11 @@
  
  		wpa_printf(MSG_DEBUG, "Removing link station from MLD " MACSTR,
  			   MAC2STR(prev->addr));
@@ -34,7 +34,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		ap_free_sta(hapd, prev);
  	}
  }
-@@ -2093,6 +2098,14 @@ int ap_sta_pending_delayed_1x_auth_fail_
+@@ -2122,6 +2127,14 @@
  
  
  #ifdef CONFIG_IEEE80211BE
@@ -51,7 +51,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  {
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -489,6 +489,8 @@ void ap_sta_restore_wpa_sm(struct hostap
+@@ -505,6 +505,8 @@
  			   struct wpa_state_machine *prev_sm);
  int ap_sta_reset_prev_assoc(struct hostapd_data *hapd, struct sta_info *sta,
  			    struct wpa_state_machine *prev_sm);

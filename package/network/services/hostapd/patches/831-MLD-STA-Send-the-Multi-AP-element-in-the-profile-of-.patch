@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 00:50:00 +0200
+Date: Wed, 11 Nov 2026 12:16:29 +0800
 Subject: [PATCH] MLD STA: Send the Multi-AP element in the profile of an added
  link
 
@@ -28,10 +28,11 @@ wpas_populate_assoc_ies(). Upstream main 741d70dd8e32 sends no elements
 for an added link.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -3010,12 +3010,18 @@ struct wpa_mlo_signal_info {
+@@ -3069,12 +3069,18 @@
   * @add_links: Bitmask of links to be added
   * @add_link_bssid: Array of BSSIDs for the links to be added
   * @add_link_freq: Array of frequencies for the links to be added
@@ -52,7 +53,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -15880,7 +15880,10 @@ nl80211_send_link_reconfig_request(void
+@@ -16008,7 +16008,10 @@
  		    nla_put(msg, NL80211_ATTR_MAC, ETH_ALEN,
  			    info->add_link_bssid[link_id]) ||
  		    nla_put_u32(msg, NL80211_ATTR_WIPHY_FREQ,
@@ -66,7 +67,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		nla_nest_end(msg, attr);
 --- a/wpa_supplicant/ctrl_iface.c
 +++ b/wpa_supplicant/ctrl_iface.c
-@@ -12672,6 +12672,8 @@ wpa_supplicant_ctrl_iface_setup_link_rec
+@@ -12811,6 +12811,8 @@
  {
  	const char *pos, *add_pos, *dlt_pos;
  	struct wpa_mlo_reconfig_info info;
@@ -75,7 +76,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	int link_id;
  
  	add_pos = os_strstr(cmd, "add=");
-@@ -12687,8 +12689,7 @@ wpa_supplicant_ctrl_iface_setup_link_rec
+@@ -12826,8 +12828,7 @@
  		return -1;
  	}
  
@@ -85,33 +86,34 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	if (add_pos) {
  		pos = add_pos + 4;
-@@ -12741,6 +12742,14 @@ wpa_supplicant_ctrl_iface_setup_link_rec
+@@ -12878,6 +12879,14 @@
+ 			if (pos)
+ 				pos++;
  		} while (pos && pos != add_pos);
- 	}
- 
++	}
++
 +	if (info.add_links && ssid && ssid->multi_ap_backhaul_sta) {
 +		info.add_link_ies_len = wpas_build_multi_ap_ie(
 +			ssid, multi_ap_ie, sizeof(multi_ap_ie));
 +		if (!info.add_link_ies_len)
 +			return -1;
 +		info.add_link_ies = multi_ap_ie;
-+	}
-+
- 	return wpa_drv_setup_link_reconfig(wpa_s, &info);
- }
+ 	}
  
+ 	return wpa_drv_setup_link_reconfig(wpa_s, &info);
 --- a/wpa_supplicant/sme.c
 +++ b/wpa_supplicant/sme.c
-@@ -4395,21 +4395,14 @@ mscs_fail:
+@@ -5515,21 +5515,14 @@
  
  	if (ssid && ssid->multi_ap_backhaul_sta) {
  		size_t multi_ap_ie_len;
 -		struct multi_ap_params multi_ap = { 0 };
- 
+-
 -		multi_ap.capability = MULTI_AP_BACKHAUL_STA;
 -		multi_ap.profile = ssid->multi_ap_profile;
 -
 -		multi_ap_ie_len = add_multi_ap_ie(
++
 +		multi_ap_ie_len = wpas_build_multi_ap_ie(
 +			ssid,
  			wpa_s->sme.assoc_req_ie + wpa_s->sme.assoc_req_ie_len,
@@ -130,7 +132,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -3828,6 +3828,21 @@ int wpas_populate_wfa_capa(struct wpa_su
+@@ -4565,6 +4565,21 @@
  }
  
  
@@ -152,7 +154,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef CONFIG_IEEE8021X_AUTH
  static bool wpas_set_802_1x_auth_alg(struct wpa_supplicant *wpa_s,
  				     struct wpa_bss *bss,
-@@ -4464,17 +4479,10 @@ mscs_end:
+@@ -5304,17 +5319,10 @@
  
  	if (ssid->multi_ap_backhaul_sta) {
  		size_t multi_ap_ie_len;
@@ -160,10 +162,11 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 -
 -		multi_ap.capability = MULTI_AP_BACKHAUL_STA;
 -		multi_ap.profile = ssid->multi_ap_profile;
- 
+-
 -		multi_ap_ie_len = add_multi_ap_ie(wpa_ie + wpa_ie_len,
 -						  max_wpa_ie_len - wpa_ie_len,
 -						  &multi_ap);
++
 +		multi_ap_ie_len = wpas_build_multi_ap_ie(
 +			ssid, wpa_ie + wpa_ie_len, max_wpa_ie_len - wpa_ie_len);
  		if (multi_ap_ie_len == 0) {
@@ -174,11 +177,11 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		}
 --- a/wpa_supplicant/wpa_supplicant_i.h
 +++ b/wpa_supplicant/wpa_supplicant_i.h
-@@ -1922,6 +1922,7 @@ int wpas_build_ext_capab(struct wpa_supp
+@@ -1977,6 +1977,7 @@
  int wpas_populate_wfa_capa(struct wpa_supplicant *wpa_s, struct wpa_bss *bss,
  			   u8 *wpa_ie, size_t wpa_ie_len,
  			   size_t max_wpa_ie_len);
 +size_t wpas_build_multi_ap_ie(struct wpa_ssid *ssid, u8 *buf, size_t len);
  int wpas_update_random_addr(struct wpa_supplicant *wpa_s,
  			    enum wpas_mac_addr_style style,
- 			    struct wpa_ssid *ssid);
+ 			    struct wpa_ssid *ssid, bool update_lifetime);

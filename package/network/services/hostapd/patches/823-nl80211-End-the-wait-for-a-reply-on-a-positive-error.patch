@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 23 Oct 2026 22:00:00 +0200
+Date: Wed, 11 Nov 2026 12:16:17 +0800
 Subject: [PATCH] nl80211: End the wait for a reply on a positive error
 
 send_and_recv_glb() reads replies while err.err is positive, and
@@ -19,10 +19,11 @@ with the message type and command, so that the request fails and the
 driver defect stays visible.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -384,6 +384,15 @@ static int error_handler(struct sockaddr
+@@ -384,6 +384,15 @@
  	int rem;
  
  	err_args->err = err->error;

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:41:58 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] DPP: Require a PMKSA of the DPP AKM before skipping Network Introduction
 
 wpas_dpp_check_connect() skips Network Introduction if
@@ -23,11 +23,11 @@ wpas_dpp_check_connect() does. It does not check the partner links of
 an AP MLD, since an MLO association uses the PMKSA of the AP MLD.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/bss.c
 +++ b/wpa_supplicant/bss.c
-@@ -1968,6 +1968,29 @@ u16 wpa_bss_get_usable_links(struct wpa_
+@@ -2016,6 +2016,29 @@
  
  
  /**
@@ -59,7 +59,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * @bss: BSS table entry
 --- a/wpa_supplicant/bss.h
 +++ b/wpa_supplicant/bss.h
-@@ -228,6 +228,8 @@ void calculate_update_time(const struct
+@@ -228,6 +228,8 @@
  
  u16 wpa_bss_get_usable_links(struct wpa_supplicant *wpa_s, struct wpa_bss *bss,
  			     struct wpa_ssid *ssid, u16 *missing_links);
@@ -70,11 +70,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  u16 wpa_bss_parse_reconf_ml_element(struct wpa_supplicant *wpa_s,
 --- a/wpa_supplicant/dpp_supplicant.c
 +++ b/wpa_supplicant/dpp_supplicant.c
-@@ -4565,24 +4565,54 @@ static int wpas_dpp_start_private_peer_i
+@@ -4572,24 +4572,54 @@
  #endif /* CONFIG_DPP3 */
  
  
--int wpas_dpp_check_connect(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
 +static bool wpas_dpp_pmksa_exists(struct wpa_supplicant *wpa_s,
 +				  struct wpa_ssid *ssid, struct wpa_bss *bss)
 +{
@@ -98,38 +97,39 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +
 +
 +bool wpas_dpp_intro_needed(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
- 			   struct wpa_bss *bss)
- {
--	struct os_time now;
--	struct wpabuf *msg;
--	unsigned int wait_time;
- 	const u8 *rsn;
- 	struct wpa_ie_data ied;
--	size_t len;
- 
--	if (!(ssid->key_mgmt & WPA_KEY_MGMT_DPP) || !bss)
--		return 0; /* Not using DPP AKM - continue */
++			   struct wpa_bss *bss)
++{
++	const u8 *rsn;
++	struct wpa_ie_data ied;
++
 +	if (!(ssid->key_mgmt & WPA_KEY_MGMT_DPP))
 +		return false; /* Not using DPP AKM */
- 	rsn = wpa_bss_get_rsne(wpa_s, bss, ssid, false);
- 	if (rsn && wpa_parse_wpa_ie(rsn, 2 + rsn[1], &ied) == 0 &&
- 	    !(ied.key_mgmt & WPA_KEY_MGMT_DPP))
--		return 0; /* AP does not support DPP AKM - continue */
--	if (wpa_sm_pmksa_exists(wpa_s->wpa, bss->bssid, wpa_s->own_addr, ssid))
--		return 0; /* PMKSA exists for DPP AKM - continue */
++	rsn = wpa_bss_get_rsne(wpa_s, bss, ssid, false);
++	if (rsn && wpa_parse_wpa_ie(rsn, 2 + rsn[1], &ied) == 0 &&
++	    !(ied.key_mgmt & WPA_KEY_MGMT_DPP))
 +		return false; /* AP does not support DPP AKM */
 +	return !wpas_dpp_pmksa_exists(wpa_s, ssid, bss);
 +}
 +
 +
-+int wpas_dpp_check_connect(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
-+			   struct wpa_bss *bss)
-+{
-+	struct os_time now;
-+	struct wpabuf *msg;
-+	unsigned int wait_time;
-+	size_t len;
-+
+ int wpas_dpp_check_connect(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
+ 			   struct wpa_bss *bss)
+ {
+ 	struct os_time now;
+ 	struct wpabuf *msg;
+ 	unsigned int wait_time;
+-	const u8 *rsn;
+-	struct wpa_ie_data ied;
+ 	size_t len;
+ 
+-	if (!(ssid->key_mgmt & WPA_KEY_MGMT_DPP) || !bss)
+-		return 0; /* Not using DPP AKM - continue */
+-	rsn = wpa_bss_get_rsne(wpa_s, bss, ssid, false);
+-	if (rsn && wpa_parse_wpa_ie(rsn, 2 + rsn[1], &ied) == 0 &&
+-	    !(ied.key_mgmt & WPA_KEY_MGMT_DPP))
+-		return 0; /* AP does not support DPP AKM - continue */
+-	if (wpa_sm_pmksa_exists(wpa_s->wpa, bss->bssid, wpa_s->own_addr, ssid))
+-		return 0; /* PMKSA exists for DPP AKM - continue */
 +	if (!bss || !wpas_dpp_intro_needed(wpa_s, ssid, bss))
 +		return 0;
  
@@ -137,7 +137,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	    !ssid->dpp_csign) {
 --- a/wpa_supplicant/dpp_supplicant.h
 +++ b/wpa_supplicant/dpp_supplicant.h
-@@ -33,6 +33,8 @@ int wpas_dpp_pkex_remove(struct wpa_supp
+@@ -33,6 +33,8 @@
  void wpas_dpp_stop(struct wpa_supplicant *wpa_s);
  int wpas_dpp_init(struct wpa_supplicant *wpa_s);
  void wpas_dpp_deinit(struct wpa_supplicant *wpa_s);
@@ -148,7 +148,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  int wpas_dpp_controller_start(struct wpa_supplicant *wpa_s, const char *cmd);
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -1574,9 +1574,9 @@ skip_assoc_disallow:
+@@ -1780,9 +1780,9 @@
  #endif /* CONFIG_MBO */
  
  #ifdef CONFIG_DPP
@@ -163,7 +163,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		if (debug_print)
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -3999,8 +3999,7 @@ static u8 * wpas_populate_assoc_ies(
+@@ -4789,8 +4789,7 @@
  		const u8 *addr = bss->bssid;
  
  		if (!(wpa_s->drv_flags & WPA_DRIVER_FLAGS_SME) &&

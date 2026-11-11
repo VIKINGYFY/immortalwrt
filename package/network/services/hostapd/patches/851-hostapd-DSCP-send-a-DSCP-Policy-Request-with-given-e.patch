@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 11:21:42 +0200
+Date: Wed, 11 Nov 2026 12:18:01 +0800
 Subject: [PATCH] hostapd: DSCP: send a DSCP Policy Request with given elements
 
 EasyMesh 6.1 section 20.2.4 has a Multi-AP Agent forward the QoS
@@ -13,10 +13,11 @@ DSCP Policy Request with the station's next Dialog Token and the given
 QoS Management elements unchanged, and stores no policy.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/robust_av.c
 +++ b/src/ap/robust_av.c
-@@ -673,6 +673,57 @@ static bool is_valid_qm_elem(const u8 *i
+@@ -673,6 +673,57 @@
  }
  
  
@@ -76,7 +77,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	u8 classifier_mask;
 --- a/src/ap/robust_av.h
 +++ b/src/ap/robust_av.h
-@@ -143,6 +143,9 @@ int hostapd_send_unsolicited_dscp_policy
+@@ -143,6 +143,9 @@
  						 u8 reset,
  						 const int *policy_ids,
  						 unsigned int num_policies);

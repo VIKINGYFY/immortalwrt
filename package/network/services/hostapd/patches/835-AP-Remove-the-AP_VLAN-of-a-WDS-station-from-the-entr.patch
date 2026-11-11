@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 03:30:00 +0200
+Date: Wed, 11 Nov 2026 12:16:54 +0800
 Subject: [PATCH] AP: Remove the AP_VLAN of a WDS station from the entry that
  created it
 
@@ -34,28 +34,29 @@ that left the AP MLD still reaches the remaining links through
 hapd->mld. Upstream main 741d70dd8e32 decides by the flags as before.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9164,6 +9164,7 @@ skip_update:
- 			   MAC2STR(sta->addr), sta->aid);
+@@ -10756,6 +10756,7 @@
+ 			   MAC2STR(sta->addr), ifname_id);
  		ret = hostapd_set_wds_sta(hapd, ifname_wds, sta->addr,
- 					  sta->aid, 1);
+ 					  ifname_id, 1);
 +		sta->wds_vlan = 1;
  		if (!ret)
  			hostapd_set_wds_encryption(hapd, sta, ifname_wds);
  	}
-@@ -9534,6 +9535,7 @@ void ieee802_11_rx_from_unknown(struct h
+@@ -11161,6 +11162,7 @@
  			sta->flags |= WLAN_STA_WDS;
  			ret = hostapd_set_wds_sta(hapd, ifname_wds,
- 						  sta->addr, sta->aid, 1);
+ 						  sta->addr, ifname_id, 1);
 +			sta->wds_vlan = 1;
  			if (!ret)
  				hostapd_set_wds_encryption(hapd, sta,
  							   ifname_wds);
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -402,11 +402,7 @@ void ap_free_sta(struct hostapd_data *ha
+@@ -403,15 +403,11 @@
  	ap_sta_set_authorized(hapd, sta, 0);
  	hostapd_set_sta_flags(hapd, sta);
  
@@ -65,20 +66,27 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 -	     hapd->conf->wds_sta &&
 -	     !(sta->flags & WLAN_STA_WPS))) {
 +	if (sta->wds_vlan) {
+ 		int ifname_id = sta->aid;
+ 
  #ifdef CONFIG_IEEE80211BE
+-		if (hapd->conf->mld_ap && (sta->flags & WLAN_STA_WDS))
++		if (hapd->conf->mld_ap && sta->wds_ifname_id > 0)
+ 			ifname_id = sta->wds_ifname_id;
+ 
  		if (ap_sta_is_mld(hapd, sta)) {
- 			struct hostapd_data *phapd;
-@@ -418,6 +414,7 @@ void ap_free_sta(struct hostapd_data *ha
+@@ -424,6 +420,9 @@
  
  				psta = ap_get_sta(phapd, sta->addr);
  				if (psta) {
 +					psta->wds_vlan = 1;
++					if (sta->wds_ifname_id > 0)
++						psta->wds_ifname_id = sta->wds_ifname_id;
  					remove = false;
  					break;
  				}
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -166,6 +166,7 @@ struct sta_info {
+@@ -177,6 +177,7 @@
  	unsigned int ecsa_supported:1;
  	unsigned int added_unassoc:1;
  	unsigned int pending_wds_enable:1;

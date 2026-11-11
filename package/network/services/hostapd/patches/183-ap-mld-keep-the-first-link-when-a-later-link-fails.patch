@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:43:15 +0200
+Date: Wed, 11 Nov 2026 12:13:13 +0800
 Subject: [PATCH] AP MLD: Keep the first link when a later link fails
 
 A later link of an AP MLD takes the driver instance of the first link in
@@ -22,11 +22,11 @@ get_capa() when it sets up the next link.
 Drop the borrowed instance when the link did not join the AP MLD.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/main.c
 +++ b/hostapd/main.c
-@@ -371,7 +371,7 @@ setup_mld:
+@@ -371,7 +371,7 @@
  		if (!(iface->drv_flags2 & WPA_DRIVER_FLAGS2_MLO)) {
  			wpa_printf(MSG_INFO,
  				   "MLD: Not supported by the driver");
@@ -35,7 +35,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		}
  
  		/* Initialize the BSS parameter change to 1 */
-@@ -388,13 +388,23 @@ setup_mld:
+@@ -388,13 +388,23 @@
  			wpa_printf(MSG_ERROR,
  				   "MLD: Failed to add link %d in MLD %s",
  				   hapd->mld_link_id, hapd->conf->iface);

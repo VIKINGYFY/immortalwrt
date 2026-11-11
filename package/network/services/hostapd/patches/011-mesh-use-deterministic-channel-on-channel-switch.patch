@@ -1,6 +1,5 @@
-From fc8ea40f6130ac18d9c66797de2cf1d5af55d496 Mon Sep 17 00:00:00 2001
 From: Markus Theil <markus.theil@tu-ilmenau.de>
-Date: Tue, 30 Jun 2020 14:19:07 +0200
+Date: Wed, 11 Nov 2026 12:11:39 +0800
 Subject: [PATCH 19/19] mesh: use deterministic channel on channel switch
 
 This patch uses a deterministic channel on DFS channel switch
@@ -14,9 +13,7 @@ of the mesh ID, in order to use at least a different number in each
 mesh network.
 
 Signed-off-by: Markus Theil <markus.theil@tu-ilmenau.de>
----
- src/ap/dfs.c | 20 +++++++++++++++++++-
- 1 file changed, 19 insertions(+), 1 deletion(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/dfs.c
 +++ b/src/ap/dfs.c
@@ -28,22 +25,21 @@ Signed-off-by: Markus Theil <markus.theil@tu-ilmenau.de>
  
  
  enum dfs_channel_type {
-@@ -535,9 +536,14 @@ dfs_get_valid_channel(struct hostapd_ifa
+@@ -535,8 +536,13 @@
  	int num_available_chandefs;
  	int chan_idx, chan_idx2;
  	int sec_chan_idx_80p80 = -1;
 +	bool is_mesh = false;
  	int i;
  	u32 _rand;
- 
++
 +#ifdef CONFIG_MESH
 +	is_mesh = iface->mconf;
 +#endif
-+
+ 
  	wpa_printf(MSG_DEBUG, "DFS: Selecting random channel");
  	*secondary_channel = 0;
- 	*oper_centr_freq_seg0_idx = 0;
-@@ -557,8 +563,20 @@ dfs_get_valid_channel(struct hostapd_ifa
+@@ -557,8 +563,20 @@
  	if (num_available_chandefs == 0)
  		return NULL;
  

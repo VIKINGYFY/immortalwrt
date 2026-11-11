@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 22:00:00 +0200
+Date: Wed, 11 Nov 2026 12:19:02 +0800
 Subject: [PATCH] AP MLD: delete the keys of a freed VLAN group
 
 Upstream fix: hostap main 741d70dd8e32 has the same code; to be
@@ -20,13 +20,14 @@ Delete the group keys of a VLAN group of an MLD authenticator when the
 group is freed.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -7132,6 +7132,31 @@ void wpa_auth_pmksa_set_to_sm(struct rsn
+@@ -7206,6 +7206,29 @@
+ 		sm->epp = 1;
+ 	}
  }
- 
- 
 +#ifdef CONFIG_IEEE80211BE
 +/* The AP_VLAN netdev of an AP MLD outlives the VLAN group of one link while
 + * other links use it, so the keys of that group go with the group. */
@@ -50,19 +51,17 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +				 idx, NULL, 0, KEY_FLAG_GROUP);
 +}
 +#endif /* CONFIG_IEEE80211BE */
-+
-+
+ 
+ 
  /*
-  * Remove and free the group from wpa_authenticator. This is triggered by a
-  * callback to make sure nobody is currently iterating the group list while it
-@@ -7145,6 +7170,10 @@ static void wpa_group_free(struct wpa_au
+@@ -7220,6 +7243,10 @@
+ 
  	wpa_printf(MSG_DEBUG, "WPA: Remove group state machine for VLAN-ID %d",
  		   group->vlan_id);
- 
++
 +#ifdef CONFIG_IEEE80211BE
 +	wpa_group_del_vlan_keys(wpa_auth, group);
 +#endif /* CONFIG_IEEE80211BE */
-+
+ 
  	while (prev) {
  		if (prev->next == group) {
- 			/* This never frees the special first group as needed */

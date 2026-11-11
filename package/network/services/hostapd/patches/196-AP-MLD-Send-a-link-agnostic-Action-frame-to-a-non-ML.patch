@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 27 Oct 2026 21:40:00 +0000
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] AP MLD: Send a link-agnostic Action frame to a non-MLD STA on its link
 
 hapd_drv_send_action() sends the Action frames that IEEE Std
@@ -17,10 +17,11 @@ hostapd_drv_sta_disassoc() does for the Disassociation frame. A
 destination without an entry in the BSS keeps link ID -1.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -1039,7 +1039,8 @@ static int hapd_drv_send_action(struct h
+@@ -1078,7 +1078,8 @@
  			bssid = own_addr;
  		}
  

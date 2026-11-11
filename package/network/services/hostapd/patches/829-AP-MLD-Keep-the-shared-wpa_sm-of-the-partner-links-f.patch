@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 23 Oct 2026 23:30:00 +0200
+Date: Wed, 11 Nov 2026 12:16:22 +0800
 Subject: [PATCH] AP MLD: Keep the shared wpa_sm of the partner links for a
  refused link
 
@@ -32,10 +32,11 @@ frees its own temporary wpa_sm, and on success still sets assoc_wpa_sm
 on its partner links.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -6277,7 +6277,10 @@ out:
+@@ -7731,7 +7731,10 @@
  		struct wpa_state_machine *sm = sta->wpa_sm;
  
  #ifdef CONFIG_IEEE80211BE
@@ -47,7 +48,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		clear_wpa_sm_for_all_sta(hapd, sm);
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -6296,7 +6299,8 @@ out:
+@@ -7750,7 +7753,8 @@
  		} else {
  			sta->wpa_sm = NULL;
  #ifdef CONFIG_IEEE80211BE

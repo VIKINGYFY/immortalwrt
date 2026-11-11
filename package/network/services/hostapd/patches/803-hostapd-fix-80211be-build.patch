@@ -1,10 +1,18 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 12:20:29 +0800
+Subject: [PATCH] hostapd: keep MLD helpers available without IEEE 802.11be
+
+Retain the existing OpenWrt package adaptation when rebasing onto
+hostap commit 6d3d778451a9329085eab5777386db0b78d56987.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -2314,3 +2314,22 @@ void ap_sta_free_sta_profile(struct mld_
- 	}
+@@ -2354,3 +2354,21 @@
+ 	auth_data->ml_kem_ciphertext = NULL;
+ #endif /* CONFIG_PQC */
  }
- #endif /* CONFIG_IEEE80211BE */
-+
 +bool ap_sta_is_mld(struct hostapd_data *hapd,
 +		   struct sta_info *sta)
 +{
@@ -25,7 +33,7 @@
 +
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -462,23 +462,8 @@ int ap_sta_re_add(struct hostapd_data *h
+@@ -477,23 +477,8 @@
  
  void ap_free_sta_pasn(struct hostapd_data *hapd, struct sta_info *sta);
  
@@ -50,4 +58,4 @@
 +void ap_sta_set_mld(struct sta_info *sta, bool mld);
  
  void ap_sta_free_sta_profile(struct mld_info *info);
- 
+ void ap_sta_free_ml_kem_data(struct eap_over_auth_data *auth_data);

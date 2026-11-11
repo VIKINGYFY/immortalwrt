@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:31:19 +0200
+Date: Wed, 11 Nov 2026 12:15:39 +0800
 Subject: [PATCH] hostapd: Update the Beacon frames when SET_QOS_MAP_SET changes the map
 
 The Extended Capabilities element sets the QoS Map bit while the BSS
@@ -13,11 +13,11 @@ cleared. The Probe Response frames that hostapd builds already follow
 the configuration.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -652,6 +652,18 @@ static int hostapd_ctrl_iface_hs20_deaut
+@@ -653,6 +653,18 @@
  
  #ifdef CONFIG_INTERWORKING
  
@@ -36,7 +36,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static int hostapd_ctrl_iface_set_qos_map_set(struct hostapd_data *hapd,
  					      const char *cmd)
  {
-@@ -665,7 +677,7 @@ static int hostapd_ctrl_iface_set_qos_ma
+@@ -666,7 +678,7 @@
  			return -1;
  		}
  
@@ -45,7 +45,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return 0;
  	}
  
-@@ -700,7 +712,7 @@ static int hostapd_ctrl_iface_set_qos_ma
+@@ -701,7 +713,7 @@
  	}
  
  	os_memcpy(hapd->conf->qos_map_set, qos_map_set, count);

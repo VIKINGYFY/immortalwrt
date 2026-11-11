@@ -1,5 +1,5 @@
 From: Michael-CY Lee <michael-cy.lee@mediatek.com>
-Date: Thu, 24 Oct 2024 08:37:07 +0800
+Date: Wed, 11 Nov 2026 12:19:10 +0800
 Subject: [PATCH] nl80211: set the TID-to-link mapping of a non-AP MLD
 
 An AP MLD that negotiates a TID-to-link mapping with an associated
@@ -19,13 +19,15 @@ ap_neg_ttlm=0 clears the flag, for tests of a driver without it.
 Signed-off-by: Michael-CY Lee <michael-cy.lee@mediatek.com>
 Co-developed-by: Felix Fietkau <nbd@nbd.name>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -632,6 +632,16 @@ int hostapd_drv_adv_ttlm_request(struct
+@@ -654,6 +654,16 @@
+ 
  	return hapd->driver->adv_ttlm_request(hapd->drv_priv, links,
  					      switch_time, duration, cookie);
- }
++}
 +
 +
 +int hostapd_drv_set_sta_ttlm(struct hostapd_data *hapd, const u8 *addr,
@@ -35,13 +37,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +		return -EOPNOTSUPP;
 +
 +	return hapd->driver->set_sta_ttlm(hapd->drv_priv, addr, ttlm);
-+}
+ }
  #endif /* CONFIG_IEEE80211BE */
- 
  
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -70,6 +70,8 @@ int hostapd_if_link_remove(struct hostap
+@@ -72,6 +72,8 @@
  			   const char *ifname, u8 link_id);
  int hostapd_drv_adv_ttlm_request(struct hostapd_data *hapd, u16 links,
  				 u32 switch_time, u32 duration, u64 *cookie);
@@ -52,10 +53,11 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  int hostapd_get_seqnum(const char *ifname, struct hostapd_data *hapd,
 --- a/src/common/ieee802_11_common.c
 +++ b/src/common/ieee802_11_common.c
-@@ -432,6 +432,17 @@ static int ieee802_11_parse_extension(co
+@@ -431,6 +431,17 @@
+ 		if (ieee802_11_parse_mle(pos, elen, &total_len, elems,
  					 show_errors))
  			return -1;
- 		break;
++		break;
 +	case WLAN_EID_EXT_TID_TO_LINK_MAPPING:
 +		/* EHT_TTLM_MAX_ELEMS + 1 marks a frame with more elements
 +		 * than 35.3.7.2.3 allows; a count without a limit wraps */
@@ -66,13 +68,12 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +			elems->ttlm_len[elems->ttlm_num] = elen;
 +		}
 +		elems->ttlm_num++;
-+		break;
+ 		break;
  	case WLAN_EID_EXT_KNOWN_BSSID:
  		elems->mbssid_known_bss = pos;
- 		elems->mbssid_known_bss_len = elen;
 --- a/src/common/ieee802_11_common.h
 +++ b/src/common/ieee802_11_common.h
-@@ -118,6 +118,7 @@ struct ieee802_11_elems {
+@@ -153,6 +153,7 @@
  	const u8 *basic_mle;
  	const u8 *probe_req_mle;
  	const u8 *reconf_mle;
@@ -80,7 +81,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	const u8 *tdls_mle;
  	const u8 *prior_access_mle;
  	const u8 *mbssid_known_bss;
-@@ -192,6 +193,8 @@ struct ieee802_11_elems {
+@@ -231,6 +232,8 @@
  	size_t basic_mle_len;
  	size_t probe_req_mle_len;
  	size_t reconf_mle_len;
@@ -91,7 +92,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	u8 mbssid_known_bss_len;
 --- a/src/common/ieee802_11_defs.h
 +++ b/src/common/ieee802_11_defs.h
-@@ -3142,6 +3142,15 @@ enum scs_request_type {
+@@ -3221,6 +3221,15 @@
  #define EHT_TID_TO_LINK_MAP_EXPECT_DUR_PRESENT	0x10
  #define EHT_TID_TO_LINK_MAP_LINK_MAPPING_SIZE	0x20
  
@@ -109,17 +110,17 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * Table 9-417w (Direction subfield encoding)
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -2650,6 +2650,9 @@ struct wpa_driver_capa {
- #define WPA_DRIVER_FLAGS2_SCS			0x0000020000000000ULL
+@@ -2697,6 +2697,9 @@
+ #define WPA_DRIVER_FLAGS2_SCS			0x0000080000000000ULL
  /** Driver installs the MSCS of a peer, see set_mscs */
- #define WPA_DRIVER_FLAGS2_MSCS			0x0000040000000000ULL
+ #define WPA_DRIVER_FLAGS2_MSCS			0x0000100000000000ULL
 +/** Driver applies the TID-to-link mapping negotiated with a non-AP MLD, see
 + * set_sta_ttlm */
-+#define WPA_DRIVER_FLAGS2_AP_NEG_TTLM		0x0000080000000000ULL
++#define WPA_DRIVER_FLAGS2_AP_NEG_TTLM		0x0000200000000000ULL
  	u64 flags2;
- 
- #define FULL_AP_CLIENT_STATE_SUPP(drv_flags) \
-@@ -5853,6 +5856,16 @@ struct wpa_driver_ops {
+ /** Driver supports Security Profile element (IEEE P802.11bn/D2.0, 9.4.2.369
+  * and 37.33) handling */
+@@ -5921,6 +5924,16 @@
  				u32 duration, u64 *cookie);
  
  	/**
@@ -138,7 +139,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	 * @link_id: Link ID to match
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -11048,6 +11048,9 @@ static int nl80211_set_param(void *priv,
+@@ -11169,6 +11169,9 @@
  	if (os_strstr(param, "full_ap_client_state=0"))
  		drv->capa.flags &= ~WPA_DRIVER_FLAGS_FULL_AP_CLIENT_STATE;
  
@@ -148,10 +149,15 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (os_strstr(param, "no_rrm=1")) {
  		drv->no_rrm = 1;
  
-@@ -11993,6 +11996,35 @@ static int nl80211_adv_ttlm_request(void
- }
- 
- 
+@@ -12113,6 +12116,35 @@
+ 		wpa_printf(MSG_DEBUG,
+ 			   "nl80211: Advertised TTLM request failed: ret=%d (%s)",
+ 			   ret, strerror(-ret));
++
++	return ret;
++}
++
++
 +static int nl80211_set_sta_ttlm(void *priv, const u8 *addr,
 +				const struct eht_neg_ttlm *ttlm)
 +{
@@ -176,15 +182,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +			   "nl80211: Setting the TTLM of " MACSTR
 +			   " failed: ret=%d (%s)",
 +			   MAC2STR(addr), ret, strerror(-ret));
-+
-+	return ret;
-+}
-+
-+
- static int driver_nl80211_link_remove(void *priv, enum wpa_driver_if_type type,
- 				      const char *ifname, u8 link_id)
- {
-@@ -17255,6 +17287,7 @@ const struct wpa_driver_ops wpa_driver_n
+ 
+ 	return ret;
+ }
+@@ -17393,6 +17425,7 @@
  #ifdef CONFIG_IEEE80211BE
  	.link_remove = driver_nl80211_link_remove,
  	.adv_ttlm_request = nl80211_adv_ttlm_request,
@@ -194,19 +195,19 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	.can_share_drv = wpa_driver_nl80211_can_share_drv,
 --- a/src/drivers/driver_nl80211_capa.c
 +++ b/src/drivers/driver_nl80211_capa.c
-@@ -620,6 +620,9 @@ static void wiphy_info_ext_feature_flags
+@@ -622,6 +622,9 @@
+ 		capa->flags2 |= WPA_DRIVER_FLAGS2_SCS;
  	if (ext_feature_isset(ext_features, len, NL80211_EXT_FEATURE_MSCS))
  		capa->flags2 |= WPA_DRIVER_FLAGS2_MSCS;
- 	if (ext_feature_isset(ext_features, len,
++	if (ext_feature_isset(ext_features, len,
 +			      NL80211_EXT_FEATURE_AP_NEG_TTLM))
 +		capa->flags2 |= WPA_DRIVER_FLAGS2_AP_NEG_TTLM;
-+	if (ext_feature_isset(ext_features, len,
+ 	if (ext_feature_isset(ext_features, len,
  			      NL80211_EXT_FEATURE_SCHED_SCAN_RELATIVE_RSSI))
  		capa->flags |= WPA_DRIVER_FLAGS_SCHED_SCAN_RELATIVE_RSSI;
- 	if (ext_feature_isset(ext_features, len,
 --- a/src/drivers/nl80211_copy.h
 +++ b/src/drivers/nl80211_copy.h
-@@ -1342,6 +1342,11 @@
+@@ -1344,6 +1344,11 @@
   *      non-AP MLD station. The %NL80211_ATTR_MLO_TTLM_DLINK and
   *      %NL80211_ATTR_MLO_TTLM_ULINK attributes are used to specify the
   *      TID to Link mapping for downlink/uplink traffic.
@@ -218,7 +219,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   *
   * @NL80211_CMD_ASSOC_MLO_RECONF: For a non-AP MLD station, request to
   *      add/remove links to/from the association. To indicate link
-@@ -7416,6 +7421,11 @@ enum nl80211_feature_flags {
+@@ -7439,6 +7444,11 @@
   *	that stay again after the event. The expiry comes before the TBTT at
   *	which the timer reaches 0, and the removed links keep running until
   *	user space stops them.
@@ -230,7 +231,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   *
   * @NUM_NL80211_EXT_FEATURES: number of extended features.
   * @MAX_NL80211_EXT_FEATURES: highest extended feature index.
-@@ -7506,6 +7516,7 @@ enum nl80211_ext_feature_index {
+@@ -7529,6 +7539,7 @@
  	NL80211_EXT_FEATURE_SCS,
  	NL80211_EXT_FEATURE_MSCS,
  	NL80211_EXT_FEATURE_AP_REMOVAL_TIMER_OFFLOAD,

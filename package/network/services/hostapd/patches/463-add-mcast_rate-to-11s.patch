@@ -1,5 +1,5 @@
 From: Sven Eckelmann <sven.eckelmann@openmesh.com>
-Date: Thu, 11 May 2017 08:21:45 +0200
+Date: Wed, 11 Nov 2026 12:14:24 +0800
 Subject: [PATCH] set mcast_rate in mesh mode
 
 The wpa_supplicant code for IBSS allows to set the mcast rate. It is
@@ -16,10 +16,11 @@ because newer drivers seem to support 802.11s but not IBSS anymore.
 
 Signed-off-by: Sven Eckelmann <sven.eckelmann@openmesh.com>
 Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -1981,6 +1981,7 @@ struct wpa_driver_mesh_join_params {
+@@ -2023,6 +2023,7 @@
  #define WPA_DRIVER_MESH_FLAG_AMPE	0x00000008
  	unsigned int flags;
  	bool handle_dfs;
@@ -29,7 +30,7 @@ Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
  struct wpa_driver_set_key_params {
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -13129,6 +13129,18 @@ static int nl80211_put_mesh_id(struct nl
+@@ -13254,6 +13254,18 @@
  }
  
  
@@ -48,7 +49,7 @@ Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
  static int nl80211_put_mesh_config(struct nl_msg *msg,
  				   struct wpa_driver_mesh_bss_params *params)
  {
-@@ -13190,6 +13202,7 @@ static int nl80211_join_mesh(struct i802
+@@ -13315,6 +13327,7 @@
  	    nl80211_put_basic_rates(msg, params->basic_rates) ||
  	    nl80211_put_mesh_id(msg, params->meshid, params->meshid_len) ||
  	    nl80211_put_beacon_int(msg, params->beacon_int) ||
@@ -58,7 +59,7 @@ Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
  
 --- a/wpa_supplicant/mesh.c
 +++ b/wpa_supplicant/mesh.c
-@@ -636,6 +636,7 @@ int wpa_supplicant_join_mesh(struct wpa_
+@@ -636,6 +636,7 @@
  
  	params->meshid = ssid->ssid;
  	params->meshid_len = ssid->ssid_len;

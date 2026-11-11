@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 23 Oct 2026 23:00:00 +0200
+Date: Wed, 11 Nov 2026 12:16:22 +0800
 Subject: [PATCH] AP MLD: Report no disconnection for a refused link
 
 ieee80211_ml_process_link() gives the new link station the flags of the
@@ -20,10 +20,11 @@ it is freed, as ap_free_link_sta() does for the other link stations of
 a station that stays associated.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -6676,8 +6676,12 @@ out:
+@@ -8143,8 +8143,12 @@
  	if (status != WLAN_STATUS_SUCCESS) {
  		wpa_release_link_auth_ref(origin_sta->wpa_sm,
  					  hapd->mld_link_id, true);

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 15:00:00 +0200
+Date: Wed, 11 Nov 2026 12:16:55 +0800
 Subject: [PATCH] AP: take the authenticator of a station timer from its state
  machine
 
@@ -17,10 +17,11 @@ the move. For a non-MLD station sm->wpa_auth never changes, so the
 behaviour stays the same.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -640,10 +640,9 @@ static void wpa_rekey_gtk(void *eloop_ct
+@@ -639,10 +639,9 @@
  
  static void wpa_rekey_ptk(void *eloop_ctx, void *timeout_ctx)
  {
@@ -32,7 +33,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			"rekeying PTK");
  	wpa_request_new_ptk(sm);
  	wpa_sm_step(sm);
-@@ -659,7 +658,7 @@ void wpa_auth_set_ptk_rekey_timer(struct
+@@ -658,7 +657,7 @@
  			   sm->wpa_auth->conf.wpa_ptk_rekey);
  		eloop_cancel_timeout(wpa_rekey_ptk, ELOOP_ALL_CTX, sm);
  		eloop_register_timeout(sm->wpa_auth->conf.wpa_ptk_rekey, 0,
@@ -41,7 +42,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  }
  
-@@ -2111,17 +2110,16 @@ static int wpa_gmk_to_gtk(const u8 *gmk,
+@@ -2112,17 +2111,16 @@
  
  static void wpa_send_eapol_timeout(void *eloop_ctx, void *timeout_ctx)
  {
@@ -61,7 +62,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			"EAPOL-Key timeout");
  	sm->TimeoutEvt = true;
  	wpa_sm_step(sm);
-@@ -2417,7 +2415,7 @@ skip_tx:
+@@ -2420,7 +2418,7 @@
  		   "WPA: Use EAPOL-Key timeout of %u ms (retry counter %u)",
  		   timeout_ms, ctr);
  	eloop_register_timeout(timeout_ms / 1000, (timeout_ms % 1000) * 1000,
@@ -70,7 +71,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -7388,7 +7386,7 @@ void wpa_auth_eapol_key_tx_status(struct
+@@ -7464,7 +7462,7 @@
  		eloop_cancel_timeout(wpa_send_eapol_timeout, ELOOP_ALL_CTX, sm);
  		eloop_register_timeout(timeout_ms / 1000,
  				       (timeout_ms % 1000) * 1000,

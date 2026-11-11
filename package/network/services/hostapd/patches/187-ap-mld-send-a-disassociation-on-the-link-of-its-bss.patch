@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:52:10 +0200
+Date: Wed, 11 Nov 2026 12:13:39 +0800
 Subject: [PATCH] AP MLD: Send a Disassociation frame on the link of its BSS
 
 hostapd_drv_sta_disassoc() passes a link ID only for a non-AP MLD. For
@@ -14,11 +14,11 @@ Pass the link ID of the BSS for every station of an AP MLD, as
 hostapd_drv_sta_deauth() does.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -931,10 +931,9 @@ int hostapd_drv_sta_disassoc(struct host
+@@ -970,10 +970,9 @@
  	if (hapd->conf->mld_ap) {
  		struct sta_info *sta = ap_get_sta(hapd, addr);
  
