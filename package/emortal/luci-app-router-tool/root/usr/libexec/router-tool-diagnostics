@@ -92,4 +92,19 @@ done
 section recent-dhcp-events
 logread | grep -E 'dnsmasq|odhcpd|router-tool' | tail -n 160
 
+section offload-resources
+for file in /sys/kernel/debug/*/flow_resources /sys/kernel/debug/ppe/resource_stats /sys/kernel/debug/ppe/reason_counters /sys/kernel/debug/*edma*/matrix_snapshot; do
+	[ -r "$file" ] || continue
+	printf '%s\n' "$file"
+	cat "$file"
+done
+
+section nss-offload-resources
+for file in /sys/kernel/debug/*nss*/flows; do
+	[ -r "$file" ] || continue
+	printf '%s\n' "$file"
+	# Keep resource and failure summaries without dumping connection tuples.
+	sed -n '/^bound /p; /^buffers /p; /^rejected/p; /^resource /p; /^capacity /p; /^retirement /p; /^sweep /p; /^bridged /p' "$file"
+done
+
 exit 0

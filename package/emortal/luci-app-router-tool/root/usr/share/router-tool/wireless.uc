@@ -16,22 +16,38 @@ function capabilities(board, radio, band) {
 		let info = phy.info;
 		let caps = info?.bands?.[band];
 		if (type(caps) != 'object') continue;
-		let default_channel = caps.default_channel;
+		let default_channel = caps.default_channel, radio_caps;
 		if (radio.radio != null && '' + radio.radio != '' && type(info.radios) == 'array') {
-			let radio_caps = filter(info.radios, entry => '' + entry.index == '' + radio.radio)[0];
+			radio_caps = filter(info.radios, entry => '' + entry.index == '' + radio.radio)[0];
 			if (type(radio_caps?.bands?.[band]) != 'object') return null;
 			default_channel = radio_caps.bands[band].default_channel ?? default_channel;
 		}
 		let modes = array(caps.modes);
 		if (!length(modes)) return null;
 		let width = match('' + caps.max_width, /^\d+$/) ? int(caps.max_width) : 20;
+		// Older wifi-scripts reports max_width=160 even with EHT320.
+		if (band == '6G' && index(modes, 'EHT320') >= 0) width = 320;
+		if (band != '6G') width = min(width, 160);
+		let radio_band = radio_caps?.bands?.[band];
+		if (type(radio_band?.modes) == 'array')
+			modes = filter(modes, mode => index(radio_band.modes, mode) >= 0);
+		if (match('' + radio_band?.max_width, /^\d+$/))
+			width = min(width, int(radio_band.max_width));
+		// A shared wiphy can advertise widths its narrower radio cannot fit.
+		let limits = { '2G': [ 2400000, 2500000 ], '5G': [ 4900000, 5925000 ], '6G': [ 5925000, 7125000 ] }[band];
+		let span = 0;
+		for (let range in radio_caps?.freq_ranges || []) {
+			if (type(range) != 'array' || length(range) != 2) continue;
+			span = max(span, min(range[1], limits[1]) - max(range[0], limits[0]));
+		}
+		if (span > 0) width = min(width, int(span / 1000));
 		return { modes, width, first_channel: default_channel };
 	}
 	return null;
 }
 
 function htmode(caps, requested) {
-	for (let width in [ 160, 80, 40, 20 ]) {
+	for (let width in [ 320, 160, 80, 40, 20 ]) {
 		if (width > requested || width > caps.width) continue;
 		for (let mode in [ 'EHT', 'HE', 'VHT', 'HT' ])
 			if (index(caps.modes, mode + width) >= 0) return mode + width;
@@ -115,12 +131,12 @@ export function synchronize_wireless(uci, board) {
 		// PHY capabilities may arrive after the first boot event. Retry when
 		// they are available instead of permanently skipping the defaults.
 		if (!caps) continue;
-		let suffix, channel, width;
-		if (band == '2G') { suffix = '2.4G'; channel = '1'; width = 20; }
-		else if (band == '6G') { suffix = '6G'; channel = 'auto'; width = 160; }
-		else if (caps.first_channel >= 100) { suffix = '5.8G'; channel = 'auto'; width = 80; }
-		else if (caps.width == 80) { suffix = '5.8G'; channel = 'auto'; width = 80; }
-		else { suffix = '5.2G'; channel = 'auto'; width = 160; }
+		let suffix, channel, width = band == '2G' ? 20 : caps.width;
+		if (band == '2G') { suffix = '2.4G'; channel = '1'; }
+		else if (band == '6G') { suffix = '6G'; channel = 'auto'; }
+		else if (caps.first_channel >= 100) { suffix = '5.8G'; channel = 'auto'; }
+		else if (caps.width == 80) { suffix = '5.8G'; channel = 'auto'; }
+		else { suffix = '5.2G'; channel = 'auto'; }
 		let mode = htmode(caps, width);
 		if (!mode) { mark_done(radio['.name']); continue; }
 		load_defaults();

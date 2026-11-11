@@ -21,8 +21,12 @@ supporting both WPA2 and WPA3-SAE.
 
 The 5 GHz and 6 GHz radios use automatic channel selection. The 2.4 GHz
 default remains channel 1. On a wiphy with multiple radios, each radio's
-own band information determines its suffix and bandwidth, so a restricted
-5.8 GHz radio keeps the `5.8G` suffix and an 80 MHz default.
+own band information determines its suffix. The 2.4 GHz default uses the
+lowest supported width (20 MHz); 5 GHz and 6 GHz use the highest advertised
+width that fits the selected radio's frequency range. EHT320 is selected
+only on a 6 GHz radio advertising that mode; AX and narrower radios keep
+their supported maximum. A restricted 5.8 GHz radio keeps its `5.8G` suffix
+without imposing an unrelated fixed width.
 
 These settings are initialization defaults. Only unmarked, untouched APs with
 `OWRT` / `12345678` / `psk2+ccmp` are initialized. Existing custom credentials,
