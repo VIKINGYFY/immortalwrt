@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 24 Oct 2026 22:28:52 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath11k: resolve firmware memory through named reservations
 
 Resolve host DDR, BDF, M3 dump and calibration memory through named
@@ -13,11 +13,90 @@ host-DDR and integer-address fallbacks when no matching name is present.
 Use the same BDF resolver for QMI replies and actual board-data writes,
 check the file bounds and retain the original ioremap pointer for cleanup.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Merged from:
+  954-wifi-ath11k-resolve-named-firmware-memory.patch - wifi: ath11k: resolve firmware memory through named reservations
+  956-ath11k-allocate-optional-firmware-memory-dynamically.patch - wifi: ath11k: allocate optional IPQ9574 firmware memory dynamically
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/wireless/ath/ath11k/qmi.c
 +++ b/drivers/net/wireless/ath/ath11k/qmi.c
-@@ -2038,9 +2038,65 @@ static int ath11k_qmi_alloc_target_mem_c
+@@ -1955,27 +1955,56 @@ out:
+ 	return ret;
+ }
+ 
++static void ath11k_qmi_free_mem_chunk(struct ath11k_base *ab,
++				      struct target_mem_chunk *chunk)
++{
++	if (chunk->anyaddr) {
++		if (!chunk->dma_allocated &&
++		    (ab->hw_params.fixed_mem_region ||
++		     test_bit(ATH11K_FLAG_FIXED_MEM_RGN, &ab->dev_flags))) {
++			iounmap(chunk->iaddr);
++		} else {
++			dma_free_coherent(ab->dev, chunk->prev_size,
++					  chunk->vaddr, chunk->paddr);
++		}
++	}
++	chunk->anyaddr = NULL;
++	chunk->paddr = 0;
++	chunk->prev_size = 0;
++	chunk->dma_allocated = false;
++}
++
+ static void ath11k_qmi_free_target_mem_chunk(struct ath11k_base *ab)
+ {
+ 	int i;
+ 
+-	for (i = 0; i < ab->qmi.mem_seg_count; i++) {
+-		if (!ab->qmi.target_mem[i].anyaddr)
+-			continue;
++	for (i = 0; i < ARRAY_SIZE(ab->qmi.target_mem); i++)
++		ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[i]);
++}
+ 
+-		if (ab->hw_params.fixed_mem_region ||
+-		    test_bit(ATH11K_FLAG_FIXED_MEM_RGN, &ab->dev_flags)) {
+-			iounmap(ab->qmi.target_mem[i].iaddr);
+-			ab->qmi.target_mem[i].iaddr = NULL;
+-			continue;
+-		}
++static int ath11k_qmi_alloc_optional_chunk(struct ath11k_base *ab,
++					   struct target_mem_chunk *chunk)
++{
++	if (chunk->anyaddr && chunk->dma_allocated &&
++	    chunk->prev_type == chunk->type &&
++	    chunk->prev_size == chunk->size)
++		return 0;
+ 
+-		dma_free_coherent(ab->dev,
+-				  ab->qmi.target_mem[i].prev_size,
+-				  ab->qmi.target_mem[i].vaddr,
+-				  ab->qmi.target_mem[i].paddr);
+-		ab->qmi.target_mem[i].vaddr = NULL;
+-	}
++	ath11k_qmi_free_mem_chunk(ab, chunk);
++	if (!chunk->size)
++		return 0;
++
++	chunk->vaddr = dma_alloc_coherent(ab->dev, chunk->size, &chunk->paddr,
++					  GFP_KERNEL | __GFP_NOWARN);
++	if (!chunk->vaddr)
++		return -ENOMEM;
++
++	chunk->prev_size = chunk->size;
++	chunk->prev_type = chunk->type;
++	chunk->dma_allocated = true;
++	ath11k_info(ab, "allocated firmware memory type %u addr %pad size %u\n",
++		    chunk->type, &chunk->paddr, chunk->size);
++	return 0;
+ }
+ 
+ static int ath11k_qmi_alloc_target_mem_chunk(struct ath11k_base *ab)
+@@ -2038,18 +2067,79 @@ static int ath11k_qmi_alloc_target_mem_c
  	return 0;
  }
  
@@ -81,9 +160,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct resource res = DEFINE_RES_NAMED(0, 0, NULL, IORESOURCE_UNSET);
 +	struct resource region;
  	struct device *dev = ab->dev;
- 	u32 host_ddr_sz;
+-	u32 host_ddr_sz;
++	struct target_mem_chunk *chunk;
++	u32 host_ddr_sz = 0;
  	u32 addr;
-@@ -2049,7 +2105,11 @@ static int ath11k_qmi_assign_target_mem_
+ 	int i, idx, ret;
+ 
  	for (i = 0, idx = 0; i < ab->qmi.mem_seg_count; i++) {
  		switch (ab->qmi.target_mem[i].type) {
  		case HOST_DDR_REGION_TYPE:
@@ -96,7 +178,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (ret) {
  				ath11k_dbg(ab, ATH11K_DBG_QMI,
  					   "fail to get reg from hremote\n");
-@@ -2075,9 +2135,11 @@ static int ath11k_qmi_assign_target_mem_
+@@ -2062,6 +2152,7 @@ static int ath11k_qmi_assign_target_mem_
+ 				return -EINVAL;
+ 			}
+ 
++			ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
+ 			ab->qmi.target_mem[idx].paddr = res.start;
+ 			ab->qmi.target_mem[idx].iaddr =
+ 				ioremap(ab->qmi.target_mem[idx].paddr,
+@@ -2075,9 +2166,12 @@ static int ath11k_qmi_assign_target_mem_
  			idx++;
  			break;
  		case BDF_MEM_REGION_TYPE:
@@ -107,11 +197,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +						      &region.start);
 +			if (ret)
 +				return ret;
++			ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
 +			ab->qmi.target_mem[idx].paddr = region.start;
  			ab->qmi.target_mem[idx].iaddr = NULL;
  			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
  			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
-@@ -2090,7 +2152,15 @@ static int ath11k_qmi_assign_target_mem_
+@@ -2090,7 +2184,27 @@ static int ath11k_qmi_assign_target_mem_
  			}
  
  			if (ath11k_core_coldboot_cal_support(ab)) {
@@ -119,6 +210,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				ret = ath11k_qmi_get_named_mem(ab, "q6-caldb", NULL,
 +							       ab->qmi.target_mem[i].size,
 +							       &region);
++				if (ret == -ENOENT &&
++				    ab->hw_rev == ATH11K_HW_IPQ9574_HW10) {
++					chunk = &ab->qmi.target_mem[idx];
++					chunk->size = ab->qmi.target_mem[i].size;
++					chunk->type = CALDB_MEM_REGION_TYPE;
++					ret = ath11k_qmi_alloc_optional_chunk(ab, chunk);
++					if (ret)
++						return ret;
++					idx++;
++					break;
++				}
++				ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
 +				if (!ret) {
 +					ab->qmi.target_mem[idx].paddr = region.start;
 +					ab->qmi.target_mem[idx].iaddr = NULL;
@@ -128,7 +231,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					ab->qmi.target_mem[idx].paddr =
  							res.start + host_ddr_sz;
  					ab->qmi.target_mem[idx].iaddr =
-@@ -2113,12 +2183,18 @@ static int ath11k_qmi_assign_target_mem_
+@@ -2105,6 +2219,7 @@ static int ath11k_qmi_assign_target_mem_
+ 					ab->qmi.target_mem[idx].iaddr = NULL;
+ 				}
+ 			} else {
++				ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
+ 				ab->qmi.target_mem[idx].paddr = 0;
+ 				ab->qmi.target_mem[idx].iaddr = NULL;
+ 			}
+@@ -2113,12 +2228,30 @@ static int ath11k_qmi_assign_target_mem_
  			idx++;
  			break;
  		case M3_DUMP_REGION_TYPE:
@@ -138,20 +249,41 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			ret = ath11k_qmi_get_named_mem(ab, "m3-dump", NULL,
 +						       ab->qmi.target_mem[i].size, &region);
 +			if (ret == -ENOENT) {
-+				if (of_property_read_u32(dev->of_node, "qcom,m3-dump-addr",
-+							 &addr))
++				ret = of_property_read_u32(dev->of_node,
++							   "qcom,m3-dump-addr", &addr);
++				if (ret) {
++					if (ab->hw_rev != ATH11K_HW_IPQ9574_HW10)
++						break;
++					chunk = &ab->qmi.target_mem[idx];
++					chunk->size = ab->qmi.target_mem[i].size;
++					chunk->type = M3_DUMP_REGION_TYPE;
++					ret = ath11k_qmi_alloc_optional_chunk(ab, chunk);
++					if (ret)
++						return ret;
++					idx++;
 +					break;
++				}
 +				region.start = addr;
 +			} else if (ret) {
 +				return ret;
  			}
  
 -			ab->qmi.target_mem[idx].paddr = (phys_addr_t) addr;
++			ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[idx]);
 +			ab->qmi.target_mem[idx].paddr = region.start;
  			ab->qmi.target_mem[idx].vaddr = NULL;
  			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
  			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
-@@ -2328,7 +2404,9 @@ static int ath11k_qmi_load_file_target_m
+@@ -2131,6 +2264,8 @@ static int ath11k_qmi_assign_target_mem_
+ 		}
+ 	}
+ 	ab->qmi.mem_seg_count = idx;
++	for (i = idx; i < ARRAY_SIZE(ab->qmi.target_mem); i++)
++		ath11k_qmi_free_mem_chunk(ab, &ab->qmi.target_mem[i]);
+ 
+ 	return 0;
+ }
+@@ -2328,7 +2463,9 @@ static int ath11k_qmi_load_file_target_m
  	struct qmi_wlanfw_bdf_download_resp_msg_v01 resp;
  	struct qmi_txn txn;
  	const u8 *temp = data;
@@ -162,7 +294,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	void __iomem *bdf_addr = NULL;
  	int ret = 0;
  	u32 remaining = len;
-@@ -2340,9 +2418,16 @@ static int ath11k_qmi_load_file_target_m
+@@ -2340,9 +2477,16 @@ static int ath11k_qmi_load_file_target_m
  	memset(&resp, 0, sizeof(resp));
  
  	if (ab->hw_params.fixed_bdf_addr) {
@@ -182,7 +314,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!bdf_addr) {
  			ath11k_warn(ab, "qmi ioremap error for bdf_addr\n");
  			ret = -EIO;
-@@ -2380,10 +2465,7 @@ static int ath11k_qmi_load_file_target_m
+@@ -2380,10 +2524,7 @@ static int ath11k_qmi_load_file_target_m
  		}
  
  		if (ab->hw_params.fixed_bdf_addr) {
@@ -194,3 +326,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		ret = qmi_txn_init(&ab->qmi.handle, &txn,
+--- a/drivers/net/wireless/ath/ath11k/qmi.h
++++ b/drivers/net/wireless/ath/ath11k/qmi.h
+@@ -101,6 +101,7 @@ struct target_mem_chunk {
+ 	u32 type;
+ 	u32 prev_size;
+ 	u32 prev_type;
++	bool dma_allocated;
+ 	dma_addr_t paddr;
+ 	union {
+ 		u32 *vaddr;

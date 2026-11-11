@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -933,6 +933,9 @@
+@@ -933,6 +933,9 @@ static void ath11k_dp_rx_tid_del_func(st
  	struct ath11k_base *ab = dp->ab;
  	struct dp_rx_tid *rx_tid = ctx;
  	struct dp_reo_cache_flush_elem *elem, *tmp;
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (status == HAL_REO_CMD_DRAIN) {
  		goto free_desc;
-@@ -954,22 +957,24 @@
+@@ -954,23 +957,25 @@ static void ath11k_dp_rx_tid_del_func(st
  	list_add_tail(&elem->list, &dp->reo_cmd_cache_flush_list);
  	dp->reo_cmd_cache_flush_count++;
  
@@ -75,13 +75,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  	spin_unlock_bh(&dp->reo_cmd_lock);
-+
+ 
 +	/* remove aged REO desc from HW */
 +	list_for_each_entry_safe(elem, tmp, &flush_list, list) {
 +		ath11k_dp_reo_cache_flush(ab, &elem->data);
 +		list_del(&elem->list);
 +		kfree(elem);
 +	}
- 
++
  	return;
  free_desc:
+ 	dma_free_noncoherent(ab->dev, rx_tid->unaligned_size,

@@ -46,11 +46,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -576,6 +576,14 @@
- 
+@@ -577,6 +577,14 @@ struct ath11k_sta {
  	bool use_4addr_set;
  	u16 tcl_metadata;
-+
+ 
 +	/* A pairwise key mac80211 removed but the firmware still holds,
 +	 * cleared by the next SET_KEY or when the port closes.
 +	 * Protected by ar->conf_mutex.
@@ -58,12 +57,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	bool ptk_clear_pending;
 +	u8 ptk_clear_idx;
 +	u32 ptk_clear_cipher;
- 
++
  	/* Protected with ar->data_lock */
  	enum ath11k_wmi_peer_ps_state peer_ps_state;
+ 	u64 ps_start_time;
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -4510,6 +4510,35 @@
+@@ -4510,6 +4510,35 @@ static int ath11k_set_group_keys(struct
  	return first_errno;
  }
  
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath11k_mac_op_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
  				 struct ieee80211_vif *vif, struct ieee80211_sta *sta,
  				 struct ieee80211_key_conf *key)
-@@ -4520,6 +4549,7 @@
+@@ -4520,6 +4549,7 @@ static int ath11k_mac_op_set_key(struct
  	struct ath11k_peer *peer;
  	struct ath11k_sta *arsta;
  	bool is_ap_with_no_sta;
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const u8 *peer_addr;
  	int ret = 0;
  	u32 flags = 0;
-@@ -4553,6 +4583,7 @@
+@@ -4553,6 +4583,7 @@ static int ath11k_mac_op_set_key(struct
  	 */
  	spin_lock_bh(&ab->base_lock);
  	peer = ath11k_peer_find(ab, arvif->vdev_id, peer_addr);
@@ -115,7 +115,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* flush the fragments cache during key (re)install to
  	 * ensure all frags in the new frag list belong to the same key.
-@@ -4615,7 +4646,39 @@
+@@ -4615,7 +4646,39 @@ static int ath11k_mac_op_set_key(struct
  
  	is_ap_with_no_sta = (vif->type == NL80211_IFTYPE_AP &&
  			     !arvif->num_stations);
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = ath11k_install_key(arvif, key, cmd, peer_addr, flags);
  		if (ret) {
  			ath11k_warn(ab, "ath11k_install_key failed (%d)\n", ret);
-@@ -4657,20 +4720,28 @@
+@@ -4657,20 +4720,28 @@ static int ath11k_mac_op_set_key(struct
  	if (sta) {
  		arsta = ath11k_sta_to_arsta(sta);
  
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -10112,6 +10183,9 @@
+@@ -10112,6 +10183,9 @@ static int ath11k_mac_op_sta_state(struc
  			peer->is_authorized = false;
  
  		spin_unlock_bh(&ar->ab->base_lock);
@@ -208,7 +208,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (old_state == IEEE80211_STA_ASSOC &&
  		   new_state == IEEE80211_STA_AUTH &&
  		   (vif->type == NL80211_IFTYPE_AP ||
-@@ -10807,6 +10881,10 @@
+@@ -10807,6 +10881,10 @@ static int __ath11k_mac_register(struct
  	wiphy_ext_feature_set(ar->hw->wiphy,
  			      NL80211_EXT_FEATURE_AIRTIME_FAIRNESS);
  	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_STA_TX_PWR);

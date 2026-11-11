@@ -1,25 +1,22 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
-Subject: [PATCH] wifi: ath11k: own RX buffers with page pools and indexed lookup
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: ath11k: use atomic RX buffer allocations
 
-The RX refill ring takes every buffer from dev_alloc_skb(), maps it with
-dma_map_single() and unmaps it again when the frame is reaped. Buffers of
-the ring share the per-CPU page-frag caches with unrelated allocations, so
-one long-lived skb pins a whole high-order page.
+Use alloc_skb for RX replenishment rather than dev_alloc_skb. This is
+a buffer allocation policy change, including headroom and page-fragment
+behavior; it is not a fix for an unmatched free.
 
-Every RX buffer gets an id from the ring's IDR when it is posted and gives
-it back when it is reaped, and the IDR allocation is one of the larger
-costs per received frame. The ids a ring hands out are bounded by the ring
-size, so keep them in a table indexed by id with a stack of the free ones
-instead. Posting a buffer pops an id and reaping it pushes the id back,
-both in constant time under the existing ring lock.
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
 
 Merged from:
+  984-wifi-ath11k-use-atomic-RX-buffer-allocations.patch - wifi: ath11k: use atomic RX buffer allocations
+  992-03-ath11k-rx-buffer-ownership.patch - wifi: ath11k: own RX buffers with page pools and indexed lookup
+  993-ath11k-free-monitor-dma-rings.patch - wifi: ath11k: release monitor DMA rings during pdev cleanup
+
+Previous merged from (992-03-ath11k-rx-buffer-ownership.patch):
   992-13-wifi-ath11k-use-page_pool-for-the-RX-refill-ring.patch
   992-14-wifi-ath11k-replace-the-RX-buffer-IDR-with-a-table.patch
-
-Based on work by:
-  Julius Bairaktaris <julius@bairaktaris.de>
 
 Link: https://lore.kernel.org/linux-wireless/20260719215817.2468580-1-wabsie@gmail.com/
 Link: https://lore.kernel.org/linux-wireless/20261008-ath12k-pp-v1-0-68f888cd7eec@oss.qualcomm.com/
@@ -221,8 +218,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	num_remain = req_entries;
  
  	while (num_remain > 0) {
--		skb = alloc_skb(DP_RX_BUFFER_SIZE +
--				DP_RX_BUFFER_ALIGN_SIZE, GFP_ATOMIC);
+-		skb = dev_alloc_skb(DP_RX_BUFFER_SIZE +
+-				    DP_RX_BUFFER_ALIGN_SIZE);
 -		if (!skb)
 -			break;
 +		if (rx_ring->page_pool) {
@@ -398,7 +395,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return 0;
-@@ -2719,22 +2888,20 @@ try_again:
+@@ -532,6 +701,8 @@ static void ath11k_dp_rx_pdev_srng_free(
+ 	}
+ 
+ 	ath11k_dp_srng_cleanup(ab, &dp->rxdma_mon_buf_ring.refill_buf_ring);
++	ath11k_dp_srng_cleanup(ab, &dp->rxdma_mon_dst_ring);
++	ath11k_dp_srng_cleanup(ab, &dp->rxdma_mon_desc_ring);
+ }
+ 
+ void ath11k_dp_pdev_reo_cleanup(struct ath11k_base *ab)
+@@ -2719,22 +2890,20 @@ try_again:
  
  		ar = ab->pdevs[mac_id].ar;
  		rx_ring = &ar->dp.rx_refill_buf_ring;
@@ -427,7 +433,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		num_buffs_reaped[mac_id]++;
  
-@@ -2912,10 +3079,9 @@ static struct sk_buff *ath11k_dp_rx_allo
+@@ -2912,10 +3081,9 @@ static struct sk_buff *ath11k_dp_rx_allo
  	if (unlikely(dma_mapping_error(ab->dev, paddr)))
  		goto fail_free_skb;
  
@@ -441,7 +447,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (*buf_id < 0)
  		goto fail_dma_unmap;
  
-@@ -2984,9 +3150,9 @@ int ath11k_dp_rx_mon_status_bufs_repleni
+@@ -2984,9 +3152,9 @@ int ath11k_dp_rx_mon_status_bufs_repleni
  	return req_entries - num_remain;
  
  fail_desc_get:
@@ -454,7 +460,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dma_unmap_single(ab->dev, paddr, skb->len + skb_tailroom(skb),
  			 DMA_FROM_DEVICE);
  	dev_kfree_skb_any(skb);
-@@ -3054,9 +3220,9 @@ ath11k_dp_rx_mon_buf_done(struct ath11k_
+@@ -3054,9 +3222,9 @@ ath11k_dp_rx_mon_buf_done(struct ath11k_
  
  	buf_id = FIELD_GET(DP_RXDMA_BUF_COOKIE_BUF_ID, cookie);
  
@@ -467,7 +473,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!skb)
  		return DP_MON_STATUS_NO_DMA;
-@@ -3118,9 +3284,9 @@ static int ath11k_dp_rx_reap_mon_status_
+@@ -3118,9 +3286,9 @@ static int ath11k_dp_rx_reap_mon_status_
  		if (paddr) {
  			buf_id = FIELD_GET(DP_RXDMA_BUF_COOKIE_BUF_ID, cookie);
  
@@ -480,7 +486,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  			if (!skb) {
  				ath11k_warn(ab, "rx monitor status with invalid buf_id %d\n",
-@@ -3162,31 +3328,27 @@ static int ath11k_dp_rx_reap_mon_status_
+@@ -3162,31 +3330,27 @@ static int ath11k_dp_rx_reap_mon_status_
  				if (reap_status == DP_MON_STATUS_NO_DMA)
  					continue;
  
@@ -521,7 +527,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  			__skb_queue_tail(skb_list, skb);
  		} else {
-@@ -3473,16 +3635,24 @@ static int ath11k_dp_rx_h_defrag_reo_rei
+@@ -3473,16 +3637,24 @@ static int ath11k_dp_rx_h_defrag_reo_rei
  	/* change msdu len in hal rx desc */
  	ath11k_dp_rxdesc_set_msdu_len(ab, rx_desc, defrag_skb->len - hal_rx_desc_sz);
  
@@ -555,7 +561,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (buf_id < 0) {
  		ret = -ENOMEM;
  		goto err_unmap_dma;
-@@ -3536,12 +3706,14 @@ static int ath11k_dp_rx_h_defrag_reo_rei
+@@ -3536,12 +3708,14 @@ static int ath11k_dp_rx_h_defrag_reo_rei
  	return 0;
  
  err_free_idr:
@@ -575,7 +581,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -3768,22 +3940,20 @@ ath11k_dp_process_rx_err_buf(struct ath1
+@@ -3768,22 +3942,20 @@ ath11k_dp_process_rx_err_buf(struct ath1
  	u16 msdu_len;
  	u32 hal_rx_desc_sz = ar->ab->hw_params.hal_desc_sz;
  
@@ -604,7 +610,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (drop) {
  		dev_kfree_skb_any(msdu);
-@@ -4201,22 +4371,20 @@ int ath11k_dp_rx_process_wbm_err(struct
+@@ -4201,22 +4373,20 @@ int ath11k_dp_rx_process_wbm_err(struct
  		ar = ab->pdevs[mac_id].ar;
  		rx_ring = &ar->dp.rx_refill_buf_ring;
  
@@ -633,7 +639,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		num_buffs_reaped[mac_id]++;
  		total_num_buffs_reaped++;
-@@ -4327,22 +4495,20 @@ int ath11k_dp_process_rxdma_err(struct a
+@@ -4327,22 +4497,20 @@ int ath11k_dp_process_rxdma_err(struct a
  			buf_id = FIELD_GET(DP_RXDMA_BUF_COOKIE_BUF_ID,
  					   msdu_cookies[i]);
  
@@ -662,7 +668,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			dev_kfree_skb_any(skb);
  
  			num_buf_freed++;
-@@ -4803,9 +4969,9 @@ u32 ath11k_dp_rx_mon_mpdu_pop(struct ath
+@@ -4803,9 +4971,9 @@ u32 ath11k_dp_rx_mon_mpdu_pop(struct ath
  			buf_id = FIELD_GET(DP_RXDMA_BUF_COOKIE_BUF_ID,
  					   msdu_list.sw_cookie[i]);
  
@@ -675,7 +681,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (!msdu) {
  				ath11k_dbg(ar->ab, ATH11K_DBG_DATA,
  					   "msdu_pop: invalid buf_id %d\n", buf_id);
-@@ -4813,10 +4979,7 @@ u32 ath11k_dp_rx_mon_mpdu_pop(struct ath
+@@ -4813,10 +4981,7 @@ u32 ath11k_dp_rx_mon_mpdu_pop(struct ath
  			}
  			rxcb = ATH11K_SKB_RXCB(msdu);
  			if (!rxcb->unmapped) {
@@ -687,7 +693,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				rxcb->unmapped = 1;
  			}
  			if (drop_mpdu) {
-@@ -4875,9 +5038,9 @@ u32 ath11k_dp_rx_mon_mpdu_pop(struct ath
+@@ -4875,9 +5040,9 @@ u32 ath11k_dp_rx_mon_mpdu_pop(struct ath
  next_msdu:
  			pmon->mon_last_buf_cookie = msdu_list.sw_cookie[i];
  			rx_bufs_used++;
@@ -700,7 +706,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		ath11k_hal_rx_buf_addr_info_set(rx_link_buf_info, paddr, sw_cookie, rbm);
-@@ -5452,24 +5615,21 @@ ath11k_dp_rx_full_mon_mpdu_pop(struct at
+@@ -5452,24 +5617,21 @@ ath11k_dp_rx_full_mon_mpdu_pop(struct at
  			buf_id = FIELD_GET(DP_RXDMA_BUF_COOKIE_BUF_ID,
  					   msdu_list.sw_cookie[i]);
  

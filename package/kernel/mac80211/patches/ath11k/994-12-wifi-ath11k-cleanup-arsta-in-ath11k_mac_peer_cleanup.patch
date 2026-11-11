@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -874,6 +874,22 @@
+@@ -874,6 +874,22 @@ static int ath11k_mac_set_kickout(struct
  	return 0;
  }
  
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_mac_peer_cleanup_all(struct ath11k *ar)
  {
  	struct ath11k_peer *peer, *tmp;
-@@ -886,6 +902,7 @@
+@@ -886,6 +902,7 @@ void ath11k_mac_peer_cleanup_all(struct
  	list_for_each_entry_safe(peer, tmp, &ab->peers, list) {
  		ath11k_peer_rx_tid_cleanup(ar, peer);
  		ath11k_peer_rhash_delete(ab, peer);
@@ -82,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		list_del(&peer->list);
  		kfree(peer);
  	}
-@@ -9932,7 +9949,6 @@
+@@ -9932,7 +9949,6 @@ static int ath11k_mac_station_remove(str
  {
  	struct ath11k_base *ab = ar->ab;
  	struct ath11k_vif *arvif = ath11k_vif_to_arvif(vif);
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  
  	if (ab->hw_params.vdev_start_delay &&
-@@ -9956,12 +9972,7 @@
+@@ -9956,12 +9972,7 @@ static int ath11k_mac_station_remove(str
  			   sta->addr, arvif->vdev_id);
  
  	ath11k_mac_dec_num_stations(arvif, sta);

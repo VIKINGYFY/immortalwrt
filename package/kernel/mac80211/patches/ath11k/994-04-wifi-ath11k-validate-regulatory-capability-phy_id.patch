@@ -20,16 +20,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/wmi.c
 +++ b/drivers/net/wireless/ath/ath11k/wmi.c
-@@ -4864,6 +4864,12 @@
- 		if (ret) {
- 			ath11k_warn(soc, "failed to extract reg cap %d\n", i);
+@@ -4866,6 +4866,12 @@ static int ath11k_wmi_tlv_ext_hal_reg_ca
  			return ret;
-+		}
-+
+ 		}
+ 
 +		if (reg_cap.phy_id >= ARRAY_SIZE(soc->hal_reg_cap)) {
 +			ath11k_warn(soc, "invalid reg cap phy_id %u\n",
 +				    reg_cap.phy_id);
 +			return -EINVAL;
- 		}
- 
++		}
++
  		memcpy(&soc->hal_reg_cap[reg_cap.phy_id],
+ 		       &reg_cap, sizeof(reg_cap));
+ 	}
