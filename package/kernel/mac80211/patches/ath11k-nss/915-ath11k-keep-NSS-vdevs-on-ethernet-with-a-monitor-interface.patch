@@ -1,6 +1,6 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Sun, 08 Nov 2026 10:34:02 +0800
-Subject: [PATCH v2] ath11k: keep NSS vdevs on ethernet with a monitor interface
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] ath11k: keep NSS vdevs on ethernet with a monitor interface
 
 mac80211 withdraws the encapsulation and decapsulation offloads while a
 monitor interface exists, and ath11k then sets the WLAN firmware vdev to
@@ -18,12 +18,50 @@ series while preserving the local host-path fixes.
 
 Refresh against NSS VDEV registration error propagation.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Split from:
+  919-ath11k-unwind-NSS-vdevs-and-check-peer-authorization.patch - ath11k: unwind NSS vdevs and propagate peer authorization errors
+
+Merged from:
+  915-ath11k-keep-NSS-vdevs-on-ethernet-with-a-monitor-interface.patch - ath11k: keep NSS vdevs on ethernet with a monitor interface
+  916-ath11k-convert-station-vdev-802.11-frames-for-the-NSS-firmware.patch - ath11k: convert station vdev 802.11 frames for the NSS firmware
+  919-ath11k-unwind-NSS-vdevs-and-check-peer-authorization.patch - ath11k: unwind NSS vdevs and propagate peer authorization errors
+
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -7150,15 +7150,19 @@
+@@ -6749,11 +6749,12 @@ static int ath11k_mac_tx(struct ieee8021
+ 	 * The conversion is the subsystem's own, and it is written for the
+ 	 * receiving side: it refuses a frame travelling away from the
+ 	 * distribution system on an access point, which is every frame an
+-	 * access point sends. A frame leaving here is bit for bit the frame a
+-	 * station receives, so it is converted as that station would - the
+-	 * address it is told to expect is the frame's own first address,
+-	 * which is what makes the check it performs vacuous rather than
+-	 * wrong.
++	 * access point sends. A frame leaving here is bit for bit the frame
++	 * its receiver gets, so it is converted as the receiver would: as a
++	 * station for an access point's frame, as an access point for a
++	 * station's - the address it is told to expect is the frame's own
++	 * first address, which is what makes the check it performs vacuous
++	 * rather than wrong.
+ 	 */
+ 	/* A mesh device carries 802.11, without the QoS control the
+ 	 * hardware inserts itself.
+@@ -6780,6 +6781,8 @@ static int ath11k_mac_tx(struct ieee8021
+ 
+ 		if (!(info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP) &&
+ 		    ieee80211_data_to_8023(skb, hdr->addr1,
++					   vif->type == NL80211_IFTYPE_STATION ?
++					   NL80211_IFTYPE_AP :
+ 					   NL80211_IFTYPE_STATION)) {
+ 			ieee80211_free_txskb(ar->hw, skb);
+ 			return 0;
+@@ -7151,15 +7154,19 @@ static int ath11k_mac_setup_vdev_create_
   * what the hardware encapsulation and decapsulation this driver has already
   * been told to use produce.
   */
@@ -48,7 +86,26 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ATH11K_HW_TXRX_ETHERNET;
  	if (test_bit(ATH11K_FLAG_RAW_MODE, &ab->dev_flags))
  		return ATH11K_HW_TXRX_RAW;
-@@ -7271,13 +7275,8 @@
+@@ -7210,6 +7217,18 @@ static const struct nss_wifi_mesh_ops at
+ 	.rx = ath11k_nss_mesh_rx,
+ };
+ 
++static void ath11k_nss_vdev_unregister(struct ath11k_vif *arvif)
++{
++	struct wireless_dev *wdev;
++
++	if (arvif->nss_ifnum < 0)
++		return;
++	wdev = ieee80211_vif_to_wdev(arvif->vif);
++	if (wdev && wdev->netdev)
++		nss_wifi_vdev_unregister(wdev->netdev);
++	arvif->nss_ifnum = -1;
++}
++
+ /* The firmware owns the radio's rings, so an interface it does not take
+  * cannot carry data at all and is refused.
+  */
+@@ -7272,13 +7291,8 @@ static void ath11k_mac_op_update_vif_off
  		vif->offload_flags &= ~(IEEE80211_OFFLOAD_ENCAP_ENABLED |
  					IEEE80211_OFFLOAD_DECAP_ENABLED);
  
@@ -64,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    param_id, param_value);
  	if (ret) {
-@@ -7287,13 +7286,8 @@
+@@ -7288,13 +7302,8 @@ static void ath11k_mac_op_update_vif_off
  	}
  
  	param_id = WMI_VDEV_PARAM_RX_DECAP_TYPE;
@@ -79,4 +136,35 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +					   IEEE80211_OFFLOAD_DECAP_ENABLED);
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    param_id, param_value);
+ 	if (ret) {
+@@ -7712,6 +7721,7 @@ static int ath11k_mac_op_add_interface(s
+ 	return 0;
+ 
+ err_peer_del:
++	ath11k_nss_vdev_unregister(arvif);
+ 	if (arvif->vdev_type == WMI_VDEV_TYPE_AP) {
+ 		fbret = ath11k_peer_delete(ar, arvif->vdev_id, vif->addr);
+ 		if (fbret) {
+@@ -7722,6 +7732,7 @@ err_peer_del:
+ 	}
+ 
+ err_vdev_del:
++	ath11k_nss_vdev_unregister(arvif);
+ 	ath11k_mac_vdev_delete(ar, arvif);
+ 	spin_lock_bh(&ar->data_lock);
+ 	list_del(&arvif->list);
+@@ -7784,13 +7795,7 @@ static void ath11k_mac_op_remove_interfa
+ 	/* Before the vdev goes, so the firmware stops naming an interface
+ 	 * whose peers are already gone.
+ 	 */
+-	if (arvif->nss_ifnum >= 0) {
+-		struct wireless_dev *wdev = ieee80211_vif_to_wdev(vif);
+-
+-		if (wdev && wdev->netdev)
+-			nss_wifi_vdev_unregister(wdev->netdev);
+-		arvif->nss_ifnum = -1;
+-	}
++	ath11k_nss_vdev_unregister(arvif);
+ 
+ 	ret = ath11k_mac_vdev_delete(ar, arvif);
  	if (ret) {

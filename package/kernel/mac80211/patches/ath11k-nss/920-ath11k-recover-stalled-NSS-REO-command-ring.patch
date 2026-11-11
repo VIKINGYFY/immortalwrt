@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:34:02 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] ath11k: recover an NSS REO command ring that stops progressing
 
 The host still owns the REO command ring while NSS owns the data rings.
@@ -13,11 +13,12 @@ check before freeing rings; host-ring mode retains its error handling.
 Share the reset entry point with NSS and reject resets during registration,
 unregistration or an active firmware recovery. This provides recovery from
 a persistent stall; it does not establish why the hardware stopped.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2720,6 +2720,16 @@
+@@ -2724,6 +2724,16 @@ static void ath11k_core_restart(struct w
  	complete(&ab->restart_completed);
  }
  
@@ -36,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ath11k_base *ab = container_of(work, struct ath11k_base, reset_work);
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -1342,6 +1342,7 @@
+@@ -1342,6 +1342,7 @@ int ath11k_core_suspend(struct ath11k_ba
  int ath11k_core_suspend_late(struct ath11k_base *ab);
  void ath11k_core_pre_reconfigure_recovery(struct ath11k_base *ab);
  bool ath11k_core_coldboot_cal_support(struct ath11k_base *ab);
@@ -46,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  						    const char *filename);
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -957,7 +957,7 @@
+@@ -957,7 +957,7 @@ static void ath11k_nss_reset(void *priv)
  {
  	struct ath11k_base *ab = priv;
  
@@ -55,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* Put back an MSDU-link descriptor the firmware cannot release itself: the
-@@ -1282,6 +1282,53 @@
+@@ -1282,6 +1282,53 @@ static void ath11k_dp_tx_pending_cleanup
  	}
  }
  
@@ -109,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_dp_free(struct ath11k_base *ab)
  {
  	struct ath11k_dp *dp = &ab->dp;
-@@ -1289,7 +1336,8 @@
+@@ -1289,7 +1336,8 @@ void ath11k_dp_free(struct ath11k_base *
  
  	if (ab->nss_soc >= 0)
  		nss_wifi_soc_unregister(ab->nss_soc);
@@ -119,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ath11k_dp_link_desc_cleanup(ab, dp->link_desc_banks,
  				    HAL_WBM_IDLE_LINK, &dp->wbm_idle_ring);
-@@ -1320,6 +1368,9 @@
+@@ -1320,6 +1368,9 @@ int ath11k_dp_alloc(struct ath11k_base *
  	int i;
  
  	dp->ab = ab;
@@ -131,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	INIT_LIST_HEAD(&dp->reo_cmd_cache_flush_list);
 --- a/drivers/net/wireless/ath/ath11k/dp.h
 +++ b/drivers/net/wireless/ath/ath11k/dp.h
-@@ -290,6 +290,12 @@
+@@ -290,6 +290,12 @@ struct ath11k_dp {
  	struct list_head reo_cmd_cache_flush_list;
  	struct list_head dp_full_mon_mpdu_list;
  	u32 reo_cmd_cache_flush_count;
@@ -144,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/**
  	 * protects access to below fields,
  	 * - reo_cmd_list
-@@ -1675,6 +1681,7 @@
+@@ -1675,6 +1681,7 @@ int ath11k_dp_service_srng(struct ath11k
  int ath11k_dp_htt_connect(struct ath11k_dp *dp);
  void ath11k_dp_vdev_tx_attach(struct ath11k *ar, struct ath11k_vif *arvif);
  void ath11k_dp_free(struct ath11k_base *ab);
@@ -154,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_dp_pdev_pre_alloc(struct ath11k_base *ab);
 --- a/drivers/net/wireless/ath/ath11k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
-@@ -968,8 +968,13 @@
+@@ -971,8 +971,13 @@ int ath11k_dp_tx_send_reo_cmd(struct ath
  	cmd_num = ath11k_hal_reo_cmd_send(ab, cmd_ring, type, cmd);
  
  	/* cmd_num should start from 1, during failure return the error code */

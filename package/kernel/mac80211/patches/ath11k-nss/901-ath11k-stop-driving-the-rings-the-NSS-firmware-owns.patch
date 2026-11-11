@@ -1,6 +1,6 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Sun, 08 Nov 2026 10:34:02 +0800
-Subject: [PATCH v3] ath11k: stop driving the rings the NSS firmware owns
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] ath11k: stop driving the rings the NSS firmware owns
 
 The NSS firmware reaps and fills the data-path rings once its Wi-Fi data
 plane is started, so this driver has to be off them before it is. It is not
@@ -31,16 +31,29 @@ Only suppress ring allocation when NSS owns those rings.
 
 Use the shared driver hardware revision name ATH11K_HW_IPQ8074_HW20.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Split from:
+  918-ath11k-offload-the-QCN9074-to-the-NSS-firmware.patch - ath11k: offload the QCN9074 to the NSS firmware
+
+Merged from:
+  901-ath11k-stop-driving-the-rings-the-NSS-firmware-owns.patch - ath11k: stop driving the rings the NSS firmware owns
+  918-ath11k-offload-the-QCN9074-to-the-NSS-firmware.patch - ath11k: offload the QCN9074 to the NSS firmware
+  921-ath11k-defer-NSS-PHY-restart-until-ring-handover.patch - ath11k: defer NSS PHY restart until shared ring handover
+  922-ath11k-allocate-host-TX-software-state-only-when-used.patch - wifi: ath11k: allocate host TX software state only when used
+
+Assisted-by: Claude:claude-opus-5-5
+
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -37,6 +37,22 @@
- bool ath11k_ftm_mode;
+@@ -38,6 +38,22 @@ bool ath11k_ftm_mode;
  module_param_named(ftm_mode, ath11k_ftm_mode, bool, 0444);
  MODULE_PARM_DESC(ftm_mode, "Boots up in factory test mode");
-+
+ 
 +bool ath11k_nss_offload;
 +module_param_named(nss_offload, ath11k_nss_offload, bool, 0644);
 +MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
@@ -56,10 +69,74 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +bool ath11k_nss_prefill;
 +module_param_named(nss_prefill, ath11k_nss_prefill, bool, 0644);
 +MODULE_PARM_DESC(nss_prefill, "Fill the receive-DMA ring from here as well");
- 
++
  static const struct ath11k_hw_params ath11k_hw_params[] = {
  	{
-@@ -2788,6 +2804,28 @@
+ 		.hw_rev = ATH11K_HW_IPQ9574_HW10,
+@@ -2626,7 +2642,8 @@ void ath11k_core_pre_reconfigure_recover
+ 	reinit_completion(&ab->driver_recovery);
+ }
+ 
+-static void ath11k_core_post_reconfigure_recovery(struct ath11k_base *ab)
++static void ath11k_core_post_reconfigure_recovery(struct ath11k_base *ab,
++						  bool restart)
+ {
+ 	struct ath11k *ar;
+ 	struct ath11k_pdev *pdev;
+@@ -2644,7 +2661,8 @@ static void ath11k_core_post_reconfigure
+ 		case ATH11K_STATE_ON:
+ 			ar->state = ATH11K_STATE_RESTARTING;
+ 			ath11k_core_halt(ar);
+-			ieee80211_restart_hw(ar->hw);
++			if (restart)
++				ieee80211_restart_hw(ar->hw);
+ 			break;
+ 		case ATH11K_STATE_OFF:
+ 			ath11k_warn(ab,
+@@ -2652,6 +2670,8 @@ static void ath11k_core_post_reconfigure
+ 				    i);
+ 			break;
+ 		case ATH11K_STATE_RESTARTING:
++			if (restart)
++				ieee80211_restart_hw(ar->hw);
+ 			break;
+ 		case ATH11K_STATE_RESTARTED:
+ 			ar->state = ATH11K_STATE_WEDGED;
+@@ -2688,8 +2708,8 @@ static void ath11k_core_restart(struct w
+ 	if (ab->is_reset)
+ 		complete_all(&ab->reconfigure_complete);
+ 
+-	if (!ab->is_reset)
+-		ath11k_core_post_reconfigure_recovery(ab);
++	if (!ab->is_reset || ab->nss_offload)
++		ath11k_core_post_reconfigure_recovery(ab, true);
+ 
+ 	complete(&ab->restart_completed);
+ }
+@@ -2752,12 +2772,18 @@ static void ath11k_core_reset(struct wor
+ 	ath11k_core_pre_reconfigure_recovery(ab);
+ 
+ 	reinit_completion(&ab->reconfigure_complete);
+-	ath11k_core_post_reconfigure_recovery(ab);
++	/* Quiesce every PHY before its rings are freed. In NSS mode defer
++	 * mac80211 restart until all shared instances can hand over the core;
++	 * its per-PHY restart holds RTNL and cannot wait for another instance.
++	 */
++	ath11k_core_post_reconfigure_recovery(ab, !ab->nss_offload);
+ 
+-	ath11k_dbg(ab, ATH11K_DBG_BOOT, "waiting recovery start...\n");
++	if (!ab->nss_offload) {
++		ath11k_dbg(ab, ATH11K_DBG_BOOT, "waiting recovery start...\n");
+ 
+-	time_left = wait_for_completion_timeout(&ab->recovery_start,
+-						ATH11K_RECOVER_START_TIMEOUT_HZ);
++		time_left = wait_for_completion_timeout(&ab->recovery_start,
++					ATH11K_RECOVER_START_TIMEOUT_HZ);
++	}
+ 
+ 	ath11k_hif_irq_disable(ab);
+ 	ath11k_hif_ce_irq_disable(ab);
+@@ -2788,6 +2814,29 @@ static int ath11k_init_hw_params(struct
  
  	ab->hw_params = *hw_params;
  
@@ -74,7 +151,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	 */
 +	ab->nss_offload = ath11k_nss_offload &&
 +			  (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
-+			   ab->hw_rev == ATH11K_HW_IPQ6018_HW10);
++			   ab->hw_rev == ATH11K_HW_IPQ6018_HW10 ||
++			   ab->hw_rev == ATH11K_HW_QCN9074_HW10);
 +	if (ab->nss_offload && !ath11k_nss_keep_mask) {
 +		const struct ath11k_hw_ring_mask *m = ab->hw_params.ring_mask;
 +
@@ -101,23 +179,23 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define ATH11K_SCAN_TIMEOUT_HZ (20 * HZ)
  
-@@ -1019,6 +1023,13 @@
- 	bool pdevs_macaddr_valid;
+@@ -1022,6 +1026,13 @@ struct ath11k_base {
  
  	struct ath11k_hw_params hw_params;
-+
+ 
 +	/* What hw_params.ring_mask points at while the firmware owns the
 +	 * data-path rings.
 +	 */
 +	struct ath11k_hw_ring_mask nss_ring_mask;
 +	/* ath11k_nss_offload, for a radio the NSS firmware drives */
 +	bool nss_offload;
- 
++
  	const struct firmware *cal_file;
  
+ 	/* Below regd's are protected by ab->data_lock */
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -55,9 +55,17 @@
+@@ -55,9 +55,17 @@ int ath11k_dp_peer_setup(struct ath11k *
  
  	/* NOTE: reo_dest ring id starts from 1 unlike mac_id which starts from 0 */
  	reo_dest = ar->dp.mac_id + 1;
@@ -136,9 +214,34 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (ret) {
  		ath11k_warn(ab, "failed to set default routing %d peer :%pM vdev_id :%d\n",
+@@ -1276,15 +1284,21 @@ int ath11k_dp_alloc(struct ath11k_base *
+ 	size = sizeof(struct hal_wbm_release_ring) * DP_TX_COMP_RING_SIZE;
+ 
+ 	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
+-		ret = ath11k_dp_tx_bufs_init(&dp->tx_ring[i]);
+-		if (ret)
+-			goto fail_cmn_srng_cleanup;
+ 		spin_lock_init(&dp->tx_ring[i].tx_idr_lock);
+ 		spin_lock_init(&dp->tx_ring[i].wake_tx_lock);
+ 		dp->tx_ring[i].tcl_data_ring_id = i;
+ 
+ 		dp->tx_ring[i].tx_status_head = 0;
+ 		dp->tx_ring[i].tx_status_tail = DP_TX_COMP_RING_SIZE - 1;
++		/* NSS owns data completions. Debug builds retain host storage
++		 * because their writable parameters can enable host TX later.
++		 * The DMA rings above still belong to the NSS firmware ABI.
++		 */
++		if (ab->nss_offload && !IS_ENABLED(CONFIG_NSS_WIFI_DEBUG))
++			continue;
++		ret = ath11k_dp_tx_bufs_init(&dp->tx_ring[i]);
++		if (ret)
++			goto fail_cmn_srng_cleanup;
+ 		dp->tx_ring[i].tx_status = kmalloc(size, GFP_KERNEL);
+ 		if (!dp->tx_ring[i].tx_status) {
+ 			ret = -ENOMEM;
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -660,9 +660,12 @@
+@@ -660,9 +660,12 @@ static int ath11k_dp_rxdma_pdev_buf_setu
  	struct dp_rxdma_ring *rx_ring = &dp->rx_refill_buf_ring;
  	int i, ret;
  
@@ -154,9 +257,30 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (ar->ab->hw_params.rxdma1_enable) {
  		rx_ring = &dp->rxdma_mon_buf_ring;
+--- a/drivers/net/wireless/ath/ath11k/dp_tx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_tx.c
+@@ -131,7 +131,7 @@ static struct sk_buff *ath11k_dp_tx_buf_
+ {
+ 	struct sk_buff *skb;
+ 
+-	if (unlikely(id >= DP_TX_IDR_SIZE - 1))
++	if (unlikely(!tx_ring->bufs || id >= DP_TX_IDR_SIZE - 1))
+ 		return NULL;
+ 
+ 	skb = tx_ring->bufs[id];
+@@ -850,6 +850,9 @@ int ath11k_dp_tx_completion_handler(stru
+ 	u32 msdu_id;
+ 	u8 mac_id, i;
+ 
++	if (!tx_ring->tx_status)
++		return 0;
++
+ 	spin_lock_bh(&status_ring->lock);
+ 
+ 	ath11k_hal_srng_access_begin(ab, status_ring);
 --- a/drivers/net/wireless/ath/ath11k/hw.c
 +++ b/drivers/net/wireless/ath/ath11k/hw.c
-@@ -126,6 +126,15 @@
+@@ -126,6 +126,15 @@ static void ath11k_hw_ipq8074_reo_setup(
  		HAL_HASH_ROUTING_RING_SW2 << 15 |
  		HAL_HASH_ROUTING_RING_SW3 << 18 |
  		HAL_HASH_ROUTING_RING_SW4 << 21;
@@ -172,7 +296,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	val = ath11k_hif_read32(ab, reo_base + HAL_REO1_GEN_ENABLE);
  
-@@ -147,7 +156,7 @@
+@@ -147,7 +156,7 @@ static void ath11k_hw_ipq8074_reo_setup(
  
  	ath11k_hif_write32(ab, reo_base + HAL_REO1_DEST_RING_CTRL_IX_0,
  			   FIELD_PREP(HAL_REO_DEST_RING_CTRL_HASH_RING_MAP,
@@ -183,16 +307,41 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				      ring_hash_map));
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6638,6 +6638,12 @@
- 			ieee80211_free_txskb(ar->hw, skb);
- 		}
+@@ -6641,6 +6641,12 @@ static int ath11k_mac_tx(struct ieee8021
  		return ret;
-+	}
-+
+ 	}
+ 
 +	/* Management has already left over WMI. NSS owns data TX. */
 +	if (ar->ab->nss_offload) {
 +		ieee80211_free_txskb(ar->hw, skb);
 +		return 0;
- 	}
- 
++	}
++
  	if (control->sta)
+ 		arsta = ath11k_sta_to_arsta(control->sta);
+ 
+@@ -7453,7 +7459,7 @@ static void ath11k_mac_vif_unref(struct
+ 	struct ath11k_skb_cb *skb_cb;
+ 	u32 id;
+ 
+-	for (id = 0; id < DP_TX_IDR_SIZE - 1; id++) {
++	for (id = 0; tx_ring->bufs && id < DP_TX_IDR_SIZE - 1; id++) {
+ 		if (!tx_ring->bufs[id])
+ 			continue;
+ 
+--- a/drivers/net/wireless/ath/ath11k/pci.c
++++ b/drivers/net/wireless/ath/ath11k/pci.c
+@@ -733,6 +733,13 @@ static void ath11k_pci_coredump_download
+ 	void *buf;
+ 	u32 dump_seg_sz[FW_CRASH_DUMP_TYPE_MAX] = {};
+ 
++	/* An NSS-initiated reset can leave WLAN in mission mode. Waiting
++	 * for a nonexistent RDDM image delays the shared handover long enough
++	 * for the other WLAN instance to watchdog while its NSS is stopped.
++	 */
++	if (ab->nss_offload && mhi_get_exec_env(mhi_ctrl) != MHI_EE_RDDM)
++		return;
++
+ 	ath11k_mhi_coredump(mhi_ctrl, false);
+ 
+ 	len = ath11k_pci_coredump_calculate_size(ab, dump_seg_sz);

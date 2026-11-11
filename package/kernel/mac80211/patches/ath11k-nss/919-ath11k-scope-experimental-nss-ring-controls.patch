@@ -1,0 +1,54 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: ath11k: restrict experimental NSS ring controls
+
+Decide external-radio BAR reachability before replacing host ring masks and expose experimental ownership switches only in explicit debug builds. VDEV unwind and peer authorization live in their corresponding earlier integration units.
+
+Split from:
+  919-ath11k-unwind-NSS-vdevs-and-check-peer-authorization.patch - ath11k: unwind NSS vdevs and propagate peer authorization errors
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -43,11 +43,15 @@ module_param_named(nss_offload, ath11k_n
+ MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
+ 
+ bool ath11k_nss_host_tx;
++#ifdef CONFIG_NSS_WIFI_DEBUG
+ module_param_named(nss_host_tx, ath11k_nss_host_tx, bool, 0644);
++#endif
+ MODULE_PARM_DESC(nss_host_tx, "Transmit from here rather than through the firmware");
+ 
+ bool ath11k_nss_keep_mask;
++#ifdef CONFIG_NSS_WIFI_DEBUG
+ module_param_named(nss_keep_mask, ath11k_nss_keep_mask, bool, 0644);
++#endif
+ MODULE_PARM_DESC(nss_keep_mask, "Leave the ring mask alone while offloading");
+ 
+ bool ath11k_nss_hash;
+@@ -55,7 +59,9 @@ module_param_named(nss_hash, ath11k_nss_
+ MODULE_PARM_DESC(nss_hash, "Keep hash-based receive steering while offloading");
+ 
+ bool ath11k_nss_prefill;
++#ifdef CONFIG_NSS_WIFI_DEBUG
+ module_param_named(nss_prefill, ath11k_nss_prefill, bool, 0644);
++#endif
+ MODULE_PARM_DESC(nss_prefill, "Fill the receive-DMA ring from here as well");
+ 
+ static const struct ath11k_hw_params ath11k_hw_params[] = {
+@@ -2831,6 +2837,14 @@ static int ath11k_init_hw_params(struct
+ 			  (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
+ 			   ab->hw_rev == ATH11K_HW_IPQ6018_HW10 ||
+ 			   ab->hw_rev == ATH11K_HW_QCN9074_HW10);
++	/* Decide before replacing host ring masks. The firmware has a
++	 * 32-bit MMIO ABI, including the BAR of an external radio.
++	 */
++	if (ab->nss_offload && ab->mem_pa > U32_MAX) {
++		ath11k_warn(ab, "NSS cannot reach BAR %pa; using host rings\n",
++			    &ab->mem_pa);
++		ab->nss_offload = false;
++	}
+ 	if (ab->nss_offload && !ath11k_nss_keep_mask) {
+ 		const struct ath11k_hw_ring_mask *m = ab->hw_params.ring_mask;
+ 

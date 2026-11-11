@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 19:49:50 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath11k: offload NSS WDS and recover its sessions
 
 Adapt the R50 WDS/ext-vdev and MCBC contracts to the local NSS driver.
@@ -12,24 +12,24 @@ and require the versioned private registration API. Rejoin NSS stations
 and notify userspace to renew encrypted AP sessions after firmware recovery.
 Finish station cleanup when a crashed NSS WLAN cannot accept deletion.
 
-Merged from:
-  QSDK R50 wlan-open/patches/ath11k/0044-001-ath11k-add-WDS-offload-changes-to-NSS-driver-interface.patch
+Previous merged from (924-ath11k-offload-WDS-with-NSS-address-lifetimes.patch):
+  QSDK R50 0044-001-ath11k-add-WDS-offload-changes-to-NSS-driver-interface.patch
     [PATCH 1/2] ath11k: add WDS offload changes to NSS driver interface
-  QSDK R50 wlan-open/patches/ath11k/0044-002-ath11k-add-WDS-offload-support-on-NSS-offload-for-STA-mode.patch
+  QSDK R50 0044-002-ath11k-add-WDS-offload-support-on-NSS-offload-for-STA-mode.patch
     [PATCH] ath11k: add WDS offload support on NSS offload for STA mode
-  QSDK R50 wlan-open/patches/ath11k/0063-002-ath11k-add-support-for-ext-vdev-in-NSS-for-AP_VLAN-vif-handling.patch
+  QSDK R50 0063-002-ath11k-add-support-for-ext-vdev-in-NSS-for-AP_VLAN-vif-handling.patch
     [PATCH 2/3] ath11k: add support for ext vdev in NSS for AP_VLAN vif handling
-  QSDK R50 wlan-open/patches/ath11k/0063-003-ath11k-add-AP_VLAN-vif-support-for-WDS-offload-in-NSS-offload.patch
+  QSDK R50 0063-003-ath11k-add-AP_VLAN-vif-support-for-WDS-offload-in-NSS-offload.patch
     [PATCH 3/3] ath11k: add AP_VLAN vif support for WDS offload in NSS offload
-  QSDK R50 wlan-open/patches/ath11k/0077-ath11k-nss-mcbc-exception.patch
+  QSDK R50 0077-ath11k-nss-mcbc-exception.patch
     [PATCH] ath11k: NSS MCBC Exception added for STA
-  QSDK R50 wlan-open/patches/ath11k/0112-ath11k-sync-wds_ast_entry-updates.patch
+  QSDK R50 0112-ath11k-sync-wds_ast_entry-updates.patch
     [PATCH] ath11k: sync wds ast entry on peer/entry deletions
-  QSDK R50 wlan-open/patches/ath11k/0128-ath11k-fix-support-for-ext-vdev-in-NSS-for-AP_VLAN-v.patch
+  QSDK R50 0128-ath11k-fix-support-for-ext-vdev-in-NSS-for-AP_VLAN-v.patch
     [PATCH] ath11k: fix support for ext vdev in NSS for AP_VLAN vif during recovery
-  QSDK R50 wlan-open/patches/ath11k/0154-ath11k-fix-incorrect-ast-index-assignment-for-wds-peer.patch
+  QSDK R50 0154-ath11k-fix-incorrect-ast-index-assignment-for-wds-peer.patch
     [PATCH] ath11k: fix incorrect ast index assignment for wds peer
-  QSDK R50 wlan-open/patches/ath11k/0067-002-ath11k-add-dynamic-VLAN-support-in-NSS-offload.patch
+  QSDK R50 0067-002-ath11k-add-dynamic-VLAN-support-in-NSS-offload.patch
     [PATCH 3/3] ath11k: add dynamic VLAN support in NSS offload
 
 Signed-off-by: Sathishkumar Muruganandam <murugana@codeaurora.org>
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/Makefile
 +++ b/drivers/net/wireless/ath/ath11k/Makefile
-@@ -15,6 +15,7 @@
+@@ -15,6 +15,7 @@ ath11k-y += core.o \
  	    debug.o \
  	    ce.o \
  	    peer.o \
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    pcic.o \
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -3017,6 +3017,7 @@
+@@ -3017,6 +3017,7 @@ EXPORT_SYMBOL(ath11k_core_deinit);
  
  void ath11k_core_free(struct ath11k_base *ab)
  {
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	destroy_workqueue(ab->workqueue_aux);
  	destroy_workqueue(ab->workqueue);
  
-@@ -3070,6 +3071,7 @@
+@@ -3070,6 +3071,7 @@ struct ath11k_base *ath11k_core_alloc(st
  	init_completion(&ab->restart_completed);
  
  	ab->dev = dev;
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "cfr.h"
  
  #define SM(_v, _f) (((_v) << _f##_LSB) & _f##_MASK)
-@@ -381,6 +382,11 @@
+@@ -381,6 +382,11 @@ struct ath11k_vif {
  	u8 search_type;
  
  	/* What the NSS firmware calls this interface, or -1. */
@@ -91,7 +91,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int nss_ifnum;
  
  	struct ath11k *ar;
-@@ -749,6 +755,7 @@
+@@ -749,6 +755,7 @@ struct ath11k {
  	unsigned long txq_woken;
  	struct work_struct txq_work;
  
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct list_head arvifs;
  	/* should never be NULL; needed for regular htt rx */
  	struct ieee80211_channel *rx_channel;
-@@ -971,6 +978,8 @@
+@@ -971,6 +978,8 @@ struct ath11k_base {
  	struct completion fw_ready;
  	int num_radios;
  	/* The NSS firmware's instance for these radios, or negative. */
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 cc_freq_hz;
 --- a/drivers/net/wireless/ath/ath11k/debugfs.c
 +++ b/drivers/net/wireless/ath/ath11k/debugfs.c
-@@ -1536,6 +1536,7 @@
+@@ -1536,6 +1536,7 @@ int ath11k_debugfs_register(struct ath11
  				    &fops_reset_ps_duration);
  	}
  
@@ -120,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -1058,6 +1058,8 @@
+@@ -1058,6 +1058,8 @@ static void ath11k_nss_wifi_describe(str
  	soc->reset = ath11k_nss_reset;
  	soc->link_desc_return = ath11k_nss_link_desc_return;
  	soc->rx_80211 = ath11k_dp_rx_nss_80211;
@@ -129,7 +129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	soc->peer_stats = ath11k_nss_peer_stats;
  
  	for (i = 0; i < soc->num_tcl; i++) {
-@@ -1084,7 +1086,7 @@
+@@ -1084,7 +1086,7 @@ static void ath11k_nss_wifi_describe(str
  	ath11k_nss_wifi_ring(&soc->rx_rel, ab, dp->rx_rel_ring.ring_id);
  	ath11k_nss_wifi_ring(&soc->reo_exception, ab, dp->reo_except_ring.ring_id);
  
@@ -138,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ab->nss_soc < 0)
  		ath11k_warn(ab, "NSS firmware would not take the ring description\n");
  
-@@ -1334,6 +1336,7 @@
+@@ -1334,6 +1336,7 @@ void ath11k_dp_free(struct ath11k_base *
  	struct ath11k_dp *dp = &ab->dp;
  	int i;
  
@@ -148,7 +148,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	WRITE_ONCE(ab->nss_soc, -1);
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -1942,11 +1942,28 @@
+@@ -1942,11 +1942,28 @@ void ath11k_dp_htt_htc_t2h_msg_handler(s
  				     resp->peer_map_ev.info2);
  		hw_peer_id = FIELD_GET(HTT_T2H_PEER_MAP_INFO1_HW_PEER_ID,
  				       resp->peer_map_ev.info1);
@@ -178,7 +178,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		peer_id = FIELD_GET(HTT_T2H_PEER_UNMAP_INFO_PEER_ID,
  				    resp->peer_unmap_ev.info);
  		ath11k_peer_unmap_event(ab, peer_id);
-@@ -2471,7 +2488,8 @@
+@@ -2471,7 +2488,8 @@ static void ath11k_dp_rx_h_mpdu(struct a
  
  	/* PN for multicast packets will be checked in mac80211 */
  	rxcb = ATH11K_SKB_RXCB(msdu);
@@ -188,7 +188,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	rxcb->is_mcbc = fill_crypto_hdr;
  
  	if (rxcb->is_mcbc) {
-@@ -2732,8 +2750,8 @@
+@@ -2732,8 +2750,8 @@ static void ath11k_dp_rx_deliver_msdu(st
  /* A frame the NSS firmware hands back as 802.11, with the receive
   * descriptor the hardware wrote still at the head of the buffer.
   */
@@ -199,7 +199,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ath11k_skb_rxcb *rxcb = ATH11K_SKB_RXCB(msdu);
  	struct ieee80211_rx_status rx_status = {};
-@@ -2742,6 +2760,7 @@
+@@ -2742,6 +2760,7 @@ void ath11k_dp_rx_from_nss(struct ath11k
  	rxcb->rx_desc = (struct hal_rx_desc *)msdu->head;
  	rxcb->is_first_msdu = true;
  	rxcb->is_last_msdu = true;
@@ -207,7 +207,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ath11k_dp_rx_h_ppdu(ar, rxcb->rx_desc, &rx_status);
  	ath11k_dp_rx_h_mpdu(ar, msdu, rxcb->rx_desc, &rx_status);
-@@ -2751,6 +2770,12 @@
+@@ -2751,6 +2770,12 @@ void ath11k_dp_rx_from_nss(struct ath11k
  	ath11k_dp_rx_deliver_msdu(ar, napi, msdu, &rx_status);
  }
  
@@ -220,7 +220,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The NSS firmware hands up a frame the hardware did not decapsulate, such
   * as a block ack request, on the same path as ethernet. It goes to mac80211
   * as on the host's own receive path.
-@@ -2761,11 +2786,27 @@
+@@ -2761,11 +2786,27 @@ void ath11k_dp_rx_from_nss(struct ath11k
   * over the control port rather than to the network device.
   */
  bool ath11k_dp_rx_nss_80211(void *priv, struct net_device *dev,
@@ -249,7 +249,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	switch (ath11k_dp_rx_h_msdu_start_decap_type(priv, desc)) {
  	case DP_RX_DECAP_TYPE_RAW:
-@@ -2779,11 +2820,10 @@
+@@ -2779,11 +2820,10 @@ bool ath11k_dp_rx_nss_80211(void *priv,
  		return false;
  	}
  
@@ -267,7 +267,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.h
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.h
-@@ -103,6 +103,6 @@
+@@ -103,6 +103,6 @@ int ath11k_dp_rx_crypto_mic_len(struct a
  void ath11k_dp_rx_from_nss(struct ath11k *ar, struct sk_buff *msdu,
  			   struct napi_struct *napi);
  bool ath11k_dp_rx_nss_80211(void *priv, struct net_device *dev,
@@ -277,7 +277,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* ATH11K_DP_RX_H */
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -5336,6 +5336,8 @@
+@@ -5337,6 +5337,8 @@ err_rc_bw_changed:
  	mutex_unlock(&ar->conf_mutex);
  }
  
@@ -286,7 +286,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_sta_set_4addr_wk(struct work_struct *wk)
  {
  	struct ath11k *ar;
-@@ -5464,6 +5466,28 @@
+@@ -5465,6 +5467,28 @@ static void ath11k_mac_op_sta_set_4addr(
  	struct ath11k *ar = hw->priv;
  	struct ath11k_sta *arsta = ath11k_sta_to_arsta(sta);
  
@@ -315,7 +315,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (enabled && !arsta->use_4addr_set) {
  		ieee80211_queue_work(ar->hw, &arsta->set_4addr_wk);
  		arsta->use_4addr_set = true;
-@@ -6780,6 +6804,7 @@
+@@ -6781,6 +6805,7 @@ static int ath11k_mac_tx(struct ieee8021
  
  		if (!(info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP) &&
  		    ieee80211_data_to_8023(skb, hdr->addr1,
@@ -323,7 +323,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					   vif->type == NL80211_IFTYPE_STATION ?
  					   NL80211_IFTYPE_AP :
  					   NL80211_IFTYPE_STATION)) {
-@@ -6787,6 +6812,8 @@
+@@ -6788,6 +6813,8 @@ static int ath11k_mac_tx(struct ieee8021
  			return 0;
  		}
  
@@ -332,7 +332,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* The firmware returns a frame without saying whether it was
  		 * acknowledged, and the control block holding the status
  		 * request is overwritten on the way down. A frame that asks
-@@ -7492,6 +7519,25 @@
+@@ -7493,6 +7520,25 @@ static int ath11k_mac_op_add_interface(s
  
  	mutex_lock(&ar->conf_mutex);
  
@@ -358,7 +358,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (vif->type == NL80211_IFTYPE_AP &&
  	    ar->num_peers > (ar->max_num_peers - 1)) {
  		ath11k_warn(ab, "failed to create vdev due to insufficient peer entry resource in firmware\n");
-@@ -7512,6 +7558,9 @@
+@@ -7513,6 +7559,9 @@ static int ath11k_mac_op_add_interface(s
  	arvif->vif = vif;
  	arvif->nss_ifnum = -1;
  
@@ -368,7 +368,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	INIT_LIST_HEAD(&arvif->list);
  	INIT_WORK(&arvif->bcn_tx_work, ath11k_mac_bcn_tx_work);
  	INIT_DELAYED_WORK(&arvif->connection_loss_work,
-@@ -7768,6 +7817,16 @@
+@@ -7769,6 +7818,16 @@ static void ath11k_mac_op_remove_interfa
  	int ret;
  	int i;
  
@@ -385,7 +385,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	cancel_delayed_work_sync(&arvif->connection_loss_work);
  	cancel_work_sync(&arvif->bcn_tx_work);
  
-@@ -9675,6 +9734,26 @@
+@@ -9676,6 +9735,26 @@ ath11k_mac_op_set_bitrate_mask(struct ie
  	return ret;
  }
  
@@ -412,7 +412,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void
  ath11k_mac_op_reconfig_complete(struct ieee80211_hw *hw,
  				enum ieee80211_reconfig_type reconfig_type)
-@@ -9714,12 +9793,16 @@
+@@ -9715,12 +9794,16 @@ ath11k_mac_op_reconfig_complete(struct i
  				ath11k_dbg(ab, ATH11K_DBG_BOOT, "reset success\n");
  			}
  		}
@@ -430,7 +430,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	mutex_unlock(&ar->conf_mutex);
-@@ -10357,6 +10440,8 @@
+@@ -10358,6 +10441,8 @@ static int ath11k_mac_station_remove(str
  
  	if (ab->hw_params.vdev_start_delay &&
  	    arvif->is_started &&
@@ -439,7 +439,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    arvif->vdev_type != WMI_VDEV_TYPE_AP) {
  		ret = ath11k_mac_stop_vdev_early(ar->hw, vif);
  		if (ret) {
-@@ -10368,6 +10453,12 @@
+@@ -10369,6 +10454,12 @@ static int ath11k_mac_station_remove(str
  	ath11k_dp_peer_cleanup(ar, arvif->vdev_id, sta->addr);
  
  	ret = ath11k_peer_delete(ar, arvif->vdev_id, sta->addr);
@@ -452,7 +452,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		ath11k_warn(ab, "Failed to delete peer: %pM for VDEV: %d\n",
  			    sta->addr, arvif->vdev_id);
-@@ -11231,6 +11322,9 @@
+@@ -11309,6 +11400,9 @@ static int __ath11k_mac_register(struct
  		ieee80211_hw_set(ar->hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
  	}
  
@@ -462,7 +462,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ieee80211_hw_set(ar->hw, SIGNAL_DBM);
  	ieee80211_hw_set(ar->hw, SUPPORTS_PS);
  	ieee80211_hw_set(ar->hw, SUPPORTS_DYNAMIC_PS);
-@@ -11555,7 +11649,8 @@
+@@ -11633,7 +11727,8 @@ int ath11k_mac_allocate(struct ath11k_ba
  		for (j = 0; j < IEEE80211_NUM_ACS; j++)
  			spin_lock_init(&ar->txq_lock[j]);
  		INIT_WORK(&ar->txq_work, ath11k_mac_txq_work);
@@ -1115,7 +1115,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#endif
 --- a/drivers/net/wireless/ath/ath11k/peer.c
 +++ b/drivers/net/wireless/ath/ath11k/peer.c
-@@ -131,6 +131,7 @@
+@@ -131,6 +131,7 @@ void ath11k_peer_map_event(struct ath11k
  		if (!peer)
  			goto exit;
  
@@ -1123,7 +1123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		peer->vdev_id = vdev_id;
  		peer->peer_id = peer_id;
  		peer->ast_hash = ast_hash;
-@@ -369,9 +370,14 @@
+@@ -369,9 +370,14 @@ int ath11k_peer_delete(struct ath11k *ar
  			peer_id = peer->peer_id;
  		spin_unlock_bh(&ar->ab->base_lock);
  
@@ -1141,7 +1141,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = __ath11k_peer_delete(ar, vdev_id, addr);
 --- a/drivers/net/wireless/ath/ath11k/peer.h
 +++ b/drivers/net/wireless/ath/ath11k/peer.h
-@@ -15,6 +15,7 @@
+@@ -15,6 +15,7 @@ struct ath11k_peer {
  	int peer_id;
  	u16 ast_hash;
  	u8 pdev_idx;
@@ -1151,7 +1151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* protected by ab->data_lock */
 --- a/drivers/net/wireless/ath/ath11k/wmi.c
 +++ b/drivers/net/wireless/ath/ath11k/wmi.c
-@@ -1134,6 +1134,52 @@
+@@ -1134,6 +1134,52 @@ int ath11k_wmi_vdev_up(struct ath11k *ar
  	return ret;
  }
  
@@ -1206,7 +1206,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/drivers/net/wireless/ath/ath11k/wmi.h
 +++ b/drivers/net/wireless/ath/ath11k/wmi.h
-@@ -3005,6 +3005,20 @@
+@@ -3005,6 +3005,20 @@ enum wmi_peer_type {
  	WMI_PEER_TYPE_TDLS = 2,
  };
  
@@ -1227,7 +1227,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct wmi_peer_create_cmd {
  	u32 tlv_header;
  	u32 vdev_id;
-@@ -6487,6 +6501,9 @@
+@@ -6487,6 +6501,9 @@ int ath11k_wmi_peer_rx_reorder_queue_set
  					   const u8 *addr, dma_addr_t paddr,
  					   u8 tid, u8 ba_window_size_valid,
  					   u32 ba_window_size);

@@ -1,6 +1,6 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Sun, 08 Nov 2026 10:34:02 +0800
-Subject: [PATCH v2] ath11k: let the flow table reach the NSS firmware
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] ath11k: let the flow table reach the NSS firmware
 
 The kernel offers a flow it has accepted into its software fast path to
 whatever hardware is registered on the device the flow arrives at, through
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -10537,6 +10537,53 @@
+@@ -10560,6 +10560,53 @@ void ath11k_mac_tx_push_pending(struct a
  	rcu_read_unlock();
  }
  
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct ieee80211_ops ath11k_ops = {
  	.tx				= ath11k_mac_op_tx,
  	.wake_tx_queue			= ath11k_mac_op_wake_tx_queue,
-@@ -10574,6 +10621,8 @@
+@@ -10597,6 +10644,8 @@ static const struct ieee80211_ops ath11k
  	.flush				= ath11k_mac_op_flush,
  	.flush_sta			= ath11k_mac_op_flush_sta,
  	.sta_statistics			= ath11k_mac_op_sta_statistics,

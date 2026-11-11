@@ -1,6 +1,6 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Sun, 08 Nov 2026 10:34:02 +0800
-Subject: [PATCH v2] ath11k: report what the NSS firmware counts for a station
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] ath11k: report what the NSS firmware counts for a station
 
 Offloaded frames never pass mac80211, so a station's inactive time grows
 from association and hostapd disassociates it every ap_max_inactivity
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -569,6 +569,12 @@
+@@ -569,6 +569,12 @@ struct ath11k_sta {
  	struct rate_info last_txrate;
  	/* Set by PPDU reports while NSS owns data RX. */
  	struct rate_info rxrate;
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 tx_retries;
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -967,6 +967,54 @@
+@@ -975,6 +975,54 @@ static void ath11k_nss_link_desc_return(
  				      HAL_WBM_REL_BM_ACT_PUT_IN_IDLE);
  }
  
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_nss_wifi_describe(struct ath11k_base *ab)
  {
  	struct ath11k_dp *dp = &ab->dp;
-@@ -1003,6 +1051,7 @@
+@@ -1010,6 +1058,7 @@ static void ath11k_nss_wifi_describe(str
  	soc->reset = ath11k_nss_reset;
  	soc->link_desc_return = ath11k_nss_link_desc_return;
  	soc->rx_80211 = ath11k_dp_rx_nss_80211;
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_nss_wifi_ring(&soc->tcl[i], ab,
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -9817,6 +9817,21 @@
+@@ -9818,6 +9818,21 @@ static void ath11k_mac_op_sta_statistics
  		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_BITRATE);
  	}
  
