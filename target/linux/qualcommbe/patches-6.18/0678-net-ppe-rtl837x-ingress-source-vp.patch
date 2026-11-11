@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -362,6 +362,8 @@
+@@ -362,6 +362,8 @@ int ppe_ing_xlt_rule_set(struct ppe_devi
  			 int vsi, bool strip_svid, bool strip_cvid);
  int ppe_ing_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
  int ppe_ing_xlt_l3_if_set(struct ppe_device *ppe_dev, int index, int l3_if);
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			int vsi, bool add_svid, bool add_cvid);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1984,6 +1984,77 @@
+@@ -1984,6 +1984,77 @@ int ppe_ing_xlt_l3_if_set(struct ppe_dev
  	return ppe_xlt_write_verify(ppe_dev, reg, action, ARRAY_SIZE(action));
  }
  
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @ppe_dev: PPE device
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
-@@ -66,6 +66,8 @@
+@@ -66,6 +66,8 @@ int ppe_vp_get(struct ppe_device *ppe_de
  int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
  		     int priority, bool need_hook);
  int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port);
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct net_device *ppe_vp_dev(struct ppe_device *ppe_dev, int vp);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
-@@ -67,6 +67,7 @@
+@@ -67,6 +67,7 @@ enum ppe_vp_slot_type {
  	PPE_VP_SLOT_NONE,
  	PPE_VP_SLOT_WIRELESS,
  	PPE_VP_SLOT_QCA4B,
@@ -126,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct ppe_vp_slot {
-@@ -80,6 +81,7 @@
+@@ -80,6 +81,7 @@ struct ppe_vp_slot {
  	enum ppe_vp_slot_type type;
  	u8 switch_port;
  	u8 physical_port;
@@ -134,13 +134,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct metadata_dst *dsa_meta;
  	u32 athtag_orig_prx;
  	u32 athtag_orig_eg_vp[3];
-@@ -883,6 +885,78 @@
- 		 free, slot->vp, dev->name, ret);
- 	slot->refcnt = 0;
- 	ppe_vp_slot_reset(slot);
-+	return ret;
-+}
-+
+@@ -886,6 +888,78 @@ err_reset:
+ 	return ret;
+ }
+ 
 +/* A source-only RTL VP is selected by the exact ingress VLAN rule.
 + * It has no injection hook and never becomes an egress destination. CPU
 + * misses retain the restored RTL service tag and return via the conduit.
@@ -210,10 +207,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		 dev->name, ret, physical, cvid);
 +unlock:
 +	mutex_unlock(&vp->lock);
- 	return ret;
- }
- 
-@@ -1165,6 +1239,28 @@
++	return ret;
++}
++
+ /**
+  * ppe_vp_get - Get a virtual port for a net device
+  * @ppe_dev: PPE device
+@@ -1165,6 +1239,28 @@ bool ppe_vp_rx_fallback(struct ppe_devic
  		rcu_read_unlock();
  		return false;
  	}
@@ -242,7 +242,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (slot->type == PPE_VP_SLOT_QCA4B) {
  		struct dsa_port *dp = dsa_port_from_netdev(dev);
  		struct net_device *conduit;
-@@ -1448,7 +1544,8 @@
+@@ -1448,7 +1544,8 @@ static int ppe_vp_netdev_event(struct no
  					 i, vp->slots[i].vp, dev->name, carrier_up, event);
  			vp->slots[i].carrier_up = carrier_up;
  		}

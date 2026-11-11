@@ -1,5 +1,5 @@
 From: Akshay Kakatkar <me@kakatkarakshay.dev>
-Date: Sat, 1 Aug 2026 04:30:00 +0530
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: program the flow path MTU
 
 APPE and MPPE extend the 5-tuple flow entries with a per-flow path MTU,
@@ -21,8 +21,10 @@ address in words two and three.
 Link: https://github.com/everything411/qsdk/blob/4d49909b60dd04642026da43018d26c813e079b5/qca/src/qca-ssdk/include/hsl/hppe/hppe_flow_reg.h
 Link: https://github.com/everything411/qsdk/blob/4d49909b60dd04642026da43018d26c813e079b5/qca/src/qca-ssdk/src/adpt/hppe/adpt_hppe_flow.c
 Link: https://github.com/everything411/qsdk/blob/4d49909b60dd04642026da43018d26c813e079b5/qca/src/qca-nss-ppe/drv/ppe_drv/ppe_drv_flow.c
+
 Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 @@ -135,6 +135,7 @@ static void ppe_host_entry_pack(const st
@@ -73,7 +75,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  int ppe_flow_hw_init(struct ppe_device *ppe_dev);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2197,6 +2197,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2213,6 +2213,8 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_tdev;
  	}
  

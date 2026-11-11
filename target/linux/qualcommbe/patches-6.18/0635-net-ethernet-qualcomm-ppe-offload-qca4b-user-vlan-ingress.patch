@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Mon, 31 Aug 2026 00:32:29 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe offload QCA4B user VLAN ingress
 
 QCA4B user-VLAN flows currently offload only the direction egressing the
@@ -24,7 +24,7 @@ VLAN layer because its transport tag and user tag cannot be distinguished
 by the single VLAN dissector key.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -2002,6 +2002,7 @@ static int ppe_ft_flow_replace(struct pp
@@ -94,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (tunnel_flow && !lwt_tunnel) {
-@@ -2675,7 +2688,7 @@ put_idev:
+@@ -2679,7 +2692,7 @@ put_idev:
  			goto err_ingress_my_mac;
  	}
  

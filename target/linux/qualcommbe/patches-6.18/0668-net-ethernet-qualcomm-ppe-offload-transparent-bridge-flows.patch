@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 24 Oct 2026 22:28:52 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: offload transparent bridge flows
 
 Use the native QSDK L2 flow mode for untagged flows within a common
@@ -21,8 +21,9 @@ Tagged/DSA bridge domains still require their own VLAN editor and domain
 encoding; the existing routed and PPPoE paths remain independent.
 
 Link: https://github.com/everything411/qsdk/tree/21a8d13393aa8c7d2abf806e62a8dac2ba7af52f
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 @@ -212,7 +212,10 @@ static void ppe_flow_entry_pack(const st
@@ -73,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ingress_ifindex;
  };
  
-@@ -261,7 +263,7 @@ struct ppe_ft_flow {
+@@ -262,7 +264,7 @@ struct ppe_ft_flow {
  	struct ppe_ft_rule_state rule;
  	int index;
  	struct ppe_flow_entry entry;
@@ -82,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ingress_my_mac;
  	int my_mac;
  	int pub_ip;
-@@ -2773,6 +2775,34 @@ static int ppe_ft_flow_refresh(struct pp
+@@ -2783,6 +2785,34 @@ static int ppe_ft_flow_refresh(struct pp
  	return 0;
  }
  
@@ -117,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
  			       struct flow_cls_offload *f,
  			       struct flow_block *block)
-@@ -2792,6 +2822,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2802,6 +2832,7 @@ static int ppe_ft_flow_replace(struct pp
  	struct in6_addr lwt_local = {}, lwt_remote = {};
  	u8 lwt_hop_limit = 0;
  	bool ingress_vp_vlan = false;
@@ -125,15 +126,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
  	int i, nexthop, ret, cleanup_ret, redirects = 0, vlan_pushes = 0;
  	int pppoe_pushes = 0, csums = 0;
-@@ -2841,6 +2872,7 @@ static int ppe_ft_flow_replace(struct pp
- 	flow->block = block;
+@@ -2852,6 +2883,7 @@ static int ppe_ft_flow_replace(struct pp
+ 	INIT_LIST_HEAD(&flow->active_node);
  	INIT_LIST_HEAD(&flow->zombie_node);
  	flow->index = -1;
 +	flow->nexthop = -1;
  	flow->ingress_my_mac = -1;
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
-@@ -3213,6 +3245,41 @@ static int ppe_ft_flow_replace(struct pp
+@@ -3224,6 +3256,41 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_tdev;
  	}
  
@@ -175,7 +176,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	reject_reason = PPE_FT_REJECT_INGRESS_DEVICE;
  	/* Resolve the ingress identity. Tagged physical ingress needs a VLAN
  	 * uplink. Wireless ingress takes its own VP reference so the mapping
-@@ -3373,6 +3440,11 @@ put_idev:
+@@ -3384,6 +3451,11 @@ put_idev:
  	}
  
  	if (flow->ivp >= 0) {
@@ -187,7 +188,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		flow->vp_flow.key.is_ipv6 = flow->entry.is_ipv6;
  		flow->vp_flow.key.protocol =
  			flow->entry.proto == PPE_FLOW_PROTOCOL_TCP ?
-@@ -3431,6 +3503,24 @@ put_idev:
+@@ -3446,6 +3518,24 @@ put_idev:
  			ret = 0;
  		goto err_vp;
  	}
@@ -212,7 +213,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tunnel_flow) {
  		struct in6_addr local, remote;
  		int link, mtu;
-@@ -3744,6 +3834,7 @@ put_idev:
+@@ -3759,6 +3849,7 @@ put_idev:
  	flow->nexthop = nexthop;
  	flow->entry.nexthop = nexthop;
  
@@ -220,7 +221,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	memset(&operation, 0, sizeof(operation));
  	operation.index = -1;
  	ret = ppe_ft_resource_result(ft, PPE_FT_RES_HOST,
-@@ -3823,6 +3914,8 @@ put_idev:
+@@ -3838,6 +3929,8 @@ put_idev:
  	}
  
  	mutex_unlock(&ft->lock);
@@ -229,7 +230,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tdev)
  		dev_put(tdev);
  
-@@ -3899,6 +3992,8 @@ err_free:
+@@ -3914,6 +4007,8 @@ err_free:
  	if (flow && flow->egress_dev)
  		dev_put(flow->egress_dev);
  	kfree_rcu(flow, rcu);
@@ -238,7 +239,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return ret;
  }
-@@ -4259,7 +4354,7 @@ static int ppe_ft_flows_show(struct seq_
+@@ -4264,7 +4359,7 @@ static int ppe_ft_flows_show(struct seq_
  				   &flow->entry.dip.ip4,
  				   be16_to_cpu(flow->entry.dport));
  		seq_printf(seq,
@@ -247,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   flow->entry.proto, flow->entry.priority,
  			   flow->entry.priority_valid, hw_priority,
  			   !!(qos[0] & PPE_QOS_MAPPING_W0_INT_PRI_EN), hw_profile,
-@@ -4267,7 +4362,9 @@ static int ppe_ft_flows_show(struct seq_
+@@ -4272,7 +4367,9 @@ static int ppe_ft_flows_show(struct seq_
  			   flow->entry.host_index,
  			   !!(f[0] & PPE_FLOW_W0_HOST_INDEX_TYPE), flow->nexthop,
  			   flow->ivp, flow->vp, flow_err, qos_err, stats_err,
@@ -258,7 +259,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  	rhashtable_walk_stop(&iter);
  	rhashtable_walk_exit(&iter);
-@@ -4526,6 +4623,48 @@ int ppe_flowtable_setup_tc(struct net_de
+@@ -4504,6 +4601,48 @@ int ppe_flowtable_setup_tc(struct net_de
  	}
  }
  
@@ -307,7 +308,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_ft_account_event(struct notifier_block *nb,
  				unsigned long event, void *ptr)
  {
-@@ -4535,6 +4674,17 @@ static int ppe_ft_account_event(struct n
+@@ -4513,6 +4652,17 @@ static int ppe_ft_account_event(struct n
  	struct rhashtable_iter iter;
  	struct ppe_ft_flow *flow;
  

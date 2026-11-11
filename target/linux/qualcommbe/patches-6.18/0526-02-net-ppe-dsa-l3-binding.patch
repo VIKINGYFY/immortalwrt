@@ -1,5 +1,5 @@
 From: Akshay Kakatkar <me@kakatkarakshay.dev>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: program complete L3 bindings for DSA flows
 
 A flow whose ingress or egress device is a DSA user port behind a PPE
@@ -13,12 +13,16 @@ The port-to-L3 binding consequently remains invalid, and a VLAN can reach
 its translated VSI without the VSI selecting the L3 interface configured
 for it. Such packets take the L3 no-route action before flow lookup.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  0526-02-net-ppe-dsa-l3-binding.patch - net: ethernet: qualcomm: program complete L3 bindings for DSA flows
+  0621-net-ethernet-qualcomm-ppe-support-PPPoE-over-DSA.patch - net: ethernet: qualcomm: ppe: support PPPoE over DSA
+
+Previous merged from (0526-02-net-ppe-dsa-l3-binding.patch):
   0526-02-net-ethernet-qualcomm-ppe-offload-flows-to-dsa-user-ports.patch
   0526-03-net-ethernet-qualcomm-ppe-write-complete-L3-binding-rows.patch
-
-Based on work by:
-  Akshay Kakatkar <me@kakatkarakshay.dev>
 
 Link: https://github.com/openwrt/openwrt/commit/142104bb90b3d7685b2a96f04f29b76cbd1e5ee9
 
@@ -96,7 +100,46 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 packets;
  	u64 bytes;
  };
-@@ -1780,6 +1785,42 @@ static void ppe_ft_flow_quarantine(struc
+@@ -586,6 +591,7 @@ struct ppe_ft_pppoe_topo {
+ static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
+ 			   int mtu);
+ static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index);
++static int ppe_ft_dsa_port(struct net_device *dev, struct dsa_port **dpp);
+ 
+ static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
+ 			     struct ppe_ft_pppoe_topo *topo)
+@@ -629,6 +635,20 @@ static int ppe_ft_pppoe_path(struct net_
+ 			topo->vid = path->encap.id;
+ 			topo->vlan_mtu = path->dev->mtu;
+ 			break;
++		case DEV_PATH_DSA:
++			if (topo->vid >= 0) {
++				ret = -EOPNOTSUPP;
++				goto out_unlock;
++			}
++			ret = ppe_ft_dsa_port((struct net_device *)path->dev,
++					      NULL);
++			if (ret < 0)
++				goto out_unlock;
++			topo->vid = ret;
++			ret = 0;
++			topo->vlan_mtu = path->dev->mtu;
++			ether_addr_copy(topo->local, path->dev->dev_addr);
++			break;
+ 		case DEV_PATH_ETHERNET: {
+ 			struct edma_port_priv *port_priv;
+ 
+@@ -638,7 +658,8 @@ static int ppe_ft_pppoe_path(struct net_
+ 			}
+ 			port_priv = netdev_priv(path->dev);
+ 			topo->port = port_priv->ppe_port->port_id;
+-			ether_addr_copy(topo->local, path->dev->dev_addr);
++			if (is_zero_ether_addr(topo->local))
++				ether_addr_copy(topo->local, path->dev->dev_addr);
+ 			break;
+ 		}
+ 		default:
+@@ -1780,6 +1801,42 @@ static void ppe_ft_flow_quarantine(struc
  	list_add_tail(&flow->zombie_node, &ft->zombies);
  }
  
@@ -139,7 +182,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
  			       struct flow_cls_offload *f)
  {
-@@ -2149,6 +2190,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2149,6 +2206,7 @@ static int ppe_ft_flow_replace(struct pp
  	}
  	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
  	if (!tunnel_encap && !edma_port_dev_check(odev) &&
@@ -147,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    (!ft->ppe_dev->variant->has_vports ||
  	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
  		ret = -EOPNOTSUPP;
-@@ -2171,6 +2213,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2171,6 +2229,7 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	if (data.ingress_ifindex) {
  		struct net_device *idev;
@@ -155,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct net_device *master;
  		int vp_ret = 0;
  
-@@ -2195,6 +2238,29 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2195,6 +2254,29 @@ static int ppe_ft_flow_replace(struct pp
  			struct edma_port_priv *ipriv = netdev_priv(idev);
  
  			iport = ipriv->ppe_port->port_id;
@@ -185,7 +228,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
  			reject_reason = PPE_FT_REJECT_INGRESS_VP;
-@@ -2203,6 +2269,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2203,6 +2285,7 @@ static int ppe_ft_flow_replace(struct pp
  			if (vp_ret >= 0)
  				flow->ivp = vp_ret;
  		}
@@ -193,7 +236,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		dev_put(idev);
  
  		if (vp_ret < 0) {
-@@ -2222,6 +2289,30 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2222,6 +2305,30 @@ static int ppe_ft_flow_replace(struct pp
  			port_priv = netdev_priv(odev);
  			nh.port = port_priv->ppe_port->port_id;
  			nh.l3_if = nh.port;
@@ -224,7 +267,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		} else {
  			ret = ppe_vp_get(ft->ppe_dev, odev,
  					 f->common.prio);
-@@ -2558,6 +2649,8 @@ err_prelock_ivp:
+@@ -2562,6 +2669,8 @@ err_prelock_ivp:
  err_free:
  	if (ret)
  		atomic_long_inc(&ft->rejects[reject_reason]);
@@ -233,7 +276,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	kfree_rcu(flow, rcu);
  
  	return ret;
-@@ -2590,6 +2683,8 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2594,6 +2703,8 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_tunnel_put(ft, flow->tunnel);
  		ppe_vp_put(ft->ppe_dev, flow->vp);
  		ppe_vp_put(ft->ppe_dev, flow->ivp);
@@ -242,7 +285,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2656,6 +2751,13 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -2660,6 +2771,13 @@ static int ppe_ft_flow_stats(struct ppe_
  		return -ENOENT;
  	}
  
@@ -256,7 +299,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Hardware-forwarded packets never revalidate the route in
  	 * software, and the hit counter of a flow counts at ingress
  	 * lookup whether or not egress delivery still works: a flow
-@@ -3050,7 +3152,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3058,7 +3176,7 @@ int ppe_flowtable_setup(struct ppe_devic
  
  static void ppe_ft_flow_free(void *ptr, void *arg)
  {
@@ -265,7 +308,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -3092,7 +3194,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3100,7 +3218,7 @@ void ppe_flowtable_destroy(struct ppe_de
  	rhashtable_free_and_destroy(&ft->flows, ppe_ft_flow_free, NULL);
  	list_for_each_entry_safe(flow, flow_tmp, &ft->zombies, zombie_node) {
  		list_del(&flow->zombie_node);

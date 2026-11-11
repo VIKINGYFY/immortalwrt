@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Mon, 31 Aug 2026 13:18:00 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: harden QCA4B lifecycle
 
 Quarantine a QCA4B VP when ATH or hardware rollback cannot restore the
@@ -8,10 +8,10 @@ or bridge topology changes so stale hardware rows cannot survive
 reconfigure.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2950,6 +2950,53 @@ static void ppe_ft_flow_drain(struct ppe
+@@ -2954,6 +2954,53 @@ static void ppe_ft_flow_drain(struct ppe
  	rhashtable_walk_exit(&iter);
  }
  

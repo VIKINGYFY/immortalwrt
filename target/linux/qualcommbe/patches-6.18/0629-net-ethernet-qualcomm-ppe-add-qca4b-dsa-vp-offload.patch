@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 29 Aug 2026 11:10:00 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: add QCA4B DSA VP offload
 
 Allocate persistent PPE virtual ports for QCA4B-tagged QCA8386 DSA user
@@ -19,8 +19,9 @@ the default hardware-forwarded mark on header-stripped exception frames.
 Include the earlier QCA 802.1Q conduit acceptance and standalone VID
 selection at this DSA port extension. Preserve the final protocol
 dispatch and subsequent lifecycle changes without an extra layer.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.c
 @@ -178,10 +178,13 @@ static void edma_rx_scatter_reset(struct
@@ -295,7 +296,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			flow->egress_dev = odev;
  			flow->egress_vid = dsa_ovid;
  			dev_hold(flow->egress_dev);
-@@ -2635,18 +2681,28 @@ put_idev:
+@@ -2639,18 +2685,28 @@ put_idev:
  	 */
  	reject_reason = PPE_FT_REJECT_PPPOE;
  	if (data.pppoe_sid >= 0) {
@@ -326,7 +327,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (flow->pppoe < 0) {
  			ret = flow->pppoe;
  			goto err_vlan;
-@@ -2780,6 +2836,8 @@ err_tdev:
+@@ -2784,6 +2840,8 @@ err_tdev:
  		dev_put(tdev);
  	goto err_free;
  err_prelock_ivp:
@@ -335,7 +336,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (flow->ivp >= 0)
  		ppe_vp_put(ft->ppe_dev, flow->ivp);
  	if (tdev)
-@@ -2872,6 +2930,7 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -2876,6 +2934,7 @@ static int ppe_ft_flow_stats(struct ppe_
  			     struct flow_cls_offload *f)
  {
  	struct ppe_ft_flow *flow;
@@ -343,7 +344,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 packets;
  	u64 bytes;
  	int ret;
-@@ -2890,9 +2949,14 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -2894,9 +2953,14 @@ static int ppe_ft_flow_stats(struct ppe_
  		return -ENOENT;
  	}
  

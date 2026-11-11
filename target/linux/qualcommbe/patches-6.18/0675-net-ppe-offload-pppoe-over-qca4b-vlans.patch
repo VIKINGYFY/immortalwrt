@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Fri, 30 Oct 2026 15:36:46 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ppe: offload PPPoE over QCA4B customer VLANs
 
 Match tagged QCA4B ingress by its virtual-port ID using the XLT port-type
@@ -13,7 +13,7 @@ bit 73: type 0 is a physical bitmap and type 1 is an exact VP ID. Ordinary
 bridge and physical VLAN users continue to select the bitmap type.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 @@ -365,7 +365,7 @@ static int ppe_bridge_vsi_xlt_update(str
@@ -91,7 +91,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ppe_ing_xlt_l3_if_set(struct ppe_device *ppe_dev, int index, int l3_if);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -1083,8 +1083,8 @@ static int ppe_ft_pppoe_activate(struct
+@@ -1089,8 +1089,8 @@ static int ppe_ft_pppoe_activate(struct
  	 * The caller already holds its flow's VP reference.
  	 */
  	if (vp >= 0) {
@@ -102,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return -EOPNOTSUPP;
  		ret = ppe_vp_ref_qca4b(ft->ppe_dev, vp, session->port);
  		if (ret)
-@@ -1092,7 +1092,8 @@ static int ppe_ft_pppoe_activate(struct
+@@ -1098,7 +1098,8 @@ static int ppe_ft_pppoe_activate(struct
  	}
  
  	if (session->svid >= 0 || session->cvid >= 0) {
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				       session->cvid, session->vlan_mtu,
  				       session->keep_svid,
  				       session->keep_cvid);
-@@ -1101,7 +1102,8 @@ static int ppe_ft_pppoe_activate(struct
+@@ -1107,7 +1108,8 @@ static int ppe_ft_pppoe_activate(struct
  				"PPPoE VLAN activation failed: slot=%d port=%u svid=%d cvid=%d ret=%d\n",
  				index, session->port, session->svid,
  				session->cvid, vlan);
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  		/* A VSI has one L3 selector. Do not redirect another session or
  		 * an already installed plain-IP flow into this session's L3.
-@@ -1192,6 +1194,7 @@ err_cleanup:
+@@ -1198,6 +1200,7 @@ err_cleanup:
  	session->l3_if = -1;
  err_vlan:
  	ppe_ft_vlan_put(ft, vlan);
@@ -130,7 +130,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_vp_put(ft->ppe_dev, vp);
  	return ret;
  }
-@@ -1580,7 +1583,8 @@ static int ppe_ft_vlan_port_get(struct p
+@@ -1586,7 +1589,8 @@ static int ppe_ft_vlan_port_get(struct p
  	if (ret)
  		goto rollback;
  	ret = ppe_ing_xlt_rule_set(ft->ppe_dev, ppe_ft_vlan_port_xlt(port),
@@ -140,7 +140,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				   false, false);
  	if (ret)
  		goto rollback;
-@@ -1669,16 +1673,31 @@ static int ppe_ft_vlan_get(struct ppe_fl
+@@ -1675,16 +1679,31 @@ static int ppe_ft_vlan_get(struct ppe_fl
  	bool l3_touched = false, vsi_bound = false;
  	bool ingress_touched = false, egress_touched = false;
  	bool port_owned = false;
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (svid >= 0) {
  		/* QSDK keeps CPU port 0 in CORE mode: EDGE egress can drop
  		 * a parsed S-tag even when the VSI requests UNMODIFIED.
-@@ -1734,17 +1753,20 @@ static int ppe_ft_vlan_get(struct ppe_fl
+@@ -1740,17 +1759,20 @@ static int ppe_ft_vlan_get(struct ppe_fl
  			goto err_config;
  	}
  
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				   svid >= 0, cvid >= 0);
  	if (ret)
  		goto err_config;
-@@ -1792,6 +1814,8 @@ quarantine:
+@@ -1798,6 +1820,8 @@ quarantine:
  		return ret;
  	if (cpu_core)
  		ppe_ft_core_port_put(ft, 0, false);
@@ -207,7 +207,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return ret;
  }
-@@ -1831,7 +1855,7 @@ static void ppe_ft_vlan_put(struct ppe_f
+@@ -1837,7 +1861,7 @@ static void ppe_ft_vlan_put(struct ppe_f
  	err = ppe_l3_if_clear(ft->ppe_dev, ppe_ft_vlan_l3_if(ft, index));
  	if (!ret)
  		ret = err;
@@ -216,7 +216,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = ppe_ft_vlan_port_put(ft, slot->port);
  quarantine:
  	if (ret) {
-@@ -1845,6 +1869,8 @@ quarantine:
+@@ -1851,6 +1875,8 @@ quarantine:
  	if (slot->svid >= 0 &&
  	    !ppe_ft_core_port_put(ft, slot->port, true))
  		ppe_ft_core_port_put(ft, 0, false);
@@ -225,7 +225,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	memset(slot, 0, sizeof(*slot));
  }
  
-@@ -3684,11 +3710,14 @@ put_idev:
+@@ -3695,11 +3721,14 @@ put_idev:
  	}
  
  	if ((data.ingress_svid >= 0 || data.ingress_cvid >= 0) &&

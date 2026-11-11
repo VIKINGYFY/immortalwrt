@@ -1,5 +1,5 @@
 From: Akshay Kakatkar <me@kakatkarakshay.dev>
-Date: Sat, 1 Aug 2026 05:45:00 +0530
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: release flows owned by an unbound block
 
 Netfilter unbinds a flowtable before its old rules can issue destroy
@@ -15,9 +15,10 @@ BE7000 testing reproduced hardware counters continuing to grow after the
 bridge table was deleted while the inet table remained bound.
 
 Link: https://github.com/torvalds/linux/blob/v6.18/net/netfilter/nf_flow_table_offload.c
+
 Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -171,6 +171,7 @@ struct ppe_ft_flow {
@@ -41,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct rhashtable_params ppe_ft_params = {
  	.head_offset = offsetof(struct ppe_ft_flow, node),
  	.key_offset = offsetof(struct ppe_ft_flow, cookie),
-@@ -1822,7 +1829,8 @@ static int ppe_ft_dsa_port(struct net_de
+@@ -1838,7 +1845,8 @@ static int ppe_ft_dsa_port(struct net_de
  }
  
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
@@ -51,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
  	struct edma_port_priv *port_priv;
-@@ -1887,6 +1895,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1903,6 +1911,7 @@ static int ppe_ft_flow_replace(struct pp
  		return -ENOMEM;
  
  	flow->cookie = f->cookie;
@@ -59,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	flow->ingress_my_mac = -1;
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
-@@ -2986,7 +2995,8 @@ void ppe_flowtable_debugfs_init(struct p
+@@ -3010,7 +3019,8 @@ void ppe_flowtable_debugfs_init(struct p
  static int ppe_ft_block_cb(enum tc_setup_type type, void *type_data,
  			   void *cb_priv)
  {
@@ -69,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct flow_cls_offload *f = type_data;
  	int ret;
  
-@@ -2995,7 +3005,7 @@ static int ppe_ft_block_cb(enum tc_setup
+@@ -3019,7 +3029,7 @@ static int ppe_ft_block_cb(enum tc_setup
  
  	switch (f->command) {
  	case FLOW_CLS_REPLACE:
@@ -78,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		atomic_long_inc(&ft->replace_calls);
  		if (ret == -EOPNOTSUPP)
  			atomic_long_inc(&ft->replace_unsupported);
-@@ -3032,6 +3042,60 @@ void ppe_flowtable_port_carrier(struct p
+@@ -3056,6 +3066,60 @@ void ppe_flowtable_port_carrier(struct p
  		clear_bit(port, ppe_dev->carrier_ok);
  }
  
@@ -139,7 +140,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * ppe_flowtable_setup_tc - Bind a flow block to a PPE port
   * @dev: PPE port net device
-@@ -3045,6 +3109,7 @@ int ppe_flowtable_setup_tc(struct net_de
+@@ -3069,6 +3133,7 @@ int ppe_flowtable_setup_tc(struct net_de
  	struct ppe_flowtable *ft = port_priv->ppe_port->ppe_dev->flowtable;
  	struct flow_block_offload *f = type_data;
  	struct flow_block_cb *block_cb;
@@ -147,7 +148,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!ft)
  		return -EOPNOTSUPP;
-@@ -3063,9 +3128,18 @@ int ppe_flowtable_setup_tc(struct net_de
+@@ -3087,9 +3152,18 @@ int ppe_flowtable_setup_tc(struct net_de
  			return 0;
  		}
  
@@ -168,7 +169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		flow_block_cb_incref(block_cb);
  		flow_block_cb_add(block_cb, f);
-@@ -3080,6 +3154,7 @@ int ppe_flowtable_setup_tc(struct net_de
+@@ -3104,6 +3178,7 @@ int ppe_flowtable_setup_tc(struct net_de
  			flow_block_cb_remove(block_cb, f);
  			list_del(&block_cb->driver_list);
  		}

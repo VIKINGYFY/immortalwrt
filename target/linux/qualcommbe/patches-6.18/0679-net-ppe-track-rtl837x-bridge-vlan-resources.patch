@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 15:33:52 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ppe: track RTL837x bridge VLAN resource ownership
 
 Keep source virtual ports and physical bridge egress permissions owned by
@@ -8,14 +8,14 @@ return it when a flow retires. Unknown unicast, multicast and broadcast
 floods remain CPU-only. Clear the consuming XLT before recycling a VP;
 quarantine uncertain resources. PPPoE source-L3 overrides stay exclusive.
 
-Split from:
+Previous split from (0679-net-ppe-track-rtl837x-bridge-vlan-resources.patch):
   0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -180,7 +180,9 @@
+@@ -180,7 +180,9 @@ static_assert(offsetof(struct ppe_ft_ppp
   */
  struct ppe_ft_vlan {
  	struct ppe_ft_ref ref;
@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	s16 svid;
  	s16 cvid;
  	u8 port;
-@@ -271,6 +273,7 @@
+@@ -272,6 +274,7 @@ struct ppe_ft_flow {
  	int ingress_pppoe;
  	int vlan;
  	int core_egress_port;
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int tunnel;
  	int vp;
  	int ivp;
-@@ -737,7 +740,8 @@
+@@ -743,7 +746,8 @@ static bool ppe_ft_nexthop_match(const v
  	const struct ppe_ft_nexthop *slot = entry;
  	const struct ppe_flow_nexthop *nh = key;
  
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	       ether_addr_equal(slot->key.mac, nh->mac) &&
  	       slot->key.svid == nh->svid && slot->key.cvid == nh->cvid &&
  	       slot->key.pub_ip_index == nh->pub_ip_index &&
-@@ -1108,7 +1112,8 @@
+@@ -1114,7 +1118,8 @@ static int ppe_ft_pppoe_activate(struct
  		/* A VSI has one L3 selector. Do not redirect another session or
  		 * an already installed plain-IP flow into this session's L3.
  		 */
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ret = -EEXIST;
  			goto err_vlan;
  		}
-@@ -1662,6 +1667,7 @@
+@@ -1668,6 +1673,7 @@ static int ppe_ft_vlan_get(struct ppe_fl
  {
  	struct ppe_ft_vlan want = {
  		.pppoe = -1,
@@ -61,12 +61,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.svid = svid,
  		.cvid = cvid,
  		.port = port,
-@@ -1818,6 +1824,65 @@
- 		ppe_vp_put(ft->ppe_dev, port);
- 
+@@ -1826,6 +1832,65 @@ quarantine:
  	return ret;
-+}
-+
+ }
+ 
 +/* A reserved VSI only opens the physical egress ports of live bridge
 + * flows. Keep CPU-only floods and no hardware FDB learning, so adding a
 + * member cannot create an unvalidated L2 path between service domains.
@@ -124,10 +122,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ppe_ing_xlt_rule_clear(ft->ppe_dev, ppe_ft_vlan_xlt(vlan));
 +		dev_err(ft->ppe_dev->dev, "quarantining bridge VSI %d\n", vlan);
 +	}
- }
- 
++}
++
  static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index)
-@@ -1871,6 +1936,7 @@
+ {
+ 	struct ppe_ft_vlan *slot;
+@@ -1877,6 +1942,7 @@ quarantine:
  		ppe_ft_core_port_put(ft, 0, false);
  	if (slot->port >= PPE_VP_PORT_BASE)
  		ppe_vp_put(ft->ppe_dev, slot->port);
@@ -135,7 +135,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	memset(slot, 0, sizeof(*slot));
  }
  
-@@ -2626,6 +2692,7 @@
+@@ -2632,6 +2698,7 @@ static void ppe_ft_flow_deps_put(struct
  	ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
  	ppe_ft_pppoe_put(ft, flow->pppoe);
  	ppe_ft_pppoe_put(ft, flow->ingress_pppoe);
@@ -143,12 +143,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_ft_vlan_put(ft, flow->vlan);
  	ppe_ft_core_port_put(ft, flow->core_egress_port, false);
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
-@@ -2850,6 +2917,38 @@
- out:
- 	rcu_read_unlock();
+@@ -2858,6 +2925,38 @@ out:
  	return valid;
-+}
-+
+ }
+ 
 +
 +/* A VLAN object owns the source VP as long as its consuming XLT survives.
 + * Existing routed flows keep the same VSI/L3 and CPU tag restoration.
@@ -179,10 +177,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	}
 +	slot->source_vp = vp;
 +	return vp;
- }
- 
++}
++
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
-@@ -2933,6 +3032,7 @@
+ 			       struct flow_cls_offload *f,
+ 			       struct flow_block *block)
+@@ -2940,6 +3039,7 @@ static int ppe_ft_flow_replace(struct pp
  	flow->pppoe = -1;
  	flow->ingress_pppoe = -1;
  	flow->vlan = -1;
@@ -190,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	flow->core_egress_port = -1;
  	flow->tunnel = -1;
  	flow->vp = -1;
-@@ -4027,6 +4127,7 @@
+@@ -4038,6 +4138,7 @@ err_pppoe:
  	ppe_ft_pppoe_put(ft, flow->pppoe);
  err_vlan:
  	ppe_ft_pppoe_put(ft, flow->ingress_pppoe);

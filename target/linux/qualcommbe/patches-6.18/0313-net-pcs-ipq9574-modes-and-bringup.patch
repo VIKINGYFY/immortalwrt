@@ -120,8 +120,6 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 
-diff --git a/Documentation/devicetree/bindings/net/pcs/qcom,ipq9574-pcs.yaml b/Documentation/devicetree/bindings/net/pcs/qcom,ipq9574-pcs.yaml
-new file mode 100644
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/pcs/qcom,ipq9574-pcs.yaml
 @@ -0,0 +1,197 @@
@@ -322,10 +320,9 @@ new file mode 100644
 +                          "tx";
 +        };
 +    };
-diff --git a/drivers/net/pcs/Kconfig b/drivers/net/pcs/Kconfig
 --- a/drivers/net/pcs/Kconfig
 +++ b/drivers/net/pcs/Kconfig
-@@ -45,6 +45,15 @@
+@@ -45,6 +45,15 @@ config PCS_MTK_USXGMII
  	  1000Base-X, 2500Base-X and Cisco SGMII are supported on the same
  	  differential pairs via an embedded LynxI PCS.
  
@@ -341,16 +338,13 @@ diff --git a/drivers/net/pcs/Kconfig b/drivers/net/pcs/Kconfig
  config PCS_RZN1_MIIC
  	tristate "Renesas RZ/N1, RZ/N2H, RZ/T2H MII converter"
  	depends on OF
-diff --git a/drivers/net/pcs/Makefile b/drivers/net/pcs/Makefile
 --- a/drivers/net/pcs/Makefile
 +++ b/drivers/net/pcs/Makefile
-@@ -10,3 +10,4 @@
+@@ -10,3 +10,4 @@ obj-$(CONFIG_PCS_LYNX)		+= pcs-lynx.o
  obj-$(CONFIG_PCS_MTK_LYNXI)	+= pcs-mtk-lynxi.o
  obj-$(CONFIG_PCS_MTK_USXGMII)	+= pcs-mtk-usxgmii.o
  obj-$(CONFIG_PCS_RZN1_MIIC)	+= pcs-rzn1-miic.o
 +obj-$(CONFIG_PCS_QCOM_IPQ9574)	+= pcs-qcom-ipq9574.o
-diff --git a/drivers/net/pcs/pcs-qcom-ipq9574.c b/drivers/net/pcs/pcs-qcom-ipq9574.c
-new file mode 100644
 --- /dev/null
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
 @@ -0,0 +1,1392 @@
@@ -1746,8 +1740,6 @@ new file mode 100644
 +MODULE_LICENSE("GPL");
 +MODULE_DESCRIPTION("Qualcomm IPQ9574 PCS driver");
 +MODULE_AUTHOR("Lei Wei <quic_leiwei@quicinc.com>");
-diff --git a/include/dt-bindings/net/qcom,ipq9574-pcs.h b/include/dt-bindings/net/qcom,ipq9574-pcs.h
-new file mode 100644
 --- /dev/null
 +++ b/include/dt-bindings/net/qcom,ipq9574-pcs.h
 @@ -0,0 +1,15 @@
@@ -1766,8 +1758,6 @@ new file mode 100644
 +#define PCS_TX_CLK		1
 +
 +#endif /* _DT_BINDINGS_PCS_QCOM_IPQ9574_H */
-diff --git a/include/linux/pcs/pcs-qcom-ipq9574.h b/include/linux/pcs/pcs-qcom-ipq9574.h
-new file mode 100644
 --- /dev/null
 +++ b/include/linux/pcs/pcs-qcom-ipq9574.h
 @@ -0,0 +1,15 @@

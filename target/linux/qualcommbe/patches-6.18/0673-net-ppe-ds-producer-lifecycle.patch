@@ -1,11 +1,18 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: quiesce and resume Direct Switch producers
 
 Refresh the producer lifecycle follow-up after the bounded DS poll transport.
 Keep teardown, quarantine, callback isolation and bounded producer checks intact.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  0673-net-ppe-ds-producer-lifecycle.patch - net: ethernet: qualcomm: quiesce and resume Direct Switch producers
+  0676-net-ppe-support-three-ipq9574-ds-nodes.patch - net: ppe: provide three Direct Switch nodes on IPQ9574
+
+Previous merged from (0673-net-ppe-ds-producer-lifecycle.patch):
   0673-net-ethernet-qualcomm-ppe-detach-quarantined-DS-clients.patch
   0674-net-ethernet-qualcomm-ppe-continue-bounded-DS-producers.patch
 
@@ -23,15 +30,29 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 */
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
-@@ -70,6 +70,7 @@ struct ppe_ds_provider {
+@@ -27,7 +27,7 @@
+ #include "ppe_regs.h"
+ #include "ppe_vp.h"
+ 
+-#define PPE_DS_NODES		2
++#define PPE_DS_MAX_NODES	3
+ #define PPE_DS_BATCH		64
+ #define PPE_DS_QUEUES		8
+ #define PPE_DS_QUEUE_BASE	32
+@@ -68,8 +68,10 @@ enum ppe_ds_irq {
+ 
+ struct ppe_ds_provider {
  	struct ppe_device *ppe_dev;
- 	struct qcom_ppe_ds *nodes[PPE_DS_NODES];
- 	int irqs[PPE_DS_NODES][PPE_DS_IRQ_COUNT];
+-	struct qcom_ppe_ds *nodes[PPE_DS_NODES];
+-	int irqs[PPE_DS_NODES][PPE_DS_IRQ_COUNT];
++	struct qcom_ppe_ds *nodes[PPE_DS_MAX_NODES];
++	int irqs[PPE_DS_MAX_NODES][PPE_DS_IRQ_COUNT];
++	u8 num_nodes;
 +	bool removing;
  };
  
  struct qcom_ppe_ds {
-@@ -95,6 +96,7 @@ struct qcom_ppe_ds {
+@@ -95,6 +97,7 @@ struct qcom_ppe_ds {
  	u8 allocated_vps;
  	bool running, faulted, ever_started, stopped, napi_enabled;
  	bool refill_short;
@@ -39,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	atomic64_t down_desc, up_desc, refilled, released;
  	atomic64_t index_updates, refill_failures;
  	atomic64_t poll_retries, refill_wakes, tx_deferred;
-@@ -115,7 +117,7 @@ bool qcom_ppe_ds_available(void)
+@@ -115,7 +118,7 @@ bool qcom_ppe_ds_available(void)
  	bool available;
  
  	mutex_lock(&ppe_ds_lock);
@@ -48,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ppe_ds_lock);
  	return available;
  }
-@@ -371,11 +373,14 @@ static int ppe_ds_poll(struct napi_struc
+@@ -371,11 +374,14 @@ static int ppe_ds_poll(struct napi_struc
  	if (done < 0 || filled < 0 || READ_ONCE(ds->faulted)) {
  		ppe_ds_mask(ds);
  		napi_complete_done(napi, 0);
@@ -65,7 +86,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return budget;
  
  	if (napi_complete_done(napi, done)) {
-@@ -621,7 +626,7 @@ struct qcom_ppe_ds *qcom_ppe_ds_register
+@@ -440,7 +446,7 @@ void ppe_ds_dma_error(struct ppe_device
+ 	provider = ppe_ds_provider;
+ 	if (!provider || provider->ppe_dev != ppe_dev)
+ 		goto unlock;
+-	for (i = 0; i < PPE_DS_NODES; i++) {
++	for (i = 0; i < provider->num_nodes; i++) {
+ 		ds = provider->nodes[i];
+ 		if (!ds || !READ_ONCE(ds->running))
+ 			continue;
+@@ -621,17 +627,17 @@ struct qcom_ppe_ds *qcom_ppe_ds_register
  		return ERR_PTR(-EINVAL);
  	mutex_lock(&ppe_ds_lock);
  	provider = ppe_ds_provider;
@@ -74,7 +104,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto unlock;
  	dev = provider->ppe_dev->dev;
  	if (!ppe_ds_identity_dma(dev) || !ppe_ds_identity_dma(cfg->wlan_dev)) {
-@@ -760,14 +765,62 @@ unlock:
+ 		ret = -EOPNOTSUPP;
+ 		goto unlock;
+ 	}
+-	for (node = 0; node < PPE_DS_NODES; node++)
++	for (node = 0; node < provider->num_nodes; node++)
+ 		if (!provider->nodes[node])
+ 			break;
+-	if (node == PPE_DS_NODES) {
++	if (node == provider->num_nodes) {
+ 		ret = -ENOSPC;
+ 		goto unlock;
+ 	}
+@@ -760,14 +766,62 @@ unlock:
  }
  EXPORT_SYMBOL_GPL(qcom_ppe_ds_start);
  
@@ -138,7 +180,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ds->stopped || !ds->ever_started)
  		goto unlock;
  	/* Keep installed flows functional through the CPU while quiescing DS. */
-@@ -900,7 +953,7 @@ int qcom_ppe_ds_vp_alloc(struct qcom_ppe
+@@ -900,7 +954,7 @@ int qcom_ppe_ds_vp_alloc(struct qcom_ppe
  	int vp;
  
  	mutex_lock(&ds->lock);
@@ -147,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		vp = -ESHUTDOWN;
  		goto unlock;
  	}
-@@ -929,7 +982,9 @@ int qcom_ppe_ds_vp_route(struct qcom_ppe
+@@ -929,7 +983,9 @@ int qcom_ppe_ds_vp_route(struct qcom_ppe
  	if (i < 0 || i >= PPE_VP_SLOTS)
  		return -EINVAL;
  	mutex_lock(&ds->lock);
@@ -158,7 +200,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = -ENOENT;
  	else if (direct && (!ds->running || ds->faulted))
  		ret = -ESHUTDOWN;
-@@ -948,6 +1003,10 @@ int qcom_ppe_ds_vp_free(struct qcom_ppe_
+@@ -948,6 +1004,10 @@ int qcom_ppe_ds_vp_free(struct qcom_ppe_
  	if (i < 0 || i >= PPE_VP_SLOTS)
  		return -EINVAL;
  	mutex_lock(&ds->lock);
@@ -169,7 +211,37 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!(ds->allocated_vps & BIT(i))) {
  		ret = -ENOENT;
  		goto unlock;
-@@ -1068,29 +1127,54 @@ free_provider:
+@@ -970,7 +1030,7 @@ static int ppe_ds_stats_show(struct seq_
+ 	int i;
+ 
+ 	mutex_lock(&ppe_ds_lock);
+-	for (i = 0; i < PPE_DS_NODES; i++) {
++	for (i = 0; i < provider->num_nodes; i++) {
+ 		ds = provider->nodes[i];
+ 		if (!ds) {
+ 			seq_printf(seq, "node:%d unregistered\n", i);
+@@ -1009,6 +1069,11 @@ int ppe_ds_setup(struct ppe_device *ppe_
+ 	if (!provider)
+ 		return -ENOMEM;
+ 	provider->ppe_dev = ppe_dev;
++	/* Ring 0 is reserved; IPQ9574 host RX fill rings start at 4, leaving
++	 * rings 1..3 for three discrete radios. IPQ5332 exposes two DS rings.
++	 */
++	provider->num_nodes = of_device_is_compatible(ppe_dev->dev->of_node,
++						    "qcom,ipq9574-ppe") ? 3 : 2;
+ 	/* QSDK's SPF-bypass service retains L3/flow lookup, but prevents
+ 	 * bridge forwarding of unauthorised/missing wireless flows.
+ 	 */
+@@ -1037,7 +1102,7 @@ int ppe_ds_setup(struct ppe_device *ppe_
+ 		ret = -ENODEV;
+ 		goto free_provider;
+ 	}
+-	for (node = 0; node < PPE_DS_NODES; node++) {
++	for (node = 0; node < provider->num_nodes; node++) {
+ 		for (i = 0; i < PPE_DS_IRQ_COUNT; i++) {
+ 			snprintf(name, sizeof(name), "%s_%u", irq_names[i], node + 1);
+ 			ret = of_irq_get_byname(np, name);
+@@ -1068,29 +1133,54 @@ free_provider:
  	return ret;
  }
  
@@ -185,7 +257,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		/* Managed consumers are gone; disarm any orphan before VP and
 +		 * port teardown. Debugfs still owns the provider until destroy.
 +		 */
-+		for (i = 0; i < PPE_DS_NODES; i++)
++		for (i = 0; i < provider->num_nodes; i++)
 +			if (provider->nodes[i])
 +				ppe_ds_detach(provider->nodes[i]);
 +	}
@@ -220,7 +292,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	 * own unproven DMA, not a live WLAN control path. Detach them while
 +	 * supplier MMIO is still valid, before devres can release it.
 +	 */
-+	for (i = 0; i < PPE_DS_NODES; i++) {
++	for (i = 0; i < provider->num_nodes; i++) {
 +		if (!provider->nodes[i])
 +			continue;
 +		ppe_ds_detach(provider->nodes[i]);

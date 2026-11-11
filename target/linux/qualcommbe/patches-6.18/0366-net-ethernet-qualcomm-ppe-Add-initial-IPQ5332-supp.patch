@@ -1,5 +1,5 @@
 From: Til Kaiser <mail@tk154.de>
-Date: Sun, 19 Apr 2026 00:00:00 +0200
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: add initial IPQ5332 support
 
 Add the minimum PPE driver differences needed for IPQ5332.
@@ -12,10 +12,7 @@ ICC data, use three PPE-visible ports (CPU port 0 plus external ports
 This allows IPQ5332 boards to use the qcom_ppe/phylink path.
 
 Signed-off-by: Til Kaiser <mail@tk154.de>
----
- drivers/net/ethernet/qualcomm/ppe/edma.c | 44 ++++++++++++++++++--
- drivers/net/ethernet/qualcomm/ppe/ppe.c  | 59 +++++++++++++++++++++-----
- 2 files changed, 86 insertions(+), 17 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
@@ -72,7 +69,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  /* HW info for IPQ9574. */
  static struct edma_hw_info ipq9574_hw_info = {
  	.rxfill = &ipq9574_rxfill_ring_info,
-@@ -862,7 +901,11 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -864,7 +903,11 @@ int edma_setup(struct ppe_device *ppe_de
  	if (!edma_ctx)
  		return -ENOMEM;
  

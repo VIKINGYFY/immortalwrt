@@ -1,5 +1,5 @@
 From: Kenneth Kasilag <kenneth@kasilag.me>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: implement L3 hardware flow tables
 
 Add the register and table layouts of the PPE L3 flow engine, taken from
@@ -14,14 +14,19 @@ offloading netfilter flowtables.
 Program default physical-port frame limits before registering the netdev,
 including when userspace leaves the default IP MTU unchanged.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  0506-net-ppe-l3-hardware-engine.patch - net: ethernet: qualcomm: implement L3 hardware flow tables
+  0523-net-ethernet-qualcomm-ppe-use-source-IP-flow-keys.patch - net: ethernet: qualcomm: ppe: use source IP flow keys
+
+Previous merged from (0506-net-ppe-l3-hardware-engine.patch):
   0506-01-net-ethernet-qualcomm-ppe-add-l3-flow-engine-registers.patch
   0506-02-net-ethernet-qualcomm-ppe-add-l3-flow-engine.patch
 
-Based on work by:
-  Kenneth Kasilag <kenneth@kasilag.me>
-
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+Signed-off-by: JiaY-shi <shi05275@163.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/Makefile
@@ -205,7 +210,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
 --- /dev/null
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -0,0 +1,508 @@
+@@ -0,0 +1,519 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/* Copyright (c) 2026 Kenneth Kasilag <kenneth@kasilag.me> */
 +
@@ -667,7 +672,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +int ppe_flow_hw_init(struct ppe_device *ppe_dev)
 +{
 +	u32 mask, val;
-+	int ret;
++	int type, ret;
 +
 +	mutex_init(&ppe_dev->flow_lock);
 +
@@ -676,6 +681,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	 * the reset value before the hardware has run.
 +	 */
 +	ppe_dev->flow_cmd_id = 1;
++
++	/* Flow insertion hashes on the source address for both directions.
++	 * Match lookup to it instead of inheriting firmware key selection.
++	 */
++	for (type = 0; type < 2; type++) {
++		ret = regmap_update_bits(ppe_dev->regmap,
++					 PPE_FLOW_CTRL1_ADDR + type * PPE_FLOW_CTRL1_INC,
++					 PPE_FLOW_CTRL1_KEY_SEL, 0);
++		if (ret)
++			return ret;
++	}
 +
 +	mask = PPE_L3_ROUTE_CTRL_IP_MRU_FAIL |
 +	       PPE_L3_ROUTE_CTRL_IP_MRU_DEACCEL |

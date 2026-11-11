@@ -1,0 +1,63 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: ppe: report directional and physical flow resource budgets
+
+Report weighted IPv4/IPv6 physical rows and quarantine ownership budgets alongside resource failure stages. Keep diagnostics separate from topology admission and flow retirement.
+
+Split from:
+  0651-net-ppe-flow-identity-and-topology.patch - net: ethernet: qualcomm: own DSA and PPPoE flow identity and topology
+
+Merged from:
+  0651-net-ppe-flow-identity-and-topology.patch - net: ethernet: qualcomm: own DSA and PPPoE flow identity and topology
+  0684-net-ppe-report-physical-flow-budget-in-diagnostics.patch - net: ppe: report physical flow budgets in resource diagnostics
+
+Previous merged from (0651-net-ppe-flow-identity-and-topology.patch):
+  0651-net-ethernet-qualcomm-ppe-define-flow-identity-and-transport.patch
+  0652-net-ethernet-qualcomm-ppe-manage-dsa-pppoe-flow-lifecycle.patch
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -4250,8 +4250,41 @@ DEFINE_SHOW_ATTRIBUTE(ppe_ft_active_flow
+ static int ppe_ft_resource_stats_show(struct seq_file *seq, void *data)
+ {
+ 	struct ppe_flowtable *ft = seq->private;
++	struct ppe_ft_host *host;
++	struct ppe_ft_flow *flow;
++	unsigned int quarantined = 0, quarantine_slots = 0;
++	unsigned int hosts = 0;
++	int ipv4, ipv6;
++	int bucket;
+ 
+ 	mutex_lock(&ft->lock);
++	ipv4 = atomic_read(&ft->ipv4_flows);
++	ipv6 = atomic_read(&ft->ipv6_flows);
++	list_for_each_entry(flow, &ft->zombies, zombie_node) {
++		quarantined++;
++		quarantine_slots += flow->entry.is_ipv6 ? 2 : 1;
++	}
++	hash_for_each(ft->hosts, bucket, host, node)
++		hosts++;
++	seq_printf(seq, "host active:%u capacity:%u flow active:%d/%d capacity:%u\n",
++		   hosts, ft->ppe_dev->variant->num_host_entries,
++		   atomic_read(&ft->ipv4_flows), atomic_read(&ft->ipv6_flows),
++		   ft->ppe_dev->variant->num_flow_entries);
++	seq_printf(seq,
++		   "flow ipv4_directions:%d ipv6_directions:%d active_slots:%d capacity:%u\n",
++		   ipv4, ipv6, ipv4 + 2 * ipv6,
++		   ft->ppe_dev->variant->num_flow_entries);
++	seq_printf(seq, "quarantine rules:%u slots_budget:%u\n",
++		   quarantined, quarantine_slots);
++	for (bucket = 0; bucket < PPE_FT_RES_MAX; bucket++) {
++		unsigned long *counts = ft->resource_failures[bucket];
++
++		seq_printf(seq,
++			   "failure stage:%s enoent:%lu enospc:%lu enomem:%lu eio:%lu timeout:%lu other:%lu last_errno:%d\n",
++			   ppe_ft_resource_names[bucket], counts[0], counts[1],
++			   counts[2], counts[3], counts[4], counts[5],
++			   ft->resource_last_errno[bucket]);
++	}
+ 	seq_printf(seq,
+ 		   "nexthop active:%u capacity:%u alloc:%lu reuse:%lu free:%lu\n",
+ 		   ft->nexthop_active,

@@ -1,0 +1,78 @@
+From: Lei Wei <quic_leiwei@quicinc.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: ppe: register controller and datapath components
+
+Register the final PPE and EDMA object layout and dependencies once. Avoid adding then replacing object lists as individual datapath units arrive.
+
+Split from:
+  0327-net-ppe-mac-port-operations.patch - net: ethernet: qualcomm: provide PPE phylink and MAC port operations
+  0331-net-ethernet-qualcomm-Add-EDMA-support-for-QCOM-IPQ9.patch - net: ethernet: qualcomm: Add EDMA support for QCOM IPQ9574  chipset.
+  0332-net-ethernet-qualcomm-Add-netdevice-support-for-QCOM.patch - net: ethernet: qualcomm: Add netdevice support for QCOM  IPQ9574 chipset.
+  0333-net-ethernet-qualcomm-Add-Rx-Ethernet-DMA-support.patch - net: ethernet: qualcomm: Add Rx Ethernet DMA support
+  0334-net-ethernet-qualcomm-Add-Tx-Ethernet-DMA-support.patch - net: ethernet: qualcomm: Add Tx Ethernet DMA support
+  0335-net-ethernet-qualcomm-add-EDMA-misc-interrupts-with-W1C.patch - net: ethernet: qualcomm: add and acknowledge EDMA  miscellaneous interrupts
+  0336-net-ethernet-qualcomm-add-EDMA-ethtool-with-safe-strings.patch - net: ethernet: qualcomm: add EDMA ethtool support with  initialized strings
+  0342-net-qualcomm-Update-IPQ9574-PPE-driver.patch - net: qualcomm: Update IPQ9574 PPE driver
+
+Merged from:
+  0327-net-ppe-mac-port-operations.patch - net: ethernet: qualcomm: provide PPE phylink and MAC port operations
+  0331-net-ethernet-qualcomm-Add-EDMA-support-for-QCOM-IPQ9.patch - net: ethernet: qualcomm: Add EDMA support for QCOM IPQ9574  chipset.
+  0332-net-ethernet-qualcomm-Add-netdevice-support-for-QCOM.patch - net: ethernet: qualcomm: Add netdevice support for QCOM  IPQ9574 chipset.
+  0333-net-ethernet-qualcomm-Add-Rx-Ethernet-DMA-support.patch - net: ethernet: qualcomm: Add Rx Ethernet DMA support
+  0334-net-ethernet-qualcomm-Add-Tx-Ethernet-DMA-support.patch - net: ethernet: qualcomm: Add Tx Ethernet DMA support
+  0335-net-ethernet-qualcomm-add-EDMA-misc-interrupts-with-W1C.patch - net: ethernet: qualcomm: add and acknowledge EDMA  miscellaneous interrupts
+  0336-net-ethernet-qualcomm-add-EDMA-ethtool-with-safe-strings.patch - net: ethernet: qualcomm: add EDMA ethtool support with  initialized strings
+  0340-net-ppe-build-dependencies.patch - net: ethernet: qualcomm: select PPE and PCS build dependencies
+  0342-net-qualcomm-Update-IPQ9574-PPE-driver.patch - net: qualcomm: Update IPQ9574 PPE driver
+
+Previous merged from (0327-net-ppe-mac-port-operations.patch):
+  0327-net-ethernet-qualcomm-Add-phylink-support-for-PPE-MA.patch
+  0328-net-ethernet-qualcomm-Add-PPE-port-MAC-MIB-statistic.patch
+  0329-net-ethernet-qualcomm-Add-PPE-port-MAC-address-and-E.patch
+  0330-net-ethernet-qualcomm-Add-API-to-configure-PPE-port-.patch
+
+Previous merged from (0340-net-ppe-build-dependencies.patch):
+  0340-net-ethernet-qualcomm-ppe-Fix-unmet-dependency-with-.patch
+  0341-net-ethernet-qualcomm-ppe-select-correct-PCS-depende.patch
+
+Original-commit: 54bae579f3e6bea90322412a473e00d6815567de
+Original-commit: 9ecd759aafd85b92ac2865748ea62af8211bce74
+Original-commit: 15e70eb335652f61fdf1b645736f7782b88368c0
+Original-commit: e2f7ca2d156a194b20af7532c494360013c1603e
+Co-developed-by: Suruchi Agarwal <quic_suruchia@quicinc.com>
+Co-developed-by: Pavithra R <quic_pavir@quicinc.com>
+Original-commit: 7e872efc79091d4b43983d10a28ba322195f9d76
+Original-commit: e913a488e9c8f338488eaa5b3a88e10dffb4e7ee
+
+Signed-off-by: Lei Wei <quic_leiwei@quicinc.com>
+Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
+Signed-off-by: Luo Jie <quic_luoj@quicinc.com>
+Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
+Signed-off-by: Suruchi Agarwal <quic_suruchia@quicinc.com>
+Signed-off-by: Kamil Bienkiewicz <perceivalpercy@gmail.com>
+Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
+Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/Kconfig
++++ b/drivers/net/ethernet/qualcomm/Kconfig
+@@ -65,6 +65,8 @@ config QCOM_PPE
+ 	depends on COMMON_CLK && HAS_IOMEM && OF
+ 	depends on ARCH_QCOM || COMPILE_TEST
+ 	select REGMAP_MMIO
++	select PHYLINK
++	select PCS_QCOM_IPQ9574
+ 	help
+ 	  This driver supports the Qualcomm Technologies, Inc. packet
+ 	  process engine (PPE) available with IPQ SoC. The PPE includes
+--- a/drivers/net/ethernet/qualcomm/ppe/Makefile
++++ b/drivers/net/ethernet/qualcomm/ppe/Makefile
+@@ -4,4 +4,7 @@
+ #
+ 
+ obj-$(CONFIG_QCOM_PPE) += qcom-ppe.o
+-qcom-ppe-objs := ppe.o ppe_config.o ppe_debugfs.o
++qcom-ppe-objs := ppe.o ppe_config.o ppe_debugfs.o ppe_port.o ppe_api.o
++
++#EDMA
++qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o edma_ethtool.o

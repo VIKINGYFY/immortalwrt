@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 15:33:52 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ppe: offload cross-tree RTL837x bridge forwarding
 
 Authorize learned unicast between independent RTL837x trees of the same
@@ -11,14 +11,32 @@ Open only referenced physical egress members of the source VSI; never
 flood or learn a hardware FDB path there. Unsupported paths retain software
 forwarding. Withdraw flows on carrier loss and existing policy changes.
 
-Split from:
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Merged from:
+  0680-net-ppe-offload-cross-tree-rtl837x-bridging.patch - net: ppe: offload cross-tree RTL837x bridge forwarding
+  0681-net-ppe-retire-bridge-flows-on-fdb-changes.patch - net: ppe: retire bridge flows after learned FDB changes
+
+Previous split from (0680-net-ppe-offload-cross-tree-rtl837x-bridging.patch):
+  0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
+
+Previous split from (0681-net-ppe-retire-bridge-flows-on-fdb-changes.patch):
   0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -39,6 +39,7 @@
+@@ -32,6 +32,7 @@
+ #include <linux/rtnetlink.h>
+ #include <linux/seq_file.h>
+ #include <linux/tc_act/tc_csum.h>
++#include <linux/workqueue.h>
+ #include <net/flow_offload.h>
+ #include <net/ip6_tunnel.h>
+ #include <net/ip6_route.h>
+@@ -39,6 +40,7 @@
  #include <net/ipv6.h>
  #include <net/lwtunnel.h>
  #include <net/neighbour.h>
@@ -26,15 +44,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/tcp.h>
  
  #include "edma_port.h"
-@@ -465,6 +466,7 @@
+@@ -467,6 +469,9 @@ struct ppe_flowtable {
  	struct ppe_ft_tunnel_pppoe_port tunnel_pppoe_ports[PPE_PORT_ID_COUNT];
  	struct notifier_block ppp_nb;
  	struct notifier_block account_nb;
 +	struct notifier_block bridge_nb;
++	struct notifier_block fdb_nb;
++	struct work_struct fdb_work;
  	struct list_head block_cb_list;
  };
  
-@@ -2891,34 +2893,83 @@
+@@ -2897,35 +2902,84 @@ static int ppe_ft_flow_refresh(struct pp
  	return 0;
  }
  
@@ -42,17 +62,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 - * belongs to a local device; a bridge preserves its peer's source MAC.
 - * Limit direct bridge-port forwarding to one untagged bridge domain.
 - * Tagged/DSA paths need their own VLAN editor and source-domain encoding.
+- */
+-static bool ppe_ft_bridge_path(struct net_device *odev, int ingress_ifindex)
 +/* Keep transparent bridge semantics separate from routing. MPPE can
 + * attach a VLAN-only next hop, but the flow's source check is a port, not
 + * an L3 interface. RTL SVID/CVID ingress therefore needs an exact source VP.
-  */
--static bool ppe_ft_bridge_path(struct net_device *odev, int ingress_ifindex)
--{
++ */
 +static bool ppe_ft_bridge_path(struct ppe_flowtable *ft,
 +			       struct net_device *odev,
 +			       struct ppe_ft_data *data,
 +			       struct ppe_flow_nexthop *nh)
-+{
+ {
 +	struct ppe_ft_dsa_path ingress, egress;
  	struct net_device *idev, *master;
 -	bool valid = false;
@@ -132,11 +152,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	rcu_read_unlock();
  	return valid;
  }
--
  
+-
  /* A VLAN object owns the source VP as long as its consuming XLT survives.
   * Existing routed flows keep the same VSI/L3 and CPU tag restoration.
-@@ -3423,15 +3474,14 @@
+  */
+@@ -3430,15 +3484,14 @@ static int ppe_ft_flow_replace(struct pp
  	}
  	if (data.bridge &&
  	    (tunnel_flow || data.pppoe_sid >= 0 ||
@@ -154,7 +175,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = -EOPNOTSUPP;
  		goto err_tdev;
  	}
-@@ -3672,23 +3722,67 @@
+@@ -3683,23 +3736,67 @@ put_idev:
  		goto err_vp;
  	}
  	if (data.bridge) {
@@ -229,10 +250,66 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tunnel_flow) {
  		struct in6_addr local, remote;
  		int link, mtu;
-@@ -4831,6 +4925,41 @@
+@@ -4805,6 +4902,97 @@ static void ppe_ft_dev_invalidate(struct
  	mutex_unlock(&ft->lock);
  }
  
++/* FDB notifications can run in atomic context. Recheck learned peers in
++ * process context under the same RTNL -> flow lock order as publication.
++ * A move or deletion retires only bridge flows whose current peer lookup
++ * no longer agrees; learning another host must not flush active traffic.
++ */
++static void ppe_ft_fdb_work(struct work_struct *work)
++{
++	struct ppe_flowtable *ft = container_of(work, struct ppe_flowtable,
++						 fdb_work);
++	struct net_device *idev, *odev, *master;
++	struct ppe_ft_flow *flow;
++	bool valid;
++	u16 vid;
++	int i;
++
++	rtnl_lock();
++	mutex_lock(&ft->lock);
++	for (i = 0; i < ft->ppe_dev->variant->num_flow_entries; i++) {
++		flow = ft->flow_owners[i];
++		if (!flow || !list_empty(&flow->zombie_node) ||
++		    flow->entry.fwd_type != PPE_FLOW_FWD_TYPE_BRIDGE)
++			continue;
++		idev = flow->path_dev[0];
++		odev = flow->path_dev[1];
++		if (!idev || !odev)
++			continue;
++		rcu_read_lock();
++		master = netdev_master_upper_dev_get_rcu(idev);
++		vid = master && br_vlan_enabled(master) ?
++			(flow->vlan >= 0 ? ft->vlans[flow->vlan].cvid :
++			 flow->rule.data.ingress_cvid) : 0;
++		valid = master && netif_is_bridge_master(master) &&
++			netdev_master_upper_dev_get_rcu(odev) == master &&
++			br_fdb_find_port(master, flow->rule.data.eth.src, vid) == idev &&
++			br_fdb_find_port(master, flow->rule.data.eth.dst, vid) == odev;
++		rcu_read_unlock();
++		if (!valid)
++			ppe_ft_invalidate_locked(ft, flow);
++	}
++	mutex_unlock(&ft->lock);
++	rtnl_unlock();
++}
++
++static int ppe_ft_fdb_event(struct notifier_block *nb,
++			    unsigned long event, void *ptr)
++{
++	struct ppe_flowtable *ft = container_of(nb, struct ppe_flowtable,
++						 fdb_nb);
++	struct switchdev_notifier_fdb_info *info = ptr;
++
++	if ((event == SWITCHDEV_FDB_ADD_TO_DEVICE ||
++	     event == SWITCHDEV_FDB_DEL_TO_DEVICE) && !info->is_local)
++		schedule_work(&ft->fdb_work);
++	return NOTIFY_DONE;
++}
++
 +/* Retire hardware bypasses before a bridge policy change completes.
 + * RTNL excludes publication of another transparent flow until the bridge
 + * software state commits; nf_flowtable also retires its cached SW path.
@@ -271,22 +348,24 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_ft_account_event(struct notifier_block *nb,
  				unsigned long event, void *ptr)
  {
-@@ -4848,6 +4977,10 @@
- 	case NETDEV_CHANGEMTU:
+@@ -4823,6 +5011,10 @@ static int ppe_ft_account_event(struct n
  	case NETDEV_CHANGEINFODATA:
  		ppe_ft_dev_invalidate(ft, dev);
-+		break;
+ 		break;
 +	case NETDEV_CHANGE:
 +		if (!netif_carrier_ok(dev))
 +			ppe_ft_dev_invalidate(ft, dev);
- 		break;
++		break;
  	}
  
-@@ -4933,13 +5066,21 @@
+ 	if (event != NETDEV_UNREGISTER)
+@@ -4908,14 +5100,32 @@ int ppe_flowtable_setup(struct ppe_devic
  	hash_init(ft->hosts);
  	ft->ppp_nb.notifier_call = ppe_ft_ppp_event;
  	ft->account_nb.notifier_call = ppe_ft_account_event;
 +	ft->bridge_nb.notifier_call = ppe_ft_bridge_event;
++	ft->fdb_nb.notifier_call = ppe_ft_fdb_event;
++	INIT_WORK(&ft->fdb_work, ppe_ft_fdb_work);
  	ppe_dev->flowtable = ft;
  
  	ret = register_netdevice_notifier(&ft->account_nb);
@@ -295,21 +374,32 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ret = register_switchdev_blocking_notifier(&ft->bridge_nb);
  		if (ret)
  			unregister_netdevice_notifier(&ft->account_nb);
-+	}
+ 	}
 +	if (!ret) {
 +		ret = ppp_register_channel_notifier(&ft->ppp_nb);
 +		if (ret) {
 +			unregister_switchdev_blocking_notifier(&ft->bridge_nb);
 +			unregister_netdevice_notifier(&ft->account_nb);
 +		}
- 	}
++	}
++	if (!ret) {
++		ret = register_switchdev_notifier(&ft->fdb_nb);
++		if (ret) {
++			ppp_unregister_channel_notifier(&ft->ppp_nb);
++			unregister_switchdev_blocking_notifier(&ft->bridge_nb);
++			unregister_netdevice_notifier(&ft->account_nb);
++		}
++	}
  	if (ret) {
  		ppe_dev->flowtable = NULL;
-@@ -4990,6 +5131,7 @@
+ 		rhashtable_destroy(&ft->flows);
+@@ -4965,6 +5175,9 @@ void ppe_flowtable_destroy(struct ppe_de
  		return;
  
  	WARN_ON(!list_empty(&ft->block_cb_list));
++	unregister_switchdev_notifier(&ft->fdb_nb);
++	cancel_work_sync(&ft->fdb_work);
 +	unregister_switchdev_blocking_notifier(&ft->bridge_nb);
  	unregister_netdevice_notifier(&ft->account_nb);
  	ppp_unregister_channel_notifier(&ft->ppp_nb);
- 	ppe_ft_flow_drain(ft);
+ 	ppe_ft_flow_drain(ft, NULL);

@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: qualcomm: ppe: compose service and customer VLAN tags
 
 Track service and customer VLAN tags independently. Compose the DSA
@@ -7,7 +7,7 @@ service tag with user VLAN actions on egress so ingress matching and
 egress programming stay consistent for VLAN-aware DSA ports.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 @@ -633,9 +633,13 @@ int ppe_nexthop_set(struct ppe_device *p
@@ -132,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			}
  			flow->egress_dev = odev;
  			flow->egress_vid = dsa_ovid;
-@@ -2702,7 +2712,8 @@ put_idev:
+@@ -2706,7 +2716,8 @@ put_idev:
  
  		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
  					       data.eth.dst, data.eth.src,

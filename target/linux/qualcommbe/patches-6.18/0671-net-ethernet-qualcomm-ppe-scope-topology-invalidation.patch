@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: scope topology invalidation
 
 Keep direct path and bypassed-upper dependencies for each flow.
@@ -9,10 +9,10 @@ Walk the locked owner array once instead of restarting hash walks;
 preserve the existing delete, quarantine and hardware lease rules.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -278,6 +278,7 @@ struct ppe_ft_flow {
+@@ -279,6 +279,7 @@ struct ppe_ft_flow {
  	u8 iport;
  	u8 eport;
  	struct net_device *egress_dev;
@@ -20,8 +20,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	s16 egress_vid;
  	u32 packets;
  	u64 bytes;
-@@ -421,6 +422,8 @@ struct ppe_flowtable {
- 	struct rhashtable flows;
+@@ -423,6 +424,8 @@ struct ppe_flowtable {
+ 	struct list_head active_flows;
  	struct list_head zombies;
  	struct ppe_ft_flow **flow_owners;
 +	u64 topology_seq;
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct dentry *debugfs;
  	struct dentry *debugfs_active;
  	struct dentry *debugfs_reasons;
-@@ -2575,6 +2578,19 @@ static void ppe_ft_flow_owner_clear(stru
+@@ -2581,6 +2584,19 @@ static void ppe_ft_flow_owner_clear(stru
  		ft->flow_owners[flow->index] = NULL;
  }
  
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ppe_ft_flow_deps_put(struct ppe_flowtable *ft,
  				 struct ppe_ft_flow *flow)
  {
-@@ -2590,6 +2606,7 @@ static void ppe_ft_flow_deps_put(struct
+@@ -2596,6 +2612,7 @@ static void ppe_ft_flow_deps_put(struct
  	ppe_ft_tunnel_put(ft, flow->tunnel);
  	ppe_vp_put(ft->ppe_dev, flow->vp);
  	ppe_vp_put(ft->ppe_dev, flow->ivp);
@@ -57,15 +57,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_flow_account_put(&flow->rx_account);
  	ppe_flow_account_put(&flow->tx_account);
  	if (flow->egress_dev) {
-@@ -2671,6 +2688,7 @@ static void ppe_ft_flow_quarantine(struc
+@@ -2677,6 +2694,7 @@ static void ppe_ft_flow_quarantine(struc
  	/* Statistics are not hardware dependencies and must not pin an upper
  	 * behind a quarantined row that has no further stats callbacks.
  	 */
 +	ppe_ft_path_put(flow);
  	ppe_flow_account_put(&flow->rx_account);
  	ppe_flow_account_put(&flow->tx_account);
- 
-@@ -2687,6 +2705,7 @@ static void ppe_ft_flow_quarantine(struc
+ 	if (flow->egress_dev) {
+@@ -2697,6 +2715,7 @@ static void ppe_ft_flow_quarantine(struc
  
  static void ppe_ft_flow_release(struct ppe_ft_flow *flow)
  {
@@ -73,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_flow_account_put(&flow->rx_account);
  	ppe_flow_account_put(&flow->tx_account);
  	if (flow->egress_dev)
-@@ -2824,10 +2843,15 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2834,10 +2853,15 @@ static int ppe_ft_flow_replace(struct pp
  	bool ingress_vp_vlan = false;
  	bool bridge_rtnl = false;
  	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
@@ -89,7 +89,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Padding is included in the normalized request comparison below. */
  	memset(&data, 0, sizeof(data));
  	memset(&nh, 0, sizeof(nh));
-@@ -3235,6 +3259,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -3246,6 +3270,8 @@ static int ppe_ft_flow_replace(struct pp
  		goto err_tdev;
  	}
  
@@ -98,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	flow->entry.pmtu = odev->mtu;
  
  	/* The PPPoE L3 interface carries the session ID, so it needs
-@@ -3306,6 +3332,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -3317,6 +3343,8 @@ static int ppe_ft_flow_replace(struct pp
  		ether_addr_copy(data.eth.ingress,
  				master ? master->dev_addr : idev->dev_addr);
  		rcu_read_unlock();
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		imtu = idev->mtu;
  		if (!tunnel_flow)
  			ppe_flow_account_bind(&flow->rx_account, idev,
-@@ -3495,6 +3523,16 @@ put_idev:
+@@ -3510,6 +3538,16 @@ put_idev:
  	flow->rule.priority = f->common.prio;
  
  	mutex_lock(&ft->lock);
@@ -124,7 +124,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_flow_account_prune(&flow->rx_account, NULL);
  	ppe_flow_account_prune(&flow->tx_account, NULL);
  	ret = ppe_ft_flow_refresh(ft, flow, tunnel_flow);
-@@ -3986,6 +4024,7 @@ err_free:
+@@ -4001,6 +4039,7 @@ err_free:
  	if (ret)
  		atomic_long_inc(&ft->rejects[reject_reason]);
  	if (flow) {
@@ -132,8 +132,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ppe_flow_account_put(&flow->rx_account);
  		ppe_flow_account_put(&flow->tx_account);
  	}
-@@ -4060,51 +4099,42 @@ static void ppe_ft_flow_drain(struct ppe
- 	rhashtable_walk_exit(&iter);
+@@ -4065,51 +4104,42 @@ static void ppe_ft_flow_drain(struct ppe
+ 	}
  }
  
 -/* Invalidate every flow which references a virtual port after its MAC,
@@ -212,7 +212,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_ft_flow_stats(struct ppe_flowtable *ft,
-@@ -4277,7 +4307,7 @@ DEFINE_SHOW_ATTRIBUTE(ppe_ft_reason_coun
+@@ -4282,7 +4312,7 @@ DEFINE_SHOW_ATTRIBUTE(ppe_ft_reason_coun
   * its hardware row index, the live VALID bit and the hit counters read
   * back from the hardware. The walk runs under RCU (flows are freed
   * through kfree_rcu) and the reads use the non-sleeping MMIO regmap.
@@ -221,7 +221,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  static int ppe_ft_flows_show(struct seq_file *seq, void *data)
  {
-@@ -4285,11 +4315,14 @@ static int ppe_ft_flows_show(struct seq_
+@@ -4290,11 +4320,14 @@ static int ppe_ft_flows_show(struct seq_
  	struct rhashtable_iter iter;
  	struct ppe_ft_flow *flow;
  	struct list_head *pos;
@@ -236,7 +236,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ft->lock);
  
  	seq_printf(seq,
-@@ -4304,6 +4337,9 @@ static int ppe_ft_flows_show(struct seq_
+@@ -4309,6 +4342,9 @@ static int ppe_ft_flows_show(struct seq_
  		   atomic_long_read(&ft->flow_stale_replaces),
  		   atomic_long_read(&ft->flow_stale_stats),
  		   atomic_long_read(&ft->flow_stale_destroys));
@@ -246,7 +246,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	seq_puts(seq, "reject");
  	for (i = 0; i < PPE_FT_REJECT_MAX; i++)
  		seq_printf(seq, " %s:%ld", ppe_ft_reject_names[i],
-@@ -4623,45 +4659,41 @@ int ppe_flowtable_setup_tc(struct net_de
+@@ -4601,45 +4637,41 @@ int ppe_flowtable_setup_tc(struct net_de
  	}
  }
  
@@ -322,7 +322,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ft->lock);
  }
  
-@@ -4681,7 +4713,7 @@ static int ppe_ft_account_event(struct n
+@@ -4659,7 +4691,7 @@ static int ppe_ft_account_event(struct n
  	case NETDEV_CHANGEADDR:
  	case NETDEV_CHANGEMTU:
  	case NETDEV_CHANGEINFODATA:

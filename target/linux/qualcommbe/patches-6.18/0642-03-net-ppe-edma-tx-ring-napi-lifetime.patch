@@ -1,0 +1,167 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: ppe: unwind TX rings and NAPI safely
+
+Unwind partially allocated TX rings and preserve per-ring NAPI enable and interrupt ownership. Keep controller acquisition and port registration separate.
+
+Split from:
+  0642-net-ethernet-qualcomm-ppe-fix-edma-resource-lifecycle.patch - net: ethernet: qualcomm: ppe: fix EDMA resource lifecycle
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
+@@ -278,7 +278,6 @@ void edma_cfg_tx_rings_disable(u32 port_
+ 		txdesc_ring = &edma_ctx->tx_rings[ring_idx];
+ 		u32 data;
+ 
+-		txdesc_ring = &edma_ctx->tx_rings[i];
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC_CTRL(txdesc_ring->id);
+ 		regmap_read(regmap, reg, &data);
+ 		data &= ~EDMA_TXDESC_TX_ENABLE;
+@@ -426,6 +425,7 @@ static int edma_cfg_tx_rings_setup(void)
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[i];
+ 		txcmpl_ring->count = EDMA_TX_RING_SIZE;
+ 		txcmpl_ring->id = txcmpl->ring_start + i;
++		spin_lock_init(&txcmpl_ring->irq_lock);
+ 		txcmpl_ring->txdesc_ring = &edma_ctx->tx_rings[i];
+ 
+ 		ret = edma_cfg_txcmpl_ring_setup(txcmpl_ring);
+@@ -555,13 +555,17 @@ void edma_cfg_tx_disable_interrupts(u32
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+ 	struct edma_txcmpl_ring *txcmpl_ring;
++	unsigned long flags;
+ 	u32 i, ring_idx, reg;
+ 
+ 	for_each_possible_cpu(i) {
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
++		spin_lock_irqsave(&txcmpl_ring->irq_lock, flags);
++		txcmpl_ring->irq_enabled = false;
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
+ 		regmap_write(regmap, reg, EDMA_MASK_INT_CLEAR);
++		spin_unlock_irqrestore(&txcmpl_ring->irq_lock, flags);
+ 	}
+ }
+ 
+@@ -575,13 +579,17 @@ void edma_cfg_tx_enable_interrupts(u32 p
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+ 	struct edma_txcmpl_ring *txcmpl_ring;
++	unsigned long flags;
+ 	u32 i, ring_idx, reg;
+ 
+ 	for_each_possible_cpu(i) {
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
++		spin_lock_irqsave(&txcmpl_ring->irq_lock, flags);
++		txcmpl_ring->irq_enabled = true;
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
+ 		regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
++		spin_unlock_irqrestore(&txcmpl_ring->irq_lock, flags);
+ 	}
+ }
+ 
+@@ -600,10 +608,11 @@ void edma_cfg_tx_napi_enable(u32 port_id
+ 	for_each_possible_cpu(i) {
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
+-		if (!txcmpl_ring->napi_added)
++		if (!txcmpl_ring->napi_added || txcmpl_ring->napi_enabled)
+ 			continue;
+ 
+ 		napi_enable(&txcmpl_ring->napi);
++		txcmpl_ring->napi_enabled = true;
+ 	}
+ }
+ 
+@@ -622,10 +631,11 @@ void edma_cfg_tx_napi_disable(u32 port_i
+ 	for_each_possible_cpu(i) {
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
+-		if (!txcmpl_ring->napi_added)
++		if (!txcmpl_ring->napi_enabled)
+ 			continue;
+ 
+ 		napi_disable(&txcmpl_ring->napi);
++		txcmpl_ring->napi_enabled = false;
+ 	}
+ }
+ 
+@@ -647,7 +657,10 @@ void edma_cfg_tx_napi_delete(u32 port_id
+ 		if (!txcmpl_ring->napi_added)
+ 			continue;
+ 
+-		napi_disable(&txcmpl_ring->napi);
++		if (txcmpl_ring->napi_enabled) {
++			napi_disable(&txcmpl_ring->napi);
++			txcmpl_ring->napi_enabled = false;
++		}
+ 		netif_napi_del(&txcmpl_ring->napi);
+ 		txcmpl_ring->napi_added = false;
+ 	}
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+@@ -322,6 +322,7 @@ int edma_tx_napi_poll(struct napi_struct
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
+ 	u32 txcmpl_intr_status;
++	unsigned long flags;
+ 	int work_done = 0;
+ 	u32 data, reg;
+ 
+@@ -337,11 +338,13 @@ int edma_tx_napi_poll(struct napi_struct
+ 	} while (txcmpl_intr_status);
+ 
+ 	/* No more packets to process. Finish NAPI processing. */
+-	napi_complete(napi);
+-
+-	/* Set Tx cmpl ring interrupt mask. */
+-	reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
+-	regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
++	/* Hold through completion: stop cannot race the final IRQ rearm. */
++	spin_lock_irqsave(&txcmpl_ring->irq_lock, flags);
++	if (napi_complete_done(napi, work_done) && txcmpl_ring->irq_enabled) {
++		reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
++		regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
++	}
++	spin_unlock_irqrestore(&txcmpl_ring->irq_lock, flags);
+ 
+ 	return work_done;
+ }
+@@ -360,16 +363,20 @@ irqreturn_t edma_tx_handle_irq(int irq,
+ 	struct edma_txcmpl_ring *txcmpl_ring = (struct edma_txcmpl_ring *)ctx;
+ 	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
+ 	struct regmap *regmap = ppe_dev->regmap;
++	unsigned long flags;
+ 	u32 reg;
+ 
+ 	pr_debug("irq: irq=%d txcmpl_ring_id=%u\n", irq, txcmpl_ring->id);
+-	if (likely(napi_schedule_prep(&txcmpl_ring->napi))) {
++	spin_lock_irqsave(&txcmpl_ring->irq_lock, flags);
++	if (txcmpl_ring->irq_enabled && napi_schedule_prep(&txcmpl_ring->napi)) {
+ 		/* Disable TxCmpl intr. */
+ 		reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
+ 		regmap_write(regmap, reg, EDMA_MASK_INT_DISABLE);
+ 		__napi_schedule(&txcmpl_ring->napi);
+ 	}
+ 
++	spin_unlock_irqrestore(&txcmpl_ring->irq_lock, flags);
++
+ 	return IRQ_HANDLED;
+ }
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
+@@ -357,6 +357,10 @@ struct edma_txcmpl_ring {
+ 	dma_addr_t dma;
+ 	u32 count;
+ 	bool napi_added;
++	bool napi_enabled;
++	/* Serialize poll completion/IRQ scheduling with the final stop mask. */
++	spinlock_t irq_lock;
++	bool irq_enabled;
+ 	struct edma_txdesc_ring *txdesc_ring;
+ };
+ 

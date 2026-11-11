@@ -1,11 +1,11 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: manage virtual port uplink ownership
 
 Consolidate consecutive changes within this functional responsibility.
 Retain the final implementation and its error handling directly.
 
-Merged from:
+Previous merged from (0657-net-ppe-vp-uplink-lifecycle.patch):
   0657-net-ethernet-qualcomm-ppe-optimize-vp-uplink-tx.patch
   0658-net-ethernet-qualcomm-ppe-protect-vp-uplink-handoff.patch
   0659-net-ethernet-qualcomm-ppe-quiesce-vp-carrier-tx.patch
@@ -238,9 +238,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 hw_next_to_use = 0, start_idx, queue_id;
 -	u32 reg;
  
- 	hw_next_to_use = txdesc_ring->prod_idx;
- 	start_idx = hw_next_to_use;
-@@ -782,7 +755,6 @@ enum edma_tx_status edma_tx_ring_xmit(st
+ 	/* Match the QSDK EDMA short-packet workaround before DMA mapping.
+ 	 * Keep ownership with the caller on failure, including VP injection.
+@@ -796,7 +769,6 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		EDMA_TXDESC_ENDIAN_SET(txdesc);
  		num_desc_filled++;
  	} else {
@@ -248,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		/* HW does not support TSO for packets with more than 32 segments.
  		 * HW hangs up if it sees more than 32 segments. Kernel Perform GSO
-@@ -863,12 +835,79 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -877,12 +849,79 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		u64_stats_update_end(&stats->syncp);
  	}
  
@@ -331,7 +331,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -959,9 +998,18 @@ int edma_tx_vp_inject(u32 vp_id, struct
+@@ -973,9 +1012,18 @@ int edma_tx_vp_inject(u32 vp_id, struct
  			rcu_read_unlock();
  			return -ENOMEM;
  		}
@@ -352,7 +352,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		edma_tx_xmit_segs(dev, segs, txdesc_ring, NULL, vp_id);
  		__netif_tx_unlock(txq);
  
-@@ -973,6 +1021,12 @@ int edma_tx_vp_inject(u32 vp_id, struct
+@@ -987,6 +1035,12 @@ int edma_tx_vp_inject(u32 vp_id, struct
  	 * exactly as the stack serialises ndo_start_xmit.
  	 */
  	__netif_tx_lock(txq, cpu);
@@ -377,7 +377,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ppe_debugfs_entry *entry;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2622,6 +2622,11 @@ static bool ppe_ft_flow_hw_del(struct pp
+@@ -2628,6 +2628,11 @@ static bool ppe_ft_flow_hw_del(struct pp
  {
  	int ret;
  
@@ -389,7 +389,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (flow->index < 0 ||
  	    flow->index >= ft->ppe_dev->variant->num_flow_entries ||
  	    ft->flow_owners[flow->index] != flow) {
-@@ -3913,7 +3918,6 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -3920,7 +3925,6 @@ static void ppe_ft_flow_destroy_locked(s
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
  	ppe_ft_flow_count_dec(ft, flow);

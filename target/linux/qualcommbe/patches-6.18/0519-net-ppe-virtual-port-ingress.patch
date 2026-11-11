@@ -1,5 +1,5 @@
 From: Kenneth Kasilag <kenneth@kasilag.me>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: route and inject virtual port ingress
 
 The downlink offload - a wired-to-wireless flow forwarded to a virtual port
@@ -19,12 +19,9 @@ edma_tx_vp_inject() submits a received frame on a Tx descriptor ring tagged
 with the virtual port as its SOURCE, so the PPE runs the L3 ingress
 pipeline - flow lookup, NAT, forward-to-WAN - in hardware.
 
-Merged from:
+Previous merged from (0519-net-ppe-virtual-port-ingress.patch):
   0519-01-net-ethernet-qualcomm-ppe-route-virtual-port-ingress.patch
   0519-02-net-ethernet-qualcomm-ppe-inject-virtual-port-uplink.patch
-
-Based on work by:
-  Kenneth Kasilag <kenneth@kasilag.me>
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 Signed-off-by: ViKing <viking.yfy@qq.com>
@@ -47,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -908,6 +910,7 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -910,6 +912,7 @@ int edma_setup(struct ppe_device *ppe_de
  
  	edma_ctx->ppe_dev = ppe_dev;
  	edma_ctx->has_vports = ppe_dev->variant->has_vports;
@@ -476,7 +473,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  irqreturn_t edma_tx_handle_irq(int irq, void *ctx);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2274,12 +2274,13 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2278,12 +2278,13 @@ static int ppe_ft_flow_replace(struct pp
  		}
  
  		/* The port binding classifies plain ingress on the

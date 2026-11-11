@@ -1,0 +1,59 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: ppe: retain virtual-port transport identity
+
+Track VP users and transport identity so topology invalidation and retirement retain the correct endpoint references.
+
+Split from:
+  0651-net-ppe-flow-identity-and-topology.patch - net: ethernet: qualcomm: own DSA and PPPoE flow identity and topology
+
+Previous merged from (0651-net-ppe-flow-identity-and-topology.patch):
+  0651-net-ethernet-qualcomm-ppe-define-flow-identity-and-transport.patch
+  0652-net-ethernet-qualcomm-ppe-manage-dsa-pppoe-flow-lifecycle.patch
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
+@@ -965,6 +965,31 @@ out:
+ 	return ret;
+ }
+ 
++/* Retain an existing QCA mapping without creating a mapping or an RX hook. */
++int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port)
++{
++	struct ppe_vp *vpt = ppe_dev->vp;
++	struct ppe_vp_slot *slot;
++	int i = vp - PPE_VP_PORT_BASE;
++	int ret = -ENODEV;
++
++	if (!vpt || i < 0 || i >= PPE_VP_SLOTS)
++		return -EINVAL;
++
++	mutex_lock(&vpt->lock);
++	slot = &vpt->slots[i];
++	if (!vpt->inject_disabled && slot->refcnt &&
++	    rcu_access_pointer(slot->dev) &&
++	    slot->type == PPE_VP_SLOT_QCA4B && !slot->poisoned &&
++	    slot->physical_port == physical_port) {
++		slot->refcnt++;
++		ret = 0;
++	}
++	mutex_unlock(&vpt->lock);
++
++	return ret;
++}
++
+ /**
+  * ppe_vp_put - Release a virtual port
+  * @ppe_dev: PPE device
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
+@@ -59,6 +59,7 @@ int ppe_vp_get(struct ppe_device *ppe_de
+ 	       int priority);
+ int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
+ 		     int priority, bool need_hook);
++int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port);
+ void ppe_vp_put(struct ppe_device *ppe_dev, int vp);
+ struct net_device *ppe_vp_dev(struct ppe_device *ppe_dev, int vp);
+ bool ppe_vp_is_qca4b(struct ppe_device *ppe_dev, int vp);

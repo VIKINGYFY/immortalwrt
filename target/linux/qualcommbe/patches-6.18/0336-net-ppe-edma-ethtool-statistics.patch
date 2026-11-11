@@ -1,45 +1,28 @@
 From: Pavithra R <quic_pavir@quicinc.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
-Subject: [PATCH] net: ethernet: qualcomm: add EDMA ethtool support with
- initialized strings
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: ppe: expose EDMA ethtool statistics
 
-Introduce EDMA ethtool operations with zero-filled fixed-width statistic
-name slots. Fold only the direct uninitialized-byte correction into the
-operation that exposes those strings.
+Expose the final netdevice ethtool operations and initialized string tables directly.
 
-Original-author: ViKing <viking.yfy@qq.com>
-Source-patch: 0336-net-ethernet-qualcomm-Add-ethtool-support-for-EDMA.patch (033ce0e809a31c25ce96eafce0e84214735ac56c)
-Source-patch: 0616-net-ethernet-qualcomm-ppe-harden-ethtool-stat-strings.patch
+Split from:
+  0336-net-ethernet-qualcomm-add-EDMA-ethtool-with-safe-strings.patch - net: ethernet: qualcomm: add EDMA ethtool support with  initialized strings
+  0342-net-qualcomm-Update-IPQ9574-PPE-driver.patch - net: qualcomm: Update IPQ9574 PPE driver
 
-[viking.yfy@qq.com: fold only the direct correction into its feature]
+Merged from:
+  0336-net-ethernet-qualcomm-add-EDMA-ethtool-with-safe-strings.patch - net: ethernet: qualcomm: add EDMA ethtool support with  initialized strings
+  0342-net-qualcomm-Update-IPQ9574-PPE-driver.patch - net: qualcomm: Update IPQ9574 PPE driver
 
 Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
 Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
+Signed-off-by: Luo Jie <quic_luoj@quicinc.com>
+Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
---- a/drivers/net/ethernet/qualcomm/ppe/Makefile
-+++ b/drivers/net/ethernet/qualcomm/ppe/Makefile
-@@ -7,4 +7,4 @@ obj-$(CONFIG_QCOM_PPE) += qcom-ppe.o
- qcom-ppe-objs := ppe.o ppe_config.o ppe_debugfs.o ppe_port.o
- 
- #EDMA
--qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o
-+qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o edma_ethtool.o
---- a/drivers/net/ethernet/qualcomm/ppe/edma.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
-@@ -161,6 +161,7 @@ void edma_destroy(struct ppe_device *ppe
- int edma_setup(struct ppe_device *ppe_dev);
- void edma_debugfs_teardown(void);
- int edma_debugfs_setup(struct ppe_device *ppe_dev);
-+void edma_set_ethtool_ops(struct net_device *netdev);
- int ppe_edma_queue_offset_config(struct ppe_device *ppe_dev,
- 				 enum ppe_queue_class_type class,
- 				 int index, int queue_offset);
+
 --- /dev/null
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_ethtool.c
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,266 @@
 +// SPDX-License-Identifier: GPL-2.0-only
-+/* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
++/* Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
 + */
 +
 +/* ethtool support for EDMA */
@@ -283,33 +266,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	return phylink_ethtool_set_pauseparam(port->phylink, pause);
 +}
 +
-+static int edma_get_eee(struct net_device *netdev, struct ethtool_keee *eee)
-+{
-+	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
-+	struct ppe_port *port =  port_priv->ppe_port;
-+
-+	if (!port_priv)
-+		return -EINVAL;
-+
-+	return phylink_ethtool_get_eee(port->phylink, eee);
-+}
-+
-+static int edma_set_eee(struct net_device *netdev, struct ethtool_keee *eee)
-+{
-+	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
-+	struct ppe_port *port =  port_priv->ppe_port;
-+	int ret;
-+
-+	if (!port_priv)
-+		return -EINVAL;
-+
-+	ret = ppe_port_set_mac_eee(port_priv->ppe_port, eee);
-+	if (ret)
-+		return ret;
-+
-+	return phylink_ethtool_set_eee(port->phylink, eee);
-+}
-+
 +static const struct ethtool_ops edma_ethtool_ops = {
 +	.get_strings = &edma_get_strings,
 +	.get_sset_count = &edma_get_strset_count,
@@ -319,8 +275,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	.set_link_ksettings = edma_set_link_ksettings,
 +	.get_pauseparam = &edma_get_pauseparam,
 +	.set_pauseparam = &edma_set_pauseparam,
-+	.get_eee = &edma_get_eee,
-+	.set_eee = &edma_set_eee,
 +};
 +
 +/**
@@ -333,13 +287,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	netdev->ethtool_ops = &edma_ethtool_ops;
 +}
---- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-+++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -380,6 +380,7 @@ int edma_port_setup(struct ppe_port *por
- 	netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
- 	netdev->netdev_ops = &edma_port_netdev_ops;
- 	netdev->gso_max_segs = GSO_MAX_SEGS;
-+	edma_set_ethtool_ops(netdev);
- 
- 	maddr = mac_addr;
- 	if (of_get_mac_address(np, maddr))

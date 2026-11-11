@@ -1,5 +1,5 @@
 From: Kenneth Kasilag <kenneth@kasilag.me>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: compose tunnel underlays and LWT routes
 
 Build the IP-in-IPv6 outer header from the routed forward path, including
@@ -11,12 +11,16 @@ Consume the generic flow action's LWT type, TX tunnel key and reversed
 encapsulated-address match to publish fixed IPv4-in-IPv6 LWT flows through
 the PPE tunnel transaction.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  0514-04-net-ppe-tunnel-underlay-and-lwt.patch - net: ethernet: qualcomm: compose tunnel underlays and LWT routes
+  0682-net-ppe-avoid-rtnl-wait-in-tunnel-flow-add.patch - net: ppe: avoid waiting for RTNL during tunnel flow creation
+
+Previous merged from (0514-04-net-ppe-tunnel-underlay-and-lwt.patch):
   0514-08-net-ethernet-qualcomm-ppe-compose-tunnel-underlays.patch
   0514-09-net-ethernet-qualcomm-ppe-offload-ip6-lwt-tunnels.patch
-
-Based on work by:
-  Kenneth Kasilag <kenneth@kasilag.me>
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 Signed-off-by: ViKing <viking.yfy@qq.com>
@@ -659,7 +663,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct ip6_tnl_flow_offload_key key = {
  			.addr = tunnel_encap ? flow->entry.dip.ip4 :
  					       flow->entry.sip.ip4,
-@@ -1782,7 +2104,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1776,13 +2098,17 @@ static int ppe_ft_flow_replace(struct pp
+ 					       flow->entry.sport,
+ 		};
+ 
+-		rtnl_lock();
++		/* NETDEV_DOWN holds RTNL while flushing the add workqueue. */
++		if (!rtnl_trylock()) {
++			ret = -EAGAIN;
++			goto err_prelock_ivp;
++		}
+ 		ret = dev_ip6_tnl_flow_offload(tdev, &key, &tnl_info);
+ 		rtnl_unlock();
  		if (ret || ipv6_addr_any(&tnl_info.local) ||
  		    ipv6_addr_any(&tnl_info.remote)) {
  			ret = -EOPNOTSUPP;
@@ -668,7 +683,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -1793,12 +2115,29 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1793,12 +2119,29 @@ static int ppe_ft_flow_replace(struct pp
  	 */
  	mutex_lock(&ft->lock);
  	if (tunnel_flow) {

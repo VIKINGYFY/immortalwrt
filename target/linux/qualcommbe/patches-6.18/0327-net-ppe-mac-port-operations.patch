@@ -1,67 +1,51 @@
 From: Lei Wei <quic_leiwei@quicinc.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
-Subject: [PATCH] net: ethernet: qualcomm: provide PPE phylink and MAC port operations
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: ppe: provide MAC port operations and controller contracts
 
-Add MAC initialization and phylink functions for PPE MAC ports.
+Describe the final MAC, phylink, register and port contracts for the IPQ9574 PPE. Keep EDMA controller, netdevice, RX, TX, diagnostics and ethtool implementations in their corresponding units.
 
-Add PPE port MAC MIB statistics functions which are used by netdev ops and
-ethtool. For GMAC, a polling task is scheduled to read the MIB counters
-periodically to avoid 32bit register counter overflow.
-
-Add PPE port MAC address set and EEE set API functions which will be used
-by netdev ops and ethtool.
-
-This function is called when the MTU of an ethernet port is configured. It
-limits the size of packet passed through the ethernet port.
-
-Allow egress L2 MTU checks to include the two supported VLAN tag slots.
-Keep ingress MRU and routing/flow IP MTUs unchanged so tagged packets
-with a full-sized IP payload are not dropped after next-hop insertion.
+Split from:
+  0327-net-ppe-mac-port-operations.patch - net: ethernet: qualcomm: provide PPE phylink and MAC port operations
+  0331-net-ethernet-qualcomm-Add-EDMA-support-for-QCOM-IPQ9.patch - net: ethernet: qualcomm: Add EDMA support for QCOM IPQ9574  chipset.
+  0332-net-ethernet-qualcomm-Add-netdevice-support-for-QCOM.patch - net: ethernet: qualcomm: Add netdevice support for QCOM  IPQ9574 chipset.
+  0342-net-qualcomm-Update-IPQ9574-PPE-driver.patch - net: qualcomm: Update IPQ9574 PPE driver
 
 Merged from:
+  0327-net-ppe-mac-port-operations.patch - net: ethernet: qualcomm: provide PPE phylink and MAC port operations
+  0331-net-ethernet-qualcomm-Add-EDMA-support-for-QCOM-IPQ9.patch - net: ethernet: qualcomm: Add EDMA support for QCOM IPQ9574  chipset.
+  0332-net-ethernet-qualcomm-Add-netdevice-support-for-QCOM.patch - net: ethernet: qualcomm: Add netdevice support for QCOM  IPQ9574 chipset.
+  0342-net-qualcomm-Update-IPQ9574-PPE-driver.patch - net: qualcomm: Update IPQ9574 PPE driver
+  0371-net-ethernet-qualcomm-ppe-force-XGMAC-TX-queue-0-store-and-forward.patch - net: ethernet: qualcomm: ppe: force XGMAC TX queue 0 store-and-forward
+
+Previous merged from (0327-net-ppe-mac-port-operations.patch):
   0327-net-ethernet-qualcomm-Add-phylink-support-for-PPE-MA.patch
   0328-net-ethernet-qualcomm-Add-PPE-port-MAC-MIB-statistic.patch
   0329-net-ethernet-qualcomm-Add-PPE-port-MAC-address-and-E.patch
   0330-net-ethernet-qualcomm-Add-API-to-configure-PPE-port-.patch
 
-Based on work by:
-  Alexandru Gagniuc <mr.nuke.me@gmail.com>
-  Lei Wei <quic_leiwei@quicinc.com>
-  Luo Jie <quic_luoj@quicinc.com>
-
 Original-commit: 54bae579f3e6bea90322412a473e00d6815567de
 Original-commit: 9ecd759aafd85b92ac2865748ea62af8211bce74
 Original-commit: 15e70eb335652f61fdf1b645736f7782b88368c0
 Original-commit: e2f7ca2d156a194b20af7532c494360013c1603e
+Co-developed-by: Suruchi Agarwal <quic_suruchia@quicinc.com>
+Co-developed-by: Pavithra R <quic_pavir@quicinc.com>
 
 Signed-off-by: Lei Wei <quic_leiwei@quicinc.com>
 Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 Signed-off-by: Luo Jie <quic_luoj@quicinc.com>
+Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
+Signed-off-by: Suruchi Agarwal <quic_suruchia@quicinc.com>
+Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
+Signed-off-by: Til Kaiser <mail@tk154.de>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
---- a/drivers/net/ethernet/qualcomm/Kconfig
-+++ b/drivers/net/ethernet/qualcomm/Kconfig
-@@ -65,6 +65,9 @@ config QCOM_PPE
- 	depends on COMMON_CLK && HAS_IOMEM && OF
- 	depends on ARCH_QCOM || COMPILE_TEST
- 	select REGMAP_MMIO
-+	select PHYLINK
-+	select PCS_QCOM_IPQ_UNIPHY
-+	select SFP
- 	help
- 	  This driver supports the Qualcomm Technologies, Inc. packet
- 	  process engine (PPE) available with IPQ SoC. The PPE includes
---- a/drivers/net/ethernet/qualcomm/ppe/Makefile
-+++ b/drivers/net/ethernet/qualcomm/ppe/Makefile
-@@ -4,4 +4,4 @@
- #
- 
- obj-$(CONFIG_QCOM_PPE) += qcom-ppe.o
--qcom-ppe-objs := ppe.o ppe_config.o ppe_debugfs.o
-+qcom-ppe-objs := ppe.o ppe_config.o ppe_debugfs.o ppe_port.o
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
-@@ -17,6 +17,7 @@
+@@ -14,9 +14,11 @@
+ #include <linux/regmap.h>
+ #include <linux/reset.h>
+ 
++#include "edma.h"
  #include "ppe.h"
  #include "ppe_config.h"
  #include "ppe_debugfs.h"
@@ -69,31 +53,46 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define PPE_PORT_MAX		8
  #define PPE_CLK_RATE		353000000
-@@ -205,6 +206,11 @@ static int qcom_ppe_probe(struct platfor
+@@ -205,6 +207,17 @@ static int qcom_ppe_probe(struct platfor
  	if (ret)
  		return dev_err_probe(dev, ret, "PPE HW config failed\n");
  
-+	ret = ppe_port_mac_init(ppe_dev);
++	ret = edma_setup(ppe_dev);
 +	if (ret)
++		return dev_err_probe(dev, ret, "EDMA setup failed\n");
++
++	ret = ppe_port_mac_init(ppe_dev);
++	if (ret) {
++		edma_destroy(ppe_dev);
 +		return dev_err_probe(dev, ret,
 +				     "PPE Port MAC initialization failed\n");
++	}
 +
  	ppe_debugfs_setup(ppe_dev);
  	platform_set_drvdata(pdev, ppe_dev);
  
-@@ -217,6 +223,9 @@ static void qcom_ppe_remove(struct platf
+@@ -216,7 +229,9 @@ static void qcom_ppe_remove(struct platf
+ 	struct ppe_device *ppe_dev;
  
  	ppe_dev = platform_get_drvdata(pdev);
- 	ppe_debugfs_teardown(ppe_dev);
 +	ppe_port_mac_deinit(ppe_dev);
-+
-+	platform_set_drvdata(pdev, NULL);
+ 	ppe_debugfs_teardown(ppe_dev);
++	edma_destroy(ppe_dev);
  }
  
  static const struct of_device_id qcom_ppe_of_match[] = {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -20,6 +20,7 @@ struct dentry;
+@@ -13,6 +13,8 @@ struct device;
+ struct regmap;
+ struct dentry;
+ 
++struct ppe_ports;
++
+ /**
+  * struct ppe_device - PPE device private data.
+  * @dev: PPE device structure.
+@@ -20,6 +22,7 @@ struct dentry;
   * @clk_rate: PPE clock rate.
   * @num_ports: Number of PPE ports.
   * @debugfs_root: Debugfs root entry.
@@ -101,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @num_icc_paths: Number of interconnect paths.
   * @icc_paths: Interconnect path array.
   *
-@@ -33,6 +34,7 @@ struct ppe_device {
+@@ -33,6 +36,7 @@ struct ppe_device {
  	unsigned long clk_rate;
  	unsigned int num_ports;
  	struct dentry *debugfs_root;
@@ -111,23 +110,25 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
 --- /dev/null
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -0,0 +1,1318 @@
+@@ -0,0 +1,1462 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
-+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
++ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
 + */
 +
 +/* PPE Port MAC initialization and PPE port MAC functions. */
 +
 +#include <linux/clk.h>
++#include <linux/of.h>
 +#include <linux/if_vlan.h>
 +#include <linux/of_net.h>
 +#include <linux/pcs/pcs-qcom-ipq9574.h>
 +#include <linux/phylink.h>
-+#include <linux/reset.h>
 +#include <linux/regmap.h>
++#include <linux/reset.h>
 +#include <linux/rtnetlink.h>
 +
++#include "edma_port.h"
 +#include "ppe.h"
 +#include "ppe_port.h"
 +#include "ppe_regs.h"
@@ -231,7 +232,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	xgmib_rx_broadcast_g,
 +	xgmib_rx_multicast_g,
 +	xgmib_rx_crc_err,
-+	xgmib_rx_runt_err,
++	xgmib_rx_frag_err,
 +	xgmib_rx_jabber_err,
 +	xgmib_rx_undersize_g,
 +	xgmib_rx_oversize_g,
@@ -333,7 +334,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	PPE_MAC_MIB_DESC(8, XGMAC_RXBROAD_G_ADDR, "rx_broadcast_g"),
 +	PPE_MAC_MIB_DESC(8, XGMAC_RXMULTI_G_ADDR, "rx_multicast_g"),
 +	PPE_MAC_MIB_DESC(8, XGMAC_RXCRC_ERR_ADDR, "rx_crc_err"),
-+	PPE_MAC_MIB_DESC(4, XGMAC_RXRUNT_ERR_ADDR, "rx_runt_err"),
++	PPE_MAC_MIB_DESC(4, XGMAC_RXFRAG_ERR_ADDR, "rx_frag_err"),
 +	PPE_MAC_MIB_DESC(4, XGMAC_RXJABBER_ERR_ADDR, "rx_jabber_err"),
 +	PPE_MAC_MIB_DESC(4, XGMAC_RXUNDERSIZE_G_ADDR, "rx_undersize_g"),
 +	PPE_MAC_MIB_DESC(4, XGMAC_RXOVERSIZE_G_ADDR, "rx_oversize_g"),
@@ -371,7 +372,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +		ret = regmap_read(ppe_dev->regmap, reg, &val);
 +		if (ret) {
-+			dev_warn(ppe_dev->dev, "%s: %d\n", __func__, ret);
++			dev_warn(ppe_dev->dev, "PPE port GMIB read fail %d\n",
++				 ret);
 +			continue;
 +		}
 +
@@ -379,8 +381,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		if (mib->size == 8) {
 +			ret = regmap_read(ppe_dev->regmap, reg + 4, &val);
 +			if (ret) {
-+				dev_warn(ppe_dev->dev, "%s: %d\n",
-+					 __func__, ret);
++				dev_warn(ppe_dev->dev,
++					 "PPE port GMIB read fail %d\n", ret);
 +				continue;
 +			}
 +
@@ -402,6 +404,43 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			      msecs_to_jiffies(PPE_GMIB_POLL_INTERVAL_MS));
 +}
 +
++/* Start PPE port GMAC MIB statistics polling work */
++static int ppe_port_gmib_work_start(struct ppe_port *ppe_port)
++{
++	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
++
++	if (!ppe_port->gmib_stats) {
++		u64 *gstats;
++		/* Allocate array memory to store GMIB statistics */
++		gstats = devm_kzalloc(ppe_dev->dev,
++				      sizeof(*gstats) * ARRAY_SIZE(gmib_info),
++				      GFP_KERNEL);
++		if (!gstats)
++			return -ENOMEM;
++
++		ppe_port->gmib_stats = gstats;
++
++		/* Init GMIB statistics polling work */
++		spin_lock_init(&ppe_port->gmib_stats_lock);
++		INIT_DELAYED_WORK(&ppe_port->gmib_read,
++				  ppe_port_gmib_stats_poll);
++	}
++
++	/* Start GMIB statistics polling work */
++	schedule_delayed_work(&ppe_port->gmib_read, 0);
++
++	return 0;
++}
++
++/* Stop PPE port GMAC MIB statistics polling work */
++static void ppe_port_gmib_work_stop(struct ppe_port *ppe_port)
++{
++	if (ppe_port->gmib_stats) {
++		/* Stop GMIB statistics polling work */
++		cancel_delayed_work_sync(&ppe_port->gmib_read);
++	}
++}
++
 +/* Get the XGMAC MIB counter based on the specific MIB stats type */
 +static u64 ppe_port_xgmib_get(struct ppe_port *ppe_port,
 +			      enum ppe_xgmib_stats_type xgmib_type)
@@ -418,7 +457,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	ret = regmap_read(ppe_dev->regmap, reg, &val);
 +	if (ret) {
-+		dev_warn(ppe_dev->dev, "%s: %d\n", __func__, ret);
++		dev_warn(ppe_dev->dev, "PPE port XGMIB read fail %d\n", ret);
 +		goto data_return;
 +	}
 +
@@ -426,7 +465,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (mib->size == 8) {
 +		ret = regmap_read(ppe_dev->regmap, reg + 4, &val);
 +		if (ret) {
-+			dev_warn(ppe_dev->dev, "%s: %d\n", __func__, ret);
++			dev_warn(ppe_dev->dev, "PPE port XGMIB read fail %d\n",
++				 ret);
 +			goto data_return;
 +		}
 +
@@ -452,10 +492,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (sset != ETH_SS_STATS)
 +		return 0;
 +
-+	if (ppe_port->mac_type == PPE_MAC_TYPE_GMAC)
-+		return ARRAY_SIZE(gmib_info);
-+	else
-+		return ARRAY_SIZE(xgmib_info);
++	/* The MAC type is invisible to the upper interface. The interface
++	 * can switch between GMAC and XGMAC in different interface modes.
++	 * Therefore, the unified XGMIB statistics format is used, and GMIB
++	 * statistics will be merged into the XGMIB statistics.
++	 */
++	return ARRAY_SIZE(xgmib_info);
 +}
 +
 +/**
@@ -475,15 +517,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (stringset != ETH_SS_STATS)
 +		return;
 +
-+	if (ppe_port->mac_type == PPE_MAC_TYPE_GMAC) {
-+		for (i = 0; i < ARRAY_SIZE(gmib_info); i++)
-+			strscpy(data + i * ETH_GSTRING_LEN, gmib_info[i].name,
-+				ETH_GSTRING_LEN);
-+	} else {
-+		for (i = 0; i < ARRAY_SIZE(xgmib_info); i++)
-+			strscpy(data + i * ETH_GSTRING_LEN, xgmib_info[i].name,
-+				ETH_GSTRING_LEN);
-+	}
++	for (i = 0; i < ARRAY_SIZE(xgmib_info); i++)
++		strscpy(data + i * ETH_GSTRING_LEN, xgmib_info[i].name,
++			ETH_GSTRING_LEN);
 +}
 +
 +/**
@@ -499,17 +535,64 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	int i;
 +
-+	if (ppe_port->mac_type == PPE_MAC_TYPE_GMAC) {
++	for (i = 0; i < ARRAY_SIZE(xgmib_info); i++)
++		data[i] = ppe_port_xgmib_get(ppe_port, i);
++
++	/* Merge the GMIB statistics into the XGMIB statistics to show
++	 * the total counters for this interface.
++	 */
++	if (ppe_port->gmib_stats) {
++		u64 *gsrc = ppe_port->gmib_stats;
++
 +		spin_lock(&ppe_port->gmib_stats_lock);
 +
 +		ppe_port_gmib_update(ppe_port);
-+		for (i = 0; i < ARRAY_SIZE(gmib_info); i++)
-+			data[i] = ppe_port->gmib_stats[i];
++
++		data[xgmib_tx_bytes] += gsrc[gmib_tx_bytes];
++		data[xgmib_tx_frames] += gsrc[gmib_tx_broadcast];
++		data[xgmib_tx_frames] += gsrc[gmib_tx_multicast];
++		data[xgmib_tx_frames] += gsrc[gmib_tx_unicast];
++		data[xgmib_tx_broadcast_g] += gsrc[gmib_tx_broadcast];
++		data[xgmib_tx_multicast_g] += gsrc[gmib_tx_multicast];
++		data[xgmib_tx_pkt64] += gsrc[gmib_tx_pkt64];
++		data[xgmib_tx_pkt65to127] += gsrc[gmib_tx_pkt65to127];
++		data[xgmib_tx_pkt128to255] += gsrc[gmib_tx_pkt128to255];
++		data[xgmib_tx_pkt256to511] += gsrc[gmib_tx_pkt256to511];
++		data[xgmib_tx_pkt512to1023] += gsrc[gmib_tx_pkt512to1023];
++		data[xgmib_tx_pkt1024tomax] += gsrc[gmib_tx_pkt1024to1518];
++		data[xgmib_tx_pkt1024tomax] += gsrc[gmib_tx_pkt1519tomax];
++		data[xgmib_tx_unicast] += gsrc[gmib_tx_unicast];
++		data[xgmib_tx_multicast] += gsrc[gmib_tx_multicast];
++		data[xgmib_tx_broadcast] += gsrc[gmib_tx_broadcast];
++		data[xgmib_tx_underflow_err] += gsrc[gmib_tx_underrun];
++		data[xgmib_tx_bytes_g] += gsrc[gmib_tx_bytes];
++		data[xgmib_tx_frames_g] += gsrc[gmib_tx_broadcast];
++		data[xgmib_tx_frames_g] += gsrc[gmib_tx_multicast];
++		data[xgmib_tx_frames_g] += gsrc[gmib_tx_unicast];
++		data[xgmib_tx_pause] += gsrc[gmib_tx_pause];
++
++		data[xgmib_rx_frames] += gsrc[gmib_rx_broadcast];
++		data[xgmib_rx_frames] += gsrc[gmib_rx_multicast];
++		data[xgmib_rx_frames] += gsrc[gmib_rx_unicast];
++		data[xgmib_rx_bytes] += gsrc[gmib_rx_bytes_g];
++		data[xgmib_rx_bytes] += gsrc[gmib_rx_bytes_b];
++		data[xgmib_rx_bytes_g] += gsrc[gmib_rx_bytes_g];
++		data[xgmib_rx_broadcast_g] += gsrc[gmib_rx_broadcast];
++		data[xgmib_rx_multicast_g] += gsrc[gmib_rx_multicast];
++		data[xgmib_rx_crc_err] += gsrc[gmib_rx_fcserr];
++		data[xgmib_rx_crc_err] += gsrc[gmib_rx_frag];
++		data[xgmib_rx_frag_err] += gsrc[gmib_rx_frag];
++		data[xgmib_rx_pkt64] += gsrc[gmib_rx_pkt64];
++		data[xgmib_rx_pkt65to127] += gsrc[gmib_rx_pkt65to127];
++		data[xgmib_rx_pkt128to255] += gsrc[gmib_rx_pkt128to255];
++		data[xgmib_rx_pkt256to511] += gsrc[gmib_rx_pkt256to511];
++		data[xgmib_rx_pkt512to1023] += gsrc[gmib_rx_pkt512to1023];
++		data[xgmib_rx_pkt1024tomax] += gsrc[gmib_rx_pkt1024to1518];
++		data[xgmib_rx_pkt1024tomax] += gsrc[gmib_rx_pkt1519tomax];
++		data[xgmib_rx_unicast_g] += gsrc[gmib_rx_unicast];
++		data[xgmib_rx_pause] += gsrc[gmib_rx_pause];
 +
 +		spin_unlock(&ppe_port->gmib_stats_lock);
-+	} else {
-+		for (i = 0; i < ARRAY_SIZE(xgmib_info); i++)
-+			data[i] = ppe_port_xgmib_get(ppe_port, i);
 +	}
 +}
 +
@@ -524,56 +607,57 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +void ppe_port_get_stats64(struct ppe_port *ppe_port,
 +			  struct rtnl_link_stats64 *s)
 +{
-+	if (ppe_port->mac_type == PPE_MAC_TYPE_GMAC) {
-+		u64 *src = ppe_port->gmib_stats;
++	s->multicast = ppe_port_xgmib_get(ppe_port, xgmib_rx_multicast_g);
++
++	s->rx_packets = s->multicast;
++	s->rx_packets += ppe_port_xgmib_get(ppe_port, xgmib_rx_unicast_g);
++	s->rx_packets += ppe_port_xgmib_get(ppe_port, xgmib_rx_broadcast_g);
++
++	s->tx_packets = ppe_port_xgmib_get(ppe_port, xgmib_tx_frames);
++	s->rx_bytes = ppe_port_xgmib_get(ppe_port, xgmib_rx_bytes);
++	s->tx_bytes = ppe_port_xgmib_get(ppe_port, xgmib_tx_bytes);
++
++	s->rx_crc_errors = ppe_port_xgmib_get(ppe_port, xgmib_rx_crc_err);
++	s->rx_fifo_errors = ppe_port_xgmib_get(ppe_port,
++					       xgmib_rx_fifo_overflow);
++
++	s->rx_length_errors = ppe_port_xgmib_get(ppe_port, xgmib_rx_len_err);
++	s->rx_errors = s->rx_crc_errors +
++		s->rx_fifo_errors + s->rx_length_errors;
++	s->rx_dropped = s->rx_errors;
++
++	s->tx_fifo_errors = ppe_port_xgmib_get(ppe_port,
++					       xgmib_tx_underflow_err);
++	s->tx_errors = s->tx_packets -
++		ppe_port_xgmib_get(ppe_port, xgmib_tx_frames_g);
++
++	if (ppe_port->gmib_stats) {
++		u64 *gsrc = ppe_port->gmib_stats;
++		u64 temp;
 +
 +		spin_lock(&ppe_port->gmib_stats_lock);
 +
 +		ppe_port_gmib_update(ppe_port);
 +
-+		s->rx_packets = src[gmib_rx_unicast] +
-+			src[gmib_rx_broadcast] + src[gmib_rx_multicast];
-+
-+		s->tx_packets = src[gmib_tx_unicast] +
-+			src[gmib_tx_broadcast] + src[gmib_tx_multicast];
-+
-+		s->rx_bytes = src[gmib_rx_bytes_g];
-+		s->tx_bytes = src[gmib_tx_bytes];
-+		s->multicast = src[gmib_rx_multicast];
-+
-+		s->rx_crc_errors = src[gmib_rx_fcserr] + src[gmib_rx_frag];
-+		s->rx_frame_errors = src[gmib_rx_alignerr];
-+		s->rx_errors = s->rx_crc_errors + s->rx_frame_errors;
-+		s->rx_dropped = src[gmib_rx_toolong] + s->rx_errors;
-+
-+		s->tx_fifo_errors = src[gmib_tx_underrun];
-+		s->tx_aborted_errors = src[gmib_tx_abortcol];
-+		s->tx_errors = s->tx_fifo_errors + s->tx_aborted_errors;
-+		s->collisions = src[gmib_tx_collisions];
++		s->multicast += gsrc[gmib_rx_multicast];
++		s->rx_packets += gsrc[gmib_rx_unicast];
++		s->rx_packets += gsrc[gmib_rx_broadcast];
++		s->rx_packets += gsrc[gmib_rx_multicast];
++		s->tx_packets += gsrc[gmib_tx_unicast];
++		s->tx_packets += gsrc[gmib_tx_broadcast];
++		s->tx_packets += gsrc[gmib_tx_multicast];
++		s->rx_bytes += gsrc[gmib_rx_bytes_g];
++		s->tx_bytes += gsrc[gmib_tx_bytes];
++		temp = gsrc[gmib_rx_fcserr] + gsrc[gmib_rx_frag];
++		s->rx_crc_errors += temp;
++		temp += gsrc[gmib_rx_alignerr];
++		s->rx_errors += temp;
++		s->rx_dropped += temp;
++		s->tx_fifo_errors += gsrc[gmib_tx_underrun];
++		s->tx_errors += gsrc[gmib_tx_underrun];
++		s->tx_errors += gsrc[gmib_tx_abortcol];
 +
 +		spin_unlock(&ppe_port->gmib_stats_lock);
-+	} else {
-+		s->multicast = ppe_port_xgmib_get(ppe_port, xgmib_rx_multicast_g);
-+
-+		s->rx_packets = s->multicast;
-+		s->rx_packets += ppe_port_xgmib_get(ppe_port, xgmib_rx_unicast_g);
-+		s->rx_packets += ppe_port_xgmib_get(ppe_port, xgmib_rx_broadcast_g);
-+
-+		s->tx_packets = ppe_port_xgmib_get(ppe_port, xgmib_tx_frames);
-+		s->rx_bytes = ppe_port_xgmib_get(ppe_port, xgmib_rx_bytes);
-+		s->tx_bytes = ppe_port_xgmib_get(ppe_port, xgmib_tx_bytes);
-+
-+		s->rx_crc_errors = ppe_port_xgmib_get(ppe_port, xgmib_rx_crc_err);
-+		s->rx_fifo_errors = ppe_port_xgmib_get(ppe_port, xgmib_rx_fifo_overflow);
-+
-+		s->rx_length_errors = ppe_port_xgmib_get(ppe_port, xgmib_rx_len_err);
-+		s->rx_errors = s->rx_crc_errors +
-+			s->rx_fifo_errors + s->rx_length_errors;
-+		s->rx_dropped = s->rx_errors;
-+
-+		s->tx_fifo_errors = ppe_port_xgmib_get(ppe_port, xgmib_tx_underflow_err);
-+		s->tx_errors = s->tx_packets -
-+			ppe_port_xgmib_get(ppe_port, xgmib_tx_frames_g);
 +	}
 +}
 +
@@ -593,73 +677,37 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	u32 reg, val;
 +	int ret;
 +
-+	if (ppe_port->mac_type == PPE_MAC_TYPE_GMAC) {
-+		reg = PPE_PORT_GMAC_ADDR(port);
-+		val = (addr[5] << 8) | addr[4];
-+		ret = regmap_write(ppe_dev->regmap, reg + GMAC_GOL_ADDR0_ADDR, val);
-+		if (ret)
-+			return ret;
-+
-+		val = (addr[0] << 24) | (addr[1] << 16) |
-+		      (addr[2] << 8) | addr[3];
-+		ret = regmap_write(ppe_dev->regmap, reg + GMAC_GOL_ADDR1_ADDR, val);
-+		if (ret)
-+			return ret;
-+	} else {
-+		reg = PPE_PORT_XGMAC_ADDR(port);
-+		val = (addr[5] << 8) | addr[4] | XGMAC_ADDR_EN;
-+		ret = regmap_write(ppe_dev->regmap, reg + XGMAC_ADDR0_H_ADDR, val);
-+		if (ret)
-+			return ret;
-+
-+		val = (addr[3] << 24) | (addr[2] << 16) |
-+		      (addr[1] << 8) | addr[0];
-+		ret = regmap_write(ppe_dev->regmap, reg + XGMAC_ADDR0_L_ADDR, val);
-+		if (ret)
-+			return ret;
-+	}
-+
-+	return 0;
-+}
-+
-+/**
-+ * ppe_port_set_mac_eee() - Set EEE configuration for PPE port MAC
-+ * @ppe_port: PPE port
-+ * @eee: EEE settings
-+ *
-+ * Description: Set port MAC EEE settings for the given PPE port.
-+ *
-+ * Return: 0 upon success or a negative error upon failure.
-+ */
-+int ppe_port_set_mac_eee(struct ppe_port *ppe_port, struct ethtool_keee *eee)
-+{
-+	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
-+	int port = ppe_port->port_id;
-+	u32 val;
-+	int ret;
-+
-+	ret = regmap_read(ppe_dev->regmap, PPE_LPI_EN_ADDR, &val);
++	/* Set address to GMAC */
++	reg = PPE_PORT_GMAC_ADDR(port);
++	val = (addr[5] << 8) | addr[4];
++	ret = regmap_write(ppe_dev->regmap, reg + GMAC_GOL_ADDR0_ADDR, val);
 +	if (ret)
 +		return ret;
 +
-+	if (eee->tx_lpi_enabled)
-+		val |= PPE_LPI_PORT_EN(port);
-+	else
-+		val &= ~PPE_LPI_PORT_EN(port);
++	val = (addr[0] << 24) | (addr[1] << 16) | (addr[2] << 8) | addr[3];
++	ret = regmap_write(ppe_dev->regmap, reg + GMAC_GOL_ADDR1_ADDR, val);
++	if (ret)
++		return ret;
 +
-+	ret = regmap_write(ppe_dev->regmap, PPE_LPI_EN_ADDR, val);
++	/* Set address to XGMAC */
++	reg = PPE_PORT_XGMAC_ADDR(port);
++	val = (addr[5] << 8) | addr[4] | XGMAC_ADDR_EN;
++	ret = regmap_write(ppe_dev->regmap, reg + XGMAC_ADDR0_H_ADDR, val);
++	if (ret)
++		return ret;
 +
-+	return ret;
++	val = (addr[3] << 24) | (addr[2] << 16) | (addr[1] << 8) | addr[0];
++	return regmap_write(ppe_dev->regmap, reg + XGMAC_ADDR0_L_ADDR, val);
 +}
 +
 +/**
-+ * ppe_port_set_maxframe() - Set port maximum frame size
++ * ppe_port_set_maxframe() - Set maximum frame size including MTU and MRU of port
 + * @ppe_port: PPE port structure
-+ * @maxframe_size: Maximum frame size supported by PPE port
++ * @maxframe_size: Maximum frame size configured to the PPE port
 + *
-+ * Description: Set MTU of network interface specified by @ppe_port.
++ * Set maximum frame size of network interface specified by @ppe_port.
 + *
-+ * Return: 0 upon success or a negative error upon failure.
++ * Return: 0 on success, negative error code on failure.
 + */
 +int ppe_port_set_maxframe(struct ppe_port *ppe_port, int maxframe_size)
 +{
@@ -704,42 +752,23 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +/* PPE port and MAC reset */
 +static int ppe_port_mac_reset(struct ppe_port *ppe_port)
 +{
-+	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
-+	int ret;
++	int ret, i;
 +
-+	ret = reset_control_assert(ppe_port->rstcs[PPE_PORT_CLK_RST_MAC]);
-+	if (ret)
-+		goto error;
++	for (i = PPE_PORT_CLK_RST_MAC; i < PPE_PORT_CLK_RST_MAX; i++) {
++		ret = reset_control_assert(ppe_port->rstcs[i]);
++		if (ret)
++			return ret;
++	}
 +
-+	ret = reset_control_assert(ppe_port->rstcs[PPE_PORT_CLK_RST_RX]);
-+	if (ret)
-+		goto error;
++	fsleep(10000);
 +
-+	ret = reset_control_assert(ppe_port->rstcs[PPE_PORT_CLK_RST_TX]);
-+	if (ret)
-+		goto error;
++	for (i = PPE_PORT_CLK_RST_MAC; i < PPE_PORT_CLK_RST_MAX; i++) {
++		ret = reset_control_deassert(ppe_port->rstcs[i]);
++		if (ret)
++			return ret;
++	}
 +
-+	/* 150ms delay is required by hardware to reset PPE port and MAC */
-+	msleep(150);
-+
-+	ret = reset_control_deassert(ppe_port->rstcs[PPE_PORT_CLK_RST_MAC]);
-+	if (ret)
-+		goto error;
-+
-+	ret = reset_control_deassert(ppe_port->rstcs[PPE_PORT_CLK_RST_RX]);
-+	if (ret)
-+		goto error;
-+
-+	ret = reset_control_deassert(ppe_port->rstcs[PPE_PORT_CLK_RST_TX]);
-+	if (ret)
-+		goto error;
-+
-+	return ret;
-+
-+error:
-+	dev_err(ppe_dev->dev, "%s: port %d reset fail %d\n",
-+		__func__, ppe_port->port_id, ret);
-+	return ret;
++	return 0;
 +}
 +
 +/* PPE port MAC configuration for phylink */
@@ -762,31 +791,28 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	case PHY_INTERFACE_MODE_10G_QXGMII:
 +		mac_type = PPE_MAC_TYPE_XGMAC;
 +		break;
++	case PHY_INTERFACE_MODE_SGMII:
 +	case PHY_INTERFACE_MODE_QSGMII:
 +	case PHY_INTERFACE_MODE_PSGMII:
-+	case PHY_INTERFACE_MODE_SGMII:
 +	case PHY_INTERFACE_MODE_1000BASEX:
 +		mac_type = PPE_MAC_TYPE_GMAC;
 +		break;
 +	default:
-+		dev_err(ppe_dev->dev, "%s: Unsupport interface %s\n",
-+			__func__, phy_modes(state->interface));
++		dev_err(ppe_dev->dev, "Unsupported interface %s\n",
++			phy_modes(state->interface));
 +		return;
 +	}
 +
-+	/* Reset Port MAC for GMAC */
-+	if (mac_type == PPE_MAC_TYPE_GMAC) {
-+		ret = ppe_port_mac_reset(ppe_port);
-+		if (ret)
-+			goto err_mac_config;
-+	}
++	/* Reset Port MAC */
++	ret = ppe_port_mac_reset(ppe_port);
++	if (ret)
++		goto err_mac_config;
 +
 +	/* Port mux to select GMAC or XGMAC */
 +	mask = PPE_PORT_SEL_XGMAC(port);
 +	val = mac_type == PPE_MAC_TYPE_GMAC ? 0 : mask;
 +	ret = regmap_update_bits(ppe_dev->regmap,
-+				 PPE_PORT_MUX_CTRL_ADDR,
-+				 mask, val);
++				 PPE_PORT_MUX_CTRL_ADDR, mask, val);
 +	if (ret)
 +		goto err_mac_config;
 +
@@ -795,8 +821,112 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	return;
 +
 +err_mac_config:
-+	dev_err(ppe_dev->dev, "%s: port %d MAC config fail %d\n",
-+		__func__, port, ret);
++	dev_err(ppe_dev->dev, "PPE port %d MAC config fail %d\n", port, ret);
++}
++
++/* Get port MAC speed clock rate for GMII/GMII+ interface */
++static unsigned long ppe_port_mac_clock_rate_get_gmii(int speed)
++{
++	unsigned long rate = 0;
++
++	switch (speed) {
++	case SPEED_2500:
++		rate = 312500000;
++		break;
++	case SPEED_1000:
++		rate = 125000000;
++		break;
++	case SPEED_100:
++		rate = 25000000;
++		break;
++	case SPEED_10:
++		rate = 2500000;
++		break;
++	default:
++		break;
++	}
++
++	return rate;
++}
++
++/* Get port MAC speed clock rate for XGMII interface */
++static unsigned long ppe_port_mac_clock_rate_get_xgmii(int speed)
++{
++	unsigned long rate = 0;
++
++	switch (speed) {
++	case SPEED_10000:
++		rate = 312500000;
++		break;
++	case SPEED_5000:
++		rate = 156250000;
++		break;
++	case SPEED_2500:
++		rate = 78125000;
++		break;
++	case SPEED_1000:
++		rate = 125000000;
++		break;
++	case SPEED_100:
++		rate = 12500000;
++		break;
++	case SPEED_10:
++		rate = 1250000;
++		break;
++	default:
++		break;
++	}
++
++	return rate;
++}
++
++/* Set PPE port MAC speed clock to appropriate rate */
++static int ppe_port_mac_speed_clock_rate_set(struct ppe_port *ppe_port,
++					     phy_interface_t interface,
++					     int speed)
++{
++	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
++	struct device *device = ppe_dev->dev;
++	unsigned long rate;
++	int ret;
++
++	switch (interface) {
++	case PHY_INTERFACE_MODE_SGMII:
++	case PHY_INTERFACE_MODE_QSGMII:
++	case PHY_INTERFACE_MODE_PSGMII:
++	case PHY_INTERFACE_MODE_1000BASEX:
++	case PHY_INTERFACE_MODE_2500BASEX:
++		rate = ppe_port_mac_clock_rate_get_gmii(speed);
++		break;
++	case PHY_INTERFACE_MODE_USXGMII:
++	case PHY_INTERFACE_MODE_10GBASER:
++	case PHY_INTERFACE_MODE_10G_QXGMII:
++		rate = ppe_port_mac_clock_rate_get_xgmii(speed);
++		break;
++	default:
++		dev_err(device,
++			"Unsupported interface %s\n", phy_modes(interface));
++		return -EOPNOTSUPP;
++	}
++
++	if (rate == 0) {
++		dev_err(device, "Invalid port speed clock rate\n");
++		return -EINVAL;
++	}
++
++	ret = clk_set_rate(ppe_port->clks[PPE_PORT_CLK_RST_RX], rate);
++	if (ret) {
++		dev_err(device, "Failed to set PPE port RX clock rate\n");
++		return ret;
++	}
++
++	ret = clk_set_rate(ppe_port->clks[PPE_PORT_CLK_RST_TX], rate);
++	if (ret) {
++		dev_err(device, "Failed to set PPE port TX clock rate\n");
++		return ret;
++	}
++
++	return 0;
 +}
 +
 +/* PPE port GMAC link up configuration */
@@ -806,6 +936,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
 +	int ret, port = ppe_port->port_id;
 +	u32 reg, val;
++
++	/* Start GMAC MIB statistics polling work task */
++	ret = ppe_port_gmib_work_start(ppe_port);
++	if (ret)
++		return ret;
 +
 +	/* Set GMAC speed */
 +	switch (speed) {
@@ -819,8 +954,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		val = GMAC_SPEED_10;
 +		break;
 +	default:
-+		dev_err(ppe_dev->dev, "%s: Invalid GMAC speed %s\n",
-+			__func__, phy_speed_to_str(speed));
++		dev_err(ppe_dev->dev, "Invalid GMAC speed %s\n",
++			phy_speed_to_str(speed));
 +		return -EINVAL;
 +	}
 +
@@ -839,10 +974,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (rx_pause)
 +		val |= GMAC_RXFCEN;
 +
-+	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_ENABLE_ADDR,
-+				 GMAC_ENABLE_ALL, val);
-+
-+	return ret;
++	return regmap_update_bits(ppe_dev->regmap, reg + GMAC_ENABLE_ADDR,
++				  GMAC_ENABLE_ALL, val);
 +}
 +
 +/* PPE port XGMAC link up configuration */
@@ -883,12 +1016,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		val = XGMAC_SPEED_10;
 +		break;
 +	default:
-+		dev_err(ppe_dev->dev, "%s: Invalid XGMAC speed %s\n",
-+			__func__, phy_speed_to_str(speed));
++		dev_err(ppe_dev->dev, "Invalid XGMAC speed %s\n",
++			phy_speed_to_str(speed));
 +		return -EINVAL;
 +	}
 +
 +	reg = PPE_PORT_XGMAC_ADDR(port);
++	/*
++	 * Use store-and-forward for XGMAC MTL queue 0 so transmission
++	 * starts only after the frame has been buffered.
++	 */
++	ret = regmap_update_bits(ppe_dev->regmap, reg + XGMAC_MTL_TXQ_OPMODE(0),
++				 XGMAC_MTL_TXQ_TSF, XGMAC_MTL_TXQ_TSF);
++	if (ret)
++		return ret;
++
 +	val |= XGMAC_TXEN;
 +	ret = regmap_update_bits(ppe_dev->regmap, reg + XGMAC_TX_CONFIG_ADDR,
 +				 XGMAC_SPEED_M | XGMAC_TXEN, val);
@@ -911,10 +1053,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		return ret;
 +
 +	/* Enable XGMAC RX*/
-+	ret = regmap_update_bits(ppe_dev->regmap, reg + XGMAC_RX_CONFIG_ADDR,
-+				 XGMAC_RXEN, XGMAC_RXEN);
-+
-+	return ret;
++	return regmap_set_bits(ppe_dev->regmap, reg + XGMAC_RX_CONFIG_ADDR,
++			       XGMAC_RXEN);
 +}
 +
 +/* PPE port MAC link up configuration for phylink */
@@ -932,9 +1072,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	int ret, port = ppe_port->port_id;
 +	u32 reg, val;
 +
-+	/* Start GMIB statistics polling */
-+	schedule_delayed_work(&ppe_port->gmib_read, 0);
++	/* Set PPE port MAC speed clock */
++	ret = ppe_port_mac_speed_clock_rate_set(ppe_port, interface, speed);
++	if (ret)
++		goto err_port_mac_link_up;
 +
++	/* Configure PPE MAC according current speed */
 +	if (mac_type == PPE_MAC_TYPE_GMAC)
 +		ret = ppe_port_gmac_link_up(ppe_port,
 +					    speed, duplex, tx_pause, rx_pause);
@@ -955,17 +1098,47 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	/* Enable PPE port TX */
 +	reg = PPE_PORT_BRIDGE_CTRL_ADDR + PPE_PORT_BRIDGE_CTRL_INC * port;
-+	ret = regmap_update_bits(ppe_dev->regmap, reg,
-+				 PPE_PORT_BRIDGE_TXMAC_EN,
-+				 PPE_PORT_BRIDGE_TXMAC_EN);
++	ret = regmap_set_bits(ppe_dev->regmap, reg, PPE_PORT_BRIDGE_TXMAC_EN);
 +	if (ret)
 +		goto err_port_mac_link_up;
 +
 +	return;
 +
 +err_port_mac_link_up:
-+	dev_err(ppe_dev->dev, "%s: port %d link up fail %d\n",
-+		__func__, port, ret);
++	dev_err(ppe_dev->dev, "PPE port %d link up fail %d\n", port, ret);
++}
++
++/* PPE port GMAC link down configuration */
++static int ppe_port_gmac_link_down(struct ppe_port *ppe_port)
++{
++	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
++	int port = ppe_port->port_id;
++	u32 reg;
++
++	/* Stop GMAC MIB statistics polling work task */
++	ppe_port_gmib_work_stop(ppe_port);
++
++	/* Disable GMAC RX and TX */
++	reg = PPE_PORT_GMAC_ADDR(port) + GMAC_ENABLE_ADDR;
++	return regmap_clear_bits(ppe_dev->regmap, reg, GMAC_TRXEN);
++}
++
++/* PPE port XGMAC link down configuration */
++static int ppe_port_xgmac_link_down(struct ppe_port *ppe_port)
++{
++	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
++	int ret, port = ppe_port->port_id;
++	u32 reg;
++
++	/* Disable XGMAC RX and TX */
++	reg = PPE_PORT_XGMAC_ADDR(port);
++	ret = regmap_clear_bits(ppe_dev->regmap,
++				reg + XGMAC_RX_CONFIG_ADDR, XGMAC_RXEN);
++	if (ret)
++		return ret;
++
++	return regmap_clear_bits(ppe_dev->regmap,
++				 reg + XGMAC_TX_CONFIG_ADDR, XGMAC_TXEN);
 +}
 +
 +/* PPE port MAC link down configuration for phylink */
@@ -980,48 +1153,28 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	int ret, port = ppe_port->port_id;
 +	u32 reg;
 +
-+	/* Stop GMIB statistics polling */
-+	cancel_delayed_work_sync(&ppe_port->gmib_read);
-+
 +	/* Disable PPE port TX */
 +	reg = PPE_PORT_BRIDGE_CTRL_ADDR + PPE_PORT_BRIDGE_CTRL_INC * port;
-+	ret = regmap_update_bits(ppe_dev->regmap, reg,
-+				 PPE_PORT_BRIDGE_TXMAC_EN, 0);
++	ret = regmap_clear_bits(ppe_dev->regmap, reg, PPE_PORT_BRIDGE_TXMAC_EN);
 +	if (ret)
 +		goto err_port_mac_link_down;
 +
-+	/* Disable PPE MAC */
-+	if (mac_type == PPE_MAC_TYPE_GMAC) {
-+		reg = PPE_PORT_GMAC_ADDR(port) + GMAC_ENABLE_ADDR;
-+		ret = regmap_update_bits(ppe_dev->regmap, reg, GMAC_TRXEN, 0);
-+		if (ret)
-+			goto err_port_mac_link_down;
-+	} else {
-+		reg = PPE_PORT_XGMAC_ADDR(port);
-+		ret = regmap_update_bits(ppe_dev->regmap,
-+					 reg + XGMAC_RX_CONFIG_ADDR,
-+					 XGMAC_RXEN, 0);
-+		if (ret)
-+			goto err_port_mac_link_down;
-+
-+		ret = regmap_update_bits(ppe_dev->regmap,
-+					 reg + XGMAC_TX_CONFIG_ADDR,
-+					 XGMAC_TXEN, 0);
-+		if (ret)
-+			goto err_port_mac_link_down;
-+	}
++	if (mac_type == PPE_MAC_TYPE_GMAC)
++		ret = ppe_port_gmac_link_down(ppe_port);
++	else
++		ret = ppe_port_xgmac_link_down(ppe_port);
++	if (ret)
++		goto err_port_mac_link_down;
 +
 +	return;
 +
 +err_port_mac_link_down:
-+	dev_err(ppe_dev->dev, "%s: port %d link down fail %d\n",
-+		__func__, port, ret);
++	dev_err(ppe_dev->dev, "PPE port %d link down fail %d\n", port, ret);
 +}
 +
 +/* PPE port MAC PCS selection for phylink */
-+static
-+struct phylink_pcs *ppe_port_mac_select_pcs(struct phylink_config *config,
-+					    phy_interface_t interface)
++static struct phylink_pcs *ppe_port_mac_select_pcs(struct phylink_config *config,
++						   phy_interface_t interface)
 +{
 +	struct ppe_port *ppe_port = container_of(config, struct ppe_port,
 +						 phylink_config);
@@ -1039,8 +1192,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +					 PPE_PORT_MUX_CTRL_ADDR,
 +					 PPE_PORT5_SEL_PCS1, val);
 +		if (ret) {
-+			dev_err(ppe_dev->dev, "%s: port5 select PCS fail %d\n",
-+				__func__, ret);
++			dev_err(ppe_dev->dev, "PPE port5 select PCS fail %d\n",
++				ret);
 +			return NULL;
 +		}
 +	}
@@ -1053,6 +1206,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	.mac_link_up = ppe_port_mac_link_up,
 +	.mac_link_down = ppe_port_mac_link_down,
 +	.mac_select_pcs = ppe_port_mac_select_pcs,
++};
++
++static const phy_interface_t mac_interfaces[] = {
++	PHY_INTERFACE_MODE_SGMII,
++	PHY_INTERFACE_MODE_QSGMII,
++	PHY_INTERFACE_MODE_PSGMII,
++	PHY_INTERFACE_MODE_1000BASEX,
++	PHY_INTERFACE_MODE_2500BASEX,
++	PHY_INTERFACE_MODE_USXGMII,
++	PHY_INTERFACE_MODE_10GBASER,
++	PHY_INTERFACE_MODE_10G_QXGMII,
 +};
 +
 +/**
@@ -1069,9 +1233,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
 +	struct device_node *pcs_node;
-+	int ret;
++	int i, ret;
 +
-+	/* Create PCS */
++	/* Get PCS instance */
 +	pcs_node = of_parse_phandle(ppe_port->np, "pcs-handle", 0);
 +	if (!pcs_node)
 +		return -ENODEV;
@@ -1079,8 +1243,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	ppe_port->pcs = ipq_pcs_get(pcs_node);
 +	of_node_put(pcs_node);
 +	if (IS_ERR(ppe_port->pcs)) {
-+		dev_err(ppe_dev->dev, "%s: port %d failed to create PCS\n",
-+			__func__, ppe_port->port_id);
++		dev_err(ppe_dev->dev, "PPE port %d failed to create PCS\n",
++			ppe_port->port_id);
 +		return PTR_ERR(ppe_port->pcs);
 +	}
 +
@@ -1090,22 +1254,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	ppe_port->phylink_config.mac_capabilities = MAC_ASYM_PAUSE |
 +		MAC_SYM_PAUSE | MAC_10 | MAC_100 | MAC_1000 |
 +		MAC_2500FD | MAC_5000FD | MAC_10000FD;
-+	__set_bit(PHY_INTERFACE_MODE_QSGMII,
-+		  ppe_port->phylink_config.supported_interfaces);
-+	__set_bit(PHY_INTERFACE_MODE_PSGMII,
-+		  ppe_port->phylink_config.supported_interfaces);
-+	__set_bit(PHY_INTERFACE_MODE_SGMII,
-+		  ppe_port->phylink_config.supported_interfaces);
-+	__set_bit(PHY_INTERFACE_MODE_1000BASEX,
-+		  ppe_port->phylink_config.supported_interfaces);
-+	__set_bit(PHY_INTERFACE_MODE_2500BASEX,
-+		  ppe_port->phylink_config.supported_interfaces);
-+	__set_bit(PHY_INTERFACE_MODE_USXGMII,
-+		  ppe_port->phylink_config.supported_interfaces);
-+	__set_bit(PHY_INTERFACE_MODE_10GBASER,
-+		  ppe_port->phylink_config.supported_interfaces);
-+	__set_bit(PHY_INTERFACE_MODE_10G_QXGMII,
-+		  ppe_port->phylink_config.supported_interfaces);
++
++	for (i = 0; i < ARRAY_SIZE(mac_interfaces); i++)
++		__set_bit(mac_interfaces[i],
++			  ppe_port->phylink_config.supported_interfaces);
 +
 +	/* Create phylink */
 +	ppe_port->phylink = phylink_create(&ppe_port->phylink_config,
@@ -1113,8 +1265,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +					   ppe_port->interface,
 +					   &ppe_phylink_ops);
 +	if (IS_ERR(ppe_port->phylink)) {
-+		dev_err(ppe_dev->dev, "%s: port %d failed to create phylink\n",
-+			__func__, ppe_port->port_id);
++		dev_err(ppe_dev->dev, "PPE port %d failed to create phylink\n",
++			ppe_port->port_id);
 +		ret = PTR_ERR(ppe_port->phylink);
 +		goto err_free_pcs;
 +	}
@@ -1122,8 +1274,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	/* Connect phylink */
 +	ret = phylink_of_phy_connect(ppe_port->phylink, ppe_port->np, 0);
 +	if (ret) {
-+		dev_err(ppe_dev->dev, "%s: port %d failed to connect phylink\n",
-+			__func__, ppe_port->port_id);
++		dev_err(ppe_dev->dev, "PPE port %d failed to connect phylink: %pe\n",
++			ppe_port->port_id, ERR_PTR(ret));
 +		goto err_free_phylink;
 +	}
 +
@@ -1156,7 +1308,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ppe_port->phylink = NULL;
 +	}
 +
-+	/* Destroy PCS */
++	/* Release PCS instance */
 +	if (ppe_port->pcs) {
 +		ipq_pcs_put(ppe_port->pcs);
 +		ppe_port->pcs = NULL;
@@ -1169,7 +1321,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	struct device_node *port_node = ppe_port->np;
 +	struct reset_control *rstc;
 +	struct clk *clk;
-+	int i, j, ret;
++	int i, ret;
 +
 +	for (i = 0; i < PPE_PORT_CLK_RST_MAX; i++) {
 +		/* Get PPE port resets which will be used to reset PPE
@@ -1203,10 +1355,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +err_clk_get:
 +	reset_control_put(rstc);
 +err_rst:
-+	for (j = 0; j < i; j++) {
-+		clk_disable_unprepare(ppe_port->clks[j]);
-+		clk_put(ppe_port->clks[j]);
-+		reset_control_put(ppe_port->rstcs[j]);
++	while (i) {
++		i--;
++		clk_disable_unprepare(ppe_port->clks[i]);
++		clk_put(ppe_port->clks[i]);
++		reset_control_put(ppe_port->rstcs[i]);
 +	}
 +
 +	return ret;
@@ -1233,12 +1386,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	/* GMAC RX and TX are initialized as disabled */
 +	reg = PPE_PORT_GMAC_ADDR(port);
-+	ret = regmap_update_bits(ppe_dev->regmap,
-+				 reg + GMAC_ENABLE_ADDR, GMAC_TRXEN, 0);
++	ret = regmap_clear_bits(ppe_dev->regmap,
++				reg + GMAC_ENABLE_ADDR, GMAC_TRXEN);
 +	if (ret)
 +		return ret;
 +
-+	/* GMAC max frame size configuration */
++	/* GMAC jumbo frame size and max frame size configuration */
 +	val = FIELD_PREP(GMAC_JUMBO_SIZE_M, PPE_PORT_MAC_MAX_FRAME_SIZE);
 +	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_JUMBO_SIZE_ADDR,
 +				 GMAC_JUMBO_SIZE_M, val);
@@ -1247,13 +1400,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	val = FIELD_PREP(GMAC_MAXFRAME_SIZE_M, PPE_PORT_MAC_MAX_FRAME_SIZE);
 +	val |= FIELD_PREP(GMAC_TX_THD_M, 0x1);
-+	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_CTRL_ADDR,
++	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_CTRL0_ADDR,
 +				 GMAC_CTRL_MASK, val);
 +	if (ret)
 +		return ret;
 +
 +	val = FIELD_PREP(GMAC_HIGH_IPG_M, 0xc);
-+	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_DBG_CTRL_ADDR,
++	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_CTRL1_ADDR,
 +				 GMAC_HIGH_IPG_M, val);
 +	if (ret)
 +		return ret;
@@ -1261,13 +1414,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	/* Enable and reset GMAC MIB counters and set as read clear
 +	 * mode, the GMAC MIB counters will be cleared after reading.
 +	 */
-+	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_MIB_CTRL_ADDR,
-+				 GMAC_MIB_CTRL_MASK, GMAC_MIB_CTRL_MASK);
++	ret = regmap_set_bits(ppe_dev->regmap, reg + GMAC_MIB_CTRL_ADDR,
++			      GMAC_MIB_CTRL_MASK);
 +	if (ret)
 +		return ret;
 +
-+	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_MIB_CTRL_ADDR,
-+				 GMAC_MIB_RST, 0);
++	ret = regmap_clear_bits(ppe_dev->regmap, reg + GMAC_MIB_CTRL_ADDR,
++				GMAC_MIB_RST);
 +	if (ret)
 +		return ret;
 +
@@ -1298,31 +1451,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		return ret;
 +
 +	/* Enable and reset XGMAC MIB counters */
-+	ret = regmap_update_bits(ppe_dev->regmap, reg + XGMAC_MMC_CTRL_ADDR,
-+				 XGMAC_MCF | XGMAC_CNTRST, XGMAC_CNTRST);
-+
-+	return ret;
-+}
-+
-+/* PPE port MAC MIB work task initialization */
-+static int ppe_port_mac_mib_work_init(struct ppe_port *ppe_port)
-+{
-+	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
-+	u64 *gstats;
-+
-+	gstats = devm_kzalloc(ppe_dev->dev,
-+			      sizeof(*gstats) * ARRAY_SIZE(gmib_info),
-+			      GFP_KERNEL);
-+	if (!gstats)
-+		return -ENOMEM;
-+
-+	ppe_port->gmib_stats = gstats;
-+
-+	spin_lock_init(&ppe_port->gmib_stats_lock);
-+	INIT_DELAYED_WORK(&ppe_port->gmib_read,
-+			  ppe_port_gmib_stats_poll);
-+
-+	return 0;
++	return regmap_update_bits(ppe_dev->regmap, reg + XGMAC_MMC_CTRL_ADDR,
++				  XGMAC_MCF | XGMAC_CNTRST, XGMAC_CNTRST);
 +}
 +
 +/**
@@ -1337,8 +1467,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +int ppe_port_mac_init(struct ppe_device *ppe_dev)
 +{
 +	struct device_node *ports_node, *port_node;
-+	int port, num, ret, j, i = 0;
 +	struct ppe_ports *ppe_ports;
++	int port, num, ret, i = 0;
 +	phy_interface_t phy_mode;
 +
 +	ports_node = of_get_child_by_name(ppe_dev->dev->of_node,
@@ -1378,6 +1508,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ppe_ports->port[i].port_id = port;
 +		ppe_ports->port[i].np = port_node;
 +		ppe_ports->port[i].interface = phy_mode;
++		ppe_ports->port[i].mac_type = PPE_MAC_TYPE_GMAC;
 +
 +		ret = ppe_port_clock_init(&ppe_ports->port[i]);
 +		if (ret) {
@@ -1391,10 +1522,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			goto err_port_node;
 +		}
 +
-+		ret = ppe_port_mac_mib_work_init(&ppe_ports->port[i]);
++		ret = edma_port_setup(&ppe_ports->port[i]);
 +		if (ret) {
-+			dev_err(ppe_dev->dev, "Failed to initialize MAC MIB work\n");
-+			goto err_port_node;
++			dev_err(ppe_dev->dev, "QCOM EDMA port setup failed\n");
++			i--;
++			goto err_port_setup;
 +		}
 +
 +		i++;
@@ -1403,9 +1535,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	of_node_put(ports_node);
 +	return 0;
 +
++err_port_setup:
++	/* Destroy edma ports created till now */
++	while (i >= 0) {
++		edma_port_destroy(&ppe_ports->port[i]);
++		i--;
++	}
++
 +err_port_clk:
-+	for (j = 0; j < i; j++)
-+		ppe_port_clock_deinit(&ppe_ports->port[j]);
++	while (i) {
++		i--;
++		ppe_port_clock_deinit(&ppe_ports->port[i]);
++	}
++
 +err_port_node:
 +	of_node_put(port_node);
 +err_ports_node:
@@ -1427,24 +1569,32 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	for (i = 0; i < ppe_dev->ports->num; i++) {
 +		ppe_port = &ppe_dev->ports->port[i];
++		edma_port_destroy(ppe_port);
 +		ppe_port_clock_deinit(ppe_port);
 +	}
 +}
 --- /dev/null
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,99 @@
 +/* SPDX-License-Identifier: GPL-2.0-only
 + *
-+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
++ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
 + */
 +
 +#ifndef __PPE_PORT_H__
 +#define __PPE_PORT_H__
 +
++#include <linux/compiler.h>
++#include <linux/phy.h>
 +#include <linux/phylink.h>
 +
-+struct ethtool_keee;
++struct clk;
++struct device_node;
++struct net_device;
++struct reset_control;
 +struct rtnl_link_stats64;
++
++struct ppe_device;
 +
 +/**
 + * enum ppe_port_clk_rst_type - PPE port clock and reset ID type
@@ -1472,14 +1622,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +/**
 + * struct ppe_port - Private data for each PPE port
-+ * @phylink: Linux phylink instance
-+ * @phylink_config: Linux phylink configurations
-+ * @pcs: Linux phylink PCS instance
 + * @np: Port device tree node
 + * @ppe_dev: Back pointer to PPE device private data
 + * @interface: Port interface mode
 + * @mac_type: Port MAC type, GMAC or XGMAC
 + * @port_id: Port ID
++ * @phylink: Linux phylink instance
++ * @phylink_config: Linux phylink configurations
++ * @pcs: Linux phylink PCS instance
 + * @clks: Port clocks
 + * @rstcs: Port resets
 + * @gmib_read: Delay work task for GMAC MIB statistics polling function
@@ -1487,14 +1637,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 + * @gmib_stats_lock: Lock to protect GMAC MIB statistics
 + */
 +struct ppe_port {
-+	struct phylink *phylink;
-+	struct phylink_config phylink_config;
-+	struct phylink_pcs *pcs;
 +	struct device_node *np;
 +	struct ppe_device *ppe_dev;
 +	phy_interface_t interface;
 +	enum ppe_mac_type mac_type;
 +	int port_id;
++	struct phylink *phylink;
++	struct phylink_config phylink_config;
++	struct phylink_pcs *pcs;
 +	struct clk *clks[PPE_PORT_CLK_RST_MAX];
 +	struct reset_control *rstcs[PPE_PORT_CLK_RST_MAX];
 +	struct delayed_work gmib_read;
@@ -1523,12 +1673,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +void ppe_port_get_stats64(struct ppe_port *ppe_port,
 +			  struct rtnl_link_stats64 *s);
 +int ppe_port_set_mac_address(struct ppe_port *ppe_port, const u8 *addr);
-+int ppe_port_set_mac_eee(struct ppe_port *ppe_port, struct ethtool_keee *eee);
 +int ppe_port_set_maxframe(struct ppe_port *ppe_port, int maxframe_size);
 +#endif
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
-@@ -9,6 +9,27 @@
+@@ -9,6 +9,17 @@
  
  #include <linux/bitfield.h>
  
@@ -1543,33 +1692,46 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#define PPE_PORT5_SEL_PCS1			BIT(4)
 +#define PPE_PORT_SEL_XGMAC(x)			(BIT(8) << ((x) - 1))
 +
-+/* PPE port LPI enable register */
-+#define PPE_LPI_EN_ADDR				0x400
-+#define PPE_LPI_PORT1_EN			BIT(0)
-+#define PPE_LPI_PORT2_EN			BIT(1)
-+#define PPE_LPI_PORT3_EN			BIT(2)
-+#define PPE_LPI_PORT4_EN			BIT(3)
-+#define PPE_LPI_PORT5_EN			BIT(4)
-+#define PPE_LPI_PORT6_EN			BIT(5)
-+#define PPE_LPI_PORT_EN(x)			(BIT(0) << ((x) - 1))
-+
  /* PPE scheduler configurations for buffer manager block. */
  #define PPE_BM_SCH_CTRL_ADDR			0xb000
  #define PPE_BM_SCH_CTRL_INC			4
-@@ -26,6 +47,9 @@
- #define PPE_DROP_STAT_TBL_ENTRIES		30
- #define PPE_DROP_STAT_TBL_INC			0x10
+@@ -556,6 +567,520 @@
  
-+#define PPE_EPE_DBG_IN_CNT_ADDR			0x26054
-+#define PPE_EPE_DBG_OUT_CNT_ADDR		0x26070
+ /* Unicast drop count includes the possible drops with WRED for the green,
+  * yellow and red categories.
++ */
++#define PPE_UNICAST_DROP_CNT_TBL_ADDR		0x9e0000
++#define PPE_UNICAST_DROP_CNT_TBL_ENTRIES	1536
++#define PPE_UNICAST_DROP_CNT_TBL_INC		0x10
++#define PPE_UNICAST_DROP_TYPES			6
++#define PPE_UNICAST_DROP_FORCE_OFFSET		3
 +
- /* Egress VLAN counters. */
- #define PPE_EG_VSI_COUNTER_TBL_ADDR		0x41000
- #define PPE_EG_VSI_COUNTER_TBL_ENTRIES		64
-@@ -554,6 +578,228 @@
- #define PPE_ENQ_OPR_TBL_INC			0x10
- #define PPE_ENQ_OPR_TBL_ENQ_DISABLE		BIT(0)
- 
++/* There are 16 multicast queues dedicated to CPU port 0. Multicast drop
++ * count includes the force drop for green, yellow and red category packets.
++ */
++#define PPE_P0_MULTICAST_DROP_CNT_TBL_ADDR	0x9f0000
++#define PPE_P0_MULTICAST_DROP_CNT_TBL_ENTRIES	48
++#define PPE_P0_MULTICAST_DROP_CNT_TBL_INC	0x10
++#define PPE_P0_MULTICAST_QUEUE_NUM		16
++
++/* Each PPE physical port has four dedicated multicast queues, providing
++ * a total of 12 entries per port. The multicast drop count includes forced
++ * drops for green, yellow, and red category packets.
++ */
++#define PPE_MULTICAST_QUEUE_PORT_ADDR_INC	0x1000
++#define PPE_MULTICAST_DROP_CNT_TBL_INC		0x10
++#define PPE_MULTICAST_DROP_TYPES		3
++#define PPE_MULTICAST_QUEUE_NUM			4
++#define PPE_MULTICAST_DROP_CNT_TBL_ENTRIES	12
++
++#define PPE_CPU_PORT_MULTICAST_FORCE_DROP_CNT_TBL_ADDR(mq_offset)	\
++	(PPE_P0_MULTICAST_DROP_CNT_TBL_ADDR +				\
++	 (mq_offset) * PPE_P0_MULTICAST_DROP_CNT_TBL_INC *		\
++	 PPE_MULTICAST_DROP_TYPES)
++
++#define PPE_P1_MULTICAST_DROP_CNT_TBL_ADDR	\
++	(PPE_P0_MULTICAST_DROP_CNT_TBL_ADDR + PPE_MULTICAST_QUEUE_PORT_ADDR_INC)
++
 +/* PPE GMAC and XGMAC register base address */
 +#define PPE_PORT_GMAC_ADDR(x)			(0x001000 + ((x) - 1) * 0x200)
 +#define PPE_PORT_XGMAC_ADDR(x)			(0x500000 + ((x) - 1) * 0x4000)
@@ -1606,7 +1768,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#define GMAC_ADDR_BYTE3				GENMASK(7, 0)
 +
 +/* GMAC control register */
-+#define GMAC_CTRL_ADDR				0x18
++#define GMAC_CTRL0_ADDR				0x18
 +#define GMAC_TX_THD_M				GENMASK(27, 24)
 +#define GMAC_MAXFRAME_SIZE_M			GENMASK(21, 8)
 +#define GMAC_CRS_SEL				BIT(6)
@@ -1615,7 +1777,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	(GMAC_TX_THD_M | GMAC_MAXFRAME_SIZE_M | GMAC_CRS_SEL)
 +
 +/* GMAC debug control register */
-+#define GMAC_DBG_CTRL_ADDR			0x1c
++#define GMAC_CTRL1_ADDR				0x1c
 +#define GMAC_HIGH_IPG_M				GENMASK(15, 8)
 +
 +/* GMAC jumbo size register */
@@ -1686,6 +1848,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#define XGMAC_SPEED_10				XGMAC_SPEED_1000
 +#define XGMAC_JD				BIT(16)
 +#define XGMAC_TXEN				BIT(0)
++
++/* XGMAC MTL Tx queue operating mode register */
++#define XGMAC_MTL_TXQ_OPMODE(_q)		(0x00001100 + (0x80 * (_q)))
++#define XGMAC_MTL_TXQ_TSF			BIT(1)
 +
 +/* XGMAC RX configuration register */
 +#define XGMAC_RX_CONFIG_ADDR			0x4
@@ -1770,7 +1936,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#define XGMAC_RXBROAD_G_ADDR			0x918
 +#define XGMAC_RXMULTI_G_ADDR			0x920
 +#define XGMAC_RXCRC_ERR_ADDR			0x928
-+#define XGMAC_RXRUNT_ERR_ADDR			0x930
++#define XGMAC_RXFRAG_ERR_ADDR			0x930
 +#define XGMAC_RXJABBER_ERR_ADDR			0x934
 +#define XGMAC_RXUNDERSIZE_G_ADDR		0x938
 +#define XGMAC_RXOVERSIZE_G_ADDR			0x93C
@@ -1792,6 +1958,261 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +#define XGMAC_RXDISCARD_GB_ADDR			0x9AC
 +#define XGMAC_RXDISCARDBYTE_GB_ADDR		0x9B4
 +
- /* Unicast drop count includes the possible drops with WRED for the green,
-  * yellow and red categories.
++#define EDMA_BASE_OFFSET			0xb00000
++
++/* EDMA register offsets */
++#define EDMA_REG_MAS_CTRL_ADDR			0x0
++#define EDMA_REG_PORT_CTRL_ADDR			0x4
++#define EDMA_REG_VLAN_CTRL_ADDR			0x8
++#define EDMA_REG_RXDESC2FILL_MAP_0_ADDR		0x14
++#define EDMA_REG_RXDESC2FILL_MAP_1_ADDR		0x18
++#define EDMA_REG_RXDESC2FILL_MAP_2_ADDR		0x1c
++#define EDMA_REG_TXQ_CTRL_ADDR			0x20
++#define EDMA_REG_TXQ_CTRL_2_ADDR		0x24
++#define EDMA_REG_TXQ_FC_0_ADDR			0x28
++#define EDMA_REG_TXQ_FC_1_ADDR			0x30
++#define EDMA_REG_TXQ_FC_2_ADDR			0x34
++#define EDMA_REG_TXQ_FC_3_ADDR			0x38
++#define EDMA_REG_RXQ_CTRL_ADDR			0x3c
++#define EDMA_REG_MISC_ERR_QID_ADDR		0x40
++#define EDMA_REG_RXQ_FC_THRE_ADDR		0x44
++#define EDMA_REG_DMAR_CTRL_ADDR			0x48
++#define EDMA_REG_AXIR_CTRL_ADDR			0x4c
++#define EDMA_REG_AXIW_CTRL_ADDR			0x50
++#define EDMA_REG_MIN_MSS_ADDR			0x54
++#define EDMA_REG_LOOPBACK_CTRL_ADDR		0x58
++#define EDMA_REG_MISC_INT_STAT_ADDR		0x5c
++#define EDMA_REG_MISC_INT_MASK_ADDR		0x60
++#define EDMA_REG_DBG_CTRL_ADDR			0x64
++#define EDMA_REG_DBG_DATA_ADDR			0x68
++#define EDMA_REG_TX_TIMEOUT_THRESH_ADDR		0x6c
++#define EDMA_REG_REQ0_FIFO_THRESH_ADDR		0x80
++#define EDMA_REG_WB_OS_THRESH_ADDR		0x84
++#define EDMA_REG_MISC_ERR_QID_REG2_ADDR		0x88
++#define EDMA_REG_TXDESC2CMPL_MAP_0_ADDR		0x8c
++#define EDMA_REG_TXDESC2CMPL_MAP_1_ADDR		0x90
++#define EDMA_REG_TXDESC2CMPL_MAP_2_ADDR		0x94
++#define EDMA_REG_TXDESC2CMPL_MAP_3_ADDR		0x98
++#define EDMA_REG_TXDESC2CMPL_MAP_4_ADDR		0x9c
++#define EDMA_REG_TXDESC2CMPL_MAP_5_ADDR		0xa0
++
++/* Tx descriptor ring configuration register addresses */
++#define EDMA_REG_TXDESC_BA(n)		(0x1000 + (0x1000 * (n)))
++#define EDMA_REG_TXDESC_PROD_IDX(n)	(0x1004 + (0x1000 * (n)))
++#define EDMA_REG_TXDESC_CONS_IDX(n)	(0x1008 + (0x1000 * (n)))
++#define EDMA_REG_TXDESC_RING_SIZE(n)	(0x100c + (0x1000 * (n)))
++#define EDMA_REG_TXDESC_CTRL(n)		(0x1010 + (0x1000 * (n)))
++#define EDMA_REG_TXDESC_BA2(n)		(0x1014 + (0x1000 * (n)))
++
++/* RxFill ring configuration register addresses */
++#define EDMA_REG_RXFILL_BA(n)		(0x29000 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_PROD_IDX(n)	(0x29004 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_CONS_IDX(n)	(0x29008 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_RING_SIZE(n)	(0x2900c + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_BUFFER1_SIZE(n)	(0x29010 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_FC_THRE(n)	(0x29014 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_UGT_THRE(n)	(0x29018 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_RING_EN(n)	(0x2901c + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_DISABLE(n)	(0x29020 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_DISABLE_DONE(n)	(0x29024 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_INT_STAT(n)	(0x31000 + (0x1000 * (n)))
++#define EDMA_REG_RXFILL_INT_MASK(n)	(0x31004 + (0x1000 * (n)))
++
++/* Rx descriptor ring configuration register addresses */
++#define EDMA_REG_RXDESC_BA(n)		(0x39000 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_PROD_IDX(n)	(0x39004 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_CONS_IDX(n)	(0x39008 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_RING_SIZE(n)	(0x3900c + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_FC_THRE(n)	(0x39010 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_UGT_THRE(n)	(0x39014 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_CTRL(n)		(0x39018 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_BPC(n)		(0x3901c + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_DISABLE(n)	(0x39020 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_DISABLE_DONE(n)	(0x39024 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_PREHEADER_BA(n)	(0x39028 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_INT_STAT(n)	(0x59000 + (0x1000 * (n)))
++#define EDMA_REG_RXDESC_INT_MASK(n)	(0x59004 + (0x1000 * (n)))
++
++#define EDMA_REG_RX_MOD_TIMER(n)	(0x59008 + (0x1000 * (n)))
++#define EDMA_REG_RX_INT_CTRL(n)		(0x5900c + (0x1000 * (n)))
++
++/* Tx completion ring configuration register addresses */
++#define EDMA_REG_TXCMPL_BA(n)		(0x79000 + (0x1000 * (n)))
++#define EDMA_REG_TXCMPL_PROD_IDX(n)	(0x79004 + (0x1000 * (n)))
++#define EDMA_REG_TXCMPL_CONS_IDX(n)	(0x79008 + (0x1000 * (n)))
++#define EDMA_REG_TXCMPL_RING_SIZE(n)	(0x7900c + (0x1000 * (n)))
++#define EDMA_REG_TXCMPL_UGT_THRE(n)	(0x79010 + (0x1000 * (n)))
++#define EDMA_REG_TXCMPL_CTRL(n)		(0x79014 + (0x1000 * (n)))
++#define EDMA_REG_TXCMPL_BPC(n)		(0x79018 + (0x1000 * (n)))
++
++#define EDMA_REG_TX_INT_STAT(n)		(0x99000 + (0x1000 * (n)))
++#define EDMA_REG_TX_INT_MASK(n)		(0x99004 + (0x1000 * (n)))
++#define EDMA_REG_TX_MOD_TIMER(n)	(0x99008 + (0x1000 * (n)))
++#define EDMA_REG_TX_INT_CTRL(n)		(0x9900c + (0x1000 * (n)))
++
++/* EDMA_QID2RID_TABLE_MEM register (Rx queue to ring ID mapping) field masks */
++#define EDMA_RX_RING_ID_QUEUE0_MASK	GENMASK(7, 0)
++#define EDMA_RX_RING_ID_QUEUE1_MASK	GENMASK(15, 8)
++#define EDMA_RX_RING_ID_QUEUE2_MASK	GENMASK(23, 16)
++#define EDMA_RX_RING_ID_QUEUE3_MASK	GENMASK(31, 24)
++
++/* EDMA_REG_PORT_CTRL register bit definitions */
++#define EDMA_PORT_PAD_EN			0x1
++#define EDMA_PORT_EDMA_EN			0x2
++
++/* EDMA_REG_DMAR_CTRL register field masks */
++#define EDMA_DMAR_REQ_PRI_MASK			GENMASK(2, 0)
++#define EDMA_DMAR_BURST_LEN_MASK		BIT(3)
++#define EDMA_DMAR_TXDATA_OUTSTANDING_NUM_MASK	GENMASK(8, 4)
++#define EDMA_DMAR_TXDESC_OUTSTANDING_NUM_MASK	GENMASK(11, 9)
++#define EDMA_DMAR_RXFILL_OUTSTANDING_NUM_MASK	GENMASK(14, 12)
++
++#define EDMA_BURST_LEN_ENABLE			0
++
++/* Tx timeout threshold */
++#define EDMA_TX_TIMEOUT_THRESH_VAL		0xFFFF
++
++/* Rx descriptor ring base address mask */
++#define EDMA_RXDESC_BA_MASK			0xffffffff
++
++/* Rx Descriptor ring pre-header base address mask */
++#define EDMA_RXDESC_PREHEADER_BA_MASK		0xffffffff
++
++/* Tx descriptor producer ring index mask */
++#define EDMA_TXDESC_PROD_IDX_MASK		0xffff
++
++/* Tx descriptor consumer ring index mask */
++#define EDMA_TXDESC_CONS_IDX_MASK		0xffff
++
++/* Tx descriptor ring size mask */
++#define EDMA_TXDESC_RING_SIZE_MASK		0xffff
++
++/* Tx descriptor ring enable */
++#define EDMA_TXDESC_TX_ENABLE			0x1
++
++#define EDMA_TXDESC_CTRL_TXEN_MASK		BIT(0)
++#define EDMA_TXDESC_CTRL_FC_GRP_ID_MASK		GENMASK(3, 1)
++
++/* Tx completion ring producer index mask */
++#define EDMA_TXCMPL_PROD_IDX_MASK		0xffff
++
++/* Tx completion ring urgent threshold mask */
++#define EDMA_TXCMPL_LOW_THRE_MASK		0xffff
++#define EDMA_TXCMPL_LOW_THRE_SHIFT		0
++
++/* EDMA_REG_TX_MOD_TIMER mask */
++#define EDMA_TX_MOD_TIMER_INIT_MASK		0xffff
++#define EDMA_TX_MOD_TIMER_INIT_SHIFT		0
++
++/* Rx fill ring producer index mask */
++#define EDMA_RXFILL_PROD_IDX_MASK		0xffff
++
++/* Rx fill ring consumer index mask */
++#define EDMA_RXFILL_CONS_IDX_MASK		0xffff
++
++/* Rx fill ring size mask */
++#define EDMA_RXFILL_RING_SIZE_MASK		0xffff
++
++/* Rx fill ring flow control threshold masks */
++#define EDMA_RXFILL_FC_XON_THRE_MASK		0x7ff
++#define EDMA_RXFILL_FC_XON_THRE_SHIFT		12
++#define EDMA_RXFILL_FC_XOFF_THRE_MASK		0x7ff
++#define EDMA_RXFILL_FC_XOFF_THRE_SHIFT		0
++
++/* Rx fill ring enable bit */
++#define EDMA_RXFILL_RING_EN			0x1
++
++/* Rx desc ring producer index mask */
++#define EDMA_RXDESC_PROD_IDX_MASK		0xffff
++
++/* Rx descriptor ring consumer index mask */
++#define EDMA_RXDESC_CONS_IDX_MASK		0xffff
++
++/* Rx descriptor ring size masks */
++#define EDMA_RXDESC_RING_SIZE_MASK		0xffff
++#define EDMA_RXDESC_PL_OFFSET_MASK		0x1ff
++#define EDMA_RXDESC_PL_OFFSET_SHIFT		16
++#define EDMA_RXDESC_PL_DEFAULT_VALUE		0
++
++/* Rx descriptor ring flow control threshold masks */
++#define EDMA_RXDESC_FC_XON_THRE_MASK		0x7ff
++#define EDMA_RXDESC_FC_XON_THRE_SHIFT		12
++#define EDMA_RXDESC_FC_XOFF_THRE_MASK		0x7ff
++#define EDMA_RXDESC_FC_XOFF_THRE_SHIFT		0
++
++/* Rx descriptor ring urgent threshold mask */
++#define EDMA_RXDESC_LOW_THRE_MASK		0xffff
++#define EDMA_RXDESC_LOW_THRE_SHIFT		0
++
++/* Rx descriptor ring enable bit */
++#define EDMA_RXDESC_RX_EN			0x1
++
++/* Tx interrupt status bit */
++#define EDMA_TX_INT_MASK_PKT_INT		0x1
++
++/* Rx interrupt mask */
++#define EDMA_RXDESC_INT_MASK_PKT_INT		0x1
++
++#define EDMA_MASK_INT_DISABLE			0x0
++#define EDMA_MASK_INT_CLEAR			0x0
++
++/* EDMA_REG_RX_MOD_TIMER register field masks */
++#define EDMA_RX_MOD_TIMER_INIT_MASK		0xffff
++#define EDMA_RX_MOD_TIMER_INIT_SHIFT		0
++
++/* EDMA Ring mask */
++#define EDMA_RING_DMA_MASK			0xffffffff
++
++/* Rx desc threshold interrupt. */
++#define EDMA_RXDESC_UGT_INT_STAT		0x2
++
++/* Rx desc timer interrupt */
++#define EDMA_RXDESC_PKT_INT_STAT		0x1
++
++/* Rx desc interrupt status mask */
++#define EDMA_RXDESC_RING_INT_STATUS_MASK \
++	(EDMA_RXDESC_UGT_INT_STAT | EDMA_RXDESC_PKT_INT_STAT)
++
++/* Tx cmpl threshold interrupt. */
++#define EDMA_TXCMPL_UGT_INT_STAT		0x2
++
++/* Tx cmpl timer interrupt */
++#define EDMA_TXCMPL_PKT_INT_STAT		0x1
++
++/* Tx cmpl interrupt status mask */
++#define EDMA_TXCMPL_RING_INT_STATUS_MASK \
++	(EDMA_TXCMPL_UGT_INT_STAT | EDMA_TXCMPL_PKT_INT_STAT)
++
++#define EDMA_TXCMPL_RETMODE_OPAQUE		0x0
++
++#define EDMA_RXDESC_LOW_THRE			0
++#define EDMA_RX_MOD_TIMER_INIT			1000
++#define EDMA_RX_NE_INT_EN			0x2
++
++#define EDMA_TX_MOD_TIMER			150
++
++#define EDMA_TX_INITIAL_PROD_IDX		0x0
++#define EDMA_TX_NE_INT_EN			0x2
++
++/* EDMA misc error mask */
++#define EDMA_MISC_AXI_RD_ERR_MASK		BIT(0)
++#define EDMA_MISC_AXI_WR_ERR_MASK		BIT(1)
++#define EDMA_MISC_RX_DESC_FIFO_FULL_MASK	BIT(2)
++#define EDMA_MISC_RX_ERR_BUF_SIZE_MASK		BIT(3)
++#define EDMA_MISC_TX_SRAM_FULL_MASK		BIT(4)
++#define EDMA_MISC_TX_CMPL_BUF_FULL_MASK		BIT(5)
++
++#define EDMA_MISC_DATA_LEN_ERR_MASK		BIT(6)
++#define EDMA_MISC_TX_TIMEOUT_MASK		BIT(7)
++
++/* EDMA txdesc2cmpl map */
++#define EDMA_TXDESC2CMPL_MAP_TXDESC_MASK		0x1F
++
++/* EDMA rxdesc2fill map */
++#define EDMA_RXDESC2FILL_MAP_RXDESC_MASK	0x7
++
++/* Unicast drop count includes the possible drops with WRED for the green,
++ * yellow and red categories.
   */
+ #define PPE_UNICAST_DROP_CNT_TBL_ADDR		0x9e0000
+ #define PPE_UNICAST_DROP_CNT_TBL_ENTRIES	1536

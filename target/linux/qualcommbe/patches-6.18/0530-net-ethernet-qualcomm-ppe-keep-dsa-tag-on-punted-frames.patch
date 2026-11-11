@@ -1,5 +1,5 @@
 From: Akshay Kakatkar <me@kakatkarakshay.dev>
-Date: Sat, 1 Aug 2026 16:20:00 +0530
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: keep the DSA tag on punted frames
 
 A flow entering through a DSA user port classifies the tagged ingress of
@@ -24,7 +24,8 @@ modes of its VSI unmodified on every port, so a punted frame reaches the
 tagger exactly as it arrived.
 
 Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -342,6 +342,7 @@ struct ppe_ft_data {
@@ -42,9 +43,9 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
 -			   int mtu);
 +			   int mtu, bool keep_tag);
  static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index);
+ static int ppe_ft_dsa_port(struct net_device *dev, struct dsa_port **dpp);
  
- static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
-@@ -764,7 +765,8 @@ static int ppe_ft_pppoe_connect(struct p
+@@ -780,7 +781,8 @@ static int ppe_ft_pppoe_connect(struct p
  
  	mutex_lock(&ft->lock);
  	if (topo.vid >= 0) {
@@ -54,7 +55,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		if (vlan < 0) {
  			ret = vlan;
  			goto out_unlock;
-@@ -963,12 +965,13 @@ static bool ppe_ft_vlan_match(const void
+@@ -979,12 +981,13 @@ static bool ppe_ft_vlan_match(const void
  }
  
  static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
@@ -70,7 +71,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  
  	i = ppe_ft_ref_get(ft->vlans, sizeof(*ft->vlans),
  			   PPE_L3_VLAN_UPLINKS, ppe_ft_vlan_match,
-@@ -989,8 +992,20 @@ static int ppe_ft_vlan_get(struct ppe_fl
+@@ -1005,8 +1008,20 @@ static int ppe_ft_vlan_get(struct ppe_fl
  	if (ret)
  		return ret;
  
@@ -92,7 +93,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  	if (ret) {
  		err = ppe_ing_xlt_rule_clear(ft->ppe_dev,
  					     ppe_ft_vlan_xlt(i));
-@@ -1441,7 +1456,7 @@ out_unlock:
+@@ -1457,7 +1472,7 @@ out_unlock:
  		if (vid >= 0) {
  			tunnel->vlan = ppe_ft_vlan_get(ft,
  						       tunnel->underlay_port, vid,
@@ -101,7 +102,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  			if (tunnel->vlan < 0) {
  				ret = tunnel->vlan;
  				tunnel->vlan = -1;
-@@ -1907,6 +1922,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -1923,6 +1938,7 @@ static int ppe_ft_flow_replace(struct pp
  	nh.vid = -1;
  	data.pppoe_sid = -1;
  	data.ingress_vid = -1;
@@ -109,7 +110,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  
  	{
  		struct flow_match_basic match;
-@@ -2272,6 +2288,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2288,6 +2304,7 @@ static int ppe_ft_flow_replace(struct pp
  			ipriv = netdev_priv(conduit);
  			iport = ipriv->ppe_port->port_id;
  			data.ingress_vid = dsa_ivid;
@@ -117,7 +118,7 @@ Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
  			reject_reason = PPE_FT_REJECT_INGRESS_VP;
-@@ -2490,7 +2507,7 @@ put_idev:
+@@ -2510,7 +2527,7 @@ put_idev:
  
  	if (data.ingress_vid >= 0) {
  		flow->vlan = ppe_ft_vlan_get(ft, iport, data.ingress_vid,

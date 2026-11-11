@@ -1,5 +1,5 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Sat, 25 Jul 2026 23:20:00 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: report flow rejection stages
 
 The aggregate flowtable counters show that only one direction of a Wi-Fi
@@ -13,10 +13,16 @@ the counters through the existing read-only flows debugfs file.  Include
 the ingress and egress virtual-port indices on installed flow lines so VP
 classification can be correlated with hardware packet counters.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Merged from:
+  0525-net-ethernet-qualcomm-ppe-report-flow-rejection-stages.patch - net: ethernet: qualcomm: ppe: report flow rejection stages
+  0631-net-ethernet-qualcomm-ppe-label-drop-reason-counters.patch - net: ethernet: qualcomm: label PPE drop reason counters
+
 Signed-off-by: JiaY-shi <shi05275@163.com>
----
- drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c | 51 +++++++++++++++++++++--
- 1 file changed, 49 insertions(+), 2 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -225,6 +225,33 @@ static_assert(offsetof(struct ppe_ft_tun
@@ -117,7 +123,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (!tunnel_encap) {
  		if (edma_port_dev_check(odev)) {
  			port_priv = netdev_priv(odev);
-@@ -2234,6 +2269,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2238,6 +2273,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  	}
  
@@ -125,7 +131,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* The hardware rewrites one direction per flow: the translated
  	 * source of SNAT comes from the public IP table, the translated
  	 * destination of DNAT from the next hop, and the translated L4
-@@ -2317,6 +2353,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2321,6 +2357,7 @@ static int ppe_ft_flow_replace(struct pp
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
  	}
  
@@ -133,7 +139,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	/* An ingress virtual port is an independent L3 endpoint.  A flow
  	 * may be accepted without its reverse direction, so it cannot rely
  	 * on the reverse rule to publish the bridge MAC or configure the VP
-@@ -2363,6 +2400,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2367,6 +2404,7 @@ static int ppe_ft_flow_replace(struct pp
  	 * entry of the slot terminates the reverse direction, whose
  	 * rule arrives as a plain flow of the inner tuple.
  	 */
@@ -141,7 +147,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	if (data.pppoe_sid >= 0) {
  		/* A PPPoE session is matched by an ingress physical-port
  		 * bitmap that cannot represent a virtual port, so a PPPoE
-@@ -2382,6 +2420,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2386,6 +2424,7 @@ static int ppe_ft_flow_replace(struct pp
  		}
  		nh.l3_if = ppe_ft_pppoe_l3_if(ft, flow->pppoe);
  	}
@@ -149,7 +155,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	/* The source MAC of this direction is the router MAC the
  	 * reverse direction ingresses on; the egress L3 interface
-@@ -2517,6 +2556,8 @@ err_prelock_ivp:
+@@ -2521,6 +2560,8 @@ err_prelock_ivp:
  	if (tdev)
  		dev_put(tdev);
  err_free:
@@ -158,7 +164,25 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	kfree_rcu(flow, rcu);
  
  	return ret;
-@@ -2733,7 +2774,7 @@ static int ppe_ft_flows_show(struct seq_
+@@ -2666,6 +2707,8 @@ static const char *ppe_ft_reason_name(bo
+ 	}
+ 
+ 	switch (code) {
++	case 0:
++		return "None (no drop reason)";
+ 	case 73:
+ 		return "L3 no-route action drop";
+ 	case 74:
+@@ -2676,6 +2719,8 @@ static const char *ppe_ft_reason_name(bo
+ 		return "L3 flow miss action drop";
+ 	case 80:
+ 		return "L2 MTU checking fail drop";
++	case 122:
++		return "pause frame";
+ 	default:
+ 		return NULL;
+ 	}
+@@ -2737,7 +2782,7 @@ static int ppe_ft_flows_show(struct seq_
  	struct rhashtable_iter iter;
  	struct ppe_ft_flow *flow;
  	struct list_head *pos;
@@ -167,7 +191,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	mutex_lock(&ft->lock);
  	list_for_each(pos, &ft->zombies)
-@@ -2747,6 +2788,11 @@ static int ppe_ft_flows_show(struct seq_
+@@ -2751,6 +2796,11 @@ static int ppe_ft_flows_show(struct seq_
  		   atomic_long_read(&ft->replace_unsupported),
  		   atomic_long_read(&ft->replace_failed),
  		   atomic_long_read(&ft->destroy_calls), zombies);
@@ -179,7 +203,7 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  
  	rhashtable_walk_enter(&ft->flows, &iter);
  	rhashtable_walk_start(&iter);
-@@ -2778,10 +2824,11 @@ static int ppe_ft_flows_show(struct seq_
+@@ -2782,10 +2832,11 @@ static int ppe_ft_flows_show(struct seq_
  				   &flow->entry.dip.ip4,
  				   be16_to_cpu(flow->entry.dport));
  		seq_printf(seq,

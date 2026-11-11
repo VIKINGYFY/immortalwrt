@@ -1,5 +1,5 @@
 From: Kenneth Kasilag <kenneth@kasilag.me>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: own virtual port redirects and RX teardown
 
 Drive the uplink inject. The previous patch added the primitive that tags a
@@ -11,12 +11,9 @@ Complete the virtual-port datapath transaction with source-VP-aware scatter
 assembly, an unexpected-punt circuit breaker, and teardown ordering which
 quiesces ingress callbacks before physical EDMA carriers disappear.
 
-Merged from:
+Previous merged from (0520-net-ppe-virtual-port-redirect-ownership.patch):
   0520-01-net-ethernet-qualcomm-ppe-intercept-virtual-port-uplink.patch
   0520-02-net-ethernet-qualcomm-ppe-harden-virtual-port-rx-and-teardown.patch
-
-Based on work by:
-  Kenneth Kasilag <kenneth@kasilag.me>
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 Signed-off-by: ViKing <viking.yfy@qq.com>
@@ -703,7 +700,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tunnel_flow && !lwt_tunnel) {
  		struct ip6_tnl_flow_offload_key key = {
  			.addr = tunnel_encap ? flow->entry.dip.ip4 :
-@@ -2325,6 +2409,16 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2329,6 +2413,16 @@ static int ppe_ft_flow_replace(struct pp
  	if (ret)
  		goto err_hw_flow;
  
@@ -720,7 +717,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	set_bit(nexthop, ft->nexthop_used);
  	mutex_unlock(&ft->lock);
  	if (tdev)
-@@ -2358,12 +2452,20 @@ err_pub_ip:
+@@ -2362,12 +2456,20 @@ err_pub_ip:
  err_vp:
  	if (flow->vp >= 0)
  		ppe_vp_put(ft->ppe_dev, flow->vp);
@@ -741,7 +738,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_free:
  	kfree_rcu(flow, rcu);
  
-@@ -2384,6 +2486,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2388,6 +2490,7 @@ static int ppe_ft_flow_destroy(struct pp
  	}
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
@@ -749,7 +746,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
  		ppe_ft_host_put(ft, &flow->entry);
-@@ -2394,6 +2497,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2398,6 +2501,7 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
  		ppe_ft_tunnel_put(ft, flow->tunnel);
  		ppe_vp_put(ft->ppe_dev, flow->vp);
@@ -757,7 +754,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2781,11 +2885,17 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -2785,11 +2889,17 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;

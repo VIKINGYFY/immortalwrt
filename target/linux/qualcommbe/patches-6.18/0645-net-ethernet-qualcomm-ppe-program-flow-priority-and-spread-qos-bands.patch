@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: qualcomm: ppe: program flow priority across QoS bands
 
 Accept flow priority actions and program them into PPE flow entries.
@@ -7,7 +7,7 @@ Map the eight Linux priorities across the three available hardware QoS
 bands, keeping action acceptance and its hardware effect together.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 @@ -133,6 +133,7 @@ struct ppe_scheduler_qm_config {
@@ -867,7 +867,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		default:
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -3177,8 +3185,9 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3181,8 +3189,9 @@ static int ppe_ft_flows_show(struct seq_
  	rhashtable_walk_enter(&ft->flows, &iter);
  	rhashtable_walk_start(&iter);
  	while ((flow = rhashtable_walk_next(&iter))) {
@@ -878,7 +878,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (IS_ERR(flow)) {
  			if (PTR_ERR(flow) == -EAGAIN)
-@@ -3186,9 +3195,17 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3190,9 +3199,17 @@ static int ppe_ft_flows_show(struct seq_
  			break;
  		}
  
@@ -899,7 +899,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  
  		if (flow->entry.is_ipv6)
-@@ -3204,10 +3221,13 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3208,10 +3225,13 @@ static int ppe_ft_flows_show(struct seq_
  				   &flow->entry.dip.ip4,
  				   be16_to_cpu(flow->entry.dport));
  		seq_printf(seq,

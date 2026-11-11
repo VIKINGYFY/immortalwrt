@@ -1,25 +1,20 @@
-From cd111b91e3cc1d6955dd116bec697f3d909fb419 Mon Sep 17 00:00:00 2001
 From: Luo Jie <quic_luoj@quicinc.com>
-Date: Tue, 26 Dec 2023 20:18:09 +0800
-Subject: [PATCH] net: ethernet: qualcomm: Add PPE scheduler config
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: ppe: provide scheduler configuration
 
-PPE scheduler config determines the priority of scheduling the
-packet. The scheduler config is used for supporting the QoS
-offload in PPE hardware.
+Provide the final scheduler accessors directly, including queue and flow levels. Do not introduce obsolete priority wrappers which a later blanket update removes.
 
-Change-Id: I4811bd133074757371775a6a69a1cc3cfaa8d0d0
+Split from:
+  0342-net-qualcomm-Update-IPQ9574-PPE-driver.patch - net: qualcomm: Update IPQ9574 PPE driver
+
+Merged from:
+  0326-net-ethernet-qualcomm-Add-PPE-scheduler-config.patch - net: ethernet: qualcomm: Add PPE scheduler config
+  0342-net-qualcomm-Update-IPQ9574-PPE-driver.patch - net: qualcomm: Update IPQ9574 PPE driver
+
 Signed-off-by: Luo Jie <quic_luoj@quicinc.com>
-Alex G: rebase patch on top of PPE driver submission from 20250209.
-        Add the ppe_queue_priority_set() function and its
-        dependencies. They will be used in the edma support in
-        susequent changes.
-        ppe_queue_priority_set() used to be part of ppe_api.c, and
-        is hereby moved to ppe_config.c .
 Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
----
- .../net/ethernet/qualcomm/ppe/ppe_config.c    | 141 ++++++++++++++++++
- .../net/ethernet/qualcomm/ppe/ppe_config.h    |   5 +
- 2 files changed, 146 insertions(+)
+Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
@@ -27,7 +22,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  				  val);
  }
  
-+/* Get the first level scheduler configuration. */
++/* Get the PPE queue level scheduler configuration. */
 +static int ppe_scheduler_l0_queue_map_get(struct ppe_device *ppe_dev,
 +					  int node_id, int *port,
 +					  struct ppe_scheduler_cfg *scheduler_cfg)
@@ -79,7 +74,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	return regmap_update_bits(ppe_dev->regmap, reg, PPE_L1_COMP_CFG_TBL_NODE_METER_LEN, val);
  }
  
-+/* Get the second level scheduler configuration. */
++/* Get the PPE flow level scheduler configuration. */
 +static int ppe_scheduler_l1_queue_map_get(struct ppe_device *ppe_dev,
 +					  int node_id, int *port,
 +					  struct ppe_scheduler_cfg *scheduler_cfg)
@@ -126,19 +121,20 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  /**
   * ppe_queue_scheduler_set - Configure scheduler for PPE hardware queue
   * @ppe_dev: PPE device
-@@ -967,6 +1056,58 @@ int ppe_queue_scheduler_set(struct ppe_d
+@@ -1379,6 +1468,31 @@ int ppe_ring_queue_map_set(struct ppe_de
+ 				 ARRAY_SIZE(queue_bitmap_val));
  }
  
- /**
-+ * ppe_queue_scheduler_get - get QoS scheduler of PPE hardware queue
++/**
++ * ppe_queue_scheduler_get - get scheduler of PPE hardware queue
 + * @ppe_dev: PPE device
-+ * @node_id: PPE node ID
++ * @node_id: PPE queue ID or flow ID
 + * @flow_level: Flow level scheduler or queue level scheduler
 + * @port: PPE port ID to get scheduler config
-+ * @scheduler_cfg: QoS scheduler configuration
++ * @scheduler_cfg: PPE scheduler configuration
 + *
-+ * The hardware QoS function is supported by PPE, the current scheduler
-+ * configuration can be acquired based on the queue ID of PPE port.
++ * The current scheduler configuration can be acquired based on the
++ * queue ID of PPE port.
 + *
 + * Return 0 on success, negative error code on failure.
 + */
@@ -154,48 +150,18 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +					      port, scheduler_cfg);
 +}
 +
-+
-+/**
-+ * ppe_queue_priority_set - set scheduler priority of PPE hardware queue
-+ * @ppe_dev: PPE device
-+ * @node_id: PPE hardware node ID, which is either queue ID or flow ID
-+ * @priority: Qos scheduler priority
-+ *
-+ * Configure scheduler priority of PPE hardware queque, the maximum node
-+ * ID supported is PPE_QUEUE_ID_NUM added by PPE_FLOW_ID_NUM, queue ID
-+ * belongs to level 0, flow ID belongs to level 1 in the packet pipeline.
-+ *
-+ * Return 0 on success, negative error code on failure.
-+ */
-+int ppe_queue_priority_set(struct ppe_device *ppe_dev,
-+			   int node_id, int priority)
-+{
-+	struct ppe_scheduler_cfg sch_cfg;
-+	int ret, port, level = 0;
-+
-+	ret = ppe_queue_scheduler_get(ppe_dev, node_id, level, &port, &sch_cfg);
-+	if (ret)
-+		return ret;
-+
-+	sch_cfg.pri = priority;
-+	return ppe_queue_scheduler_set(ppe_dev, node_id, level, port, sch_cfg);
-+}
-+
-+/**
-  * ppe_queue_ucast_base_set - Set PPE unicast queue base ID and profile ID
-  * @ppe_dev: PPE device
-  * @queue_dst: PPE queue destination configuration
+ static int ppe_config_bm_threshold(struct ppe_device *ppe_dev, int bm_port_id,
+ 				   const struct ppe_bm_port_config port_cfg)
+ {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -291,6 +291,11 @@ int ppe_hw_config(struct ppe_device *ppe
+@@ -291,6 +291,9 @@ int ppe_hw_config(struct ppe_device *ppe
  int ppe_queue_scheduler_set(struct ppe_device *ppe_dev,
  			    int node_id, bool flow_level, int port,
  			    struct ppe_scheduler_cfg scheduler_cfg);
 +int ppe_queue_scheduler_get(struct ppe_device *ppe_dev,
 +			    int node_id, bool flow_level, int *port,
 +			    struct ppe_scheduler_cfg *scheduler_cfg);
-+int ppe_queue_priority_set(struct ppe_device *ppe_dev,
-+			   int queue_id, int priority);
  int ppe_queue_ucast_base_set(struct ppe_device *ppe_dev,
  			     struct ppe_queue_ucast_dest queue_dst,
  			     int queue_base,

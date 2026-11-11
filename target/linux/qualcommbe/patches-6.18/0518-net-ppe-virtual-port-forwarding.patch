@@ -1,5 +1,5 @@
 From: Kenneth Kasilag <kenneth@kasilag.me>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: offload and deliver virtual port flows
 
 Offload the wired-to-wireless direction of a routed or NAT'd flow whose
@@ -16,19 +16,16 @@ the bound net device and transmit the already-rewritten frame out of it
 instead of receiving it up the stack. The frame is complete and NAT'd, so
 it only needs handing to the device's transmit path.
 
-Merged from:
+Previous merged from (0518-net-ppe-virtual-port-forwarding.patch):
   0518-01-net-ethernet-qualcomm-ppe-offload-flows-to-virtual-ports.patch
   0518-02-net-ethernet-qualcomm-ppe-deliver-virtual-port-flows-on-rx.patch
-
-Based on work by:
-  Kenneth Kasilag <kenneth@kasilag.me>
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -907,6 +907,7 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -909,6 +909,7 @@ int edma_setup(struct ppe_device *ppe_de
  		edma_ctx->hw_info = &ipq9574_hw_info;
  
  	edma_ctx->ppe_dev = ppe_dev;
@@ -250,7 +247,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		flow->eport = nh.port;
  		ether_addr_copy(nh.mac, data.eth.dst);
  	}
-@@ -2161,7 +2187,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2165,7 +2191,7 @@ static int ppe_ft_flow_replace(struct pp
  		if (data.sport != flow->entry.sport ||
  		    data.dport != flow->entry.dport) {
  			ret = -EOPNOTSUPP;
@@ -259,7 +256,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_ROUTE;
-@@ -2170,7 +2196,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2174,7 +2200,7 @@ static int ppe_ft_flow_replace(struct pp
  		   (data.dip != flow->entry.dip.ip4 ||
  		    data.dport != flow->entry.dport)) {
  		ret = -EOPNOTSUPP;
@@ -268,7 +265,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (data.sip != flow->entry.sip.ip4 ||
  		   data.sport != flow->entry.sport) {
  		flow->entry.fwd_type = PPE_FLOW_FWD_TYPE_SNAT;
-@@ -2179,7 +2205,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2183,7 +2209,7 @@ static int ppe_ft_flow_replace(struct pp
  		flow->pub_ip = ppe_ft_pub_ip_get(ft, data.sip);
  		if (flow->pub_ip < 0) {
  			ret = flow->pub_ip;
@@ -277,7 +274,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  		nh.pub_ip_index = flow->pub_ip;
  	} else if (data.dip != flow->entry.dip.ip4 ||
-@@ -2206,6 +2232,15 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2210,6 +2236,15 @@ static int ppe_ft_flow_replace(struct pp
  	 * rule arrives as a plain flow of the inner tuple.
  	 */
  	if (data.pppoe_sid >= 0) {
@@ -293,7 +290,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
  					       data.eth.dst, data.eth.src,
  					       nh.port, nh.vid);
-@@ -2240,9 +2275,11 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2244,9 +2279,11 @@ static int ppe_ft_flow_replace(struct pp
  
  		/* The port binding classifies plain ingress on the
  		 * port; PPPoE ingress resolves its L3 interface
@@ -307,7 +304,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ret = ppe_port_l3_if_set(ft->ppe_dev, nh.port,
  						 nh.l3_if);
  			if (ret)
-@@ -2317,6 +2354,9 @@ err_vlan:
+@@ -2321,6 +2358,9 @@ err_vlan:
  	ppe_ft_vlan_put(ft, flow->vlan);
  err_pub_ip:
  	ppe_ft_pub_ip_put(ft, flow->pub_ip);
@@ -317,7 +314,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_unlock:
  	ppe_ft_tunnel_put(ft, flow ? flow->tunnel : -1);
  	mutex_unlock(&ft->lock);
-@@ -2352,6 +2392,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2356,6 +2396,7 @@ static int ppe_ft_flow_destroy(struct pp
  		ppe_ft_vlan_put(ft, flow->vlan);
  		ppe_ft_pub_ip_put(ft, flow->pub_ip);
  		ppe_ft_tunnel_put(ft, flow->tunnel);
@@ -325,7 +322,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -2739,7 +2780,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -2743,7 +2784,7 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;

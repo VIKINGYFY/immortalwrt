@@ -1,11 +1,11 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] net: ethernet: qualcomm: enforce and inspect flow table ownership
 
 Consolidate consecutive changes within this functional responsibility.
 Retain the final implementation and its error handling directly.
 
-Merged from:
+Previous merged from (0648-net-ppe-flow-ownership-readback.patch):
   0648-net-ethernet-qualcomm-ppe-add-indexed-flow-readback.patch
   0649-net-ethernet-qualcomm-ppe-enforce-flow-index-ownership.patch
 
@@ -343,7 +343,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	flow->ingress_my_mac = -1;
  	flow->my_mac = -1;
  	flow->pub_ip = -1;
-@@ -2805,7 +2901,32 @@ put_idev:
+@@ -2809,7 +2905,32 @@ put_idev:
  
  	ret = ppe_flow_entry_enable(ft->ppe_dev, flow->index, true);
  	if (ret)
@@ -377,7 +377,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = rhashtable_lookup_insert_fast(&ft->flows, &flow->node,
  					    ppe_ft_params);
-@@ -2830,6 +2951,20 @@ put_idev:
+@@ -2834,6 +2955,20 @@ put_idev:
  
  	return 0;
  
@@ -398,7 +398,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_hw_flow:
  	if (!ppe_ft_flow_hw_del(ft, flow)) {
  		/* The quarantined flow retains its next-hop reference so the
-@@ -2902,18 +3037,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2906,18 +3041,7 @@ static int ppe_ft_flow_destroy(struct pp
  	ppe_vp_flow_del(ft->ppe_dev, flow->ivp, &flow->vp_flow);
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
@@ -418,7 +418,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
  		flow = NULL;
-@@ -3014,17 +3138,14 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -3018,17 +3142,14 @@ static int ppe_ft_flow_stats(struct ppe_
  	u64 bytes;
  	int ret;
  
@@ -440,7 +440,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -ENOENT;
  	}
  
-@@ -3036,7 +3157,7 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -3040,7 +3161,7 @@ static int ppe_ft_flow_stats(struct ppe_
  	     (dsa_mode == PPE_FT_DSA_TAG_8021Q &&
  	      dsa_vid != flow->egress_vid) ||
  	     (dsa_mode == PPE_FT_DSA_QCA4B && flow->egress_vid >= 0))) {
@@ -449,7 +449,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return 0;
  	}
  
-@@ -3049,9 +3170,27 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -3053,9 +3174,27 @@ static int ppe_ft_flow_stats(struct ppe_
  	 * and re-offload it.
  	 */
  	if (!test_bit(flow->eport, ft->ppe_dev->carrier_ok)) {
@@ -478,7 +478,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = ppe_flow_stats_get(ft->ppe_dev, flow->index, &packets, &bytes);
  	if (!ret && (packets != flow->packets || bytes != flow->bytes)) {
-@@ -3064,7 +3203,7 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -3068,7 +3207,7 @@ static int ppe_ft_flow_stats(struct ppe_
  		flow->bytes = bytes;
  	}
  
@@ -487,7 +487,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return ret;
  }
-@@ -3170,12 +3309,17 @@ static int ppe_ft_flows_show(struct seq_
+@@ -3174,12 +3313,17 @@ static int ppe_ft_flows_show(struct seq_
  	mutex_unlock(&ft->lock);
  
  	seq_printf(seq,
@@ -507,7 +507,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	seq_puts(seq, "reject");
  	for (i = 0; i < PPE_FT_REJECT_MAX; i++)
  		seq_printf(seq, " %s:%ld", ppe_ft_reject_names[i],
-@@ -3493,6 +3637,13 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3497,6 +3641,13 @@ int ppe_flowtable_setup(struct ppe_devic
  		kfree(ft);
  		return -ENOMEM;
  	}
@@ -521,7 +521,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* The reserved L3 interface regions have compile-time sizes on
  	 * a runtime base (the port count); refuse a layout that would
-@@ -3500,6 +3651,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3504,6 +3655,7 @@ int ppe_flowtable_setup(struct ppe_devic
  	 */
  	if (WARN_ON(ppe_ft_vp_l3_if(ft, PPE_VP_PORT_BASE + PPE_VP_SLOTS) >
  			    PPE_IN_L3_IF_TBL_ENTRIES)) {
@@ -529,7 +529,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		kfree(ft->nexthops);
  		kfree(ft);
  		return -ERANGE;
-@@ -3513,6 +3665,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3517,6 +3669,7 @@ int ppe_flowtable_setup(struct ppe_devic
  
  	ret = rhashtable_init(&ft->flows, &ppe_ft_params);
  	if (ret) {
@@ -537,7 +537,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		kfree(ft->nexthops);
  		kfree(ft);
  		return ret;
-@@ -3526,6 +3679,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3530,6 +3683,7 @@ int ppe_flowtable_setup(struct ppe_devic
  	if (ret) {
  		ppe_dev->flowtable = NULL;
  		rhashtable_destroy(&ft->flows);
@@ -545,7 +545,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		kfree(ft->nexthops);
  		kfree(ft);
  		return ret;
-@@ -3604,6 +3758,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3608,6 +3762,7 @@ void ppe_flowtable_destroy(struct ppe_de
  		if (ft->tunnels[i].dev)
  			dev_put(ft->tunnels[i].dev);
  

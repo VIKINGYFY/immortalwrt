@@ -1,0 +1,43 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: ppe: quiesce shared RX before unregistering EDMA ports
+
+Stop shared RX before netdevice removal and release port statistics only after their NAPI and transmit consumers stop.
+
+Split from:
+  0642-net-ethernet-qualcomm-ppe-fix-edma-resource-lifecycle.patch - net: ethernet: qualcomm: ppe: fix EDMA resource lifecycle
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+@@ -443,9 +443,12 @@ void edma_port_destroy(struct ppe_port *
+ 	struct net_device *netdev = edma_ctx->netdev_arr[port_id - 1];
+ 	int ret;
+ 
++	/* Shared RX has been quiesced by the MAC teardown caller. */
++	unregister_netdev(netdev);
+ 	edma_port_deconfigure(netdev);
++	edma_ctx->netdev_arr[port_id - 1] = NULL;
++	synchronize_net();
+ 	edma_port_stats_free(netdev);
+-	unregister_netdev(netdev);
+ 	ret = ppe_port_l3_if_set(port->ppe_dev, port_id, -1);
+ 	if (ret)
+ 		netdev_warn(netdev, "failed to unbind L3 interface: %d\n", ret);
+@@ -457,7 +460,6 @@ void edma_port_destroy(struct ppe_port *
+ 		netdev_warn(netdev, "failed to clear L3 interface: %d\n", ret);
+ 	free_netdev(netdev);
+ 	ppe_port_phylink_destroy(port);
+-	edma_ctx->netdev_arr[port_id - 1] = NULL;
+ }
+ 
+ /**
+@@ -581,6 +583,7 @@ int edma_port_setup(struct ppe_port *por
+ register_netdev_fail:
+ 	ppe_port_phylink_destroy(port);
+ port_phylink_setup_fail:
++	edma_quiesce();
+ 	edma_port_deconfigure(netdev);
+ 	edma_ctx->netdev_arr[port_id - 1] = NULL;
+ 	edma_port_stats_free(netdev);
