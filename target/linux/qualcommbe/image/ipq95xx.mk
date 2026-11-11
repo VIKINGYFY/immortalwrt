@@ -120,6 +120,7 @@ define Device/xiaomi_be10000
 	DEVICE_MODEL := BE10000
 	SOC := ipq9570
 	DEVICE_PACKAGES += ipq-wifi-xiaomi_be10000
+	DEVICE_PACKAGES += be10000-fan-rgb
 endef
 TARGET_DEVICES += xiaomi_be10000
 
