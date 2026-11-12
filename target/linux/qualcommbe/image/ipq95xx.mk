@@ -112,7 +112,8 @@ define Device/xiaomi_be10000-common
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	DEVICE_PACKAGES := ath12k-firmware-qcn9274-ddwrt \
-		kmod-phy-aquantia kmod-sfp kmod-usb-storage uboot-envtools
+		kmod-phy-aquantia kmod-sfp kmod-usb-storage uboot-envtools \
+		luci-app-xiaomi-control luci-i18n-xiaomi-control-zh-cn
 endef
 
 define Device/xiaomi_be10000

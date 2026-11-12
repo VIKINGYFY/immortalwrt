@@ -1,0 +1,13 @@
+{
+	"luci-app-xiaomi-control": {
+		"description": "Grant access to Xiaomi fan and RGB lighting control",
+		"read": {
+			"uci": [ "xiaomi-control" ],
+			"ubus": { "service": [ "list" ], "file": [ "read" ] },
+			"file": { "/var/run/xiaomi-control.json": [ "read" ] }
+		},
+		"write": {
+			"uci": [ "xiaomi-control" ]
+		}
+	}
+}
