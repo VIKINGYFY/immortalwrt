@@ -1,0 +1,46 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 12 Nov 2026 20:53:22 +0800
+Subject: [PATCH] wifi: ath11k: handle country channel restrictions
+
+QCN9074 firmware can advertise 160 MHz for the CN 5735-5835 MHz
+rule. cfg80211 rejects the entire regulatory domain because the
+bandwidth exceeds the frequency range. Bound bandwidth to that range
+without changing frequencies, power, PSD or flags. AUTO_BW continues
+to determine the supported channel widths from adjacent rules.
+
+A 6 GHz-only radio can have no usable channels in the selected country.
+Skip the empty firmware channel-list update instead of raising a
+kernel warning. Keep all cfg80211 channel restrictions in effect.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath11k/reg.c
++++ b/drivers/net/wireless/ath/ath11k/reg.c
+@@ -145,8 +145,14 @@
+ 		}
+ 	}
+ 
+-	if (WARN_ON(!num_channels))
+-		return -EINVAL;
++	/* A band can be unavailable in the selected country. Keep the
++	 * cfg80211 channel restrictions and wait for a usable channel list.
++	 */
++	if (!num_channels) {
++		ath11k_dbg(ar->ab, ATH11K_DBG_REG,
++			   "no usable channels for this regulatory domain\n");
++		return 0;
++	}
+ 
+ 	params = kzalloc_flex(*params, ch_param, num_channels);
+ 	if (!params)
+@@ -397,6 +403,10 @@
+ 		       u32 end_freq, u32 bw, u32 ant_gain, u32 reg_pwr,
+ 		       s8 psd, u32 reg_flags)
+ {
++	/* Firmware can advertise 160 MHz for a 100 MHz country rule. */
++	if (end_freq > start_freq)
++		bw = min_t(u32, bw, end_freq - start_freq);
++
+ 	reg_rule->freq_range.start_freq_khz = MHZ_TO_KHZ(start_freq);
+ 	reg_rule->freq_range.end_freq_khz = MHZ_TO_KHZ(end_freq);
+ 	reg_rule->freq_range.max_bandwidth_khz = MHZ_TO_KHZ(bw);
