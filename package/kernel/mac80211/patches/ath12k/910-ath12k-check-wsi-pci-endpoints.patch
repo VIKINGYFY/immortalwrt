@@ -1,0 +1,58 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 12 Nov 2026 16:24:40 +0800
+Subject: [PATCH] wifi: ath12k: check WSI PCI endpoints before grouping
+
+A WSI graph can describe a QCN9274 which never enumerated on PCI. The
+remaining devices then wait for the missing member before starting
+firmware.
+
+Check that each PCI member has an enumerated endpoint while reading the WSI
+graph. Use the existing single device group path if a member is missing.
+Check enumeration rather than driver binding or firmware readiness so that
+probe order and calibration failures do not change group admission. Reject
+bridge devices and release temporary device and graph references normally.
+
+Group startup, timeouts and recovery policies remain unchanged.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -2000,6 +2000,22 @@ static struct ath12k_hw_group *ath12k_co
+ 	return NULL;
+ }
+ 
++static bool ath12k_core_wsi_endpoint_present(struct device_node *node)
++{
++	if (!of_device_is_compatible(node, "pci17cb,1109"))
++		return true;
++
++#if IS_ENABLED(CONFIG_PCI)
++	struct device *dev __free(put_device) =
++		bus_find_device_by_of_node(&pci_bus_type, node);
++
++	/* Check enumeration, not driver binding or firmware readiness. */
++	return dev && !pci_is_bridge(to_pci_dev(dev));
++#else
++	return false;
++#endif
++}
++
+ static int ath12k_core_get_wsi_info(struct ath12k_hw_group *ag,
+ 				    struct ath12k_base *ab)
+ {
+@@ -2019,6 +2035,14 @@ static int ath12k_core_get_wsi_info(stru
+ 			break;
+ 		}
+ 
++		if (!ath12k_core_wsi_endpoint_present(wsi_dev)) {
++			ath12k_warn(ab,
++				    "WSI PCI endpoint %pOF not found, using a single device group\n",
++				    wsi_dev);
++			ret = -ENODEV;
++			break;
++		}
++
+ 		ag->wsi_node[device_count++] = of_node_get(wsi_dev);
+ 
+ 		struct device_node *tx_endpoint __free(device_node) =
