@@ -157,7 +157,6 @@ static DEFINE_SPINLOCK(nss_flow_sync_lock);
  * the serialized command ring while new flows can use software forwarding.
  */
 #define NSS_FLOW_BASE_CONN	1024
-#define NSS_FLOW_CONN		4096
 static u32 nss_flow_limit[2] = {
 	NSS_FLOW_BASE_CONN, NSS_FLOW_BASE_CONN,
 };
@@ -241,7 +240,7 @@ static int nss_flow_configure_family(struct nss_core *core, bool v6,
 
 int nss_flow_configure(struct nss_core *core)
 {
-	u32 count = NSS_FLOW_CONN, bytes[2] = {};
+	u32 count = nss_connections_per_family(), bytes[2] = {};
 	int i, ret;
 
 	guard(mutex)(&nss_flow_lock);
@@ -251,6 +250,18 @@ int nss_flow_configure(struct nss_core *core)
 	if (strcmp(core->fw->name, "12.5") &&
 	    strcmp(core->fw->name, "11.4"))
 		return -EOPNOTSUPP;
+	if (count == NSS_FLOW_BASE_CONN) {
+		/* Both firmware lines already own their native 1024-entry tables. */
+		scoped_guard(spinlock_bh, &nss_flow_sync_lock) {
+			for (i = 0; i < ARRAY_SIZE(nss_flow_limit); i++) {
+				nss_flow_limit[i] = count;
+				nss_flow_table_bytes[i] = 0;
+			}
+		}
+		dev_info(core->dev, "using native connection tables: %u per family\n",
+			 count);
+		return 0;
+	}
 
 	scoped_guard(spinlock_bh, &nss_flow_sync_lock)
 		memset(nss_flow_limit, 0, sizeof(nss_flow_limit));
@@ -2119,7 +2130,7 @@ void nss_flow_print(struct seq_file *s)
 			   p->refused, p->deferred, jiffies_to_msecs(remaining));
 	}
 	seq_printf(s, "capacity requested %u table_bytes IPv4 %u IPv6 %u\n",
-		   NSS_FLOW_CONN, nss_flow_table_bytes[0],
+		   nss_connections_per_family(), nss_flow_table_bytes[0],
 		   nss_flow_table_bytes[1]);
 	seq_printf(s, "retirement pending_create %u/%u retiring %u/%u errors %llu recovered %llu core_resets %llu\n",
 		   READ_ONCE(nss_flow_pending[0]), READ_ONCE(nss_flow_pending[1]),

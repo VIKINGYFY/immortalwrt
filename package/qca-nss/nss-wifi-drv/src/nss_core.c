@@ -22,6 +22,7 @@
 #include <linux/delay.h>
 #include <linux/firmware.h>
 #include <linux/io.h>
+#include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -540,12 +541,29 @@ static void nss_core_halt(struct nss_core *core)
  * unconfigured pool is unbounded the other way: the firmware accepted 82242
  * buffers, 329 MB of slab on a 411 MB box, within ten seconds of the core
  * booting. The Wi-Fi data plane's own share of it is declared separately,
- * through nss_wifi_pool_set(). The ceiling is that share plus the 16384 the
- * expanded connections and the exception path take; the firmware fills
- * whatever ceiling it is given, and each buffer costs a 4 KB slab object.
+ * through nss_wifi_pool_set(). Size both shares for the physical-memory
+ * profile; the firmware fills whatever ceiling it is given, and each buffer
+ * costs a 4 KB slab object.
  */
 static unsigned int nss_pool_size;
 static unsigned int nss_pool_low;
+static unsigned int nss_pool_shrink;
+static unsigned long nss_physical_pages;
+
+static unsigned int nss_pbuf_bytes;
+module_param_named(pbuf_bytes, nss_pbuf_bytes, uint, 0644);
+MODULE_PARM_DESC(pbuf_bytes, "packet descriptor bytes; 0 selects 8/32 MiB by physical RAM");
+
+bool nss_low_mem(void)
+{
+	return READ_ONCE(nss_physical_pages) < SZ_1G / PAGE_SIZE;
+}
+
+unsigned int nss_connections_per_family(void)
+{
+	return nss_low_mem() ? 1024 : 4096;
+}
+
 /* The firmware refuses a span narrower than the ring the pool is topped up
  * through, so the asked-for ceiling is not always the one that takes effect.
  * The table of lent buffers is sized from the same answer, and is allocated
@@ -562,15 +580,26 @@ unsigned int nss_pool_ceiling(void)
  */
 static void nss_pool_defaults(void)
 {
-	bool wlan;
+	bool wlan, small;
 
 	if (nss_pool_size && nss_pool_low)
 		return;
+	/* This is also the physical total printed by the boot Memory line.
+	 * MemTotal excludes reserved pages and can misclassify a 1 GiB board.
+	 * Cache the choice before any receive-side users can run.
+	 */
+	nss_physical_pages = get_num_physpages();
+	small = nss_low_mem();
+	if (!nss_pbuf_bytes)
+		nss_pbuf_bytes = (small ? 8 : 32) * SZ_1M;
 	wlan = nss_wifili_expected();
 	if (!nss_pool_size)
-		nss_pool_size = wlan ? 24576 : 16384;
+		nss_pool_size = small ? (wlan ? 16384 : 8192) :
+					(wlan ? 32768 : 16384);
 	if (!nss_pool_low)
-		nss_pool_low = wlan ? 4352 : 4096;
+		nss_pool_low = small ? (wlan ? 2048 : 1024) :
+				       (wlan ? 4352 : 4096);
+	nss_pool_shrink = small ? 4096 : 8192;
 	if (nss_pool_low < NSS_RING_ENTRIES)
 		nss_pool_low = NSS_RING_ENTRIES;
 	if (nss_pool_size < 2 * nss_pool_low)
@@ -813,7 +842,8 @@ static void nss_pool_configure(struct nss_core *core)
 		 be32_to_cpu(p.pool_size), be32_to_cpu(p.low_water),
 		 be32_to_cpu(p.high_water), ret);
 
-	core->pool_floor = max(nss_pool_ceiling() - 8192, 2 * nss_pool_low);
+	core->pool_floor = max(nss_pool_ceiling() - nss_pool_shrink,
+			       2 * nss_pool_low);
 	core->pool_idle_at = jiffies;
 	scoped_guard(spinlock_bh, &core->state_lock) {
 		core->pool_sample_at = 0;
@@ -846,10 +876,6 @@ struct nss_n2h_buf_pool {
 	/* 64-bit entries, as in qca-nss-drv's nss_n2h_buf_pool. */
 	u64 vaddr[NSS_N2H_PAGES_PER_MSG];
 };
-
-static unsigned int nss_pbuf_bytes = 32 * SZ_1M;
-module_param_named(pbuf_bytes, nss_pbuf_bytes, uint, 0644);
-MODULE_PARM_DESC(pbuf_bytes, "memory lent for the firmware's packet descriptors");
 
 void nss_pbuf_pool_free(struct nss_core *core)
 {
@@ -1003,6 +1029,10 @@ static int nss_core_boot(struct nss_core *core)
 	}
 
 	nss_pool_defaults();
+	dev_info(core->dev,
+		 "memory profile: %llu MiB RAM, %u connections, %u descriptor bytes\n",
+		 ((u64)nss_physical_pages << PAGE_SHIFT) / SZ_1M,
+		 2 * nss_connections_per_family(), nss_pbuf_bytes);
 	ret = nss_clocks_enable(core);
 	if (ret)
 		return ret;

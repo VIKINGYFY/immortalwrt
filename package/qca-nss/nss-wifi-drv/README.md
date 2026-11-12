@@ -71,26 +71,48 @@ service derives the read-only `wlan` module parameter from the build marker,
 installed modules and enabled hardware: bit 0 selects AHB, bit 1 PCI, and
 zero selects non-WLAN offload only. Apply a change by rebooting.
 
-With no WLAN targets the payload pool permits 16384 buffers with a
-4096-buffer refill threshold, instead of 24576/4352. The service loads
-`wlan=0 pbuf_bytes=8388608`, retaining 8 MiB of packet-descriptor memory
-instead of the 32 MiB WLAN default. Standalone connections still
-need packet descriptors, payload buffers and the firmware connection tables.
+With no WLAN targets the service loads `wlan=0`. The driver selects its
+connection, descriptor and payload budgets from physical RAM. Standalone
+connections still need all three resources.
 This also applies when a multi-profile build enables NSS WLAN integration
 but the installed image contains no ath11k modules. Disabling APs alone
 does not change the selected WLAN buses; reboot after changing the image.
 
 ## Connection tables
 
-NSS12.5 and NSS11.4 use 4096 bidirectional connections for each of
-IPv4 and IPv6, or 8192 combined. Unused capacity in one family is not
-available to the other. The driver negotiates host-backed tables with the
-firmware before enabling flow steering. Capacity is fixed and requires no
-configuration.
+NSS12.5 and NSS11.4 select the following budgets once before core startup.
+Physical RAM comes from `get_num_physpages()`, the total used by the kernel's
+boot `Memory: ... / ... available` message. Reserved memory does not turn a
+1 GiB board into the smaller profile, and no boot-log parsing is required.
 
-With WLAN the firmware packet-descriptor pool defaults to 32 MiB (`pbuf_bytes`).
-It is allocated separately from the payload slabs and connection tables;
-it does not change the WLAN payload share or the fixed connection limits.
+| Resource | Below 1 GiB | At least 1 GiB |
+| --- | ---: | ---: |
+| Connections per IPv4 / IPv6 family | 1024 | 4096 |
+| Combined connection capacity | 2048 | 8192 |
+| Packet descriptor memory | 8 MiB | 32 MiB |
+| WLAN payload floor / ceiling | 12288 / 16384 | 24576 / 32768 |
+| Non-WLAN payload floor / ceiling | 4096 / 8192 | 8192 / 16384 |
+| WLAN / non-WLAN refill threshold | 2048 / 1024 | 4352 / 4096 |
+| WLAN payload share / radio buffer budget | 4096 / 4096 | 8192 / 8192 |
+| Transmit descriptors per radio and descriptor kind | 4096 | 8192 |
+
+The small profile targets low everyday load and moderate bursts. Its WLAN
+pool retains room for two radios and full native connection tables at the
+ceiling, then releases 16 MiB after idle demand permits the lower watermark.
+The large profile targets moderate everyday load and high-load bursts. Its
+WLAN floor covers three radios and everyday connection demand; its ceiling
+leaves refill reserve at the full 8192-connection capacity. An idle reduction
+releases up to 32 MiB after demand permits the lower watermark. Descriptor
+and transmit budgets remain fixed so the idle reduction cannot shrink them.
+Unused connection capacity in one family is not available to the other. Small
+boards retain the firmware's native tables; larger boards negotiate
+host-backed tables before enabling flow steering. Capacity stays fixed
+until the module restarts and requires no configuration.
+
+The descriptor pool (`pbuf_bytes`, zero selects the automatic default) is
+allocated separately from payload slabs and connection tables. The three
+budgets are selected together, with matching WLAN buffer and descriptor
+counts; buffer sizes, DMA ownership and descriptor strides are unchanged.
 These descriptor pages remain lent until the core stops; changing payload
 watermarks does not release them.
 
@@ -105,10 +127,10 @@ does not reload a saved wireless configuration. A short Mesh reconnection is
 expected after firmware recovery, as with renewed AP client sessions.
 
 The connection tables and packet payload pool are separate resources.
-The payload pool starts with a ceiling of 24576 with WLAN and 16384 without
-it. Fresh firmware statistics track buffers held by WLAN and active
+The payload pool starts at the profile's ceiling. Fresh firmware statistics
+track buffers held by WLAN and active
 connections. When demand leaves enough refill reserve for 60 seconds, the
-driver lowers retention to 16384 with WLAN or 8192 without it. Returned
+driver lowers retention to the profile's floor. Returned
 buffers are freed through the existing SKB path. The driver raises the
 watermark when use approaches the reserve or allocation failures are reported.
 Larger WLAN configurations may keep the maximum because they need more buffers.
@@ -119,7 +141,11 @@ and restores an acknowledged maximum. If that cannot be confirmed, the
 existing coordinated core recovery resets the firmware before releasing
 its buffers. Passive `rx` diagnostics show the target, idle floor, ceiling,
 use, growth/shrink counts and adjustment errors. Connection capacity remains
-8192 throughout; payload watermarks do not resize the connection tables.
+2048 or 8192 throughout; payload watermarks do not resize connection tables.
+Watermark changes run in process context and wait for firmware replies there;
+packet reception does not wait synchronously for an adjustment. Growth still
+requires refill headroom and can be delayed by control work or allocation
+pressure, so a smaller floor is not a guarantee of zero burst loss or latency.
 
 The firmware supplies the required connection-entry and match-entry table
 sizes. The driver allocates DMA memory and updates admission limits only
@@ -127,8 +153,8 @@ after both families acknowledge the configuration. The firmware profile
 and available memory constrain which requests can succeed. No PPE SRAM
 tables are enlarged.
 
-The status overview reads the running driver's combined capacity, so its
-NSS count shows an upper limit of 8192 once table configuration succeeds.
+The status overview reads the running driver's confirmed combined capacity,
+so its NSS count shows the selected limit after initialization succeeds.
 
 While WLAN targets are configured, a manual `boot=0` request returns
 `-EBUSY`: stopping NSS alone would leave automatic WLAN recovery without
@@ -140,8 +166,8 @@ A failed or timed-out table handover stops the core before its DMA memory
 is freed. The persistent bring-up guard described above still applies.
 
 Read `flow_stats` for the installed IPv4, IPv6 and total counts followed by
-the configured combined capacity. Its final value is 8192 after handover;
-each family is still limited to 4096. Passive `flows` diagnostics also
+the configured combined capacity. Its final value is 2048 or 8192;
+each family is limited to 1024 or 4096. Passive `flows` diagnostics also
 show per-family limits, resource retries and firmware buffer availability.
 Statistics scan budgets grow with the configured table size so active
 connections are refreshed before the kernel flow timeout. Concurrent

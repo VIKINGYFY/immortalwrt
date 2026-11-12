@@ -84,6 +84,8 @@ static inline bool nss_dev_is_wifi(const struct net_device *dev)
 
 unsigned int nss_pool_ceiling(void);
 unsigned int nss_wifili_expected(void);
+bool nss_low_mem(void);
+unsigned int nss_connections_per_family(void);
 
 /* The firmware chooses its own offset inside a receive buffer, so the buffer
  * it is given is the head of the allocation and it reports where the payload
