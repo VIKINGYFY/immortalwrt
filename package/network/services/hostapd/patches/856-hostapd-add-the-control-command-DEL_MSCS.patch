@@ -34,12 +34,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "wps/wps_defs.h"
  #include "wps/wps.h"
  #include "fst/fst_ctrl_iface.h"
-@@ -917,6 +918,18 @@
- 							   num_policies);
- 	os_free(policy_ids);
+@@ -919,6 +920,18 @@ static int hostapd_ctrl_send_unsolicited
  	return ret;
-+}
-+
+ }
+ 
 +
 +static int hostapd_ctrl_iface_del_mscs(struct hostapd_data *hapd,
 +				       const char *cmd)
@@ -50,10 +48,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		return -1;
 +
 +	return hostapd_del_mscs(hapd, addr);
- }
- 
++}
++
  #endif /* CONFIG_ROBUST_AV */
-@@ -4866,6 +4879,11 @@
+ 
+ 
+@@ -4866,6 +4879,11 @@ static int hostapd_ctrl_iface_receive_pr
  		if (hostapd_ctrl_afc_send_request(hapd, buf + 16) < 0)
  			reply_len = -1;
  #endif /* CONFIG_AFC */
@@ -67,21 +67,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		reply_len = 16;
 --- a/hostapd/hostapd_cli.c
 +++ b/hostapd/hostapd_cli.c
-@@ -945,6 +945,13 @@
- 	}
- 
+@@ -947,6 +947,13 @@ static int hostapd_cli_cmd_send_unsolici
  	return wpa_ctrl_command(ctrl, cmd);
-+}
-+
+ }
+ 
 +
 +static int hostapd_cli_cmd_del_mscs(struct wpa_ctrl *ctrl, int argc,
 +				    char *argv[])
 +{
 +	return hostapd_cli_cmd(ctrl, "DEL_MSCS", 1, argc, argv);
- }
- 
++}
++
  #endif /* CONFIG_ROBUST_AV */
-@@ -2030,6 +2037,8 @@
+ 
+ 
+@@ -2030,6 +2037,8 @@ static const struct hostapd_cli_cmd host
  	{"send_unsolicited_dscp_req", hostapd_cli_cmd_send_unsolicited_dscp_req,
  	 NULL,
  	 "<addr>, [reset=], [policy_id_list=], Send unsolicited DSCP request"},
@@ -92,13 +92,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	{ "afc_get_request", hostapd_cli_cmd_afc_get_request, NULL,
 --- a/src/ap/scs.c
 +++ b/src/ap/scs.c
-@@ -287,6 +287,34 @@
+@@ -290,6 +290,34 @@ out:
+ }
  
- out:
- 	send_mscs_response(hapd, da, body[2], status);
-+}
-+
-+
+ 
 +/* Remove the MSCS of a station and tell it with an unsolicited MSCS Response */
 +int hostapd_del_mscs(struct hostapd_data *hapd, const u8 *addr)
 +{
@@ -124,12 +121,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	send_mscs_response(hapd, sta->addr, 0, status);
 +
 +	return 0;
- }
- 
- 
++}
++
++
+ /*
+  * The MSCS Descriptor element of a (Re)Association Request: the response
+  * carries the outcome in the MSCS Status subelement of an MSCS Descriptor
 --- a/src/ap/scs.h
 +++ b/src/ap/scs.h
-@@ -13,5 +13,6 @@
+@@ -13,5 +13,6 @@ void hostapd_handle_robust_av_streaming(
  					const u8 *buf, size_t len);
  u8 * hostapd_eid_mscs_assoc(struct hostapd_data *hapd, struct sta_info *sta,
  			    const u8 *ies, size_t ies_len, u8 *eid);

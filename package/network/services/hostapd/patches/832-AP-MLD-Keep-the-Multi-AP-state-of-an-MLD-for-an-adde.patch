@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -6436,7 +6436,8 @@
+@@ -6436,7 +6436,8 @@ static u16 check_wmm(struct hostapd_data
  }
  
  static u16 check_multi_ap(struct hostapd_data *hapd, struct sta_info *sta,
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct multi_ap_params multi_ap;
  	u16 status;
-@@ -6446,7 +6447,16 @@
+@@ -6446,7 +6447,16 @@ static u16 check_multi_ap(struct hostapd
  	if (!hapd->conf->multi_ap)
  		return WLAN_STATUS_SUCCESS;
  
@@ -57,19 +57,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!(hapd->conf->multi_ap & FRONTHAUL_BSS)) {
  			hostapd_logger(hapd, sta->addr,
  				       HOSTAPD_MODULE_IEEE80211,
-@@ -6457,11 +6467,6 @@
- 
+@@ -6458,11 +6468,6 @@ static u16 check_multi_ap(struct hostapd
  		return WLAN_STATUS_SUCCESS;
  	}
--
+ 
 -	status = check_multi_ap_ie(multi_ap_ie + 4, multi_ap_len - 4,
 -				   &multi_ap);
 -	if (status != WLAN_STATUS_SUCCESS)
 -		return status;
- 
+-
  	if (multi_ap.capability && multi_ap.capability != MULTI_AP_BACKHAUL_STA)
  		hostapd_logger(hapd, sta->addr, HOSTAPD_MODULE_IEEE80211,
-@@ -6506,6 +6511,7 @@
+ 			       HOSTAPD_LEVEL_INFO,
+@@ -6506,6 +6511,7 @@ static u16 check_multi_ap(struct hostapd
  			       "Backhaul STA tries to associate with fronthaul-only BSS");
  
  	sta->flags |= WLAN_STA_MULTI_AP;
@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return WLAN_STATUS_SUCCESS;
  }
  
-@@ -6984,7 +6990,14 @@
+@@ -6984,7 +6990,14 @@ static int __check_assoc_ies(struct host
  	if (resp != WLAN_STATUS_SUCCESS)
  		goto out;
  
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (resp != WLAN_STATUS_SUCCESS)
  		goto out;
  
-@@ -8075,6 +8088,7 @@
+@@ -8075,6 +8088,7 @@ int ieee80211_ml_process_link(struct hos
  	}
  
  	sta->flags |= origin_sta->flags | WLAN_STA_ASSOC_REQ_OK;
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sta->auth_alg = origin_sta->auth_alg;
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -123,6 +123,7 @@
+@@ -123,6 +123,7 @@ struct sta_info {
  	u8 supported_rates[WLAN_SUPP_RATES_MAX];
  	int supported_rates_len;
  	u8 qosinfo; /* Valid when WLAN_STA_WMM is set */

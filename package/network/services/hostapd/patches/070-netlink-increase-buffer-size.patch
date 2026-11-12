@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/netlink.c
 +++ b/src/drivers/netlink.c
-@@ -92,6 +92,7 @@
+@@ -92,6 +92,7 @@ struct netlink_data * netlink_init(struc
  {
  	struct netlink_data *netlink;
  	struct sockaddr_nl local;
@@ -25,16 +25,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	netlink = os_zalloc(sizeof(*netlink));
  	if (netlink == NULL)
-@@ -104,6 +105,12 @@
- 		netlink_deinit(netlink);
+@@ -105,6 +106,12 @@ struct netlink_data * netlink_init(struc
  		return NULL;
  	}
-+
+ 
 +	if (setsockopt(netlink->sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf,
 +		       sizeof(rcvbuf)) < 0)
 +		wpa_printf(MSG_DEBUG,
 +			   "netlink: Failed to set the receive buffer size: %s",
 +			   strerror(errno));
- 
++
  	os_memset(&local, 0, sizeof(local));
  	local.nl_family = AF_NETLINK;
+ 	local.nl_groups = RTMGRP_LINK;

@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -491,6 +491,16 @@
+@@ -491,6 +491,16 @@ static inline int hostapd_drv_link_add(s
  
  }
  
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -2281,6 +2281,12 @@
+@@ -2281,6 +2281,12 @@ int hostapd_setup_bss(struct hostapd_dat
  					   hapd->mld_link_id, hapd->conf->iface);
  				goto setup_mld;
  			}
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			use_existing = true;
  		}
  #endif /* CONFIG_IEEE80211BE */
-@@ -2297,6 +2303,9 @@
+@@ -2297,6 +2303,9 @@ int hostapd_setup_bss(struct hostapd_dat
  			return -1;
  		}
  
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -5851,6 +5851,17 @@
+@@ -5851,6 +5851,17 @@ struct wpa_driver_ops {
  	bool (*is_drv_shared)(void *priv, int link_id);
  
  	/**
@@ -88,7 +88,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * @link_id: The link ID which the link STA is using
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -10752,6 +10752,28 @@
+@@ -10752,6 +10752,28 @@ static void nl80211_remove_links(struct
  }
  
  
@@ -117,7 +117,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int wpa_driver_nl80211_deinit_ap(void *priv)
  {
  	struct i802_bss *bss = priv;
-@@ -12083,7 +12105,6 @@
+@@ -12083,7 +12105,6 @@ static int driver_nl80211_link_remove(vo
  				      const char *ifname, u8 link_id)
  {
  	struct i802_bss *bss = priv;
@@ -125,7 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  
  	if (type == WPA_IF_AP_VLAN)
-@@ -12096,16 +12117,7 @@
+@@ -12096,16 +12117,7 @@ static int driver_nl80211_link_remove(vo
  		   "nl80211: Teardown AP(%s) link %d (type=%d ifname=%s links=0x%x)",
  		   bss->ifname, link_id, type, ifname, bss->valid_links);
  
@@ -143,13 +143,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!bss->valid_links) {
  		void *ctx = bss->ctx;
-@@ -12121,6 +12133,18 @@
- 	}
+@@ -12124,6 +12136,18 @@ static int driver_nl80211_link_remove(vo
+ }
  
- 	return 0;
-+}
-+
-+
+ 
 +static int driver_nl80211_link_remove_keep_bss(void *priv, u8 link_id)
 +{
 +	struct i802_bss *bss = priv;
@@ -159,10 +156,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		   bss->ifname, link_id, bss->valid_links);
 +
 +	return nl80211_remove_ap_link(bss, link_id);
- }
- 
- 
-@@ -17199,6 +17223,7 @@
++}
++
++
+ static bool nl80211_is_drv_shared(void *priv, int link_id)
+ {
+ 	struct i802_bss *bss = priv;
+@@ -17199,6 +17223,7 @@ const struct wpa_driver_ops wpa_driver_n
  	.is_drv_shared = nl80211_is_drv_shared,
  	.link_sta_remove = wpa_driver_nl80211_link_sta_remove,
  	.can_share_drv = wpa_driver_nl80211_can_share_drv,

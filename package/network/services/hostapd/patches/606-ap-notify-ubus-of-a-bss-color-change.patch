@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2578,6 +2578,8 @@
+@@ -2578,6 +2578,8 @@ static void hostapd_event_color_change(s
  			hostapd_cleanup_cca_params(bss);
  		}
  	}
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -5610,10 +5610,12 @@
+@@ -5610,10 +5610,12 @@ void hostapd_switch_color_timeout_handle
  		hapd->iface->conf->he_op.he_bss_color = os_random() % 63 + 1;
  		for (b = 0; b < hapd->iface->num_bss; b++)
  			ieee802_11_set_beacon(hapd->iface->bss[b]);
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -5686,7 +5688,11 @@
+@@ -5686,7 +5688,11 @@ static void hostapd_bss_colors_in_use_ag
  				       hostapd_bss_colors_in_use_timeout,
  				       iface, NULL);
  

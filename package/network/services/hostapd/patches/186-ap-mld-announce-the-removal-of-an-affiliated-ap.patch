@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8277,8 +8277,7 @@
+@@ -8277,8 +8277,7 @@ static u16 send_assoc_resp(struct hostap
  			buflen += EHT_OPER_DISABLED_SUBCHAN_BITMAP_SIZE;
  		if (ap_sta_is_mld(hapd, sta)) {
  			buflen += hostapd_eid_eht_ml_tid_to_link_map_len(hapd);
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
 --- a/src/ap/ieee802_11.h
 +++ b/src/ap/ieee802_11.h
-@@ -126,6 +126,8 @@
+@@ -126,6 +126,8 @@ u8 * hostapd_eid_eht_ml_beacon(struct ho
  			       u8 *eid, bool include_mld_id);
  u8 * hostapd_eid_eht_ml_assoc(struct hostapd_data *hapd, struct sta_info *info,
  			      u8 *eid);
@@ -42,19 +42,28 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				     bool include_mld_id, bool include_bpcc);
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -779,29 +779,36 @@
+@@ -779,29 +779,36 @@ out:
  }
  
  
+-static u8 * hostapd_eid_eht_reconf_ml(struct hostapd_data *hapd, u8 *eid)
 +static size_t hostapd_eid_eht_reconf_ml_len(struct hostapd_data *hapd)
-+{
+ {
 +	size_t len = 0;
-+#ifdef CONFIG_TESTING_OPTIONS
+ #ifdef CONFIG_TESTING_OPTIONS
+-	struct hostapd_data *other_hapd;
+-	u16 control;
+-	u8 *pos = eid;
+-	unsigned int i;
 +	struct hostapd_data *link_bss;
-+
+ 
+-	wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML");
 +	if (!hapd->conf->mld_ap || !hapd->mld)
 +		return 0;
-+
+ 
+-	/* First check if the element needs to be added */
+-	for (i = 0; i < hapd->iface->interfaces->count; i++) {
+-		other_hapd = hapd->iface->interfaces->iface[i]->bss[0];
 +	for_each_mld_link(link_bss, hapd)
 +		if (link_bss->eht_mld_link_removal_count)
 +			len += 2 + 5;
@@ -63,40 +72,30 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (len)
 +		len += 3 + 2 + 1;
 +#endif /* CONFIG_TESTING_OPTIONS */
-+
-+	return len;
-+}
-+
-+
- static u8 * hostapd_eid_eht_reconf_ml(struct hostapd_data *hapd, u8 *eid)
- {
- #ifdef CONFIG_TESTING_OPTIONS
- 	struct hostapd_data *other_hapd;
- 	u16 control;
- 	u8 *pos = eid;
--	unsigned int i;
--
--	wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML");
--
--	/* First check if the element needs to be added */
--	for (i = 0; i < hapd->iface->interfaces->count; i++) {
--		other_hapd = hapd->iface->interfaces->iface[i]->bss[0];
--
+ 
 -		wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML: %u",
 -			   other_hapd->eht_mld_link_removal_count);
--
++	return len;
++}
+ 
 -		if (other_hapd->eht_mld_link_removal_count)
 -			break;
 -	}
--
+ 
 -	/* No link is going to be removed */
 -	if (i == hapd->iface->interfaces->count)
++static u8 * hostapd_eid_eht_reconf_ml(struct hostapd_data *hapd, u8 *eid)
++{
++#ifdef CONFIG_TESTING_OPTIONS
++	struct hostapd_data *other_hapd;
++	u16 control;
++	u8 *pos = eid;
 +
 +	if (!hostapd_eid_eht_reconf_ml_len(hapd))
  		return eid;
  
  	wpa_printf(MSG_DEBUG, "MLD: Reconfiguration ML: Adding element");
-@@ -820,8 +827,7 @@
+@@ -820,8 +827,7 @@ static u8 * hostapd_eid_eht_reconf_ml(st
  	*pos++ = 1;
  
  	/* Add the per station profiles */
@@ -106,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!other_hapd->eht_mld_link_removal_count)
  			continue;
  
-@@ -932,11 +938,23 @@
+@@ -932,11 +938,23 @@ u8 * hostapd_eid_eht_ml_assoc(struct hos
  }
  
  

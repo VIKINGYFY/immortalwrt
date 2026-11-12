@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/authsrv.c
 +++ b/src/ap/authsrv.c
-@@ -418,6 +418,14 @@
+@@ -418,6 +418,14 @@ int authsrv_init(struct hostapd_data *ha
  	}
  #endif /* CONFIG_IEEE80211BE */
  
@@ -62,7 +62,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef EAP_TLS_FUNCS
  	if (hapd->conf->eap_server &&
  	    (hapd->conf->ca_cert || hapd->conf->server_cert ||
-@@ -527,8 +535,7 @@
+@@ -527,8 +535,7 @@ int authsrv_init(struct hostapd_data *ha
  	    hostapd_setup_radius_srv(hapd)) {
  		authsrv_deinit(hapd);
  		return -1;
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1363,6 +1363,17 @@
+@@ -1363,6 +1363,17 @@ void hostapd_bss_link_deinit(struct host
  		return;
  
  	hostapd_mld_remove_link(hapd);
@@ -94,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -2651,6 +2651,12 @@
+@@ -2651,6 +2651,12 @@ int ieee802_1x_init(struct hostapd_data
  	}
  #endif /* CONFIG_IEEE80211BE */
  
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_memset(&conf, 0, sizeof(conf));
  	conf.eap_cfg = hapd->eap_cfg;
  	conf.ctx = hapd;
-@@ -2691,12 +2697,12 @@
+@@ -2691,12 +2697,12 @@ int ieee802_1x_init(struct hostapd_data
  
  	if ((hapd->conf->ieee802_1x || hapd->conf->wpa) &&
  	    hostapd_set_drv_ieee8021x(hapd, hapd->conf->iface, 1))
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_NO_RADIUS */
  
  #ifdef CONFIG_WEP
-@@ -2711,11 +2717,15 @@
+@@ -2711,11 +2717,15 @@ int ieee802_1x_init(struct hostapd_data
  		ieee802_1x_rekey(hapd, NULL);
  
  		if (!hapd->eapol_auth->default_wep_key)

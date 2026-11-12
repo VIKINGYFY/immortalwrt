@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl837x_reg.c
 +++ b/src/rtl837x_reg.c
-@@ -168,12 +168,11 @@
+@@ -168,12 +168,11 @@ int rtl837x_phy_write_c22(struct realtek
  	return rtl837x_phy_write_ocp(priv, phy, 0xA400 + (regnum * 2), val);
  }
  
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = regmap_update_bits(priv->map_nolock, RTL837X_SMI_PHY_CTRL_3_REG,
  				 RTL837X_SMI_PHY_CTRL_3_DATA_MASK,
-@@ -211,16 +210,24 @@
+@@ -211,16 +210,24 @@ int rtl837x_phy_read_c45(struct realtek_
  
  	*pval = FIELD_GET(RTL837X_SMI_PHY_CTRL_2_DATA_MASK, tmp);
  out:
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = regmap_write(priv->map_nolock, RTL837X_SMI_PHY_CTRL_0_REG, phy_mask);
  	if (ret)
-@@ -257,6 +264,15 @@
+@@ -257,6 +264,15 @@ int rtl837x_phys_write_c45(struct realte
  		goto out;
  
  out:
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&priv->map_lock);
  	return ret;
  }
-@@ -287,23 +303,26 @@
+@@ -287,23 +303,26 @@ int rtl837x_phy_bits_write_c45(struct re
  	int ret;
  	u16 val;
  
@@ -101,7 +101,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = regmap_read_poll_timeout(priv->map_nolock,
  				       RTL837X_SDS_INDACS_CMD_REG, tmp,
-@@ -335,17 +354,25 @@
+@@ -335,17 +354,25 @@ int rtl837x_sds_reg_read(struct realtek_
  
  	*pdata = val & 0xFFFF;
  out:
@@ -129,7 +129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = regmap_read_poll_timeout(priv->map_nolock,
  				       RTL837X_SDS_INDACS_CMD_REG, tmp,
-@@ -376,6 +403,15 @@
+@@ -376,6 +403,15 @@ int rtl837x_sds_reg_write(struct realtek
  		goto out;
  
  out:
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&priv->map_lock);
  	return ret;
  }
-@@ -400,12 +436,16 @@
+@@ -400,12 +436,16 @@ int rtl837x_sds_reg_bits_write(struct re
  	int ret;
  	u16 val;
  

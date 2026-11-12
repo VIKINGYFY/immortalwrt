@@ -10,11 +10,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
-@@ -169,9 +169,22 @@
+@@ -169,9 +169,22 @@ OBJS += ../src/eapol_auth/eapol_auth_sm.
  
  ifdef CONFIG_UBUS
  CFLAGS += -DUBUS_SUPPORT
-+OBJS += ../src/ap/ubus.o
+-OBJS += ../src/utils/uloop.o
+ OBJS += ../src/ap/ubus.o
+-LIBS += -lubox -lubus
 +LIBS += -lubus
 +NEED_ULOOP:=y
 +NEED_BASE64=y
@@ -28,16 +30,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +endif
 +
 +ifdef NEED_ULOOP
- OBJS += ../src/utils/uloop.o
--OBJS += ../src/ap/ubus.o
--LIBS += -lubox -lubus
++OBJS += ../src/utils/uloop.o
 +LIBS += -lubox
  endif
  
  ifdef CONFIG_CODE_COVERAGE
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -6249,6 +6249,7 @@
+@@ -6249,6 +6249,7 @@ try_again:
  		return -1;
  	}
  
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wpa_msg_register_cb(hostapd_ctrl_iface_msg_cb);
  
  	return 0;
-@@ -6350,6 +6351,8 @@
+@@ -6350,6 +6351,8 @@ fail:
  	os_free(fname);
  
  	interface->global_ctrl_sock = s;
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/hostapd/main.c
 +++ b/hostapd/main.c
-@@ -1112,6 +1112,7 @@
+@@ -1112,6 +1112,7 @@ int main(int argc, char *argv[])
  	}
  
  	hostapd_global_ctrl_iface_init(&interfaces);
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (hostapd_global_run(&interfaces, daemonize, pid_file)) {
  		wpa_printf(MSG_ERROR, "Failed to start eloop");
-@@ -1121,6 +1122,7 @@
+@@ -1121,6 +1122,7 @@ int main(int argc, char *argv[])
  	ret = 0;
  
   out:
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < interfaces.count; i++) {
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -408,6 +408,23 @@
+@@ -408,6 +408,23 @@ static inline int hostapd_drv_stop_ap(st
  	return 0;
  }
  
@@ -108,17 +108,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  static void hostapd_dpp_reply_wait_timeout(void *eloop_ctx, void *timeout_ctx);
-@@ -3017,6 +3018,9 @@
- 	}
+@@ -3018,6 +3019,9 @@ void hostapd_dpp_rx_action(struct hostap
  	wpa_msg(hapd->msg_ctx, MSG_INFO, DPP_EVENT_RX "src=" MACSTR
  		" freq=%u type=%d", MAC2STR(src), freq, type);
-+
+ 
 +	if (hostapd_ucode_dpp_rx_action(hapd, src, type, freq, hdr, len + 6))
 +		return;
- 
++
  #ifdef CONFIG_DPP2
  	if (dpp_relay_rx_action(hapd->iface->interfaces->dpp,
-@@ -3117,13 +3121,19 @@
+ 				src, hdr, buf, len, freq, NULL, NULL,
+@@ -3117,13 +3121,19 @@ void hostapd_dpp_rx_action(struct hostap
  
  struct wpabuf *
  hostapd_dpp_gas_req_handler(struct hostapd_data *hapd, const u8 *sa,
@@ -142,7 +142,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    !ether_addr_equal(sa, auth->peer_mac_addr)) {
 --- a/src/ap/dpp_hostapd.h
 +++ b/src/ap/dpp_hostapd.h
-@@ -25,8 +25,8 @@
+@@ -25,8 +25,8 @@ void hostapd_dpp_tx_status(struct hostap
  			   const u8 *data, size_t data_len, int ok);
  struct wpabuf *
  hostapd_dpp_gas_req_handler(struct hostapd_data *hapd, const u8 *sa,
@@ -155,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int hostapd_dpp_configurator_remove(struct hostapd_data *hapd, const char *id);
 --- a/src/ap/gas_serv.c
 +++ b/src/ap/gas_serv.c
-@@ -1883,8 +1883,8 @@
+@@ -1883,8 +1883,8 @@ static void gas_serv_rx_gas_initial_req(
  	if (dpp) {
  		struct wpabuf *msg;
  
@@ -168,7 +168,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		gas_serv_req_dpp_processing(hapd, sa, dialog_token, prot, msg,
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -66,7 +66,7 @@
+@@ -66,7 +66,7 @@ static int hostapd_broadcast_wep_clear(s
  #endif /* CONFIG_WEP */
  static int setup_interface2(struct hostapd_iface *iface);
  static void channel_list_update_timeout(void *eloop_ctx, void *timeout_ctx);
@@ -177,16 +177,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void hostapd_interface_setup_failure_handler(void *eloop_ctx,
  						    void *timeout_ctx);
  
-@@ -295,6 +295,8 @@
- 	struct hostapd_data *hapd = iface->bss[0];
+@@ -296,6 +296,8 @@ int hostapd_reload_config(struct hostapd
  	struct hostapd_config *newconf, *oldconf;
  	size_t j;
-+
-+	hostapd_ucode_reload_bss(hapd);
  
++	hostapd_ucode_reload_bss(hapd);
++
  	if (iface->config_fname == NULL) {
  		/* Only in-memory config in use - assume it has been updated */
-@@ -534,6 +536,7 @@
+ 		hostapd_clear_old(iface);
+@@ -534,6 +536,7 @@ void hostapd_free_hapd_data(struct hosta
  #endif /* CONFIG_OWE */
  
  	wpa_printf(MSG_DEBUG, "%s(%s)", __func__, hapd->conf->iface);
@@ -194,7 +194,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	hostapd_ubus_free_bss(hapd);
  	accounting_deinit(hapd);
  	hostapd_deinit_wpa(hapd);
-@@ -695,7 +698,7 @@
+@@ -695,7 +698,7 @@ static void hostapd_mld_move_vlan_list(s
   * If the BSS being removed is the first link, the next link becomes the first
   * link.
   */
@@ -203,7 +203,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  #ifdef CONFIG_IEEE80211BE
  	int i;
-@@ -804,6 +807,7 @@
+@@ -804,6 +807,7 @@ void hostapd_cleanup_iface_partial(struc
  static void hostapd_cleanup_iface(struct hostapd_iface *iface)
  {
  	wpa_printf(MSG_DEBUG, "%s(%p)", __func__, iface);
@@ -211,7 +211,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	hostapd_afc_stop(iface);
  	eloop_cancel_timeout(hostapd_interface_setup_failure_handler, iface,
  			     NULL);
-@@ -1397,6 +1401,7 @@
+@@ -1397,6 +1401,7 @@ static int hostapd_start_beacon(struct h
  		hapd->driver->set_operstate(hapd->drv_priv, 1);
  
  	hostapd_ubus_add_bss(hapd);
@@ -219,7 +219,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -1472,7 +1477,7 @@
+@@ -1472,7 +1477,7 @@ static int hostapd_bss_radius_init(struc
   * initialized. Most of the modules that are initialized here will be
   * deinitialized in hostapd_cleanup().
   */
@@ -228,13 +228,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			     bool start_beacon)
  {
  	struct hostapd_bss_config *conf = hapd->conf;
-@@ -1521,12 +1526,17 @@
+@@ -1521,12 +1526,17 @@ static int hostapd_setup_bss(struct host
  
  	if (!first) {
  		u8 *addr = hapd->own_addr;
--
 +		bool use_existing = !first;
-+
+ 
 +#ifdef CONFIG_IEEE80211BE
 +		if (hapd->conf->mld_ap)
 +			addr = NULL;
@@ -248,7 +247,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					     hapd->iface->bss[0]->own_addr) ==
  			    0) {
  				wpa_printf(MSG_ERROR, "BSS '%s' may not have "
-@@ -1556,6 +1566,7 @@
+@@ -1556,6 +1566,7 @@ static int hostapd_setup_bss(struct host
  					   hapd->mld_link_id, hapd->conf->iface);
  				goto setup_mld;
  			}
@@ -256,7 +255,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -1564,7 +1575,7 @@
+@@ -1564,7 +1575,7 @@ static int hostapd_setup_bss(struct host
  				   conf->iface, addr, hapd,
  				   &hapd->drv_priv, force_ifname, if_addr,
  				   conf->bridge[0] ? conf->bridge : NULL,
@@ -265,7 +264,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_ERROR, "Failed to add BSS (BSSID="
  				   MACSTR ")", MAC2STR(hapd->own_addr));
  			hapd->interface_added = 0;
-@@ -1575,12 +1586,17 @@
+@@ -1575,12 +1586,17 @@ static int hostapd_setup_bss(struct host
  			os_memcpy(hapd->own_addr, if_addr, ETH_ALEN);
  
  #ifdef CONFIG_IEEE80211BE
@@ -285,16 +284,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  #endif /* CONFIG_IEEE80211BE */
  	}
-@@ -1604,6 +1620,8 @@
- 		hostapd_mld_add_link(hapd);
+@@ -1605,6 +1621,8 @@ setup_mld:
  	}
  #endif /* CONFIG_IEEE80211BE */
-+
-+	hostapd_ucode_create_bss(hapd);
  
++	hostapd_ucode_create_bss(hapd);
++
  	if (conf->wmm_enabled < 0)
  		conf->wmm_enabled = hapd->iconf->ieee80211n |
-@@ -1933,7 +1951,7 @@
+ 			hapd->iconf->ieee80211ax;
+@@ -1933,7 +1951,7 @@ int hostapd_set_acl(struct hostapd_data
  }
  
  
@@ -303,7 +302,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  #ifdef CONFIG_IEEE80211BE
  	int ret;
-@@ -3137,7 +3155,7 @@
+@@ -3137,7 +3155,7 @@ hostapd_alloc_bss_data(struct hostapd_if
  }
  
  
@@ -312,7 +311,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	if (!hapd)
  		return;
-@@ -3382,7 +3400,7 @@
+@@ -3382,7 +3400,7 @@ fail:
  }
  
  
@@ -321,7 +320,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  #ifdef CONFIG_IEEE80211BE
  	struct hostapd_mld *mld, **all_mld;
-@@ -4265,7 +4283,8 @@
+@@ -4265,7 +4283,8 @@ int hostapd_remove_iface(struct hapd_int
  		hapd_iface = interfaces->iface[i];
  		if (hapd_iface == NULL)
  			return -1;
@@ -341,7 +340,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define OCE_STA_CFON_ENABLED(hapd) \
  	((hapd->conf->oce & OCE_STA_CFON) && \
-@@ -55,6 +56,11 @@
+@@ -55,6 +56,11 @@ struct hapd_interfaces {
  	struct hostapd_config * (*config_read_cb)(const char *config_fname);
  	int (*ctrl_iface_init)(struct hostapd_data *hapd);
  	void (*ctrl_iface_deinit)(struct hostapd_data *hapd);
@@ -353,7 +352,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int (*for_each_interface)(struct hapd_interfaces *interfaces,
  				  int (*cb)(struct hostapd_iface *iface,
  					    void *ctx), void *ctx);
-@@ -200,6 +206,7 @@
+@@ -200,6 +206,7 @@ struct hostapd_data {
  	struct hostapd_config *iconf;
  	struct hostapd_bss_config *conf;
  	struct hostapd_ubus_bss ubus;
@@ -361,7 +360,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int interface_added; /* virtual interface added for this BSS */
  	unsigned int started:1;
  	unsigned int disabled:1;
-@@ -602,6 +609,7 @@
+@@ -602,6 +609,7 @@ struct hostapd_mld {
   */
  struct hostapd_iface {
  	struct hapd_interfaces *interfaces;
@@ -369,7 +368,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	void *owner;
  	char *config_fname;
  	struct hostapd_config *conf;
-@@ -846,11 +854,16 @@
+@@ -846,11 +854,16 @@ struct hostapd_iface * hostapd_init(stru
  struct hostapd_iface *
  hostapd_interface_init_bss(struct hapd_interfaces *interfaces, const char *phy,
  			   const char *config_fname, int debug);
@@ -388,7 +387,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int hostapd_reload_bss_only(struct hostapd_data *bss);
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -1343,11 +1343,16 @@
+@@ -1343,12 +1343,17 @@ const char * sae_get_password(struct hos
  			      struct sae_pt **s_pt,
  			      const struct sae_pk **s_pk)
  {
@@ -400,13 +399,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct sae_pt *pt = NULL;
  	const struct sae_pk *pk = NULL;
  	struct hostapd_sta_wpa_psk_short *psk = NULL;
-+
+ 
 +	if (sta && sta->use_sta_psk)
 +		goto use_sta_psk;
- 
++
  	/* With sae_track_password functionality enabled, try to first find the
  	 * next viable wildcard-address password if a password identifier was
-@@ -1410,12 +1415,22 @@
+ 	 * not used. Select an wildcard-addr entry if the STA is known to have
+@@ -1410,12 +1415,22 @@ const char * sae_get_password(struct hos
  		pt = hapd->conf->ssid.pt;
  	}
  
@@ -433,7 +433,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -4697,6 +4712,9 @@
+@@ -4697,6 +4712,9 @@ int ieee802_11_set_radius_info(struct ho
  	char *identity = info->identity;
  	char *radius_cui = info->radius_cui;
  
@@ -443,7 +443,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (vlan_id->notempty &&
  	    !hostapd_vlan_valid(hapd->conf->vlan, vlan_id)) {
  		hostapd_logger(hapd, sta->addr, HOSTAPD_MODULE_RADIUS,
-@@ -4712,11 +4730,12 @@
+@@ -4712,11 +4730,12 @@ int ieee802_11_set_radius_info(struct ho
  		hostapd_logger(hapd, sta->addr, HOSTAPD_MODULE_RADIUS,
  			       HOSTAPD_LEVEL_INFO, "VLAN ID %d", sta->vlan_id);
  
@@ -460,7 +460,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	os_free(sta->identity);
  	if (identity)
-@@ -5933,6 +5952,12 @@
+@@ -5933,6 +5952,12 @@ static void handle_auth(struct hostapd_d
  		goto fail;
  	}
  
@@ -475,7 +475,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -336,6 +336,15 @@
+@@ -336,6 +336,15 @@ int ap_sta_reset_prev_assoc(struct hosta
  #endif /* CONFIG_IEEE80211BE */
  
  
@@ -491,16 +491,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ap_free_sta(struct hostapd_data *hapd, struct sta_info *sta)
  {
  #ifndef CONFIG_NO_VLAN
-@@ -646,6 +655,8 @@
- 	crypto_hash_finish(sta->eap_auth_data.transcript, NULL, 0);
+@@ -647,6 +656,8 @@ void ap_free_sta(struct hostapd_data *ha
  #endif /* CONFIG_PQC */
  #endif /* CONFIG_IEEE8021X_AUTH */
-+
-+	ap_sta_clear_sae_pt(sta);
  
++	ap_sta_clear_sae_pt(sta);
++
  	os_free(sta);
  }
-@@ -1901,6 +1912,8 @@
+ 
+@@ -1901,6 +1912,8 @@ void ap_sta_set_authorized_event(struct
  #endif /* CONFIG_P2P */
  	const u8 *ip_ptr = NULL;
  
@@ -511,7 +511,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (sta->p2p_ie != NULL &&
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -220,6 +220,9 @@
+@@ -220,6 +220,9 @@ struct sta_info {
  	int vlan_id_bound; /* updated by ap_sta_bind_vlan() */
  	 /* PSKs from RADIUS authentication server */
  	struct hostapd_sta_wpa_psk_short *psk;
@@ -521,7 +521,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	char *identity; /* User-Name from RADIUS */
  	char *radius_cui; /* Chargeable-User-Identity from RADIUS */
-@@ -407,6 +410,7 @@
+@@ -407,6 +410,7 @@ struct sta_info * ap_get_link_sta(struct
  const u8 * ap_sta_link_addr(struct hostapd_data *hapd, struct sta_info *sta);
  struct sta_info * ap_get_sta_p2p(struct hostapd_data *hapd, const u8 *addr);
  void ap_sta_hash_add(struct hostapd_data *hapd, struct sta_info *sta);
@@ -531,7 +531,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void hostapd_free_stas(struct hostapd_data *hapd);
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -495,6 +495,7 @@
+@@ -495,6 +495,7 @@ static const u8 * hostapd_wpa_auth_get_p
  	struct sta_info *sta = ap_get_sta(hapd, addr);
  	const u8 *psk;
  
@@ -539,7 +539,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (vlan_id)
  		*vlan_id = 0;
  	if (psk_len)
-@@ -545,13 +546,18 @@
+@@ -545,13 +546,18 @@ static const u8 * hostapd_wpa_auth_get_p
  	 * returned psk which should not be returned again.
  	 * logic list (all hostapd_get_psk; all sta->psk)
  	 */
@@ -559,7 +559,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (pos->is_passphrase) {
  				if (pbkdf2_sha1(pos->passphrase,
  						hapd->conf->ssid.ssid,
-@@ -565,9 +571,13 @@
+@@ -565,9 +571,13 @@ static const u8 * hostapd_wpa_auth_get_p
  			}
  			if (pos->psk == prev_psk) {
  				psk = pos->next ? pos->next->psk : NULL;
@@ -583,13 +583,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  #ifdef CONFIG_WPS_UPNP
-@@ -716,6 +717,17 @@
- {
- 	struct hostapd_data *hapd = ctx;
- 	return hostapd_wps_for_each(hapd, hapd_wps_cred_cb, (void *) cred);
-+}
-+
-+
+@@ -719,6 +720,17 @@ static int hostapd_wps_cred_cb(void *ctx
+ }
+ 
+ 
 +static void hostapd_wps_m7_rx_cb(void *ctx, const u8 *addr,
 +				  const u8 *data, size_t data_len,
 +				  struct wpabuf **m8_encr_extra,
@@ -598,10 +595,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	struct hostapd_data *hapd = ctx;
 +	hostapd_ucode_wps_m7_rx(hapd, addr, data, data_len,
 +				m8_encr_extra, skip_cred);
- }
- 
- 
-@@ -1096,6 +1108,7 @@
++}
++
++
+ static void hostapd_wps_reenable_ap_pin(void *eloop_data, void *user_ctx)
+ {
+ 	struct hostapd_data *hapd = eloop_data;
+@@ -1096,6 +1108,7 @@ int hostapd_init_wps(struct hostapd_data
  		return -1;
  
  	wps->cred_cb = hostapd_wps_cred_cb;
@@ -611,7 +611,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wps->cb_ctx = hapd;
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -4496,6 +4496,25 @@
+@@ -4496,6 +4496,25 @@ struct wpa_driver_ops {
  			 const char *ifname);
  
  	/**
@@ -637,7 +637,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * set_sta_vlan - Bind a station into a specific interface (AP only)
  	 * @priv: Private driver interface data
  	 * @ifname: Interface (main or virtual BSS or VLAN)
-@@ -7540,6 +7559,7 @@
+@@ -7540,6 +7559,7 @@ union wpa_event_data {
  
  	/**
  	 * struct ch_switch
@@ -645,7 +645,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * @freq: Frequency of new channel in MHz
  	 * @ht_enabled: Whether this is an HT channel
  	 * @ch_offset: Secondary channel offset
-@@ -7550,6 +7570,7 @@
+@@ -7550,6 +7570,7 @@ union wpa_event_data {
  	 * @punct_bitmap: Puncturing bitmap
  	 */
  	struct ch_switch {
@@ -655,7 +655,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		int ch_offset;
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -78,6 +78,16 @@
+@@ -78,6 +78,16 @@ enum nlmsgerr_attrs {
  
  #endif /* ANDROID */
  
@@ -672,7 +672,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static struct nl_sock * nl_create_handle(struct nl_cb *cb, const char *dbg)
  {
-@@ -454,6 +464,11 @@
+@@ -454,6 +464,11 @@ static int no_seq_check(struct nl_msg *m
  	return NL_OK;
  }
  
@@ -684,7 +684,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static void nl80211_nlmsg_clear(struct nl_msg *msg)
  {
-@@ -653,6 +668,8 @@
+@@ -653,6 +668,8 @@ int send_and_recv_glb(struct nl80211_glo
  	if (!msg)
  		return -ENOMEM;
  
@@ -693,7 +693,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	err.err = -ENOMEM;
  
  	s_nl_cb = nl_socket_get_cb(nl_handle);
-@@ -697,6 +714,7 @@
+@@ -697,6 +714,7 @@ int send_and_recv_glb(struct nl80211_glo
  	err.err_info = err_info;
  	err.drv = drv;
  
@@ -701,7 +701,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	nl_cb_err(cb, NL_CB_CUSTOM, error_handler, &err);
  	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, &err.err);
  	if (ack_handler_custom) {
-@@ -1132,6 +1150,7 @@
+@@ -1132,6 +1150,7 @@ nl80211_get_wiphy_data_ap(struct i802_bs
  			os_free(w);
  			return NULL;
  		}
@@ -709,7 +709,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		nl_cb_set(w->nl_cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM,
  			  no_seq_check, NULL);
  		nl_cb_set(w->nl_cb, NL_CB_VALID, NL_CB_CUSTOM,
-@@ -2239,6 +2258,7 @@
+@@ -2239,6 +2258,7 @@ static int wpa_driver_nl80211_init_nl_gl
  	/* Needs to be registered early so that process_global_event() calls
  	 * the sync reply handler hook.
  	 */
@@ -717,7 +717,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	nl_cb_set(global->nl_cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM,
  		  no_seq_check, NULL);
  	nl_cb_set(global->nl_cb, NL_CB_VALID, NL_CB_CUSTOM,
-@@ -2484,6 +2504,7 @@
+@@ -2484,6 +2504,7 @@ static int nl80211_init_bss(struct i802_
  	if (!bss->nl_cb)
  		return -1;
  
@@ -725,7 +725,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	nl_cb_set(bss->nl_cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM,
  		  no_seq_check, NULL);
  	nl_cb_set(bss->nl_cb, NL_CB_VALID, NL_CB_CUSTOM,
-@@ -9636,6 +9657,7 @@
+@@ -9636,6 +9657,7 @@ static void *i802_init(struct hostapd_da
  	char master_ifname[IFNAMSIZ];
  	int ifindex, br_ifindex = 0;
  	int br_added = 0;
@@ -733,7 +733,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	bss = wpa_driver_nl80211_drv_init(hapd, params->ifname,
  					  params->global_priv, 1,
-@@ -9696,21 +9718,17 @@
+@@ -9696,21 +9718,17 @@ static void *i802_init(struct hostapd_da
  	    (params->num_bridge == 0 || !params->bridge[0]))
  		add_ifidx(drv, br_ifindex, drv->ifindex);
  
@@ -745,19 +745,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			wpa_printf(MSG_ERROR, "nl80211: Failed to allocate nl_sock");
 -			goto failed;
 -		}
--
++	drv->rtnl_sk = nl_socket_alloc();
++	if (drv->rtnl_sk == NULL) {
++		wpa_printf(MSG_ERROR, "nl80211: Failed to allocate nl_sock");
++		goto failed;
++	}
+ 
 -		err = nl_connect(drv->rtnl_sk, NETLINK_ROUTE);
 -		if (err) {
 -			wpa_printf(MSG_ERROR, "nl80211: Failed to connect nl_sock to NETLINK_ROUTE: %s",
 -				   nl_geterror(err));
 -			goto failed;
 -		}
-+	drv->rtnl_sk = nl_socket_alloc();
-+	if (drv->rtnl_sk == NULL) {
-+		wpa_printf(MSG_ERROR, "nl80211: Failed to allocate nl_sock");
-+		goto failed;
-+	}
-+
 +	err = nl_connect(drv->rtnl_sk, NETLINK_ROUTE);
 +	if (err) {
 +		wpa_printf(MSG_ERROR, "nl80211: Failed to connect nl_sock to NETLINK_ROUTE: %s",
@@ -766,7 +765,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (drv->capa.flags2 & WPA_DRIVER_FLAGS2_CONTROL_PORT_RX) {
-@@ -10113,6 +10131,50 @@
+@@ -10113,6 +10131,50 @@ static int wpa_driver_nl80211_if_remove(
  	return 0;
  }
  
@@ -817,12 +816,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static int cookie_handler(struct nl_msg *msg, void *arg)
  {
-@@ -12071,6 +12133,37 @@
- }
- 
+@@ -12073,6 +12135,37 @@ static bool nl80211_is_drv_shared(void *
  #endif /* CONFIG_IEEE80211BE */
-+
-+
+ 
+ 
 +static int driver_nl80211_if_rename(void *priv, enum wpa_driver_if_type type,
 +				    const char *ifname, const char *new_name)
 +{
@@ -852,10 +849,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	return -1;
 +}
- 
- 
++
++
  static int driver_nl80211_send_mlme(void *priv, const u8 *data,
-@@ -16926,6 +17019,8 @@
+ 				    size_t data_len, int noack,
+ 				    unsigned int freq,
+@@ -16926,6 +17019,8 @@ const struct wpa_driver_ops wpa_driver_n
  	.set_acl = wpa_driver_nl80211_set_acl,
  	.if_add = wpa_driver_nl80211_if_add,
  	.if_remove = driver_nl80211_if_remove,
@@ -866,7 +865,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.sta_add = wpa_driver_nl80211_sta_add,
 --- a/src/drivers/driver_nl80211_event.c
 +++ b/src/drivers/driver_nl80211_event.c
-@@ -1290,6 +1290,7 @@
+@@ -1290,6 +1290,7 @@ static void mlme_event_ch_switch(struct
  				 struct nlattr *bw, struct nlattr *cf1,
  				 struct nlattr *cf2,
  				 struct nlattr *punct_bitmap,
@@ -874,7 +873,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				 int finished)
  {
  	struct i802_bss *bss;
-@@ -1355,6 +1356,8 @@
+@@ -1355,6 +1356,8 @@ static void mlme_event_ch_switch(struct
  		data.ch_switch.cf1 = nla_get_u32(cf1);
  	if (cf2)
  		data.ch_switch.cf2 = nla_get_u32(cf2);
@@ -883,7 +882,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (link) {
  		data.ch_switch.link_id = nla_get_u8(link);
-@@ -5156,6 +5159,7 @@
+@@ -5156,6 +5159,7 @@ static void do_process_drv_event(struct
  				     tb[NL80211_ATTR_CENTER_FREQ1],
  				     tb[NL80211_ATTR_CENTER_FREQ2],
  				     tb[NL80211_ATTR_PUNCT_BITMAP],
@@ -891,7 +890,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				     0);
  		break;
  	case NL80211_CMD_CH_SWITCH_NOTIFY:
-@@ -5168,6 +5172,7 @@
+@@ -5168,6 +5172,7 @@ static void do_process_drv_event(struct
  				     tb[NL80211_ATTR_CENTER_FREQ1],
  				     tb[NL80211_ATTR_CENTER_FREQ2],
  				     tb[NL80211_ATTR_PUNCT_BITMAP],
@@ -901,7 +900,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case NL80211_CMD_DISCONNECT:
 --- a/src/utils/wpa_debug.c
 +++ b/src/utils/wpa_debug.c
-@@ -26,6 +26,10 @@
+@@ -26,6 +26,10 @@ static FILE *wpa_debug_tracing_file = NU
  #define WPAS_TRACE_PFX "wpas <%d>: "
  #endif /* CONFIG_DEBUG_LINUX_TRACING */
  
@@ -912,7 +911,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  int wpa_debug_level = MSG_INFO;
  int wpa_debug_show_keys = 0;
-@@ -224,6 +228,12 @@
+@@ -224,6 +228,12 @@ void _wpa_printf(int level, const char *
  {
  	va_list ap;
  
@@ -925,16 +924,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (level >= wpa_debug_level) {
  #ifdef CONFIG_ANDROID_LOG
  		va_start(ap, fmt);
-@@ -273,6 +283,9 @@
- 			 size_t len, int show, int only_syslog)
+@@ -274,6 +284,9 @@ void _wpa_hexdump(int level, const char
  {
  	size_t i;
-+
+ 
 +	if (wpa_hexdump_hook)
 +		wpa_hexdump_hook(level, title, buf, len);
- 
++
  #ifdef CONFIG_DEBUG_LINUX_TRACING
  	if (wpa_debug_tracing_file != NULL) {
+ 		fprintf(wpa_debug_tracing_file,
 --- a/src/utils/wpa_debug.h
 +++ b/src/utils/wpa_debug.h
 @@ -11,6 +11,10 @@
@@ -950,7 +949,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  extern int wpa_debug_timestamp;
 --- a/src/wps/wps.c
 +++ b/src/wps/wps.c
-@@ -182,6 +182,7 @@
+@@ -182,6 +182,7 @@ void wps_deinit(struct wps_data *data)
  	bin_clear_free(data->new_psk, data->new_psk_len);
  	wps_device_data_free(&data->peer_dev);
  	bin_clear_free(data->new_ap_settings, sizeof(*data->new_ap_settings));
@@ -960,7 +959,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/src/wps/wps.h
 +++ b/src/wps/wps.h
-@@ -850,6 +850,14 @@
+@@ -850,6 +850,14 @@ struct wps_context {
  	/* Whether to send WPA2-PSK passphrase as a passphrase instead of PSK
  	 * for WPA3-Personal transition mode needs. */
  	bool use_passphrase;
@@ -977,7 +976,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct wps_registrar *
 --- a/src/wps/wps_enrollee.c
 +++ b/src/wps/wps_enrollee.c
-@@ -377,14 +377,17 @@
+@@ -377,14 +377,17 @@ static int wps_build_ap_settings(struct
  static struct wpabuf * wps_build_m7(struct wps_data *wps)
  {
  	struct wpabuf *msg, *plain;
@@ -997,7 +996,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (msg == NULL) {
  		wpabuf_free(plain);
  		return NULL;
-@@ -394,8 +397,16 @@
+@@ -394,8 +397,16 @@ static struct wpabuf * wps_build_m7(stru
  	    wps_build_msg_type(msg, WPS_M7) ||
  	    wps_build_registrar_nonce(wps, msg) ||
  	    wps_build_e_snonce2(wps, plain) ||
@@ -1016,7 +1015,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    wps_build_encr_settings(wps, msg, plain) ||
  	    wps_build_wfa_ext(msg, 0, NULL, 0, 0) ||
  	    wps_build_authenticator(wps, msg)) {
-@@ -1258,8 +1269,22 @@
+@@ -1258,8 +1269,22 @@ static enum wps_process_res wps_process_
  	wpa_printf(MSG_DEBUG, "WPS: Processing decrypted Encrypted Settings "
  		   "attribute");
  	if (wps_parse_msg(decrypted, &eattr) < 0 ||
@@ -1043,7 +1042,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				      attr->version2 != NULL)) {
 --- a/src/wps/wps_i.h
 +++ b/src/wps/wps_i.h
-@@ -128,6 +128,9 @@
+@@ -128,6 +128,9 @@ struct wps_data {
  
  	int multi_ap_backhaul_sta;
  	int multi_ap_profile;
@@ -1055,7 +1054,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/wps/wps_registrar.c
 +++ b/src/wps/wps_registrar.c
-@@ -2064,14 +2064,17 @@
+@@ -2064,14 +2064,17 @@ static struct wpabuf * wps_build_m6(stru
  static struct wpabuf * wps_build_m8(struct wps_data *wps)
  {
  	struct wpabuf *msg, *plain;
@@ -1075,7 +1074,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (msg == NULL) {
  		wpabuf_free(plain);
  		return NULL;
-@@ -2080,9 +2083,19 @@
+@@ -2080,9 +2083,19 @@ static struct wpabuf * wps_build_m8(stru
  	if (wps_build_version(msg) ||
  	    wps_build_msg_type(msg, WPS_M8) ||
  	    wps_build_enrollee_nonce(wps, msg) ||
@@ -1098,7 +1097,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    wps_build_encr_settings(wps, msg, plain) ||
  	    wps_build_wfa_ext(msg, 0, NULL, 0, 0) ||
  	    wps_build_authenticator(wps, msg)) {
-@@ -3019,6 +3032,13 @@
+@@ -3019,6 +3032,13 @@ static enum wps_process_res wps_process_
  		return WPS_CONTINUE;
  	}
  
@@ -1114,22 +1113,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wps->state = SEND_M8;
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
-@@ -199,6 +199,14 @@
- 
- ifdef CONFIG_EAPOL_TEST
+@@ -201,6 +201,14 @@ ifdef CONFIG_EAPOL_TEST
  CFLAGS += -Werror -DEAPOL_TEST
-+endif
-+
+ endif
+ 
 +ifdef CONFIG_UCODE
 +CFLAGS += -DUCODE_SUPPORT
 +OBJS += ../src/utils/ucode.o
 +OBJS += ../src/utils/uloop.o
 +OBJS += ucode.o
 +LIBS += -lubox
- endif
- 
++endif
++
  ifdef CONFIG_CODE_COVERAGE
-@@ -1113,6 +1121,9 @@
+ CFLAGS += -O0 -fprofile-arcs -ftest-coverage -U_FORTIFY_SOURCE
+ LIBS += -lgcov
+@@ -1113,6 +1121,9 @@ ifdef CONFIG_CTRL_IFACE_MIB
  CFLAGS += -DCONFIG_CTRL_IFACE_MIB
  endif
  OBJS += ../src/ap/ctrl_iface_ap.o
@@ -1149,7 +1148,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #ifndef CONFIG_CTRL_IFACE_MSG_QUEUE_LIMIT
  #define CONFIG_CTRL_IFACE_MSG_QUEUE_LIMIT 2000
-@@ -440,6 +441,7 @@
+@@ -440,6 +441,7 @@ static void wpa_supplicant_ctrl_iface_ms
  	if (wpa_s == NULL)
  		return;
  
@@ -1167,7 +1166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  static int wpas_dpp_listen_start(struct wpa_supplicant *wpa_s,
-@@ -4152,6 +4153,9 @@
+@@ -4152,6 +4153,9 @@ void wpas_dpp_rx_action(struct wpa_suppl
  		return;
  	}
  	wpa_hexdump(MSG_MSGDUMP, "DPP: Received message attributes", buf, len);
@@ -1187,20 +1186,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  #define MAX_OWE_TRANSITION_BSS_SELECT_COUNT 5
-@@ -1932,6 +1933,12 @@
- 	if (wnm_is_bss_excluded(wpa_s, bss)) {
- 		if (debug_print)
- 			wpa_dbg(wpa_s, MSG_DEBUG, "   skip - BSSID excluded");
-+		return NULL;
-+	}
-+
-+	if (!wpas_ucode_bss_allowed(wpa_s, bss)) {
-+		if (debug_print)
-+			wpa_dbg(wpa_s, MSG_DEBUG, "   skip - denied by ucode handler");
+@@ -1935,6 +1936,12 @@ struct wpa_ssid * wpa_scan_res_match(str
  		return NULL;
  	}
  
-@@ -3351,8 +3358,8 @@
++	if (!wpas_ucode_bss_allowed(wpa_s, bss)) {
++		if (debug_print)
++			wpa_dbg(wpa_s, MSG_DEBUG, "   skip - denied by ucode handler");
++		return NULL;
++	}
++
+ 	for (ssid = group; ssid; ssid = only_first_ssid ? NULL : ssid->pnext) {
+ 		if (wpa_scan_res_ok(wpa_s, ssid, match_ssid, match_ssid_len,
+ 				    bss, bssid_ignore_count, debug_print, link))
+@@ -3351,8 +3358,8 @@ fail:
  static void multi_ap_process_assoc_resp(struct wpa_supplicant *wpa_s,
  					const u8 *ies, size_t ies_len)
  {
@@ -1210,7 +1209,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u16 status;
  
  	wpa_s->multi_ap_ie = 0;
-@@ -3363,13 +3370,13 @@
+@@ -3363,13 +3370,13 @@ static void multi_ap_process_assoc_resp(
  		return;
  
  	status = check_multi_ap_ie(elems.multi_ap + 4, elems.multi_ap_len - 4,
@@ -1227,7 +1226,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				       MULTI_AP_FRONTHAUL_BSS);
  	wpa_s->multi_ap_ie = 1;
  }
-@@ -6193,6 +6200,13 @@
+@@ -6193,6 +6200,13 @@ static void wpas_event_rx_mgmt_action(st
  	}
  #endif /* CONFIG_WNM */
  
@@ -1241,7 +1240,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_GAS
  	if ((mgmt->u.action.category == WLAN_ACTION_PUBLIC ||
  	     mgmt->u.action.category == WLAN_ACTION_PROTECTED_DUAL) &&
-@@ -7200,6 +7214,7 @@
+@@ -7200,6 +7214,7 @@ void supplicant_event(void *ctx, enum wp
  		event_to_string(event), event);
  #endif /* CONFIG_NO_STDOUT_DEBUG */
  
@@ -1251,7 +1250,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_FST
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -1302,6 +1302,7 @@
+@@ -1302,6 +1302,7 @@ void wpa_supplicant_set_state(struct wpa
  		sme_sched_obss_scan(wpa_s, 0);
  	}
  	wpa_s->wpa_state = state;
@@ -1259,7 +1258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (state == WPA_COMPLETED && new_connection &&
  	    wpa_s->conf->wfa_gen_capa == WFA_GEN_CAPA_PROTECTED &&
-@@ -9502,6 +9503,8 @@
+@@ -9502,6 +9503,8 @@ struct wpa_supplicant * wpa_supplicant_a
  	}
  #endif /* CONFIG_P2P */
  
@@ -1268,7 +1267,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return wpa_s;
  }
  
-@@ -9528,6 +9531,8 @@
+@@ -9528,6 +9531,8 @@ int wpa_supplicant_remove_iface(struct w
  	struct wpa_supplicant *parent = wpa_s->parent;
  #endif /* CONFIG_MESH */
  
@@ -1277,7 +1276,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Remove interface from the global list of interfaces */
  	prev = global->ifaces;
  	if (prev == wpa_s) {
-@@ -9848,6 +9853,7 @@
+@@ -9848,6 +9853,7 @@ struct wpa_global * wpa_supplicant_init(
  
  	eloop_register_timeout(WPA_SUPPLICANT_CLEANUP_INTERVAL, 0,
  			       wpas_periodic, global, NULL);
@@ -1285,15 +1284,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return global;
  }
-@@ -9919,6 +9925,8 @@
- 		wpa_supplicant_global_ctrl_iface_deinit(global->ctrl_iface);
+@@ -9920,6 +9926,8 @@ void wpa_supplicant_deinit(struct wpa_gl
  
  	wpas_notify_supplicant_deinitialized(global);
-+
-+	wpas_ucode_free();
  
++	wpas_ucode_free();
++
  	eap_peer_unregister_methods();
  #ifdef CONFIG_AP
+ 	eap_server_unregister_methods();
 --- a/wpa_supplicant/wpa_supplicant_i.h
 +++ b/wpa_supplicant/wpa_supplicant_i.h
 @@ -15,6 +15,7 @@
@@ -1312,7 +1311,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  extern const char *const wpa_supplicant_version;
  extern const char *const wpa_supplicant_license;
-@@ -780,6 +782,7 @@
+@@ -780,6 +782,7 @@ struct wpa_supplicant {
  	unsigned char own_addr[ETH_ALEN];
  	unsigned char perm_addr[ETH_ALEN];
  	char ifname[100];
@@ -1320,7 +1319,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 hw_dfs_domain;
  #ifdef CONFIG_MATCH_IFACE
  	int matched;
-@@ -1694,6 +1697,8 @@
+@@ -1694,6 +1697,8 @@ struct wpa_supplicant {
  	unsigned int enabled_4addr_mode:1;
  	unsigned int multi_bss_support:1;
  	unsigned int drv_authorized_port:1;
@@ -1339,7 +1338,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  #ifndef WPS_PIN_SCAN_IGNORE_SEL_REG
-@@ -371,6 +372,14 @@
+@@ -371,6 +372,14 @@ static void wpas_wps_remove_dup_network(
  }
  
  
@@ -1354,16 +1353,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int wpa_supplicant_wps_cred(void *ctx,
  				   const struct wps_credential *cred)
  {
-@@ -400,6 +409,8 @@
- 
+@@ -401,6 +410,8 @@ static int wpa_supplicant_wps_cred(void
  	wpa_hexdump_key(MSG_DEBUG, "WPS: Received Credential attribute",
  			cred->cred_attr, cred->cred_attr_len);
-+
-+	wpas_ucode_wps_complete(wpa_s, cred);
  
++	wpas_ucode_wps_complete(wpa_s, cred);
++
  	if (wpa_s->conf->wps_cred_processing == 1)
  		return 0;
-@@ -1596,6 +1607,7 @@
+ 
+@@ -1596,6 +1607,7 @@ int wpas_wps_init(struct wpa_supplicant
  	wps->cred_cb = wpa_supplicant_wps_cred;
  	wps->event_cb = wpa_supplicant_wps_event;
  	wps->rf_band_cb = wpa_supplicant_wps_rf_band;
@@ -1371,7 +1370,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wps->cb_ctx = wpa_s;
  
  	wps->dev.device_name = wpa_s->conf->device_name;
-@@ -1713,6 +1725,7 @@
+@@ -1713,6 +1725,7 @@ void wpas_wps_deinit(struct wpa_supplica
  	wpabuf_free(wpa_s->wps->dh_pubkey);
  	wpabuf_free(wpa_s->wps->dh_privkey);
  	wpabuf_free(wpa_s->wps->dev.vendor_ext_m1);

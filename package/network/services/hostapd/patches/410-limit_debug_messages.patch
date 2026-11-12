@@ -9,7 +9,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/utils/wpa_debug.c
 +++ b/src/utils/wpa_debug.c
-@@ -220,7 +220,7 @@
+@@ -220,7 +220,7 @@ void wpa_debug_close_linux_tracing(void)
   *
   * Note: New line '\n' is added to the end of the text when printing to stdout.
   */
@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	va_list ap;
  
-@@ -269,7 +269,7 @@
+@@ -269,7 +269,7 @@ void wpa_printf(int level, const char *f
  }
  
  
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			 size_t len, int show, int only_syslog)
  {
  	size_t i;
-@@ -396,19 +396,7 @@
+@@ -396,19 +396,7 @@ static void _wpa_hexdump(int level, cons
  #endif /* CONFIG_ANDROID_LOG */
  }
  
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			       size_t len, int show)
  {
  	size_t i, llen;
-@@ -521,20 +509,6 @@
+@@ -521,20 +509,6 @@ file_done:
  }
  
  
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_DEBUG_FILE
  static char *last_path = NULL;
  #endif /* CONFIG_DEBUG_FILE */
-@@ -658,7 +632,7 @@
+@@ -658,7 +632,7 @@ void wpa_msg_register_ifname_cb(wpa_msg_
  }
  
  
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	va_list ap;
  	char *buf;
-@@ -696,7 +670,7 @@
+@@ -696,7 +670,7 @@ void wpa_msg(void *ctx, int level, const
  }
  
  
@@ -89,7 +89,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	char *buf;
 --- a/src/utils/wpa_debug.h
 +++ b/src/utils/wpa_debug.h
-@@ -81,6 +81,17 @@
+@@ -81,6 +81,17 @@ void wpa_debug_close_file(void);
  void wpa_debug_setup_stdout(void);
  void wpa_debug_stop_log(void);
  
@@ -107,23 +107,24 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * wpa_debug_printf_timestamp - Print timestamp for debug output
   *
-@@ -101,8 +112,14 @@
+@@ -101,9 +112,15 @@ void wpa_debug_print_timestamp(void);
   *
   * Note: New line '\n' is added to the end of the text when printing to stdout.
   */
 -void wpa_printf(int level, const char *fmt, ...)
 +void _wpa_printf(int level, const char *fmt, ...)
  PRINTF_FORMAT(2, 3);
-+
+ 
 +#define wpa_printf(level, ...)						\
 +	do {								\
 +		if ((level) >= CONFIG_MSG_MIN_PRIORITY)			\
 +			_wpa_printf(level, __VA_ARGS__);		\
 +	} while(0)
- 
++
  /**
   * wpa_hexdump - conditional hex dump
-@@ -115,7 +132,13 @@
+  * @level: priority level (MSG_*) of the message
+@@ -115,7 +132,13 @@ PRINTF_FORMAT(2, 3);
   * output may be directed to stdout, stderr, and/or syslog based on
   * configuration. The contents of buf is printed out has hex dump.
   */
@@ -138,7 +139,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static inline void wpa_hexdump_buf(int level, const char *title,
  				   const struct wpabuf *buf)
-@@ -137,7 +160,13 @@
+@@ -137,7 +160,13 @@ static inline void wpa_hexdump_buf(int l
   * like wpa_hexdump(), but by default, does not include secret keys (passwords,
   * etc.) in debug output.
   */
@@ -153,7 +154,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static inline void wpa_hexdump_buf_key(int level, const char *title,
  				       const struct wpabuf *buf)
-@@ -159,8 +188,14 @@
+@@ -159,8 +188,14 @@ static inline void wpa_hexdump_buf_key(i
   * the hex numbers and ASCII characters (for printable range) are shown. 16
   * bytes per line will be shown.
   */
@@ -170,7 +171,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static inline void wpa_hexdump_ascii_buf(int level, const char *title,
  					 const struct wpabuf *buf)
-@@ -183,8 +218,14 @@
+@@ -183,8 +218,14 @@ static inline void wpa_hexdump_ascii_buf
   * bytes per line will be shown. This works like wpa_hexdump_ascii(), but by
   * default, does not include secret keys (passwords, etc.) in debug output.
   */
@@ -187,7 +188,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /*
   * wpa_dbg() behaves like wpa_msg(), but it can be removed from build to reduce
-@@ -221,7 +262,12 @@
+@@ -221,7 +262,12 @@ void wpa_hexdump_ascii_key(int level, co
   *
   * Note: New line '\n' is added to the end of the text when printing to stdout.
   */
@@ -201,7 +202,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /**
   * wpa_msg_ctrl - Conditional printf for ctrl_iface monitors
-@@ -235,8 +281,13 @@
+@@ -235,8 +281,13 @@ void wpa_msg(void *ctx, int level, const
   * attached ctrl_iface monitors. In other words, it can be used for frequent
   * events that do not need to be sent to syslog.
   */

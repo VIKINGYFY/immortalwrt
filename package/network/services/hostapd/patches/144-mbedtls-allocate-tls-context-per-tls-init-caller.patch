@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/tls_mbedtls.c
 +++ b/src/crypto/tls_mbedtls.c
-@@ -132,8 +132,11 @@
+@@ -132,8 +132,11 @@ typedef mbedtls_tls_prf_types int;
  #endif
  
  
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	unsigned int verify_peer:1;
  	unsigned int verify_depth0_only:1;
-@@ -169,21 +172,27 @@
+@@ -169,21 +172,27 @@ struct tls_conf {
  };
  
  
@@ -88,23 +88,23 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int crl_reload_interval;
 -	uint32_t refcnt;
 -	struct tls_config init_conf;
-+
+-};
+ 
+-static struct tls_global tls_ctx_global;
 +	void (*event_cb)(void *ctx, enum tls_event ev,
 +			 union tls_event_data *data);
 +	void *cb_ctx;
 +	int cert_in_cb;
 +	char *openssl_ciphers;
- };
++};
  
--static struct tls_global tls_ctx_global;
--
  
  struct tls_connection {
 +	struct tls_global *global; /* owning "tls_ctx" */
  	struct tls_conf *tls_conf;
  	struct wpabuf *push_buf;
  	struct wpabuf *pull_buf;
-@@ -273,16 +282,21 @@
+@@ -273,16 +282,21 @@ static void emsgrc(int level, const char
  #define ilog(rc, msg) emsgrc(MSG_INFO,  (msg), (rc))
  
  
@@ -128,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mbedtls_x509_crt_init(&tls_conf->ca_cert);
  	mbedtls_x509_crt_init(&tls_conf->client_cert);
  	mbedtls_pk_init(&tls_conf->private_key);
-@@ -291,7 +305,7 @@
+@@ -291,7 +305,7 @@ struct tls_conf * tls_conf_init(void *tl
  }
  
  
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	if (tls_conf == NULL || --tls_conf->refcnt != 0)
  		return;
-@@ -315,44 +329,46 @@
+@@ -315,44 +329,46 @@ void tls_conf_deinit(struct tls_conf *tl
  }
  
  
@@ -150,22 +150,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -
 -	if (++tls_ctx_global.refcnt > 1)
 -		return &tls_ctx_global;
--
++	struct tls_global *global = os_zalloc(sizeof(*global));
++	if (global == NULL)
++		return NULL;
+ 
 -	tls_ctx_global.ctr_drbg = crypto_mbedtls_ctr_drbg();
 -	/* copy struct for future use */
 -	tls_ctx_global.init_conf = *conf;
 -	if (conf->openssl_ciphers)
 -		tls_ctx_global.init_conf.openssl_ciphers =
 -		  os_strdup(conf->openssl_ciphers);
--
--	tls_ctx_global.crl_reload_interval = conf->crl_reload_interval;
--	os_get_reltime(&tls_ctx_global.crl_reload_previous);
--
--	return &tls_ctx_global;
-+	struct tls_global *global = os_zalloc(sizeof(*global));
-+	if (global == NULL)
-+		return NULL;
-+
 +	/* Copy the relevant parts of the tls_config (different from tls_conf)
 +	 * Note: conf->tls_flags is ignored, matching OpenSSL / GnuTLS. */
 +	global->event_cb = conf->event_cb;
@@ -179,10 +173,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			return NULL;
 +		}
 +	}
-+
+ 
+-	tls_ctx_global.crl_reload_interval = conf->crl_reload_interval;
+-	os_get_reltime(&tls_ctx_global.crl_reload_previous);
 +	global->crl_reload_interval = conf->crl_reload_interval;
 +	os_get_reltime(&global->crl_reload_previous);
-+
+ 
+-	return &tls_ctx_global;
 +	return global;
  }
  
@@ -211,7 +208,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -414,26 +430,30 @@
+@@ -414,26 +430,30 @@ void tls_connection_deinit(void *tls_ctx
  }
  
  
@@ -229,10 +226,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return NULL;
  
  	mbedtls_ssl_init(&conn->ssl);
--
--	conn->tls_conf = tls_ctx_global.tls_conf; /*(inherit global conf, if set)*/
 +	conn->global = global;
-+
+ 
+-	conn->tls_conf = tls_ctx_global.tls_conf; /*(inherit global conf, if set)*/
 +	conn->tls_conf = global->tls_conf; /*(inherit global conf, if set)*/
  	if (conn->tls_conf) {
  		++conn->tls_conf->refcnt;
@@ -247,7 +243,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return NULL;
  		}
  	}
-@@ -619,6 +639,14 @@
+@@ -619,6 +639,14 @@ static int tls_mbedtls_ssl_setup(struct
  	mbedtls_ssl_set_export_keys_cb(
  	    &conn->ssl, tls_connection_export_keys_cb, conn);
    #elif MBEDTLS_VERSION_NUMBER >= 0x02120000 /* mbedtls 2.18.0 */
@@ -262,7 +258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mbedtls_ssl_conf_export_keys_ext_cb(
  	    &conn->tls_conf->conf, tls_connection_export_keys_cb, conn);
    #endif
-@@ -1467,16 +1495,16 @@
+@@ -1467,16 +1495,16 @@ static int tls_mbedtls_set_ca_and_crl(st
  }
  
  
@@ -283,7 +279,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct os_reltime now;
  	if (os_get_reltime(&now) != 0
  	    || !os_reltime_expired(&now, previous, crl_reload_interval))
-@@ -1489,7 +1517,7 @@
+@@ -1489,7 +1517,7 @@ static void tls_mbedtls_refresh_crl(void
  	 * or else it would be a good idea to check mtime and size,
  	 * and avoid reloading if file has not changed */
  
@@ -292,7 +288,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		*previous = now;
  }
  
-@@ -1580,7 +1608,7 @@
+@@ -1580,7 +1608,7 @@ static int tls_mbedtls_set_certs(struct
  	else {
  		/* Initial setting: REQUIRED for client, OPTIONAL for server
  		 *   (see also tls_connection_set_verify()) */
@@ -301,7 +297,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		int authmode = tls_conf->verify_peer
  		  ? MBEDTLS_SSL_VERIFY_REQUIRED
  		  : MBEDTLS_SSL_VERIFY_OPTIONAL;
-@@ -1646,7 +1674,7 @@
+@@ -1646,7 +1674,7 @@ static int tls_mbedtls_set_certs(struct
  			(const unsigned char *)pwd,
  			pwd ? os_strlen(pwd) : 0,
  			mbedtls_ctr_drbg_random,
@@ -310,7 +306,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	  #else
  		ret = mbedtls_pk_parse_key(&tls_conf->private_key,
  			data, len,
-@@ -1752,22 +1780,28 @@
+@@ -1752,22 +1780,28 @@ static int tls_mbedtls_set_params(struct
  		return -1;
  	}
  
@@ -344,7 +340,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    MBEDTLS_SSL_TRANSPORT_STREAM,
  	    (tls_conf->flags & TLS_CONN_SUITEB) ? MBEDTLS_SSL_PRESET_SUITEB
  	                                        : MBEDTLS_SSL_PRESET_DEFAULT);
-@@ -1808,8 +1842,8 @@
+@@ -1808,8 +1842,8 @@ static int tls_mbedtls_set_params(struct
  		return -1;
  	}
  
@@ -355,7 +351,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return -1;
  	}
  	else if (tls_conf->flags & TLS_CONN_SUITEB) {
-@@ -1828,21 +1862,22 @@
+@@ -1828,21 +1862,22 @@ static int tls_mbedtls_set_params(struct
  int tls_connection_set_params(void *tls_ctx, struct tls_connection *conn,
  			      const struct tls_connection_params *params)
  {
@@ -385,7 +381,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (tls_conf->check_cert_subject == NULL)
  				return -1;
  		}
-@@ -1957,31 +1992,42 @@
+@@ -1957,31 +1992,42 @@ __attribute_cold__
  int tls_global_set_params(void *tls_ctx,
  			  const struct tls_connection_params *params)
  {
@@ -411,12 +407,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (params->ocsp_stapling_response) {
 +		global->ocsp_stapling_response =
  			os_strdup(params->ocsp_stapling_response);
--
--	os_free(tls_ctx_global.ca_cert_file);
--	tls_ctx_global.ca_cert_file = NULL;
--	if (params->ca_cert)
--		tls_ctx_global.ca_cert_file = os_strdup(params->ca_cert);
--	return tls_mbedtls_set_params(tls_ctx_global.tls_conf, params);
 +		if (global->ocsp_stapling_response == NULL)
 +			return -1;
 +	}
@@ -428,7 +418,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		if (global->ca_cert_file == NULL)
 +			return -1;
 +	}
-+
+ 
+-	os_free(tls_ctx_global.ca_cert_file);
+-	tls_ctx_global.ca_cert_file = NULL;
+-	if (params->ca_cert)
+-		tls_ctx_global.ca_cert_file = os_strdup(params->ca_cert);
+-	return tls_mbedtls_set_params(tls_ctx_global.tls_conf, params);
 +	return tls_mbedtls_set_params(global->tls_conf, params);
  }
  
@@ -444,7 +439,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -2214,7 +2260,7 @@
+@@ -2214,7 +2260,7 @@ static void tls_mbedtls_suiteb_handshake
  	/* tests/hwsim/test_suite_b.py test_suite_b_192_rsa_insufficient_dh */
  	if (!(conn->tls_conf->flags & TLS_CONN_SUITEB))
  		return;
@@ -453,7 +448,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
    #if 0
  	/*(info not available on client;
-@@ -2230,8 +2276,8 @@
+@@ -2230,8 +2276,8 @@ static void tls_mbedtls_suiteb_handshake
  	         < 384 /*(3072/8)*/)
    #endif
  	{
@@ -464,7 +459,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			union tls_event_data ev;
  			os_memset(&ev, 0, sizeof(ev));
  			ev.alert.is_local = 1;
-@@ -2239,7 +2285,7 @@
+@@ -2239,7 +2285,7 @@ static void tls_mbedtls_suiteb_handshake
  			/*"internal error" string for tests/hwsim/test_suiteb.py */
  			ev.alert.description = "internal error: handshake failure";
  			/*ev.alert.description = "insufficient security";*/
@@ -473,7 +468,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  }
-@@ -2262,11 +2308,9 @@
+@@ -2262,11 +2308,9 @@ struct wpabuf * tls_connection_handshake
  	}
  
  	if (conn->tls_conf == NULL) {
@@ -486,7 +481,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (tls_connection_set_params(tls_ctx, conn, &params) != 0)
  			return NULL;
  	}
-@@ -2350,7 +2394,7 @@
+@@ -2350,7 +2394,7 @@ struct wpabuf * tls_connection_handshake
  	case MBEDTLS_ERR_SSL_WANT_READ:
  	case MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS:
  	case MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS:
@@ -495,7 +490,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    && conn->established && conn->push_buf == NULL)
  			/* Need to return something to trigger completion of EAP-TLS. */
  			conn->push_buf = wpabuf_alloc(0);
-@@ -3024,11 +3068,12 @@
+@@ -3024,11 +3068,12 @@ tls_mbedtls_match_dn_field(mbedtls_x509_
  
  __attribute_cold__
  static void
@@ -511,7 +506,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  
  	struct wpabuf *certbuf = wpabuf_alloc_copy(crt->raw.p, crt->raw.len);
-@@ -3043,7 +3088,7 @@
+@@ -3043,7 +3088,7 @@ tls_mbedtls_verify_fail_event (mbedtls_x
  	ev.cert_fail.reason_txt = errmsg;
  	ev.cert_fail.cert = certbuf;
  
@@ -520,7 +515,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	wpabuf_free(certbuf);
  }
-@@ -3054,8 +3099,8 @@
+@@ -3054,8 +3099,8 @@ static void
  tls_mbedtls_verify_cert_event (struct tls_connection *conn,
                                 mbedtls_x509_crt *crt, int depth)
  {
@@ -531,7 +526,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  
  	struct wpabuf *certbuf = NULL;
-@@ -3145,12 +3190,12 @@
+@@ -3145,12 +3190,12 @@ tls_mbedtls_verify_cert_event (struct tl
  
  	struct tls_conf *tls_conf = conn->tls_conf;
  	if (tls_conf->ca_cert_probe || (tls_conf->flags & TLS_CONN_EXT_CERT_CHECK)
@@ -546,7 +541,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	wpabuf_free(certbuf);
  	char **altsubject;
-@@ -3177,7 +3222,7 @@
+@@ -3177,7 +3222,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  	if (depth > 8) { /*(depth 8 picked as arbitrary limit)*/
  		emsg(MSG_WARNING, "client cert chain too long");
  		*flags |= MBEDTLS_X509_BADCERT_OTHER; /* cert chain too long */
@@ -555,7 +550,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			                      "client cert chain too long",
  		                              TLS_FAIL_BAD_CERTIFICATE);
  	}
-@@ -3191,7 +3236,7 @@
+@@ -3191,7 +3236,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  			if (sha256_vector(1, addr, &crt->raw.len, hash) < 0
  			    || os_memcmp(tls_conf->ca_cert_hash, hash, sizeof(hash)) != 0) {
  				*flags |= MBEDTLS_X509_BADCERT_NOT_TRUSTED;
@@ -564,7 +559,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			                                      "cert hash mismatch",
  				                              TLS_FAIL_UNTRUSTED);
  			}
-@@ -3207,7 +3252,7 @@
+@@ -3207,7 +3252,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  		 * other TLS modules so that hwsim tests find exact string match)*/
  		if (!conn->peer_subject) { /* error copying subject string */
  			*flags |= MBEDTLS_X509_BADCERT_OTHER;
@@ -573,7 +568,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			                              "internal error",
  			                              TLS_FAIL_UNSPECIFIED);
  		}
-@@ -3222,7 +3267,7 @@
+@@ -3222,7 +3267,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  			           "MTLS: Subject '%s' did not match with '%s'",
  			           conn->peer_subject, tls_conf->subject_match);
  			*flags |= MBEDTLS_X509_BADCERT_CN_MISMATCH;
@@ -582,7 +577,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			                              "Subject mismatch",
  			                              TLS_FAIL_SUBJECT_MISMATCH);
  		}
-@@ -3232,7 +3277,7 @@
+@@ -3232,7 +3277,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  				   "MTLS: altSubjectName match '%s' not found",
  			           tls_conf->altsubject_match);
  			*flags |= MBEDTLS_X509_BADCERT_CN_MISMATCH;
@@ -591,7 +586,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			                              "AltSubject mismatch",
  			                              TLS_FAIL_ALTSUBJECT_MISMATCH);
  		}
-@@ -3242,7 +3287,7 @@
+@@ -3242,7 +3287,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  			           "MTLS: Domain suffix match '%s' not found",
  				   tls_conf->suffix_match);
  			*flags |= MBEDTLS_X509_BADCERT_CN_MISMATCH;
@@ -600,7 +595,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			                              "Domain suffix mismatch",
  			                              TLS_FAIL_DOMAIN_SUFFIX_MISMATCH);
  		}
-@@ -3252,14 +3297,14 @@
+@@ -3252,14 +3297,14 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  			           "MTLS: Domain match '%s' not found",
  				   tls_conf->domain_match);
  			*flags |= MBEDTLS_X509_BADCERT_CN_MISMATCH;
@@ -617,7 +612,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			                              "Distinguished Name",
  			                              TLS_FAIL_DN_MISMATCH);
  		}
-@@ -3272,7 +3317,7 @@
+@@ -3272,7 +3317,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  				 *   suite_b_192_rsa_ecdhe_radius_rsa2048_client
  				 *   suite_b_192_rsa_dhe_radius_rsa2048_client */
  				*flags |= MBEDTLS_X509_BADCERT_BAD_KEY;
@@ -626,7 +621,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				                              "Insufficient RSA modulus size",
  				                              TLS_FAIL_INSUFFICIENT_KEY_LEN);
  			}
-@@ -3281,7 +3326,7 @@
+@@ -3281,7 +3326,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  			/* see tests/hwsim test_ap_eap.py ap_wpa2_eap_tls_check_crl */
  			emsg(MSG_WARNING, "check_crl set but no CRL loaded; reject all?");
  			*flags |= MBEDTLS_X509_BADCERT_OTHER;
@@ -635,7 +630,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				                      "check_crl set but no CRL loaded; "
  			                              "reject all?",
  			                              TLS_FAIL_BAD_CERTIFICATE);
-@@ -3335,7 +3380,7 @@
+@@ -3335,7 +3380,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  				reason = TLS_FAIL_BAD_CERTIFICATE;
  				errmsg = "certificate uses insecure algorithm";
  			}
@@ -644,7 +639,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	  #if 0
  		/* ??? send (again) cert events for all certs in chain ???
-@@ -3357,20 +3402,20 @@
+@@ -3357,20 +3402,20 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  		}
  	}
  	else if (depth == 0) {

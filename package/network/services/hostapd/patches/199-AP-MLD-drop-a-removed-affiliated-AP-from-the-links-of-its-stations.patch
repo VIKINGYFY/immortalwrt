@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -655,6 +655,7 @@
+@@ -655,6 +655,7 @@ void hostapd_free_stas(struct hostapd_da
  
  #ifdef CONFIG_IEEE80211BE
  	hostapd_free_mld_partner_stas(hapd);
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  
  	sta = hapd->sta_list;
-@@ -728,10 +729,7 @@
+@@ -728,10 +729,7 @@ void hostapd_free_link_stas(struct hosta
  			   MAC2STR(prev->addr));
  		ap_sta_link_event(hapd, WPA_EVENT_LINK_STA_REMOVED, prev->addr,
  				  hapd->mld_link_id);

@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2812,9 +2812,15 @@
+@@ -2812,9 +2812,15 @@ void ieee802_11_free_ap_params(struct wp
  
  
  /* A start_disabled BSS beacons only after ieee802_11_start_beacon() */
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return false;
  
  	wpa_printf(MSG_DEBUG, "%s: Beacon frames held for start_disabled BSS",
-@@ -3479,8 +3485,14 @@
+@@ -3479,8 +3485,14 @@ int ieee802_11_set_beacon(struct hostapd
  
  int ieee802_11_start_beacon(struct hostapd_data *hapd)
  {
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/beacon.h
 +++ b/src/ap/beacon.h
-@@ -18,6 +18,7 @@
+@@ -18,6 +18,7 @@ void handle_probe_req(struct hostapd_dat
  void ieee802_11_set_beacon_per_bss_only(struct hostapd_data *hapd);
  int ieee802_11_set_beacon(struct hostapd_data *hapd);
  int ieee802_11_start_beacon(struct hostapd_data *hapd);
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ieee802_11_build_ap_params(struct hostapd_data *hapd,
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2586,6 +2586,7 @@
+@@ -2586,6 +2586,7 @@ static void hostapd_iface_enable(struct
  			hostapd_reconfig_encryption(hapd);
  		hapd->reenable_beacon = 1;
  		ieee802_11_set_beacon(hapd);
@@ -73,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef NEED_AP_MLME
  	} else if (hapd->disabled && hapd->iface->cac_started) {
  		wpa_printf(MSG_DEBUG, "DFS: restarting pending CAC");
-@@ -2600,6 +2601,7 @@
+@@ -2600,6 +2601,7 @@ static void hostapd_iface_disable(struct
  	hostapd_free_stas(hapd);
  	wpa_msg(hapd->msg_ctx, MSG_INFO, INTERFACE_DISABLED);
  	hapd->disabled = 1;
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -125,9 +125,6 @@
+@@ -125,9 +125,6 @@ void hostapd_reconfig_encryption(struct
  }
  
  
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void hostapd_reload_bss(struct hostapd_data *hapd)
  {
  	struct hostapd_ssid *ssid;
-@@ -2553,7 +2550,8 @@
+@@ -2553,7 +2550,8 @@ static int hostapd_owe_iface_iter(struct
  			   MAC2STR(bss->own_addr),
  			   wpa_ssid_txt(bss->conf->ssid.ssid,
  					bss->conf->ssid.ssid_len));
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !bss->conf->ssid.ssid_len ||
  		    is_zero_ether_addr(bss->own_addr))
  			continue;
-@@ -2626,7 +2624,7 @@
+@@ -2626,7 +2624,7 @@ static int hostapd_owe_iface_iter2(struc
  		struct hostapd_data *bss = iface->bss[i];
  		int res;
  
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			continue;
  		if (bss->iface->state != HAPD_IFACE_ENABLED) {
  			wpa_printf(MSG_DEBUG,
-@@ -2668,7 +2666,7 @@
+@@ -2668,7 +2666,7 @@ static void hostapd_owe_update_trans_ifa
  }
  
  
@@ -123,7 +123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -856,6 +856,7 @@
+@@ -856,6 +856,7 @@ void hostapd_cleanup_cs_params(struct ho
  void hostapd_periodic_iface(struct hostapd_iface *iface);
  int hostapd_owe_trans_get_info(struct hostapd_data *hapd);
  bool hostapd_owe_trans_static(struct hostapd_bss_config *conf);

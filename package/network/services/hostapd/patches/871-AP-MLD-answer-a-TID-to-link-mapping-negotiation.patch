@@ -42,18 +42,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1371,10 +1371,13 @@
+@@ -1371,10 +1371,13 @@ int hostapd_adv_ttlm_request(struct host
  
  	ret = hostapd_drv_adv_ttlm_request(hapd, links, switch_time, duration,
  					   &hapd->mld->adv_ttlm_cookie);
 -	if (ret)
 +	if (ret) {
  		hostapd_adv_ttlm_clear(hapd);
--
--	return ret;
 +		return ret;
 +	}
-+
+ 
+-	return ret;
 +	hostapd_neg_ttlm_adv_request(hapd, links);
 +	return 0;
  }
@@ -61,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9974,7 +9974,8 @@
+@@ -9974,7 +9974,8 @@ static int handle_action(struct hostapd_
  	struct sta_info *sta;
  	u8 *action __maybe_unused;
  
@@ -71,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		hostapd_logger(hapd, mgmt->sa, HOSTAPD_MODULE_IEEE80211,
  			       HOSTAPD_LEVEL_DEBUG,
  			       "handle_action - too short payload (len=%lu)",
-@@ -10738,6 +10739,11 @@
+@@ -10738,6 +10739,11 @@ skip_update:
  
  	hostapd_set_sta_flags(hapd, sta);
  
@@ -83,24 +82,24 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!(sta->flags & WLAN_STA_WDS) && sta->pending_wds_enable) {
  		wpa_printf(MSG_DEBUG, "Enable 4-address WDS mode for STA "
  			   MACSTR " based on pending request",
-@@ -10964,6 +10970,14 @@
- 	    mgmt->u.action.u.link_reconf_resp.action ==
- 	    WLAN_PROT_EHT_LINK_RECONFIG_RESPONSE) {
+@@ -10966,6 +10972,14 @@ static void handle_action_cb(struct host
  		hostapd_link_reconf_resp_tx_status(hapd, sta, mgmt, len, ok);
-+		return;
-+	}
+ 		return;
+ 	}
 +
 +	if (len >= IEEE80211_HDRLEN + 2 &&
 +	    mgmt->u.action.category == WLAN_ACTION_PROTECTED_EHT &&
 +	    mgmt->u.action.u.link_reconf_resp.action ==
 +	    WLAN_PROT_EHT_T2L_MAPPING_RESPONSE) {
 +		hostapd_neg_ttlm_resp_tx_status(hapd, sta, mgmt, len, ok);
- 		return;
- 	}
++		return;
++	}
  #endif /* CONFIG_IEEE80211BE */
+ 
+ #ifndef CONFIG_NO_RRM
 --- a/src/ap/ieee802_11.h
 +++ b/src/ap/ieee802_11.h
-@@ -339,6 +339,16 @@
+@@ -339,6 +339,16 @@ void hostapd_link_reconf_resp_tx_status(
  					struct sta_info *sta,
  					const struct ieee80211_mgmt *mgmt,
  					size_t len, int ok);
@@ -119,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u8 * hostapd_eid_eht_ml_tid_to_link_map(struct hostapd_data *hapd, u8 *eid,
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1729,6 +1729,12 @@
+@@ -1729,6 +1729,12 @@ struct sta_info * hostapd_ml_move_assoc_
  		  sizeof(sta->scs_configured));
  	os_memset(sta->scs_configured, 0, sizeof(sta->scs_configured));
  #endif /* CONFIG_ROBUST_AV */
@@ -132,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return assoc_sta;
  }
  
-@@ -2905,6 +2911,294 @@
+@@ -2905,6 +2911,294 @@ out:
  }
  
  
@@ -427,22 +426,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ieee802_11_rx_protected_eht_action(struct hostapd_data *hapd,
  					const struct ieee80211_mgmt *mgmt,
  					size_t len)
-@@ -2924,6 +3218,12 @@
- 						   len))
+@@ -2925,6 +3219,12 @@ void ieee802_11_rx_protected_eht_action(
  			wpa_printf(MSG_INFO,
  				   "MLD: Link Reconf Request processing failed");
-+		return;
+ 		return;
 +	case WLAN_PROT_EHT_T2L_MAPPING_REQUEST:
 +		hostapd_rx_neg_ttlm_req(hapd, mgmt, len);
 +		return;
 +	case WLAN_PROT_EHT_T2L_MAPPING_TEARDOWN:
 +		hostapd_rx_neg_ttlm_teardown(hapd, mgmt);
- 		return;
++		return;
  	}
  
+ 	wpa_printf(MSG_DEBUG,
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -364,6 +364,16 @@
+@@ -364,6 +364,16 @@ struct sta_info {
  	u8 mld_assoc_link_id;
  	struct link_reconf_req_list *reconf_req;
  	bool link_removal_tx;
@@ -461,16 +460,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u16 max_idle_period; /* if nonzero, the granted BSS max idle period in
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -3207,6 +3207,12 @@
- #ifdef CONFIG_IEEE80211BE
+@@ -3208,6 +3208,12 @@ static int nl80211_action_subscribe_ap(s
  	/* Protected EHT - Link Reconfiguration Request */
  	if (nl80211_register_action_frame(bss, (u8 *) "\x25\x0b", 2) < 0)
-+		ret = -1;
+ 		ret = -1;
 +	/* Protected EHT - TID-To-Link Mapping Request */
 +	if (nl80211_register_action_frame(bss, (u8 *) "\x25\x00", 2) < 0)
 +		ret = -1;
 +	/* Protected EHT - TID-To-Link Mapping Teardown */
 +	if (nl80211_register_action_frame(bss, (u8 *) "\x25\x02", 2) < 0)
- 		ret = -1;
++		ret = -1;
  #endif /* CONFIG_IEEE80211BE */
  #ifdef CONFIG_ROBUST_AV
+ 	/* Robust AV Streaming - SCS Request */

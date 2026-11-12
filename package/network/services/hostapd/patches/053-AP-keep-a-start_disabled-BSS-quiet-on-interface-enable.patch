@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2843,6 +2843,7 @@
+@@ -2843,6 +2843,7 @@ static int __ieee802_11_set_beacon(struc
  #endif /* CONFIG_IEEE80211AX */
  
  	hapd->beacon_set_done = 1;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -1;
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2543,7 +2543,8 @@
+@@ -2543,7 +2543,8 @@ static void hostapd_iface_enable(struct
  		else
  			hostapd_reconfig_encryption(hapd);
  		hapd->reenable_beacon = 1;
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG, "DFS: restarting pending CAC");
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -523,6 +523,7 @@
+@@ -523,6 +523,7 @@ void hostapd_free_hapd_data(struct hosta
  	}
  	hapd->started = 0;
  	hapd->beacon_set_done = 0;
@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	accounting_deinit(hapd);
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -187,6 +187,7 @@
+@@ -187,6 +187,7 @@ struct hostapd_data {
  	unsigned int started:1;
  	unsigned int disabled:1;
  	unsigned int reenable_beacon:1;

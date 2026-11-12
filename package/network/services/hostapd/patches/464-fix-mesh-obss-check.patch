@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/config_ssid.h
 +++ b/wpa_supplicant/config_ssid.h
-@@ -565,7 +565,7 @@
+@@ -565,7 +565,7 @@ struct wpa_ssid {
  	u8 edmg_channel;
  
  	/**
@@ -29,23 +29,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -4326,6 +4326,9 @@
- 	bool dfs_enabled = wpa_s->conf->country[0] && (wpa_s->drv_flags & WPA_DRIVER_FLAGS_RADAR);
+@@ -4327,6 +4327,9 @@ void ibss_mesh_setup_freq(struct wpa_sup
  
  	freq->freq = ssid->frequency;
-+
+ 
 +	if (ssid->fixed_freq)
 +		obss_scan = 0;
- 
++
  	if (ssid->mode == WPAS_MODE_IBSS && !ssid->fixed_freq) {
  		struct wpa_bss *bss = ibss_find_existing_bss(wpa_s, ssid);
+ 
 --- a/wpa_supplicant/wpa_supplicant.conf
 +++ b/wpa_supplicant/wpa_supplicant.conf
-@@ -1021,6 +1021,16 @@
- # In addition, this value is only used by the station that creates the IBSS. If
+@@ -1022,6 +1022,16 @@ fast_reauth=1
  # an IBSS network with the configured SSID is already present, the frequency of
  # the network will be used instead of this configured value.
-+#
+ #
 +# fixed_freq: Whether to use the configured frequency as is (IBSS and mesh)
 +# 0 = adapt the channel to the other networks found in the scan results
 +#     (default)
@@ -55,6 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +# an IBSS or mesh also does not check the other BSSs on the channels of a
 +# 40 MHz channel. That check can move the primary channel to the secondary
 +# channel or fall back to 20 MHz.
- #
++#
  # pbss: Whether to use PBSS. Relevant to IEEE 802.11ad networks only.
  # 0 = do not use PBSS
+ # 1 = use PBSS

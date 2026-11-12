@@ -21,18 +21,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/vlan_init.c
 +++ b/src/ap/vlan_init.c
-@@ -227,8 +227,12 @@
+@@ -227,9 +227,13 @@ struct hostapd_vlan * vlan_add_dynamic(s
  	if (vlan_if_add(hapd, n, 0)) {
  		hapd->conf->vlan = n->next;
  		os_free(n);
 -		n = NULL;
--	}
 +		return NULL;
-+	}
-+
+ 	}
+ 
 +#ifdef CONFIG_FULL_DYNAMIC_VLAN
 +	vlan_newlink(n->ifname, hapd);
 +#endif /* CONFIG_FULL_DYNAMIC_VLAN */
- 
++
  	return n;
  }
+ 

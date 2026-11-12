@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
-@@ -163,6 +163,10 @@
+@@ -163,6 +163,10 @@ struct flow_offload_tuple {
  			u32		iifidx;
  		} tc;
  	};
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32				upper_ifidx[NF_FLOW_TABLE_UPPER_MAX];
  };
  
-@@ -228,6 +232,7 @@
+@@ -228,6 +232,7 @@ struct nf_flow_route {
  			u32			hw_ifindex;
  			u8			h_source[ETH_ALEN];
  			u8			h_dest[ETH_ALEN];
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/netdevice.h>
  #include <net/ip.h>
  #include <net/ip6_route.h>
-@@ -135,7 +138,22 @@
+@@ -135,7 +138,22 @@ static int flow_offload_fill_route(struc
  		flow_tuple->bridge_vlan = route->tuple[dir].out.bridge_vlan;
  		flow_tuple->port_vlans = route->tuple[dir].out.port_vlans;
  		flow_tuple->out.hw_ifidx = route->tuple[dir].out.hw_ifindex;
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
  	case FLOW_OFFLOAD_XMIT_XFRM:
  	case FLOW_OFFLOAD_XMIT_NEIGH:
-@@ -155,6 +173,7 @@
+@@ -155,6 +173,7 @@ static int flow_offload_fill_route(struc
  static void nft_flow_dst_release(struct flow_offload *flow,
  				 enum flow_offload_tuple_dir dir)
  {
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (flow->tuplehash[dir].tuple.xmit_type == FLOW_OFFLOAD_XMIT_NEIGH ||
  	    flow->tuplehash[dir].tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)
  		dst_release(flow->tuplehash[dir].tuple.dst_cache);
-@@ -576,6 +595,41 @@
+@@ -576,6 +595,41 @@ static void nf_flow_table_extend_ct_time
  	nf_ct_put(ct);
  }
  
@@ -120,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static bool nf_flow_dst_valid(struct nf_flowtable *flow_table,
  			      struct flow_offload *flow, int dir)
  {
-@@ -588,6 +642,9 @@
+@@ -588,6 +642,9 @@ static bool nf_flow_dst_valid(struct nf_
  	u16 vid = 0;
  	int i;
  
@@ -132,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/netfilter/nf_flow_table_path.c
 +++ b/net/netfilter/nf_flow_table_path.c
-@@ -271,6 +271,7 @@
+@@ -271,6 +271,7 @@ static int nft_dev_forward_path(struct n
  	if (info.xmit_type == FLOW_OFFLOAD_XMIT_DIRECT) {
  		memcpy(route->tuple[dir].out.h_source, info.h_source, ETH_ALEN);
  		memcpy(route->tuple[dir].out.h_dest, info.h_dest, ETH_ALEN);

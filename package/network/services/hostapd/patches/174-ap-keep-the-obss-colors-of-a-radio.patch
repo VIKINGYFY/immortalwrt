@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -1461,6 +1461,12 @@
+@@ -1461,6 +1461,12 @@ static int hostapd_ctrl_iface_set(struct
  		} else if (os_strcasecmp(cmd, "transition_disable") == 0) {
  			wpa_auth_set_transition_disable(hapd->wpa_auth,
  							hapd->conf->transition_disable);
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  #ifdef CONFIG_TESTING_OPTIONS
-@@ -2738,7 +2744,7 @@
+@@ -2738,7 +2744,7 @@ static int hostapd_ctrl_iface_color_chan
  			return -1;
  		}
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		for (i = 0; i < iface->num_bss; i++)
  			ieee802_11_set_beacon(iface->bss[i]);
-@@ -2753,7 +2759,7 @@
+@@ -2753,7 +2759,7 @@ static int hostapd_ctrl_iface_color_chan
  			return -1;
  		}
  
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		for (i = 0; i < iface->num_bss; i++)
  			ieee802_11_set_beacon(iface->bss[i]);
-@@ -2770,7 +2776,7 @@
+@@ -2770,7 +2776,7 @@ static int hostapd_ctrl_iface_color_chan
  	/* IEEE Std 802.11-2024, 26.17.3.4: BSS Color Disabled shall be 1 during
  	 * the time leading up to the BSS color change TBTT.
  	 */
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		struct hostapd_data *bss = iface->bss[i];
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2556,7 +2556,7 @@
+@@ -2556,7 +2556,7 @@ static void hostapd_event_color_change(s
  			 * subsequent beacon rebuilds advertise the new color
  			 * as enabled.
  			 */
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		bss->cca_in_progress = 0;
-@@ -2988,6 +2988,8 @@
+@@ -2988,6 +2988,8 @@ void wpa_supplicant_event(void *ctx, enu
  					data->bss_color_collision.link_id);
  		wpa_printf(MSG_DEBUG, "BSS color collision on %s",
  			   hapd->conf->iface);
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -375,6 +375,10 @@
+@@ -375,6 +375,10 @@ int hostapd_reload_config(struct hostapd
  	}
  
  	iface->conf = newconf;
@@ -98,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	hostapd_config_free(oldconf);
  
  
-@@ -798,6 +802,9 @@
+@@ -798,6 +802,9 @@ static void hostapd_cleanup_iface(struct
  	hostapd_afc_stop(iface);
  	eloop_cancel_timeout(hostapd_interface_setup_failure_handler, iface,
  			     NULL);
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	hostapd_cleanup_iface_partial(iface);
  	hostapd_config_free(iface->conf);
-@@ -5122,6 +5129,7 @@
+@@ -5122,6 +5129,7 @@ void hostapd_switch_color_timeout_handle
  	struct hostapd_data *hapd = (struct hostapd_data *) eloop_data;
  	os_time_t delta_t;
  	unsigned int b;
@@ -116,14 +116,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int i, r;
  
  	 /* CCA can be triggered once the handler constantly receives
-@@ -5138,11 +5146,12 @@
+@@ -5138,11 +5146,12 @@ void hostapd_switch_color_timeout_handle
  	 * hostapd_fill_cca_settings()) and any incidental beacon rebuild
  	 * during the CCA countdown carry the correct Disabled=1 state.
  	 */
 -	hapd->iface->conf->he_op.he_bss_color_disabled = 1;
--
 +	hostapd_bss_color_disabled_set(hapd->iface, 1);
-+
+ 
 +	avoided = hostapd_bss_colors_avoided(hapd->iface);
  	r = os_random() % HE_OPERATION_BSS_COLOR_MAX;
  	for (i = 0; i < HE_OPERATION_BSS_COLOR_MAX; i++) {
@@ -132,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			break;
  
  		r = (r + 1) % HE_OPERATION_BSS_COLOR_MAX;
-@@ -5152,7 +5161,7 @@
+@@ -5152,7 +5161,7 @@ void hostapd_switch_color_timeout_handle
  		/* There are no free colors so turn BSS coloring off */
  		wpa_printf(MSG_INFO,
  			   "No free colors left, turning off BSS coloring");
@@ -141,7 +140,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		hapd->iface->conf->he_op.he_bss_color = os_random() % 63 + 1;
  		for (b = 0; b < hapd->iface->num_bss; b++)
  			ieee802_11_set_beacon(hapd->iface->bss[b]);
-@@ -5185,6 +5194,132 @@
+@@ -5185,6 +5194,132 @@ void hostapd_switch_color_timeout_handle
  }
  
  
@@ -274,7 +273,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  bool hostapd_is_cca_in_progress(struct hostapd_iface *iface)
  {
  	size_t i;
-@@ -5208,7 +5343,6 @@
+@@ -5208,7 +5343,6 @@ void hostapd_switch_color(struct hostapd
  	if (os_get_reltime(&now))
  		return;
  
@@ -284,7 +283,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (eloop_is_timeout_registered(hostapd_switch_color_timeout_handler,
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -346,7 +346,6 @@
+@@ -346,7 +346,6 @@ struct hostapd_data {
  	unsigned int cca_c_off_proberesp;
  	struct os_reltime first_color_collision;
  	struct os_reltime last_color_collision;
@@ -292,7 +291,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211AX */
  
  #ifdef CONFIG_P2P
-@@ -789,6 +788,15 @@
+@@ -789,6 +788,15 @@ struct hostapd_iface {
  		bool data_valid;
  	} afc;
  #endif /* CONFIG_AFC */
@@ -308,7 +307,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /* hostapd.c */
-@@ -844,6 +852,12 @@
+@@ -844,6 +852,12 @@ int hostapd_owe_trans_get_info(struct ho
  void hostapd_ocv_check_csa_sa_query(void *eloop_ctx, void *timeout_ctx);
  
  void hostapd_switch_color(struct hostapd_data *hapd, u64 bitmap);
@@ -321,7 +320,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void hostapd_cleanup_cca_params(struct hostapd_data *hapd);
  #ifdef CONFIG_AFC
  int hostap_afc_get_chan_max_eirp_power(struct hostapd_iface *iface, bool psd,
-@@ -951,6 +965,7 @@
+@@ -951,6 +965,7 @@ void free_beacon_data(struct beacon_data
  int hostapd_fill_cca_settings(struct hostapd_data *hapd,
  			      struct cca_settings *settings);
  void hostapd_switch_color_timeout_handler(void *eloop_data, void *user_ctx);
@@ -331,7 +330,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -375,6 +375,11 @@
+@@ -375,6 +375,11 @@ struct sta_info {
  	u8 unsolicited_dialog_token;
  	struct dscp_policy_state dscp_state;
  #endif /* CONFIG_ROBUST_AV */
@@ -345,7 +344,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/wnm_ap.c
 +++ b/src/ap/wnm_ap.c
-@@ -753,6 +753,7 @@
+@@ -753,6 +753,7 @@ static void ieee802_11_rx_wnm_event_repo
  		wpa_printf(MSG_DEBUG,
  			   "WNM: BSS color collision bitmap 0x%llx reported by "
  			   MACSTR, (unsigned long long) bitmap, MAC2STR(addr));
@@ -353,7 +352,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		hostapd_switch_color(hapd->iface->bss[0], bitmap);
  		break;
  	case WNM_EVENT_TYPE_BSS_COLOR_IN_USE:
-@@ -771,17 +772,15 @@
+@@ -771,17 +772,15 @@ static void ieee802_11_rx_wnm_event_repo
  				   MACSTR, color, MAC2STR(addr));
  			return;
  		}

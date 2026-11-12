@@ -9,7 +9,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
-@@ -1485,7 +1485,7 @@
+@@ -1485,7 +1485,7 @@ hostapd_multi.a: $(BCHECK) $(OBJS)
  	@$(AR) cr $@ hostapd_multi.o $(OBJS)
  
  hostapd: $(OBJS)
@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	@$(E) "  LD " $@
  
  ifdef CONFIG_WPA_TRACE
-@@ -1496,7 +1496,7 @@
+@@ -1496,7 +1496,7 @@ _OBJS_VAR := OBJS_c
  include ../src/objs.mk
  
  hostapd_cli: $(OBJS_c)
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  NOBJS = nt_password_hash.o ../src/crypto/ms_funcs.o $(SHA1OBJS)
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
-@@ -2205,31 +2205,31 @@
+@@ -2205,31 +2205,31 @@ wpa_supplicant_multi.a: .config $(BCHECK
  	@$(AR) cr $@ wpa_supplicant_multi.o $(OBJS)
  
  wpa_supplicant: $(BCHECK) $(OBJS) $(EXTRA_progs)

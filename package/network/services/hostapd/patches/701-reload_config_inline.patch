@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -5348,7 +5348,14 @@
+@@ -5348,7 +5348,14 @@ struct hostapd_config * hostapd_config_r
  	int errors = 0;
  	size_t i;
  
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   "for reading.", fname);
 --- a/hostapd/main.c
 +++ b/hostapd/main.c
-@@ -422,7 +422,11 @@
+@@ -422,7 +422,11 @@ hostapd_interface_init(struct hapd_inter
  	struct hostapd_iface *iface;
  	int k;
  
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return NULL;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -4200,8 +4200,13 @@
+@@ -4200,8 +4200,13 @@ hostapd_interface_init_bss(struct hapd_i
  		}
  	}
  
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!conf)
 --- a/wpa_supplicant/config_file.c
 +++ b/wpa_supplicant/config_file.c
-@@ -390,8 +390,13 @@
+@@ -390,8 +390,13 @@ struct wpa_config * wpa_config_read(cons
  	while (identity_tail && identity_tail->next)
  		identity_tail = identity_tail->next;
  

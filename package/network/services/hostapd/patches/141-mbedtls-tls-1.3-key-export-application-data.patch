@@ -46,12 +46,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * - builds with tests/build/build-wpa_supplicant-mbedtls.config
   * - passes all tests/ crypto module tests (incomplete coverage)
   *   ($ cd tests; make clean; make -j 4 run-tests CONFIG_TLS=mbedtls)
-@@ -121,6 +121,15 @@
+@@ -123,6 +123,15 @@ typedef mbedtls_tls_prf_types int;
  #endif
  #endif
- #endif
-+#endif
-+
+ 
 +/* MBEDTLS_SSL_PROTO_TLS1_3 by itself is insufficient for working TLS 1.3 support,
 + * because keying material from a TLSv1.3 session can only be exported via the
 + * mbedtls_ssl_export_keying_material() API that requires Mbed TLS 3.6.4 or newer
@@ -59,10 +57,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 + * See tls_connection_export_key(). */
 +#if defined(MBEDTLS_SSL_PROTO_TLS1_3) && defined(MBEDTLS_SSL_KEYING_MATERIAL_EXPORT)
 +#define TLS_MBEDTLS_TLS13
- #endif
++#endif
++
  
- 
-@@ -644,7 +653,7 @@
+ struct tls_conf {
+ 	mbedtls_ssl_config conf;
+@@ -644,7 +653,7 @@ static int tls_mbedtls_data_is_pem(const
  static void tls_mbedtls_set_allowed_tls_vers(struct tls_conf *tls_conf,
                                               mbedtls_ssl_config *conf)
  {
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	tls_conf->flags |= TLS_CONN_DISABLE_TLSv1_3;
    #endif
  
-@@ -2057,7 +2066,16 @@
+@@ -2057,7 +2066,16 @@ int tls_connection_export_key(void *tls_
  			      size_t context_len, u8 *out, size_t out_len)
  {
  	/* (EAP-PEAP EAP-TLS EAP-TTLS) */
@@ -89,7 +89,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return (conn && conn->established && conn->tls_prf_type)
  	  ? mbedtls_ssl_tls_prf(conn->tls_prf_type,
  				conn->expkey_secret, conn->expkey_secret_len, label,
-@@ -2283,8 +2301,32 @@
+@@ -2283,8 +2301,32 @@ struct wpabuf * tls_connection_handshake
  			/* Need to return something to get final TLS ACK. */
  			conn->push_buf = wpabuf_alloc(0);
  
@@ -126,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case MBEDTLS_ERR_SSL_WANT_READ:
 --- a/tests/hwsim/test_ap_eap.py
 +++ b/tests/hwsim/test_ap_eap.py
-@@ -135,10 +135,19 @@
+@@ -135,10 +135,19 @@ def check_pkcs5_v15_support(dev):
      if "BoringSSL" in tls or "GnuTLS" in tls or "mbed TLS" in tls:
          raise HwsimSkip("PKCS#5 v1.5 not supported with this TLS library: " + tls)
  
@@ -147,7 +147,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
      ok = ['run=OpenSSL', 'wolfSSL']
      for s in ok:
          if s in tls:
-@@ -6313,15 +6322,13 @@
+@@ -6313,15 +6322,13 @@ def test_ap_wpa2_eap_tls_versions(dev, a
      elif tls.startswith("internal") or tls.startswith("mbed TLS"):
          check_tls_ver(dev[0], hapd,
                        "tls_disable_tlsv1_0=1 tls_disable_tlsv1_1=1", "TLSv1.2")

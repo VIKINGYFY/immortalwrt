@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -2721,12 +2721,9 @@
+@@ -2721,12 +2721,9 @@ static int hostapd_ctrl_iface_color_chan
  					   const char *pos)
  {
  #ifdef NEED_AP_MLME
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	color = strtol(pos, &end, 10);
  	if (pos == end || color < 0 || color > 63) {
-@@ -2773,37 +2770,17 @@
+@@ -2773,38 +2770,18 @@ static int hostapd_ctrl_iface_color_chan
  		return -1;
  	}
  
@@ -65,16 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			hostapd_cleanup_cca_params(bss);
 -			continue;
 -		}
-+	wpa_printf(MSG_DEBUG, "Setting user selected color: %d", color);
-+	if (hostapd_cca_start(iface, color)) {
-+		wpa_printf(MSG_ERROR,
-+			   "color_change: Color change failed for color: %d",
-+			   color);
-+		return -1;
-+	}
-+
-+	for (i = 0; i < iface->num_bss; i++)
- 		eloop_cancel_timeout(hostapd_switch_color_timeout_handler,
+-		eloop_cancel_timeout(hostapd_switch_color_timeout_handler,
 -				     bss, NULL);
 -
 -		wpa_printf(MSG_DEBUG, "Setting user selected color: %d", color);
@@ -84,14 +75,24 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -
 -		free_beacon_data(&settings.beacon_cca);
 -		free_beacon_data(&settings.beacon_after);
--	}
-+				     iface->bss[i], NULL);
++	wpa_printf(MSG_DEBUG, "Setting user selected color: %d", color);
++	if (hostapd_cca_start(iface, color)) {
++		wpa_printf(MSG_ERROR,
++			   "color_change: Color change failed for color: %d",
++			   color);
++		return -1;
+ 	}
  
++	for (i = 0; i < iface->num_bss; i++)
++		eloop_cancel_timeout(hostapd_switch_color_timeout_handler,
++				     iface->bss[i], NULL);
++
  	return 0;
  #else /* NEED_AP_MLME */
+ 	return -1;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -5124,6 +5124,53 @@
+@@ -5124,6 +5124,53 @@ int hostapd_fill_cca_settings(struct hos
  }
  
  
@@ -145,11 +146,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void hostapd_switch_color_timeout_handler(void *eloop_data, void *user_ctx)
  {
  	struct hostapd_data *hapd = (struct hostapd_data *) eloop_data;
-@@ -5139,14 +5186,6 @@
- 		hapd->first_color_collision.sec;
+@@ -5140,14 +5187,6 @@ void hostapd_switch_color_timeout_handle
  	if (delta_t < DOT11BSS_COLOR_COLLISION_AP_PERIOD)
  		return;
--
+ 
 -	/* IEEE Std 802.11-2024, 26.17.3.5.1: once the BSS color collision has
 -	 * persisted for dot11BSSColorCollisionAPPeriod the AP shall set BSS
 -	 * Color Disabled to 1. Set it now so that beacon_cca (built inside
@@ -157,10 +157,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -	 * during the CCA countdown carry the correct Disabled=1 state.
 -	 */
 -	hostapd_bss_color_disabled_set(hapd->iface, 1);
- 
+-
  	avoided = hostapd_bss_colors_avoided(hapd->iface);
  	r = os_random() % HE_OPERATION_BSS_COLOR_MAX;
-@@ -5168,29 +5207,7 @@
+ 	for (i = 0; i < HE_OPERATION_BSS_COLOR_MAX; i++) {
+@@ -5168,29 +5207,7 @@ void hostapd_switch_color_timeout_handle
  		return;
  	}
  
@@ -193,7 +194,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -964,6 +964,7 @@
+@@ -964,6 +964,7 @@ int hostapd_build_beacon_data(struct hos
  void free_beacon_data(struct beacon_data *beacon);
  int hostapd_fill_cca_settings(struct hostapd_data *hapd,
  			      struct cca_settings *settings);

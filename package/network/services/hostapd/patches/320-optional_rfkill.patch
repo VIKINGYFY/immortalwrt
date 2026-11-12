@@ -8,7 +8,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/drivers.mak
 +++ b/src/drivers/drivers.mak
-@@ -54,7 +54,6 @@
+@@ -54,7 +54,6 @@ NEED_SME=y
  NEED_AP_MLME=y
  NEED_NETLINK=y
  NEED_LINUX_IOCTL=y
@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  NEED_RADIOTAP=y
  NEED_LIBNL=y
  endif
-@@ -91,7 +90,6 @@
+@@ -91,7 +90,6 @@ DRV_WPA_CFLAGS += -DCONFIG_DRIVER_WEXT
  CONFIG_WIRELESS_EXTENSION=y
  NEED_NETLINK=y
  NEED_LINUX_IOCTL=y
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  endif
  
  ifdef CONFIG_DRIVER_NDIS
-@@ -117,7 +115,6 @@
+@@ -117,7 +115,6 @@ endif
  ifdef CONFIG_WIRELESS_EXTENSION
  DRV_WPA_CFLAGS += -DCONFIG_WIRELESS_EXTENSION
  DRV_WPA_OBJS += ../src/drivers/driver_wext.o
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  endif
  
  ifdef NEED_NETLINK
-@@ -126,6 +123,7 @@
+@@ -126,6 +123,7 @@ endif
  
  ifdef NEED_RFKILL
  DRV_OBJS += ../src/drivers/rfkill.o
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef NEED_RADIOTAP
 --- a/src/drivers/rfkill.h
 +++ b/src/drivers/rfkill.h
-@@ -18,8 +18,25 @@
+@@ -18,8 +18,25 @@ struct rfkill_config {
  	void (*unblocked_cb)(void *ctx);
  };
  

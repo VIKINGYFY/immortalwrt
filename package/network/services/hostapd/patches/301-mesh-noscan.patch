@@ -9,7 +9,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/config.c
 +++ b/wpa_supplicant/config.c
-@@ -2882,6 +2882,7 @@
+@@ -2882,6 +2882,7 @@ static const struct parse_data ssid_fiel
  #else /* CONFIG_MESH */
  	{ INT_RANGE(mode, 0, 4) },
  #endif /* CONFIG_MESH */
@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	{ STR(id_str) },
 --- a/wpa_supplicant/config_file.c
 +++ b/wpa_supplicant/config_file.c
-@@ -910,6 +910,7 @@
+@@ -910,6 +910,7 @@ static void wpa_config_write_network(FIL
  	INT(mode);
  #ifdef CONFIG_MESH
  	INT(no_auto_peer);
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	INT(frequency);
 --- a/wpa_supplicant/config_ssid.h
 +++ b/wpa_supplicant/config_ssid.h
-@@ -1075,6 +1075,8 @@
+@@ -1075,6 +1075,8 @@ struct wpa_ssid {
  	 */
  	int no_auto_peer;
  
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 *
 --- a/wpa_supplicant/mesh.c
 +++ b/wpa_supplicant/mesh.c
-@@ -517,6 +517,8 @@
+@@ -517,6 +517,8 @@ static int wpa_supplicant_mesh_init(stru
  			   frequency);
  		goto out_free;
  	}
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/*
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -3846,7 +3846,7 @@
+@@ -3846,7 +3846,7 @@ static bool ibss_mesh_can_use_vht(struct
  				  const struct wpa_ssid *ssid,
  				  struct hostapd_hw_modes *mode)
  {
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return false;
  
  	if (!drv_supports_vht(wpa_s, ssid))
-@@ -3922,7 +3922,7 @@
+@@ -3922,7 +3922,7 @@ static void ibss_mesh_select_40mhz(struc
  	int i, res;
  	unsigned int j;
  	static const int ht40plus_5ghz[] = {
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		149, 157, 165, 173, 184, 192
  	};
  	static const int ht40plus_6ghz[] = {
-@@ -3933,7 +3933,7 @@
+@@ -3933,7 +3933,7 @@ static void ibss_mesh_select_40mhz(struc
  	static const int ht40plus_2g4[] = { 1, 2, 3, 4, 5, 6 };
  	int ht40 = -1;
  
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!freq->he_enabled ||
  		    !(mode->he_capab[ieee80211_mode].phy_cap[
  			      HE_PHYCAP_CHANNEL_WIDTH_SET_IDX] &
-@@ -4320,7 +4320,7 @@
+@@ -4320,7 +4320,7 @@ void ibss_mesh_setup_freq(struct wpa_sup
  	int ieee80211_mode = wpas_mode_to_ieee80211_mode(ssid->mode);
  	enum hostapd_hw_mode hw_mode;
  	struct hostapd_hw_modes *mode = NULL;

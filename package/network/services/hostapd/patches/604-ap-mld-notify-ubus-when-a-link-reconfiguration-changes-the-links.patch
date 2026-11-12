@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1732,9 +1732,6 @@
+@@ -1732,9 +1732,6 @@ void hostapd_link_reconf_resp_tx_status(
  					  info->link_id);
  	}
  
@@ -35,13 +35,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dl_list_for_each(info, &req_list->del_req, struct link_reconf_req_info,
  			 list) {
  		if (info->status != WLAN_STATUS_SUCCESS)
-@@ -1818,6 +1815,9 @@
- 				  link_id);
+@@ -1819,6 +1816,9 @@ void hostapd_link_reconf_resp_tx_status(
  		ap_free_link_sta(lhapd, lsta);
  	}
-+
+ 
 +	if (req_list->links_add_ok || req_list->links_del_ok)
 +		hostapd_ubus_notify_sta_links(assoc_hapd, assoc_sta);
- 
++
  exit:
  	ml_deinit_link_reconf_req(&req_list);
+ 	if (assoc_sta && assoc_sta->reconf_req)

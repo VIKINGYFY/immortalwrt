@@ -8,7 +8,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
-@@ -222,6 +222,9 @@
+@@ -222,6 +222,9 @@ endif
  ifdef CONFIG_NO_CTRL_IFACE
  CFLAGS += -DCONFIG_NO_CTRL_IFACE
  else
@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  else
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -2990,6 +2990,7 @@
+@@ -2990,6 +2990,7 @@ static int hostapd_ctrl_iface_set_bw(str
  #endif /* CONFIG_TESTING_OPTIONS */
  
  
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int hostapd_ctrl_iface_mib(struct hostapd_data *hapd, char *reply,
  				  int reply_size, const char *param)
  {
-@@ -3001,6 +3002,7 @@
+@@ -3001,6 +3002,7 @@ static int hostapd_ctrl_iface_mib(struct
  #endif /* RADIUS_SERVER */
  	return -1;
  }
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  static int hostapd_ctrl_iface_vendor(struct hostapd_data *hapd, char *cmd,
-@@ -4201,7 +4203,10 @@
+@@ -4201,7 +4203,10 @@ static int hostapd_ctrl_iface_receive_pr
  					      struct sockaddr_storage *from,
  					      socklen_t fromlen)
  {
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	os_memcpy(reply, "OK\n", 3);
  	reply_len = 3;
-@@ -4222,6 +4227,7 @@
+@@ -4222,6 +4227,7 @@ static int hostapd_ctrl_iface_receive_pr
  						      reply_size);
  	} else if (os_strcmp(buf, "STATUS-DRIVER") == 0) {
  		reply_len = hostapd_drv_status(hapd, reply, reply_size);
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (os_strcmp(buf, "MIB") == 0) {
  		reply_len = ieee802_11_get_mib(hapd, reply, reply_size);
  		if (reply_len >= 0) {
-@@ -4263,6 +4269,7 @@
+@@ -4263,6 +4269,7 @@ static int hostapd_ctrl_iface_receive_pr
  	} else if (os_strncmp(buf, "STA-NEXT ", 9) == 0) {
  		reply_len = hostapd_ctrl_iface_sta_next(hapd, buf + 9, reply,
  							reply_size);
@@ -93,13 +93,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static size_t hostapd_write_ht_mcs_bitmask(char *buf, size_t buflen,
  					   size_t curr_len, const u8 *mcs_set)
-@@ -210,26 +230,6 @@
- 	default:
- 		return "?";
- 	}
--}
--
--
+@@ -213,26 +233,6 @@ static const char * timeout_next_str(int
+ }
+ 
+ 
 -static const char * hw_mode_str(enum hostapd_hw_mode mode)
 -{
 -	switch (mode) {
@@ -117,10 +114,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		return "invalid";
 -	}
 -	return "unknown";
- }
- 
- 
-@@ -586,6 +586,7 @@
+-}
+-
+-
+ static int hostapd_ctrl_iface_sta_mib(struct hostapd_data *hapd,
+ 				      struct sta_info *sta,
+ 				      char *buf, size_t buflen)
+@@ -586,6 +586,7 @@ int hostapd_ctrl_iface_sta_next(struct h
  	return hostapd_ctrl_iface_sta_mib(hapd, sta->next, buf, buflen);
  }
  
@@ -128,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #ifdef CONFIG_P2P_MANAGER
  static int p2p_manager_disconnect(struct hostapd_data *hapd, u16 stype,
-@@ -1057,12 +1058,12 @@
+@@ -1057,12 +1058,12 @@ int hostapd_ctrl_iface_status(struct hos
  			return len;
  		len += ret;
  	}
@@ -145,16 +145,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (os_snprintf_error(buflen - len, ret))
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -2860,6 +2860,8 @@
- 		sm->flags &= ~EAPOL_SM_PREAUTH;
+@@ -2861,6 +2861,8 @@ void ieee802_1x_notify_pre_auth(struct e
  }
  
-+
-+#ifdef CONFIG_CTRL_IFACE_MIB
  
++#ifdef CONFIG_CTRL_IFACE_MIB
++
  static const char * bool_txt(bool val)
  {
-@@ -3055,6 +3057,7 @@
+ 	return val ? "TRUE" : "FALSE";
+@@ -3055,6 +3057,7 @@ int ieee802_1x_get_mib_sta(struct hostap
  	return len;
  }
  
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ieee802_1x_wnm_notif_send(void *eloop_ctx, void *timeout_ctx)
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -6599,6 +6599,8 @@
+@@ -6599,6 +6599,8 @@ void wpa_gtk_rekey(struct wpa_authentica
  }
  
  
@@ -173,7 +173,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const char * wpa_bool_txt(int val)
  {
  	return val ? "TRUE" : "FALSE";
-@@ -6765,7 +6767,7 @@
+@@ -6765,7 +6767,7 @@ int wpa_get_mib_sta(struct wpa_state_mac
  
  	return len;
  }
@@ -184,7 +184,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/src/rsn_supp/wpa.c
 +++ b/src/rsn_supp/wpa.c
-@@ -4332,6 +4332,7 @@
+@@ -4332,6 +4332,7 @@ out:
  
  
  #ifdef CONFIG_CTRL_IFACE
@@ -192,7 +192,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static u32 wpa_key_mgmt_suite(struct wpa_sm *sm)
  {
  	switch (sm->key_mgmt) {
-@@ -4452,6 +4453,7 @@
+@@ -4452,6 +4453,7 @@ int wpa_sm_get_mib(struct wpa_sm *sm, ch
  
  	return (int) len;
  }
@@ -202,7 +202,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
-@@ -1109,6 +1109,9 @@
+@@ -1109,6 +1109,9 @@ ifdef CONFIG_FILS
  OBJS += ../src/ap/fils_hlp.o
  endif
  ifdef CONFIG_CTRL_IFACE
@@ -214,7 +214,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  ifdef CONFIG_ROBUST_AV
 --- a/wpa_supplicant/ap.c
 +++ b/wpa_supplicant/ap.c
-@@ -1552,7 +1552,7 @@
+@@ -1552,7 +1552,7 @@ int wpas_ap_wps_nfc_report_handover(stru
  #endif /* CONFIG_WPS */
  
  
@@ -223,7 +223,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  int ap_ctrl_iface_sta_first(struct wpa_supplicant *wpa_s,
  			    char *buf, size_t buflen)
-@@ -1598,6 +1598,10 @@
+@@ -1598,6 +1598,10 @@ int ap_ctrl_iface_sta_next(struct wpa_su
  	return hostapd_ctrl_iface_sta_next(hapd, txtaddr, buf, buflen);
  }
  
@@ -236,7 +236,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				   const char *txtaddr)
 --- a/wpa_supplicant/ctrl_iface.c
 +++ b/wpa_supplicant/ctrl_iface.c
-@@ -13882,6 +13882,7 @@
+@@ -13882,6 +13882,7 @@ char * wpa_supplicant_ctrl_iface_process
  	} else if (os_strncmp(buf, "NOTE ", 5) == 0) {
  		wpa_printf(MSG_INFO, "NOTE: %s", buf + 5);
  		wpa_trace_set_context(buf + 5);
@@ -244,7 +244,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (os_strcmp(buf, "MIB") == 0) {
  		reply_len = wpa_sm_get_mib(wpa_s->wpa, reply, reply_size);
  		if (reply_len >= 0) {
-@@ -13894,6 +13895,7 @@
+@@ -13894,6 +13895,7 @@ char * wpa_supplicant_ctrl_iface_process
  				reply_size - reply_len);
  #endif /* CONFIG_MACSEC */
  		}
@@ -252,7 +252,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (os_strncmp(buf, "STATUS", 6) == 0) {
  		reply_len = wpa_supplicant_ctrl_iface_status(
  			wpa_s, buf + 6, reply, reply_size);
-@@ -14381,6 +14383,7 @@
+@@ -14381,6 +14383,7 @@ char * wpa_supplicant_ctrl_iface_process
  		reply_len = wpa_supplicant_ctrl_iface_bss(
  			wpa_s, buf + 4, reply, reply_size);
  #ifdef CONFIG_AP
@@ -260,7 +260,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (os_strcmp(buf, "STA-FIRST") == 0) {
  		reply_len = ap_ctrl_iface_sta_first(wpa_s, reply, reply_size);
  	} else if (os_strncmp(buf, "STA ", 4) == 0) {
-@@ -14389,6 +14392,7 @@
+@@ -14389,6 +14392,7 @@ char * wpa_supplicant_ctrl_iface_process
  	} else if (os_strncmp(buf, "STA-NEXT ", 9) == 0) {
  		reply_len = ap_ctrl_iface_sta_next(wpa_s, buf + 9, reply,
  						   reply_size);

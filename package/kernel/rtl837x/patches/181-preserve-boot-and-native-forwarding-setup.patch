@@ -13,7 +13,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -1946,6 +1946,9 @@
+@@ -1946,6 +1946,9 @@ static int rtl8372n_setup_port(struct re
  	if (chip_info->port_feature[port] == RTL837X_PORT_FEATURE_NONEXIST)
  		return 0;
  
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (of_get_phy_mode(dn, &mode)) {
  		dev_warn(priv->dev,
  			 "Failed to get port(%d) phy-mode, Use PHY_INTERFACE_MODE_INTERNAL by default",
-@@ -1961,15 +1964,17 @@
+@@ -1961,15 +1964,17 @@ static int rtl8372n_setup_port(struct re
  			port_type = RTL837X_SMI_MAC_TYPE_PORT;
  	}
  
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			// TODO?: may be we can add poll phy status?
  			port_priv->have_pcs = false;
  
-@@ -1995,19 +2000,23 @@
+@@ -1995,19 +2000,23 @@ static int rtl8372n_setup_port(struct re
  			port_priv->pcs.poll = true;
  		}
  
@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = regmap_write(priv->map, RTL837X_FC_PORT_ACT_CTRL_REG(port), 0x1050);
  	if (ret)
-@@ -2232,13 +2241,12 @@
+@@ -2232,13 +2241,12 @@ static void rtl8372n_teardown(struct dsa
  // TODO: init chip based on rtl837x_chip_info
  static int rtl8372n_setup(struct dsa_switch *ds)
  {
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	dsa_switch_for_each_port(dp, ds) {
  		if (dsa_port_is_dsa(dp)) {
-@@ -2269,33 +2277,45 @@
+@@ -2269,33 +2277,45 @@ static int rtl8372n_setup(struct dsa_swi
  	}
  
  	//#cfg_FWD_INVLD_MAC_CTRL_EN,cfg_FWD_UNKN_OPCODE_EN
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	dsa_switch_for_each_port(dp, ds) {
  		ret = rtl8372n_setup_port(priv, dp->index);
-@@ -2314,55 +2334,24 @@
+@@ -2314,55 +2334,24 @@ static int rtl8372n_setup(struct dsa_swi
  				     RTL837X_VLAN_CTRL_TABLE_RST_MASK, 1);
  	if (ret)
  		return ret;
@@ -211,7 +211,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	ret = rtl837x_lut_l2_flush_all(priv);
-@@ -2376,6 +2365,28 @@
+@@ -2376,6 +2365,28 @@ static int rtl8372n_setup(struct dsa_swi
  	if (ret)
  		return ret;
  

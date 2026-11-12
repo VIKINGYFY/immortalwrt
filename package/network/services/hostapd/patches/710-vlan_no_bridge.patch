@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3606,6 +3606,8 @@
+@@ -3606,6 +3606,8 @@ static int hostapd_config_fill(struct ho
  #ifndef CONFIG_NO_VLAN
  	} else if (os_strcmp(buf, "dynamic_vlan") == 0) {
  		bss->ssid.dynamic_vlan = atoi(pos);
@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (os_strcmp(buf, "vlan_file") == 0) {
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -120,6 +120,7 @@
+@@ -120,6 +120,7 @@ struct hostapd_ssid {
  #define DYNAMIC_VLAN_OPTIONAL 1
  #define DYNAMIC_VLAN_REQUIRED 2
  	int dynamic_vlan;
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define DYNAMIC_VLAN_NAMING_END 2
 --- a/src/ap/vlan_full.c
 +++ b/src/ap/vlan_full.c
-@@ -483,6 +483,9 @@
+@@ -483,6 +483,9 @@ void vlan_newlink(const char *ifname, st
  	if (!vlan)
  		return;
  
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	vlan->configured = 1;
  
  	notempty = vlan->vlan_desc.notempty;
-@@ -514,6 +517,7 @@
+@@ -514,6 +517,7 @@ void vlan_newlink(const char *ifname, st
  				    ifname, br_name, tagged[i], hapd);
  	}
  

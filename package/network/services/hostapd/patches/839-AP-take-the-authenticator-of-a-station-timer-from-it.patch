@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -639,10 +639,9 @@
+@@ -639,10 +639,9 @@ static void wpa_rekey_gtk(void *eloop_ct
  
  static void wpa_rekey_ptk(void *eloop_ctx, void *timeout_ctx)
  {
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			"rekeying PTK");
  	wpa_request_new_ptk(sm);
  	wpa_sm_step(sm);
-@@ -658,7 +657,7 @@
+@@ -658,7 +657,7 @@ void wpa_auth_set_ptk_rekey_timer(struct
  			   sm->wpa_auth->conf.wpa_ptk_rekey);
  		eloop_cancel_timeout(wpa_rekey_ptk, ELOOP_ALL_CTX, sm);
  		eloop_register_timeout(sm->wpa_auth->conf.wpa_ptk_rekey, 0,
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  }
  
-@@ -2112,17 +2111,16 @@
+@@ -2112,17 +2111,16 @@ static int wpa_gmk_to_gtk(const u8 *gmk,
  
  static void wpa_send_eapol_timeout(void *eloop_ctx, void *timeout_ctx)
  {
@@ -62,7 +62,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			"EAPOL-Key timeout");
  	sm->TimeoutEvt = true;
  	wpa_sm_step(sm);
-@@ -2420,7 +2418,7 @@
+@@ -2420,7 +2418,7 @@ skip_tx:
  		   "WPA: Use EAPOL-Key timeout of %u ms (retry counter %u)",
  		   timeout_ms, ctr);
  	eloop_register_timeout(timeout_ms / 1000, (timeout_ms % 1000) * 1000,
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -7464,7 +7462,7 @@
+@@ -7464,7 +7462,7 @@ void wpa_auth_eapol_key_tx_status(struct
  		eloop_cancel_timeout(wpa_send_eapol_timeout, ELOOP_ALL_CTX, sm);
  		eloop_register_timeout(timeout_ms / 1000,
  				       (timeout_ms % 1000) * 1000,

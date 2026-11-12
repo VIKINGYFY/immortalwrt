@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -1002,7 +1002,7 @@
+@@ -1002,7 +1002,7 @@ static unsigned int rtl8372n_sds_pcs_inb
  		case PHY_INTERFACE_MODE_10GBASER:
  			return LINK_INBAND_DISABLE;
  		case PHY_INTERFACE_MODE_USXGMII:
@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		default:
  			return 0;
  		}
-@@ -1101,6 +1101,20 @@
+@@ -1101,6 +1101,20 @@ static int rtl8372n_sds_pcs_config(struc
  	int port = port_priv->index;
  	int ret;
  
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dev_dbg(priv->dev, "[%s]PCS config serdes(%d) mode(%s) neg_mode(0x%x)\n", __func__,
 --- a/src/rtl837x_serdes.c
 +++ b/src/rtl837x_serdes.c
-@@ -988,6 +988,10 @@
+@@ -988,6 +988,10 @@ int rtl837x_serdes_an_config(struct real
  		if (ret)
  			return ret;
  

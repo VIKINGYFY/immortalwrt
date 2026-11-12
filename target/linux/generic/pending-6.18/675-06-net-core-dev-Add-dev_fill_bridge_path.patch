@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct net_device *dev_get_by_name(struct net *net, const char *name);
 --- a/net/core/dev.c
 +++ b/net/core/dev.c
-@@ -744,14 +744,13 @@ static struct net_device_path *dev_fwd_p
+@@ -750,14 +750,13 @@ static struct net_device_path *dev_fwd_p
  	return &stack->path[k];
  }
  
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	while (ctx->dev && ctx->dev->netdev_ops->ndo_fill_forward_path) {
  		last_dev = ctx->dev;
  		path = dev_fwd_path(stack);
-@@ -778,6 +777,45 @@ int dev_fill_forward_path(struct net_dev
+@@ -784,6 +783,45 @@ int dev_fill_forward_path(struct net_dev
  
  	return ret;
  }

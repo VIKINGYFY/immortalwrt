@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -1231,6 +1231,26 @@
+@@ -1231,6 +1231,26 @@ int hostapd_drv_set_qos_map(struct hosta
  }
  
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				      int acs_ch_list_all, bool allow_disabled,
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -167,6 +167,10 @@
+@@ -167,6 +167,10 @@ int hostapd_drv_wnm_oper(struct hostapd_
  			 enum wnm_oper oper, const u8 *peer,
  			 u8 *buf, u16 *buf_len);
  
@@ -60,13 +60,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -835,6 +835,46 @@
- 	 * WPS_MODE_PRIVACY - WPS provisioning with AP that is using protection
- 	 */
- 	WPS_MODE_PRIVACY
-+};
-+
-+/**
+@@ -838,6 +838,46 @@ enum wps_mode {
+ };
+ 
+ /**
 + * struct hostapd_scs_desc - One SCS Descriptor element of an SCS Request
 + * @id: SCSID
 + * @req_type: Request Type (enum scs_request_type)
@@ -104,10 +101,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	u32 stream_timeout;
 +	const u8 *tclas_mask;
 +	size_t tclas_mask_len;
- };
- 
- /**
-@@ -2644,6 +2684,10 @@
++};
++
++/**
+  * struct hostapd_freq_params - Channel parameters
+  */
+ struct hostapd_freq_params {
+@@ -2644,6 +2684,10 @@ struct wpa_driver_capa {
   * in the Beacon frames and reports its expiry with
   * EVENT_AP_REMOVAL_TIMER_EXPIRED */
  #define WPA_DRIVER_FLAGS2_AP_REMOVAL_TIMER_OFFLOAD	0x0000040000000000ULL
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u64 flags2;
  /** Driver supports Security Profile element (IEEE P802.11bn/D2.0, 9.4.2.369
   * and 37.33) handling */
-@@ -4911,6 +4955,30 @@
+@@ -4911,6 +4955,30 @@ struct wpa_driver_ops {
  			   u8 qos_map_set_len);
  
  	/**
@@ -151,13 +151,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * @version: IP version of the IP address, 4 or 6
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -13107,6 +13107,144 @@
- 		wpa_printf(MSG_DEBUG, "nl80211: Setting QoS Map failed");
+@@ -13110,6 +13110,144 @@ static int nl80211_set_qos_map(void *pri
+ }
  
- 	return ret;
-+}
-+
-+
+ 
 +struct nl80211_scs_status {
 +	u8 id;
 +	int status;
@@ -293,10 +290,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	*status = res;
 +	return 0;
- }
- 
- 
-@@ -17175,6 +17313,8 @@
++}
++
++
+ static int get_wowlan_handler(struct nl_msg *msg, void *arg)
+ {
+ 	struct nlattr *tb[NL80211_ATTR_MAX + 1];
+@@ -17175,6 +17313,8 @@ const struct wpa_driver_ops wpa_driver_n
  #endif /* ANDROID */
  	.vendor_cmd = nl80211_vendor_cmd,
  	.set_qos_map = nl80211_set_qos_map,
@@ -307,7 +307,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.set_mac_addr = nl80211_set_mac_addr,
 --- a/src/drivers/driver_nl80211_capa.c
 +++ b/src/drivers/driver_nl80211_capa.c
-@@ -618,6 +618,10 @@
+@@ -618,6 +618,10 @@ static void wiphy_info_ext_feature_flags
  	if (ext_feature_isset(ext_features, len,
  			      NL80211_EXT_FEATURE_AP_REMOVAL_TIMER_OFFLOAD))
  		capa->flags2 |= WPA_DRIVER_FLAGS2_AP_REMOVAL_TIMER_OFFLOAD;
@@ -320,7 +320,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		capa->flags |= WPA_DRIVER_FLAGS_SCHED_SCAN_RELATIVE_RSSI;
 --- a/src/drivers/driver_nl80211_event.c
 +++ b/src/drivers/driver_nl80211_event.c
-@@ -206,6 +206,8 @@
+@@ -206,6 +206,8 @@ static const char * nl80211_command_to_s
  	C2S(NL80211_CMD_ADV_TTLM_STARTED)
  	C2S(NL80211_CMD_ADV_TTLM_ESTABLISHED)
  	C2S(NL80211_CMD_ADV_TTLM_ENDED)
@@ -350,17 +350,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @NL80211_CMD_MAX: highest used command number
   * @__NL80211_CMD_AFTER_LAST: internal use
   */
-@@ -1803,6 +1815,9 @@
- 	NL80211_CMD_ADV_TTLM_STARTED,
+@@ -1804,6 +1816,9 @@ enum nl80211_commands {
  	NL80211_CMD_ADV_TTLM_ESTABLISHED,
  	NL80211_CMD_ADV_TTLM_ENDED,
-+
+ 
 +	NL80211_CMD_SET_SCS,
 +	NL80211_CMD_SET_MSCS,
- 
++
  	/* add new commands above here */
  
-@@ -3320,6 +3335,12 @@
+ 	/* used to define NL80211_CMD_MAX below */
+@@ -3320,6 +3335,12 @@ enum nl80211_commands {
   *	advertised TID-to-link mapping, in ns of %CLOCK_BOOTTIME, see
   *	%NL80211_CMD_ADV_TTLM_STARTED and %NL80211_CMD_ADV_TTLM_ESTABLISHED.
   *
@@ -373,17 +373,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @NUM_NL80211_ATTR: total number of nl80211_attrs available
   * @NL80211_ATTR_MAX: highest attribute number currently defined
   * @__NL80211_ATTR_AFTER_LAST: internal use
-@@ -3933,6 +3954,9 @@
- 	NL80211_ATTR_MLO_ADV_TTLM_DURATION,
+@@ -3934,6 +3955,9 @@ enum nl80211_attrs {
  	NL80211_ATTR_MLO_ADV_TTLM_SWITCH_TSF,
  	NL80211_ATTR_MLO_ADV_TTLM_TBTT_BOOTTIME,
-+
+ 
 +	NL80211_ATTR_SCS_DESCRIPTORS,
 +	NL80211_ATTR_MSCS_DESCRIPTOR,
- 
++
  	/* add attributes here, update the policy in nl80211.c */
  
-@@ -6226,6 +6250,87 @@
+ 	__NL80211_ATTR_AFTER_LAST,
+@@ -6226,6 +6250,87 @@ enum nl80211_tx_power_setting {
  };
  
  /**

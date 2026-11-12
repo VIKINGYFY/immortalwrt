@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver_nl80211_event.c
 +++ b/src/drivers/driver_nl80211_event.c
-@@ -365,6 +365,28 @@
+@@ -365,6 +365,28 @@ static void mlme_event_assoc(struct wpa_
  }
  
  
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_DRIVER_NL80211_QCA
  
  static int qca_drv_connect_fail_reason_code_handler(struct nl_msg *msg,
-@@ -457,7 +479,6 @@
+@@ -457,7 +479,6 @@ static void qca_nl80211_link_reconfig_ev
  	struct nlattr *tb[QCA_WLAN_VENDOR_ATTR_LINK_RECONFIG_MAX + 1];
  	u16 removed_links;
  	u8 *ap_mld;
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!data)
  		return;
-@@ -500,18 +521,8 @@
+@@ -500,18 +521,8 @@ static void qca_nl80211_link_reconfig_ev
  
  	drv->sta_mlo_info.valid_links &= ~removed_links;
  
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	wpa_printf(MSG_DEBUG, "nl80211: Removed MLO links bitmap: 0x%x",
  		   removed_links);
-@@ -985,18 +996,8 @@
+@@ -985,18 +996,8 @@ static void mlme_event_link_removal(stru
  	drv->sta_mlo_info.valid_links &= ~removed_links;
  	drv->sta_mlo_info.req_links &= ~removed_links;
  
@@ -101,14 +101,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!(removed_links & BIT(i)))
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -7064,6 +7064,10 @@
- 					      WLAN_REASON_DEAUTH_LEAVING);
+@@ -7065,6 +7065,10 @@ static void wpas_link_reconfig(struct wp
  		return;
  	}
-+
+ 
 +	if (wpa_s->valid_links & BIT(wpa_s->mlo_assoc_link_id) &&
 +	    wpa_s->links[wpa_s->mlo_assoc_link_id].freq)
 +		wpa_s->assoc_freq = wpa_s->links[wpa_s->mlo_assoc_link_id].freq;
- 
++
  	wpa_msg(wpa_s, MSG_INFO, WPA_EVENT_LINK_RECONFIG "valid_links=0x%x",
  		wpa_s->valid_links);
+ }

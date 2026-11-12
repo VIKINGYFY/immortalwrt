@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8443,6 +8443,9 @@
+@@ -8443,6 +8443,9 @@ static u16 send_assoc_resp(struct hostap
  	u16 res = WLAN_STATUS_SUCCESS;
  
  	buflen = sizeof(struct ieee80211_mgmt) + 1224;
@@ -43,21 +43,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_FILS
  	if (sta && sta->fils_hlp_resp)
  		buflen += wpabuf_len(sta->fils_hlp_resp);
-@@ -8636,6 +8639,11 @@
- #ifdef CONFIG_TESTING_OPTIONS
+@@ -8637,6 +8640,11 @@ static u16 send_assoc_resp(struct hostap
  rsnxe_done:
  #endif /* CONFIG_TESTING_OPTIONS */
-+
+ 
 +#ifdef CONFIG_ROBUST_AV
 +	if (sta && status_code == WLAN_STATUS_SUCCESS)
 +		p = hostapd_eid_mscs_assoc(hapd, sta, ies, ies_len, p);
 +#endif /* CONFIG_ROBUST_AV */
- 
++
  #ifdef CONFIG_IEEE80211BE
  	if (hostapd_is_eht_enabled(hapd)) {
+ 		if (hapd->conf->mld_ap)
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1716,6 +1716,8 @@
+@@ -1716,6 +1716,8 @@ struct sta_info * hostapd_ml_move_assoc_
  	os_memcpy(assoc_sta->scs_active, sta->scs_active,
  		  sizeof(sta->scs_active));
  	os_memset(sta->scs_active, 0, sizeof(sta->scs_active));
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /*
   * The links of an AP MLD each hold a station entry of a non-AP MLD; the entry
   * of the association link holds the streams, whichever link a request takes.
-@@ -169,6 +172,158 @@
+@@ -169,6 +172,158 @@ out:
  }
  
  
@@ -237,7 +237,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void send_scs_response(struct hostapd_data *hapd, const u8 *da,
  			      u8 dialog_token, const struct wpabuf *duples,
  			      u8 count)
-@@ -258,6 +413,9 @@
+@@ -258,6 +413,9 @@ void hostapd_handle_robust_av_streaming(
  	case ROBUST_AV_SCS_REQ:
  		hostapd_handle_scs_req(sta_hapd, sta, mgmt->sa, body, len);
  		break;
@@ -263,7 +263,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* SCS_H */
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -385,6 +385,7 @@
+@@ -385,6 +385,7 @@ struct sta_info {
  	u8 unsolicited_dialog_token;
  	struct dscp_policy_state dscp_state;
  	u8 scs_active[32]; /* bitmap of the SCSIDs with an active stream */
@@ -273,13 +273,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* The colour of the last BSS Color In Use report of the station, 0 for
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -3212,6 +3212,9 @@
- #ifdef CONFIG_ROBUST_AV
+@@ -3213,6 +3213,9 @@ static int nl80211_action_subscribe_ap(s
  	/* Robust AV Streaming - SCS Request */
  	if (nl80211_register_action_frame(bss, (u8 *) "\x13\x00", 2) < 0)
-+		ret = -1;
+ 		ret = -1;
 +	/* Robust AV Streaming - MSCS Request */
 +	if (nl80211_register_action_frame(bss, (u8 *) "\x13\x04", 2) < 0)
- 		ret = -1;
++		ret = -1;
  #endif /* CONFIG_ROBUST_AV */
  	/* Vendor-specific Protected */
+ 	if (nl80211_register_action_frame(bss, (u8 *) "\x7e", 1) < 0)

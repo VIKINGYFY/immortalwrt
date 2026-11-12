@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -60,6 +60,7 @@
+@@ -60,6 +60,7 @@ struct tc_action;
  #define DSA_TAG_PROTO_YT921X_VALUE		32
  #define DSA_TAG_PROTO_YT922X_VALUE		33
  #define DSA_TAG_PROTO_YT922X_4B_VALUE		34
@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -97,6 +98,7 @@
+@@ -97,6 +98,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_YT921X		= DSA_TAG_PROTO_YT921X_VALUE,
  	DSA_TAG_PROTO_YT922X		= DSA_TAG_PROTO_YT922X_VALUE,
  	DSA_TAG_PROTO_YT922X_4B		= DSA_TAG_PROTO_YT922X_4B_VALUE,
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct dsa_switch;
 --- a/net/dsa/Kconfig
 +++ b/net/dsa/Kconfig
-@@ -192,6 +192,12 @@
+@@ -192,6 +192,12 @@ config NET_DSA_TAG_TRAILER
  	  Say Y or M if you want to enable support for tagging frames at
  	  with a trailed. e.g. Marvell 88E6060.
  
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	help
 --- a/net/dsa/Makefile
 +++ b/net/dsa/Makefile
-@@ -39,6 +39,7 @@
+@@ -39,6 +39,7 @@ obj-$(CONFIG_NET_DSA_TAG_RTL8_4) += tag_
  obj-$(CONFIG_NET_DSA_TAG_RZN1_A5PSW) += tag_rzn1_a5psw.o
  obj-$(CONFIG_NET_DSA_TAG_SJA1105) += tag_sja1105.o
  obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag_trailer.o

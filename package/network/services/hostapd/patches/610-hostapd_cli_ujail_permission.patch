@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/common/wpa_ctrl.c
 +++ b/src/common/wpa_ctrl.c
-@@ -135,7 +135,7 @@
+@@ -135,7 +135,7 @@ try_again:
  		return NULL;
  	}
  	tries++;
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Set client socket file permissions so that bind() creates the client
  	 * socket with these permissions and there is no need to try to change
  	 * them with chmod() after bind() which would have potential issues with
-@@ -147,7 +147,7 @@
+@@ -147,7 +147,7 @@ try_again:
  	 * operations to allow the response to go through. Those are using the
  	 * no-deference-symlinks version to avoid races. */
  	fchmod(ctrl->s, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (bind(ctrl->s, (struct sockaddr *) &ctrl->local,
  		    sizeof(ctrl->local)) < 0) {
  		if (errno == EADDRINUSE && tries < 2) {
-@@ -165,7 +165,11 @@
+@@ -165,7 +165,11 @@ try_again:
  		return NULL;
  	}
  

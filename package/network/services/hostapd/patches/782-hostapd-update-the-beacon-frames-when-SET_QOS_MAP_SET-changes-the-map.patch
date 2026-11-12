@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -653,6 +653,18 @@
+@@ -653,6 +653,18 @@ static int hostapd_ctrl_iface_hs20_deaut
  
  #ifdef CONFIG_INTERWORKING
  
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int hostapd_ctrl_iface_set_qos_map_set(struct hostapd_data *hapd,
  					      const char *cmd)
  {
-@@ -666,7 +678,7 @@
+@@ -666,7 +678,7 @@ static int hostapd_ctrl_iface_set_qos_ma
  			return -1;
  		}
  
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return 0;
  	}
  
-@@ -701,7 +713,7 @@
+@@ -701,7 +713,7 @@ static int hostapd_ctrl_iface_set_qos_ma
  	}
  
  	os_memcpy(hapd->conf->qos_map_set, qos_map_set, count);

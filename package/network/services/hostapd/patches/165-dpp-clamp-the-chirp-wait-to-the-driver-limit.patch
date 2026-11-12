@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/offchannel.c
 +++ b/wpa_supplicant/offchannel.c
-@@ -245,7 +245,8 @@
+@@ -245,7 +245,8 @@ void offchannel_send_action_tx_status(
   * @bssid: Action frame BSSID
   * @buf: Frame to transmit starting from the Category field
   * @len: Length of @buf in bytes
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @tx_cb: Callback function for indicating TX status or %NULL for no callback
   * @no_cck: Whether CCK rates are to be disallowed for TX rate selection
   * Returns: 0 on success or -1 on failure
-@@ -309,6 +310,8 @@
+@@ -309,6 +310,8 @@ int offchannel_send_action(struct wpa_su
  		int ret;
  
  		iface = wpas_get_tx_interface(wpa_s, src);

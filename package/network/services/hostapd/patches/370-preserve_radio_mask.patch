@@ -9,7 +9,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -909,6 +909,7 @@
+@@ -909,6 +909,7 @@ struct wiphy_idx_data {
  	u8 use_4addr;
  	u64 wdev_id;
  	bool wdev_id_set;
@@ -17,23 +17,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  
-@@ -938,6 +939,9 @@
- 		info->wdev_id = nla_get_u64(tb[NL80211_ATTR_WDEV]);
+@@ -939,6 +940,9 @@ static int netdev_info_handler(struct nl
  		info->wdev_id_set = true;
  	}
-+
+ 
 +	if (tb[NL80211_ATTR_VIF_RADIO_MASK])
 +		info->radio_mask = nla_get_u32(tb[NL80211_ATTR_VIF_RADIO_MASK]);
- 
++
  	return NL_SKIP;
  }
-@@ -1002,6 +1006,20 @@
- 	    send_and_recv_resp(bss->drv, msg, netdev_info_handler, &data))
- 		return -1;
- 	return data.use_4addr;
-+}
-+
-+
+ 
+@@ -1005,6 +1009,20 @@ static int nl80211_get_4addr(struct i802
+ }
+ 
+ 
 +static u32 nl80211_get_radio_mask(struct i802_bss *bss)
 +{
 +	struct nl_msg *msg;
@@ -45,19 +42,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	    send_and_recv_resp(bss->drv, msg, netdev_info_handler, &data))
 +		return 0;
 +	return data.radio_mask;
- }
- 
- 
-@@ -2622,6 +2640,8 @@
- 	if (wpa_driver_nl80211_finish_drv_init(bss, set_addr, driver_params,
++}
++
++
+ static int nl80211_register_beacons(struct wpa_driver_nl80211_data *drv,
+ 				    struct nl80211_wiphy_data *w)
+ {
+@@ -2623,6 +2641,8 @@ static void * wpa_driver_nl80211_drv_ini
  					       p2p_mode))
  		goto failed;
-+
-+	bss->radio_mask = nl80211_get_radio_mask(bss);
  
++	bss->radio_mask = nl80211_get_radio_mask(bss);
++
  	if (drv->capa.flags2 & WPA_DRIVER_FLAGS2_CONTROL_PORT_TX_STATUS) {
  		drv->control_port_ap = 1;
-@@ -6856,7 +6876,7 @@
+ 		goto skip_wifi_status;
+@@ -6856,7 +6876,7 @@ const char * nl80211_iftype_str(enum nl8
  static int nl80211_create_iface_once(struct wpa_driver_nl80211_data *drv,
  				     const char *ifname,
  				     enum nl80211_iftype iftype,
@@ -66,18 +66,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				     int (*handler)(struct nl_msg *, void *),
  				     void *arg)
  {
-@@ -6874,6 +6894,10 @@
+@@ -6876,6 +6896,10 @@ static int nl80211_create_iface_once(str
+ 	if (wds && nla_put_u8(msg, NL80211_ATTR_4ADDR, wds))
  		goto fail;
  
- 	if (wds && nla_put_u8(msg, NL80211_ATTR_4ADDR, wds))
-+		goto fail;
-+
 +	if (radio_mask &&
 +	    nla_put_u32(msg, NL80211_ATTR_VIF_RADIO_MASK, radio_mask))
- 		goto fail;
- 
++		goto fail;
++
  	/*
-@@ -6987,7 +7011,7 @@
+ 	 * Tell cfg80211 that the interface belongs to the socket that created
+ 	 * it, and the interface should be deleted when the socket is closed.
+@@ -6987,7 +7011,7 @@ static int nl80211_use_existing_iface(st
  
  int nl80211_create_iface(struct wpa_driver_nl80211_data *drv,
  			 const char *ifname, enum nl80211_iftype iftype,
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			 int (*handler)(struct nl_msg *, void *),
  			 void *arg, int use_existing)
  {
-@@ -6996,8 +7020,8 @@
+@@ -6996,8 +7020,8 @@ int nl80211_create_iface(struct wpa_driv
  	if (use_existing && if_nametoindex(ifname))
  		return nl80211_use_existing_iface(drv, ifname, iftype, addr);
  
@@ -97,7 +97,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* if error occurred and interface exists already */
  	if (ret < 0 && if_nametoindex(ifname)) {
-@@ -7012,7 +7036,7 @@
+@@ -7012,7 +7036,7 @@ int nl80211_create_iface(struct wpa_driv
  
  		/* Try to create the interface again */
  		ret = nl80211_create_iface_once(drv, ifname, iftype, addr,
@@ -106,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (ret >= 0 && is_p2p_net_interface(iftype)) {
-@@ -9468,8 +9492,8 @@
+@@ -9468,8 +9492,8 @@ static int i802_set_wds_sta(void *priv,
  		if (!if_nametoindex(name)) {
  			if (nl80211_create_iface(drv, name,
  						 NL80211_IFTYPE_AP_VLAN,
@@ -117,7 +117,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				return -1;
  
  			if (bridge_ifname)
-@@ -9846,7 +9870,8 @@
+@@ -9846,7 +9870,8 @@ static int wpa_driver_nl80211_if_add(voi
  
  		os_memset(&nonnetdev_info, 0, sizeof(nonnetdev_info));
  		ifidx = nl80211_create_iface(drv, ifname, nlmode, addr,
@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					     &nonnetdev_info, use_existing);
  		if (!nonnetdev_info.wdev_id_set || ifidx != 0) {
  			wpa_printf(MSG_ERROR,
-@@ -9865,7 +9890,8 @@
+@@ -9865,7 +9890,8 @@ static int wpa_driver_nl80211_if_add(voi
  			   (long long unsigned int) nonnetdev_info.wdev_id);
  	} else {
  		ifidx = nl80211_create_iface(drv, ifname, nlmode, addr,
@@ -137,18 +137,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (use_existing && ifidx == -ENFILE) {
  			added = 0;
  			ifidx = if_nametoindex(ifname);
-@@ -9934,6 +9960,8 @@
- 		new_bss->flink->freq = drv->first_bss->flink->freq;
+@@ -9935,6 +9961,8 @@ static int wpa_driver_nl80211_if_add(voi
  		new_bss->ctx = bss_ctx;
  		new_bss->added_if = added;
-+
-+		new_bss->radio_mask = nl80211_get_radio_mask(new_bss);
  
++		new_bss->radio_mask = nl80211_get_radio_mask(new_bss);
++
  		/* Set interface mode to NL80211_IFTYPE_AP */
  		if (nl80211_set_mode(new_bss, nlmode)) {
+ 			if (added)
 --- a/src/drivers/driver_nl80211.h
 +++ b/src/drivers/driver_nl80211.h
-@@ -101,6 +101,7 @@
+@@ -101,6 +101,7 @@ struct i802_bss {
  	u64 wdev_id;
  	char ifname[IFNAMSIZ + 1];
  	char brname[IFNAMSIZ];
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int added_if_into_bridge:1;
  	unsigned int already_in_bridge:1;
  	unsigned int added_bridge:1;
-@@ -357,7 +358,7 @@
+@@ -357,7 +358,7 @@ send_and_recv_resp(struct wpa_driver_nl8
  
  int nl80211_create_iface(struct wpa_driver_nl80211_data *drv,
  			 const char *ifname, enum nl80211_iftype iftype,
@@ -167,7 +167,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void nl80211_remove_iface(struct wpa_driver_nl80211_data *drv, int ifidx);
 --- a/src/drivers/driver_nl80211_monitor.c
 +++ b/src/drivers/driver_nl80211_monitor.c
-@@ -98,7 +98,7 @@
+@@ -98,7 +98,7 @@ static int nl80211_create_monitor_interf
  	buf[IFNAMSIZ - 1] = '\0';
  
  	*ifidx = nl80211_create_iface(drv, buf, NL80211_IFTYPE_MONITOR, NULL,

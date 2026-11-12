@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/tls_mbedtls.c
 +++ b/src/crypto/tls_mbedtls.c
-@@ -663,6 +663,18 @@
+@@ -663,6 +663,18 @@ static int tls_mbedtls_data_is_pem(const
  }
  
  
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int tls_mbedtls_set_allowed_tls_vers(const struct tls_conf *tls_conf,
                                              mbedtls_ssl_config *conf)
  {
-@@ -672,8 +684,8 @@
+@@ -672,8 +684,8 @@ static int tls_mbedtls_set_allowed_tls_v
  	flags |= TLS_CONN_DISABLE_TLSv1_3;
    #endif
  
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		flags |= TLS_CONN_DISABLE_TLSv1_0;
  		flags |= TLS_CONN_DISABLE_TLSv1_1;
  	}
-@@ -1789,45 +1801,56 @@
+@@ -1789,45 +1801,56 @@ static int tls_mbedtls_set_params(struct
  	                            ? params->openssl_ciphers
  	                            : tls_conf->global->openssl_ciphers;
  
@@ -139,7 +139,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (tls_mbedtls_set_allowed_tls_vers(tls_conf, &tls_conf->conf) != 0)
-@@ -1850,12 +1873,16 @@
+@@ -1850,12 +1873,16 @@ static int tls_mbedtls_set_params(struct
  		if (!tls_mbedtls_set_ciphers(tls_conf, openssl_ciphers))
  			return -1;
  	}
@@ -158,7 +158,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return -1;
  	}
  
-@@ -2262,7 +2289,7 @@
+@@ -2262,7 +2289,7 @@ __attribute_cold__
  static void tls_mbedtls_suiteb_handshake_alert (struct tls_connection *conn)
  {
  	/* tests/hwsim/test_suite_b.py test_suite_b_192_rsa_insufficient_dh */
@@ -167,7 +167,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  	if (conn->global->tls_conf) /*(is server; want issue event on client)*/
  		return;
-@@ -3312,7 +3339,7 @@
+@@ -3312,7 +3339,7 @@ tls_mbedtls_verify_cb (void *arg, mbedtl
  			                              "Distinguished Name",
  			                              TLS_FAIL_DN_MISMATCH);
  		}

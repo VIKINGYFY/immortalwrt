@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9047,6 +9047,7 @@
+@@ -9047,6 +9047,7 @@ static void handle_assoc(struct hostapd_
  #ifdef CONFIG_IEEE80211BE
  	bool reset_prev_assoc = false;
  	struct wpa_state_machine *prev_wpa_sm = NULL;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  
  	if (len < IEEE80211_HDRLEN + (reassoc ? sizeof(mgmt->u.reassoc_req) :
-@@ -9300,6 +9301,7 @@
+@@ -9300,6 +9301,7 @@ static void handle_assoc(struct hostapd_
  		reset_prev_assoc = true;
  		prev_wpa_sm = sta->wpa_sm;
  		sta->wpa_sm = NULL;
@@ -40,11 +40,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -9554,6 +9556,14 @@
- 					    pos, left, rssi, omit_rsnxe);
+@@ -9555,6 +9557,14 @@ static void handle_assoc(struct hostapd_
  	if (sta)
  		assoc_resp_pending_set(sta, resp, reply_res);
-+
+ 
 +#ifdef CONFIG_IEEE80211BE
 +	/* After the response, which carries the profiles of the request */
 +	if (reset_prev_assoc) {
@@ -52,12 +51,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ap_sta_mld_info_copy(&sta->mld_info, &prev_mld_info);
 +	}
 +#endif /* CONFIG_IEEE80211BE */
- 
++
  	if (set_beacon)
  		ieee802_11_update_beacons(hapd->iface);
+ 
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -2398,6 +2398,19 @@
+@@ -2398,6 +2398,19 @@ void ap_sta_free_sta_profile(struct mld_
  		info->links[i].resp_sta_profile = NULL;
  	}
  }
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -492,6 +492,7 @@
+@@ -492,6 +492,7 @@ void ap_sta_set_mld(struct sta_info *sta
  
  void ap_sta_free_sta_profile(struct mld_info *info);
  void ap_sta_free_ml_kem_data(struct eap_over_auth_data *auth_data);

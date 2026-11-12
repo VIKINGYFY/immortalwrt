@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/system-linux.c
 +++ b/system-linux.c
-@@ -1083,6 +1083,24 @@
+@@ -1083,6 +1083,24 @@ system_bridge_set_wireless(struct device
  	system_bridge_set_proxyarp_wifi(dev, dev->wireless_proxyarp ? "1" : "0");
  }
  
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	char buf[64];
 --- a/system-dummy.c
 +++ b/system-dummy.c
-@@ -50,6 +50,10 @@
+@@ -50,6 +50,10 @@ int system_bridge_set_vlan_filtering(str
  	return 0;
  }
  
@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	D(SYSTEM, "ip link set %s master %s", dev->ifname, bridge->ifname);
 --- a/system.h
 +++ b/system.h
-@@ -250,6 +250,7 @@
+@@ -250,6 +250,7 @@ int system_init(void);
  int system_bridge_addbr(struct device *bridge, struct bridge_config *cfg);
  int system_bridge_delbr(struct device *bridge);
  int system_bridge_set_vlan_filtering(struct device *bridge, const struct bridge_config *cfg);
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "interface.h"
  #include "ucode.h"
  #include "proto-ucode.h"
-@@ -110,6 +111,10 @@
+@@ -110,6 +111,10 @@ uc_netifd_device_set(uc_vm_t *vm, size_t
  			dev->bpdu_filter = 1;
  	}
  

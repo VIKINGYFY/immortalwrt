@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1718,6 +1718,7 @@
+@@ -1718,6 +1718,7 @@ struct sta_info * hostapd_ml_move_assoc_
  
  	wpa_reset_assoc_sm_info(assoc_sta->wpa_sm, (*assoc_hapd)->wpa_auth,
  				link_id);
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		  sizeof(sta->scs_active));
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -1076,6 +1076,41 @@
+@@ -1076,6 +1076,41 @@ void ap_sta_session_warning_timeout(stru
  }
  
  
@@ -73,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct hostapd_data *hapd = eloop_ctx;
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -438,6 +438,10 @@
+@@ -438,6 +438,10 @@ void ap_sta_no_session_timeout(struct ho
  			       struct sta_info *sta);
  void ap_sta_session_warning_timeout(struct hostapd_data *hapd,
  				    struct sta_info *sta, int warning_time);

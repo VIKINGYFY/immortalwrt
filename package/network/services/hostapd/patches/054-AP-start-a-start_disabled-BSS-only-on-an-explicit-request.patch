@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -4421,7 +4421,7 @@
+@@ -4421,7 +4421,7 @@ static int hostapd_ctrl_iface_receive_pr
  		if (hostapd_ctrl_iface_disable(hapd->iface))
  			reply_len = -1;
  	} else if (os_strcmp(buf, "UPDATE_BEACON") == 0) {
@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (os_strncmp(buf, "RADAR ", 6) == 0) {
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2811,6 +2811,18 @@
+@@ -2811,6 +2811,18 @@ void ieee802_11_free_ap_params(struct wp
  }
  
  
@@ -54,17 +54,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int __ieee802_11_set_beacon(struct hostapd_data *hapd)
  {
  	struct wpa_driver_ap_params params;
-@@ -2823,6 +2835,9 @@
- 	int res, ret = -1, i;
+@@ -2824,6 +2836,9 @@ static int __ieee802_11_set_beacon(struc
  	struct hostapd_hw_modes *mode;
  	struct hostapd_channel_info info;
-+
+ 
 +	if (hostapd_beacon_held(hapd))
 +		return 0;
- 
++
  	if (!hapd->drv_priv) {
  		wpa_printf(MSG_ERROR, "Interface is disabled");
-@@ -3406,6 +3421,9 @@
+ 		return -1;
+@@ -3406,6 +3421,9 @@ int ieee802_11_set_beacon(struct hostapd
  	struct hostapd_data *link_bss;
  #endif /* CONFIG_IEEE80211BE */
  
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = __ieee802_11_set_beacon(hapd);
  	if (ret != 0)
  		return ret;
-@@ -3459,6 +3477,13 @@
+@@ -3459,6 +3477,13 @@ int ieee802_11_set_beacon(struct hostapd
  }
  
  
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	size_t i;
 --- a/src/ap/beacon.h
 +++ b/src/ap/beacon.h
-@@ -17,6 +17,7 @@
+@@ -17,6 +17,7 @@ void handle_probe_req(struct hostapd_dat
  		      int ssi_signal);
  void ieee802_11_set_beacon_per_bss_only(struct hostapd_data *hapd);
  int ieee802_11_set_beacon(struct hostapd_data *hapd);
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ieee802_11_build_ap_params(struct hostapd_data *hapd,
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2543,8 +2543,7 @@
+@@ -2543,8 +2543,7 @@ static void hostapd_iface_enable(struct
  		else
  			hostapd_reconfig_encryption(hapd);
  		hapd->reenable_beacon = 1;
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG, "DFS: restarting pending CAC");
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -191,7 +191,7 @@
+@@ -191,7 +191,7 @@ static void hostapd_reload_bss(struct ho
  			       "Failed to prepare rates table.");
  	}
  

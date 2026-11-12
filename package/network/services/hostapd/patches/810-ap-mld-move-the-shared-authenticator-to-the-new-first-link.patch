@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/accounting.c
 +++ b/src/ap/accounting.c
-@@ -457,6 +457,14 @@
+@@ -457,6 +457,14 @@ static void accounting_report_state(stru
  }
  
  
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void accounting_interim_error_cb(const u8 *addr, void *ctx)
  {
  	struct hostapd_data *hapd = ctx;
-@@ -464,7 +472,9 @@
+@@ -464,7 +472,9 @@ static void accounting_interim_error_cb(
  	unsigned int i, wait_time;
  	int res;
  
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!sta)
  		return;
  	sta->acct_interim_errors++;
-@@ -514,6 +524,21 @@
+@@ -514,6 +524,21 @@ static void accounting_interim_error_cb(
  }
  
  
@@ -125,7 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * accounting_init: Initialize accounting
   * @hapd: hostapd BSS data
-@@ -529,12 +554,25 @@
+@@ -529,7 +554,8 @@ int accounting_init(struct hostapd_data
  				   accounting_receive, hapd))
  		return -1;
  	radius_client_set_interim_error_cb(hapd->radius,
@@ -135,10 +135,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	accounting_report_state(hapd, 1);
  
- 	return 0;
+@@ -537,6 +563,18 @@ int accounting_init(struct hostapd_data
  }
-+
-+
+ 
+ 
 +#ifdef CONFIG_IEEE80211BE
 +void accounting_mld_first_bss_moved(struct hostapd_data *old,
 +				    struct hostapd_data *first)
@@ -149,21 +149,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +						   first);
 +}
 +#endif /* CONFIG_IEEE80211BE */
- 
- 
++
++
  /**
-@@ -544,4 +582,7 @@
+  * accounting_deinit: Deinitialize accounting
+  * @hapd: hostapd BSS data
+@@ -544,4 +582,7 @@ int accounting_init(struct hostapd_data
  void accounting_deinit(struct hostapd_data *hapd)
  {
  	accounting_report_state(hapd, 0);
--}
 +	radius_client_unregister(hapd->radius, RADIUS_ACCT,
 +				 accounting_receive, hapd);
 +	radius_client_unset_interim_error_cb(hapd->radius, hapd);
-+}
+ }
 --- a/src/ap/accounting.h
 +++ b/src/ap/accounting.h
-@@ -34,12 +34,19 @@
+@@ -34,12 +34,19 @@ static inline int accounting_init(struct
  static inline void accounting_deinit(struct hostapd_data *hapd)
  {
  }
@@ -185,7 +186,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* ACCOUNTING_H */
 --- a/src/ap/authsrv.c
 +++ b/src/ap/authsrv.c
-@@ -388,6 +388,9 @@
+@@ -388,6 +388,9 @@ int authsrv_init(struct hostapd_data *ha
  #ifdef EAP_SIM_DB
  		hapd->eap_sim_db_priv = first->eap_sim_db_priv;
  #endif /* EAP_SIM_DB */
@@ -195,7 +196,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return 0;
  	}
  #endif /* CONFIG_IEEE80211BE */
-@@ -509,6 +512,41 @@
+@@ -509,6 +512,41 @@ int authsrv_init(struct hostapd_data *ha
  }
  
  
@@ -250,7 +251,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* AUTHSRV_H */
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -137,7 +137,8 @@
+@@ -137,7 +137,8 @@ static void hostapd_reload_bss(struct ho
  			hapd->iconf->ieee80211ax;
  
  #ifndef CONFIG_NO_RADIUS
@@ -260,7 +261,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_NO_RADIUS */
  
  	ssid = &hapd->conf->ssid;
-@@ -6259,6 +6260,28 @@
+@@ -6259,6 +6260,28 @@ int hostapd_mld_add_link(struct hostapd_
  }
  
  
@@ -289,7 +290,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int hostapd_mld_remove_link(struct hostapd_data *hapd)
  {
  	struct hostapd_mld *mld = hapd->mld;
-@@ -6300,6 +6323,10 @@
+@@ -6300,6 +6323,10 @@ int hostapd_mld_remove_link(struct hosta
  			hostapd_mld_move_vlan_list(hapd, next_fbss);
  
  		mld->fbss = next_fbss;
@@ -302,7 +303,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wpa_printf(MSG_DEBUG, "AP MLD %s: First link BSS set to %p",
 --- a/src/ap/ieee802_11_auth.c
 +++ b/src/ap/ieee802_11_auth.c
-@@ -674,6 +674,8 @@
+@@ -674,6 +674,8 @@ void hostapd_acl_deinit(struct hostapd_d
  	struct hostapd_acl_query_data *query, *prev;
  
  #ifndef CONFIG_NO_RADIUS
@@ -313,7 +314,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_NO_RADIUS */
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -2681,6 +2681,54 @@
+@@ -2681,6 +2681,54 @@ void ieee802_1x_erp_flush(struct hostapd
  }
  
  
@@ -368,21 +369,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ieee802_1x_deinit(struct hostapd_data *hapd)
  {
  #ifdef CONFIG_IEEE80211BE
-@@ -2696,6 +2744,11 @@
- #ifdef CONFIG_WEP
+@@ -2697,6 +2745,11 @@ void ieee802_1x_deinit(struct hostapd_da
  	eloop_cancel_timeout(ieee802_1x_rekey, hapd, NULL);
  #endif /* CONFIG_WEP */
-+
+ 
 +#ifndef CONFIG_NO_RADIUS
 +	radius_client_unregister(hapd->radius, RADIUS_AUTH,
 +				 ieee802_1x_receive_auth, hapd);
 +#endif /* CONFIG_NO_RADIUS */
- 
++
  	if (hapd->driver && hapd->drv_priv &&
  	    (hapd->conf->ieee802_1x || hapd->conf->wpa))
+ 		hostapd_set_drv_ieee8021x(hapd, hapd->conf->iface, 0);
 --- a/src/ap/ieee802_1x.h
 +++ b/src/ap/ieee802_1x.h
-@@ -29,6 +29,8 @@
+@@ -29,6 +29,8 @@ void ieee802_1x_set_sta_authorized(struc
  void ieee802_1x_dump_state(FILE *f, const char *prefix, struct sta_info *sta);
  int ieee802_1x_init(struct hostapd_data *hapd);
  void ieee802_1x_erp_flush(struct hostapd_data *hapd);
@@ -393,13 +394,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			 const u8 *buf, size_t len, int ack);
 --- a/src/eap_server/eap_sim_db.c
 +++ b/src/eap_server/eap_sim_db.c
-@@ -858,6 +858,18 @@
- 	}
+@@ -861,6 +861,18 @@ void eap_sim_db_deinit(void *priv)
+ }
  
- 	os_free(data);
-+}
-+
-+
+ 
 +/**
 + * eap_sim_db_set_ctx - Change the context pointer for get_complete_cb
 + * @data: Private data pointer from eap_sim_db_init()
@@ -409,23 +407,26 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	if (data)
 +		data->ctx = ctx;
- }
- 
- 
++}
++
++
+ static int eap_sim_db_send(struct eap_sim_db_data *data, const char *msg,
+ 			   size_t len)
+ {
 --- a/src/eap_server/eap_sim_db.h
 +++ b/src/eap_server/eap_sim_db.h
-@@ -36,6 +36,8 @@
- 		void *ctx);
+@@ -37,6 +37,8 @@ eap_sim_db_init(const char *config, unsi
  
  void eap_sim_db_deinit(void *priv);
-+
-+void eap_sim_db_set_ctx(struct eap_sim_db_data *data, void *ctx);
  
++void eap_sim_db_set_ctx(struct eap_sim_db_data *data, void *ctx);
++
  int eap_sim_db_get_gsm_triplets(struct eap_sim_db_data *data,
  				const char *username, int max_chal,
+ 				u8 *_rand, u8 *kc, u8 *sres,
 --- a/src/radius/radius_client.c
 +++ b/src/radius/radius_client.c
-@@ -328,6 +328,102 @@
+@@ -328,6 +328,102 @@ int radius_client_register(struct radius
  
  
  /**
@@ -528,13 +529,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * radius_client_set_interim_erro_cb - Register an interim acct error callback
   * @radius: RADIUS client context from radius_client_init()
   * @addr: Station address from the failed message
-@@ -343,6 +439,24 @@
- {
- 	radius->interim_error_cb = cb;
- 	radius->interim_error_cb_ctx = ctx;
-+}
-+
-+
+@@ -346,6 +442,24 @@ void radius_client_set_interim_error_cb(
+ }
+ 
+ 
 +/**
 + * radius_client_unset_interim_error_cb - Remove an interim acct error callback
 + * @radius: RADIUS client context from radius_client_init()
@@ -550,12 +548,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	radius->interim_error_cb = NULL;
 +	radius->interim_error_cb_ctx = NULL;
- }
- 
- 
++}
++
++
+ /*
+  * Returns >0 if message queue was flushed (i.e., the message that triggered
+  * the error is not available anymore)
 --- a/src/radius/radius_client.h
 +++ b/src/radius/radius_client.h
-@@ -271,9 +271,29 @@
+@@ -271,9 +271,29 @@ int radius_client_register(struct radius
  			    const u8 *shared_secret, size_t shared_secret_len,
  			    void *data),
  			   void *data);
@@ -587,7 +588,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int radius_client_send(struct radius_client_data *radius,
 --- a/src/radius/radius_das.c
 +++ b/src/radius/radius_das.c
-@@ -689,3 +689,10 @@
+@@ -689,3 +689,10 @@ void radius_das_deinit(struct radius_das
  	os_free(das->shared_secret);
  	os_free(das);
  }
@@ -600,7 +601,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +}
 --- a/src/radius/radius_das.h
 +++ b/src/radius/radius_das.h
-@@ -61,4 +61,6 @@
+@@ -61,4 +61,6 @@ radius_das_init(struct radius_das_conf *
  
  void radius_das_deinit(struct radius_das_data *data);
  
@@ -609,7 +610,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* RADIUS_DAS_H */
 --- a/src/radius/radius_server.c
 +++ b/src/radius/radius_server.c
-@@ -162,7 +162,7 @@
+@@ -162,7 +162,7 @@ struct radius_server_data {
  	 */
  	int num_sess;
  
@@ -618,7 +619,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	struct dl_list erp_keys; /* struct eap_server_erp_key */
  
-@@ -2093,7 +2093,11 @@
+@@ -2093,7 +2093,11 @@ radius_server_init(struct radius_server_
  			  conf->eap_req_id_text_len);
  		data->eap_req_id_text_len = conf->eap_req_id_text_len;
  	}
@@ -631,7 +632,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (conf->t_c_server_url) {
  		data->t_c_server_url = os_strdup(conf->t_c_server_url);
-@@ -2185,6 +2189,18 @@
+@@ -2185,6 +2189,18 @@ void radius_server_erp_flush(struct radi
  
  
  /**
@@ -650,7 +651,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * radius_server_deinit - Deinitialize RADIUS server
   * @data: RADIUS server context from radius_server_init()
   */
-@@ -2210,6 +2226,7 @@
+@@ -2210,6 +2226,7 @@ void radius_server_deinit(struct radius_
  	os_free(data->dump_msk_file);
  #endif /* CONFIG_RADIUS_TEST */
  	os_free(data->t_c_server_url);
@@ -660,7 +661,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (data->db)
 --- a/src/radius/radius_server.h
 +++ b/src/radius/radius_server.h
-@@ -129,6 +129,7 @@
+@@ -129,6 +129,7 @@ struct radius_server_data *
  radius_server_init(struct radius_server_conf *conf);
  
  void radius_server_erp_flush(struct radius_server_data *data);

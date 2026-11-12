@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ctrl_iface_ap.c
 +++ b/src/ap/ctrl_iface_ap.c
-@@ -690,7 +690,7 @@
+@@ -690,7 +690,7 @@ int hostapd_ctrl_iface_deauthenticate(st
  	if (os_strstr(txtaddr, " tx=0")) {
  		hostapd_drv_sta_remove(hapd, addr);
  		if (sta)
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else {
  		hostapd_drv_sta_deauth(hapd, addr, reason);
  		if (sta)
-@@ -755,7 +755,7 @@
+@@ -755,7 +755,7 @@ int hostapd_ctrl_iface_disassociate(stru
  	if (os_strstr(txtaddr, " tx=0")) {
  		hostapd_drv_sta_remove(hapd, addr);
  		if (sta)
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (sta)
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -2414,23 +2414,33 @@
+@@ -2414,23 +2414,33 @@ void hostapd_free_mld_partner_stas(struc
   * its links, so free the non-AP MLDs whose association link is another one. */
  void hostapd_free_link_sta_mlds(struct hostapd_data *hapd)
  {
@@ -55,18 +55,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		next = sta->next;
 -		if (!hostapd_sta_is_link_sta(hapd, sta))
 -			continue;
--
--		assoc_sta = hostapd_ml_get_assoc_sta(hapd, sta, &assoc_hapd);
--		if (!assoc_sta || assoc_sta == sta)
--			continue;
--
 +		if (hostapd_sta_is_link_sta(hapd, sta))
 +			ap_free_sta_all_links(hapd, sta);
 +	}
 +}
 +#endif /* CONFIG_IEEE80211BE */
-+
-+
+ 
+-		assoc_sta = hostapd_ml_get_assoc_sta(hapd, sta, &assoc_hapd);
+-		if (!assoc_sta || assoc_sta == sta)
+-			continue;
+ 
 +/* The driver station of a non-AP MLD holds all its links. */
 +void ap_free_sta_all_links(struct hostapd_data *hapd, struct sta_info *sta)
 +{
@@ -78,13 +76,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	if (assoc_sta) {
  		ap_sta_remove_link_sta(assoc_hapd, assoc_sta);
 -		ap_free_sta(assoc_hapd, assoc_sta);
--	}
--}
--#endif /* CONFIG_IEEE80211BE */
 +		hapd = assoc_hapd;
 +		sta = assoc_sta;
-+	}
-+#endif /* CONFIG_IEEE80211BE */
+ 	}
+-}
+ #endif /* CONFIG_IEEE80211BE */
 +	ap_free_sta(hapd, sta);
 +}
  
@@ -92,7 +88,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ap_sta_re_add(struct hostapd_data *hapd, struct sta_info *sta)
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -441,6 +441,7 @@
+@@ -441,6 +441,7 @@ struct sta_info * ap_get_sta_p2p(struct
  void ap_sta_hash_add(struct hostapd_data *hapd, struct sta_info *sta);
  void ap_sta_clear_sae_pt(struct sta_info *sta);
  void ap_free_sta(struct hostapd_data *hapd, struct sta_info *sta);

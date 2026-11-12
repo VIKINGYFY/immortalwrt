@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9465,7 +9465,8 @@
+@@ -9465,7 +9465,8 @@ static void handle_assoc(struct hostapd_
  	 */
  	if (sta && ((reply_res != WLAN_STATUS_SUCCESS &&
  		     resp == WLAN_STATUS_SUCCESS) ||
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1218,15 +1218,16 @@
+@@ -1218,15 +1218,16 @@ const u8 * hostapd_process_ml_auth(struc
  }
  
  
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	/*
-@@ -1248,14 +1249,22 @@
+@@ -1248,14 +1249,22 @@ static int hostapd_mld_validate_assoc_in
  		if (!other_hapd) {
  			wpa_printf(MSG_DEBUG, "MLD: Invalid link ID=%u",
  				   link_id);
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -1328,6 +1337,7 @@
+@@ -1328,6 +1337,7 @@ u16 hostapd_process_ml_assoc_req(struct
  	struct mld_info *info = &sta->mld_info;
  	const u8 *pos, *end;
  	int ret = -1;
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u16 ml_control;
  	const u8 *ml_end;
  	u8 saved_peer_addr[ETH_ALEN];
-@@ -1603,7 +1613,10 @@
+@@ -1603,7 +1613,10 @@ u16 hostapd_process_ml_assoc_req(struct
  		link_info->valid = true;
  	}
  
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  out:
  	wpabuf_free(mlbuf);
  	if (ret) {
-@@ -1612,7 +1625,7 @@
+@@ -1612,7 +1625,7 @@ out:
  		return WLAN_STATUS_UNSPECIFIED_FAILURE;
  	}
  
@@ -123,7 +123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/ieee802_11_shared.c
 +++ b/src/ap/ieee802_11_shared.c
-@@ -43,6 +43,12 @@
+@@ -43,6 +43,12 @@ u8 * hostapd_eid_assoc_comeback_time(str
  	struct os_reltime now, passed;
  	u8 type = WLAN_TIMEOUT_ASSOC_COMEBACK;
  
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_get_reltime(&now);
  	os_reltime_sub(&now, &sta->sa_query_start, &passed);
  	tu = (passed.sec * 1000000 + passed.usec) / 1024;
-@@ -53,6 +59,7 @@
+@@ -53,6 +59,7 @@ u8 * hostapd_eid_assoc_comeback_time(str
  	if (timeout < hapd->conf->assoc_sa_query_max_timeout)
  		timeout++; /* add some extra time for local timers */
  
@@ -146,7 +146,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		type = hapd->conf->test_assoc_comeback_type;
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -1772,7 +1772,8 @@
+@@ -1772,7 +1772,8 @@ static int hostapd_wpa_auth_get_ml_key_i
  		}
  
  		for_each_mld_link(bss, hapd) {

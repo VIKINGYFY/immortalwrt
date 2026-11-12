@@ -9,16 +9,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -1035,6 +1035,9 @@
- 	 * This can be %NULL, if ap_scan=2 mode is used and the driver is
+@@ -1036,6 +1036,9 @@ struct wpa_driver_associate_params {
  	 * responsible for selecting with which BSS to associate. */
  	const u8 *bssid;
-+
+ 
 +	unsigned char rates[WLAN_SUPP_RATES_MAX];
 +	int mcast_rate;
- 
++
  	/**
  	 * bssid_hint - BSSID of a proposed AP
+ 	 *
 --- a/wpa_supplicant/config.c
 +++ b/wpa_supplicant/config.c
 @@ -18,6 +18,7 @@
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "config.h"
  
  
-@@ -2627,6 +2628,15 @@
+@@ -2627,6 +2628,15 @@ static int wpa_config_parse_security_pro
  	}
  	os_free(ssid->security_profiles);
  	ssid->security_profiles = vals;
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -2640,6 +2650,87 @@
+@@ -2640,6 +2650,87 @@ static char * wpa_config_write_security_
  }
  #endif /* NO_CONFIG_WRITE */
  
@@ -133,7 +133,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /* Helper macros for network block parser */
  
-@@ -2958,6 +3049,8 @@
+@@ -2958,6 +3049,8 @@ static const struct parse_data ssid_fiel
  	{ INT(ap_max_inactivity) },
  	{ INT(dtim_period) },
  	{ INT(beacon_int) },
@@ -144,7 +144,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	{ INT_RANGE(macsec_integ_only, 0, 1) },
 --- a/wpa_supplicant/config_ssid.h
 +++ b/wpa_supplicant/config_ssid.h
-@@ -911,6 +911,9 @@
+@@ -911,6 +911,9 @@ struct wpa_ssid {
  	 */
  	void *parent_cred;
  
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * macsec_policy - Determines the policy for MACsec secure session
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -5781,6 +5781,12 @@
+@@ -5781,6 +5781,12 @@ static void wpas_start_assoc_cb(struct w
  			params.beacon_int = ssid->beacon_int;
  		else
  			params.beacon_int = wpa_s->conf->beacon_int;

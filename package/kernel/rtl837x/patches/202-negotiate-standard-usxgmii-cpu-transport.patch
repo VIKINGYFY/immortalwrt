@@ -8,7 +8,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -985,6 +985,13 @@
+@@ -985,6 +985,13 @@ static int rtl8372n_sds_pcs_config(struc
  			return ret;
  	}
  
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sds_idx = PORT_TO_SERDES_IDX(port);
  
  	dev_dbg(priv->dev, "[%s]PCS config serdes(%d) mode(%s) neg_mode(0x%x)\n", __func__,
-@@ -1034,12 +1041,10 @@
+@@ -1034,12 +1041,10 @@ static int rtl8372n_sds_pcs_config(struc
  	case PHY_INTERFACE_MODE_USXGMII:
  	case PHY_INTERFACE_MODE_10GBASER:
  		dev_dbg(priv->dev, "[%s]Reset Serdes RX R\n", __func__);

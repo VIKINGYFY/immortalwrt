@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/crypto/tls_mbedtls.c
 +++ b/src/crypto/tls_mbedtls.c
-@@ -1103,9 +1103,37 @@
+@@ -1103,9 +1103,37 @@ tls_mbedtls_append_ciphersuite (int *ids
  }
  
  
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
      const mbedtls_ssl_ciphersuite_t *info =
        mbedtls_ssl_ciphersuite_from_id(id);
      if (info == NULL)
-@@ -1234,6 +1262,31 @@
+@@ -1234,6 +1262,31 @@ tls_mbedtls_set_ciphers(struct tls_conf
          if (clen == 7 && os_memcmp(ciphers, "-aECDSA", 7) == 0)
              continue;
  

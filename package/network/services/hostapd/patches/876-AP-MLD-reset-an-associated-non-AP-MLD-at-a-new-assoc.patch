@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9091,6 +9091,7 @@
+@@ -9091,6 +9091,7 @@ static void handle_assoc(struct hostapd_
  	bool reset_prev_assoc = false;
  	struct wpa_state_machine *prev_wpa_sm = NULL;
  	struct mld_info prev_mld_info;
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  
  	if (len < IEEE80211_HDRLEN + (reassoc ? sizeof(mgmt->u.reassoc_req) :
-@@ -9336,8 +9337,9 @@
+@@ -9336,8 +9337,9 @@ static void handle_assoc(struct hostapd_
  	 * and FILS keep keys of the authentication in the state machine, so
  	 * only Open System and SAE authentication are covered.
  	 */
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    FULL_AP_CLIENT_STATE_SUPP(hapd->iface->drv_flags) &&
  	    (sta->auth_alg == WLAN_AUTH_OPEN ||
  	     sta->auth_alg == WLAN_AUTH_SAE)) {
-@@ -9345,6 +9347,9 @@
+@@ -9345,6 +9347,9 @@ static void handle_assoc(struct hostapd_
  		prev_wpa_sm = sta->wpa_sm;
  		sta->wpa_sm = NULL;
  		ap_sta_mld_info_copy(&prev_mld_info, &sta->mld_info);
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -9509,8 +9514,10 @@
+@@ -9509,8 +9514,10 @@ static void handle_assoc(struct hostapd_
  	}
   fail:
  #ifdef CONFIG_IEEE80211BE
