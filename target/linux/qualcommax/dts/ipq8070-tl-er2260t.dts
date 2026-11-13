@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2020 The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2026 ViKing <viking.yfy@qq.com> */
 
 /dts-v1/;
 
@@ -18,13 +19,7 @@
 	compatible = "tplink,tl-er2260t", "qcom,ipq8074";
 
 	aliases {
-		ethernet0 = &swport1;
-		ethernet1 = &swport2;
-		ethernet2 = &swport3;
-		ethernet3 = &swport4;
-		ethernet4 = &swport5;
-		ethernet5 = &swport6;
-		label-mac-device = &swport5;
+		label-mac-device = &swport1;
 		serial0 = &blsp1_uart5;
 
 		led-boot = &led_system_green;
@@ -99,35 +94,65 @@
 			color = <LED_COLOR_ID_GREEN>;
 		};
 	};
+
+	clocks {
+		ref_50mhz_clk: ref-50mhz-clk {
+			compatible = "fixed-clock";
+			clock-frequency = <50000000>;
+			#clock-cells = <0>;
+		};
+	};
+
+	i2c-mux {
+		compatible = "i2c-mux-gpio";
+		i2c-parent = <&blsp1_i2c2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		mux-gpios = <&tlmm 29 GPIO_ACTIVE_HIGH>,
+			    <&tlmm 30 GPIO_ACTIVE_HIGH>;
+		idle-state = <0>;
+
+		i2c_sfp1: i2c@2 {
+			reg = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		i2c_sfp2: i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+
+	sfp1: sfp-1 {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_sfp1>;
+		maximum-power-milliwatt = <3000>;
+		tx-disable-gpios = <&tlmm 60 GPIO_ACTIVE_HIGH>;
+	};
+
+	sfp2: sfp-2 {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_sfp2>;
+		maximum-power-milliwatt = <3000>;
+		tx-disable-gpios = <&tlmm 59 GPIO_ACTIVE_HIGH>;
+	};
 };
 
-&tlmm {
-	i2c_1_pins: i2c-1-pins {
-		pins = "gpio46", "gpio47";
-		function = "blsp2_i2c";
-		drive-strength = <8>;
-		bias-disable;
-	};
-
-	uniphy_pins: uniphy-pinmux {
-		mux {
-			pins = "gpio60";
-			function = "rx2";
-			bias-disable;
-		};
-
-		sfp_tx {
-			pins = "gpio59";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-			output-low;
-		};
-	};
+&cmn_pll {
+	clocks = <&ref_50mhz_clk>,
+		 <&gcc GCC_CMN_12GPLL_AHB_CLK>,
+		 <&gcc GCC_CMN_12GPLL_SYS_CLK>;
 };
 
 &qpic_nand {
 	status = "okay";
+
+	/* Keep the legacy U-Boot fixup from replacing the SMEM parser node. */
+	partitions {
+		status = "disabled";
+	};
 
 	nand@0 {
 		reg = <0>;
@@ -139,20 +164,19 @@
 		partitions {
 			compatible = "qcom,smem-part";
 
-			partition-0-ethphyfw {
-				label = "0:ethphyfw";
+			partition-0-art {
+				label = "0:art";
+				read-only;
 
 				nvmem-layout {
 					compatible = "fixed-layout";
 					#address-cells = <1>;
 					#size-cells = <1>;
 
-					macaddr_lan: macaddr@0 {
-						reg = <0x0 0x6>;
-					};
-
-					macaddr_wan: macaddr@1 {
-						reg = <0x6 0x6>;
+					macaddr: macaddr@10000d {
+						compatible = "mac-base";
+						reg = <0x10000d 0x6>;
+						#nvmem-cell-cells = <1>;
 					};
 				};
 			};
@@ -191,14 +215,6 @@
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <3>;
 		};
-
-		sfp1: ethernet-phy@1d {
-			reg = <29>;
-		};
-
-		sfp2: ethernet-phy@1e {
-			reg = <30>;
-		};
 	};
 };
 
@@ -236,9 +252,9 @@
 			reg = <1>;
 			label = "ge1";
 			phy-handle = <&qca8075_0>;
-			phy-mode = "qsgmii";
+			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 0>;
-			nvmem-cells = <&macaddr_lan>;
+			nvmem-cells = <&macaddr 0>;
 			nvmem-cell-names = "mac-address";
 		};
 
@@ -246,9 +262,9 @@
 			reg = <2>;
 			label = "ge2";
 			phy-handle = <&qca8075_1>;
-			phy-mode = "qsgmii";
+			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 1>;
-			nvmem-cells = <&macaddr_lan>;
+			nvmem-cells = <&macaddr 0>;
 			nvmem-cell-names = "mac-address";
 		};
 
@@ -256,9 +272,9 @@
 			reg = <3>;
 			label = "ge3";
 			phy-handle = <&qca8075_2>;
-			phy-mode = "qsgmii";
+			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 2>;
-			nvmem-cells = <&macaddr_lan>;
+			nvmem-cells = <&macaddr 0>;
 			nvmem-cell-names = "mac-address";
 		};
 
@@ -266,29 +282,31 @@
 			reg = <4>;
 			label = "ge4";
 			phy-handle = <&qca8075_3>;
-			phy-mode = "qsgmii";
+			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 3>;
-			nvmem-cells = <&macaddr_lan>;
+			nvmem-cells = <&macaddr 0>;
 			nvmem-cell-names = "mac-address";
 		};
 
 		swport5: port@5 {
 			reg = <5>;
-			label = "10ge1";
-			phy-handle = <&sfp1>;
+			label = "10ge2";
+			sfp = <&sfp2>;
 			phy-mode = "10gbase-r";
+			managed = "in-band-status";
 			pcs-handle = <&uniphy1 0>;
-			nvmem-cells = <&macaddr_wan>;
+			nvmem-cells = <&macaddr 2>;
 			nvmem-cell-names = "mac-address";
 		};
 
 		swport6: port@6 {
 			reg = <6>;
-			label = "10ge2";
-			phy-handle = <&sfp2>;
+			label = "10ge1";
+			sfp = <&sfp1>;
 			phy-mode = "10gbase-r";
+			managed = "in-band-status";
 			pcs-handle = <&uniphy2 0>;
-			nvmem-cells = <&macaddr_lan>;
+			nvmem-cells = <&macaddr 1>;
 			nvmem-cell-names = "mac-address";
 		};
 	};
@@ -300,4 +318,14 @@
 
 &edma {
 	status = "okay";
+};
+
+&tlmm {
+	/* Disable the hardware fast-blink override of the SYS LED. */
+	sys-led-mode-hog {
+		gpio-hog;
+		gpios = <65 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "sys-led-mode";
+	};
 };

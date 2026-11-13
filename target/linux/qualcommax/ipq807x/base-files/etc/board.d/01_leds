@@ -35,9 +35,12 @@ spectrum,sax1v1k)
 	ucidef_set_led_netdev "wan-port-link-yellow" "WAN-PORT-LINK-YELLOW" "90000.mdio-1:1c:yellow:wan" "wan" "tx rx link_10 link_100 link_1000"
 	;;
 tplink,tl-er2260t)
+	ucidef_set_led_timer "system" "System" "green:system" "1000" "1000"
 	ucidef_set_led_usbdev "usb" "USB" "green:usb" "1-1"
-	ucidef_set_led_netdev "sfp1-link" "SFP1 (Link)" "green:sfp1-10g" "10ge1" "link"
-	ucidef_set_led_netdev "sfp2-link" "SFP2 (Link)" "green:sfp2-10g" "10ge2" "link"
+	ucidef_set_led_netdev "sfp1-link-10g" "SFP1 (10G Link)" "green:sfp1-10g" "10ge1" "link_10000"
+	ucidef_set_led_netdev "sfp1-link-1g" "SFP1 (1G/2.5G Link)" "amber:sfp1-1g" "10ge1" "link_1000 link_2500"
+	ucidef_set_led_netdev "sfp2-link-10g" "SFP2 (10G Link)" "green:sfp2-10g" "10ge2" "link_10000"
+	ucidef_set_led_netdev "sfp2-link-1g" "SFP2 (1G/2.5G Link)" "amber:sfp2-1g" "10ge2" "link_1000 link_2500"
 	ucidef_set_led_netdev "sfp1-activity" "SFP1 (Activity)" "green:sfp1-act" "10ge1" "tx rx"
 	ucidef_set_led_netdev "sfp2-activity" "SFP2 (Activity)" "green:sfp2-act" "10ge2" "tx rx"
 	;;

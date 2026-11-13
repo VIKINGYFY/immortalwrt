@@ -507,8 +507,8 @@ define Device/tplink_tl-er2260t
 	DEVICE_DTS_CONFIG := config@hk07
 	SOC := ipq8070
 	DEVICE_PACKAGES := -kmod-ath -kmod-ath11k -kmod-ath11k-ahb \
-		-kmod-ath11k-pci -ath11k-firmware-ipq8074-ddwrt \
-		kmod-sfp kmod-usb-ledtrig-usbport
+		-kmod-ath11k-pci -kmod-nss-wifi-drv -ath11k-firmware-ipq8074-ddwrt \
+		kmod-i2c-mux-gpio kmod-sfp kmod-usb-ledtrig-usbport
 endef
 TARGET_DEVICES += tplink_tl-er2260t
 
