@@ -1,0 +1,56 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 13 Nov 2026 09:25:00 +0800
+Subject: [PATCH] leds: trigger: netdev: keep speed controls for SFP ports
+
+An empty SFP cage may report only the MAC's initial interface modes.
+Userspace then skips LED link-speed rules whose sysfs attributes are
+hidden. Inserting a module exposes those attributes but never restores
+the skipped rules, leaving a working 1G/2.5G link LED dark.
+
+Keep the existing link-speed controls available for netdevices attached
+to an SFP bus so LED rules can be armed before a module is inserted.
+Retain supported-mode filtering for ports without an SFP bus and keep
+the existing trigger and sysfs update locking.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/leds/trigger/ledtrig-netdev.c
++++ b/drivers/leds/trigger/ledtrig-netdev.c
+@@ -539,19 +539,26 @@
+ 	 * Stop at the first matching entry as we care only to check if a particular
+ 	 * speed is supported and not the kind.
+ 	 */
+-	scoped_guard(mutex, &trigger_data->lock)
+-		for_each_set_bit(mode, supported_link_modes, __ETHTOOL_LINK_MODE_MASK_NBITS) {
+-			struct ethtool_link_ksettings link_ksettings;
++	guard(mutex)(&trigger_data->lock);
+ 
+-			ethtool_params_from_link_mode(&link_ksettings, mode);
++	/* SFP link modes change with the module. Keep speed controls writable
++	 * while the cage is empty so userspace can arm rules for later modules.
++	 */
++	if (trigger_data->net_dev && READ_ONCE(trigger_data->net_dev->sfp_bus))
++		return attr->mode;
++
++	for_each_set_bit(mode, supported_link_modes, __ETHTOOL_LINK_MODE_MASK_NBITS) {
++		struct ethtool_link_ksettings link_ksettings;
++
++		ethtool_params_from_link_mode(&link_ksettings, mode);
+ 
+-			CHECK_LINK_MODE_ATTR(10);
+-			CHECK_LINK_MODE_ATTR(100);
+-			CHECK_LINK_MODE_ATTR(1000);
+-			CHECK_LINK_MODE_ATTR(2500);
+-			CHECK_LINK_MODE_ATTR(5000);
+-			CHECK_LINK_MODE_ATTR(10000);
+-		}
++		CHECK_LINK_MODE_ATTR(10);
++		CHECK_LINK_MODE_ATTR(100);
++		CHECK_LINK_MODE_ATTR(1000);
++		CHECK_LINK_MODE_ATTR(2500);
++		CHECK_LINK_MODE_ATTR(5000);
++		CHECK_LINK_MODE_ATTR(10000);
++	}
+ 
+ 	return 0;
+ }
