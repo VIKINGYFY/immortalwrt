@@ -147,6 +147,11 @@ return view.extend({
 			option.step = 1;
 			option.default = value;
 			option.rmempty = false;
+			// Keep default values for these required settings.
+			option.formvalue = function(section_id) {
+				const element = this.getUIElement(section_id);
+				return element ? element.getValue() : null;
+			};
 			option.datatype = 'range(%d,%d)'.format(low, high);
 			if (values) modes(option, values);
 			else option.depends('enabled', '1');
