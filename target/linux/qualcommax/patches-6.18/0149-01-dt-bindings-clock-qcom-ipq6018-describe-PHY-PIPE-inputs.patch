@@ -1,0 +1,34 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 13 Nov 2026 23:08:21 +0800
+Subject: [PATCH] dt-bindings: clock: qcom: gcc-ipq6018: describe PHY PIPE inputs
+
+Describe the USB3 and PCIe PHY PIPE inputs that GCC already consumes by
+firmware name. Keep the existing networking inputs and order.
+
+Split from:
+  0149-arm64-dts-qcom-ipq6018-connect-PHY-PIPE-clocks-to-GCC.patch
+    Subject: [PATCH] arm64: dts: qcom: ipq6018: connect PHY PIPE
+      clocks to GCC
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/Documentation/devicetree/bindings/clock/qcom,gcc-ipq6018.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,gcc-ipq6018.yaml
+@@ -37,6 +37,8 @@
+       - description: UNIPHY1 transmit clock
+       - description: CMN PLL networking core clock
+       - description: CMN PLL networking NOC clock
++      - description: USB3 PHY PIPE clock
++      - description: PCIe PHY PIPE clock
+ 
+   clock-names:
+     minItems: 2
+@@ -49,6 +51,8 @@
+       - const: uniphy1_gcc_tx_clk
+       - const: bias_pll_cc_clk
+       - const: bias_pll_nss_noc_clk
++      - const: usb3phy_0_cc_pipe_clk
++      - const: pcie20_phy0_pipe_clk
+ 
+   '#power-domain-cells': false
+ 

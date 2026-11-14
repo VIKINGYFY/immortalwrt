@@ -1,0 +1,41 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 13 Nov 2026 23:08:21 +0800
+Subject: [PATCH] arm64: dts: qcom: ipq6018: connect PHY PIPE clocks to GCC
+
+Pass the USB3 and PCIe PHY PIPE outputs to GCC using the names consumed
+by the clock driver. Without these inputs both muxes remain orphan clocks
+reporting zero rate even after the PHYs register their 125 MHz outputs.
+Keep the existing networking inputs and correct the topology for every
+IPQ6018 board in the shared SoC description.
+
+Split from:
+  0149-arm64-dts-qcom-ipq6018-connect-PHY-PIPE-clocks-to-GCC.patch
+    Subject: [PATCH] arm64: dts: qcom: ipq6018: connect PHY PIPE
+      clocks to GCC
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/arch/arm64/boot/dts/qcom/ipq6018.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq6018.dtsi
+@@ -447,7 +447,9 @@
+ 				 <&uniphy1 UNIPHY_CLK_RX>,
+ 				 <&uniphy1 UNIPHY_CLK_TX>,
+ 				 <&cmn_pll IPQ6018_BIAS_PLL_CC_CLK>,
+-				 <&cmn_pll IPQ6018_BIAS_PLL_NSS_NOC_CLK>;
++				 <&cmn_pll IPQ6018_BIAS_PLL_NSS_NOC_CLK>,
++				 <&ssphy_0>,
++				 <&pcie_phy>;
+ 			clock-names = "xo",
+ 				      "sleep_clk",
+ 				      "uniphy0_gcc_rx_clk",
+@@ -455,7 +457,9 @@
+ 				      "uniphy1_gcc_rx_clk",
+ 				      "uniphy1_gcc_tx_clk",
+ 				      "bias_pll_cc_clk",
+-				      "bias_pll_nss_noc_clk";
++				      "bias_pll_nss_noc_clk",
++				      "usb3phy_0_cc_pipe_clk",
++				      "pcie20_phy0_pipe_clk";
+ 			#clock-cells = <1>;
+ 			#reset-cells = <1>;
+ 		};
