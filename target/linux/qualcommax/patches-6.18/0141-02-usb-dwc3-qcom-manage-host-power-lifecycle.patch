@@ -1,0 +1,138 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 14 Nov 2026 15:33:01 +0800
+Subject: [PATCH] usb: dwc3: qcom: manage host power lifecycle
+
+Keep the optional fixed-host VBUS supply under the flattened Qualcomm
+glue rather than under the USB2 PHY. Powering an attached USB3 device
+before the host and SuperSpeed link are ready can leave it in USB2 mode
+until VBUS is cycled.
+
+Enable the supply after core setup and xHCI binding. Leave the port off
+on failed setup and balance the supply on removal and shutdown, including
+a failed runtime resume. Controllers without this optional supply keep
+their existing management.
+
+The glue also owns the wrapper reset because the core ignores its clocks
+and resets. Assert it after core removal and before disabling the glue
+clocks so teardown leaves both the port and wrapper quiescent.
+
+Merged from:
+  0141-usb-dwc3-qcom-assert-wrapper-reset-during-teardown.patch
+    Subject: [PATCH] usb: dwc3: qcom: assert the wrapper reset during
+      teardown
+  0143-usb-dwc3-qcom-enable-host-vbus-after-xhci-probe.patch
+    Subject: [PATCH] usb: dwc3: qcom: enable host VBUS after xHCI is ready
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/usb/dwc3/dwc3-qcom.c
++++ b/drivers/usb/dwc3/dwc3-qcom.c
+@@ -16,6 +16,7 @@
+ #include <linux/phy/phy.h>
+ #include <linux/usb/of.h>
+ #include <linux/reset.h>
++#include <linux/regulator/consumer.h>
+ #include <linux/iopoll.h>
+ #include <linux/usb/hcd.h>
+ #include <linux/usb.h>
+@@ -85,6 +86,8 @@
+ 	struct icc_path		*icc_path_apps;
+ 
+ 	enum usb_role		current_role;
++	struct regulator	*vbus;
++	bool			vbus_enabled;
+ };
+ 
+ #define to_dwc3_qcom(d) container_of((d), struct dwc3_qcom, dwc)
+@@ -607,6 +610,20 @@
+ 	.pre_run_stop	= dwc3_qcom_run_stop_notifier,
+ };
+ 
++static void dwc3_qcom_disable_vbus(struct dwc3_qcom *qcom)
++{
++	int ret;
++
++	if (!qcom->vbus_enabled)
++		return;
++
++	ret = regulator_disable(qcom->vbus);
++	if (ret)
++		dev_err(qcom->dev, "failed to disable VBUS: %d\n", ret);
++	else
++		qcom->vbus_enabled = false;
++}
++
+ static int dwc3_qcom_probe(struct platform_device *pdev)
+ {
+ 	struct dwc3_probe_data	probe_data = {};
+@@ -699,6 +716,18 @@
+ 			qcom->current_role = USB_ROLE_DEVICE;
+ 	}
+ 
++	if (qcom->mode == USB_DR_MODE_HOST) {
++		qcom->vbus = devm_regulator_get_optional(dev, "vbus");
++		if (IS_ERR(qcom->vbus)) {
++			ret = PTR_ERR(qcom->vbus);
++			if (ret != -ENODEV) {
++				ret = dev_err_probe(dev, ret, "failed to get VBUS regulator\n");
++				goto clk_disable;
++			}
++			qcom->vbus = NULL;
++		}
++	}
++
+ 	ref_clk = devm_clk_get_optional(dev, "mock_utmi");
+ 	if (IS_ERR(ref_clk)) {
+ 		ret = dev_err_probe(dev, PTR_ERR(ref_clk), "failed to get ref clock\n");
+@@ -719,10 +748,26 @@
+ 		goto clk_disable;
+ 	}
+ 
++	/* Keep the port unpowered until the host driver is available. */
++	if (qcom->vbus &&
++	    (!qcom->dwc.xhci || !device_is_bound(&qcom->dwc.xhci->dev))) {
++		ret = dev_err_probe(dev, -EPROBE_DEFER, "waiting for xHCI before VBUS\n");
++		goto remove_core;
++	}
++
+ 	ret = dwc3_qcom_interconnect_init(qcom);
+ 	if (ret)
+ 		goto remove_core;
+ 
++	if (qcom->vbus) {
++		ret = regulator_enable(qcom->vbus);
++		if (ret) {
++			dev_err_probe(dev, ret, "failed to enable VBUS\n");
++			goto exit_interconnect;
++		}
++		qcom->vbus_enabled = true;
++	}
++
+ 	wakeup_source = of_property_read_bool(dev->of_node, "wakeup-source");
+ 	device_init_wakeup(&pdev->dev, wakeup_source);
+ 
+@@ -730,6 +775,8 @@
+ 
+ 	return 0;
+ 
++exit_interconnect:
++	dwc3_qcom_interconnect_exit(qcom);
+ remove_core:
+ 	dwc3_core_remove(&qcom->dwc);
+ clk_disable:
+@@ -743,10 +790,14 @@
+ 	struct dwc3 *dwc = platform_get_drvdata(pdev);
+ 	struct dwc3_qcom *qcom = to_dwc3_qcom(dwc);
+ 
+-	if (pm_runtime_resume_and_get(qcom->dev) < 0)
++	if (pm_runtime_resume_and_get(qcom->dev) < 0) {
++		dwc3_qcom_disable_vbus(qcom);
+ 		return;
++	}
+ 
+ 	dwc3_core_remove(&qcom->dwc);
++	dwc3_qcom_disable_vbus(qcom);
++	reset_control_assert(qcom->resets);
+ 	clk_bulk_disable_unprepare(qcom->num_clocks, qcom->clks);
+ 	dwc3_qcom_interconnect_exit(qcom);
+ 

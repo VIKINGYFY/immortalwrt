@@ -164,7 +164,6 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		gpios = <&tlmm 9 GPIO_ACTIVE_LOW>;
-		regulator-boot-on;
 	};
 };
 
@@ -186,7 +185,10 @@
 
 &qusb_phy_1 {
 	status = "okay";
-	vdd-supply = <&usb_vbus>;
+};
+
+&usb_1 {
+	vbus-supply = <&usb_vbus>;
 };
 
 &mdio {

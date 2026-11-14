@@ -144,7 +144,6 @@
 		regulator-max-microvolt = <5000000>;
 		gpios = <&tlmm 30 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
-		regulator-boot-on;
 	};
 
 	usb1_vbus: regulator-usb1-vbus {
@@ -154,7 +153,6 @@
 		regulator-max-microvolt = <5000000>;
 		gpios = <&tlmm 31 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
-		regulator-boot-on;
 	};
 
 	sfp: sfp {
@@ -363,7 +361,6 @@
 &qusb_phy_0 {
 	status = "okay";
 
-	vdd-supply = <&usb0_vbus>;
 };
 
 &ssphy_1 {
@@ -373,16 +370,17 @@
 &qusb_phy_1 {
 	status = "okay";
 
-	vdd-supply = <&usb1_vbus>;
 };
 
 &usb_0 {
+	vbus-supply = <&usb0_vbus>;
 	dr_mode = "host";
 
 	status = "okay";
 };
 
 &usb_1 {
+	vbus-supply = <&usb1_vbus>;
 	dr_mode = "host";
 
 	status = "okay";

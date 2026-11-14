@@ -1,0 +1,42 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 14 Nov 2026 15:33:01 +0800
+Subject: [PATCH] dt-bindings: usb: qcom,snps-dwc3: describe a host VBUS supply
+
+Describe an optional 5V port supply for fixed host controllers. The
+external VBUS switch is a host resource, separate from the PHY digital
+and analog power rails. Boards with a controllable port supply can keep
+it off until the host is ready.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/Documentation/devicetree/bindings/usb/qcom,snps-dwc3.yaml
++++ b/Documentation/devicetree/bindings/usb/qcom,snps-dwc3.yaml
+@@ -74,6 +74,11 @@
+   reg:
+     maxItems: 1
+ 
++  vbus-supply:
++    description:
++      Optional 5V port supply for fixed host mode. This supply is controlled
++      by the USB host controller and is separate from the PHY power rails.
++
+   power-domains:
+     maxItems: 1
+ 
+@@ -575,6 +580,16 @@
+             - const: ss_phy_1
+             - const: ss_phy_2
+ 
++  - if:
++      properties:
++        dr_mode:
++          const: host
++      required:
++        - dr_mode
++    else:
++      properties:
++        vbus-supply: false
++
+ unevaluatedProperties: false
+ 
+ examples:
