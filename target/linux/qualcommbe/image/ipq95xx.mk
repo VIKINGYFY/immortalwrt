@@ -112,15 +112,15 @@ define Device/xiaomi_be10000-common
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	DEVICE_PACKAGES := ath12k-firmware-qcn9274-ddwrt \
-		kmod-phy-aquantia kmod-sfp kmod-usb-storage uboot-envtools \
-		luci-app-xiaomi-control luci-i18n-xiaomi-control-zh-cn
+		kmod-phy-aquantia kmod-sfp kmod-usb-storage uboot-envtools
 endef
 
 define Device/xiaomi_be10000
 	$(call Device/xiaomi_be10000-common)
 	DEVICE_MODEL := BE10000
 	SOC := ipq9570
-	DEVICE_PACKAGES += ipq-wifi-xiaomi_be10000
+	DEVICE_PACKAGES += ipq-wifi-xiaomi_be10000 \
+		luci-app-xiaomi-control luci-i18n-xiaomi-control-zh-cn
 endef
 TARGET_DEVICES += xiaomi_be10000
 
