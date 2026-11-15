@@ -1,11 +1,6 @@
-From 245043dfc2101e7dc6268bf123b75305a91e4e00 Mon Sep 17 00:00:00 2001
-Message-ID: <245043dfc2101e7dc6268bf123b75305a91e4e00.1782312080.git.lorenzo@kernel.org>
 From: Wayen Yan <win847@gmail.com>
-Date: Fri, 19 Jun 2026 21:12:06 +0800
+Date: Sun, 15 Nov 2026 11:25:33 +0800
 Subject: [PATCH] net: airoha: Fix TX scheduler queue mask loop upper bound
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
 
 In airoha_qdma_set_chan_tx_sched(), the loop clearing queue mask was
 using AIROHA_NUM_TX_RING (32) instead of AIROHA_NUM_QOS_QUEUES (8).
@@ -33,13 +28,12 @@ Acked-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Signed-off-by: Wayen Yan <win847@gmail.com>
 Link: https://patch.msgid.link/178187479434.2400840.1312143943526335838@gmail.com
 Signed-off-by: Jakub Kicinski <kuba@kernel.org>
----
- drivers/net/ethernet/airoha/airoha_eth.c | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -2434,7 +2434,7 @@ static int airoha_qdma_set_chan_tx_sched
+@@ -2395,7 +2395,7 @@
  	struct airoha_gdm_dev *dev = netdev_priv(netdev);
  	int i;
  

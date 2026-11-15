@@ -1,4 +1,5 @@
 From: pbs05 <27010143+pbs05@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 11:25:34 +0800
 Subject: [PATCH] nvmem: add Airoha AN7583 eFuse provider
 
 Expose the read-only AN7583 eFuse image through NVMEM. Platform firmware
@@ -6,13 +7,15 @@ copies the image to a non-secure DMA buffer through its eFuse SMC service.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/nvmem/Kconfig
 +++ b/drivers/nvmem/Kconfig
-@@ -40,6 +40,17 @@ config NVMEM_AN8855_EFUSE
+@@ -52,6 +52,17 @@
+ 
  	  This driver can also be built as a module. If so, the module will
  	  be called nvmem-an8855-efuse.
- 
++
 +config NVMEM_AIROHA_EFUSE
 +	tristate "Airoha AN7583 eFuse support"
 +	depends on ARCH_AIROHA || COMPILE_TEST
@@ -23,14 +26,13 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +
 +	  This driver can also be built as a module. If so, the module
 +	  will be called nvmem-airoha-efuse.
-+
+ 
  config NVMEM_APPLE_EFUSES
  	tristate "Apple eFuse support"
- 	depends on ARCH_APPLE || COMPILE_TEST
 --- a/drivers/nvmem/Makefile
 +++ b/drivers/nvmem/Makefile
-@@ -12,6 +12,8 @@ obj-y				+= layouts/
- # Devices
+@@ -14,6 +14,8 @@
+ nvmem-airoha-smc-efuses-y 		:= airoha-smc-efuses.o
  obj-$(CONFIG_NVMEM_AN8855_EFUSE)	+= nvmem-an8855-efuse.o
  nvmem-an8855-efuse-y 			:= an8855-efuse.o
 +obj-$(CONFIG_NVMEM_AIROHA_EFUSE)	+= nvmem-airoha-efuse.o

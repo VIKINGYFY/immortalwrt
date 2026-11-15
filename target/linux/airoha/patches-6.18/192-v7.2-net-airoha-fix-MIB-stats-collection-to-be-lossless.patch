@@ -1,7 +1,6 @@
-From d163725af84ad958bb74ef4f6eb906a04daa8902 Mon Sep 17 00:00:00 2001
 From: Aniket Negi <aniket.negi03@gmail.com>
-Date: Tue, 7 Jul 2026 20:56:39 +0530
-Subject: [PATCH] net: airoha: fix MIB stats collection to be lossless
+Date: Sun, 15 Nov 2026 11:25:33 +0800
+Subject: [PATCH 34/50] net: airoha: fix MIB stats collection to be lossless
 
 REG_FE_GDM_MIB_CLEAR after every read creates a race window where
 packets arriving between read and clear are lost from statistics.
@@ -37,14 +36,12 @@ Signed-off-by: Aniket Negi <aniket.negi03@gmail.com>
 Acked-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Link: https://patch.msgid.link/20260707152639.105628-1-aniket.negi03@gmail.com
 Signed-off-by: Paolo Abeni <pabeni@redhat.com>
----
- drivers/net/ethernet/airoha/airoha_eth.c | 171 ++++++++++++++---------
- drivers/net/ethernet/airoha/airoha_eth.h |  27 ++++
- 2 files changed, 132 insertions(+), 66 deletions(-)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -1637,11 +1637,14 @@ static void airoha_qdma_stop_napi(struct
+@@ -1686,11 +1686,14 @@
  	}
  }
  
@@ -60,7 +57,7 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  
  	/* Read relevant MIB for GDM with multiple port attached */
  	if (port->id == AIROHA_GDM3_IDX || port->id == AIROHA_GDM4_IDX)
-@@ -1652,152 +1655,188 @@ static void airoha_dev_get_hw_stats(stru
+@@ -1701,152 +1704,188 @@
  
  	u64_stats_update_begin(&dev->stats.syncp);
  
@@ -82,9 +79,10 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
 +	data = (u64)val << 32;
  	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_BYTE_CNT_L(port->id));
 -	dev->stats.tx_ok_bytes += val;
+-
 +	data += val;
 +	dev->stats.tx_ok_bytes = max(data, dev->stats.tx_ok_bytes);
- 
++
 +	/* TX - 32-bit registers: accumulate delta to handle wrap-around. */
  	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_DROP_CNT(port->id));
 -	dev->stats.tx_drops += val;
@@ -103,10 +101,11 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  
  	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_RUNT_CNT(port->id));
 -	dev->stats.tx_len[i] += val;
+-
 +	dev->stats.mib_prev.tx_runt64 +=
 +		(u32)(val - dev->stats.mib_prev.tx_runt);
 +	dev->stats.mib_prev.tx_runt = val;
- 
++
 +	/* tx_len[0]: RUNT (32-bit, delta) + E64 (64-bit, absolute). */
 +	data = dev->stats.mib_prev.tx_runt64;
  	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_E64_CNT_H(port->id));
@@ -228,10 +227,11 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  	i = 0;
  	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_RUNT_CNT(port->id));
 -	dev->stats.rx_len[i] += val;
+-
 +	dev->stats.mib_prev.rx_runt64 +=
 +		(u32)(val - dev->stats.mib_prev.rx_runt);
 +	dev->stats.mib_prev.rx_runt = val;
- 
++
 +	/* rx_len[0]: RUNT (32-bit, delta) + E64 (64-bit, absolute). */
 +	data = dev->stats.mib_prev.rx_runt64;
  	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_E64_CNT_H(port->id));
@@ -316,7 +316,7 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  }
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
-@@ -236,6 +236,33 @@ struct airoha_hw_stats {
+@@ -248,6 +248,33 @@
  	u64 rx_fragment;
  	u64 rx_jabber;
  	u64 rx_len[7];

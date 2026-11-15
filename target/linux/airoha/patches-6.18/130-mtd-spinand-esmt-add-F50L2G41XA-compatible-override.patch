@@ -1,4 +1,5 @@
 From: pbs05 <27010143+pbs05@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 11:25:33 +0800
 Subject: [PATCH] mtd: spinand: esmt: disambiguate F50L2G41XA from Micron
 
 ESMT F50L2G41XA and Micron MT29F2G01ABAGD both return 2c:24 for
@@ -11,16 +12,11 @@ not opt in keep matching the existing Micron entry.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 
----
- Documentation/devicetree/bindings/mtd/spi-nand.yaml |  7 +-
- drivers/mtd/nand/spi/core.c                          |  6 ++
- drivers/mtd/nand/spi/esmt.c                          | 83 +++++++++++++++++++++
- include/linux/mtd/spinand.h                          |  4 +
- 4 files changed, 99 insertions(+), 1 deletion(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/Documentation/devicetree/bindings/mtd/spi-nand.yaml
 +++ b/Documentation/devicetree/bindings/mtd/spi-nand.yaml
-@@ -15,7 +15,12 @@ allOf:
+@@ -15,7 +15,12 @@
  
  properties:
    compatible:
@@ -36,7 +32,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
      description: Encode the chip-select line on the SPI bus
 --- a/include/linux/mtd/spinand.h
 +++ b/include/linux/mtd/spinand.h
-@@ -348,10 +348,13 @@ struct spinand_manufacturer_ops {
+@@ -348,10 +348,13 @@
   * @chips: supported SPI NANDs under current manufacturer
   * @nchips: number of SPI NANDs available in chips array
   * @ops: manufacturer operations
@@ -50,7 +46,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	const struct spinand_info *chips;
  	const size_t nchips;
  	const struct spinand_manufacturer_ops *ops;
-@@ -362,6 +365,7 @@ extern const struct spinand_manufacturer
+@@ -362,6 +365,7 @@
  extern const struct spinand_manufacturer ato_spinand_manufacturer;
  extern const struct spinand_manufacturer esmt_8c_spinand_manufacturer;
  extern const struct spinand_manufacturer esmt_c8_spinand_manufacturer;
@@ -68,7 +64,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  #include <linux/slab.h>
  #include <linux/string.h>
  #include <linux/spi/spi.h>
-@@ -1228,6 +1229,7 @@ static const struct spinand_manufacturer
+@@ -1247,6 +1248,7 @@
  	&ato_spinand_manufacturer,
  	&esmt_8c_spinand_manufacturer,
  	&esmt_c8_spinand_manufacturer,
@@ -76,7 +72,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	&etron_spinand_manufacturer,
  	&fmsh_spinand_manufacturer,
  	&foresee_spinand_manufacturer,
-@@ -1253,6 +1255,10 @@ static int spinand_manufacturer_match(st
+@@ -1272,6 +1274,10 @@
  		const struct spinand_manufacturer *manufacturer =
  			spinand_manufacturers[i];
  
@@ -89,7 +85,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
 --- a/drivers/mtd/nand/spi/esmt.c
 +++ b/drivers/mtd/nand/spi/esmt.c
-@@ -13,11 +13,19 @@
+@@ -13,10 +13,18 @@
  /* ESMT uses GigaDevice 0xc8 JECDEC ID on some SPI NANDs */
  #define SPINAND_MFR_ESMT_C8			0xc8
  #define SPINAND_MFR_ESMT_8C			0x8c
@@ -98,18 +94,17 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  #define ESMT_F50L1G41LB_CFG_OTP_PROTECT		BIT(7)
  #define ESMT_F50L1G41LB_CFG_OTP_LOCK		\
  	(CFG_OTP_ENABLE | ESMT_F50L1G41LB_CFG_OTP_PROTECT)
- 
++
 +#define ESMT_F50L2G41XA_STATUS_ECC_MASK		GENMASK(6, 4)
 +#define ESMT_F50L2G41XA_STATUS_ECC_NO_BITFLIPS	(0 << 4)
 +#define ESMT_F50L2G41XA_STATUS_ECC_1TO3		(1 << 4)
 +#define ESMT_F50L2G41XA_STATUS_ECC_UNCOR		(2 << 4)
 +#define ESMT_F50L2G41XA_STATUS_ECC_4TO6		(3 << 4)
 +#define ESMT_F50L2G41XA_STATUS_ECC_7TO8		(5 << 4)
-+
+ 
  static SPINAND_OP_VARIANTS(read_cache_variants,
  			   SPINAND_PAGE_READ_FROM_CACHE_1S_1S_4S_OP(0, 1, NULL, 0, 0),
- 			   SPINAND_PAGE_READ_FROM_CACHE_1S_1S_2S_OP(0, 1, NULL, 0, 0),
-@@ -108,6 +116,59 @@ static const struct mtd_ooblayout_ops f5
+@@ -108,6 +116,59 @@
  	.free = f50l1g41lb_ooblayout_free,
  };
  
@@ -169,10 +164,11 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  static int f50l1g41lb_otp_info(struct spinand_device *spinand, size_t len,
  			       struct otp_info *buf, size_t *retlen, bool user)
  {
-@@ -186,6 +247,19 @@ static const struct spinand_fact_otp_ops
+@@ -185,6 +246,19 @@
+ 	.read = spinand_fact_otp_read,
  };
  
- 
++
 +static const struct spinand_info esmt_2c_spinand_table[] = {
 +	SPINAND_INFO("F50L2G41XA",
 +		     SPINAND_ID(SPINAND_READID_METHOD_OPCODE_DUMMY, 0x24),
@@ -185,11 +181,10 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +		     SPINAND_ECCINFO(&f50l2g41xa_ooblayout,
 +				     f50l2g41xa_ecc_get_status)),
 +};
-+
+ 
  static const struct spinand_info esmt_8c_spinand_table[] = {
  	SPINAND_INFO("F50L1G41LC",
- 		     SPINAND_ID(SPINAND_READID_METHOD_OPCODE_ADDR, 0x2C),
-@@ -238,6 +312,15 @@ static const struct spinand_info esmt_c8
+@@ -238,6 +312,15 @@
  static const struct spinand_manufacturer_ops esmt_spinand_manuf_ops = {
  };
  

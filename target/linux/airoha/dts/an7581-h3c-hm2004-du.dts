@@ -13,7 +13,7 @@
 	compatible = "h3c,hm2004-du", "airoha,an7581", "airoha,en7581";
 
 	aliases {
-		label-mac-device = &gdm4;
+		label-mac-device = &lan_2p5g;
 		led-boot = &led_power;
 		led-failsafe = &led_power;
 		led-running = &led_power;
@@ -119,19 +119,15 @@
 		regulator-name = "fixed-3.3V";
 	};
 
-	/*
-	 * Skeleton once a binding exists:
-	 *   fmcs {
-	 *       compatible = "h3c,fmcs";
-	 *       spi-controller = <11>;
-	 *       interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
-	 *       fpga-spi-int-gpios = <&en7581_pinctrl 23 GPIO_ACTIVE_HIGH>;
-	 *       status = "okay";
-	 *   };
-	 */
-	fmcs {
+	fmcs: fmcs {
 		compatible = "h3c,fmcs";
-		status = "disabled";
+		spi-controller = <&snfi>;
+		fpga-spi-int-gpios = <&en7581_pinctrl 23 GPIO_ACTIVE_HIGH>;
+		fpga-clk-gpios = <&en7581_pinctrl 29 GPIO_ACTIVE_HIGH>;
+		fpga-data-gpios = <&en7581_pinctrl 30 GPIO_ACTIVE_HIGH>;
+		nvmem-cell-names = "mac-address";
+		nvmem-cells = <&base_mac 9>;
+		status = "okay";
 	};
 };
 
@@ -380,14 +376,44 @@
 	status = "okay";
 };
 
-&gdm4 {
-	openwrt,netdev-name = "lan1";
-	phy-handle = <&en8811>;
-	phy-mode = "2500base-x";
-	/* lan1 carries the plain label MAC. */
-	nvmem-cell-names = "mac-address";
-	nvmem-cells = <&base_mac 0>;
+&usb_pcs {
+	/* USB1 SerDes is wired to the downstream FMCS FPGA. */
 	status = "okay";
+};
+
+&gdm4 {
+	/delete-property/ pcs-handle;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	/* NBQ0 retains the panel EN8811H port and its label MAC. */
+	lan_2p5g: ethernet-port@0 {
+		compatible = "airoha,eth-port";
+		reg = <0>;
+		pcs-handle = <&eth_pcs>;
+		phy-handle = <&en8811>;
+		phy-mode = "2500base-x";
+		nvmem-cell-names = "mac-address";
+		nvmem-cells = <&base_mac 0>;
+		openwrt,netdev-name = "lan1";
+	};
+
+	/* Stock serdes_usb1=11 / fttr_olt_sel=4 selects USB HSGMII, NBQ1. */
+	ethernet-port@1 {
+		compatible = "airoha,eth-port";
+		reg = <1>;
+		pcs-handle = <&usb_pcs>;
+		phy-mode = "2500base-x";
+		openwrt,netdev-name = "fttr0";
+		nvmem-cell-names = "mac-address";
+		nvmem-cells = <&base_mac 3>;
+
+		fixed-link {
+			speed = <2500>;
+			full-duplex;
+		};
+	};
 };
 
 &switch {

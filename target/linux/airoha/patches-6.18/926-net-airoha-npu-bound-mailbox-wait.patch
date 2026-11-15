@@ -1,5 +1,5 @@
 From: pbs05 <27010143+pbs05@users.noreply.github.com>
-Date: Tue, 15 Sep 2026 16:10:00 +0800
+Date: Sun, 15 Nov 2026 11:25:34 +0800
 Subject: [PATCH] net: airoha: bound NPU mailbox wait time
 
 Mailbox replies complete before the following PPE register handshake. A
@@ -10,9 +10,8 @@ Use the same 100 ms bound as the PPE initialization handshake and report the
 function ID that failed.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
----
- drivers/net/ethernet/airoha/airoha_npu.c | 8 +++++++-
- 1 file changed, 7 insertions(+), 1 deletion(-)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
@@ -24,7 +23,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  #define REG_NPU_LOCAL_SRAM		0x0
  
-@@ -203,7 +204,7 @@ static int __airoha_npu_send_msg(struct
+@@ -203,7 +204,7 @@
  	ret = regmap_read_poll_timeout_atomic(npu->regmap,
  					      REG_CR_MBQ0_CTRL(3) + offset,
  					      val, (val & MBOX_MSG_DONE),
@@ -33,15 +32,15 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	if (!ret && FIELD_GET(MBOX_MSG_STATUS, val) != NPU_MBOX_SUCCESS)
  		ret = -EINVAL;
  
-@@ -213,6 +214,11 @@ static int __airoha_npu_send_msg(struct
+@@ -212,6 +213,11 @@
+ 		memcpy(reply, core->buf + len - reply_len, reply_len);
  
  	spin_unlock_bh(&core->lock);
- 
++
 +	if (ret == -ETIMEDOUT)
 +		dev_err_ratelimited(npu->dev,
 +				    "mailbox function %d timed out\n",
 +				    func_id);
-+
+ 
  	return ret;
  }
- 

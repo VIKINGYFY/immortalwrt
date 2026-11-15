@@ -1,4 +1,5 @@
 From: pbs05 <27010143+pbs05@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 11:25:34 +0800
 Subject: [PATCH] net: airoha: select NBQ for PPE egress on external SerDes
 
 GDM3 and GDM4 can each connect multiple net_devices through an external
@@ -11,13 +12,12 @@ selects the same SerDes as the QDMA transmit path.
 
 Fixes: 7758cb462ff7 ("net: airoha: Introduce WAN device flag")
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
----
- drivers/net/ethernet/airoha/airoha_ppe.c | 4 ++++
- 1 file changed, 4 insertions(+)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -509,6 +509,10 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -501,6 +501,10 @@
  			 */
  			if (airoha_is_lan_gdm_dev(dev))
  				val |= AIROHA_FOE_IB2_FAST_PATH;

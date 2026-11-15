@@ -1,4 +1,5 @@
 From: liujixings <liujixings@outlook.com>
+Date: Sun, 15 Nov 2026 11:25:34 +0800
 Subject: [PATCH] net: airoha: preserve native AN7581 L2B ingress keys
 
 Native L2B entries use a different layout from the software bridge
@@ -9,10 +10,12 @@ native layout, preserve its learned key, and decode it consistently.
 Do not redirect native entries through an unverified NPU stats layout.
 
 Signed-off-by: liujixings <liujixings@outlook.com>
----
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
-@@ -388,6 +388,26 @@ struct airoha_foe_bridge {
+@@ -390,6 +390,26 @@
  	struct airoha_foe_mac_info l2;
  };
  
@@ -39,7 +42,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  struct airoha_foe_ipv4_tuple {
  	u32 src_ip;
  	u32 dest_ip;
-@@ -464,6 +484,7 @@ struct airoha_foe_entry {
+@@ -466,6 +486,7 @@
  			u32 ib1;
  			union {
  				struct airoha_foe_bridge bridge;
@@ -47,22 +50,22 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  				struct airoha_foe_ipv4 ipv4;
  				struct airoha_foe_ipv4_dslite dslite;
  				struct airoha_foe_ipv6 ipv6;
-@@ -474,6 +495,12 @@ struct airoha_foe_entry {
+@@ -475,6 +496,12 @@
+ 		u8 data[PPE_ENTRY_SIZE];
  	};
  };
- 
++
 +static_assert(offsetof(struct airoha_foe_entry, l2b.src_mac_hi) == 16);
 +static_assert(offsetof(struct airoha_foe_entry, l2b.data) == 40);
 +static_assert(offsetof(struct airoha_foe_entry, l2b.ib2) == 44);
 +static_assert(offsetof(struct airoha_foe_entry, l2b.vlan1) == 48);
 +static_assert(sizeof(struct airoha_foe_entry) == PPE_ENTRY_SIZE);
-+
+ 
  struct airoha_foe_stats {
  	u32 bytes;
- 	u32 packets;
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -754,6 +754,10 @@ static void airoha_ppe_foe_flow_stats_up
+@@ -746,6 +746,10 @@
  	int ppe_num_stats_entries;
  	u8 nbq;
  
@@ -73,7 +76,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  	ppe_num_stats_entries = airoha_ppe_get_total_num_stats_entries(ppe);
  	if (ppe_num_stats_entries < 0)
  		return;
-@@ -1027,6 +1031,15 @@ airoha_ppe_foe_commit_subflow_entry(stru
+@@ -1019,6 +1023,15 @@
  	hwe.ib1 = (hwe.ib1 & mask) | (e->data.ib1 & ~mask);
  
  	type = FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, hwe.ib1);
@@ -89,7 +92,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  	if (type >= PPE_PKT_TYPE_IPV6_ROUTE_3T) {
  		memcpy(&hwe.ipv6.l2, &e->data.bridge.l2, sizeof(hwe.ipv6.l2));
  		hwe.ipv6.ib2 = e->data.bridge.ib2;
-@@ -1045,6 +1058,7 @@ airoha_ppe_foe_commit_subflow_entry(stru
+@@ -1037,6 +1050,7 @@
  	}
  
  	hwe.bridge.data = e->data.bridge.data;
@@ -97,20 +100,20 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  	airoha_ppe_foe_commit_entry(ppe, &hwe, hash, rx_wlan);
  
  	return 0;
-@@ -1071,6 +1085,12 @@ static void airoha_ppe_foe_insert_entry(
+@@ -1062,6 +1076,12 @@
+ 	state = FIELD_GET(AIROHA_FOE_IB1_BIND_STATE, hwe->ib1);
  	if (state == AIROHA_FOE_STATE_BIND)
  		goto unlock;
- 
++
 +	/* Native L2B uses its learned key, not an IPv4/L4 software hash bucket. */
 +	if (airoha_is_7581(ppe->eth) &&
 +	    FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, hwe->ib1) ==
 +	    PPE_PKT_TYPE_BRIDGE)
 +		goto l2_lookup;
-+
+ 
  	index = airoha_ppe_foe_get_entry_hash(ppe, hwe);
  	hlist_for_each_entry_safe(e, n, &ppe->foe_flow[index], list) {
- 		if (e->type == FLOW_TYPE_L2_SUBFLOW) {
-@@ -1093,6 +1113,7 @@ static void airoha_ppe_foe_insert_entry(
+@@ -1085,6 +1105,7 @@
  	if (commit_done)
  		goto unlock;
  
@@ -118,25 +121,24 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  	airoha_ppe_foe_set_bridge_addrs(&br, eth_hdr(skb));
  	e = rhashtable_lookup_fast(&ppe->l2_flows, &br,
  				   airoha_l2_flow_table_params);
-@@ -1477,8 +1498,15 @@ void airoha_ppe_foe_entry_get_stats(stru
+@@ -1469,7 +1490,14 @@
  	struct airoha_eth *eth = ppe->eth;
  	int ppe_num_stats_entries;
  	struct airoha_npu *npu;
 +	struct airoha_foe_entry *hwe;
  	u32 index;
- 
++
 +	hwe = ppe->foe + hash * sizeof(*hwe);
 +	if (airoha_is_7581(eth) &&
 +	    FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, READ_ONCE(hwe->ib1)) ==
 +	    PPE_PKT_TYPE_BRIDGE)
 +		return;
-+
+ 
  	ppe_num_stats_entries = airoha_ppe_get_total_num_stats_entries(ppe);
  	if (ppe_num_stats_entries < 0)
- 		return;
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-@@ -61,6 +61,7 @@ static int airoha_ppe_debugfs_foe_show(s
+@@ -61,6 +61,7 @@
  		const char *state_str, *type_str = "UNKNOWN";
  		void *src_addr = NULL, *dest_addr = NULL;
  		u16 *src_port = NULL, *dest_port = NULL;
@@ -144,7 +146,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  		struct airoha_foe_mac_info_common *l2;
  		unsigned char h_source[ETH_ALEN] = {};
  		struct airoha_foe_stats64 stats = {};
-@@ -133,7 +134,18 @@ static int airoha_ppe_debugfs_foe_show(s
+@@ -133,7 +134,18 @@
  			break;
  		}
  

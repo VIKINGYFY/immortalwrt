@@ -1,12 +1,12 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Fri, 06 Nov 2026 02:28:18 +0800
+Date: Sun, 15 Nov 2026 11:25:34 +0800
 Subject: [PATCH] mtd: preserve MediaTek BMT support
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/mtd/nand/spi/core.c
 +++ b/drivers/mtd/nand/spi/core.c
-@@ -19,6 +19,7 @@
+@@ -20,6 +20,7 @@
  #include <linux/string.h>
  #include <linux/spi/spi.h>
  #include <linux/spi/spi-mem.h>
@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  int spinand_read_reg_op(struct spinand_device *spinand, u8 reg, u8 *val)
  {
-@@ -1743,6 +1744,7 @@ static int spinand_probe(struct spi_mem
+@@ -1749,6 +1750,7 @@
  	if (ret)
  		return ret;
  
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = mtd_device_register(mtd, NULL, 0);
  	if (ret)
  		goto err_spinand_cleanup;
-@@ -1750,6 +1752,7 @@ static int spinand_probe(struct spi_mem
+@@ -1756,6 +1758,7 @@
  	return 0;
  
  err_spinand_cleanup:
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spinand_cleanup(spinand);
  
  	return ret;
-@@ -1768,6 +1771,7 @@ static int spinand_remove(struct spi_mem
+@@ -1774,6 +1777,7 @@
  	if (ret)
  		return ret;
  

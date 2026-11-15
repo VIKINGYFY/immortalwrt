@@ -1,9 +1,5 @@
-From 788663dd28e424639318842ba5ae290672528609 Mon Sep 17 00:00:00 2001
-Message-ID: <788663dd28e424639318842ba5ae290672528609.1782366471.git.lorenzo@kernel.org>
-In-Reply-To: <bfcce49c4aaab9339ef7b9a7fa4d8ac5a19cc820.1782366471.git.lorenzo@kernel.org>
-References: <bfcce49c4aaab9339ef7b9a7fa4d8ac5a19cc820.1782366471.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
-Date: Fri, 19 Jun 2026 13:37:14 +0200
+Date: Sun, 15 Nov 2026 11:25:33 +0800
 Subject: [PATCH 2/2] net: airoha: fix netif_set_real_num_tx_queues for sparse
  QoS channels
 
@@ -24,13 +20,12 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Reviewed-by: Simon Horman <horms@kernel.org>
 Link: https://patch.msgid.link/20260619-airoha-qos-fixes-v2-2-5c43485038f9@kernel.org
 Signed-off-by: Jakub Kicinski <kuba@kernel.org>
----
- drivers/net/ethernet/airoha/airoha_eth.c | 25 +++++++++++++++---------
- 1 file changed, 16 insertions(+), 9 deletions(-)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -2827,7 +2827,7 @@ static int airoha_tc_htb_alloc_leaf_queu
+@@ -2788,7 +2788,7 @@
  					  struct tc_htb_qopt_offload *opt)
  {
  	u32 channel = TC_H_MIN(opt->classid) % AIROHA_NUM_QOS_CHANNELS;
@@ -39,7 +34,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  	struct airoha_gdm_dev *dev = netdev_priv(netdev);
  	struct airoha_qdma *qdma = dev->qdma;
  
-@@ -2844,13 +2844,15 @@ static int airoha_tc_htb_alloc_leaf_queu
+@@ -2805,13 +2805,15 @@
  	if (err)
  		goto error;
  
@@ -62,7 +57,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  	}
  
  	set_bit(channel, dev->qos_sq_bmap);
-@@ -3041,13 +3043,18 @@ static int airoha_dev_setup_tc_block(str
+@@ -3002,13 +3004,18 @@
  static void airoha_tc_remove_htb_queue(struct net_device *netdev, int queue)
  {
  	struct airoha_gdm_dev *dev = netdev_priv(netdev);
