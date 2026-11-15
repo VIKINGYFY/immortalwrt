@@ -1,36 +1,38 @@
 #!/bin/sh
 
-# Restart ath12k radios that take long time to initialize on boot
+# Retry configured ath12k radios when their PHY becomes available.
 
 [ "${ACTION}" = "add" ] || exit 0
-[ $(grep -c DRIVER=ath12k_pci /sys/$DEVPATH/device/uevent) -gt 0 ] || exit 0
+# wifi config may already have renamed the PHY in 10-wifi-detect.
+# Its parent device remains stable across that rename.
+grep -qsE '^DRIVER=ath12k(_wifi7)?_(pci|ahb)$' \
+	"/sys${DEVPATH%/ieee80211/*}/uevent" || exit 0
 
-. /usr/share/libubox/jshn.sh
+ucode - <<'EOF'
+import { realpath } from 'fs';
+import { connect } from 'ubus';
+import { find_phy } from 'wifi.utils';
 
-restart_radio() {
-	radio=$1
-	arg="{\"radio\": \"$radio\"}"
-	ubus call network reload
-	ubus call network.wireless down "$arg"
-	ubus call network.wireless up "$arg"
+let devpath = getenv('DEVPATH');
+let pos = index(devpath, '/ieee80211/');
+if (pos < 0)
+	exit(0);
+
+let device = realpath('/sys' + substr(devpath, 0, pos));
+let bus = connect();
+if (!device || !bus)
+	exit(0);
+
+let status = bus.call('network.wireless', 'status', {});
+for (let radio, state in status) {
+	if (state.up || state.pending || state.disabled ||
+	    !state.autostart || !state.retry_setup_failed)
+		continue;
+
+	let phy = find_phy(state.config, true);
+	if (!phy || realpath(`/sys/class/ieee80211/${phy}/device`) != device)
+		continue;
+
+	bus.call('network.wireless', 'retry', { device: radio });
 }
-
-json_init
-json_load "$(ubus -S call network.wireless status)"
-json_get_keys radios
-for radio in $radios; do
-	json_select $radio
-	json_get_vars up
-	json_get_vars retry_setup_failed
-
-	json_select config
-	json_get_vars path
-	json_select ..
-
-	if [ $up = 0 -a $retry_setup_failed = 1 ] &&
-	   [ $(iwinfo nl80211 phyname "path=$path") = "$DEVICENAME" ]; then
-		restart_radio $radio
-	fi
-
-	json_select ..
-done
+EOF
