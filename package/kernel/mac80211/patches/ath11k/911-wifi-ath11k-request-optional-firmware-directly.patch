@@ -1,0 +1,30 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Date: Sun, 15 Nov 2026 15:00:00 +0800
+Subject: [PATCH] wifi: ath11k: request optional firmware directly
+
+firmware-2.bin is optional and ath11k falls back to API 1 when it is
+absent. Avoid waiting for the userspace firmware helper during probe.
+Keep the existing path construction and API 1 fallback unchanged.
+
+Link: https://lore.kernel.org/ath11k/20260910071838.1983652-1-julius@bairaktaris.de/
+Assisted-by: Claude:claude-opus-5
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/fw.c
++++ b/drivers/net/wireless/ath/ath11k/fw.c
+@@ -16,10 +16,11 @@
+ 	struct ath11k_fw_ie *hdr;
+ 	const u8 *data;
+ 	__le32 *timestamp;
++	char path[100];
+ 
+-	ab->fw.fw = ath11k_core_firmware_request(ab, name);
+-	if (IS_ERR(ab->fw.fw)) {
+-		ret = PTR_ERR(ab->fw.fw);
++	ath11k_core_create_firmware_path(ab, name, path, sizeof(path));
++	ret = request_firmware_direct(&ab->fw.fw, path, ab->dev);
++	if (ret) {
+ 		ath11k_dbg(ab, ATH11K_DBG_BOOT, "failed to load %s: %d\n", name, ret);
+ 		ab->fw.fw = NULL;
+ 		return ret;
