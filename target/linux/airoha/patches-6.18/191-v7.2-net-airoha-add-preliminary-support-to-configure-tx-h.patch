@@ -1,6 +1,5 @@
-From 9df92875d6d741f9bff1ad95eeaf40b34943d2c4 Mon Sep 17 00:00:00 2001
 From: Lorenzo Bianconi <lorenzo@kernel.org>
-Date: Fri, 3 Jul 2026 13:02:17 +0200
+Date: Sun, 15 Nov 2026 11:25:33 +0800
 Subject: [PATCH 33/50] net: airoha: add preliminary support to configure tx hw
  QoS queue during flowtable offloading
 
@@ -19,13 +18,12 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Reviewed-by: Simon Horman <horms@kernel.org>
 Link: https://patch.msgid.link/20260703-airoha-hw-qos-queue-stub-v1-1-ef253ffdd093@kernel.org
 Signed-off-by: Paolo Abeni <pabeni@redhat.com>
----
- drivers/net/ethernet/airoha/airoha_ppe.c | 10 ++++++----
- 1 file changed, 6 insertions(+), 4 deletions(-)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -319,7 +319,7 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -336,7 +336,7 @@
  					struct airoha_foe_entry *hwe,
  					struct net_device *netdev, int type,
  					struct airoha_flow_data *data,
@@ -34,7 +32,7 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  {
  	u32 qdata = FIELD_PREP(AIROHA_FOE_SHAPER_ID, 0x7f), ports_pad, val;
  	int wlan_etype = -EINVAL, dsa_port = airoha_get_dsa_port(&netdev);
-@@ -374,7 +374,9 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -391,7 +391,9 @@
  			 */
  			channel = dsa_port >= 0 ? dsa_port : port->id;
  			channel = channel % AIROHA_NUM_QOS_CHANNELS;
@@ -45,7 +43,7 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  
  			val |= FIELD_PREP(AIROHA_FOE_IB2_PSE_PORT, pse_port) |
  			       AIROHA_FOE_IB2_PSE_QOS;
-@@ -1067,10 +1069,10 @@ static int airoha_ppe_flow_offload_repla
+@@ -1084,10 +1086,10 @@
  	struct airoha_flow_data data = {};
  	struct net_device *odev = NULL;
  	struct flow_action_entry *act;
@@ -57,7 +55,7 @@ Signed-off-by: Paolo Abeni <pabeni@redhat.com>
  
  	if (rhashtable_lookup(&eth->flow_table, &f->cookie,
  			      airoha_flow_table_params))
-@@ -1166,7 +1168,7 @@ static int airoha_ppe_flow_offload_repla
+@@ -1183,7 +1185,7 @@
  		return -EINVAL;
  
  	err = airoha_ppe_foe_entry_prepare(eth, &hwe, odev, offload_type,

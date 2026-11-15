@@ -1,4 +1,5 @@
 From: pbs05 <27010143+pbs05@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 11:25:34 +0800
 Subject: [PATCH] net: airoha: add PON metadata to PPE flows
 
 PON traffic sent through ndo_start_xmit carries the selected GEM Port-ID
@@ -17,33 +18,11 @@ only FOEs whose egress device uses the changed PON mapping.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 
----
---- a/drivers/net/ethernet/airoha/airoha_eth.h
-+++ b/drivers/net/ethernet/airoha/airoha_eth.h
-@@ -538,6 +538,12 @@ struct airoha_flow_table_entry {
- 
- 	struct rhash_head node;
- 	unsigned long cookie;
-+	/* Track the final egress GDM netdev for each flow. PON bearer mappings
-+	 * can change after O5 recovery or OMCI reconfiguration, so invalidate
-+	 * only FOEs attached to the affected PON egress device.
-+	 */
-+	struct airoha_gdm_dev *egress_dev;
-+	struct list_head gc_node;
- 
- 	/* Must be last --ends in a flexible-array member. */
- 	struct airoha_foe_entry data;
-@@ -806,6 +812,7 @@ airoha_qdma_deref(struct airoha_gdm_dev
- 
- void airoha_ppe_set_mtu(struct airoha_gdm_dev *dev);
- void airoha_ppe_set_cpu_port(struct airoha_gdm_dev *dev, u8 ppe_id, u8 fport);
-+void airoha_ppe_remove_egress_flows(struct airoha_gdm_dev *dev);
- bool airoha_ppe_is_enabled(struct airoha_eth *eth, int index);
- void airoha_ppe_check_skb(struct airoha_ppe_dev *dev, struct sk_buff *skb,
- 			  u16 hash, bool rx_wlan);
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -4114,11 +4114,33 @@ drop:
+@@ -4161,11 +4161,33 @@
  }
  EXPORT_SYMBOL_GPL(airoha_eth_pon_xmit_control);
  
@@ -78,7 +57,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	struct airoha_gdm_dev *dev;
  	unsigned int i, j;
  
-@@ -4164,10 +4186,7 @@ int airoha_eth_pon_replace_flows(
+@@ -4211,10 +4233,7 @@
  		}
  	}
  
@@ -90,7 +69,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	return 0;
  }
  EXPORT_SYMBOL_GPL(airoha_eth_pon_replace_flows);
-@@ -4200,12 +4219,11 @@ int airoha_eth_pon_configure_epon(struct
+@@ -4247,12 +4266,11 @@
  		return -EOPNOTSUPP;
  	if (valid && channel >= 32)
  		return -ERANGE;
@@ -104,6 +83,29 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	return 0;
  }
  EXPORT_SYMBOL_GPL(airoha_eth_pon_configure_epon);
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -540,6 +540,12 @@
+ 
+ 	struct rhash_head node;
+ 	unsigned long cookie;
++	/* Track the final egress GDM netdev for each flow. PON bearer mappings
++	 * can change after O5 recovery or OMCI reconfiguration, so invalidate
++	 * only FOEs attached to the affected PON egress device.
++	 */
++	struct airoha_gdm_dev *egress_dev;
++	struct list_head gc_node;
+ 
+ 	/* Must be last --ends in a flexible-array member. */
+ 	struct airoha_foe_entry data;
+@@ -816,6 +822,7 @@
+ 
+ void airoha_ppe_set_xmit_frame_size(struct airoha_gdm_dev *dev);
+ void airoha_ppe_set_cpu_port(struct airoha_gdm_dev *dev, u8 ppe_id, u8 fport);
++void airoha_ppe_remove_egress_flows(struct airoha_gdm_dev *dev);
+ bool airoha_ppe_is_enabled(struct airoha_eth *eth, int index);
+ void airoha_ppe_check_skb(struct airoha_ppe_dev *dev, struct sk_buff *skb,
+ 			  u16 hash, bool rx_wlan);
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -4,6 +4,7 @@
@@ -114,7 +116,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  #include <linux/ip.h>
  #include <linux/ipv6.h>
  #include <linux/of_platform.h>
-@@ -344,18 +345,99 @@ static void airoha_ppe_foe_set_bridge_ad
+@@ -336,18 +337,99 @@
  	br->src_mac_lo = get_unaligned_be32(eh->h_source + 2);
  }
  
@@ -215,7 +217,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  	val = FIELD_PREP(AIROHA_FOE_IB1_BIND_STATE, AIROHA_FOE_STATE_BIND) |
  	      FIELD_PREP(AIROHA_FOE_IB1_BIND_PACKET_TYPE, type) |
-@@ -383,10 +465,12 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -375,10 +457,12 @@
  		} else {
  			struct airoha_gdm_dev *dev = netdev_priv(netdev);
  			struct airoha_gdm_port *port;
@@ -228,13 +230,13 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  			port = dev->port;
  			if (dsa_port >= 0 || airoha_is_lan_gdm_dev(dev))
-@@ -401,8 +485,17 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -393,8 +477,17 @@
  			 * channel according to the DSA user port index, rely
  			 * on port id otherwise.
  			 */
 -			channel = dsa_port >= 0 ? dsa_port : port->id;
 -			channel = channel % AIROHA_NUM_QOS_CHANNELS;
-+			if (dev->flags & AIROHA_PRIV_F_PON) {
++			if (test_bit(AIROHA_DEV_F_PON, &dev->flags)) {
 +				err = airoha_ppe_pon_select_flow(dev, data,
 +								 &pon_tag);
 +				if (err)
@@ -248,7 +250,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  			priority = rt_tos2priority(dsfield);
  			priority = priority % AIROHA_NUM_QOS_QUEUES;
  			qdata |= FIELD_PREP(AIROHA_FOE_CHANNEL, channel) |
-@@ -419,6 +512,9 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -411,6 +504,9 @@
  			if (dsa_port >= 0)
  				val |= FIELD_PREP(AIROHA_FOE_IB2_NBQ,
  						  dsa_port);
@@ -258,7 +260,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  			smac_id = port->id;
  		}
-@@ -478,6 +574,13 @@ static int airoha_ppe_foe_entry_prepare(
+@@ -470,6 +566,13 @@
  	} else if (dsa_port >= 0) {
  		l2->etype = BIT(dsa_port);
  		l2->etype |= !data->vlan.num ? BIT(15) : 0;
@@ -272,10 +274,12 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	} else if (data->pppoe.num) {
  		l2->etype = ETH_P_PPP_SES;
  	}
-@@ -857,6 +960,43 @@ static void airoha_ppe_foe_flow_remove_e
- 	spin_unlock_bh(&ppe_lock);
- }
+@@ -847,6 +950,43 @@
+ 		airoha_ppe_foe_remove_flow(ppe, e);
  
+ 	spin_unlock_bh(&ppe_lock);
++}
++
 +void airoha_ppe_remove_egress_flows(struct airoha_gdm_dev *dev)
 +{
 +	struct airoha_eth *eth = dev->eth;
@@ -311,12 +315,10 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +				       airoha_flow_table_params);
 +		kfree(e);
 +	}
-+}
-+
+ }
+ 
  static int
- airoha_ppe_foe_commit_subflow_entry(struct airoha_ppe *ppe,
- 				    struct airoha_flow_table_entry *e,
-@@ -1097,6 +1237,7 @@ static int airoha_ppe_flow_offload_repla
+@@ -1089,6 +1229,7 @@
  {
  	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
  	struct airoha_flow_table_entry *e;
@@ -324,7 +326,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	struct airoha_flow_data data = {};
  	struct net_device *odev = NULL;
  	struct flow_action_entry *act;
-@@ -1206,9 +1347,15 @@ static int airoha_ppe_flow_offload_repla
+@@ -1198,9 +1339,15 @@
  		return -EINVAL;
  
  	err = airoha_ppe_foe_entry_prepare(eth, &hwe, odev, offload_type,
@@ -334,7 +336,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +					   &egress_dev);
 +	if (err) {
 +		if (err == -EOPNOTSUPP && egress_dev &&
-+		    egress_dev->flags & AIROHA_PRIV_F_PON)
++		    test_bit(AIROHA_DEV_F_PON, &egress_dev->flags))
 +			NL_SET_ERR_MSG_MOD(f->common.extack,
 +					   "PON egress has no unambiguous VLAN/P-bit to GEM mapping");
  		return err;
@@ -342,7 +344,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  
  	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS)) {
  		struct flow_match_ports ports;
-@@ -1278,7 +1425,9 @@ static int airoha_ppe_flow_offload_repla
+@@ -1270,7 +1417,9 @@
  	if (!e)
  		return -ENOMEM;
  
@@ -362,7 +364,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  #include "airoha_eth.h"
  
  static void airoha_debugfs_ppe_print_tuple(struct seq_file *m,
-@@ -173,9 +174,47 @@ static int airoha_ppe_debugfs_foe_bind_s
+@@ -173,9 +174,47 @@
  }
  DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_foe_bind);
  
@@ -394,7 +396,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +			   airoha_fe_rr(eth, REG_PPE_PPE_FLOW_CFG(i)));
 +		seq_printf(m, "ppe%u_table_cfg: %08x\n", i,
 +			   airoha_fe_rr(eth, REG_PPE_TB_CFG(i)));
-+		seq_printf(m, "ppe%u_gdm2_default_cpu_port: %u\n", i,
++		seq_printf(m, "ppe%u_gdm2_default_cpu_port: %lu\n", i,
 +			   FIELD_GET(DFT_CPORT_MASK(AIROHA_GDM2_IDX), cport));
 +	}
 +

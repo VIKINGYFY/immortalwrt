@@ -1,15 +1,17 @@
 From: pbs05 <27010143+pbs05@users.noreply.github.com>
-Date: Mon, 7 Sep 2026 14:30:00 +0800
+Date: Sun, 15 Nov 2026 11:25:34 +0800
 Subject: [PATCH] net: airoha: disconnect PHY after shared QDMA teardown
 
-The Airoha driver tears down the shared QDMA ring at the end of
-airoha_dev_stop(). Disconnect the PHY after that teardown completes.
+Disconnect the PHY at the end of airoha_dev_stop(), after the GDM port
+forwarding and LRO state have been torn down.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -1971,6 +1971,8 @@ static int airoha_dev_stop(struct net_de
- 		}
- 	}
+@@ -2264,6 +2264,8 @@
+ 	if (netdev->features & NETIF_F_LRO)
+ 		airoha_dev_lro_disable(dev);
  
 +	phylink_disconnect_phy(dev->phylink);
 +

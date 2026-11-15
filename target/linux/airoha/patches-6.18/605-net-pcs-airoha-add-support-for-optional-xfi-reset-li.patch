@@ -1,6 +1,5 @@
-From 961800f3badd72e4efda39f219ac4cbec5791433 Mon Sep 17 00:00:00 2001
 From: Christian Marangi <ansuelsmth@gmail.com>
-Date: Sat, 26 Jul 2025 22:58:10 +0200
+Date: Sun, 15 Nov 2026 11:25:34 +0800
 Subject: [PATCH 7/8] net: pcs: airoha: add support for optional xfi reset line
 
 On Airoha AN7583 there is a dedicated reset line for the PON XFI Serdes.
@@ -11,14 +10,12 @@ Add support for this optional dedicated reset to permit correct
 configuration of the PON Serdes.
 
 Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
----
- drivers/net/pcs/airoha/pcs-airoha-common.c | 12 ++++++++++++
- drivers/net/pcs/airoha/pcs-airoha.h        |  1 +
- 2 files changed, 13 insertions(+)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/pcs/airoha/pcs-airoha-common.c
 +++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
-@@ -150,6 +150,10 @@ static int airoha_pcs_setup_scu(struct a
+@@ -150,6 +150,10 @@
  	const struct airoha_pcs_match_data *data = priv->data;
  	int ret;
  
@@ -29,18 +26,18 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  	switch (data->port_type) {
  	case AIROHA_PCS_ETH:
  		airoha_pcs_setup_scu_eth(priv, interface);
-@@ -167,6 +171,10 @@ static int airoha_pcs_setup_scu(struct a
+@@ -166,6 +170,10 @@
+ 	case AIROHA_PCS_USB:
  		break;
  	}
- 
++
 +	ret = reset_control_deassert(priv->xfi_rst);
 +	if (ret)
 +		return ret;
-+
+ 
  	ret = reset_control_bulk_assert(ARRAY_SIZE(priv->rsts),
  					priv->rsts);
- 	if (ret)
-@@ -1312,6 +1320,10 @@ static int airoha_pcs_probe(struct platf
+@@ -1312,6 +1320,10 @@
  	if (ret)
  		return dev_err_probe(dev, ret, "failed to get bulk reset lines\n");
  
@@ -53,7 +50,7 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
  	 * any SoC revision before E2.
 --- a/drivers/net/pcs/airoha/pcs-airoha.h
 +++ b/drivers/net/pcs/airoha/pcs-airoha.h
-@@ -1657,6 +1657,7 @@ struct airoha_pcs_priv {
+@@ -1657,6 +1657,7 @@
  	struct regmap *pcs_ana;
  	struct regmap_field **pcs_ana_fields[2];
  
