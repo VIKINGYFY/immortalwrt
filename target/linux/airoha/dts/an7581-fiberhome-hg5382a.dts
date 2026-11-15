@@ -75,6 +75,17 @@
 			gpios = <&en7581_pinctrl 16 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "pon0-los";
 		};
+
+		/*
+		 * Internet / broadband. GPIO5 is active low; the xPON online
+		 * trigger lights it once the service GEM/T-CONT path is ready.
+		 */
+		led-internet {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WAN_ONLINE;
+			gpios = <&en7581_pinctrl 5 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "pon0-online";
+		};
 	};
 };
 
