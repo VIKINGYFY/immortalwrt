@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:52 +0800
 Subject: [PATCH] ath11k: apply AP isolation in the NSS firmware
 
 The NSS firmware forwards frames between the stations of an access point
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -3530,6 +3530,36 @@ static bool ath11k_mac_supports_station_
+@@ -3530,6 +3530,36 @@
  		chandef->chan->band == NL80211_BAND_6GHZ;
  }
  
@@ -59,25 +59,25 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_mac_op_bss_info_changed(struct ieee80211_hw *hw,
  					   struct ieee80211_vif *vif,
  					   struct ieee80211_bss_conf *info,
-@@ -3889,6 +3919,9 @@ static void ath11k_mac_op_bss_info_chang
+@@ -3888,6 +3918,9 @@
+ 			   vif->cfg.arp_addr_cnt,
  			   vif->addr, arvif->arp_ns_offload.ipv4_addr);
  	}
- 
++
 +	if (changed & BSS_CHANGED_AP_ISOLATE)
 +		ath11k_nss_vdev_isolate(arvif, vif);
-+
+ 
  	mutex_unlock(&ar->conf_mutex);
  }
- 
-@@ -7215,6 +7248,11 @@ static int ath11k_nss_vdev_register(stru
+@@ -7215,6 +7248,11 @@
+ 	}
  
  	arvif->nss_ifnum = ret;
- 
++
 +	/* A firmware restart registers the vdev again, and its isolation
 +	 * starts over with it.
 +	 */
 +	ath11k_nss_vdev_isolate(arvif, vif);
-+
+ 
  	return 0;
  }
- 

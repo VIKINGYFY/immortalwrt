@@ -1,5 +1,5 @@
 From: Florian Maurer <f.maurer@outlook.de>
-Date: Thu, 05 Nov 2026 15:55:19 +0800
+Date: Sun, 15 Nov 2026 09:38:47 +0800
 Subject: [PATCH] ath11k: add ath11k_mac_op_flush_sta to properly flush pending
  packets
 
@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -8650,6 +8650,23 @@ static void ath11k_mac_op_flush(struct i
+@@ -8651,6 +8651,23 @@
  	ath11k_mac_flush_tx_complete(ar);
  }
  
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static bool
  ath11k_mac_has_single_legacy_rate(struct ath11k *ar,
  				  enum nl80211_band band,
-@@ -10103,6 +10120,7 @@ static const struct ieee80211_ops ath11k
+@@ -10104,6 +10121,7 @@
  	.set_bitrate_mask		= ath11k_mac_op_set_bitrate_mask,
  	.get_survey			= ath11k_mac_op_get_survey,
  	.flush				= ath11k_mac_op_flush,

@@ -1,5 +1,5 @@
 From: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
-Date: Sun, 08 Nov 2026 10:23:51 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] wifi: ath11k: unregister PM notifier on QMI init failure path
 
 ath11k_core_init() registers a PM notifier before the QMI server
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -1349,6 +1349,7 @@ static void ath11k_ahb_remove(struct pla
+@@ -1380,6 +1380,7 @@
  		ath11k_ahb_power_down(ab, false);
  		ath11k_debugfs_soc_destroy(ab);
  		ath11k_qmi_deinit_service(ab);

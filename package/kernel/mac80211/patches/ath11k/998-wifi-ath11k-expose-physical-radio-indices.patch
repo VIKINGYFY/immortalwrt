@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 10 Nov 2026 00:50:00 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] wifi: ath11k: expose physical radio indices for board configuration
 
 Global wiphy numbers advance whenever firmware recovery or a controller
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/if_inet6.h>
  #include <net/ipv6.h>
  
-@@ -10724,6 +10725,80 @@ void ath11k_mac_unregister(struct ath11k
+@@ -10725,6 +10726,80 @@
  	ath11k_peer_rhash_tbl_destroy(ab);
  }
  
@@ -108,13 +108,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int __ath11k_mac_register(struct ath11k *ar)
  {
  	struct ath11k_base *ab = ar->ab;
-@@ -10742,6 +10817,9 @@ static int __ath11k_mac_register(struct
+@@ -10742,6 +10817,9 @@
+ 	};
  	int ret;
  	u32 ht_cap = 0;
- 
++
 +	if (ath11k_mac_device_index(ar) >= 0)
 +		ar->hw->wiphy->dev.groups = ath11k_mac_groups;
-+
+ 
  	ath11k_pdev_caps_update(ar);
  
- 	SET_IEEE80211_PERM_ADDR(ar->hw, ar->mac_addr);

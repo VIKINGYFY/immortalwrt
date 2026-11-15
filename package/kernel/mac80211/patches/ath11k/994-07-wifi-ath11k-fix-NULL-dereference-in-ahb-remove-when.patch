@@ -1,5 +1,5 @@
 From: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
-Date: Sun, 08 Nov 2026 10:23:51 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] wifi: ath11k: fix NULL dereference in ahb remove when QMI
  init incomplete
 
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -1343,14 +1343,15 @@ static void ath11k_ahb_remove(struct pla
+@@ -1374,14 +1374,15 @@
  {
  	struct ath11k_base *ab = platform_get_drvdata(pdev);
  

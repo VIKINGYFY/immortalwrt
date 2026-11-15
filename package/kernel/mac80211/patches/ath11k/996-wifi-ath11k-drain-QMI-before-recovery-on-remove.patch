@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:23:51 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] wifi: ath11k: drain QMI before recovery on device removal
 
 A QMI event that passed the unregister check can queue restart_work
@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -1319,9 +1319,7 @@ static void ath11k_ahb_remove_prepare(st
+@@ -1350,9 +1350,7 @@
  			ath11k_warn(ab, "failed to receive recovery response completion\n");
  	}
  
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_ahb_free_resources(struct ath11k_base *ab)
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2676,6 +2676,9 @@ static void ath11k_core_restart(struct w
+@@ -2665,6 +2665,9 @@
  	struct ath11k_base *ab = container_of(work, struct ath11k_base, restart_work);
  	int ret;
  
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath11k_core_reconfigure_on_crash(ab);
  	if (ret) {
  		ath11k_err(ab, "failed to reconfigure driver on crash recovery\n");
-@@ -2905,6 +2908,20 @@ err_unregister_pm_notifier:
+@@ -2891,6 +2894,20 @@
  }
  EXPORT_SYMBOL(ath11k_core_init);
  
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_lock(&ab->core_lock);
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -1286,6 +1286,7 @@ extern const struct service_to_pipe ath1
+@@ -1286,6 +1286,7 @@
  int ath11k_core_qmi_firmware_ready(struct ath11k_base *ab);
  int ath11k_core_pre_init(struct ath11k_base *ab);
  int ath11k_core_init(struct ath11k_base *ath11k);
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				      enum ath11k_bus bus);
 --- a/drivers/net/wireless/ath/ath11k/pci.c
 +++ b/drivers/net/wireless/ath/ath11k/pci.c
-@@ -1190,7 +1190,9 @@ static void ath11k_pci_remove(struct pci
+@@ -1190,7 +1190,9 @@
  
  	ath11k_pci_set_irq_affinity_hint(ab_pci, NULL);
  
@@ -85,7 +85,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_pci_power_down(ab, false);
  		ath11k_debugfs_soc_destroy(ab);
  		ath11k_qmi_deinit_service(ab);
-@@ -1198,10 +1200,6 @@ static void ath11k_pci_remove(struct pci
+@@ -1198,10 +1200,6 @@
  		goto qmi_fail;
  	}
  
@@ -98,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  qmi_fail:
 --- a/drivers/net/wireless/ath/ath11k/qmi.c
 +++ b/drivers/net/wireless/ath/ath11k/qmi.c
-@@ -3433,7 +3433,8 @@ static void ath11k_qmi_driver_event_work
+@@ -3433,7 +3433,8 @@
  
  		if (test_bit(ATH11K_FLAG_UNREGISTERING, &ab->dev_flags)) {
  			kfree(event);
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		switch (event->type) {
-@@ -3567,8 +3568,23 @@ int ath11k_qmi_init_service(struct ath11
+@@ -3567,8 +3568,23 @@
  
  void ath11k_qmi_deinit_service(struct ath11k_base *ab)
  {

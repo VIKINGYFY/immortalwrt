@@ -1,6 +1,6 @@
 From e5e3da86c01b1eb81570f4d8d9e2d5758d91679d Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 4 Oct 2026 17:46:24 +0100
+Date: Sun, 15 Nov 2026 09:43:21 +0800
 Subject: [PATCH] net: sfp: add LED triggers for module state and faults
 
 Register per-cage LED triggers named sfp-<device>:<name> that the
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/mdio/mdio-i2c.h>
  #include <linux/module.h>
  #include <linux/mutex.h>
-@@ -237,6 +238,26 @@ struct sff_data {
+@@ -237,6 +238,26 @@
  	bool (*module_supported)(const struct sfp_eeprom_id *id);
  };
  
@@ -55,18 +55,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct sfp {
  	struct device *dev;
  	struct i2c_adapter *i2c;
-@@ -315,6 +336,10 @@ struct sfp {
+@@ -314,6 +335,10 @@
+ 
  #if IS_ENABLED(CONFIG_DEBUG_FS)
  	struct dentry *debugfs_dir;
- #endif
++#endif
 +
 +#if IS_ENABLED(CONFIG_LEDS_TRIGGERS)
 +	struct sfp_led led[SFP_LED_MAX];
-+#endif
+ #endif
  };
  
- static void sfp_schedule_poll(struct sfp *sfp)
-@@ -2081,23 +2106,27 @@ static void sfp_sm_link_down(struct sfp
+@@ -2085,23 +2110,27 @@
  	sfp_link_down(sfp->sfp_bus);
  }
  
@@ -86,21 +86,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		los = !(sfp->state & SFP_F_LOS);
 -	else if (los_options == los_normal)
 -		los = !!(sfp->state & SFP_F_LOS);
+-
+-	if (los)
 +		return !(sfp->state & SFP_F_LOS);
 +	if (los_options == los_normal)
 +		return !!(sfp->state & SFP_F_LOS);
 +
 +	return false;
 +}
- 
--	if (los)
++
 +static void sfp_sm_link_check_los(struct sfp *sfp)
 +{
 +	if (sfp_los_asserted(sfp))
  		sfp_sm_next(sfp, SFP_S_WAIT_LOS, 0);
  	else
  		sfp_sm_link_up(sfp);
-@@ -2956,6 +2985,102 @@ static void sfp_sm_main(struct sfp *sfp,
+@@ -2960,6 +2989,102 @@
  	}
  }
  
@@ -203,7 +204,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void __sfp_sm_event(struct sfp *sfp, unsigned int event)
  {
  	dev_dbg(sfp->dev, "SM: enter %s:%s:%s event %s\n",
-@@ -2972,6 +3097,8 @@ static void __sfp_sm_event(struct sfp *s
+@@ -2976,6 +3101,8 @@
  		mod_state_to_str(sfp->sm_mod_state),
  		dev_state_to_str(sfp->sm_dev_state),
  		sm_state_to_str(sfp->sm_state));
@@ -212,7 +213,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void sfp_sm_event(struct sfp *sfp, unsigned int event)
-@@ -3312,6 +3439,10 @@ static int sfp_probe(struct platform_dev
+@@ -3316,6 +3443,10 @@
  	dev_info(sfp->dev, "Host maximum power %u.%uW\n",
  		 sfp->max_power_mW / 1000, (sfp->max_power_mW / 100) % 10);
  

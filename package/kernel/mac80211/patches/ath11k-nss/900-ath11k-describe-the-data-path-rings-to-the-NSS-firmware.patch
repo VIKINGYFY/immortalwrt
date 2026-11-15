@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] ath11k: describe the data-path rings to the NSS firmware
 
 The NSS cores can reap the WLAN hardware's rings themselves, which takes
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -959,6 +959,7 @@ static int ath11k_ahb_setup_resources(st
+@@ -990,6 +990,7 @@
  
  	ab->mem = mem;
  	ab->mem_len = resource_size(mem_res);
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2993,6 +2993,7 @@ struct ath11k_base *ath11k_core_alloc(st
+@@ -2979,6 +2979,7 @@
  	init_completion(&ab->restart_completed);
  
  	ab->dev = dev;
@@ -62,7 +62,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ab;
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -954,6 +954,8 @@ struct ath11k_base {
+@@ -954,6 +954,8 @@
  	struct ath11k_wmi_base wmi_ab;
  	struct completion fw_ready;
  	int num_radios;
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* HW channel counters frequency value in hertz common to all MACs */
  	u32 cc_freq_hz;
  
-@@ -968,6 +970,8 @@ struct ath11k_base {
+@@ -968,6 +970,8 @@
  	void __iomem *mem;
  	void __iomem *mem_ce;
  	unsigned long mem_len;
@@ -82,20 +82,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		enum ath11k_bus bus;
 --- a/drivers/net/wireless/ath/ath11k/dp.c
 +++ b/drivers/net/wireless/ath/ath11k/dp.c
-@@ -13,6 +13,12 @@
+@@ -12,6 +12,12 @@
+ #include "debug.h"
  #include "dp_rx.h"
  #include "peer.h"
- 
++
 +#include <linux/soc/qcom/nss_wifi.h>
 +
 +#define ATH11K_NSS_TARGET_IPQ8074	24
 +#define ATH11K_NSS_TARGET_IPQ6018	25
 +#define ATH11K_NSS_TARGET_QCN9074	26
-+
+ 
  static void ath11k_dp_htt_htc_tx_complete(struct ath11k_base *ab,
  					  struct sk_buff *skb)
- {
-@@ -877,6 +883,169 @@ done:
+@@ -877,6 +883,169 @@
  }
  EXPORT_SYMBOL(ath11k_dp_service_srng);
  
@@ -265,7 +265,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath11k_dp_pdev_free(struct ath11k_base *ab)
  {
  	struct ath11k *ar;
-@@ -919,6 +1088,14 @@ int ath11k_dp_pdev_alloc(struct ath11k_b
+@@ -919,6 +1088,14 @@
  	int ret;
  	int i;
  
@@ -280,7 +280,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* TODO:Per-pdev rx ring unlike tx ring which is mapped to different AC's */
  	for (i = 0; i < ab->num_radios; i++) {
  		ar = ab->pdevs[i].ar;
-@@ -934,6 +1111,8 @@ int ath11k_dp_pdev_alloc(struct ath11k_b
+@@ -934,6 +1111,8 @@
  				    i);
  			goto err;
  		}
@@ -289,7 +289,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return 0;
-@@ -1034,6 +1213,10 @@ void ath11k_dp_free(struct ath11k_base *
+@@ -1034,6 +1213,10 @@
  	struct ath11k_dp *dp = &ab->dp;
  	int i;
  
@@ -310,7 +310,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int (*read)(struct ath11k_base *ab, void *buf, u32 start, u32 end);
  	void (*irq_enable)(struct ath11k_base *ab);
  	void (*irq_disable)(struct ath11k_base *ab);
-@@ -109,6 +110,14 @@ static inline void ath11k_hif_write32(st
+@@ -109,6 +110,14 @@
  	ab->hif.ops->write32(ab, address, data);
  }
  
@@ -327,21 +327,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/drivers/net/wireless/ath/ath11k/pci.c
 +++ b/drivers/net/wireless/ath/ath11k/pci.c
-@@ -72,6 +72,13 @@ static u32 ath11k_pci_get_window_start(s
+@@ -70,6 +70,13 @@
+ 		return 2 * ATH11K_PCI_WINDOW_START;
+ 	else
  		return ATH11K_PCI_WINDOW_START;
- }
- 
++}
++
 +/* Where a register sits in the BAR under the static window map. */
 +static u32 ath11k_pci_window_offset(struct ath11k_base *ab, u32 offset)
 +{
 +	return ath11k_pci_get_window_start(ab, offset) +
 +	       (offset & ATH11K_PCI_WINDOW_RANGE_MASK);
-+}
-+
+ }
+ 
  static inline void ath11k_pci_select_window(struct ath11k_pci *ab_pci, u32 offset)
- {
- 	struct ath11k_base *ab = ab_pci->ab;
-@@ -583,6 +590,7 @@ static int ath11k_pci_claim(struct ath11
+@@ -583,6 +590,7 @@
  	pci_set_master(pdev);
  
  	ab->mem_len = pci_resource_len(pdev, ATH11K_PCI_BAR_NUM);
@@ -349,7 +349,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ab->mem = pci_iomap(pdev, ATH11K_PCI_BAR_NUM, 0);
  	if (!ab->mem) {
  		ath11k_err(ab, "failed to map pci bar %d\n", ATH11K_PCI_BAR_NUM);
-@@ -914,6 +922,7 @@ static const struct ath11k_hif_ops ath11
+@@ -914,6 +922,7 @@
  	.stop = ath11k_pcic_stop,
  	.read32 = ath11k_pcic_read32,
  	.write32 = ath11k_pcic_write32,

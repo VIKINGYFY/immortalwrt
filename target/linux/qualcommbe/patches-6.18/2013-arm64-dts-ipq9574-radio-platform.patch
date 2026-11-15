@@ -1,5 +1,5 @@
 From: Manikanta Mylavarapu <manikanta.mylavarapu@oss.qualcomm.com>
-Date: Fri, 06 Nov 2026 09:04:24 +0800
+Date: Sun, 15 Nov 2026 09:43:38 +0800
 Subject: [PATCH] arm64: dts: qcom: describe IPQ9574 radios and memory defaults
 
 Enable nodes required for q6 remoteproc bring up.
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/Documentation/devicetree/bindings/net/wireless/qcom,ath11k.yaml
 +++ b/Documentation/devicetree/bindings/net/wireless/qcom,ath11k.yaml
-@@ -18,6 +18,7 @@ properties:
+@@ -18,6 +18,7 @@
    compatible:
      enum:
        - qcom,ipq8074-wifi
@@ -55,10 +55,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
        - qcom,ipq6018-wifi
        - qcom,wcn6750-wifi
        - qcom,ipq5018-wifi
-@@ -217,6 +218,124 @@ allOf:
- 
-   - if:
-       properties:
+@@ -214,6 +215,124 @@
+             - const: wbm2host-tx-completions-ring2
+             - const: wbm2host-tx-completions-ring1
+             - const: tcl2host-status-ring
++
++  - if:
++      properties:
 +        compatible:
 +          contains:
 +            const: qcom,ipq9574-wifi
@@ -174,18 +177,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +            - const: tcl2host-status-ring
 +      required:
 +        - interrupt-names
-+
-+  - if:
-+      properties:
-         compatible:
-           contains:
-             enum:
+ 
+   - if:
+       properties:
 --- a/Documentation/devicetree/bindings/net/wireless/qcom,ath12k-wsi.yaml
 +++ b/Documentation/devicetree/bindings/net/wireless/qcom,ath12k-wsi.yaml
-@@ -52,6 +52,14 @@ properties:
+@@ -51,6 +51,14 @@
+ 
    reg:
      maxItems: 1
- 
++
 +  qcom,split-phy:
 +    type: boolean
 +    description:
@@ -193,11 +194,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +      PHYs. This property describes the radio topology on designs where
 +      the device's OTP board identifier does not identify that configuration.
 +      Only applicable to QCN9274 hw2.0.
-+
+ 
    qcom,calibration-variant:
      $ref: /schemas/types.yaml#/definitions/string
-     description:
-@@ -201,3 +209,23 @@ examples:
+@@ -201,3 +209,23 @@
              };
          };
      };
@@ -232,10 +232,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  
  #include <dt-bindings/clock/qcom,apss-ipq.h>
-@@ -228,6 +228,35 @@
+@@ -227,6 +227,35 @@
+ 			reg = <0x0 0x4aa00000 0x0 0x100000>;
  			hwlocks = <&tcsr_mutex 3>;
  			no-map;
- 		};
++		};
 +
 +		q6_region: wcss@4ab00000 {
 +			reg = <0x0 0x4ab00000 0x0 0x3000000>;
@@ -264,14 +265,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			qcom,entry-name = "slave-kernel";
 +			interrupt-controller;
 +			#interrupt-cells = <2>;
-+		};
+ 		};
  	};
  
- 	soc: soc@0 {
-@@ -934,6 +963,147 @@
- 			};
- 		};
- 
+@@ -933,6 +962,147 @@
+ 				frame-number = <6>;
+ 				interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
+ 				status = "disabled";
++			};
++		};
++
 +		wifi0: wifi@c000000 {
 +			compatible = "qcom,ipq9574-wifi";
 +			qcom,ath11k-fw-memory-mode = <1>;
@@ -410,9 +413,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				label = "rtr";
 +				qcom,remote-pid = <1>;
 +				mboxes = <&apcs_glb 8>;
-+			};
-+		};
-+
- 		pcie1: pcie@10000000 {
- 			compatible = "qcom,pcie-ipq9574";
- 			reg = <0x10000000 0xf1d>,
+ 			};
+ 		};
+ 

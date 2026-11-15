@@ -1,6 +1,6 @@
 From 79e5c67e6740b1652cdaf81820738fe6c3ba333b Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
-Date: Fri, 30 Oct 2026 22:27:30 +0800
+Date: Sun, 15 Nov 2026 09:43:21 +0800
 Subject: [PATCH] net: phy: sfp: add quirk for ZYXEL PMG3000-D20B
 
 Add a dedicated quirk for the ZYXEL PMG3000-D20B module.
@@ -22,20 +22,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/phy/sfp.c
 +++ b/drivers/net/phy/sfp.c
-@@ -426,6 +426,12 @@ static void sfp_fixup_nokia(struct sfp *
+@@ -424,6 +424,12 @@
+ {
+ 	sfp_fixup_long_startup(sfp);
  	sfp_fixup_ignore_los(sfp);
- }
- 
++}
++
 +static void sfp_fixup_zyxel(struct sfp *sfp)
 +{
 +	sfp_fixup_ignore_tx_fault_and_los(sfp);
 +	sfp->module_t_wait = T_START_UP_BAD_GPON;
-+}
-+
+ }
+ 
  // For 10GBASE-T short-reach modules
- static void sfp_fixup_10gbaset_30m(struct sfp *sfp)
- {
-@@ -687,6 +693,7 @@ static const struct sfp_quirk sfp_quirks
+@@ -691,6 +697,7 @@
  
  	SFP_QUIRK_S("ZOERAX", "SFP-2.5G-T", sfp_quirk_oem_2_5g),
  	SFP_QUIRK_S("TP-LINK", "TL-SM410U", sfp_quirk_tp_link_sm410u),
