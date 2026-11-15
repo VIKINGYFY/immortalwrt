@@ -1,0 +1,257 @@
+#!/bin/bash
+set -e
+export LC_ALL=C
+. /lib/functions.sh
+. /usr/share/libubox/jshn.sh
+
+error_file=/var/run/xiaomi-nfc.error
+# I2C bus is probed at boot by xiaomi-nfc-detect; fall back to 0.
+bus=$(uci -q get xiaomi_nfc.settings.bus 2>/dev/null || true)
+[ -n "$bus" ] || bus=0
+fail() { printf '%s\n' "$1" >&2; return 1; }
+
+load_ap() {
+	local section=$1 radio enc
+	experimental=0
+	[[ "$section" =~ ^[a-zA-Z0-9_]+$ ]] || return 1
+	config_get mode "$section" mode
+	config_get disabled "$section" disabled 0
+	config_get ssid "$section" ssid
+	config_get enc "$section" encryption none
+	config_get key "$section" key
+	config_get radios "$section" device
+	[ "$mode" = ap ] && [ "$disabled" != 1 ] && [ -n "$radios" ] || return 1
+	for radio in $radios; do
+		config_get disabled "$radio" disabled 0
+		[ "$disabled" != 1 ] || return 1
+	done
+	case "$enc" in
+		none) auth='00 01'; cipher='00 01'; key='';;
+		psk2|psk2+ccmp|psk2+aes|psk-mixed|psk-mixed+ccmp|sae-mixed|sae-mixed+ccmp) auth='00 20'; cipher='00 08';;
+		sae|sae+ccmp|sae+gcmp|sae+gcmp256|sae-ext-key) auth='00 20'; cipher='00 08'; experimental=1;;
+		psk|psk+tkip) auth='00 02'; cipher='00 04';;
+		*) return 1;;
+	esac
+	[ "${#ssid}" -ge 1 ] && [ "${#ssid}" -le 32 ] || return 1
+	if [ "$auth" != '00 01' ]; then
+		if [ "${#key}" -eq 64 ]; then
+			[[ "$key" =~ ^[0-9a-fA-F]{64}$ ]] || return 1
+		else
+			[ "${#key}" -ge 8 ] && [ "${#key}" -le 63 ] || return 1
+		fi
+	fi
+}
+
+hex_string() {
+	local text=$1
+	# UTF-8 safe: printf "%x" "'c" returns a Unicode codepoint for bytes >= 0x80,
+	# which makes i2ctransfer reject values such as 0xdfe4. hexdump emits raw bytes.
+	printf '%s' "$text" | hexdump -v -e '1/1 "%02x "'
+}
+attribute() {
+	local tag=$1 value=$2
+	local -a bytes
+	read -ra bytes <<< "$value"
+	printf '%s %02x %02x %s ' "$tag" "$((${#bytes[@]} >> 8))" "$((${#bytes[@]} & 255))" "$value"
+}
+
+make_message() {
+	local credential payload type
+	local -a bytes message
+	credential="$(attribute '10 26' '01')$(attribute '10 45' "$(hex_string "$ssid")")$(attribute '10 03' "$auth")$(attribute '10 0f' "$cipher")$(attribute '10 27' "$(hex_string "$key")")$(attribute '10 20' 'ff ff ff ff ff ff')"
+	payload=$(attribute '10 0e' "$credential")
+	type=$(hex_string application/vnd.wfa.wsc)
+	read -ra bytes <<< "$payload"
+	read -ra message <<< "d2 17 $(printf '%02x' "${#bytes[@]}") $type $payload"
+	[ "${#message[@]}" -lt 255 ] || return 1
+	read -ra data <<< "03 $(printf '%02x' "${#message[@]}") ${message[*]} fe"
+	while [ "$((${#data[@]} % 4))" != 0 ]; do data+=(00); done
+}
+
+make_text_message() {
+	local text=$1 kind=${2:-text} length type=54
+	local -a payload message
+	[ "${#text}" -gt 0 ] && [ "${#text}" -le 1900 ] || { fail 'Text must contain 1–1900 UTF-8 bytes.'; return 1; }
+	if [ "$kind" = uri ]; then
+		[[ "$text" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]] && [[ ! "$text" =~ [[:space:][:cntrl:]] ]] || { fail 'Enter a URI, for example https://example.com'; return 1; }
+		type=55
+		read -ra payload <<< "00 $(hex_string "$text")"
+	else
+		read -ra payload <<< "02 65 6e $(hex_string "$text")"
+	fi
+	length=${#payload[@]}
+	if [ "$length" -le 255 ]; then
+		read -ra message <<< "d1 01 $(printf '%02x' "$length") $type ${payload[*]}"
+	else
+		read -ra message <<< "c1 01 00 00 $(printf '%02x %02x' "$((length >> 8))" "$((length & 255))") $type ${payload[*]}"
+	fi
+	length=${#message[@]}
+	if [ "$length" -lt 255 ]; then
+		read -ra data <<< "03 $(printf '%02x' "$length") ${message[*]} fe"
+	else
+		read -ra data <<< "03 ff $(printf '%02x %02x' "$((length >> 8))" "$((length & 255))") ${message[*]} fe"
+	fi
+	while [ "$((${#data[@]} % 4))" != 0 ]; do data+=(00); done
+}
+
+make_manual_message() {
+	ssid=$manual_ssid; key=$manual_key
+	[ "${#ssid}" -ge 1 ] && [ "${#ssid}" -le 32 ] || { fail 'SSID must contain 1–32 UTF-8 bytes.'; return 1; }
+	case "$security" in
+		none) auth='00 01'; cipher='00 01'; key='';;
+		wpa2) auth='00 20'; cipher='00 08';;
+		*) fail 'Unsupported security.'; return 1;;
+	esac
+	if [ "$security" != none ]; then
+		if [ "${#key}" -eq 64 ]; then
+			[[ "$key" =~ ^[0-9a-fA-F]{64}$ ]] || { fail 'Invalid Wi-Fi key.'; return 1; }
+		else
+			[ "${#key}" -ge 8 ] && [ "${#key}" -le 63 ] || { fail 'Password must contain 8–63 bytes.'; return 1; }
+		fi
+	fi
+	make_message
+}
+
+read_bytes() {
+	local remaining=$1 page=1 count chunk result=''
+	while [ "$remaining" -gt 0 ]; do
+		count=$remaining
+		[ "$count" -le 128 ] || count=128
+		chunk=$(i2ctransfer -y "$bus" w2@0x54 "$(printf '0x%02x' "$((page >> 8))")" "$(printf '0x%02x' "$((page & 255))")" "r$count") || return 1
+		result+="${result:+ }${chunk//$'\n'/ }"
+		remaining=$((remaining-count))
+		page=$((page+count/4))
+	done
+	printf '%s' "$result"
+}
+write_page() {
+	local page=$1
+	shift
+	i2ctransfer -y "$bus" w6@0x54 "$(printf '0x%02x' "$((page >> 8))")" "$(printf '0x%02x' "$((page & 255))")" "$@" >/dev/null || return 1
+	/usr/libexec/sleep-coreutils 0.01
+}
+write_message() {
+	local cc current expected i
+	local -a wire
+	[ -c /dev/i2c-$bus ] || { fail 'I2C bus is unavailable. An NFC-enabled DTB is required.'; return 1; }
+	cc=$(i2ctransfer -y "$bus" w2@0x54 0x00 0x00 r4) || { fail 'NFC chip did not respond.'; return 1; }
+	[ "$cc" = '0xe1 0x43 0x80 0x09' ] || [ "$cc" = '0xe1 0x40 0x80 0x09' ] || { fail 'Unsupported NFC memory format.'; return 1; }
+	for i in "${data[@]}"; do wire+=("0x$i"); done
+	expected="${wire[*]}"
+	current=$(read_bytes "${#wire[@]}") || return 1
+	[ "$current" != "$expected" ] || return 0
+	write_page 1 0x03 0x00 0xfe 0x00 || return 1
+	for ((i=4; i<${#wire[@]}; i+=4)); do
+		write_page "$((1+i/4))" "${wire[@]:i:4}" || return 1
+	done
+	write_page 1 "${wire[@]:0:4}" || return 1
+	current=$(read_bytes "${#wire[@]}") || return 1
+	[ "$current" = "$expected" ] || { fail 'NFC verification failed.'; return 1; }
+}
+
+status_ap() {
+	local compatible=0 encryption
+	config_get mode "$1" mode
+	[ "$mode" = ap ] || return 0
+	if load_ap "$1" && [ "$experimental" = 0 ]; then compatible=1; fi
+	config_get encryption "$1" encryption none
+	json_add_object ''
+	json_add_string id "$1"
+	json_add_string ssid "$ssid"
+	json_add_string radio "$radios"
+	json_add_string encryption "$encryption"
+	json_add_boolean disabled "$disabled"
+	json_add_boolean compatible "$compatible"
+	json_close_object
+}
+
+case "${1:-}" in
+	status)
+		config_load xiaomi_nfc
+		config_get record_mode settings mode wifi
+		config_get text settings text
+		config_get uri settings uri
+		config_get manual_ssid settings manual_ssid
+		config_get manual_key settings manual_key
+		config_get security settings security wpa2
+		json_init
+		json_add_string mode "$record_mode"
+		json_add_string text "$text"
+		json_add_string uri "$uri"
+		json_add_string manual_ssid "$manual_ssid"
+		json_add_string manual_key "$manual_key"
+		json_add_string security "$security"
+		avail=$(uci -q get xiaomi_nfc.settings.available 2>/dev/null || true)
+		[ -n "$avail" ] || avail=$([ -c /dev/i2c-$bus ] && echo 1 || echo 0)
+		json_add_boolean available "$avail"
+		json_add_boolean enabled "$(uci -q get xiaomi_nfc.settings.enabled || echo 0)"
+		json_add_string iface "$(uci -q get xiaomi_nfc.settings.iface || true)"
+		json_add_string error "$(cat "$error_file" 2>/dev/null || true)"
+		json_add_array aps
+		config_load wireless
+		config_foreach status_ap wifi-iface
+		json_close_array
+		json_dump
+		;;
+	set|sync)
+		exec 9>/var/lock/xiaomi-nfc.lock
+		flock -w 10 9 || exit 1
+		if [ "$1" = set ]; then enabled=${2:-0}; iface=${3:-}; record_mode=${4:-wifi}; text=${5:-}; uri=${6:-}; manual_ssid=${7:-}; manual_key=${8:-}; security=${9:-wpa2}; else
+			config_load xiaomi_nfc
+			config_get record_mode settings mode wifi
+			config_get text settings text
+			config_get uri settings uri
+			config_get manual_ssid settings manual_ssid
+			config_get manual_key settings manual_key
+			config_get security settings security wpa2
+			enabled=$(uci -q get xiaomi_nfc.settings.enabled || echo 0)
+			iface=$(uci -q get xiaomi_nfc.settings.iface || true)
+		fi
+		case "$enabled" in 0|1) ;; *) exit 1;; esac
+		case "$record_mode" in wifi|text|uri|manual) ;; *) exit 1;; esac
+		data=(03 00 fe 00)
+		config_load wireless
+		if [ "$enabled" = 1 ] && [ "$record_mode" != wifi ]; then
+			case "$record_mode" in
+				text) make_text_message "$text" 2> "$error_file" && valid=1 || valid=0;;
+				uri) make_text_message "$uri" uri 2> "$error_file" && valid=1 || valid=0;;
+				manual) make_manual_message 2> "$error_file" && valid=1 || valid=0;;
+			esac
+			if [ "$valid" != 1 ]; then
+				json_init; json_add_string error "$(cat "$error_file")"; json_dump
+				[ "$1" != sync ] || exit 1
+				exit 0
+			fi
+		elif [ "$enabled" = 1 ]; then
+			if ! load_ap "$iface"; then
+				if [ "$1" = sync ]; then write_message >/dev/null 2>&1 || true; fi
+				printf '%s\n' 'Selected AP is unavailable or uses unsupported security.' > "$error_file"
+				json_init; json_add_string error "$(cat "$error_file")"; json_dump
+				[ "$1" != sync ] || exit 1
+				exit 0
+			fi
+			make_message
+		fi
+		if write_message 2> "$error_file"; then
+			if [ "$1" = set ]; then
+				uci set xiaomi_nfc.settings=settings
+				uci set "xiaomi_nfc.settings.enabled=$enabled"
+				uci set "xiaomi_nfc.settings.iface=$iface"
+				uci set "xiaomi_nfc.settings.mode=$record_mode"
+				uci set "xiaomi_nfc.settings.text=$text"
+				uci set "xiaomi_nfc.settings.uri=$uri"
+				uci set "xiaomi_nfc.settings.manual_ssid=$manual_ssid"
+				uci set "xiaomi_nfc.settings.manual_key=$manual_key"
+				uci set "xiaomi_nfc.settings.security=$security"
+				uci commit xiaomi_nfc
+			fi
+			rm -f "$error_file"
+			printf '%s\n' '{"ok":true}'
+		else
+			[ -s "$error_file" ] || printf '%s\n' 'Could not update NFC.' > "$error_file"
+			json_init; json_add_string error "$(cat "$error_file")"; json_dump
+			[ "$1" != sync ] || exit 1
+		fi
+		;;
+	*) exit 1;;
+esac

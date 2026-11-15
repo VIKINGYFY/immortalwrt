@@ -1,0 +1,47 @@
+#!/bin/sh
+# Blank the Xiaomi NFC tag on first boot after a clean flash / factory reset.
+#
+# The NFC chip (NTAG, I2C address 0x54) has its own non-volatile EEPROM and is
+# NOT cleared when the firmware image is flashed, so a freshly flashed router
+# keeps whatever Wi-Fi credentials were previously written to the tag. This
+# uci-defaults script runs only once -- on the first boot after a flash or a
+# "reset to defaults" -- and writes a blank NDEF record (the package's notion
+# of the disabled / default state) so the phone reads nothing.
+#
+# It is a no-op when no NFC chip is detected, so routers without an NFC tag are
+# unaffected. After this run the script is removed automatically by the
+# uci-defaults machinery, so ordinary reboots never touch the tag.
+
+reset_nfc_tag() {
+	local bus n cc attempt
+
+	for attempt in 1 2 3; do
+		for n in 0 1 2 3 4 5 6 7; do
+			[ -c "/dev/i2c-$n" ] || continue
+			cc=$(/usr/sbin/i2ctransfer -y "$n" w2@0x54 0x00 0x00 r4 2>/dev/null) || continue
+			case "$cc" in
+				'0xe1 0x43 0x80 0x09'|'0xe1 0x40 0x80 0x09') bus="$n"; break ;;
+			esac
+		done
+		[ -n "$bus" ] && break
+		sleep 1
+	done
+
+	[ -n "$bus" ] || return 0
+
+	# Blank NDEF: TLV 03 (NDEF Message) length 0, FE terminator, padded to 4 bytes.
+	# Written at page 1 (memory address 0x0001), matching xiaomi-nfc's layout.
+	if /usr/sbin/i2ctransfer -y "$bus" w6@0x54 0x00 0x01 0x03 0x00 0xfe 0x00 2>/dev/null; then
+		logger -t xiaomi-nfc-reset "NFC tag blanked on I2C bus $bus"
+	else
+		logger -t xiaomi-nfc-reset "NFC tag reset failed on I2C bus $bus"
+	fi
+
+	# Record the bus so later LuCI sync operations find the chip reliably.
+	uci -q set xiaomi_nfc.settings.bus="$bus"
+	uci -q commit xiaomi_nfc
+	return 0
+}
+
+reset_nfc_tag
+exit 0

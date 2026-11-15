@@ -1,0 +1,19 @@
+#!/bin/bash
+case "$1:$2" in
+	list:) printf '%s\n' '{"status":{},"set":{"enabled":false,"iface":"","mode":"","text":"","uri":"","manual_ssid":"","manual_key":"","security":""}}';;
+	call:status) exec /usr/libexec/xiaomi-nfc status;;
+	call:set)
+		. /usr/share/libubox/jshn.sh
+		json_load "$(cat)" || exit 1
+		json_get_var enabled enabled
+		json_get_var iface iface
+		json_get_var mode mode
+		json_get_var text text
+		json_get_var uri uri
+		json_get_var manual_ssid manual_ssid
+		json_get_var manual_key manual_key
+		json_get_var security security
+		exec /usr/libexec/xiaomi-nfc set "${enabled:-0}" "${iface:-}" "${mode:-wifi}" "${text:-}" "${uri:-}" "${manual_ssid:-}" "${manual_key:-}" "${security:-wpa2}"
+		;;
+	*) exit 1;;
+esac
