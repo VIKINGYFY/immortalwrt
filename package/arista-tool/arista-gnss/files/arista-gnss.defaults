@@ -1,0 +1,15 @@
+# gpsd reads the C-460's GNSS receiver through lc79h-i2c's pty. Only gpsd's
+# shipped device list is replaced: a list set on the AP stays, and so does
+# gpsd's enabled setting then.
+
+devices=$(uci -q get gpsd.core.devices)
+[ -z "$devices" ] || [ "$devices" = /dev/ttyUSB0 ] || exit 0
+
+uci -q batch <<-EOF
+	delete gpsd.core.devices
+	add_list gpsd.core.devices=/var/run/lc79h-gnss
+	set gpsd.core.enabled=1
+	commit gpsd
+EOF
+
+exit 0

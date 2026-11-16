@@ -1,0 +1,35 @@
+#!/bin/sh
+# Arista C-230/C-260/C-360: LLDP on both Ethernet ports, sent and received, as on
+# Arista's system. The power policy reads from it the power the switch
+# allocated on each port. CDP, FDP, EDP and SONMP stay off. An lldpd
+# configuration changed from the package's default is left alone.
+
+. /lib/functions.sh
+
+case "$(board_name)" in arista,c-230|arista,c-260|arista,c-360) ;; *) exit 0 ;; esac
+[ "$(uci -q get lldpd.config)" = lldpd ] || exit 0
+[ "$(uci -q get lldpd.config.interface)" = "loopback lan" ] || exit 0
+
+ports=
+for p in eth0 eth1 lan1 lan2; do
+	[ -e /sys/class/net/$p ] && ports="$ports $p"
+done
+[ -n "$ports" ] || ports="eth0 eth1"
+
+uci -q delete lldpd.config.interface
+for p in $ports; do
+	uci add_list lldpd.config.interface=$p
+done
+for p in enable_cdp enable_fdp enable_edp enable_sonmp; do
+	uci set lldpd.config.$p=0
+done
+uci set lldpd.config.enable_lldp=1
+# the switch shows the ports as eth0/eth1 rather than by MAC
+uci set lldpd.config.lldp_portidsubtype=ifname
+uci -q delete lldpd.config.readonly_mode
+uci -q delete lldpd.config.lldp_location
+uci commit lldpd
+
+# installed into a running system: start over with the new configuration
+[ -n "$IPKG_INSTROOT" ] || ! /etc/init.d/lldpd running 2>/dev/null || /etc/init.d/lldpd restart
+exit 0

@@ -1,0 +1,267 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# CSR8811 initialization shared by C-230 and C-260. PS keys are Bluetooth
+# firmware copied unmodified from the unit, independent of Wi-Fi firmware.
+
+. /lib/functions.sh
+. /lib/functions/system.sh
+
+run_bounded() {
+	local secs=$1 pid s=0
+	shift
+	true | "$@" >"${OUT:-/dev/null}" 2>&1 &
+	pid=$!
+	while kill -0 $pid 2>/dev/null; do
+		if [ $s -ge $secs ]; then
+			kill $pid 2>/dev/null
+			sleep 1
+			kill -9 $pid 2>/dev/null
+			return 124
+		fi
+		sleep 1
+		s=$((s + 1))
+	done
+	wait $pid
+}
+
+mgmt() {
+	run_bounded 10 btmgmt --index 0 "$@"
+}
+
+# this unit's BLE MAC, as six hex bytes
+ble_mac() {
+	local mtd addr
+	mtd=$(grep -i '"0:art"' /proc/mtd | cut -d: -f1)
+	[ -n "$mtd" ] || return 1
+	addr=$(hexdump -s 0x40 -n 6 -e '6/1 "%02x "' "/dev/$mtd" 2>/dev/null)
+	case "$addr" in
+	""|"ff ff ff ff ff ff"*|"00 00 00 00 00 00"*) return 1 ;;
+	esac
+	echo $addr
+}
+
+bd_addr() {
+	hciconfig hci0 | sed -n 's/.*BD Address: \([0-9A-F:]*\).*/\1/p'
+}
+
+# write_bd_addr B1 .. B6: Zephyr vendor Write BD_ADDR, least significant
+# byte first; true if the controller answers with status 0
+write_bd_addr() {
+	local out=/tmp/arista-bluetooth.$$ ret
+	OUT=$out run_bounded 5 hcitool -i hci0 cmd 0x3f 0x0006 0x$6 0x$5 0x$4 0x$3 0x$2 0x$1
+	# Command Complete: 1 packet, opcode 0xfc06, status 0
+	[ "$(sed -n '/HCI Event: 0x0e/{n;p}' $out | tr -d ' ')" = 0106FC00 ]
+	ret=$?
+	rm -f $out
+	return $ret
+}
+
+nordic_start() {
+	case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in arista,c-360) ;; *) return 0 ;; esac
+	command -v btmgmt >/dev/null || return 0
+	( exec 1000>&-
+	  i=0
+	  while [ ! -d /sys/class/bluetooth/hci0 ] && [ $i -lt 60 ]; do
+		sleep 1
+		i=$((i + 1))
+	  done
+	  [ -d /sys/class/bluetooth/hci0 ] || { logger -t arista-bluetooth "no hci0"; exit 0; }
+	  i=0
+	  until run_bounded 5 btmgmt --index 0 info; do
+		i=$((i + 1))
+		[ $i -ge 30 ] && { logger -t arista-bluetooth "hci0 never became available to mgmt"; exit 0; }
+		sleep 1
+	  done
+	  mac=$(ble_mac)
+	  [ -n "$mac" ] || logger -t arista-bluetooth "no BLE MAC in ART"
+	  set -- $mac
+	  static=${mac:+$(printf '%02x' $((0x$1 | 0xc0))):$2:$3:$4:$5:$6}
+	  public=${mac:+$(echo "$1:$2:$3:$4:$5:$6" | tr a-f A-F)}
+	  # a static address can be set only while the controller is off
+	  mgmt power off
+	  [ -n "$static" ] && { mgmt static-addr "$static" ||
+		logger -t arista-bluetooth "static-addr $static rejected or timed out"; }
+	  mgmt power on || { logger -t arista-bluetooth "hci0 power on failed or timed out"; exit 0; }
+	  if [ -n "$public" ] && [ "$(bd_addr)" != "$public" ]; then
+		if write_bd_addr $mac; then
+			# the kernel reads the new address at the next power on
+			mgmt power off
+			mgmt power on
+		else
+			logger -t arista-bluetooth "Write BD_ADDR $public rejected or timed out"
+		fi
+	  fi
+	  addr="static address ${static:-none}"
+	  if [ -n "$public" ] && [ "$(bd_addr)" = "$public" ]; then
+		mgmt power off
+		if mgmt static-addr 00:00:00:00:00:00 && mgmt power on; then
+			addr="public address $public"
+		else
+			logger -t arista-bluetooth "hci0 would not power on with its public address alone"
+			mgmt power off
+			mgmt static-addr "$static"
+			mgmt power on
+		fi
+	  fi
+	  if hciconfig hci0 | grep -q UP; then
+		logger -t arista-bluetooth "hci0 powered on, $addr (not advertising)"
+	  else
+		logger -t arista-bluetooth "hci0 power on failed"
+	  fi
+	) &
+}
+
+case "$(board_name)" in
+arista,c-360) nordic_start; exit 0 ;;
+arista,c-230) MAC_OFFSET=0x0 ;;
+arista,c-260) MAC_OFFSET=0x18 ;;
+*) exit 0 ;;
+esac
+
+PSR=/lib/firmware/csr8x11-a12-bt4.2-patch.psr
+log() { logger -t arista-bluetooth "$*"; }
+hex() { printf '%02x %02x' $(( $1 & 255 )) $(( ($1 >> 8) & 255 )); }
+
+# The UART at 78b1000 (blsp1_uart3).
+tty=
+for t in /sys/class/tty/ttyMSM*; do
+	case "$(readlink -f "$t/device")" in
+	*/78b1000.serial*) tty=/dev/${t##*/} ;;
+	esac
+done
+[ -n "$tty" ] || { log "no UART at 78b1000"; exit 1; }
+
+# on_tty names the HCI device on that UART, if there is one.
+on_tty() {
+	local h
+	for h in /sys/class/bluetooth/hci*; do
+		[ "$(readlink -f "$h/device")" = "$(readlink -f /sys/class/tty/${tty#/dev/})" ] &&
+			{ echo "${h##*/}"; return 0; }
+	done
+	return 1
+}
+
+# gone waits until the UART's HCI device has gone, at most 15 s, so that the
+# next one takes the lowest free number (hci0) again. Closing the BCSP device
+# sends a reset the chip, by then in H4, never answers: that alone takes 5 s.
+gone() {
+	local i=0
+	while on_tty > /dev/null; do
+		[ $i -lt 15 ] || { log "$(on_tty) on $tty did not go"; return 1; }
+		sleep 1
+		i=$((i + 1))
+	done
+}
+
+# The PS keys, from the Arista system the first time.
+if [ ! -s "$PSR" ]; then
+	mtd=$(find_mtd_index rootfs_1)
+	[ -n "$mtd" ] || { log "no rootfs_1 (Arista slot 1)"; exit 1; }
+	# Another reader of slot 1 may hold it at this moment (at boot, one
+	# service's script and another's run side by side): try for 30 s.
+	for i in $(seq 30); do
+		ubi=$(ubiattach -m "$mtd" 2>/dev/null | sed -n 's/.*UBI device number \([0-9]*\).*/\1/p')
+		[ -n "$ubi" ] && break
+		sleep 1
+	done
+	[ -n "$ubi" ] || { log "cannot attach Arista slot 1"; exit 1; }
+	vol=
+	for v in /sys/class/ubi/ubi${ubi}_*; do
+		[ "$(cat "$v/name" 2>/dev/null)" = ubi_rootfs ] && vol=${v##*/}
+	done
+	tmp=$(mktemp -d)
+	if [ -n "$vol" ]; then
+		[ -c "/dev/$vol" ] || mknod "/dev/$vol" c $(sed 's/:/ /' /sys/class/ubi/$vol/dev)
+		unsquashfs -n -d "$tmp/fs" "/dev/$vol" sbin/csr8x11-a12-bt4.2-patch.psr > /dev/null 2>&1
+	fi
+	ubidetach -d "$ubi" > /dev/null 2>&1
+	if [ -s "$tmp/fs/sbin/csr8x11-a12-bt4.2-patch.psr" ]; then
+		mkdir -p /lib/firmware
+		cp "$tmp/fs/sbin/csr8x11-a12-bt4.2-patch.psr" "$PSR"
+		echo "Arista sbin/csr8x11-a12-bt4.2-patch.psr" > "$PSR.source"
+		log "PS keys copied from the Arista system"
+	fi
+	rm -rf "$tmp"
+	[ -s "$PSR" ] || { log "no sbin/csr8x11-a12-bt4.2-patch.psr in the Arista system"; exit 1; }
+fi
+
+# The BD address as its PS key wants it: 00:LAP-hi, LAP-lo, 00:UAP, NAP.
+# ART: "0:ART" in 25.12's device tree, "0:art" in main's
+art=0:ART
+grep -q '"0:art"' /proc/mtd && art=0:art
+base=$(mtd_get_mac_binary "$art" "$MAC_OFFSET")
+bd=$(macaddr_add "$base" -2)
+set -- $(echo "$bd" | tr ':' ' ')
+bdwords="00$4 $5$6 00$3 $1$2"
+
+# A cold reset (gpio51 is the chip's enable: low holds it in reset, high runs
+# it; low then high, as Arista's ble_ctrl_func) puts the chip back in BCSP
+# with empty PS RAM. One from a run before goes first.
+gone || exit 1
+chip=
+for c in /sys/class/gpio/gpiochip*; do
+	[ "$(cat "$c/label")" = 1000000.pinctrl ] && chip=$c
+done
+gpio=$(( $(cat "$chip/base") + 51 ))
+[ -d /sys/class/gpio/gpio$gpio ] || echo $gpio > /sys/class/gpio/export
+echo out > /sys/class/gpio/gpio$gpio/direction
+echo 0 > /sys/class/gpio/gpio$gpio/value
+sleep 1
+echo 1 > /sys/class/gpio/gpio$gpio/value
+sleep 1
+
+hciattach -s 115200 "$tty" bcsp 115200 noflow > /dev/null || { log "no BCSP answer on $tty"; exit 1; }
+sleep 1
+dev=$(on_tty) || { log "no HCI device on $tty"; killall hciattach; exit 1; }
+hciconfig "$dev" up || { log "$dev did not come up in BCSP"; killall hciattach; exit 1; }
+
+# Each key: BCCMD SETREQ (type 2) of varid 0x7003 (PS) into PS RAM (stores 8),
+# behind the 0xc2 descriptor (BCCMD channel, one fragment); at least 9 words.
+seq=1 bad=0
+for line in $(sed 's,//.*,,' "$PSR" | tr -d '\r' | sed -n 's/^&\([0-9a-fA-F]*\) *= *\(.*\)$/\1=\2/p' | tr ' ' '_'); do
+	key=${line%%=*}
+	words=$(echo "${line#*=}" | tr '_' ' ')
+	[ "$key" = 0001 ] && words=$bdwords
+	n=$(echo $words | wc -w)
+	payload="$(hex 0x$key) $(hex $n) $(hex 8)"
+	for w in $words; do payload="$payload $(hex 0x$w)"; done
+	len=$(( 6 + 2 * n ))
+	size=$(( (len + 1) / 2 + 5 )); [ $size -lt 9 ] && size=9
+	pad=
+	i=$(( size * 2 - 10 - len ))
+	while [ $i -gt 0 ]; do pad="$pad 00"; i=$((i - 1)); done
+	# The reply: c2, GETRESP, size, seq, varid, then the status (0 is ok).
+	st=$(hcitool -i "$dev" cmd 0x3f 0x0000 c2 02 00 $(hex $size) $(hex $seq) 03 70 00 00 $payload $pad 2>&1 |
+		sed -n '/HCI Event: 0xff/,$p' | sed 1d | tr -s ' \n' ' ' | cut -d' ' -f11-12)
+	[ "$st" = "00 00" ] || { log "PS key &$key: status ${st:-none}"; bad=$((bad + 1)); }
+	seq=$((seq + 1))
+done
+[ $bad = 0 ] || { killall hciattach; exit 1; }
+
+# Warm reset (varid 0x4002, no reply): the chip restarts in H4.
+hcitool -i "$dev" cmd 0x3f 0x0000 c2 02 00 09 00 $(hex $seq) 02 40 00 00 00 00 00 00 00 00 00 00 > /dev/null 2>&1 &
+sleep 1
+killall hciattach
+kill $! 2> /dev/null
+gone || exit 1
+
+log "$((seq - 1)) PS keys loaded, BD address $bd, H4 on $tty"
+
+# Power it on once hciattach has registered it again (as H4), with LE on:
+# the CSR8811 is dual mode, and with no bluetoothd nothing else turns LE on
+# (the C-360's controller is LE only). btmgmt reads stdin, which must be a
+# pipe it can poll.
+( i=0
+  while [ $i -lt 20 ]; do
+	sleep 1
+	i=$((i + 1))
+	h=$(on_tty) || continue
+	hciconfig "$h" up 2>/dev/null || continue
+	true | btmgmt --index "${h#hci}" le on >/dev/null 2>&1 ||
+		log "$h: LE could not be turned on"
+	log "$h powered on, LE on (not advertising)"
+	exit 0
+  done
+  log "the controller was not there to be powered on" ) &
+
+exec hciattach -n -s 115200 "$tty" any 115200 flow nosleep

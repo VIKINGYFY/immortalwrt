@@ -1,0 +1,37 @@
+#!/bin/sh /etc/rc.common
+# Apply the board's PoE power policy once a port has link: the PoE
+# controller's class pins are only settled then (Arista reads them likewise).
+# Then keep watching: the power a switch allocates by LLDP arrives later, and
+# a supply can change while the AP runs.
+
+START=99
+USE_PROCD=1
+
+start_service() {
+	. /lib/functions.sh
+	case "$(board_name)" in arista,c-230|arista,c-260|arista,c-360) ;; *) return 0 ;; esac
+	# The DT appends ubi.mtd even to initramfs: inspect the actual root.
+	case "$(awk '$2 == "/" {print $3; exit}' /proc/mounts)" in
+	tmpfs|rootfs|ramfs) return 0 ;;
+	esac
+	procd_open_instance
+	procd_set_param command /bin/sh -c '
+		for i in $(seq 1 60); do
+			for p in eth0 eth1 lan1 lan2; do
+				[ "$(cat /sys/class/net/$p/carrier 2>/dev/null)" = 1 ] && break 2
+			done
+			sleep 2
+		done
+		/usr/sbin/arista-power apply
+		exec /usr/sbin/arista-power monitor'
+	procd_set_param respawn 3600 5 0
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger arista-power wireless
+}
+
+reload_service() {
+	/usr/sbin/arista-power apply
+}

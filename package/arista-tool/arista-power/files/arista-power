@@ -1,0 +1,310 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Shared PoE policy for C-230, C-260 and C-360. GPIO classes and radio
+# budgets follow each board's vendor profile. Unknown inputs keep full power.
+
+. /lib/functions.sh
+case "$(board_name)" in
+arista,c-230)
+    MODEL=c230 CAP2=20 CAP5=22 CAP6=22 SCAN_CAP=20
+    CHAINS_BAND=5g CHAINS_OPT=chains_5g CHAINS_MASK=48 USB_POLICY=1 BT_POLICY=1 ;;
+arista,c-260)
+    MODEL=c260 CAP2=23 CAP5=25 CAP6=25 SCAN_CAP=20
+    CHAINS_BAND= USB_POLICY=0 BT_POLICY=1 ;;
+arista,c-360)
+    MODEL=c360 CAP2=15 CAP5=18 CAP6=18 SCAN_CAP=15
+    CHAINS_BAND=2g CHAINS_OPT=chains_2g CHAINS_MASK=3 USB_POLICY=1 BT_POLICY=0 ;;
+*) exit 0 ;;
+esac
+
+STATE=/var/run/arista-power
+BT_INIT=/etc/init.d/arista-bluetooth
+USBDRV=/sys/bus/platform/drivers/dwc3-qcom
+USB=8a00000.usb
+UCI="uci -q -t /var/run/arista-power.uci"
+log() { logger -t arista-power "$*"; }
+opt() { uci -q get arista-power.main.$1 || echo "$2"; }
+
+others_staged() { [ -n "$(uci -q changes $1)" ]; }
+
+scan_section() { ubus call airscan status 2>/dev/null | jsonfilter -e '@.section' 2>/dev/null; }
+
+wifi_devices() { uci -q show wireless | sed -n "s/^wireless\.\([^.]*\)=wifi-device$/\1/p"; }
+
+tlmm_base() {
+	local c
+	for c in /sys/class/gpio/gpiochip*; do
+		[ "$(cat $c/label 2>/dev/null)" = 1000000.pinctrl ] && { cat $c/base; return; }
+	done
+}
+
+gpio() { # gpio <tlmm gpio>: its number in /sys/class/gpio, exported
+	local n=$(( $(tlmm_base) + $1 ))
+	[ -e /sys/class/gpio/gpio$n ] || echo $n > /sys/class/gpio/export 2>/dev/null
+	echo $n
+}
+
+pin() { # pin <tlmm gpio>: its level, as an input
+	local n=$(gpio $1)
+	[ "$(cat /sys/class/gpio/gpio$n/direction 2>/dev/null)" = in ] ||
+		echo in > /sys/class/gpio/gpio$n/direction 2>/dev/null
+	cat /sys/class/gpio/gpio$n/value 2>/dev/null
+}
+
+class() {
+    case "$MODEL:$1$2$3" in
+    c230:1|c260:111|c360:111) echo 802.3af ;;
+    c230:0|c260:101|c360:101) echo 802.3at ;;
+    c260:??0|c360:010) echo 802.3bt ;;
+    *) echo none ;;
+    esac
+}
+
+port() {
+    local p
+    for p in lan$1 eth$(($1 - 1)); do
+        [ -e /sys/class/net/$p ] && { echo "$p"; return; }
+    done
+}
+
+lldp_mw() {
+    local kv mw p=$1
+    [ -n "$p" ] && command -v lldpcli >/dev/null || return 0
+    kv=$(lldpcli -f keyvalue show neighbors ports "$p" details 2>/dev/null)
+    echo "$kv" | grep -q "^lldp\.$p\.port\.power\.device-type=PSE$" || return 0
+    echo "$kv" | grep -q "^lldp\.$p\.port\.power\.enabled=yes$" || return 0
+    mw=$(echo "$kv" | sed -n "s/^lldp\.$p\.port\.power\.allocated=\([0-9]*\)$/\1/p" | head -1)
+    [ "${mw:-0}" -gt 0 ] 2>/dev/null && echo "$mw"
+}
+
+mw_class() {
+    if [ "$1" -ge 38100 ]; then echo 802.3bt
+    elif [ "$1" -ge 25000 ]; then echo 802.3at
+    else echo 802.3af
+    fi
+}
+
+read_inputs() {
+    POE1=none POE2=none LLDP1= LLDP2=
+    DC=0
+    [ "$(pin 64)" = 0 ] && DC=1
+    if [ "$MODEL" = c230 ]; then
+        PINS1=$(pin 54)
+        PINS2=
+        POE1=$(class "$PINS1")
+    else
+        PINS1="$(pin 54) $(pin 55) $(pin 56)"
+        PINS2="$(pin 2) $(pin 66) $(pin 27)"
+        POE1=$(class $PINS1)
+        POE2=$(class $PINS2)
+    fi
+    if [ "$DC" = 0 ] && [ "$(opt lldp 1)" = 1 ]; then
+        LLDP1=$(lldp_mw "$(port 1)")
+        [ -z "$LLDP1" ] || POE1=$(mw_class "$LLDP1")
+        if [ "$MODEL" != c230 ]; then
+            LLDP2=$(lldp_mw "$(port 2)")
+            [ -z "$LLDP2" ] || POE2=$(mw_class "$LLDP2")
+        fi
+    fi
+    LEVEL=full
+    if [ "$DC" = 0 ]; then
+        if [ "$MODEL" = c230 ]; then
+            [ "$POE1" != 802.3af ] || LEVEL=limited
+        elif [ "$POE1" != 802.3bt ] && [ "$POE2" != 802.3bt ]; then
+            [ "$POE1" = none ] && [ "$POE2" = none ] || LEVEL=limited
+        fi
+    fi
+}
+
+usb_set() { # on|off
+	local bound=0
+	[ -e $USBDRV/$USB ] && bound=1
+	if [ $1 = off ] && [ $bound = 1 ]; then
+		echo $USB > $USBDRV/unbind && log "USB port off"
+	elif [ $1 = on ] && [ $bound = 0 ]; then
+		echo $USB > $USBDRV/bind && log "USB port on"
+	fi
+}
+
+bt_set() { # on|off
+	[ -x $BT_INIT ] || return 0
+	local n
+	if [ $1 = off ] && [ ! -e $STATE.bt-off ]; then
+		$BT_INIT stop
+		n=$(gpio 51)
+		echo out > /sys/class/gpio/gpio$n/direction
+		echo 0 > /sys/class/gpio/gpio$n/value
+		touch $STATE.bt-off
+		log "Bluetooth off"
+	elif [ $1 = on ] && [ -e $STATE.bt-off ]; then
+		rm -f $STATE.bt-off
+		$BT_INIT enabled && $BT_INIT start
+		log "Bluetooth on"
+	fi
+}
+
+band_cap() {
+    local info=$(iw phy "$1" info 2>/dev/null)
+    if echo "$info" | grep -q 'Band 4:'; then opt txpower_6g "$CAP6"
+    elif echo "$info" | grep -q 'Band 2:'; then opt txpower_5g "$CAP5"
+    else opt txpower_2g "$CAP2"
+    fi
+}
+
+radios_apply() {
+	local level=$(cat $STATE.level 2>/dev/null || echo full)
+	local scan=$(scan_section)
+	local sec phy cap user
+	rm -f $STATE.caps.new
+	for sec in $(wifi_devices); do
+		[ "$MODEL" != c230 ] || [ "$sec" != "$scan" ] || continue
+		phy=$(iwinfo nl80211 phyname $sec 2>/dev/null)
+		[ -n "$phy" ] && [ -e /sys/class/ieee80211/$phy ] || continue
+		user=$(uci -q get wireless.$sec.txpower)
+		if [ $level = limited ] && [ "$(opt radios 1)" = 1 ]; then
+			if [ "$sec" = "$scan" ]; then cap=$(opt txpower_scan "$SCAN_CAP"); else cap=$(band_cap $phy); fi
+			[ -n "$user" ] && [ "$user" -le "$cap" ] 2>/dev/null && continue
+			iw phy $phy set txpower limit $((cap * 100)) && echo "$sec $phy $cap" >> $STATE.caps.new
+		elif grep -q "^$sec " $STATE.caps 2>/dev/null; then
+			# was capped: back to what the config says
+			if [ -n "$user" ]; then iw phy $phy set txpower fixed $((user * 100))
+			else iw phy $phy set txpower auto
+			fi
+		fi
+	done
+	mv -f $STATE.caps.new $STATE.caps 2>/dev/null || : > $STATE.caps
+}
+
+chains_apply() { # chains_apply limited|full
+	[ -n "$CHAINS_BAND" ] || return 0
+	local level=$1 mask=$(opt "$CHAINS_OPT" "$CHAINS_MASK") bfa=$(opt beamformer_5g 2) scan=$(scan_section)
+	local sec saved tx rx bf wifi=0 own=0
+	if others_staged wireless || others_staged arista-power; then
+		[ -e $STATE.chains-wait ] ||
+			log "changes to wireless or arista-power are staged and not committed: the $CHAINS_BAND chains wait"
+		echo $level > $STATE.chains-wait
+		return 0
+	fi
+	rm -f $STATE.chains-wait
+	mkdir -p /var/run/arista-power.uci
+	for sec in $(wifi_devices); do
+		[ "$sec" = "$scan" ] && continue
+		[ "$(uci -q get wireless.$sec.band)" = "$CHAINS_BAND" ] || continue
+		# the IPQ8074's $CHAINS_BAND radio, not the QCA9882 (when airscan is off)
+		case "$(uci -q get wireless.$sec.path)" in */c000000.wifi|*/c000000.wifi+1) ;; *) continue ;; esac
+		saved=$(uci -q get arista-power.chains.$sec)
+		tx=$(uci -q get wireless.$sec.txantenna)
+		rx=$(uci -q get wireless.$sec.rxantenna)
+		bf=$(uci -q get wireless.$sec.beamformer_antennas)
+		if [ $level = limited ] && [ "$(opt chains 1)" = 1 ]; then
+			[ -n "$saved" ] && continue
+			case "${tx:-all} ${rx:-all}" in
+			"all all") ;;
+			*) log "$sec keeps the antennas it is configured with ($tx/$rx)"; continue ;;
+			esac
+			uci -q get arista-power.chains > /dev/null || $UCI set arista-power.chains=state
+			$UCI set arista-power.chains.$sec="${tx:--} ${rx:--} ${bf:--}"
+			$UCI set wireless.$sec.txantenna=$mask
+			$UCI set wireless.$sec.rxantenna=$mask
+			if [ "$CHAINS_BAND" = 5g ]; then
+				[ -n "$bf" ] && [ "$bf" -le "$bfa" ] 2>/dev/null || $UCI set wireless.$sec.beamformer_antennas=$bfa
+			fi
+			log "$sec: $CHAINS_BAND chains to mask $mask"
+			wifi=1 own=1
+		elif [ -n "$saved" ]; then
+			if [ "$tx" = "$mask" ] && [ "$rx" = "$mask" ]; then
+				set -- $saved
+				tx=$1 rx=$2 bf=${3:--}
+				if [ "$tx" = - ]; then $UCI delete wireless.$sec.txantenna; else $UCI set wireless.$sec.txantenna=$tx; fi
+				if [ "$rx" = - ]; then $UCI delete wireless.$sec.rxantenna; else $UCI set wireless.$sec.rxantenna=$rx; fi
+				if [ "$CHAINS_BAND" != 5g ]; then :
+				elif [ "$bf" = - ]; then $UCI delete wireless.$sec.beamformer_antennas
+				else $UCI set wireless.$sec.beamformer_antennas=$bf
+				fi
+				log "$sec: $CHAINS_BAND chains back to the configured antennas"
+				wifi=1
+			else
+				log "$sec: antennas changed since the reduction ($tx/$rx), kept"
+			fi
+			$UCI delete arista-power.chains.$sec
+			own=1
+		fi
+	done
+	if [ $own = 1 ]; then
+		$UCI commit arista-power
+		# the section goes once no radio is reduced
+		[ "$(uci -q show arista-power.chains | wc -l)" = 1 ] &&
+			$UCI delete arista-power.chains && $UCI commit arista-power
+	fi
+	[ $wifi = 1 ] && $UCI commit wireless && wifi reload
+	return 0
+}
+
+power_led() { # power_led full|limited
+	local g=/sys/class/leds/green:power o= l on off
+	for l in orange amber; do
+		[ -e /sys/class/leds/$l:power ] && o=/sys/class/leds/$l:power
+	done
+	[ -e $g ] && [ -n "$o" ] || return 0
+	[ "$(opt led 1)" = 1 ] || set -- full
+	if [ $1 = limited ]; then on=$o off=$g; else on=$g off=$o; fi
+	echo none > $off/trigger
+	echo 0 > $off/brightness
+	echo none > $on/trigger
+	cat $on/max_brightness > $on/brightness
+	l=${on##*/}
+	echo ${l%:power} > $STATE.led
+}
+
+apply() {
+    read_inputs
+    [ "$(opt enabled 1)" = 1 ] || LEVEL=full
+    echo "$LEVEL" > "$STATE.level"
+    log "$MODEL: $LEVEL (PoE 1 $POE1, PoE 2 $POE2, DC $DC)"
+    if [ "$USB_POLICY" = 1 ]; then
+        if [ "$LEVEL" = limited ] && [ "$(opt usb 1)" = 1 ]; then usb_set off; else usb_set on; fi
+    fi
+    if [ "$BT_POLICY" = 1 ]; then
+        if [ "$LEVEL" = limited ] && [ "$(opt bluetooth 1)" = 1 ]; then bt_set off; else bt_set on; fi
+    fi
+    chains_apply "$LEVEL"
+    radios_apply
+    power_led "$LEVEL"
+    printf 'level=%s\npoe1=%s\npoe2=%s\ndc=%s\n' "$LEVEL" "$POE1" "$POE2" "$DC" > "$STATE"
+}
+
+monitor() {
+    local seen= applied
+    while :; do
+        sleep "$(opt interval 30)"
+        [ -e "$STATE.chains-wait" ] && chains_apply "$(cat "$STATE.chains-wait")"
+        read_inputs
+        [ "$(opt enabled 1)" = 1 ] || LEVEL=full
+        applied=$(cat "$STATE.level" 2>/dev/null)
+        if [ "$LEVEL" = "$applied" ]; then
+            seen=
+        elif [ "$LEVEL" = "$seen" ]; then
+            apply
+            seen=
+        else
+            seen=$LEVEL
+        fi
+        # Wi-Fi may have restarted. Reapply caps without a hotplug script.
+        radios_apply
+    done
+}
+
+status() {
+    read_inputs
+    echo "$MODEL: PoE 1 $POE1, PoE 2 $POE2, DC $DC"
+    echo "power: $LEVEL (applied: $(cat "$STATE.level" 2>/dev/null || echo none))"
+    [ ! -s "$STATE.caps" ] || cat "$STATE.caps"
+}
+
+case "$1" in
+apply) apply ;;
+radios) radios_apply ;;
+monitor) monitor ;;
+status|'') status ;;
+*) echo 'Usage: arista-power [status|apply|radios|monitor]' >&2; exit 2 ;;
+esac
