@@ -1,0 +1,278 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 17 Nov 2026 00:30:19 +0800
+Subject: [PATCH] net: ppe: retain ownership after ambiguous table mutations
+
+An issued host/flow command can complete after its polling timeout. Block
+further mutation and staging writes until hardware reset/reprobe and retain
+all dependencies of an unknown ADD in quarantine, including an unindexed
+host identity. Keep the independent read engine available to disable known
+quarantined flows. Report the blocked command in the existing flow status.
+
+Follow AX issued-command ownership without copying its combined host/flow
+opcode layout. Recovery is deliberately fail-closed: a wrapped command ID
+or a late result alone never releases a lease or authorizes a new command.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+@@ -108,6 +108,13 @@
+ 	struct mutex qos_lock;
+ 	unsigned long shaped_ports;
+ 	u8 flow_cmd_id;
++	/* A timed-out mutation is not permission to reuse its operands or leases.
++	 * Admission stays blocked until a hardware reset/reprobe reinitializes it.
++	 */
++	bool flow_pending;
++	u32 flow_pending_command;
++	u32 flow_pending_result_reg;
++	int flow_pending_index;
+ 	/* Serialize the APPE tunnel command and table registers. */
+ 	struct mutex tunnel_lock;
+ 	/* Serialize tunnel object ID and dedicated VP allocation. */
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -34,6 +34,10 @@
+ 	u32 val, cmd_id;
+ 	int ret;
+ 
++	lockdep_assert_held(&ppe_dev->flow_lock);
++	if (ppe_dev->flow_pending)
++		return -EBUSY;
++
+ 	cmd_id = ppe_dev->flow_cmd_id;
+ 	ppe_dev->flow_cmd_id = (cmd_id + 1) % 16;
+ 	val = FIELD_PREP(PPE_FLOW_OP_CMD_ID, cmd_id) |
+@@ -50,6 +54,13 @@
+ 	ret = regmap_write(ppe_dev->regmap, PPE_FLOW_TBL_OP_ADDR, val);
+ 	if (ret)
+ 		return ret;
++	/* Do not discard ownership merely because a completion read fails. */
++	ppe_dev->flow_pending_command = val;
++	ppe_dev->flow_pending_result_reg = PPE_FLOW_TBL_OP_RSLT_ADDR;
++	ppe_dev->flow_pending_index = by_index ? index : -1;
++	WRITE_ONCE(ppe_dev->flow_pending, true);
++	if (result)
++		result->pending = true;
+ 	/* Poll for completion without sleeping first. The engine normally
+ 	 * finishes within a few microseconds, and keeping the flow_lock owner
+ 	 * on the CPU lets other installers optimistically spin on the mutex
+@@ -72,11 +83,21 @@
+ 		result->result = val;
+ 		result->result_valid = true;
+ 	}
+-	if (val & PPE_FLOW_OP_RSLT_FAIL)
++	if (val & PPE_FLOW_OP_RSLT_FAIL) {
++		WRITE_ONCE(ppe_dev->flow_pending, false);
++		if (result)
++			result->pending = false;
+ 		return -ENOENT;
++	}
+ 	/* A wrapped command ID alone cannot prove an indexed retirement. */
+ 	if (by_index && FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val) != index)
+ 		return -EIO;
++	if (FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val) >=
++	    ppe_dev->variant->num_flow_entries)
++		return -ERANGE;
++	WRITE_ONCE(ppe_dev->flow_pending, false);
++	if (result)
++		result->pending = false;
+ 	return FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val);
+ }
+ 
+@@ -124,6 +145,10 @@
+ 	u32 val, cmd_id;
+ 	int ret;
+ 
++	lockdep_assert_held(&ppe_dev->flow_lock);
++	if (ppe_dev->flow_pending)
++		return -EBUSY;
++
+ 	cmd_id = ppe_dev->flow_cmd_id;
+ 	ppe_dev->flow_cmd_id = (cmd_id + 1) % 16;
+ 	val = FIELD_PREP(PPE_HOST_OP_CMD_ID, cmd_id) |
+@@ -140,6 +165,13 @@
+ 	ret = regmap_write(ppe_dev->regmap, PPE_HOST_TBL_OP_ADDR, val);
+ 	if (ret)
+ 		return ret;
++	/* Do not discard ownership merely because a completion read fails. */
++	ppe_dev->flow_pending_command = val;
++	ppe_dev->flow_pending_result_reg = PPE_HOST_TBL_OP_RSLT_ADDR;
++	ppe_dev->flow_pending_index = by_index ? index : -1;
++	WRITE_ONCE(ppe_dev->flow_pending, true);
++	if (result)
++		result->pending = true;
+ 	/* Fast non-sleeping poll first, sleeping fallback for a stuck engine;
+ 	 * see ppe_flow_op_issue() for the load-average rationale.
+ 	 */
+@@ -158,11 +190,21 @@
+ 		result->result = val;
+ 		result->result_valid = true;
+ 	}
+-	if (val & PPE_HOST_OP_RSLT_FAIL)
++	if (val & PPE_HOST_OP_RSLT_FAIL) {
++		WRITE_ONCE(ppe_dev->flow_pending, false);
++		if (result)
++			result->pending = false;
+ 		return -ENOENT;
++	}
+ 	/* A wrapped command ID alone cannot prove an indexed retirement. */
+ 	if (by_index && FIELD_GET(PPE_HOST_OP_RSLT_ENTRY_INDEX, val) != index)
+ 		return -EIO;
++	if (FIELD_GET(PPE_HOST_OP_RSLT_ENTRY_INDEX, val) >=
++	    ppe_dev->variant->num_host_entries)
++		return -ERANGE;
++	WRITE_ONCE(ppe_dev->flow_pending, false);
++	if (result)
++		result->pending = false;
+ 	return FIELD_GET(PPE_HOST_OP_RSLT_ENTRY_INDEX, val);
+ }
+ 
+@@ -271,6 +313,10 @@
+ 	result->index = -1;
+ 	ppe_host_entry_pack(flow, host);
+ 	mutex_lock(&ppe_dev->flow_lock);
++	if (ppe_dev->flow_pending) {
++		mutex_unlock(&ppe_dev->flow_lock);
++		return -EBUSY;
++	}
+ 	ret = regmap_bulk_write(ppe_dev->regmap, PPE_HOST_TBL_OP_DATA_ADDR,
+ 				host, ARRAY_SIZE(host));
+ 	if (!ret)
+@@ -310,6 +356,10 @@
+ 	result->index = -1;
+ 	ppe_flow_entry_pack(flow, val);
+ 	mutex_lock(&ppe_dev->flow_lock);
++	if (ppe_dev->flow_pending) {
++		mutex_unlock(&ppe_dev->flow_lock);
++		return -EBUSY;
++	}
+ 	ret = regmap_bulk_write(ppe_dev->regmap, PPE_FLOW_TBL_OP_DATA_ADDR,
+ 				val, ARRAY_SIZE(val));
+ 	if (!ret)
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
+@@ -24,6 +24,7 @@
+ 	u32 result_reg;
+ 	int index;
+ 	bool result_valid;
++	bool pending; /* The command was issued without a definitive result. */
+ };
+ 
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -2620,6 +2620,8 @@
+ 
+ 	hash_for_each_possible(ft->hosts, host, node, key)
+ 		if (ppe_ft_host_match(host, flow)) {
++			if (host->index < 0)
++				return -EBUSY;
+ 			host->refcnt++;
+ 			flow->host_index = host->index;
+ 			return 0;
+@@ -2635,7 +2637,14 @@
+ 	host->is_ipv6 = flow->is_ipv6;
+ 	ret = ppe_host_entry_add(ft->ppe_dev, flow, operation);
+ 	if (ret < 0) {
+-		kfree(host);
++		if (operation->pending) {
++			/* Retain the unknown host identity until the next HW reset. */
++			host->index = -1;
++			host->refcnt = 1;
++			hash_add(ft->hosts, &host->node, key);
++		} else {
++			kfree(host);
++		}
+ 		return ret;
+ 	}
+ 	host->index = ret;
+@@ -2654,6 +2663,8 @@
+ 
+ 	hash_for_each_possible(ft->hosts, host, node, key)
+ 		if (ppe_ft_host_match(host, flow)) {
++			if (host->index < 0)
++				return;
+ 			if (--host->refcnt)
+ 				return;
+ 			ret = ppe_host_entry_del(ft->ppe_dev, host->index);
+@@ -2784,6 +2795,27 @@
+  * the object remains on the quarantine list even when that succeeds because
+  * the table row was not proven reusable.
+  */
++/* Keep every side-table lease of an issued mutation with no known index.
++ * No second mutation is issued until hardware reset/reprobe. This bounded
++ * fail-closed recovery path cannot confuse a wrapped command ID with proof.
++ */
++static void ppe_ft_flow_pending(struct ppe_flowtable *ft,
++				   struct ppe_ft_flow *flow)
++{
++	/* Statistics are not hardware dependencies and must not pin an upper
++	 * behind a quarantined row that has no further stats callbacks.
++	 */
++	ppe_ft_path_put(flow);
++	ppe_flow_account_put(&flow->rx_account);
++	ppe_flow_account_put(&flow->tx_account);
++	if (flow->egress_dev) {
++		dev_put(flow->egress_dev);
++		flow->egress_dev = NULL;
++	}
++
++	list_add_tail(&flow->zombie_node, &ft->zombies);
++}
++
+ static void ppe_ft_flow_quarantine(struct ppe_flowtable *ft,
+ 				   struct ppe_ft_flow *flow)
+ {
+@@ -3037,6 +3069,8 @@
+ 	int pppoe_pushes = 0, csums = 0;
+ 	int iport = -1, imtu = 0, egress_core_port = -1;
+ 
++	if (READ_ONCE(ft->ppe_dev->flow_pending))
++		return -EBUSY;
+ 	mutex_lock(&ft->lock);
+ 	topology_seq = ft->topology_seq;
+ 	mutex_unlock(&ft->lock);
+@@ -4118,13 +4152,18 @@
+ 	operation.index = -1;
+ 	ret = ppe_ft_resource_result(ft, PPE_FT_RES_HOST,
+ 				    ppe_ft_host_get(ft, &flow->entry, &operation));
+-	if (ret)
++	if (ret) {
++		if (operation.pending)
++			goto pending_add;
+ 		goto err_nexthop;
++	}
+ 
+ 	ret = ppe_ft_resource_result(ft, PPE_FT_RES_FLOW_ADD,
+ 				    ppe_flow_entry_add(ft->ppe_dev, &flow->entry,
+ 							   &operation));
+ 	if (ret < 0) {
++		if (operation.pending)
++			goto pending_add;
+ 		if (operation.index >= 0) {
+ 			flow->index = operation.index;
+ 			goto err_added_flow;
+@@ -4200,6 +4239,10 @@
+ 
+ 	return 0;
+ 
++pending_add:
++	ppe_ft_flow_pending(ft, flow);
++	flow = NULL;
++	goto err_unlock;
+ err_added_flow:
+ 	/* The row is not a published owner until enable and readback both
+ 	 * succeed. Remove the add result directly. If that fails, preserve the
+@@ -4555,6 +4598,11 @@
+ 		zombies++;
+ 	topology_seq = ft->topology_seq;
+ 	topology_invalidated = ft->topology_invalidated;
++	seq_printf(seq, "mutation_pending:%u command:%#x result_reg:%#x expected_index:%d\n",
++		   READ_ONCE(ft->ppe_dev->flow_pending),
++		   ft->ppe_dev->flow_pending_command,
++		   ft->ppe_dev->flow_pending_result_reg,
++		   ft->ppe_dev->flow_pending_index);
+ 	mutex_unlock(&ft->lock);
+ 
+ 	seq_printf(seq,
