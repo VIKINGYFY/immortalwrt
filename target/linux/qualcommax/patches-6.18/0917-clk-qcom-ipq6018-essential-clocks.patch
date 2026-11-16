@@ -1,5 +1,5 @@
 From: John Crispin <john@phrozen.org>
-Date: Thu, 05 Nov 2026 15:55:19 +0800
+Date: Mon, 16 Nov 2026 17:50:00 +0800
 Subject: [PATCH] clk: qcom: preserve essential IPQ6018 fabric clocks
 
 The XO and sleep clock sources are always-on in hardware and cannot be
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/clk/qcom/gcc-ipq6018.c
 +++ b/drivers/clk/qcom/gcc-ipq6018.c
-@@ -254,6 +254,7 @@ static struct clk_alpha_pll nss_crypto_p
+@@ -254,6 +254,7 @@
  				.fw_name = "xo",
  			},
  			.num_parents = 1,
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_alpha_pll_ops,
  		},
  	},
-@@ -400,7 +401,7 @@ static struct clk_branch gcc_xo_clk_src
+@@ -400,7 +401,7 @@
  				.fw_name = "xo",
  			},
  			.num_parents = 1,
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			.ops = &clk_branch2_ops,
  		},
  	},
-@@ -446,6 +447,7 @@ static struct clk_branch gcc_sleep_clk_s
+@@ -446,6 +447,7 @@
  				.fw_name = "sleep_clk",
  			},
  			.num_parents = 1,

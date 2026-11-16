@@ -5,6 +5,7 @@
 #include <linux/clk.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
+#include <linux/of_clk.h>
 #include <linux/of_net.h>
 #include <linux/pcs/pcs.h>
 #include <linux/pcs/pcs-qca-uniphy.h>
@@ -15,6 +16,7 @@
 #include <linux/if_bridge.h>
 #include <linux/if_vlan.h>
 #include <linux/soc/qcom/qca_ppe.h>
+#include <dt-bindings/net/qca-uniphy.h>
 
 #include "qca_ppe.h"
 
@@ -3222,6 +3224,70 @@ static void ppe_ipq6018_mux_setup(struct qca_ppe_priv *priv)
 				   CPPE_PCS0_CH4_SEL);
 }
 
+/* Select the PCS source at the RCG behind a port branch and divider. */
+static int ppe_port_clk_parent(struct clk *branch, struct device_node *pcs,
+			       int index)
+{
+	struct of_phandle_args spec = {
+		.np = pcs,
+		.args_count = 1,
+		.args = { index },
+	};
+	struct clk *parent, *div, *rcg;
+	int ret;
+
+	if (!branch)
+		return 0;
+
+	parent = of_clk_get_from_provider(&spec);
+	if (IS_ERR(parent))
+		return PTR_ERR(parent);
+
+	div = clk_get_parent(branch);
+	rcg = div ? clk_get_parent(div) : NULL;
+	if (!rcg || clk_has_parent(div, parent) || !clk_has_parent(rcg, parent))
+		ret = -EINVAL;
+	else
+		ret = clk_set_parent(rcg, parent);
+	clk_put(parent);
+
+	return ret;
+}
+
+/* An equal-rate clk_set_rate() can retain a bootloader's wrong source. */
+static int ppe_port_clk_parents(struct qca_ppe_priv *priv)
+{
+	struct device_node *ports_np, *port_np;
+	struct of_phandle_args pcs_args;
+	u32 port;
+	int ret = 0;
+
+	ports_np = ppe_ports_node(priv->ds.dev->of_node);
+	for_each_available_child_of_node(ports_np, port_np) {
+		if (of_property_read_u32(port_np, "reg", &port) ||
+		    port >= priv->data->num_ports)
+			continue;
+
+		if (of_parse_phandle_with_args(port_np, "pcs-handle",
+					       "#pcs-cells", 0, &pcs_args))
+			continue;
+
+		ret = ppe_port_clk_parent(priv->port_rx_clk[port], pcs_args.np,
+					  UNIPHY_CLK_RX);
+		if (!ret)
+			ret = ppe_port_clk_parent(priv->port_tx_clk[port], pcs_args.np,
+						  UNIPHY_CLK_TX);
+		of_node_put(pcs_args.np);
+		if (ret) {
+			of_node_put(port_np);
+			break;
+		}
+	}
+	of_node_put(ports_np);
+
+	return ret;
+}
+
 static const struct regmap_config ppe_regmap_cfg = {
 	.reg_bits = 32,
 	.reg_stride = 4,
@@ -3350,6 +3416,11 @@ static int qca_ppe_probe(struct platform_device *pdev)
 		if (IS_ERR(priv->port_rst[i]))
 			return PTR_ERR(priv->port_rst[i]);
 	}
+
+	ret = ppe_port_clk_parents(priv);
+	if (ret)
+		return dev_err_probe(&pdev->dev, ret,
+				     "failed to set port clock parents\n");
 
 	ppe_scheduler_init(priv);
 

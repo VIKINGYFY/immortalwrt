@@ -1,0 +1,45 @@
+From: André Valentin <avalentin@marcant.net>
+Date: Mon, 16 Nov 2026 17:50:00 +0800
+Subject: [PATCH] clk: qcom: gcc-ipq6018: keep port 5 on UNIPHY1 at SGMII rates
+
+Port 5 uses UNIPHY1 at 125 MHz in SGMII and at 312.5 MHz in
+2500BASE-X. Add the UNIPHY1 divide-by-1 and divide-by-5 alternatives
+before UNIPHY0 so a port rate change keeps the selected PCS source.
+The existing SGMII+ alternatives remain first for 312.5 MHz input.
+
+Link: https://github.com/openwrt/openwrt/pull/24566
+Link: https://lore.kernel.org/linux-clk/20261108072302.2311227-1-avalentin@marcant.net/
+
+Signed-off-by: André Valentin <avalentin@marcant.net>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/clk/qcom/gcc-ipq6018.c
++++ b/drivers/clk/qcom/gcc-ipq6018.c
+@@ -513,11 +513,13 @@
+ 
+ static const struct freq_conf ftbl_nss_port5_rx_clk_src_25[] = {
+ 	C(P_UNIPHY1_RX, 12.5, 0, 0),
++	C(P_UNIPHY1_RX, 5, 0, 0),
+ 	C(P_UNIPHY0_RX, 5, 0, 0),
+ };
+ 
+ static const struct freq_conf ftbl_nss_port5_rx_clk_src_125[] = {
+ 	C(P_UNIPHY1_RX, 2.5, 0, 0),
++	C(P_UNIPHY1_RX, 1, 0, 0),
+ 	C(P_UNIPHY0_RX, 1, 0, 0),
+ };
+ 
+@@ -568,11 +570,13 @@
+ 
+ static const struct freq_conf ftbl_nss_port5_tx_clk_src_25[] = {
+ 	C(P_UNIPHY1_TX, 12.5, 0, 0),
++	C(P_UNIPHY1_TX, 5, 0, 0),
+ 	C(P_UNIPHY0_TX, 5, 0, 0),
+ };
+ 
+ static const struct freq_conf ftbl_nss_port5_tx_clk_src_125[] = {
+ 	C(P_UNIPHY1_TX, 2.5, 0, 0),
++	C(P_UNIPHY1_TX, 1, 0, 0),
+ 	C(P_UNIPHY0_TX, 1, 0, 0),
+ };
+ 
