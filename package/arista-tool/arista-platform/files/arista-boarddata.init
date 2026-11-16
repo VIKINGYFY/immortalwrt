@@ -1,0 +1,11 @@
+#!/bin/sh /etc/rc.common
+# Retry a failed early preparation before NSS starts. A running plan is
+# immutable; country/plan changes are prepared on the next boot.
+START=18
+USE_PROCD=1
+
+start_service() {
+	[ ! -e /var/run/arista-boarddata.ready ] || return 0
+	/usr/libexec/arista-wifi-prepare || return 1
+	/sbin/kmodloader
+}

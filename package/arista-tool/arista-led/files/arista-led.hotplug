@@ -1,0 +1,11 @@
+# PHY add can precede trigger registration; retry briefly, then startup
+# enumeration covers radios already present when the package is installed.
+[ "$ACTION" = add ] || exit 0
+[ -n "$DEVICENAME" ] || exit 0
+[ -x /usr/libexec/arista-led ] || exit 0
+/etc/init.d/arista-led enabled || exit 0
+for attempt in 1 2 3 4 5; do
+	/usr/libexec/arista-led "$DEVICENAME" && exit 0
+	sleep 1
+done
+exit 0

@@ -1,0 +1,277 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Shared Arista ART calibration and vendor BDF selection. Runtime firmware
+# (amss.bin, m3.bin, firmware-*.bin) is supplied by the default DD-WRT packages.
+. /lib/functions.sh
+. /lib/functions/system.sh
+. /lib/functions/arista-transaction.sh
+
+BOARD=$(board_name)
+case "$BOARD" in
+arista,c-200|arista,c-230|arista,c-260|arista,c-360|arista,c-460) ;;
+*) exit 0 ;;
+esac
+CMD=${1:-apply}
+case "$CMD" in prepare|apply|refresh|check) ;; *) exit 2 ;; esac
+MODE=${2:-$(uci -q get arista-radio.main.mode)}
+[ "$MODE" = dual5g ] || MODE=6g
+[ "$BOARD" = arista,c-360 ] || MODE=6g
+COUNTRY=$(uci -q show wireless | sed -n "s/^wireless\.[^.]*\.country='\([A-Z][A-Z]\)'$/\1/p" | head -n 1)
+FW=/lib/firmware
+IPQ=ath11k/IPQ8074/hw2.0
+QCN=ath11k/QCN9074/hw1.0
+LOCK=/var/lock/arista-boarddata.lock
+exec 8>"$LOCK"
+flock -n 8 || exit 1
+ARISTA_TX_DEST=$FW
+ARISTA_TX_JOURNAL=$FW/.arista-transaction
+WORK=$(mktemp -d /tmp/arista-boarddata.XXXXXX) || exit 1
+OLD_GPIO=
+OWN_UBI=
+cleanup() {
+    [ -z "$OWN_UBI" ] || ubidetach -d "$OWN_UBI" >/dev/null 2>&1
+    if [ "$CMD" != check ] && [ -e "$ARISTA_TX_JOURNAL/installing" ]; then
+        [ -z "$OLD_GPIO" ] || echo "$OLD_GPIO" > /sys/class/gpio/dual-5g/value
+        arista_tx_rollback || log 'rollback failed; journal retained and wireless must remain blocked'
+    fi
+    if [ "$CMD" != check ] && [ ! -e "$ARISTA_TX_JOURNAL/installing" ]; then
+        rm -rf "$ARISTA_TX_JOURNAL"
+    fi
+    rm -rf "$WORK"
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM HUP
+STAGE=$WORK/stage
+BDSRC=$WORK/vendor
+mkdir -p "$STAGE"
+log() { logger -t arista-boarddata "$*"; }
+
+le32() {
+	# busybox ash does not expand "\\$(...)", so an inner printf builds the escapes
+	printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $(($1 & 255)) $((($1 >> 8) & 255)) \
+		$((($1 >> 16) & 255)) $((($1 >> 24) & 255)))"
+}
+
+pad4() {
+	local n=$(((4 - $1 % 4) % 4))
+	[ $n -eq 0 ] || printf 'mmm' | head -c $n
+}
+
+board_ie() {
+	local name="$1" file="$2" nlen dlen
+	nlen=${#name}
+	dlen=$(wc -c < "$file")
+	le32 0
+	le32 $((8 + nlen + (4 - nlen % 4) % 4 + 8 + dlen + (4 - dlen % 4) % 4))
+	le32 0; le32 $nlen; printf %s "$name"; pad4 $nlen
+	le32 1; le32 $dlen; cat "$file"; pad4 $dlen
+}
+
+board2() {
+    local out=$1
+    shift
+    {
+        printf 'QCA-ATH11K-BOARD'; printf '\000'; pad4 17
+        while [ "$#" -ge 2 ]; do
+            board_ie "$1" "$2" || return 1
+            shift 2
+        done
+    } > "$out"
+}
+
+country_group() {
+    case "$1" in
+    AU) echo AU ;; CA) echo IC ;; KR) echo KCC ;; TW) echo TW ;;
+    GB) echo UK ;; IL) echo IL ;; ZA) echo ZA ;; JP) echo JP ;;
+    SA|SG|JM|QA) echo SA_SG_JM ;;
+    HK|KE|MY|MA|AE|SV|CR|GT|CO|NA|PE|KW|NZ|PH) echo HK_KE_MY ;;
+    CL|TH|MX) echo CL_TH_MX ;; TR) echo TR ;; BW) echo BW ;; BR) echo BZ ;;
+    *) echo FCC_CE ;;
+    esac
+}
+
+country_file() {
+    case "$BOARD:$COUNTRY" in
+    arista,c-230:CA) echo bdwlan_IC.bin ;;
+    arista,c-230:BR) echo bdwlan_BZ.bin ;;
+    arista,c-260:CA|arista,c-260:KR) echo bdwlan_ICKR.bin ;;
+    arista,c-260:GB) echo bdwlan_UK.bin ;;
+    *)
+        case "$COUNTRY" in
+        AU|AT|BE|BG|HR|CY|CZ|DK|EE|FI|FR|DE|GR|HU|IE|IT|LV|LT|LU|MT|NL|PL|PT|RO|SK|SI|ES|SE)
+            echo bdwlan_AU.bin ;;
+        *) echo bdwlan.bin ;;
+        esac
+        ;;
+    esac
+}
+
+extract_vendor() {
+    local mtd ubi= v node
+    mtd=$(find_mtd_index rootfs_1)
+    [ -n "$mtd" ] || return 1
+    for v in /sys/class/ubi/ubi[0-9]*; do
+        [ "$(cat "$v/mtd_num" 2>/dev/null)" = "$mtd" ] || continue
+        ubi=${v##*/ubi}
+        break
+    done
+    if [ -z "$ubi" ]; then
+        ubi=$(ubiattach -m "$mtd" 2>/dev/null | sed -n 's/.*UBI device number \([0-9]*\).*/\1/p')
+        [ -n "$ubi" ] || return 1
+        OWN_UBI=$ubi
+    fi
+    node=
+    for v in /sys/class/ubi/ubi${ubi}_*; do
+        [ "$(cat "$v/name" 2>/dev/null)" = ubi_rootfs ] || continue
+        node=/dev/${v##*/}
+        [ -c "$node" ] || mknod "$node" c $(sed 's/:/ /' "$v/dev")
+        break
+    done
+    [ -n "$node" ] || return 1
+    # Only BDF files: never copy the vendor's executable Wi-Fi firmware.
+    unsquashfs -n -d "$BDSRC" "$node" lib/boarddata \
+        lib/firmware/IPQ8074/WIFI_FW/bdwlan.b290 \
+        lib/firmware/IPQ8074/WIFI_FW/qcn9000/bdwlan.bab \
+        lib/firmware/IPQ8074/WIFI_FW/qcn9000/bdwlan.baa >/dev/null 2>&1
+    [ -d "$BDSRC" ]
+}
+
+pick() {
+    local radio=$1 file=$2 stock=$3 p
+    for p in "$BDSRC/lib/boarddata/$radio/user/$GROUP/$file" \
+        "$BDSRC/lib/boarddata/$radio/user/FCC_CE/$file"; do
+        [ -s "$p" ] && { echo "$p"; return 0; }
+    done
+    [ "$MODE" = 6g ] && [ -s "$BDSRC/$stock" ] && echo "$BDSRC/$stock"
+}
+
+bdf_cached() {
+    local file=$1 hash
+    [ -s "$FW/$file" ] || return 1
+    [ "$(cut -d' ' -f1-2 "$FW/$file.source" 2>/dev/null)" = "$MODE $GROUP" ] || return 1
+    hash=$(sha256sum "$FW/$file") || return 1
+    [ "${hash%% *}" = "$(cut -d' ' -f3 "$FW/$file.source")" ]
+}
+
+bdf_source() {
+    local hash
+    hash=$(sha256sum "$STAGE/$1") || return 1
+    printf '%s %s %s %s\n' "$MODE" "$GROUP" "${hash%% *}" "$2" > "$STAGE/$1.source"
+}
+
+bdf_stage() {
+    local file variant b12 b3 b4 f12 f3 stock=lib/firmware/IPQ8074/WIFI_FW
+    case "$BOARD" in
+    arista,c-230|arista,c-260) GROUP=$(country_file) ;;
+    arista,c-360) GROUP=$(country_group "$COUNTRY") ;;
+    *) return 0 ;;
+    esac
+    if bdf_cached "$IPQ/board.bin" && bdf_cached "$IPQ/board-2.bin"; then
+        if [ "$BOARD" != arista,c-360 ] || bdf_cached "$QCN/board-2.bin"; then
+            return 0
+        fi
+    fi
+    if ! extract_vendor; then
+        # Packaged BDF is the upstream default 6 GHz plan. It is not a
+        # replacement for a missing dual-5-GHz or changed-country BDF.
+        if [ "$MODE" = 6g ] && [ "$CMD" = prepare ] &&
+            [ ! -e "$FW/$IPQ/board-2.bin.source" ] && [ -s "$FW/$IPQ/board-2.bin" ]; then
+            log 'using packaged default BDF; no vendor slot available'
+            return 0
+        fi
+        log 'cannot read BDF from the vendor slot; existing files retained'
+        return 1
+    fi
+    mkdir -p "$STAGE/$IPQ"
+    if [ "$BOARD" != arista,c-360 ]; then
+        file=$BDSRC/lib/boarddata/$GROUP
+        [ -s "$file" ] || return 1
+        case "$BOARD" in arista,c-230) variant=Arista-C230 ;; *) variant=Arista-C260 ;; esac
+        cp "$file" "$STAGE/$IPQ/board.bin" || return 1
+        board2 "$STAGE/$IPQ/board-2.bin" \
+            "bus=ahb,qmi-chip-id=0,qmi-board-id=255,variant=$variant" "$file" \
+            'bus=ahb,qmi-chip-id=0,qmi-board-id=255' "$file" || return 1
+        bdf_source "$IPQ/board.bin" "lib/boarddata/$GROUP" &&
+            bdf_source "$IPQ/board-2.bin" "lib/boarddata/$GROUP"
+        return
+    fi
+    if [ "$MODE" = dual5g ]; then
+        f12=bdwlan.b290_2G_5G_low f3=bdwlan.bab_5G_high
+    else
+        f12=bdwlan.b290_2G_5G_full f3=bdwlan.bab_6G_full
+    fi
+    b12=$(pick radio12 "$f12" "$stock/bdwlan.b290")
+    b3=$(pick radio3 "$f3" "$stock/qcn9000/bdwlan.bab")
+    b4=$(pick radio4 bdwlan.baa "$stock/qcn9000/bdwlan.baa")
+    [ -n "$b12" ] && [ -n "$b3" ] && [ -n "$b4" ] || {
+        log "incomplete $MODE BDF set; existing files retained"
+        return 1
+    }
+    mkdir -p "$STAGE/$QCN"
+    cp "$b12" "$STAGE/$IPQ/board.bin" || return 1
+    board2 "$STAGE/$IPQ/board-2.bin" \
+        'bus=ahb,qmi-chip-id=0,qmi-board-id=255,variant=Arista-C360' "$b12" \
+        'bus=ahb,qmi-chip-id=0,qmi-board-id=255' "$b12" || return 1
+    board2 "$STAGE/$QCN/board-2.bin" \
+        'bus=pci,qmi-chip-id=0,qmi-board-id=255,variant=Arista-C360-pcie0' "$b3" \
+        'bus=pci,qmi-chip-id=0,qmi-board-id=255,variant=Arista-C360-pcie1' "$b4" || return 1
+    bdf_source "$IPQ/board.bin" "${b12#$BDSRC/}" &&
+        bdf_source "$IPQ/board-2.bin" "${b12#$BDSRC/}" &&
+        bdf_source "$QCN/board-2.bin" "${b3#$BDSRC/} ${b4#$BDSRC/}"
+}
+
+cal_file() {
+    local path=$1 offset=$2 size=$3
+    mkdir -p "$STAGE/${path%/*}" || return 1
+    dd if="$ART" of="$STAGE/$path" iflag=skip_bytes,fullblock \
+        bs="$((size))" skip="$((offset))" count=1 2>/dev/null &&
+        [ "$(wc -c < "$STAGE/$path")" -eq "$((size))" ]
+}
+
+caldata_stage() {
+    local offset hw pci
+    ART=$(find_mtd_chardev 0:art)
+    [ -n "$ART" ] || return 1
+    case "$BOARD" in
+    arista,c-200) cal_file ath11k/IPQ6018/hw1.0/cal-ahb-c000000.wifi.bin 0x1000 0x10000 ;;
+    arista,c-230|arista,c-260) cal_file "$IPQ/cal-ahb-c000000.wifi.bin" 0x1000 0x20000 ;;
+    arista,c-360)
+        offset=0x1000
+        [ "$MODE" != dual5g ] || offset=0x71800
+        cal_file "$IPQ/cal-ahb-c000000.wifi.bin" "$offset" 0x20000 &&
+            cal_file "$QCN/cal-pci-0000:01:00.0.bin" 0x26800 0x20000 &&
+            cal_file "$QCN/cal-pci-0001:01:00.0.bin" 0x4c000 0x20000
+        ;;
+    arista,c-460)
+        cal_file "$QCN/cal-pci-0000:01:00.0.bin" 0x26800 0x20000 || return 1
+        for hw in hw1.0 hw2.0; do
+            for pci in 1 2 3; do
+                case "$pci" in 1) offset=0x58800 ;; 2) offset=0x8a800 ;; 3) offset=0xbc800 ;; esac
+                cal_file "ath12k/QCN9274/$hw/cal-pci-000$pci:01:00.0.bin" "$offset" 0x2d000 || return 1
+            done
+        done
+        ;;
+    esac
+}
+
+# A check validates the requested plan without replacing running radio data.
+if [ "$CMD" = check ]; then
+    [ ! -e "$ARISTA_TX_JOURNAL" ] || exit 1
+else
+    arista_tx_recover || exit 1
+fi
+bdf_stage || { log "BDF preparation failed ($MODE/$COUNTRY)"; exit 1; }
+[ "$CMD" = refresh ] || caldata_stage || { log 'ART calibration extraction failed'; exit 1; }
+[ "$CMD" != check ] || exit 0
+arista_tx_stage "$STAGE" || exit 1
+arista_tx_install || exit 1
+if [ "$CMD" = prepare ] && [ "$BOARD" = arista,c-360 ]; then
+    value=0
+    [ "$MODE" != dual5g ] || value=1
+    [ -w /sys/class/gpio/dual-5g/value ] || exit 1
+    OLD_GPIO=$(cat /sys/class/gpio/dual-5g/value) || exit 1
+    echo "$value" > /sys/class/gpio/dual-5g/value || exit 1
+    [ "$(cat /sys/class/gpio/dual-5g/value)" = "$value" ] || exit 1
+fi
+arista_tx_finish || exit 1
+exit 0

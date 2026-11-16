@@ -1,0 +1,138 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# C-360 radio plan. Uses DD-WRT runtime firmware and the upstream BDF selection;
+# arista-platform prepares ART calibration and GPIO9 before modules load.
+
+. /lib/functions.sh
+. /lib/functions/arista-config.sh
+u() {
+	if [ -n "$ARISTA_CONFIG_WORK" ]; then arista_uci "$@"; else uci "$@"; fi
+}
+
+CFG=arista-radio
+GPIO=/sys/class/gpio/dual-5g/value
+usage() {
+	cat <<EOF
+Usage: arista-radio-mode <6g|dual5g|apply|status>
+
+  6g       the 6 GHz plan (Arista's default): IPQ8074 2.4 + 5 GHz,
+           serving QCN9074 6 GHz
+  dual5g   the dual 5 GHz plan: IPQ8074 2.4 + lower 5 GHz, serving
+           QCN9074 upper 5 GHz
+  apply    validate the configured plan's BDF and calibration for next boot
+  status   the configured plan and what the radios run now
+
+A new plan takes effect at the next boot, e.g.
+  arista-radio-mode dual5g && reboot
+EOF
+}
+
+die() {
+	echo "arista-radio-mode: $*" >&2
+	exit 1
+}
+
+mode() {
+	[ "$(u -q get $CFG.main.mode)" = dual5g ] && echo dual5g || echo 6g
+}
+
+# SERVING: the serving QCN9074's wifi-device (pcie0); IPQ5: the IPQ8074's 5 GHz one
+radios() {
+	local s
+	SERVING= IPQ5=
+	for s in $(u -q show wireless | sed -n "s/^wireless\.\([^.=]*\)=wifi-device$/\1/p"); do
+		case "$(u -q get wireless.$s.path)" in
+		*/0000:01:00.0) SERVING=$s ;;
+		*/c000000.wifi|*/c000000.wifi+1)
+			[ "$(u -q get wireless.$s.band)" = 5g ] && IPQ5=$s ;;
+		esac
+	done
+}
+
+# keep <option> <value>: a 6 GHz-plan setting to put back later ("-" = unset)
+keep() {
+	u -q set $CFG.saved=saved &&
+	u set $CFG.saved.$1="${2:--}"
+}
+
+# put_back <section> <option> <saved option> <default>
+put_back() {
+	local v=$(u -q get $CFG.saved.$3)
+	case "$v" in
+	-) arista_uci_delete wireless.$1.$2 ;;
+	'') u set wireless.$1.$2="$4" ;;
+	*) u set wireless.$1.$2="$v" ;;
+	esac
+}
+
+# the wireless configuration for <plan>: the serving radio's band, and the
+# IPQ8074's 5 GHz channel kept in the lower band
+wireless_plan() {
+	local ch
+	radios
+	if [ "$1" = dual5g ]; then
+		if [ -n "$SERVING" ]; then
+			keep serving_band "$(u -q get wireless.$SERVING.band)" || return 1
+			keep serving_channel "$(u -q get wireless.$SERVING.channel)" || return 1
+			u set wireless.$SERVING.band=5g || return 1
+			u set wireless.$SERVING.channel=auto || return 1
+		fi
+		if [ -n "$IPQ5" ]; then
+			ch=$(u -q get wireless.$IPQ5.channel)
+			case "$ch" in
+			''|auto|3[2-9]|4[0-9]|5[0-9]|6[0-8]) ;;
+			*)
+				keep ipq5_channel "$ch" || return 1
+				u set wireless.$IPQ5.channel=36 || return 1
+				;;
+			esac
+		fi
+	else
+		if [ -n "$SERVING" ]; then
+			put_back $SERVING band serving_band 6g || return 1
+			put_back $SERVING channel serving_channel auto || return 1
+		fi
+		if [ -n "$IPQ5" ] && [ -n "$(u -q get $CFG.saved.ipq5_channel)" ]; then
+			put_back $IPQ5 channel ipq5_channel auto || return 1
+		fi
+		arista_uci_delete $CFG.saved || return 1
+	fi
+	return 0
+}
+
+status() {
+    echo "plan: $(mode)"
+    echo "gpio9 (dual-5g): $(cat "$GPIO" 2>/dev/null || echo unavailable)"
+    echo 'runtime firmware: DD-WRT; board data: arista-boarddata'
+    cat /lib/firmware/ath11k/IPQ8074/hw2.0/board-2.bin.source 2>/dev/null
+    radios
+    for s in $SERVING $IPQ5; do
+        echo "$s: band $(u -q get wireless.$s.band), channel $(u -q get wireless.$s.channel)"
+    done
+}
+
+case "$1" in
+6g|dual5g)
+	case "$(board_name)" in arista,c-360) ;; *) die "not an Arista C-360" ;; esac
+	trap 'arista_config_end' EXIT
+	trap 'exit 1' INT TERM HUP
+	arista_config_begin "$CFG" wireless || die "configuration busy or unavailable"
+	[ "$1" = "$(mode)" ] && { echo "already the $1 plan"; exit 0; }
+	/usr/sbin/arista-boarddata check "$1" || die "matching BDF/calibration unavailable; plan unchanged"
+	u -q set $CFG.main=radio && u set $CFG.main.mode=$1 &&
+		wireless_plan "$1" && arista_config_commit || die "cannot save plan; previous configuration retained"
+	logger -t arista-radio "$1 plan from the next boot"
+	echo "the $1 plan from the next boot: reboot"
+	;;
+apply)
+	/usr/sbin/arista-boarddata check || exit 1
+	echo 'configured plan validated; reboot to prepare and load it'
+	;;
+status|'')
+	status
+	;;
+*)
+	usage
+	exit 1
+	;;
+esac

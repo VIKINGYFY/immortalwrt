@@ -1,0 +1,57 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# One mapping for all supported boards; PHY numbering is not stable.
+. /lib/functions.sh
+board=$(board_name)
+case "$board" in
+arista,c-200|arista,c-230|arista,c-260|arista,c-360|arista,c-460) ;;
+*) exit 0 ;;
+esac
+
+led_for_phy() {
+	local phy=$1 device=$2 info
+	case "$board:$device" in
+	arista,c-200:*/c000000.wifi|arista,c-230:*/c000000.wifi|\
+	arista,c-260:*/c000000.wifi|arista,c-360:*/c000000.wifi)
+		info=$(iw phy "$phy" info 2>/dev/null) || return 1
+		if echo "$info" | grep -q 'Band 1:'; then echo green:wlan-2ghz
+		elif echo "$info" | grep -q 'Band 2:'; then echo green:wlan-5ghz
+		fi
+		;;
+	arista,c-230:*/0000:01:00.0|arista,c-260:*/0000:01:00.0) echo green:wlan ;;
+	arista,c-360:*/0000:01:00.0) echo green:wlan-6ghz ;;
+	arista,c-460:*/0001:01:00.0) echo green:wlan-2ghz ;;
+	arista,c-460:*/0003:01:00.0) echo green:wlan-5ghz ;;
+	arista,c-460:*/0002:01:00.0) echo green:wlan-6ghz ;;
+	esac
+}
+
+bind_phy() {
+	local phy=$1 device led available trigger
+	case "$phy" in phy*) ;; *) return 1 ;; esac
+	case "${phy#phy}" in ''|*[!0-9]*) return 1 ;; esac
+	[ -d "/sys/class/ieee80211/$phy" ] || return 0
+	device=$(readlink -f "/sys/class/ieee80211/$phy/device") || return 1
+	led=$(led_for_phy "$phy" "$device") || return 1
+	[ -n "$led" ] || return 0
+	[ -e "/sys/class/leds/$led/trigger" ] || return 0
+	trigger=${phy}radio
+	available=$(cat "/sys/class/leds/$led/trigger") || return 1
+	case " $available " in
+	*" [$trigger] "*) return 0 ;;
+	*" $trigger "*) ;;
+	*) return 1 ;;
+	esac
+	echo "$trigger" > "/sys/class/leds/$led/trigger"
+}
+
+if [ -n "$1" ]; then
+	bind_phy "$1"
+else
+	ret=0
+	for path in /sys/class/ieee80211/phy*; do
+		[ -d "$path" ] || continue
+		bind_phy "${path##*/}" || ret=1
+	done
+	exit "$ret"
+fi

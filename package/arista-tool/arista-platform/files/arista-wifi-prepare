@@ -1,0 +1,37 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+. /lib/functions.sh
+case "$(board_name)" in
+arista,c-200|arista,c-230|arista,c-260|arista,c-360|arista,c-460) ;;
+*) exit 0 ;;
+esac
+READY=/var/run/arista-boarddata.ready
+mkdir -p /var/run /var/lock
+exec 7>/var/lock/arista-wifi-prepare.lock
+flock -n 7 || exit 1
+# Do not replace board data underneath running firmware.
+[ ! -e "$READY" ] || exit 0
+modules=/etc/modules.conf
+clean=$(mktemp /tmp/arista-modules.XXXXXX) || exit 1
+trap 'rm -f "$clean"' EXIT
+sed '/^# arista-boarddata begin$/,/^# arista-boarddata end$/d' "$modules" > "$clean" 2>/dev/null || {
+	[ ! -e "$modules" ] || exit 1
+	: > "$clean"
+}
+next=$modules.arista-new
+cp "$clean" "$next" || exit 1
+{
+	echo '# arista-boarddata begin'
+	for m in ath11k_ahb ath11k_pci ath12k_pci ath12k_wifi7_pci ath10k_pci nss-wifi-drv; do
+		echo "blacklist $m"
+	done
+	echo '# arista-boarddata end'
+} >> "$next" || exit 1
+mv -f "$next" "$modules" || exit 1
+if ! /usr/sbin/arista-boarddata prepare; then
+	logger -s -t arista-platform 'board data preparation failed; wireless blocked, wired management retained; correct data/configuration and restart arista-boarddata'
+	exit 1
+fi
+# Keep administrator blacklists/options; remove only our temporary guard.
+mv -f "$clean" "$modules" || exit 1
+: > "$READY"

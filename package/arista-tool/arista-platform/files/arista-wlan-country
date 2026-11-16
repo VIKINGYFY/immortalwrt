@@ -1,0 +1,8 @@
+#!/bin/sh
+. /lib/functions/uci-defaults.sh
+board_config_update
+case "$(board_name)" in
+arista,c-360) ucidef_set_country "" ;;
+esac
+board_config_flush
+exit 0
