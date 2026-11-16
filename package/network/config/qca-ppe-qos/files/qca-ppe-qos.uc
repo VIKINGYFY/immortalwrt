@@ -63,8 +63,9 @@ function devices() {
 	return ports;
 }
 
-function root_qdisc(device) {
-	let result = command([ 'tc', 'qdisc', 'show', 'dev', device ]);
+function root_qdisc(device, dump) {
+	let result = dump != null ? { ok: true, output: dump } :
+		command([ 'tc', 'qdisc', 'show', 'dev', device ]);
 	if (!result.ok)
 		return null;
 	let root = null;
@@ -72,6 +73,8 @@ function root_qdisc(device) {
 	for (let line in split(result.output, '\n')) {
 		let fields = split(line, /\s+/);
 		if (fields[0] != 'qdisc')
+			continue;
+		if (dump != null && fields[index(fields, 'dev') + 1] != device)
 			continue;
 		if (index(fields, 'root') >= 0)
 			root = { kind: fields[1], handle: fields[2] };
@@ -87,8 +90,8 @@ function owned(root, record) {
 	return record != null && root?.kind == 'tbf' && root?.handle == HANDLE;
 }
 
-function accepted(port, settings) {
-	let row = hardware()['' + port];
+function accepted(port, settings, rows) {
+	let row = (rows || hardware())['' + port];
 	return row?.active == '1' && row?.handle == HW_HANDLE &&
 		int(row.rate_bytes_ps) == settings.rate * 125 &&
 		int(row.burst_bytes) == settings.burst &&
@@ -226,11 +229,12 @@ function apply(stop) {
 function status() {
 	let ports = devices();
 	let rows = hardware();
+	let qdiscs = command([ 'tc', 'qdisc', 'show' ]);
 	let state = read_json(STATE);
 	let ax = fs.access('/sys/module/qca_ppe/parameters/small_pkt_len');
 	for (let port in ports) {
 		let row = rows['' + port.port];
-		let root = root_qdisc(port.device);
+		let root = qdiscs.ok ? root_qdisc(port.device, qdiscs.output) : null;
 		port.available = row != null;
 		port.active = row?.active == '1';
 		port.managed = owned(root, state.owned?.[port.device]);
@@ -240,7 +244,7 @@ function status() {
 		port.buffers = int(row?.total_buffers || '0');
 		port.handle = row?.handle || '';
 		port.last_result = int(row?.last_result || '0');
-		port.verified = port.managed && accepted(port.port, state.owned[port.device]);
+		port.verified = port.managed && accepted(port.port, state.owned[port.device], rows);
 		port.qdisc = root?.kind || '';
 		port.conflict = !port.managed && (root?.kind != 'mq' || root?.handle != '0:' || root?.custom_child);
 	}
