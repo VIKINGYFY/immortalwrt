@@ -1,0 +1,71 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Date: Tue, 17 Nov 2026 00:31:18 +0800
+Subject: [PATCH] net: sched: cake: batch shaper watchdog wakeups
+
+Allow up to four packet times of watchdog slack, capped at 100 us,
+to amortize timer/softirq work while retaining the configured rate.
+
+Adapted from JuliusBairaktaris/openwrt-ppe-nss commit
+2f5428da0b36189eaa8f77238f7a1f4b0a4e10ee. Keep this independent of
+the optional L4S and cake_mq fairness extensions.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/net/sched/sch_cake.c
++++ b/net/sched/sch_cake.c
+@@ -228,6 +228,7 @@
+ 	/* time_next = time_this + ((len * rate_ns) >> rate_shft) */
+ 	ktime_t		time_next_packet;
+ 	ktime_t		failsafe_next_packet;
++	u64		timer_slack;
+ 	u64		rate_ns;
+ 	u16		rate_shft;
+ 	u16		overflow_timeout;
+@@ -1791,7 +1792,8 @@
+ 					    ktime_to_ns(
+ 						   q->failsafe_next_packet));
+ 				sch->qstats.overlimits++;
+-				qdisc_watchdog_schedule_ns(&q->watchdog, next);
++				qdisc_watchdog_schedule_range_ns(&q->watchdog, next,
++								 q->timer_slack);
+ 			}
+ 		}
+ 	}
+@@ -2057,7 +2059,8 @@
+ 			       ktime_to_ns(q->failsafe_next_packet));
+ 
+ 		sch->qstats.overlimits++;
+-		qdisc_watchdog_schedule_ns(&q->watchdog, next);
++		qdisc_watchdog_schedule_range_ns(&q->watchdog, next,
++						 q->timer_slack);
+ 		return NULL;
+ 	}
+ 
+@@ -2265,7 +2268,8 @@
+ 		u64 next = min(ktime_to_ns(q->time_next_packet),
+ 			       ktime_to_ns(q->failsafe_next_packet));
+ 
+-		qdisc_watchdog_schedule_ns(&q->watchdog, next);
++		qdisc_watchdog_schedule_range_ns(&q->watchdog, next,
++						 q->timer_slack);
+ 	} else if (!sch->q.qlen) {
+ 		int i;
+ 
+@@ -2611,6 +2615,16 @@
+ 
+ 	qd->rate_ns   = qd->tins[ft].tin_rate_ns;
+ 	qd->rate_shft = qd->tins[ft].tin_rate_shft;
++
++	/* Waking the shaper for every packet costs a timer interrupt and a
++	 * softirq each. Letting the timer fire up to four packet times late
++	 * lets it send a few at once, as sch_fq's timer_slack does; the shaper
++	 * still meets its rate, since it catches up on what it owes. Capped so
++	 * that a slow link waits no longer than a fast one would.
++	 */
++	qd->timer_slack = min_t(u64, 100 * NSEC_PER_USEC,
++				(4ULL * psched_mtu(qdisc_dev(sch)) * qd->rate_ns) >>
++				qd->rate_shft);
+ }
+ 
+ static void cake_reconfigure(struct Qdisc *sch)
