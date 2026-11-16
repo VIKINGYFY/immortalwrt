@@ -1,0 +1,43 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 17 Nov 2026 00:22:02 +0800
+Subject: [PATCH] net: ppe: order EDMA DMA map release and reuse
+
+Publish an empty software DMA map after unmapping and clearing its fields.
+The producer acquires that state before initializing another mapping. Keep
+DMA addresses independent of hardware descriptors that can already be reused.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+@@ -102,7 +102,7 @@
+ {
+ 	struct sk_buff *skb = map->skb;
+ 
+-	switch (map->type) {
++	switch (READ_ONCE(map->type)) {
+ 	case EDMA_TX_MAP_SINGLE:
+ 		dma_unmap_single(dev, map->dma, map->len, DMA_TO_DEVICE);
+ 		break;
+@@ -116,7 +116,11 @@
+ 		break;
+ 	}
+ 
+-	memset(map, 0, sizeof(*map));
++	map->skb = NULL;
++	map->dma = 0;
++	map->len = 0;
++	/* Publish reuse only after the previous mapping and metadata are gone. */
++	smp_store_release(&map->type, EDMA_TX_MAP_NONE);
+ 	return skb;
+ }
+ 
+@@ -370,7 +374,7 @@
+ {
+ 	struct edma_tx_map *map = &txdesc_ring->maps[index];
+ 
+-	if (WARN_ON_ONCE(map->type != EDMA_TX_MAP_NONE))
++	if (WARN_ON_ONCE(smp_load_acquire(&map->type) != EDMA_TX_MAP_NONE))
+ 		return -EBUSY;
+ 
+ 	map->dma = dma;
