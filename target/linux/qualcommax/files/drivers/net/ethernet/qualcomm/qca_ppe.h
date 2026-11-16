@@ -1693,31 +1693,11 @@ struct qca_ppe_priv {
 	struct ppe_res *nexthop;
 	struct ppe_res *my_mac;
 	u16 *host_ref;
-	/* Per flow index: the device a frame the PPE routed to the CPU port
-	 * leaves on, and whether a software shaper stands in front of it.
-	 */
-	int *flow_xdev;
+	/* One immutable RCU snapshot for each CPU-egress hardware index. */
+	struct ppe_flow_binding __rcu **flow_slot;
 	atomic_t flow_xmit_drop;
-	/* frames meant for the download shaper that found no device to pass */
+	atomic_t flow_xmit_stale;
 	atomic_t flow_shaper_miss;
-	/* Per flow index: the conntrack an upload frame is handed over with,
-	 * bit 0 set for the reply direction. Written with flow_xdev.
-	 */
-	unsigned long *flow_ct;
-	/* Per flow index: bit 7 and the DSCP its frames are handed over with,
-	 * taken from the conntrack mark when ct_dscp is on. Written with
-	 * flow_xdev.
-	 */
-	u8 *flow_dscp;
-	/* Per flow index: the VLAN a download frame handed to the shaper
-	 * leaves its LAN port tagged with, zero for none.
-	 */
-	u16 *flow_vid;
-	/* Per flow index: one more than the switch port a frame handed to a
-	 * shaper device of this driver leaves by, zero for a device outside
-	 * the switch.
-	 */
-	u8 *flow_port;
 	/* The shaper devices this driver created for a direction, download
 	 * first, NULL for none, and how often one found the conduit's queue
 	 * full and left the frame in its qdisc.
@@ -1944,6 +1924,7 @@ void ppe_scheduler_unready(struct qca_ppe_priv *priv);
 void ppe_scheduler_exit(struct qca_ppe_priv *priv);
 void ppe_port_queues_enable(struct qca_ppe_priv *priv, int port, bool en);
 bool ppe_port_shaped(struct qca_ppe_priv *priv, int port);
+void ppe_port_queue_mtu_changed(struct qca_ppe_priv *priv, int port);
 void ppe_pause_update(struct qca_ppe_priv *priv);
 u32 ppe_port_queue_drops(struct qca_ppe_priv *priv, int port);
 struct seq_file;
