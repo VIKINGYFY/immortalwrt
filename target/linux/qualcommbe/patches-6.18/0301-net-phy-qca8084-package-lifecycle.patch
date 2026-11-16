@@ -1,5 +1,5 @@
 From: Luo Jie <quic_luoj@quicinc.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Mon, 16 Nov 2026 17:00:00 +0800
 Subject: [PATCH] net: phy: qca8084: implement package probing and initialization
 
 QCA8084 is quad PHY chip, which integrates 4 PHYs, 2 PCS interfaces (PCS0
@@ -806,17 +806,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int qca808x_phy_fast_retrain_config(struct phy_device *phydev)
  {
  	int ret;
-@@ -154,13 +322,18 @@ static bool qca808x_is_prefer_master(str
- 
- static bool qca808x_has_fast_retrain_or_slave_seed(struct phy_device *phydev)
- {
--	return linkmode_test_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT, phydev->supported);
-+	return phydev_id_compare(phydev, QCA8081_PHY_ID) &&
-+		linkmode_test_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
-+				  phydev->supported);
- }
- 
- static bool qca808x_is_1g_only(struct phy_device *phydev)
+@@ -169,6 +337,9 @@
  {
  	int ret;
  
@@ -826,7 +816,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = phy_read_mmd(phydev, MDIO_MMD_AN, QCA808X_PHY_MMD7_CHIP_TYPE);
  	if (ret < 0)
  		return true;
-@@ -278,6 +451,23 @@ static int qca808x_read_status(struct ph
+@@ -290,6 +461,23 @@
  		return ret;
  
  	if (phydev->link) {
@@ -850,7 +840,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (phydev->speed == SPEED_2500)
  			phydev->interface = PHY_INTERFACE_MODE_2500BASEX;
  		else
-@@ -357,6 +547,18 @@ static int qca808x_cable_test_start(stru
+@@ -370,6 +558,18 @@
  	phy_write_mmd(phydev, MDIO_MMD_PCS, 0x807a, 0xc060);
  	phy_write_mmd(phydev, MDIO_MMD_PCS, 0x807e, 0xb060);
  
@@ -869,7 +859,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -643,6 +845,298 @@ static void qca808x_get_phy_stats(struct
+@@ -663,6 +863,298 @@
  	qcom_phy_get_stats(stats, priv->hw_stats);
  }
  
@@ -1168,7 +1158,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct phy_driver qca808x_driver[] = {
  {
  	/* Qualcomm QCA8081 */
-@@ -674,12 +1168,35 @@ static struct phy_driver qca808x_driver[
+@@ -694,12 +1186,35 @@
  	.led_polarity_set	= qca808x_led_polarity_set,
  	.update_stats		= qca808x_update_stats,
  	.get_phy_stats		= qca808x_get_phy_stats,

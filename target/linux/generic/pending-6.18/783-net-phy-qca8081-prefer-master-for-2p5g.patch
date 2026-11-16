@@ -1,0 +1,108 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 16 Nov 2026 17:00:00 +0800
+Subject: [PATCH] net: phy: qca808x: prefer master on 2.5G QCA8081 PHYs
+
+A QCA8081 operating as the clock receiver can cause receive CRC errors
+at a 2.5G copper SFP peer. Repeated master/slave tests with TL-SM410U
+reproduce the errors as slave and eliminate them with master preference;
+AQR113C, RTL822x and QCA8084 controls do not reproduce the errors in
+either role.
+
+Default 2.5G-capable QCA8081 PHYs to master preference when no explicit
+role was selected. Keep device-tree and ethtool overrides and continue
+to negotiate rather than forcing master. Do not change 1G-only parts
+or QCA8084 PHYs sharing this driver.
+
+Use the requested role when configuring the low random slave seed, and
+synchronize it at initialization, software reset and autonegotiation.
+This prevents the slave bias from being re-enabled for master preference
+or surviving a user role change until the next link-status poll.
+Retain link-down seed randomization and master/slave fault recovery.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/phy/qcom/qca808x.c
++++ b/drivers/net/phy/qcom/qca808x.c
+@@ -148,13 +148,21 @@
+ 
+ static bool qca808x_is_prefer_master(struct phy_device *phydev)
+ {
+-	return (phydev->master_slave_get == MASTER_SLAVE_CFG_MASTER_FORCE) ||
+-		(phydev->master_slave_get == MASTER_SLAVE_CFG_MASTER_PREFERRED);
++	u8 mode = phydev->master_slave_set;
++
++	if (mode == MASTER_SLAVE_CFG_UNKNOWN ||
++	    mode == MASTER_SLAVE_CFG_UNSUPPORTED)
++		mode = phydev->master_slave_get;
++
++	return mode == MASTER_SLAVE_CFG_MASTER_FORCE ||
++		mode == MASTER_SLAVE_CFG_MASTER_PREFERRED;
+ }
+ 
+ static bool qca808x_has_fast_retrain_or_slave_seed(struct phy_device *phydev)
+ {
+-	return linkmode_test_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT, phydev->supported);
++	return phydev_id_compare(phydev, QCA8081_PHY_ID) &&
++		linkmode_test_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
++				  phydev->supported);
+ }
+ 
+ static bool qca808x_is_1g_only(struct phy_device *phydev)
+@@ -223,6 +231,14 @@
+ 		return ret;
+ 
+ 	if (qca808x_has_fast_retrain_or_slave_seed(phydev)) {
++		/* Some 2.5G peers receive CRC errors when QCA8081 is the
++		 * clock receiver. Prefer master while retaining negotiation
++		 * and any explicit device-tree or user role selection.
++		 */
++		if (phydev->master_slave_set == MASTER_SLAVE_CFG_UNKNOWN ||
++		    phydev->master_slave_set == MASTER_SLAVE_CFG_UNSUPPORTED)
++			phydev->master_slave_set = MASTER_SLAVE_CFG_MASTER_PREFERRED;
++
+ 		/* Config the fast retrain for the link 2500M */
+ 		ret = qca808x_phy_fast_retrain_config(phydev);
+ 		if (ret)
+@@ -232,14 +248,10 @@
+ 		if (ret < 0)
+ 			return ret;
+ 
+-		if (!qca808x_is_prefer_master(phydev)) {
+-			/* Enable seed and configure lower ramdom seed to make phy
+-			 * linked as slave mode.
+-			 */
+-			ret = qca808x_phy_ms_seed_enable(phydev, true);
+-			if (ret)
+-				return ret;
+-		}
++		ret = qca808x_phy_ms_seed_enable(phydev,
++					       !qca808x_is_prefer_master(phydev));
++		if (ret)
++			return ret;
+ 	}
+ 
+ 	qca808x_fill_possible_interfaces(phydev);
+@@ -314,7 +326,8 @@
+ 		return ret;
+ 
+ 	if (qca808x_has_fast_retrain_or_slave_seed(phydev))
+-		ret = qca808x_phy_ms_seed_enable(phydev, true);
++		ret = qca808x_phy_ms_seed_enable(phydev,
++					       !qca808x_is_prefer_master(phydev));
+ 
+ 	return ret;
+ }
+@@ -393,6 +406,13 @@
+ 	if (ret)
+ 		return ret;
+ 
++	if (qca808x_has_fast_retrain_or_slave_seed(phydev)) {
++		ret = qca808x_phy_ms_seed_enable(phydev,
++					       !qca808x_is_prefer_master(phydev));
++		if (ret)
++			return ret;
++	}
++
+ 	/* The reg MII_BMCR also needs to be configured for force mode, the
+ 	 * genphy_config_aneg is also needed.
+ 	 */

@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Mon, 12 Oct 2026 04:00:00 +0800
+Date: Mon, 16 Nov 2026 17:00:00 +0800
 Subject: [PATCH] net: dsa: qca8k: initialize MHT idle ports
 
 QSDK keeps link-down MHT ports at 1G/full to avoid a QM issue. Cover
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int offset;
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -1066,6 +1066,25 @@ static int qca8084_phy_package_config_in
+@@ -1084,6 +1084,25 @@
  	return qca8084_package_clock_init(shared_priv);
  }
  
@@ -157,7 +157,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int qca8084_config_init(struct phy_device *phydev)
  {
  	int ret;
-@@ -1076,6 +1095,14 @@ static int qca8084_config_init(struct ph
+@@ -1094,6 +1113,14 @@
  			return ret;
  	}
  
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (phydev->interface == PHY_INTERFACE_MODE_10G_QXGMII)
  		__set_bit(PHY_INTERFACE_MODE_10G_QXGMII,
  			  phydev->possible_interfaces);
-@@ -1110,16 +1137,9 @@ static int qca8084_config_init(struct ph
+@@ -1128,16 +1155,9 @@
  
  static void qca8084_link_change_notify(struct phy_device *phydev)
  {
@@ -190,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (phydev->link) {
  		switch (phydev->speed) {
-@@ -1142,19 +1162,19 @@ static void qca8084_link_change_notify(s
+@@ -1160,19 +1180,19 @@
  			return;
  		}
  

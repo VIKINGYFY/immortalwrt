@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 24 Oct 2026 22:28:52 +0800
+Date: Mon, 16 Nov 2026 17:00:00 +0800
 Subject: [PATCH] net: phy: qca8084: serialize and retry package initialization
 
 phy_package_init_once() claims its bit before running shared hardware
@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -192,6 +192,7 @@ struct qca808x_priv {
+@@ -192,6 +192,7 @@
  };
  
  struct qca808x_shared_priv {
@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int package_mode;
  	int phy_addr[4];
  	struct clk *clk[PACKAGE_CLK_MAX];
-@@ -940,7 +941,12 @@ static void qca808x_get_phy_stats(struct
+@@ -958,7 +959,12 @@
  
  static int qca8084_package_clock_init(struct qca808x_shared_priv *shared_priv)
  {
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Configure clock rate 312.5MHZ for the PHY package
  	 * APB bridge clock tree.
-@@ -949,46 +955,25 @@ static int qca8084_package_clock_init(st
+@@ -967,46 +973,25 @@
  	if (ret)
  		return ret;
  
@@ -102,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int qca8084_phy_package_config_init_once(struct phy_device *phydev)
-@@ -1085,15 +1070,35 @@ static int qca8084_mac_clock_set(struct
+@@ -1103,15 +1088,35 @@
  	return 0;
  }
  
