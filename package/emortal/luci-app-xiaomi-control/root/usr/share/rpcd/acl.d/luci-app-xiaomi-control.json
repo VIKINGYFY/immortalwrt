@@ -1,12 +1,14 @@
 {
 	"luci-app-xiaomi-control": {
-		"description": "Grant access to Xiaomi fan and RGB lighting control",
+		"description": "Grant access to Xiaomi fan, RGB lighting and NFC control",
 		"read": {
-			"uci": [ "xiaomi-control" ],
-			"ubus": { "service": [ "list" ], "file": [ "read" ] },
+			"uci": [ "xiaomi-control", "wireless" ],
+			"ubus": { "service": [ "list" ], "system": [ "board" ], "file": [ "read" ] },
 			"file": {
 				"/var/run/xiaomi-control.json": [ "read" ],
-				"/tmp/run/xiaomi-control.json": [ "read" ]
+				"/tmp/run/xiaomi-control.json": [ "read" ],
+				"/var/run/xiaomi-nfc.json": [ "read" ],
+				"/tmp/run/xiaomi-nfc.json": [ "read" ]
 			}
 		},
 		"write": {
