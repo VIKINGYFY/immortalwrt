@@ -1,0 +1,17 @@
+{
+	"luci-app-airscan": {
+		"description": "Grant access to the airscan survey and its settings",
+		"read": {
+			"ubus": {
+				"airscan": [ "status", "spectrum", "bss", "clients", "events", "ble" ]
+			},
+			"uci": [ "airscan" ]
+		},
+		"write": {
+			"ubus": {
+				"airscan": [ "sweep", "scan", "ble_scan" ]
+			},
+			"uci": [ "airscan" ]
+		}
+	}
+}

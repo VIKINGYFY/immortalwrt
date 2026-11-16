@@ -1,0 +1,33 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+. /lib/functions/arista-config.sh
+. /lib/functions.sh
+case "$(board_name)" in
+arista,c-230|arista,c-260) PCI=0000:01:00.0 ;;
+arista,c-360) PCI=0001:01:00.0 ;;
+*) exit 1 ;;
+esac
+case "$1" in claim|unmark) ;; *) exit 2 ;; esac
+[ "$1" != claim ] || [ "$2" = "$PCI" ] || exit 1
+trap 'arista_config_end' EXIT
+trap 'exit 1' INT TERM HUP
+arista_config_begin wireless || exit 1
+changed=0
+for s in $(arista_uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+	if [ "$1" = claim ]; then
+		case "$(arista_uci -q get wireless.$s.path)" in *"/$PCI") ;; *) continue ;; esac
+		arista_uci set wireless.$s.disabled=1 &&
+			arista_uci set wireless.$s.airscan=1 &&
+			arista_uci_delete wireless.$s.country || exit 1
+		changed=1
+	else
+		[ "$(arista_uci -q get wireless.$s.airscan)" = 1 ] || continue
+		arista_uci_delete wireless.$s.airscan || exit 1
+		if [ -z "$(arista_uci -q get wireless.$s.country)" ]; then
+			c=$(arista_uci -q show wireless | sed -n "/^wireless\.$s\./d; s/^wireless\.[^.]*\.country='\(.*\)'$/\1/p" | head -n 1)
+			[ -z "$c" ] || arista_uci set wireless.$s.country="$c" || exit 1
+		fi
+		changed=1
+	fi
+done
+[ "$changed" = 0 ] || arista_config_commit || exit 1

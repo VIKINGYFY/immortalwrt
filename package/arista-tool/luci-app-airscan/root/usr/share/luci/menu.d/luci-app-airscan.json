@@ -1,0 +1,58 @@
+{
+	"admin/status/airscan": {
+		"title": "Air Scan",
+		"order": 60,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-airscan" ],
+			"uci": { "airscan": true }
+		}
+	},
+
+	"admin/status/airscan/spectrum": {
+		"title": "Spectrum",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "airscan/spectrum"
+		}
+	},
+
+	"admin/status/airscan/networks": {
+		"title": "Networks",
+		"order": 2,
+		"action": {
+			"type": "view",
+			"path": "airscan/networks"
+		}
+	},
+
+	"admin/status/airscan/clients": {
+		"title": "Clients",
+		"order": 3,
+		"action": {
+			"type": "view",
+			"path": "airscan/clients"
+		}
+	},
+
+	"admin/status/airscan/ble": {
+		"title": "Bluetooth LE",
+		"order": 4,
+		"action": {
+			"type": "view",
+			"path": "airscan/ble"
+		}
+	},
+
+	"admin/status/airscan/settings": {
+		"title": "Settings",
+		"order": 5,
+		"action": {
+			"type": "view",
+			"path": "airscan/settings"
+		}
+	}
+}
