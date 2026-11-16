@@ -3,7 +3,94 @@
 'require form';
 'require network';
 'require uci';
+'require rpc';
+'require poll';
 'require tools.widgets as widgets';
+
+const callStatus = rpc.declare({
+	object: 'luci.qca-ppe-qos',
+	method: 'status',
+	expect: { '': {} }
+});
+
+function shaperStatus(node, status) {
+	const errors = {
+		'invalid-configuration': _('Invalid or duplicate port configuration; existing limits were kept.'),
+		'hardware-status-unavailable': _('Hardware status is unavailable; no limit was applied.'),
+		'sqm-conflict': _('SQM manages this port. Disable its queue before enabling port limiting.'),
+		'qdisc-conflict': _('Another queue configuration manages this port; it was kept.'),
+		'ownership-conflict': _('Queue ownership changed; the existing queue was kept.'),
+		'qdisc-unavailable': _('Unable to read the port queue.'),
+		'qdisc-rejected': _('The port rejected the requested queue settings.'),
+		'hardware-rejected': _('Hardware did not accept the limit; the previous settings were restored.'),
+		'remove-failed': _('Unable to remove the managed queue.'),
+		'hardware-remove-failed': _('Hardware still reports an active limit after removal.'),
+		'rollback-failed': _('Unable to restore the previous hardware limit. Check the port before retrying.')
+	};
+	const rows = (status.ports || []).map((p) => {
+		const state = !p.available ? _('Hardware status unavailable')
+			: p.verified ? _('Hardware limit active')
+			: p.active && !p.managed ? _('Managed by another service')
+			: p.active ? _('Hardware state does not match configuration')
+			: p.conflict ? _('Another queue configuration is active') : _('No hardware limit');
+		return [ p.device, p.carrier ? _('Link up') : _('Link down'), state,
+			p.active ? '%s kbit/s'.format(p.rate) : '—',
+			p.active ? '%s / %s'.format(p.burst, p.buffers * 256) : '—' ];
+	});
+	const table = E('table', { 'class': 'table' }, [ E('tr', { 'class': 'tr table-titles' },
+		[ _('Physical port'), _('Link'), _('Hardware status'), _('Rate'), _('Burst / hardware queue (bytes)') ]
+			.map((label) => E('th', { 'class': 'th' }, label))) ]);
+	rows.forEach((row) => table.appendChild(E('tr', { 'class': 'tr' }, row.map((value) => E('td', { 'class': 'td' }, value)))));
+	const messages = Object.entries(status.errors || {}).map(([device, error]) =>
+		E('p', { 'class': 'alert-message warning' }, '%s: %s'.format(device, errors[error] || error)));
+	node.replaceChildren(E('h3', _('Hardware status')), table, ...messages);
+}
+
+function renderShapers(status) {
+	const m = new form.Map('qca-ppe-qos', _('PPE Hardware QoS'),
+		_('Limits all traffic leaving a physical PPE port. A WAN port limit controls upload; a LAN port limit also affects local traffic to that port. This does not provide a shared download limit across LAN and Wi-Fi or per-host fair queueing.'));
+	const s = m.section(form.TableSection, 'shaper', _('Port rate limits'),
+		_('Only physical PPE ports with hardware status are selectable. Existing SQM and other queue configurations take precedence.') + ' ' +
+		_('Hardware rounds the requested queue depth to complete frames and available port capacity.'));
+	s.anonymous = true;
+	s.addremove = true;
+	let o = s.option(form.Flag, 'enabled', _('Enable'));
+	o.default = '0';
+	o.rmempty = false;
+	o = s.option(form.ListValue, 'device', _('Physical port'));
+	(status.ports || []).filter((p) => p.available).forEach((p) => o.value(p.device));
+	o.rmempty = false;
+	o.validate = function(section_id, value) {
+		const enabled = s.formvalue(section_id, 'enabled') != '0';
+		const duplicate = enabled && s.cfgsections().some((sid) => sid != section_id &&
+			s.formvalue(sid, 'enabled') != '0' && this.formvalue(sid) == value);
+		return duplicate ? _('Only one enabled limit is allowed per port') : true;
+	};
+	o = s.option(form.Value, 'rate', _('Rate (kbit/s)'));
+	o.datatype = 'and(uinteger,range(64,10000000))';
+	o.placeholder = '100000';
+	o.rmempty = false;
+	o = s.option(form.Value, 'burst', _('Burst (bytes)'));
+	o.datatype = 'and(uinteger,range(2048,1048576))';
+	o.default = '65536';
+	o.rmempty = false;
+	o = s.option(form.Value, 'limit', _('Requested queue limit (bytes)'));
+	o.datatype = 'and(uinteger,range(4096,4194304))';
+	o.default = '131072';
+	o.rmempty = false;
+	o.validate = function(section_id, value) {
+		return +value >= +(s.formvalue(section_id, 'burst') || 65536)
+			? true : _('Queue limit must be at least the burst size');
+	};
+	return m.render().then((formNode) => {
+		const live = E('div');
+		shaperStatus(live, status);
+		poll.add(() => callStatus().then((next) => shaperStatus(live, next)).catch(() => {
+			live.replaceChildren(E('p', { 'class': 'alert-message warning' }, _('Unable to read hardware status.')));
+		}), 5);
+		return E('div', [ live, formNode ]);
+	});
+}
 
 /* The class keywords the qca-ppe-qos init accepts, with their DSCP values. */
 const CLASSES = [
@@ -129,11 +216,18 @@ return view.extend({
 	load() {
 		return Promise.all([
 			network.getDevices(),
-			uci.load('qca-ppe-qos')
+			uci.load('qca-ppe-qos'),
+			L.resolveDefault(callStatus(), {})
 		]);
 	},
 
-	render([ devices ]) {
+	render([ devices, config, status ]) {
+		if (status.platform == 'be')
+			return renderShapers(status);
+		if (!status.classifier) {
+			this.handleSaveApply = this.handleSave = this.handleReset = null;
+			return E('p', { 'class': 'alert-message warning' }, _('PPE QoS capabilities are unavailable. Check the service and reload this page.'));
+		}
 		/* DSA user ports; the conduit is a switch device too, but has no parent. */
 		const switch_ports = devices
 			.filter((d) => d.getType() == 'switch' && d.getParent())

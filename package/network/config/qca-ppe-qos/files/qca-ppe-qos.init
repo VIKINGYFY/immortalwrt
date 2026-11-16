@@ -306,6 +306,11 @@ wifi_clear() {
 apply() {
 	local len prio pairs="" port dev
 
+	if [ -d /sys/bus/platform/drivers/qcom_ppe ]; then
+		/usr/libexec/qca-ppe-qos.uc apply
+		return $?
+	fi
+	[ -d "$PARAM_DIR" ] || return 0
 	config_load qca-ppe-qos
 	config_get_bool ACTIVE global active 1
 	[ "$ACTIVE" = 1 ] || { teardown; return 0; }
@@ -429,6 +434,7 @@ start_service() {
 wifi_dev() {
 	local dev="$1" len prio
 
+	[ -d "$PARAM_DIR" ] || return 0
 	[ -n "$dev" ] || return 1
 	config_load qca-ppe-qos
 	config_get_bool ACTIVE global active 1
@@ -452,6 +458,11 @@ service_triggers() {
 teardown() {
 	local dev
 
+	if [ -d /sys/bus/platform/drivers/qcom_ppe ]; then
+		/usr/libexec/qca-ppe-qos.uc stop
+		return $?
+	fi
+	[ -d "$PARAM_DIR" ] || return 0
 	flush_filters
 	[ -w "$PARAM_DIR/small_pkt_len" ] && echo 0 > "$PARAM_DIR/small_pkt_len"
 	command -v dcb >/dev/null &&

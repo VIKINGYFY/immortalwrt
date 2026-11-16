@@ -1,0 +1,10 @@
+#!/bin/sh
+# Read-only status; configuration and service reload use the normal UCI path.
+case "$1" in
+list) echo '{"status":{}}' ;;
+call)
+	[ "$2" = status ] || exit 1
+	exec /usr/libexec/qca-ppe-qos.uc status
+	;;
+*) exit 1 ;;
+esac

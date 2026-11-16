@@ -1,0 +1,5 @@
+#!/bin/sh
+case "$ACTION" in ifup|ifupdate) ;; *) exit 0 ;; esac
+[ -d /sys/bus/platform/drivers/qcom_ppe ] || exit 0
+/etc/init.d/qca-ppe-qos enabled || exit 0
+/etc/init.d/qca-ppe-qos reload

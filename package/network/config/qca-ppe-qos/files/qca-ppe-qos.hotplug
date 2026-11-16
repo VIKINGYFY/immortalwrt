@@ -3,6 +3,10 @@
 # qca-ppe-qos starts before hostapd creates the AP netdev, so applying it only at
 # start leaves every boot without it.
 [ "$ACTION" = add ] || exit 0
+if [ "$(basename "$(readlink -f "/sys/class/net/$DEVICENAME/device/driver")")" = qcom_ppe ]; then
+	/etc/init.d/qca-ppe-qos enabled && /etc/init.d/qca-ppe-qos reload
+	exit 0
+fi
 [ -e "/sys/class/net/$DEVICENAME/phy80211" ] || exit 0
 [ -x /etc/init.d/qca-ppe-qos ] || exit 0
 /etc/init.d/qca-ppe-qos wifi_dev "$DEVICENAME"

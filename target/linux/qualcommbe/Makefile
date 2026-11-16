@@ -16,6 +16,7 @@ DEFAULT_PACKAGES += \
 	kmod-qcom-ppe kmod-qrtr-mhi kmod-qrtr-smd \
 	kmod-ath12k kmod-dsa kmod-dsa-qca8k kmod-phy-aquantia kmod-phy-qca83xx \
 	kmod-fs-ext4 kmod-fs-f2fs kmod-gpio-button-hotplug kmod-leds-gpio \
-	kmod-usb3 kmod-usb-dwc3 kmod-usb-dwc3-qcom kmod-usb-serial-qualcomm tc-tiny
+	kmod-usb3 kmod-usb-dwc3 kmod-usb-dwc3-qcom kmod-usb-serial-qualcomm tc-tiny \
+	qca-ppe-qos luci-app-qca-ppe-qos luci-i18n-qca-ppe-qos-zh-cn
 
 $(eval $(call BuildTarget))
