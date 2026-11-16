@@ -2,7 +2,20 @@
 
 . /lib/functions.sh
 
-[ "$(board_name)" = "linksys,ln6001" ] || exit 0
+case "$(board_name)" in
+arista,c-460)
+	speed=1000000
+	flow_control=0
+	;;
+linksys,ln6001)
+	speed=115200
+	flow_control=1
+	;;
+*)
+	exit 0
+	;;
+esac
+
 [ "$(uci -q get bluetooth-uart.main)" = "uart" ] || exit 0
 
 # Preserve an already configured UART, including a disabled one.
@@ -11,6 +24,7 @@
 uci -q batch <<-EOF
 	set bluetooth-uart.main.device='/dev/ttyMSM1'
 	set bluetooth-uart.main.protocol='h4'
-	set bluetooth-uart.main.speed='115200'
+	set bluetooth-uart.main.speed='$speed'
+	set bluetooth-uart.main.flow_control='$flow_control'
 	set bluetooth-uart.main.enabled='1'
 EOF

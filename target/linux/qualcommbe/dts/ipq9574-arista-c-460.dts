@@ -1,0 +1,547 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+/dts-v1/;
+
+#include "ipq9574-common.dtsi"
+
+/ {
+	model = "Arista C-460";
+	compatible = "arista,c-460", "qcom,ipq9574";
+
+	aliases {
+		led-boot = &led_power_red;
+		led-failsafe = &led_power_red;
+		led-running = &led_power_green;
+		led-upgrade = &led_power_red;
+
+		serial1 = &blsp1_uart4;
+	};
+
+	chosen {
+		/*
+		 * The root file system is the vendor's slot 0 on eMMC, whatever
+		 * bootargs U-Boot passes; fstools then finds rootfs_data on the
+		 * same disk.
+		 */
+		bootargs-append = " root=PARTLABEL=rootfs rootwait";
+	};
+
+	keys {
+		compatible = "gpio-keys";
+		pinctrl-0 = <&button_pins>;
+		pinctrl-names = "default";
+
+		reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&tlmm 41 GPIO_ACTIVE_LOW>;
+			debounce-interval = <60>;
+		};
+	};
+
+	/* Every LED is a red/green pair on the PCA9555 at 0x26, active low. */
+	leds {
+		compatible = "gpio-leds";
+
+		led_power_red: led-power-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&led_expander 12 GPIO_ACTIVE_LOW>;
+		};
+
+		led_power_green: led-power-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&led_expander 13 GPIO_ACTIVE_LOW>;
+		};
+
+		led-2g-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_WLAN_2GHZ;
+			gpios = <&led_expander 10 GPIO_ACTIVE_LOW>;
+		};
+
+		led-2g-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WLAN_2GHZ;
+			gpios = <&led_expander 11 GPIO_ACTIVE_LOW>;
+		};
+
+		led-5g-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_WLAN_5GHZ;
+			gpios = <&led_expander 8 GPIO_ACTIVE_LOW>;
+		};
+
+		led-5g-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WLAN_5GHZ;
+			gpios = <&led_expander 9 GPIO_ACTIVE_LOW>;
+		};
+
+		/* "5g_6g" in the vendor firmware */
+		led-6g-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_WLAN_6GHZ;
+			gpios = <&led_expander 4 GPIO_ACTIVE_LOW>;
+		};
+
+		led-6g-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WLAN_6GHZ;
+			gpios = <&led_expander 5 GPIO_ACTIVE_LOW>;
+		};
+
+		/* "poe0" and "poe1" in the vendor firmware */
+		led-poe0-red {
+			color = <LED_COLOR_ID_RED>;
+			function = "poe";
+			function-enumerator = <0>;
+			gpios = <&led_expander 2 GPIO_ACTIVE_LOW>;
+		};
+
+		led-poe0-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = "poe";
+			function-enumerator = <0>;
+			gpios = <&led_expander 3 GPIO_ACTIVE_LOW>;
+		};
+
+		led-poe1-red {
+			color = <LED_COLOR_ID_RED>;
+			function = "poe";
+			function-enumerator = <1>;
+			gpios = <&led_expander 0 GPIO_ACTIVE_LOW>;
+		};
+
+		led-poe1-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = "poe";
+			function-enumerator = <1>;
+			gpios = <&led_expander 1 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	/*
+	 * The USB PHYs' supplies. The vendor device tree names none and
+	 * declares no PMIC LDO for them, so describe them as fixed rails
+	 * that are always on, at the reference design's voltages.
+	 */
+	regulator_fixed_3p3: regulator-3p3 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed_3p3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	regulator_fixed_1p8: regulator-1p8 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed_1p8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	regulator_fixed_0p925: regulator-0p925 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed_0p925";
+		regulator-min-microvolt = <925000>;
+		regulator-max-microvolt = <925000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+};
+
+/* Preserve the C-460 regulator constraints when sharing the SoC defaults. */
+&ipq9574_s1 {
+	/delete-property/ regulator-always-on;
+};
+
+&ipq9574_s2 {
+	/delete-property/ regulator-min-microvolt;
+	/delete-property/ regulator-max-microvolt;
+	/delete-property/ regulator-always-on;
+};
+
+/* Bluetooth LE controller (HCI over H:4, 1 Mbaud, no flow control) */
+&blsp1_uart4 {
+	pinctrl-0 = <&uart4_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&blsp1_i2c1 {
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	led_expander: gpio@26 {
+		compatible = "nxp,pca9555";
+		reg = <0x26>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
+	/* read by the bootloader for PoE negotiation */
+	gpio@27 {
+		compatible = "nxp,pca9555";
+		reg = <0x27>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
+	rtc@51 {
+		compatible = "nxp,pcf85263";
+		reg = <0x51>;
+	};
+
+	/* Not described yet: a Quectel LC79H GNSS receiver at 0x50. */
+};
+
+&blsp1_spi0 {
+	pinctrl-0 = <&spi_0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+
+		/* Partition geometry is read from SMEM. */
+		partitions {
+			compatible = "qcom,smem-part";
+			qcom,smem-flash-id = <0>;
+
+			partition-0-art {
+				label = "0:art";
+				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					macaddr_lan1: macaddr@0 {
+						reg = <0x0 0x6>;
+					};
+
+					macaddr_lan2: macaddr@6 {
+						reg = <0x6 0x6>;
+					};
+
+					caldata_qcn9074: calibration@26800 {
+						reg = <0x26800 0x20000>;
+					};
+				};
+			};
+		};
+	};
+};
+
+/* TPM 2.0 (the vendor firmware's log reports device-id 0x1B, rev-id 22) */
+&blsp1_spi3 {
+	pinctrl-0 = <&spi_3_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	tpm@0 {
+		compatible = "tcg,tpm_tis-spi";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
+
+&sdhc_1 {
+	bus-width = <8>;
+	max-frequency = <192000000>;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	non-removable;
+	pinctrl-0 = <&sdc_default_state>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&usb_0_dwc3 {
+	/* The Type-A port is USB 2.0 only: leave the USB 3 PHY out */
+	phys = <&usb_0_qusbphy>;
+	phy-names = "usb2-phy";
+	maximum-speed = "high-speed";
+	dr_mode = "host";
+};
+
+&usb_0_qusbphy {
+	vdd-supply = <&regulator_fixed_0p925>;
+	vdda-pll-supply = <&regulator_fixed_1p8>;
+	vdda-phy-dpdm-supply = <&regulator_fixed_3p3>;
+
+	status = "okay";
+};
+
+&usb3 {
+	/* No USB 3 PHY: clock the PIPE interface from UTMI */
+	qcom,select-utmi-as-pipe-clk;
+	status = "okay";
+};
+
+&tlmm {
+	/*
+	 * GPIO 57 and 64 are the reset lines of the two RTL8261N PHYs. The
+	 * vendor firmware lists them for the bus without saying which PHY
+	 * each one resets, and the bootloader has already released both, so
+	 * they are held released here rather than pulsed per PHY.
+	 */
+	rtl8261n_reset_57 {
+		gpio-hog;
+		gpios = <57 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "phy-reset-57";
+	};
+
+	rtl8261n_reset_64 {
+		gpio-hog;
+		gpios = <64 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "phy-reset-64";
+	};
+
+	/*
+	 * The Bluetooth controller boots its HCI firmware when its recovery
+	 * line (GPIO 40) is high and its reset line (GPIO 61) is released,
+	 * as the vendor firmware sets both.
+	 */
+	bt_recovery {
+		gpio-hog;
+		gpios = <40 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "bt-recovery";
+	};
+
+	bt_reset {
+		gpio-hog;
+		gpios = <61 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "bt-reset";
+	};
+
+	uart4_pins: uart4-state {
+		pins = "gpio50", "gpio51", "gpio52", "gpio53";
+		function = "blsp4_uart";
+		drive-strength = <8>;
+		bias-disable;
+	};
+
+	button_pins: button-state {
+		pins = "gpio41";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+
+	i2c1_default: i2c1-default-state {
+		pins = "gpio36", "gpio37";
+		function = "blsp1_i2c";
+		drive-strength = <8>;
+		bias-disable;
+	};
+
+	spi_3_default: spi-3-default-state {
+		pins = "gpio15", "gpio16", "gpio17", "gpio18";
+		function = "blsp3_spi";
+		drive-strength = <8>;
+		bias-disable;
+	};
+
+};
+
+/*
+ * Radios: pcie0 holds a 17cb:1104 (QCN9074 family, most likely the scan
+ * radio), pcie1-3 the three 17cb:1109 QCN9224. Their OTP board ID is blank
+ * (0xff), so the vendor firmware gives each one a board ID in its device
+ * tree: 0xaa on pcie0, 0x01 on pcie1, 0x04 on pcie2, 0x02 on pcie3. The
+ * calibration variants carry those IDs, as the Askey SBE1V1K's do.
+ */
+&pcie0_phy {
+	status = "okay";
+};
+
+&pcie0 {
+	pinctrl-0 = <&pcie0_default>;
+	pinctrl-names = "default";
+	perst-gpios = <&tlmm 23 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 24 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	pcie@0 {
+		device_type = "pci";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+
+		wifi@0 {
+			compatible = "pci17cb,1104";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			/* as the vendor firmware: 16 + 1 interfaces, 512 clients */
+			qcom,ath11k-fw-memory-mode = <0>;
+			qcom,calibration-variant = "Arista-C-460";
+			nvmem-cells = <&caldata_qcn9074>;
+			nvmem-cell-names = "calibration";
+		};
+	};
+};
+
+&pcie1_phy {
+	status = "okay";
+};
+
+&pcie1 {
+	pinctrl-0 = <&pcie1_default>;
+	pinctrl-names = "default";
+	perst-gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 27 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	pcie@0 {
+		device_type = "pci";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+
+		wifi@0 {
+			compatible = "pci17cb,1109";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			qcom,calibration-variant = "Arista-C-460_1";
+		};
+	};
+};
+
+&pcie2_phy {
+	status = "okay";
+};
+
+&pcie2 {
+	pinctrl-0 = <&pcie2_default>;
+	pinctrl-names = "default";
+	perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 30 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	pcie@0 {
+		device_type = "pci";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+
+		wifi@0 {
+			compatible = "pci17cb,1109";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			qcom,calibration-variant = "Arista-C-460_4";
+		};
+	};
+};
+
+&pcie3_phy {
+	status = "okay";
+};
+
+&pcie3 {
+	pinctrl-0 = <&pcie3_default>;
+	pinctrl-names = "default";
+	perst-gpios = <&tlmm 32 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 33 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	pcie@0 {
+		device_type = "pci";
+		reg = <0x0 0x0 0x0 0x0 0x0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+
+		wifi@0 {
+			compatible = "pci17cb,1109";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			qcom,calibration-variant = "Arista-C-460_2";
+		};
+	};
+};
+
+&mdio {
+	pinctrl-0 = <&mdio_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	phy8: ethernet-phy@8 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <8>;
+	};
+
+	phy9: ethernet-phy@9 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <9>;
+	};
+};
+
+/*
+ * Two 10G ports, both RTL8261N over USXGMII. Port 6 is the vendor's eth0
+ * (the bootloader negotiates PoE through it), port 5 its eth1.
+ */
+&qcom_ppe {
+	status = "okay";
+
+	ethernet-ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@5 {
+			reg = <5>;
+			phy-mode = "usxgmii";
+			managed = "in-band-status";
+			phy-handle = <&phy8>;
+			pcs-handle = <&pcs1_ch0>;
+			label = "lan2";
+
+			nvmem-cells = <&macaddr_lan2>;
+			nvmem-cell-names = "mac-address";
+
+			clocks = <&nsscc NSS_CC_PORT5_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT5_RX_CLK>,
+				 <&nsscc NSS_CC_PORT5_TX_CLK>;
+			clock-names = "mac", "rx", "tx";
+
+			resets = <&nsscc PORT5_MAC_ARES>,
+				 <&nsscc PORT5_RX_ARES>,
+				 <&nsscc PORT5_TX_ARES>;
+			reset-names = "mac", "rx", "tx";
+		};
+
+		port@6 {
+			reg = <6>;
+			phy-mode = "usxgmii";
+			managed = "in-band-status";
+			phy-handle = <&phy9>;
+			pcs-handle = <&pcs2_ch0>;
+			label = "lan1";
+
+			nvmem-cells = <&macaddr_lan1>;
+			nvmem-cell-names = "mac-address";
+
+			clocks = <&nsscc NSS_CC_PORT6_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT6_RX_CLK>,
+				 <&nsscc NSS_CC_PORT6_TX_CLK>;
+			clock-names = "mac", "rx", "tx";
+
+			resets = <&nsscc PORT6_MAC_ARES>,
+				 <&nsscc PORT6_RX_ARES>,
+				 <&nsscc PORT6_TX_ARES>;
+			reset-names = "mac", "rx", "tx";
+		};
+	};
+};

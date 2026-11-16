@@ -9,19 +9,8 @@ board=$(board_name)
 case "$FIRMWARE" in
 "ath11k/IPQ8074/hw2.0/cal-ahb-c000000.wifi.bin")
 	case "$board" in
-	arista,c360)
-		case "$(uci -q get ap_c360.mode.mode)" in
-		6g)
-			caldata_extract "0:art" 0x1000 0x20000
-			;;
-		*)
-			caldata_extract "0:art" 0x71800 0x20000
-			;;
-		esac
-		;;
 	aliyun,ap8220|\
 	arcadyan,aw1000|\
-	arista,c260|\
 	buffalo,wxr-5950ax12|\
 	cmcc,rm2-6|\
 	compex,wpq873|\
@@ -79,16 +68,6 @@ case "$FIRMWARE" in
 "ath11k/QCN9074/hw1.0/cal-pci-0000:01:00.0.bin"|\
 "ath11k/QCN9074/hw1.0/cal-pci-0001:01:00.0.bin")
 	case "$board" in
-	arista,c360)
-		case "$FIRMWARE" in
-		"ath11k/QCN9074/hw1.0/cal-pci-0000:01:00.0.bin")
-			caldata_extract "0:art" 0x26800 0x20000
-			;;
-		"ath11k/QCN9074/hw1.0/cal-pci-0001:01:00.0.bin")
-			caldata_extract "0:art" 0x4c000 0x20000
-			;;
-		esac
-		;;
 	linksys,mx8500)
 		caldata_extract "0:art" 0x26800 0x20000
 		ath11k_remove_regdomain

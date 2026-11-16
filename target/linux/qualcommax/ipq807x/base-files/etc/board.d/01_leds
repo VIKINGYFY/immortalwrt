@@ -11,18 +11,11 @@ arcadyan,aw1000)
 	ucidef_set_led_netdev "wan" "WAN" "green:internet" "wan"
 	ucidef_set_led_netdev "wan-port-link" "WAN-PORT-LINK" "90000.mdio-1:1c:green:wan" "wan" "tx rx link_10 link_100 link_1000 link_2500"
 	;;
-arista,c260)
-	ucidef_set_led_netdev "wlan2g" "WiFi 2.4GHz" "green:wlan2g" "phy1-ap0" "link"
-	ucidef_set_led_netdev "wlan5g" "WiFi 5GHz" "green:wlan5g" "phy0-ap0" "link"
-	ucidef_set_led_netdev "wan" "WAN" "green:eth1" "wan" "link"
-	ucidef_set_led_netdev "lan" "LAN" "green:eth2" "lan" "link"
-	;;
-arista,c360)
-	ucidef_set_led_netdev "wlan2g" "WiFi 2.4GHz" "green:wlan2g" "phy1-ap0" "link"
-	ucidef_set_led_netdev "wlan5g" "WiFi 5GHz" "green:wlan5g" "phy0-ap0" "link"
-	ucidef_set_led_netdev "wlan6g" "WiFi 6GHz/5G-high" "green:wlan6g" "phy2-ap0" "link"
-	ucidef_set_led_netdev "lan" "LAN" "green:lan" "lan" "link"
-	ucidef_set_led_netdev "wan" "WAN" "green:wan" "wan" "link"
+arista,c-230|\
+arista,c-260|\
+arista,c-360)
+	ucidef_set_led_netdev "lan1" "LAN1" "green:lan-1" "lan1" "link"
+	ucidef_set_led_netdev "lan2" "LAN2" "green:lan-2" "lan2" "link"
 	;;
 asus,rt-ax89x)
 	ucidef_set_led_netdev "aqr" "AQR" "white:aqr10g" "10g-copper"

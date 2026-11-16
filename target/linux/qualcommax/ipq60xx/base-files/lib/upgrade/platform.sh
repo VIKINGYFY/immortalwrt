@@ -92,6 +92,7 @@ platform_do_upgrade() {
 	redmi,ax5|\
 	xiaomi,ax1800|\
 	zn,m2|\
+	arista,c-200|\
 	glinet,gl-ax1800|\
 	glinet,gl-axt1800|\
 	netgear,rbr350|\

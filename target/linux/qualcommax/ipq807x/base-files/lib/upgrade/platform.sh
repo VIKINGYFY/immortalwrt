@@ -51,10 +51,6 @@ platform_pre_upgrade() {
 
 platform_do_upgrade() {
 	case "$(board_name)" in
-	arista,c260|\
-	arista,c360)
-		arista_ap_do_upgrade "$1"
-		;;
 	aliyun,ap8220|\
 	zte,mf269-stock)
 		CI_UBIPART="rootfs"
@@ -78,6 +74,12 @@ platform_do_upgrade() {
 	tplink,tl-er2260t|\
 	zyxel,nwa110ax|\
 	zyxel,nwa210ax)
+		nand_do_upgrade "$1"
+		;;
+	arista,c-230|\
+	arista,c-260|\
+	arista,c-360)
+		CI_UBIPART="rootfs"
 		nand_do_upgrade "$1"
 		;;
 	asus,rt-ax89x)

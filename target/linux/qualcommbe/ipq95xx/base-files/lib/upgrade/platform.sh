@@ -27,6 +27,7 @@ platform_do_upgrade() {
 		CI_ROOTPART="rootfs"
 		emmc_do_upgrade "$1"
 		;;
+	arista,c-460|\
 	askey,sbe1v1k)
 		CI_KERNPART="0:HLOS"
 		CI_ROOTPART="rootfs"
@@ -52,6 +53,7 @@ platform_copy_config() {
 	case "$(board_name)" in
 	8devices,kiwi-dvk|\
 	nokia,beacon-10|\
+	arista,c-460|\
 	askey,sbe1v1k)
 		emmc_copy_config
 		;;

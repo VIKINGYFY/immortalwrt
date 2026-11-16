@@ -11,8 +11,6 @@ ipq807x_setup_interfaces()
 	local board="$1"
 
 	case "$board" in
-	arista,c260|\
-	arista,c360|\
 	aliyun,ap8220|\
 	edgecore,eap102|\
 	tcl,linkhub-hh500v|\
@@ -21,6 +19,11 @@ ipq807x_setup_interfaces()
 	zte,mf269|\
 	zte,mf269-stock)
 		ucidef_set_interfaces_lan_wan "lan" "wan"
+		;;
+	arista,c-230|\
+	arista,c-260|\
+	arista,c-360)
+		ucidef_set_interface_lan "lan1 lan2" "dhcp"
 		;;
 	asus,rt-ax89x)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan5 lan6 lan7 lan8 10g-sfp 10g-copper" "wan"

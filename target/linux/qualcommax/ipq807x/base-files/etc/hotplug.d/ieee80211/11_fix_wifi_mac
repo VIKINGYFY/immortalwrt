@@ -23,8 +23,6 @@ case "$board" in
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		;;
-	arista,c260|\
-	arista,c360|\
 	verizon,cr1000a)
 		label_mac=$(get_mac_label)
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
