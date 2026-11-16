@@ -464,7 +464,53 @@ static const u8 port_queue_base[PPE_NUM_PORTS] = {
 /* A unicast queue's admission control is four words that take effect on the
  * last one, so the whole entry goes back every time.
  */
-static void ppe_ac_uni_write(struct qca_ppe_priv *priv, u32 queue, u32 w0)
+/* A root TBF change commits the shaper, queue groups and queue entries
+ * together. Each register is saved before its first write; callers
+ * outside this transaction retain their existing access pattern.
+ */
+struct ppe_qos_transaction {
+	struct { u32 reg, value; } saved[4 + PPE_PORT_UCAST_BASE * 4 +
+				       PPE_AC_GROUPS * PPE_AC_GRP_WORDS + PPE_NUM_PORTS];
+	u32 ac_w0[PPE_L0_UCAST_QUEUES];
+	struct ppe_ac_grp groups[PPE_AC_GROUPS];
+	u64 old_rate;
+	u32 old_limit;
+	unsigned int count;
+	int error;
+};
+
+static void ppe_qos_write(struct qca_ppe_priv *priv,
+			  struct ppe_qos_transaction *tx, u32 reg, u32 value)
+{
+	unsigned int i;
+	int ret;
+
+	if (!tx) {
+		regmap_write(priv->regmap, reg, value);
+		return;
+	}
+	if (tx->error)
+		return;
+	for (i = 0; i < tx->count; i++)
+		if (tx->saved[i].reg == reg)
+			goto write;
+	if (tx->count == ARRAY_SIZE(tx->saved)) {
+		tx->error = -EOVERFLOW;
+		return;
+	}
+	ret = regmap_read(priv->regmap, reg, &tx->saved[i].value);
+	if (ret) {
+		tx->error = ret;
+		return;
+	}
+	tx->saved[i].reg = reg;
+	tx->count++;
+write:
+	tx->error = regmap_write(priv->regmap, reg, value);
+}
+
+static void ppe_ac_uni_write_txn(struct qca_ppe_priv *priv, u32 queue, u32 w0,
+				 struct ppe_qos_transaction *tx)
 {
 	const u16 *g = priv->gred_gap[queue];
 	u32 w1 = 0, w2 = 0;
@@ -490,18 +536,29 @@ static void ppe_ac_uni_write(struct qca_ppe_priv *priv, u32 queue, u32 w0)
 		     FIELD_PREP(PPE_AC_GAP_RED_MIN, g[3]);
 	}
 
-	regmap_write(priv->regmap, PPE_QM_AC_UNI_W0(queue), w0);
-	regmap_write(priv->regmap, PPE_QM_AC_UNI_W1(queue), w1);
-	regmap_write(priv->regmap, PPE_QM_AC_UNI_W2(queue), w2);
-	regmap_write(priv->regmap, PPE_QM_AC_UNI_W3(queue),
+	ppe_qos_write(priv, tx, PPE_QM_AC_UNI_W0(queue), w0);
+	ppe_qos_write(priv, tx, PPE_QM_AC_UNI_W1(queue), w1);
+	ppe_qos_write(priv, tx, PPE_QM_AC_UNI_W2(queue), w2);
+	ppe_qos_write(priv, tx, PPE_QM_AC_UNI_W3(queue),
 		     FIELD_PREP(PPE_AC_GRN_RESUME_OFF, 36));
 }
 
+static void ppe_ac_uni_write(struct qca_ppe_priv *priv, u32 queue, u32 w0)
+{
+	ppe_ac_uni_write_txn(priv, queue, w0, NULL);
+}
+
 /* The configuration a queue keeps, as opposed to the AQM's squeeze of it. */
-static void ppe_ac_uni_set(struct qca_ppe_priv *priv, u32 queue, u32 w0)
+static void ppe_ac_uni_set_txn(struct qca_ppe_priv *priv, u32 queue, u32 w0,
+			       struct ppe_qos_transaction *tx)
 {
 	priv->ac_w0[queue] = w0;
-	ppe_ac_uni_write(priv, queue, w0);
+	ppe_ac_uni_write_txn(priv, queue, w0, tx);
+}
+
+static void ppe_ac_uni_set(struct qca_ppe_priv *priv, u32 queue, u32 w0)
+{
+	ppe_ac_uni_set_txn(priv, queue, w0, NULL);
 }
 
 static u32 ppe_ac_uni_default(struct qca_ppe_priv *priv)
@@ -981,6 +1038,15 @@ int qca_ppe_devlink_sb_pool_set(struct dsa_switch *ds, unsigned int sb_index,
 
 	pool_index -= PPE_BM_SHARED_GROUPS;
 
+	/* Groups 1-3 belong to ppe_ac_grp_get(), which sizes each from the
+	 * classes of the shaped ports it hands it to; group 0 has no other
+	 * writer after ppe_qm_init().
+	 */
+	if (pool_index) {
+		NL_SET_ERR_MSG_MOD(extack, "the group is sized by the shaped ports given it");
+		return -EOPNOTSUPP;
+	}
+
 	if (bufs > FIELD_MAX(PPE_AC_GRP_LIMIT)) {
 		NL_SET_ERR_MSG_MOD(extack, "larger than the queue manager's group limit field");
 		return -EINVAL;
@@ -1376,11 +1442,10 @@ int ppe_port_qstats(struct qca_ppe_priv *priv, int port, u8 **names,
 	};
 	static const char * const colour[] = { "green", "yellow", "red" };
 	struct ppe_qstats q = { .priv = priv, .names = names, .st = st };
-	const struct port_l0_params *p = port ? NULL : &cpu;
+	const struct port_l0_params *p = port ? ppe_port_l0(port) : &cpu;
 	int bm = PPE_BM_PHY_START + port - 1;
 	int i, c;
 
-	p = ppe_port_l0(port);
 	if (!p)
 		return 0;
 
@@ -1824,6 +1889,7 @@ static u32 ppe_ac_bufs(struct qca_ppe_priv *priv, int port, u64 rate_bps,
 
 	min_bufs = DIV_ROUND_UP(ppe_port_frame_len(priv, port) *
 				PPE_AC_MIN_FRAMES, PPE_BM_BUF_SIZE);
+	min_bufs = min(min_bufs, ceiling);
 
 	if (limit)
 		bufs = limit / PPE_BM_BUF_SIZE;
@@ -1863,7 +1929,7 @@ static u32 ppe_ac_uni_static(struct qca_ppe_priv *priv, int port, u64 rate_bps,
 #define PPE_AC_GRP_RATE		1
 
 static u8 ppe_ac_grp_get(struct qca_ppe_priv *priv, int port, int kind,
-			 u32 bufs)
+			 u32 bufs, struct ppe_qos_transaction *tx)
 {
 	struct ppe_ac_grp *g = priv->ac_grp;
 	u8 grp, cur = 0, free = 0;
@@ -1902,10 +1968,10 @@ static u8 ppe_ac_grp_get(struct qca_ppe_priv *priv, int port, int kind,
 write:
 	g[cur].bufs = bufs;
 	grp = cur;
-	regmap_write(priv->regmap, PPE_QM_AC_GRP_W0(grp), 0);
-	regmap_write(priv->regmap, PPE_QM_AC_GRP_W1(grp),
+	ppe_qos_write(priv, tx, PPE_QM_AC_GRP_W0(grp), 0);
+	ppe_qos_write(priv, tx, PPE_QM_AC_GRP_W1(grp),
 		     FIELD_PREP(PPE_AC_GRP_LIMIT, bufs));
-	regmap_write(priv->regmap, PPE_QM_AC_GRP_W2(grp), 0);
+	ppe_qos_write(priv, tx, PPE_QM_AC_GRP_W2(grp), 0);
 
 	return grp;
 }
@@ -1934,7 +2000,11 @@ static u32 ppe_ac_uni_shared(struct qca_ppe_priv *priv, u8 grp, u32 bufs)
  * bind, and the depth to bind at is the one tbf carries in its limit, falling
  * back to one millisecond of the rate.
  */
-static void __ppe_port_queue_limit_set(struct qca_ppe_priv *priv, int port)
+static void ppe_pause_update_txn(struct qca_ppe_priv *priv,
+				 struct ppe_qos_transaction *tx);
+
+static void __ppe_port_queue_limit_set_txn(struct qca_ppe_priv *priv, int port,
+					   struct ppe_qos_transaction *tx)
 {
 	struct ppe_port_shaper *sh = &priv->shaper[port];
 	u32 qbufs[PPE_QOS_MAX_PRI + 1] = {}, rate_bufs = 0, port_bufs = 0;
@@ -1967,11 +2037,11 @@ static void __ppe_port_queue_limit_set(struct qca_ppe_priv *priv, int port)
 					       priv->data->qm_ceiling);
 
 		for (i = 0; i < port_l0[0].ucast_base; i++)
-			ppe_ac_uni_set(priv, i,
+			ppe_ac_uni_set_txn(priv, i,
 				       i >= PPE_CPU_PORT_DL_QUEUE &&
 				       i < PPE_CPU_PORT_DL_QUEUE +
-				       PPE_FLOW_SPREAD_QUEUES ? w0 : def);
-		ppe_pause_update(priv);
+				       PPE_FLOW_SPREAD_QUEUES ? w0 : def, tx);
+		ppe_pause_update_txn(priv, tx);
 		return;
 	}
 
@@ -1999,13 +2069,16 @@ static void __ppe_port_queue_limit_set(struct qca_ppe_priv *priv, int port)
 		}
 	}
 
+	/* A class sum must fit both the admission field and the physical pool. */
+	rate_bufs = min_t(u32, rate_bufs, priv->data->qm_total_buf);
+
 	if (sh->rate_bps && nport)
 		port_bufs = ppe_ac_bufs(priv, port, sh->rate_bps, sh->limit,
 					PPE_FLOW_SPREAD_QUEUES *
 					priv->data->qm_ceiling);
 
-	rate_grp = ppe_ac_grp_get(priv, port, PPE_AC_GRP_RATE, rate_bufs);
-	port_grp = ppe_ac_grp_get(priv, port, PPE_AC_GRP_PORT, port_bufs);
+	rate_grp = ppe_ac_grp_get(priv, port, PPE_AC_GRP_RATE, rate_bufs, tx);
+	port_grp = ppe_ac_grp_get(priv, port, PPE_AC_GRP_PORT, port_bufs, tx);
 
 	for (i = 0; i < p->ucast_count; i++) {
 		u64 rate = i < ARRAY_SIZE(sh->queue_rate) ? sh->queue_rate[i] : 0;
@@ -2021,10 +2094,15 @@ static void __ppe_port_queue_limit_set(struct qca_ppe_priv *priv, int port)
 				       ppe_ac_uni_bufs(DIV_ROUND_UP(port_bufs,
 								    nport));
 
-		ppe_ac_uni_set(priv, p->ucast_base + i, w);
+		ppe_ac_uni_set_txn(priv, p->ucast_base + i, w, tx);
 	}
 
-	ppe_pause_update(priv);
+	ppe_pause_update_txn(priv, tx);
+}
+
+static void __ppe_port_queue_limit_set(struct qca_ppe_priv *priv, int port)
+{
+	__ppe_port_queue_limit_set_txn(priv, port, NULL);
 }
 
 /* Whether the switch shapes a port's egress: a rate on the port or on any of
@@ -2049,7 +2127,8 @@ bool ppe_port_shaped(struct qca_ppe_priv *priv, int port)
  * instead: the client on an upload, the modem on a download. While anything on
  * the switch is shaped, no port asks its link to pause.
  */
-void ppe_pause_update(struct qca_ppe_priv *priv)
+static void ppe_pause_update_txn(struct qca_ppe_priv *priv,
+				 struct ppe_qos_transaction *tx)
 {
 	static DEFINE_MUTEX(lock);
 	bool shaped = false;
@@ -2063,10 +2142,15 @@ void ppe_pause_update(struct qca_ppe_priv *priv)
 	for (port = 1; port < PPE_NUM_PORTS; port++) {
 		bm = PPE_BM_PHY_START + port - 1;
 		if (bm <= priv->data->bm_phy_end)
-			regmap_write(priv->regmap, PPE_BM_FC_MODE(bm),
+			ppe_qos_write(priv, tx, PPE_BM_FC_MODE(bm),
 				     priv->port_tx_pause[port] && !shaped ?
 				     PPE_BM_FC_EN : 0);
 	}
+}
+
+void ppe_pause_update(struct qca_ppe_priv *priv)
+{
+	ppe_pause_update_txn(priv, NULL);
 }
 
 /* The queue manager drops a frame only on arrival, against a limit in
@@ -2107,13 +2191,22 @@ module_param_named(aqm_interval_us, ppe_aqm_interval_us, uint, 0644);
 MODULE_PARM_DESC(aqm_interval_us,
 		 "How long a shaped queue may stay above the target before the AQM drops");
 
-static void ppe_aqm_add(struct ppe_aqm *a, u16 queue, u8 group, u64 rate_bps,
-			u32 frame_len)
+static int ppe_aqm_add(struct ppe_aqm *a, u16 queue, int group, u64 rate_bps,
+		       u32 frame_len)
 {
 	struct ppe_aqm_queue *q;
 
-	if (a->nqueues == PPE_AQM_QUEUES || group >= PPE_AQM_GROUPS)
-		return;
+	if (a->nqueues == PPE_AQM_QUEUES)
+		return group;
+
+	if (group < 0) {
+		if (a->ngroups == PPE_AQM_GROUPS)
+			return group;
+		group = a->ngroups++;
+		a->g[group] = (struct ppe_aqm_group){
+			.rate_bps = rate_bps,
+		};
+	}
 
 	q = &a->q[a->nqueues++];
 	*q = (struct ppe_aqm_queue){
@@ -2122,12 +2215,7 @@ static void ppe_aqm_add(struct ppe_aqm *a, u16 queue, u8 group, u64 rate_bps,
 		.frame_bufs = DIV_ROUND_UP(frame_len, PPE_BM_BUF_SIZE),
 	};
 
-	if (group >= a->ngroups) {
-		a->g[group] = (struct ppe_aqm_group){
-			.rate_bps = rate_bps,
-		};
-		a->ngroups = group + 1;
-	}
+	return group;
 }
 
 /* Put every squeezed queue back to its configured limit. */
@@ -2153,8 +2241,7 @@ static void ppe_aqm_rebuild(struct qca_ppe_priv *priv)
 {
 	struct ppe_aqm *a = &priv->aqm;
 	struct dsa_port *dp;
-	u8 group = 0;
-	int i, j;
+	int i, j, g = -1;
 
 	lockdep_assert_held(&a->lock);
 
@@ -2162,13 +2249,12 @@ static void ppe_aqm_rebuild(struct qca_ppe_priv *priv)
 	a->nqueues = 0;
 	a->ngroups = 0;
 
-	if (priv->shaper[QCA_PPE_CPU_PORT].rate_bps) {
+	if (priv->shaper[QCA_PPE_CPU_PORT].rate_bps)
 		for (i = 0; i < PPE_FLOW_SPREAD_QUEUES; i++)
-			ppe_aqm_add(a, PPE_CPU_PORT_DL_QUEUE + i, group,
-				    priv->shaper[QCA_PPE_CPU_PORT].rate_bps,
-				    ppe_port_frame_len(priv, QCA_PPE_CPU_PORT));
-		group++;
-	}
+			g = ppe_aqm_add(a, PPE_CPU_PORT_DL_QUEUE + i, g,
+					priv->shaper[QCA_PPE_CPU_PORT].rate_bps,
+					ppe_port_frame_len(priv,
+							   QCA_PPE_CPU_PORT));
 
 	/* Before the switch registers and after it goes, there is no tree. */
 	if (!priv->ds.dst)
@@ -2189,24 +2275,23 @@ static void ppe_aqm_rebuild(struct qca_ppe_priv *priv)
 		for (j = 0; j < 3; j++) {
 			u16 first = j * PPE_FLOW_SPREAD_QUEUES;
 			u64 rate = sh->queue_rate[first];
-			u8 g;
 
-			if (rate) {
-				g = group++;
-			} else if (sh->rate_bps) {
+			g = -1;
+			if (!rate) {
+				if (!sh->rate_bps)
+					continue;
 				rate = sh->rate_bps;
-				if (port_group < 0)
-					port_group = group++;
 				g = port_group;
-			} else {
-				continue;
 			}
 
 			for (i = first; i < first + PPE_FLOW_SPREAD_QUEUES &&
 			     i < p->ucast_count; i++)
 				if (!priv->red_max[p->ucast_base + i])
-					ppe_aqm_add(a, p->ucast_base + i, g,
-						    rate, frame);
+					g = ppe_aqm_add(a, p->ucast_base + i,
+							g, rate, frame);
+
+			if (!sh->queue_rate[first])
+				port_group = g;
 		}
 	}
 
@@ -2220,6 +2305,11 @@ static void ppe_port_queue_limit_set(struct qca_ppe_priv *priv, int port)
 
 	__ppe_port_queue_limit_set(priv, port);
 	ppe_aqm_rebuild(priv);
+}
+
+void ppe_port_queue_mtu_changed(struct qca_ppe_priv *priv, int port)
+{
+	ppe_port_queue_limit_set(priv, port);
 }
 
 static u64 ppe_aqm_control_law(u64 t, u32 count)
@@ -2402,9 +2492,11 @@ int ppe_aqm_show(struct seq_file *s, void *unused)
  * the new one to refill it.
  */
 static int ppe_port_shaper_set(struct qca_ppe_priv *priv, int port,
-			       u64 rate_bps, u32 burst)
+			       u64 rate_bps, u32 burst, u32 limit)
 {
+	struct ppe_qos_transaction *tx;
 	u32 cir = 0, cbs = 0;
+	int ret, i;
 	unsigned long clk;
 	int sel = 0;
 
@@ -2425,24 +2517,48 @@ static int ppe_port_shaper_set(struct qca_ppe_priv *priv, int port,
 		}
 	}
 
-	regmap_write(priv->regmap, PPE_TM_PSCH_SHP_CFG_W0(port),
-		     FIELD_PREP(PPE_PSCH_SHP_CIR, cir) |
-		     FIELD_PREP(PPE_PSCH_SHP_CBS, cbs));
-	regmap_write(priv->regmap, PPE_TM_PSCH_SHP_CFG_W1(port),
-		     FIELD_PREP(PPE_PSCH_SHP_TOKEN_UNIT, sel) |
-		     (rate_bps ? PPE_PSCH_SHP_EN : 0));
+	tx = kzalloc(sizeof(*tx), GFP_KERNEL);
+	if (!tx)
+		return -ENOMEM;
+	mutex_lock(&priv->aqm.lock);
+	ppe_aqm_release(priv);
+	tx->old_rate = priv->shaper[port].rate_bps;
+	tx->old_limit = priv->shaper[port].limit;
+	memcpy(tx->ac_w0, priv->ac_w0, sizeof(tx->ac_w0));
+	memcpy(tx->groups, priv->ac_grp, sizeof(tx->groups));
 
+	ppe_qos_write(priv, tx, PPE_TM_PSCH_SHP_CFG_W0(port),
+		      FIELD_PREP(PPE_PSCH_SHP_CIR, cir) |
+		      FIELD_PREP(PPE_PSCH_SHP_CBS, cbs));
+	ppe_qos_write(priv, tx, PPE_TM_PSCH_SHP_CFG_W1(port),
+		      FIELD_PREP(PPE_PSCH_SHP_TOKEN_UNIT, sel) |
+		      (rate_bps ? PPE_PSCH_SHP_EN : 0));
 	if (!rate_bps) {
-		regmap_write(priv->regmap, PPE_TM_PSCH_SHP_CREDIT(port), 0);
-		regmap_write(priv->regmap, PPE_TM_PSCH_SHP_SIGN(port), 0);
+		ppe_qos_write(priv, tx, PPE_TM_PSCH_SHP_CREDIT(port), 0);
+		ppe_qos_write(priv, tx, PPE_TM_PSCH_SHP_SIGN(port), 0);
 	}
 
 	priv->shaper[port].rate_bps = rate_bps;
-	if (!rate_bps)
-		priv->shaper[port].limit = 0;
-	ppe_port_queue_limit_set(priv, port);
-
-	return 0;
+	priv->shaper[port].limit = rate_bps ? limit : 0;
+	__ppe_port_queue_limit_set_txn(priv, port, tx);
+	ret = tx->error;
+	if (ret) {
+		/* Preserve entry word order: the final word commits a queue/group. */
+		for (i = 0; i < tx->count; i++)
+			if (regmap_write(priv->regmap, tx->saved[i].reg,
+					 tx->saved[i].value))
+				dev_err(priv->ds.dev, "failed to restore QoS register %#x\n",
+					tx->saved[i].reg);
+		priv->shaper[port].rate_bps = tx->old_rate;
+		priv->shaper[port].limit = tx->old_limit;
+		memcpy(priv->ac_w0, tx->ac_w0, sizeof(tx->ac_w0));
+		memcpy(priv->ac_grp, tx->groups, sizeof(tx->groups));
+		ppe_pause_update(priv);
+	}
+	ppe_aqm_rebuild(priv);
+	mutex_unlock(&priv->aqm.lock);
+	kfree(tx);
+	return ret;
 }
 
 /* Metering mode 1 is RFC 2697: one rate, one bucket, and everything the
@@ -3370,6 +3486,9 @@ static void ppe_red_queues_set(struct qca_ppe_priv *priv,
 {
 	int i, q;
 
+	/* The AQM thread rewrites a queue it squeezed from these fields. */
+	guard(mutex)(&priv->aqm.lock);
+
 	for (i = red->first; i < red->first + red->count; i++) {
 		q = p->ucast_base + i;
 		priv->red_max[q] = max;
@@ -3383,7 +3502,8 @@ static void ppe_red_queues_set(struct qca_ppe_priv *priv,
 		}
 	}
 
-	ppe_port_queue_limit_set(priv, p->port);
+	__ppe_port_queue_limit_set(priv, p->port);
+	ppe_aqm_rebuild(priv);
 }
 
 /* The queue manager's WRED: a static limit per queue and a gap below it where
@@ -3666,22 +3786,13 @@ int qca_ppe_setup_tc_tbf(struct qca_ppe_priv *priv, int port,
 
 	switch (qopt->command) {
 	case TC_TBF_REPLACE: {
-		/* The qdisc's own limit is the depth it wants behind the
-		 * shaper, and the queue limit is taken from it, so it is in
-		 * place before the rate is programmed and put back if the
-		 * rate is refused.
-		 */
-		u32 limit = priv->shaper[port].limit;
-
-		priv->shaper[port].limit = ppe_tbf_limit(priv, port, qopt);
 		ret = ppe_port_shaper_set(priv, port,
 					  qopt->replace_params.rate.rate_bytes_ps *
 					  BITS_PER_BYTE,
-					  qopt->replace_params.max_size);
-		if (ret) {
-			priv->shaper[port].limit = limit;
+					  qopt->replace_params.max_size,
+					  ppe_tbf_limit(priv, port, qopt));
+		if (ret)
 			return ret;
-		}
 
 		priv->shaper[port].tbf_handle = qopt->handle;
 		ppe_port_shaper_base(priv, port);
@@ -3695,8 +3806,10 @@ int qca_ppe_setup_tc_tbf(struct qca_ppe_priv *priv, int port,
 		if (qopt->handle != priv->shaper[port].tbf_handle)
 			return 0;
 
-		priv->shaper[port].tbf_handle = 0;
-		return ppe_port_shaper_set(priv, port, 0, 0);
+		ret = ppe_port_shaper_set(priv, port, 0, 0, 0);
+		if (!ret)
+			priv->shaper[port].tbf_handle = 0;
+		return ret;
 	case TC_TBF_STATS:
 		if (!priv->shaper[port].tbf_handle ||
 		    qopt->handle != priv->shaper[port].tbf_handle)
