@@ -1,0 +1,55 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Date: Tue, 17 Nov 2026 00:31:18 +0800
+Subject: [PATCH] net: sched: cake: use private rounding dither
+
+Use one seeded PRNG per tin for uniform flow-quantum rounding dither.
+The qdisc lock already serializes this state, avoiding system random
+number generation in the dequeue path.
+
+Adapted from JuliusBairaktaris/openwrt-ppe-nss commit
+abc32f8e55edd44a15e0b14f080db1b8fa95f3b6 to the current cake_mq layout.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/net/sched/sch_cake.c
++++ b/net/sched/sch_cake.c
+@@ -60,6 +60,7 @@
+ #include <linux/init.h>
+ #include <linux/skbuff.h>
+ #include <linux/jhash.h>
++#include <linux/prandom.h>
+ #include <linux/slab.h>
+ #include <linux/vmalloc.h>
+ #include <linux/reciprocal_div.h>
+@@ -155,6 +156,7 @@
+ 	u16	overflow_idx[CAKE_QUEUES];
+ 	struct cake_host hosts[CAKE_QUEUES]; /* for triple isolation */
+ 	u16	flow_quantum;
++	struct rnd_state dither;
+ 
+ 	struct cobalt_params cparams;
+ 	u32	drop_overlimit;
+@@ -694,11 +696,11 @@
+ 		host_load = max(host_load,
+ 				q->hosts[flow->dsthost].dsthost_bulk_flow_count);
+ 
+-	/* The get_random_u16() is a way to apply dithering to avoid
+-	 * accumulating roundoff errors
++	/* Uniform rounding dither needs no cryptographic randomness. The
++	 * qdisc lock protects the tin's private generator.
+ 	 */
+ 	return (q->flow_quantum * quantum_div[host_load] +
+-		get_random_u16()) >> 16;
++		(u16)prandom_u32_state(&q->dither)) >> 16;
+ }
+ 
+ static u32 cake_hash(struct cake_tin_data *q, const struct sk_buff *skb,
+@@ -2875,6 +2877,7 @@
+ 		INIT_LIST_HEAD(&b->new_flows);
+ 		INIT_LIST_HEAD(&b->old_flows);
+ 		INIT_LIST_HEAD(&b->decaying_flows);
++		prandom_seed_state(&b->dither, get_random_u64());
+ 		b->sparse_flow_count = 0;
+ 		b->bulk_flow_count = 0;
+ 		b->decaying_flow_count = 0;
