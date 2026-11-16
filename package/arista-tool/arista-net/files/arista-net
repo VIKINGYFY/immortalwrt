@@ -1,0 +1,481 @@
+#!/bin/sh
+# arista-net: shared two-port Ethernet configuration for C-230/C-260/C-360.
+#
+# Ethernet 1 is the uplink: untagged it is the LAN (an access port), and each
+# VLAN on it is <uplink>.<id> in a bridge br-vlan<id> (a trunk); on a LAN
+# bridge that filters VLANs (as a manager sets it up) they are br-lan's VLAN
+# table instead, and Ethernet 2 joins that table. On the 25.12 images
+# Ethernet 2 is free by default, in no bridge, so two cables to one switch
+# make no loop; OpenWrt main's images put it in the LAN, as upstream has it,
+# and "port2 off" frees it. It can be attached to the LAN, to a VLAN, to several VLANs (a trunk, to chain
+# another AP), or to a VXLAN tunnel; or both ports can be one LACP bond.
+#
+#	arista-net status
+#	arista-net port2 off|lan
+#	arista-net port2 vlan <id>             access port on VLAN <id>
+#	arista-net port2 trunk <id> [<id>...]  the LAN untagged, VLANs tagged
+#	arista-net port2 vxlan <vni> <peer> [<udp port>]
+#	arista-net bond on|off
+#	arista-net confirm                     keep the last change
+#
+# A change is applied at once, and undone after 120 s unless confirmed with
+# "arista-net confirm", so a change that cuts the AP off reverts by
+# itself (ARISTA_NET_TIMEOUT=<s> for longer). --no-rollback applies without the timer.
+
+PREV=/etc/config/network.arista-prev
+MARK=/tmp/arista-net.pending
+TIMEOUT=${ARISTA_NET_TIMEOUT:-120}	# seconds; longer when a switch is slow to follow
+
+die() { echo "arista-net: $*" >&2; exit 1; }
+
+. /lib/functions/arista-config.sh
+u() {
+	if [ -z "$ARISTA_CONFIG_WORK" ]; then uci "$@"; return; fi
+	case "$1:$2" in
+	delete:* ) arista_uci_delete "$2" ;;
+	-q:delete) arista_uci_delete "$3" ;;
+	*) arista_uci "$@" ;;
+	esac
+}
+
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+arista,c-230|arista,c-260|arista,c-360) ;;
+*) die "unsupported Arista board" ;;
+esac
+
+# the ports' names: eth0/eth1 (OpenWrt 25.12) or lan1/lan2 (main)
+if [ -e /sys/class/net/lan1 ] || [ -e /sys/class/net/lan2 ]; then
+	P1=lan1 P2=lan2
+else
+	P1=eth0 P2=eth1
+fi
+
+# The bond is netifd's own bonding device, bond0 (section aristabond): netifd
+# sets its mode as it creates it. The older proto-bonding interface (device
+# bond-bond0) could come up in balance-rr: a VLAN of it in a bridge raised the
+# bond before the protocol script set 802.3ad (seen on a unit at boot).
+native_bonded() { [ "$(u -q get network.aristabond.type)" = bonding ]; }
+legacy_bonded() { [ "$(u -q get network.bond0.proto)" = bonding ]; }
+bonded() { native_bonded || legacy_bonded; }
+uplink() {
+	if native_bonded; then echo bond0
+	elif legacy_bonded; then echo bond-bond0
+	else echo $P1
+	fi
+}
+
+# the bridge device section with the given name, if any
+bridge_sec() {
+	u -X -q show network | sed -n "s/^network\.\([^.]*\)\.name='$1'$/\1/p" | head -1
+}
+
+# ports of a bridge, as a list
+ports_of() {
+	local s=$(bridge_sec "$1")
+	[ -n "$s" ] && u -q get network.$s.ports
+}
+
+set_ports() { # bridge port...
+	local b=$1 s
+	shift
+	s=$(bridge_sec "$b")
+	if [ -z "$s" ]; then
+		s=$(echo "$b" | sed 's/[^a-zA-Z0-9_]/_/g')
+		u set network.$s=device
+		u set network.$s.name="$b"
+		u set network.$s.type=bridge
+	fi
+	u -q delete network.$s.ports
+	for p in "$@"; do u add_list network.$s.ports="$p"; done
+}
+
+# remove port $2 (exact name) from every bridge
+drop_port() {
+	u -X -q show network | sed -n "s/^network\.\([^.]*\)\.type='bridge'$/\1/p" | while read s; do
+		local keep="" p
+		for p in $(u -q get network.$s.ports); do
+			case "$p" in
+			"$1") ;;
+			*) keep="$keep $p" ;;
+			esac
+		done
+		u -q delete network.$s.ports
+		for p in $keep; do u add_list network.$s.ports="$p"; done
+	done
+}
+
+# every port of every bridge that is Ethernet 2, or a VLAN or tunnel on it
+detach_port2() {
+	local p
+	for p in $(u -X -q show network | sed -n "s/^network\.[^.]*\.ports='\(.*\)'$/\1/p" | tr "'" ' '); do
+		case "$p" in
+		$P2|$P2.*) drop_port "$p" ;;
+		esac
+	done
+	drop_from_vlans
+	# the VXLAN bridges and tunnels this tool made
+	u -X -q show network | sed -n "s/^network\.\(aristavx[0-9]*\)=interface$/\1/p" | while read s; do
+		u -q delete network.$s
+		u -q delete network.${s}br
+		u -q delete network.br_$s
+	done
+}
+
+vlan_bridge() { # id: the bridge for VLAN <id> on the uplink, made if missing
+	local id=$1 b=br-vlan$1 up=$(uplink)
+	if [ -z "$(bridge_sec $b)" ]; then
+		set_ports $b $up.$id
+		u set network.vlan$id=interface
+		u set network.vlan$id.device=$b
+		u set network.vlan$id.proto=none
+	fi
+	echo $b
+}
+
+# A LAN bridge that filters VLANs (bridge-vlan sections for br-lan) carries
+# every VLAN in its VLAN table, each port named with its tagging: lan1:u* is
+# untagged and the port's own VLAN, lan1:t tagged. There Ethernet 2 joins
+# br-lan and the table, under the bridge's spanning tree; a bridge per VLAN
+# would leave it in no VLAN. No globbing over the ports: u* is no file pattern.
+bridge_vlans() {
+	u -X -q show network | sed -n "s/^network\.\([^.=]*\)=bridge-vlan$/\1/p"
+}
+
+filtering() {
+	local s
+	for s in $(bridge_vlans); do
+		[ "$(u -q get network.$s.device)" = br-lan ] && return 0
+	done
+	return 1
+}
+
+# bvlan <id>: br-lan's VLAN table entry for VLAN <id>, made with the uplink
+# tagged if there is none
+bvlan() {
+	local id=$1 s
+	for s in $(bridge_vlans); do
+		[ "$(u -q get network.$s.device)" = br-lan ] && [ "$(u -q get network.$s.vlan)" = "$id" ] && { echo $s; return; }
+	done
+	s=aristabv$id
+	u set network.$s=bridge-vlan
+	u set network.$s.device=br-lan
+	u set network.$s.vlan=$id
+	u add_list network.$s.ports="$(uplink):t"
+	echo $s
+}
+
+# lan_vlan: the VLAN the uplink carries untagged in br-lan's table
+lan_vlan() {
+	local s p up=$(uplink)
+	set -f
+	for s in $(bridge_vlans); do
+		[ "$(u -q get network.$s.device)" = br-lan ] || continue
+		for p in $(u -q get network.$s.ports); do
+			case "$p" in "$up:u"*) u -q get network.$s.vlan; set +f; return ;; esac
+		done
+	done
+	set +f
+}
+
+# Ethernet 2 out of every VLAN table entry; an entry this tool made that now
+# holds only the uplink goes
+drop_from_vlans() {
+	local s p keep
+	set -f
+	for s in $(bridge_vlans); do
+		keep=""
+		for p in $(u -q get network.$s.ports); do
+			case "$p" in "$P2"|"$P2":*) ;; *) keep="$keep $p" ;; esac
+		done
+		u -q delete network.$s.ports
+		for p in $keep; do u add_list network.$s.ports="$p"; done
+		case "$s" in aristabv*) [ "$(u -q get network.$s.ports)" = "$(uplink):t" ] && u -q delete network.$s ;; esac
+	done
+	set +f
+}
+
+mgmt_iface() { # the interface the AP is managed through: the one with a gateway, else lan
+	local m=$(u -X -q show network | sed -n "s/^network\.\([^.]*\)\.gateway=.*/\1/p" | head -1)
+	echo ${m:-lan}
+}
+
+# A port that leaves the bond is closed by the bonding driver after netifd has
+# raised it for its new use, so it stays down while netifd counts it as up
+# (seen on a unit, OpenWrt 25.12). After a change, raise each port netifd
+# holds, and bounce once any that still has no link after 15 s.
+relink() {
+	local p n
+	# a bond's ports must stay down until the bond takes them: the kernel will
+	# not enslave a port that is up
+	bonded && return 0
+	for p in $P1 $P2; do
+		[ -e /sys/class/net/$p ] || continue
+		[ "$(ubus call network.device status "{\"name\":\"$p\"}" 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)" = true ] || continue
+		if ! ip link show $p | grep -q "[<,]UP[,>]"; then
+			logger -t arista-net "$p is down though netifd holds it: raising it"
+			ip link set $p up
+		fi
+		n=0
+		while [ "$(cat /sys/class/net/$p/carrier 2>/dev/null)" != 1 ] && [ $n -lt 15 ]; do
+			sleep 1
+			n=$((n + 1))
+		done
+		[ "$(cat /sys/class/net/$p/carrier 2>/dev/null)" = 1 ] && continue
+		logger -t arista-net "$p has no link after the change: bouncing it"
+		ip link set $p down
+		sleep 2
+		ip link set $p up
+	done
+}
+
+apply() {
+	u changes network | grep -q . || { echo "no change"; u revert network; return 0; }
+	[ -f "$MARK" ] || cp /etc/config/network "$PREV" || die "cannot save rollback configuration"
+	arista_config_commit || die "configuration changed or write failed; nothing applied"
+	arista_config_end || die "cannot finish configuration transaction"
+	# A bond change takes a restart: on a reload netifd makes the bond while
+	# Ethernet 1 is still a bridge port, the bond refuses it ("Device is in
+	# use"), and once up it takes no new port. A restart frees the ports first.
+	/etc/init.d/network ${NETWORK_ACTION:-reload}
+	sleep 2
+	relink
+	if [ "$NOROLLBACK" = 1 ]; then
+		rm -f $MARK $PREV
+		echo "applied"
+		return 0
+	fi
+	# the timer outlives the SSH session that started it
+	( trap '' HUP
+	  sleep $TIMEOUT
+	  if [ "$(cat $MARK 2>/dev/null)" = "$1" ]; then
+		cp $PREV /etc/config/network && rm -f $MARK $PREV
+		/etc/init.d/network ${NETWORK_ACTION:-reload}
+		sleep 2
+		relink
+		logger -t arista-net "not confirmed in ${TIMEOUT}s: the previous network config is back"
+	  fi ) </dev/null >/dev/null 2>&1 &
+	echo $! > $MARK.timer
+	echo $1 > $MARK
+	echo "applied; run 'arista-net confirm' within ${TIMEOUT}s, or it is undone"
+}
+
+status() {
+	echo "Ethernet 1: $P1, Ethernet 2: $P2"
+	if bonded; then
+		echo "uplink: $(uplink) (LACP: $P1 + $P2)"
+	else
+		echo "uplink: $P1"
+	fi
+	u -X -q show network | sed -n "s/^network\.\([^.]*\)\.type='bridge'$/\1/p" | while read s; do
+		echo "  $(u -q get network.$s.name): $(u -q get network.$s.ports)"
+	done
+	local where=$(u -X -q show network | grep -E "\.ports=.*'$P2(\.[0-9]+)?'" | sed -n "s/^network\.\([^.]*\)\.ports=.*/\1/p")
+	[ -n "$where" ] || bonded || echo "Ethernet 2: in no bridge"
+	if filtering; then
+		local v vs=""
+		for v in $(bridge_vlans); do
+			case " $(u -q get network.$v.ports) " in
+			*" $P2:u*"*) vs="$vs $(u -q get network.$v.vlan) untagged" ;;
+			*" $P2:t "*) vs="$vs $(u -q get network.$v.vlan) tagged" ;;
+			esac
+		done
+		[ -n "$vs" ] && echo "Ethernet 2 in br-lan's VLAN table:$vs"
+	fi
+	[ -f $MARK ] && echo "a change is waiting for 'arista-net confirm'"
+	return 0
+}
+
+NOROLLBACK=0
+[ "$1" = --no-rollback ] && { NOROLLBACK=1; shift; }
+TAG=$(date +%s)$$
+
+case "$1" in
+port2|bond)
+	trap 'arista_config_end' EXIT
+	trap 'exit 1' INT TERM HUP
+	arista_config_begin network || die "configuration busy or unavailable"
+	;;
+esac
+
+case "$1" in
+status|"")
+	status
+	;;
+confirm)
+	[ -f $MARK ] || { echo "nothing to confirm"; exit 0; }
+	kill $(cat $MARK.timer 2>/dev/null) 2>/dev/null
+	rm -f $MARK $MARK.timer $PREV
+	echo "confirmed"
+	;;
+port2)
+	bonded && die "Ethernet 2 is in the bond; 'arista-net bond off' first"
+	shift
+	mode=$1
+	[ -n "$mode" ] || die "port2 off|lan|vlan <id>|trunk <id>...|vxlan <vni> <peer> [port]"
+	shift
+	# the arguments are checked before anything is staged: a stop half way
+	# would leave changes for the next commit
+	case "$mode" in
+	off) ;;
+	lan)
+		filtering && [ -z "$(lan_vlan)" ] && die "the uplink carries no untagged VLAN: port2 vlan <id> instead"
+		;;
+	vlan)
+		[ -n "$1" ] && [ "$1" -ge 1 ] 2>/dev/null && [ "$1" -le 4094 ] || die "vlan <1-4094>"
+		;;
+	trunk)
+		[ $# -ge 1 ] || die "trunk <id> [<id>...]"
+		for id in "$@"; do
+			[ "$id" -ge 1 ] 2>/dev/null && [ "$id" -le 4094 ] || die "bad VLAN $id"
+		done
+		;;
+	vxlan)
+		[ -n "$1" ] && [ "$1" -ge 1 ] 2>/dev/null && [ "$1" -le 16777215 ] || die "vxlan <vni> <peer> [port]"
+		[ -n "$2" ] || die "vxlan <vni> <peer> [port]"
+		;;
+	*)
+		die "port2 off|lan|vlan <id>|trunk <id>...|vxlan <vni> <peer> [port]"
+		;;
+	esac
+	detach_port2
+	case "$mode" in
+	lan)
+		set_ports br-lan $(ports_of br-lan) $P2
+		filtering && u add_list network.$(bvlan $(lan_vlan)).ports="$P2:u*"
+		;;
+	vlan)
+		if filtering; then
+			set_ports br-lan $(ports_of br-lan) $P2
+			u add_list network.$(bvlan $1).ports="$P2:u*"
+		else
+			b=$(vlan_bridge $1)
+			set_ports $b $(ports_of $b) $P2
+		fi
+		;;
+	trunk)
+		set_ports br-lan $(ports_of br-lan) $P2
+		if filtering; then
+			lv=$(lan_vlan)
+			[ -n "$lv" ] && u add_list network.$(bvlan $lv).ports="$P2:u*"
+			for id in "$@"; do
+				[ "$id" = "$lv" ] || u add_list network.$(bvlan $id).ports="$P2:t"
+			done
+		else
+			for id in "$@"; do
+				b=$(vlan_bridge $id)
+				set_ports $b $(ports_of $b) $P2.$id
+			done
+		fi
+		;;
+	vxlan)
+		vni=$1 peer=$2 port=${3:-4789}
+		s=aristavx$vni
+		u set network.$s=interface
+		u set network.$s.proto=vxlan
+		u set network.$s.peeraddr="$peer"
+		u set network.$s.vid="$vni"
+		u set network.$s.port="$port"
+		m=$(mgmt_iface)
+		[ -n "$m" ] && u set network.$s.tunlink="$m"
+		set_ports br-$s $P2 $s
+		u set network.${s}br=interface
+		u set network.${s}br.device=br-$s
+		u set network.${s}br.proto=none
+		;;
+	esac
+	apply $TAG
+	case "$mode" in
+	lan|vlan|trunk)
+		b=br-lan
+		[ "$mode" = vlan ] && ! filtering && b=br-vlan$1
+		[ "$(u -q get network.$(bridge_sec $b).stp)" = 1 ] ||
+			echo "note: $b runs no spanning tree, so a cable from Ethernet 2 to the uplink's switch would make a loop"
+		;;
+	esac
+	case "$mode" in
+	lan|trunk)
+		[ "$(u -q get network.lan.auto)" = 0 ] &&
+			echo "note: the LAN interface is disabled (network.lan.auto=0), so Ethernet 2 carries no untagged LAN"
+		;;
+	esac
+	;;
+bond)
+	case "$2" in
+	on)
+		native_bonded && { echo "already bonded"; exit 0; }
+		if legacy_bonded; then
+			# the older proto-bonding interface: replace it with the device
+			u delete network.bond0
+			from=bond-bond0
+		else
+			detach_port2
+			from=$P1
+		fi
+		u set network.aristabond=device
+		u set network.aristabond.type=bonding
+		u set network.aristabond.name=bond0
+		u add_list network.aristabond.ports=$P1
+		u add_list network.aristabond.ports=$P2
+		u set network.aristabond.policy=802.3ad
+		u set network.aristabond.lacp_rate=fast
+		u set network.aristabond.xmit_hash_policy=layer3+4
+		u set network.aristabond.monitor_mode=mii
+		u set network.aristabond.monitor_interval=100
+		to=bond0
+		NETWORK_ACTION=restart
+		;;
+	off)
+		bonded || { echo "not bonded"; exit 0; }
+		if native_bonded; then
+			u delete network.aristabond
+			from=bond0
+		else
+			u delete network.bond0
+			from=bond-bond0
+		fi
+		to=$P1
+		;;
+	*)
+		die "bond on|off"
+		;;
+	esac
+	# move the uplink, and each VLAN on it, between the port and the bond
+	u -X -q show network | sed -n "s/^network\.\([^.]*\)\.type='bridge'$/\1/p" | while read s; do
+		new=""
+		for p in $(u -q get network.$s.ports); do
+			case "$p" in
+			"$from") p=$to ;;
+			"$from".*) p=$to.${p#$from.} ;;
+			esac
+			new="$new $p"
+		done
+		u -q delete network.$s.ports
+		for p in $new; do u add_list network.$s.ports="$p"; done
+	done
+	# and in the bridges' VLAN tables (a bridge with VLAN filtering), where the
+	# port is named with its tagging (lan1, lan1:t, lan1:u*): left there, it
+	# stays a bridge port and the bond cannot take it. No globbing: u* is
+	# no file pattern.
+	u -X -q show network | sed -n "s/^network\.\([^.=]*\)=bridge-vlan$/\1/p" | while read s; do
+		set -f
+		new=""
+		for p in $(u -q get network.$s.ports); do
+			case "$p" in
+			"$from") p=$to ;;
+			"$from":*) p=$to:${p#$from:} ;;
+			esac
+			new="$new $p"
+		done
+		u -q delete network.$s.ports
+		for p in $new; do u add_list network.$s.ports="$p"; done
+		set +f
+	done
+	apply $TAG
+	;;
+*)
+	sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
+	exit 2
+	;;
+esac
+
+exit 0
