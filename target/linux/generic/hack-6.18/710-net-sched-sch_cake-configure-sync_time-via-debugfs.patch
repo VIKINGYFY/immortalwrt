@@ -1,23 +1,20 @@
-From 4eb720d360d3fc227eedbc76993719e1906c418c Mon Sep 17 00:00:00 2001
-From: =?UTF-8?q?Jonas=20K=C3=B6ppeler?= <j.koeppeler@tu-berlin.de>
-Date: Wed, 11 Mar 2026 17:42:44 +0100
-Subject: [PATCH] net/sched: sch_cake: configure sync_time via debugfs
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
+From: Jonas Köppeler <j.koeppeler@tu-berlin.de>
+Date: Tue, 17 Nov 2026 00:31:18 +0800
+Subject: [PATCH] net: sched: cake: expose synchronization interval through debugfs
 
-Add a debugfs entry for sync_time to allow runtime adjustment of its
-value without recompilation. sync_time is specified in nanoseconds;
-setting it to 0 triggers synchronization on every packet.
+Allow runtime tuning of the cake_mq synchronization interval. Keep the
+directory in module state so unload removes it and its data pointer.
+
+The module-lifetime repair follows JuliusBairaktaris/openwrt-ppe-nss
+a7c55c46af50b361de33d979db28f8d9faccf985.
 
 Signed-off-by: Jonas Köppeler <j.koeppeler@tu-berlin.de>
----
- net/sched/sch_cake.c | 13 +++++++++++--
- 1 file changed, 11 insertions(+), 2 deletion(-)
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/sched/sch_cake.c
 +++ b/net/sched/sch_cake.c
-@@ -71,6 +71,7 @@
+@@ -72,6 +72,7 @@
  #include <net/pkt_cls.h>
  #include <net/tcp.h>
  #include <net/flow_dissector.h>
@@ -25,7 +22,7 @@ Signed-off-by: Jonas Köppeler <j.koeppeler@tu-berlin.de>
  
  #if IS_ENABLED(CONFIG_NF_CONNTRACK)
  #include <net/netfilter/nf_conntrack_core.h>
-@@ -81,6 +82,8 @@
+@@ -82,6 +83,8 @@
  #define CAKE_QUEUES (1024)
  #define CAKE_FLOW_MASK 63
  #define CAKE_FLOW_NAT_FLAG 64
@@ -34,7 +31,7 @@ Signed-off-by: Jonas Köppeler <j.koeppeler@tu-berlin.de>
  
  /* struct cobalt_params - contains codel and blue parameters
   * @interval:	codel initial drop rate
-@@ -2015,7 +2018,7 @@ static struct sk_buff *cake_dequeue(stru
+@@ -2219,7 +2222,7 @@
  	u32 len;
  
  	if (q->config->is_shared && q->rate_ns &&
@@ -43,7 +40,7 @@ Signed-off-by: Jonas Köppeler <j.koeppeler@tu-berlin.de>
  		struct net_device *dev = qdisc_dev(sch);
  		struct cake_sched_data *other_priv;
  		u64 new_rate = q->config->rate_bps;
-@@ -3359,8 +3362,13 @@ static int __init cake_module_init(void)
+@@ -3621,8 +3624,13 @@
  		return ret;
  
  	ret = register_qdisc(&cake_mq_qdisc_ops);
@@ -51,14 +48,14 @@ Signed-off-by: Jonas Köppeler <j.koeppeler@tu-berlin.de>
 +	if (ret) {
  		unregister_qdisc(&cake_qdisc_ops);
 +	} else {
-+		struct dentry *cake_mq_debugfs = debugfs_create_dir("cake_mq", NULL);
++		cake_mq_debugfs = debugfs_create_dir("cake_mq", NULL);
 +
 +		debugfs_create_u64("sync_time_ns", 0644, cake_mq_debugfs, &g_sync_time_ns);
 +	}
  
  	return ret;
  }
-@@ -3369,6 +3377,7 @@ static void __exit cake_module_exit(void
+@@ -3631,6 +3639,7 @@
  {
  	unregister_qdisc(&cake_qdisc_ops);
  	unregister_qdisc(&cake_mq_qdisc_ops);
