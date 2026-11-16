@@ -1,0 +1,41 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 17 Nov 2026 00:37:12 +0800
+Subject: [PATCH] net: ppe: recompute TBF queues after MTU changes
+
+Reapply an active physical TBF using the new full-frame size before
+committing a port MTU. Preserve the existing qdisc owner and requested
+depth, and restore the previous port limits on a failed transaction.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+@@ -171,6 +171,7 @@
+ {
+ 	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
+ 	struct ppe_port *port;
++	struct ppe_port_tbf tbf;
+ 	int old_mtu, ret;
+ 
+ 	if (!port_priv)
+@@ -190,6 +191,20 @@
+ 		return ret;
+ 	}
+ 
++	/* RTNL serializes MTU and qdisc changes; snapshot under the TBF lock. */
++	mutex_lock(&port->tbf_lock);
++	tbf = port->tbf;
++	mutex_unlock(&port->tbf_lock);
++	if (tbf.active) {
++		ret = ppe_port_tbf_set(port, tbf.handle, tbf.rate, tbf.burst,
++				       tbf.requested_limit, mtu);
++		if (ret) {
++			ppe_port_set_maxframe(port, old_mtu);
++			ppe_l3_if_set(port->ppe_dev, port->port_id,
++					netdev->dev_addr, old_mtu, -1);
++			return ret;
++		}
++	}
+ 	netdev->mtu = mtu;
+ 	return 0;
+ }
