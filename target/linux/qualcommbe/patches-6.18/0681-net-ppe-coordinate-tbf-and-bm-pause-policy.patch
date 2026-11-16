@@ -1,0 +1,248 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 17 Nov 2026 00:21:41 +0800
+Subject: [PATCH] net: ppe: coordinate TBF with negotiated BM pause policy
+
+Prevent a shaped egress from moving its queue into ingress peers through
+PAUSE. Serialize link-up and all physical TBF transitions, retain negotiated
+intent, and restore it only after the last shaper leaves. Preserve unrelated
+BM bits and roll back failed policy or shaper changes.
+
+The policy follows the AX PPE approach while using BE port ownership and
+register transactions.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
+@@ -27,7 +27,6 @@
+ #include "ppe_vp.h"
+ #include "ppe_port.h"
+ 
+-#define PPE_PORT_MAX		8
+ #define PPE_CLK_RATE		353000000
+ 
+ /* ICC clocks for enabling PPE device. The avg_bw and peak_bw with value 0
+@@ -241,6 +240,7 @@
+ 	ppe_dev->clk_rate = ppe_dev->variant->ppe_clock_hz;
+ 	ppe_dev->num_ports = num_ports;
+ 	ppe_dev->num_icc_paths = num_icc;
++	mutex_init(&ppe_dev->qos_lock);
+ 
+ 	ret = ppe_port_mac_prepare(ppe_dev);
+ 	if (ret)
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+@@ -24,6 +24,7 @@
+  * survive from physical-port setup through later virtual-port use.
+  */
+ #define PPE_PORT_ID_COUNT	256
++#define PPE_PORT_MAX		8
+ #define PPE_TUNNEL_ID_COUNT	128
+ #define PPE_TUNNEL_L3_IF_COUNT	128
+ #define PPE_TUNNEL_VP_COUNT	184
+@@ -103,6 +104,9 @@
+ 	/* Serialize the L3 flow operation registers. */
+ 	struct mutex flow_lock;
+ 	struct mutex l3_if_lock;
++	/* Outer lock for TBF and negotiated BM pause policy. */
++	struct mutex qos_lock;
++	unsigned long shaped_ports;
+ 	u8 flow_cmd_id;
+ 	/* Serialize the APPE tunnel command and table registers. */
+ 	struct mutex tunnel_lock;
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -2451,6 +2451,7 @@
+ 	u32 old_shaper[PPE_TBF_SHAPER_CFG_WORDS];
+ 	u32 bucket_limit, ceiling, total_buffers = 0;
+ 	u64 bucket_rate;
++	unsigned long old_shaped;
+ 	int port_id = port->port_id;
+ 	int queue, queue_end, i;
+ 	int ret, shaper_ret;
+@@ -2458,6 +2459,8 @@
+ 	if (!rate)
+ 		return -EINVAL;
+ 
++	mutex_lock(&ppe_dev->qos_lock);
++	old_shaped = ppe_dev->shaped_ports;
+ 	mutex_lock(&port->tbf_lock);
+ 
+ 	ret = ppe_port_resource_get(ppe_dev, port->port_id, PPE_RES_UCAST,
+@@ -2508,6 +2511,10 @@
+ 				 FIELD_PREP(PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD,
+ 					    bucket_buffers[i]);
+ 	}
++
++	ret = ppe_port_pause_set(ppe_dev, old_shaped | BIT(port_id));
++	if (ret)
++		goto out_unlock;
+ 
+ 	for (i = 0; i < PPE_TBF_QUEUE_COUNT; i++) {
+ 		ret = ppe_tbf_queue_write(ppe_dev, queue + i, new_cfg[i]);
+@@ -2547,7 +2554,14 @@
+ 	tbf->queue_base = queue;
+ 
+ out_unlock:
++	if (ret && ppe_dev->shaped_ports != old_shaped &&
++	    ppe_port_pause_set(ppe_dev, old_shaped)) {
++		tbf->rollback_failures++;
++		dev_err(ppe_dev->dev, "port %d failed to restore TBF pause policy\n",
++			port_id);
++	}
+ 	mutex_unlock(&port->tbf_lock);
++	mutex_unlock(&ppe_dev->qos_lock);
+ 	return ret;
+ }
+ 
+@@ -2567,6 +2581,7 @@
+ 	int port_id = port->port_id;
+ 	int i, ret, shaper_ret;
+ 
++	mutex_lock(&ppe_dev->qos_lock);
+ 	mutex_lock(&port->tbf_lock);
+ 	if (!tbf->active || tbf->handle != handle) {
+ 		ret = 0;
+@@ -2614,6 +2629,18 @@
+ 		}
+ 	}
+ 
++	ret = ppe_port_pause_set(ppe_dev, ppe_dev->shaped_ports & ~BIT(port_id));
++	if (ret) {
++		ppe_tbf_queues_rollback(port, tbf->queue_base, old_cfg,
++				       PPE_TBF_QUEUE_COUNT);
++		if (ppe_tbf_shaper_write(ppe_dev, port_id, old_shaper)) {
++			tbf->rollback_failures++;
++			dev_err(ppe_dev->dev, "port %d failed to restore TBF shaper\n",
++				port_id);
++		}
++		goto out_unlock;
++	}
++
+ 	tbf->active = false;
+ 	tbf->handle = 0;
+ 	tbf->rate = 0;
+@@ -2627,6 +2654,7 @@
+ 
+ out_unlock:
+ 	mutex_unlock(&port->tbf_lock);
++	mutex_unlock(&ppe_dev->qos_lock);
+ 	return ret;
+ }
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+@@ -1012,7 +1012,64 @@
+ 			       XGMAC_RXEN);
+ }
+ 
+-/* PPE port MAC link up configuration for phylink */
++/* A shaped egress must drop locally instead of moving its standing queue
++ * into an ingress peer. Retain negotiated intent across all active shapers.
++ * qos_lock is outer to every port's tbf_lock; change no PFC or unrelated bit.
++ */
++int ppe_port_pause_set(struct ppe_device *ppe_dev, unsigned long shaped)
++{
++	struct ppe_ports *ports = ppe_dev->ports;
++	u32 saved[PPE_PORT_MAX], reg, val;
++	int i, j, ret;
++
++	lockdep_assert_held(&ppe_dev->qos_lock);
++	if (!ports || ports->num > ARRAY_SIZE(saved))
++		return -EINVAL;
++
++	for (i = 0; i < ports->num; i++) {
++		struct ppe_port *port = &ports->port[i];
++
++		if (!port->np)
++			continue;
++		reg = PPE_BM_PORT_FC_MODE_ADDR + PPE_BM_PORT_FC_MODE_INC *
++		      (port->port_id + PPE_BM_PORT_MAC_START);
++		ret = regmap_read(ppe_dev->regmap, reg, &saved[i]);
++		if (ret)
++			return ret;
++	}
++
++	for (i = 0; i < ports->num; i++) {
++		struct ppe_port *port = &ports->port[i];
++
++		if (!port->np)
++			continue;
++		reg = PPE_BM_PORT_FC_MODE_ADDR + PPE_BM_PORT_FC_MODE_INC *
++		      (port->port_id + PPE_BM_PORT_MAC_START);
++		val = port->tx_pause_requested && !shaped ? PPE_BM_PORT_FC_MODE_EN : 0;
++		ret = regmap_update_bits(ppe_dev->regmap, reg,
++				 PPE_BM_PORT_FC_MODE_EN, val);
++		if (ret)
++			goto rollback;
++	}
++	ppe_dev->shaped_ports = shaped;
++	return 0;
++
++rollback:
++	for (j = 0; j <= i; j++) {
++		struct ppe_port *port = &ports->port[j];
++
++		if (!port->np)
++			continue;
++		reg = PPE_BM_PORT_FC_MODE_ADDR + PPE_BM_PORT_FC_MODE_INC *
++		      (port->port_id + PPE_BM_PORT_MAC_START);
++		if (regmap_update_bits(ppe_dev->regmap, reg,
++				       PPE_BM_PORT_FC_MODE_EN, saved[j]))
++			dev_err(ppe_dev->dev, "port %d failed to restore BM pause\n",
++				port->port_id);
++	}
++	return ret;
++}
++
+ static void ppe_port_mac_link_up(struct phylink_config *config,
+ 				 struct phy_device *phy,
+ 				 unsigned int mode,
+@@ -1025,7 +1082,8 @@
+ 	enum ppe_mac_type mac_type = ppe_port->mac_type;
+ 	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
+ 	int ret, port = ppe_port->port_id;
+-	u32 reg, val;
++	bool previous_pause;
++	u32 reg;
+ 
+ 	/* Set PPE port MAC speed clock */
+ 	ret = ppe_port_mac_speed_clock_rate_set(ppe_port, interface, speed);
+@@ -1042,12 +1100,13 @@
+ 	if (ret)
+ 		goto err_port_mac_link_up;
+ 
+-	/* Set PPE port BM flow control */
+-	reg = PPE_BM_PORT_FC_MODE_ADDR +
+-		PPE_BM_PORT_FC_MODE_INC * (port + PPE_BM_PORT_MAC_START);
+-	val = tx_pause ? PPE_BM_PORT_FC_MODE_EN : 0;
+-	ret = regmap_update_bits(ppe_dev->regmap, reg,
+-				 PPE_BM_PORT_FC_MODE_EN, val);
++	mutex_lock(&ppe_dev->qos_lock);
++	previous_pause = ppe_port->tx_pause_requested;
++	ppe_port->tx_pause_requested = tx_pause;
++	ret = ppe_port_pause_set(ppe_dev, ppe_dev->shaped_ports);
++	if (ret)
++		ppe_port->tx_pause_requested = previous_pause;
++	mutex_unlock(&ppe_dev->qos_lock);
+ 	if (ret)
+ 		goto err_port_mac_link_up;
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
+@@ -127,6 +127,7 @@
+ 	u64 fifo_report_tx;
+ 	struct mutex tbf_lock; /* Protects TBF state and queue table updates */
+ 	struct ppe_port_tbf tbf;
++	bool tx_pause_requested; /* Negotiated intent, protected by qos_lock. */
+ };
+ 
+ /**
+@@ -139,6 +140,7 @@
+ 	struct ppe_port port[] __counted_by(num);
+ };
+ 
++int ppe_port_pause_set(struct ppe_device *ppe_dev, unsigned long shaped);
+ int ppe_port_mac_prepare(struct ppe_device *ppe_dev);
+ int ppe_port_mac_init(struct ppe_device *ppe_dev);
+ void ppe_port_mac_deinit(struct ppe_device *ppe_dev);
