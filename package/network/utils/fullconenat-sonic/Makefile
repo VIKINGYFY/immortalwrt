@@ -3,11 +3,11 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fullconenat-sonic
-PKG_VERSION:=20261016
+PKG_VERSION:=20261116
 PKG_RELEASE:=1
 
 PKG_URL:=https://github.com/mufeng05/openwrt-sonic-fullcone
-SONIC_SOURCE_VERSION:=43cb2060fc34ccd2714e8ee4db6890da0de537f8
+SONIC_SOURCE_VERSION:=f87ac2a95b77270af9180a16590cc548617336a1
 SONIC_LEGACY_PACKAGES:=kmod-nft-fullcone kmod-ipt-fullconenat iptables-mod-fullconenat ip6tables-mod-fullconenat
 PKG_LICENSE:=GPL-2.0-only
 

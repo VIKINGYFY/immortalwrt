@@ -1,8 +1,9 @@
 # fullconenat-sonic
 
 firewall3/iptables and fw4/nftables integration based on [openwrt-sonic-fullcone](https://github.com/mufeng05/openwrt-sonic-fullcone),
-revision `43cb2060fc34ccd2714e8ee4db6890da0de537f8` (2026-10-13), with local
-mapping reservation and policy isolation fixes. The fw3/iptables target and
+reviewed through revision `f87ac2a95b77270af9180a16590cc548617336a1`
+(2026-11-03), with the inbound reply-direction fix and local mapping
+reservation and policy isolation fixes. The fw3/iptables target and
 the fw4/nftables expression are compiled into the existing NAT modules.
 The userspace patches support the libnftnl 1.3.2 setter interface and
 nftables 1.1.7 scanner states, retaining the local JSON and optimizer handling.
@@ -147,6 +148,9 @@ The normal form only reads and writes the firewall configuration.
   address family and transport protocol. A private conntrack flag marks
   fullcone source bindings. DNAT only consults confirmed, non-dying marked
   bindings. No userspace conntrack status bit is repurposed.
+- Inbound lookup restores the original tuple direction after reversing an
+  outbound binding, so replies retain valid conntrack and NAT state for
+  both IPv4 and IPv6.
 - Allocation uses bounded attempts and drops on fullcone allocation
   failure; it never evicts another fullcone binding to reuse its port.
 - Mappings remain tied to outbound conntracks. Once all outbound bindings
