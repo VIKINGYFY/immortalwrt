@@ -116,6 +116,16 @@ function fault(error) {
 	return error ? (messages[error] || _('Unknown error')) : _('None');
 }
 
+function nfcFault(error) {
+	const rollback = ' NFC rollback failed.';
+	const invalid = 'Invalid NFC option: ';
+	if (error.endsWith(rollback))
+		return '%s %s'.format(nfcFault(error.slice(0, -rollback.length)), _('NFC rollback failed.'));
+	if (error.startsWith(invalid))
+		return _('Invalid NFC option: %s').format(error.slice(invalid.length));
+	return _(error);
+}
+
 function metric(label, value) {
 	return E('div', { 'class': 'table-row' }, [
 		E('div', { 'class': 'td left', style: 'width:40%' }, label),
@@ -145,7 +155,7 @@ return view.extend({
 			const led = running ? (status.led || {}) : {};
 			let nfc = {};
 			try { nfc = JSON.parse(result[2]); } catch (e) { /* Not ready. */ }
-			dom.content(this.nfcStatus, nfc.error ? _(nfc.error) : !nfc.available ? _('NFC hardware unavailable.') :
+			dom.content(this.nfcStatus, nfc.error ? nfcFault(nfc.error) : !nfc.available ? _('NFC hardware unavailable.') :
 				nfc.enabled ? _('Written.') : _('NFC disabled.'));
 			const reading = function(value, format) {
 				return typeof value == 'number' && Number.isFinite(value) && value >= 0 ? format(value) : '-';

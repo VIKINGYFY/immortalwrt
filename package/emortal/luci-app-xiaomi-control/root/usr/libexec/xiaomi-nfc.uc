@@ -13,6 +13,11 @@ const FIELDS = { iface: '', mode: 'wifi', text: '', uri: '',
 	manual_ssid: '', manual_key: '', security: 'wpa2' };
 let work, uci, settings, wireless, original, radio_config, lock, bus;
 
+// LuCI translates status messages in the browser; mark literals for i18n-scan.
+function _(message) {
+	return message;
+}
+
 function transfer(page, data, count) {
 	let args = [ '/usr/sbin/i2ctransfer', '-y', '' + bus,
 		(data == null ? 'w2' : 'w6') + '@0x54',
@@ -25,14 +30,14 @@ function transfer(page, data, count) {
 	let proc = fs.popen(args, 'r');
 	let output = proc ? proc.read('all') : null;
 	if (!proc || proc.close() != 0)
-		die('NFC I2C transfer failed.');
+		die(_('NFC I2C transfer failed.'));
 	if (data != null) {
 		sleep(10);
 		return;
 	}
 	let bytes = split(trim(output), /\s+/);
 	if (length(bytes) != count || length(filter(bytes, (v) => !match(v, /^0x[0-9a-fA-F]{2}$/))))
-		die('Invalid NFC read response.');
+		die(_('Invalid NFC read response.'));
 	return join('', map(bytes, (v) => chr(int(v, 16))));
 }
 
@@ -61,7 +66,7 @@ function discover() {
 function snapshot() {
 	work = fs.mkdtemp('/var/run/xiaomi-nfc.XXXXXX');
 	if (!work)
-		die('Unable to create NFC configuration snapshot.');
+		die(_('Unable to create NFC configuration snapshot.'));
 	// Unique package aliases also bypass libuci's default /tmp/.uci delta path.
 	settings = 'nfc_' + substr(fs.basename(work), -6);
 	wireless = settings + '_wireless';
@@ -69,10 +74,10 @@ function snapshot() {
 	radio_config = fs.readfile(WIRELESS) || '';
 	if (original == null || fs.writefile(work + '/' + settings, original) == null ||
 	    fs.writefile(work + '/' + wireless, radio_config) == null)
-		die('Unable to read NFC configuration.');
+		die(_('Unable to read NFC configuration.'));
 	uci = cursor(work, work, '');
 	if (!uci || !uci.load(settings) || !uci.load(wireless))
-		die('Unable to parse NFC configuration.');
+		die(_('Unable to parse NFC configuration.'));
 }
 
 function ap_info(ap) {
@@ -97,11 +102,11 @@ function attribute(tag, data) {
 
 function wifi_message(ssid, key, security) {
 	if (length(ssid) < 1 || length(ssid) > 32)
-		die('SSID must contain 1–32 UTF-8 bytes.');
+		die(_('SSID must contain 1–32 UTF-8 bytes.'));
 	if (security[0] == 1)
 		key = '';
 	else if (!((length(key) >= 8 && length(key) <= 63) || match(key, /^[0-9a-fA-F]{64}$/)))
-		die('Invalid Wi-Fi key.');
+		die(_('Invalid Wi-Fi key.'));
 	return attribute(0x100e, attribute(0x1026, chr(1)) + attribute(0x1045, ssid) +
 		attribute(0x1003, chr(0, security[0])) + attribute(0x100f, chr(0, security[1])) +
 		attribute(0x1027, key) + attribute(0x1020, chr(255, 255, 255, 255, 255, 255)));
@@ -115,21 +120,21 @@ function message(cfg) {
 		let ap = uci.get_all(wireless, cfg.iface);
 		ap = ap && ap['.type'] == 'wifi-iface' && ap.mode == 'ap' ? ap_info(ap) : null;
 		if (!ap || !ap.compatible)
-			die('Selected AP is unavailable or uses unsupported security.');
+			die(_('Selected AP is unavailable or uses unsupported security.'));
 		payload = wifi_message(ap.ssid, ap.key, ap.security);
 	}
 	else if (cfg.mode == 'manual') {
 		if (cfg.security != 'none' && cfg.security != 'wpa2')
-			die('Unsupported security.');
+			die(_('Unsupported security.'));
 		payload = wifi_message(cfg.manual_ssid, cfg.manual_key, cfg.security == 'none' ? [1, 1] : [32, 8]);
 	}
 	else {
 		let text = cfg.mode == 'uri' ? cfg.uri : cfg.text;
 		if (!length(text) || length(text) > 1900)
-			die('Text must contain 1–1900 UTF-8 bytes.');
+			die(_('Text must contain 1–1900 UTF-8 bytes.'));
 		if (cfg.mode == 'uri') {
 			if (!match(text, /^[a-zA-Z][a-zA-Z0-9+.-]*:/) || match(text, /[[:space:][:cntrl:]]/))
-				die('Enter a URI, for example https://example.com');
+				die(_('Enter a URI, for example https://example.com'));
 			kind = 'U';
 			payload = chr(0) + text;
 		}
@@ -164,12 +169,12 @@ function program(data) {
 		transfer(1 + i / 4, substr(data, i, 4));
 	transfer(1, substr(data, 0, 4));
 	if (read_bytes(length(data)) != data)
-		die('NFC verification failed.');
+		die(_('NFC verification failed.'));
 }
 
 function check_config() {
 	if (fs.readfile(CONFIG) != original || (fs.readfile(WIRELESS) || '') != radio_config)
-		die('Configuration changed during NFC update.');
+		die(_('Configuration changed during NFC update.'));
 }
 
 function apply(cfg) {
@@ -192,7 +197,7 @@ let status = { available: false }, rc = 0;
 try {
 	lock = fs.open('/var/lock/xiaomi-nfc.lock', 'a', 0o600);
 	if (!lock || !lock.lock('x'))
-		die('Unable to lock NFC update.');
+		die(_('Unable to lock NFC update.'));
 	snapshot();
 	let saved = uci.get_all(settings, 'settings') || {};
 	let cfg = { enabled: saved.nfc_enabled == '1' };
@@ -205,7 +210,7 @@ try {
 		cfg[name] = value;
 	}
 	if (index([ 'wifi', 'text', 'uri', 'manual' ], cfg.mode) < 0) {
-		if (cfg.enabled) die('Unsupported NFC mode.');
+		if (cfg.enabled) die(_('Unsupported NFC mode.'));
 		cfg.mode = 'wifi';
 	}
 	status = { available: discover(), enabled: cfg.enabled, mode: cfg.mode };

@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-xiaomi-control
 PKG_VERSION:=20261116
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_MAINTAINER:=ViKing <viking.yfy@qq.com>
