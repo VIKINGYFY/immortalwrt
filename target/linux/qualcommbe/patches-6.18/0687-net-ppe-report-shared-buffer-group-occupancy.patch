@@ -1,0 +1,83 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 17 Nov 2026 12:50:04 +0800
+Subject: [PATCH] net: ppe: report shared buffer and admission group occupancy
+
+Extend existing read-only BM and queue counters with shared-pool
+occupancy and admission-group pending/preallocated usage. Propagate read
+failures and leave forwarding, thresholds and clear-on-read controls
+alone.
+
+Adapt APPE/MPPE counters from QSDK r50 qca-ssdk
+08a476a596df2c5e6a91454cd639111eb695eee6. Do not import the MRPPE-only
+register offset change into IPQ53xx/IPQ95xx.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -290,6 +290,17 @@
+ 
+ 	seq_putc(seq, '\n');
+ 
++	seq_puts(seq, "BM SHARED_GROUP:");
++	for (i = 0; i < PPE_BM_SHARED_GROUP_CNT_ENTRIES; i++) {
++		reg = PPE_BM_SHARED_GROUP_CNT_ADDR + i * PPE_BM_SHARED_GROUP_CNT_INC;
++		ret = regmap_read(ppe_dev->regmap, reg, &val);
++		if (ret)
++			return ret;
++		seq_printf(seq, " %u(group=%d)",
++			   (u32)FIELD_GET(PPE_BM_SHARED_GROUP_CNT_VAL, val), i);
++	}
++	seq_putc(seq, '\n');
++
+ 	return 0;
+ }
+ 
+@@ -669,6 +680,18 @@
+ 		}
+ 	}
+ 
++	seq_putc(seq, '\n');
++
++	seq_puts(seq, "AC GROUP PEND/ALLOC_USED:");
++	for (i = 0; i < PPE_AC_GRP_CNT_TBL_ENTRIES; i++) {
++		reg = PPE_AC_GRP_CNT_TBL_ADDR + i * PPE_AC_GRP_CNT_TBL_INC;
++		ret = regmap_read(ppe_dev->regmap, reg, &val);
++		if (ret)
++			return ret;
++		seq_printf(seq, " %u/%u(group=%d)",
++			   (u32)FIELD_GET(PPE_AC_GRP_CNT_TBL_PENDING, val),
++			   (u32)FIELD_GET(PPE_AC_GRP_CNT_TBL_ALLOC_USED, val), i);
++	}
+ 	seq_putc(seq, '\n');
+ 
+ 	return 0;
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -1120,6 +1120,12 @@
+ #define PPE_BM_REACT_CNT_TBL_INC		0x4
+ #define PPE_BM_REACT_CNT_VAL			GENMASK(8, 0)
+ 
++/* APPE/MPPE shared-buffer occupancy; MRPPE has a different layout. */
++#define PPE_BM_SHARED_GROUP_CNT_ADDR		0x600280
++#define PPE_BM_SHARED_GROUP_CNT_ENTRIES		4
++#define PPE_BM_SHARED_GROUP_CNT_INC		0x4
++#define PPE_BM_SHARED_GROUP_CNT_VAL		GENMASK(10, 0)
++
+ #define PPE_BM_SHARED_GROUP_CFG_ADDR		0x600290
+ #define PPE_BM_SHARED_GROUP_CFG_ENTRIES		4
+ #define PPE_BM_SHARED_GROUP_CFG_INC		0x4
+@@ -1251,6 +1257,13 @@
+ #define PPE_AC_UNICAST_QUEUE_CNT_TBL_ENTRIES	256
+ #define PPE_AC_UNICAST_QUEUE_CNT_TBL_INC	0x10
+ #define PPE_AC_UNICAST_QUEUE_CNT_TBL_PEND_CNT	GENMASK(12, 0)
++
++/* Current admission-group occupancy and reserved buffers in use. */
++#define PPE_AC_GRP_CNT_TBL_ADDR			0x854000
++#define PPE_AC_GRP_CNT_TBL_ENTRIES		4
++#define PPE_AC_GRP_CNT_TBL_INC			0x10
++#define PPE_AC_GRP_CNT_TBL_PENDING		GENMASK(15, 0)
++#define PPE_AC_GRP_CNT_TBL_ALLOC_USED		GENMASK(31, 16)
+ 
+ /* Counters for packets handled by multicast queues (256-299). */
+ #define PPE_AC_MULTICAST_QUEUE_CNT_TBL_ADDR	0x852000
