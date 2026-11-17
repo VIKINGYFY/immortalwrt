@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -43,11 +43,15 @@
+@@ -43,11 +43,15 @@ module_param_named(nss_offload, ath11k_n
  MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
  
  bool ath11k_nss_host_tx;
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  MODULE_PARM_DESC(nss_keep_mask, "Leave the ring mask alone while offloading");
  
  bool ath11k_nss_hash;
-@@ -55,7 +59,9 @@
+@@ -55,7 +59,9 @@ module_param_named(nss_hash, ath11k_nss_
  MODULE_PARM_DESC(nss_hash, "Keep hash-based receive steering while offloading");
  
  bool ath11k_nss_prefill;
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  MODULE_PARM_DESC(nss_prefill, "Fill the receive-DMA ring from here as well");
  
  static const struct ath11k_hw_params ath11k_hw_params[] = {
-@@ -2817,6 +2823,14 @@
+@@ -2817,6 +2823,14 @@ static int ath11k_init_hw_params(struct
  			  (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
  			   ab->hw_rev == ATH11K_HW_IPQ6018_HW10 ||
  			   ab->hw_rev == ATH11K_HW_QCN9074_HW10);

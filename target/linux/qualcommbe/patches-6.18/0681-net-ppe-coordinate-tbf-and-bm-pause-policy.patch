@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define PPE_CLK_RATE		353000000
  
  /* ICC clocks for enabling PPE device. The avg_bw and peak_bw with value 0
-@@ -241,6 +240,7 @@
+@@ -241,6 +240,7 @@ static int qcom_ppe_probe(struct platfor
  	ppe_dev->clk_rate = ppe_dev->variant->ppe_clock_hz;
  	ppe_dev->num_ports = num_ports;
  	ppe_dev->num_icc_paths = num_icc;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -24,6 +24,7 @@
+@@ -24,6 +24,7 @@ struct ppe_vp;
   * survive from physical-port setup through later virtual-port use.
   */
  #define PPE_PORT_ID_COUNT	256
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define PPE_TUNNEL_ID_COUNT	128
  #define PPE_TUNNEL_L3_IF_COUNT	128
  #define PPE_TUNNEL_VP_COUNT	184
-@@ -103,6 +104,9 @@
+@@ -103,6 +104,9 @@ struct ppe_device {
  	/* Serialize the L3 flow operation registers. */
  	struct mutex flow_lock;
  	struct mutex l3_if_lock;
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct mutex tunnel_lock;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -2451,6 +2451,7 @@
+@@ -2451,6 +2451,7 @@ int ppe_port_tbf_set(struct ppe_port *po
  	u32 old_shaper[PPE_TBF_SHAPER_CFG_WORDS];
  	u32 bucket_limit, ceiling, total_buffers = 0;
  	u64 bucket_rate;
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int port_id = port->port_id;
  	int queue, queue_end, i;
  	int ret, shaper_ret;
-@@ -2458,6 +2459,8 @@
+@@ -2458,6 +2459,8 @@ int ppe_port_tbf_set(struct ppe_port *po
  	if (!rate)
  		return -EINVAL;
  
@@ -69,18 +69,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_lock(&port->tbf_lock);
  
  	ret = ppe_port_resource_get(ppe_dev, port->port_id, PPE_RES_UCAST,
-@@ -2508,6 +2511,10 @@
- 				 FIELD_PREP(PPE_AC_UNICAST_QUEUE_CFG_W0_THRESHOLD,
+@@ -2509,6 +2512,10 @@ int ppe_port_tbf_set(struct ppe_port *po
  					    bucket_buffers[i]);
  	}
-+
+ 
 +	ret = ppe_port_pause_set(ppe_dev, old_shaped | BIT(port_id));
 +	if (ret)
 +		goto out_unlock;
- 
++
  	for (i = 0; i < PPE_TBF_QUEUE_COUNT; i++) {
  		ret = ppe_tbf_queue_write(ppe_dev, queue + i, new_cfg[i]);
-@@ -2547,7 +2554,14 @@
+ 		if (ret) {
+@@ -2547,7 +2554,14 @@ int ppe_port_tbf_set(struct ppe_port *po
  	tbf->queue_base = queue;
  
  out_unlock:
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -2567,6 +2581,7 @@
+@@ -2567,6 +2581,7 @@ int ppe_port_tbf_destroy(struct ppe_port
  	int port_id = port->port_id;
  	int i, ret, shaper_ret;
  
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_lock(&port->tbf_lock);
  	if (!tbf->active || tbf->handle != handle) {
  		ret = 0;
-@@ -2614,6 +2629,18 @@
+@@ -2614,6 +2629,18 @@ int ppe_port_tbf_destroy(struct ppe_port
  		}
  	}
  
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	tbf->active = false;
  	tbf->handle = 0;
  	tbf->rate = 0;
-@@ -2627,6 +2654,7 @@
+@@ -2627,6 +2654,7 @@ int ppe_port_tbf_destroy(struct ppe_port
  
  out_unlock:
  	mutex_unlock(&port->tbf_lock);
@@ -132,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -1012,7 +1012,64 @@
+@@ -1012,7 +1012,64 @@ static int ppe_port_xgmac_link_up(struct
  			       XGMAC_RXEN);
  }
  
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ppe_port_mac_link_up(struct phylink_config *config,
  				 struct phy_device *phy,
  				 unsigned int mode,
-@@ -1025,7 +1082,8 @@
+@@ -1025,7 +1082,8 @@ static void ppe_port_mac_link_up(struct
  	enum ppe_mac_type mac_type = ppe_port->mac_type;
  	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
  	int ret, port = ppe_port->port_id;
@@ -208,7 +208,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Set PPE port MAC speed clock */
  	ret = ppe_port_mac_speed_clock_rate_set(ppe_port, interface, speed);
-@@ -1042,12 +1100,13 @@
+@@ -1042,12 +1100,13 @@ static void ppe_port_mac_link_up(struct
  	if (ret)
  		goto err_port_mac_link_up;
  
@@ -230,7 +230,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.h
-@@ -127,6 +127,7 @@
+@@ -127,6 +127,7 @@ struct ppe_port {
  	u64 fifo_report_tx;
  	struct mutex tbf_lock; /* Protects TBF state and queue table updates */
  	struct ppe_port_tbf tbf;
@@ -238,7 +238,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /**
-@@ -139,6 +140,7 @@
+@@ -139,6 +140,7 @@ struct ppe_ports {
  	struct ppe_port port[] __counted_by(num);
  };
  

@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/slab.h>
  #include <linux/vmalloc.h>
  #include <linux/reciprocal_div.h>
-@@ -155,6 +156,7 @@
+@@ -155,6 +156,7 @@ struct cake_tin_data {
  	u16	overflow_idx[CAKE_QUEUES];
  	struct cake_host hosts[CAKE_QUEUES]; /* for triple isolation */
  	u16	flow_quantum;
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	struct cobalt_params cparams;
  	u32	drop_overlimit;
-@@ -694,11 +696,11 @@
+@@ -694,11 +696,11 @@ static u16 cake_get_flow_quantum(struct
  		host_load = max(host_load,
  				q->hosts[flow->dsthost].dsthost_bulk_flow_count);
  
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static u32 cake_hash(struct cake_tin_data *q, const struct sk_buff *skb,
-@@ -2875,6 +2877,7 @@
+@@ -2875,6 +2877,7 @@ static int cake_init(struct Qdisc *sch,
  		INIT_LIST_HEAD(&b->new_flows);
  		INIT_LIST_HEAD(&b->old_flows);
  		INIT_LIST_HEAD(&b->decaying_flows);

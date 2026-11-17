@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -6749,11 +6749,12 @@
+@@ -6749,11 +6749,12 @@ static int ath11k_mac_tx(struct ieee8021
  	 * The conversion is the subsystem's own, and it is written for the
  	 * receiving side: it refuses a frame travelling away from the
  	 * distribution system on an access point, which is every frame an
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 */
  	/* A mesh device carries 802.11, without the QoS control the
  	 * hardware inserts itself.
-@@ -6780,6 +6781,8 @@
+@@ -6780,6 +6781,8 @@ static int ath11k_mac_tx(struct ieee8021
  
  		if (!(info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP) &&
  		    ieee80211_data_to_8023(skb, hdr->addr1,
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					   NL80211_IFTYPE_STATION)) {
  			ieee80211_free_txskb(ar->hw, skb);
  			return 0;
-@@ -7152,15 +7155,19 @@
+@@ -7152,15 +7155,19 @@ static int ath11k_mac_setup_vdev_create_
   * what the hardware encapsulation and decapsulation this driver has already
   * been told to use produce.
   */
@@ -86,11 +86,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ATH11K_HW_TXRX_ETHERNET;
  	if (test_bit(ATH11K_FLAG_RAW_MODE, &ab->dev_flags))
  		return ATH11K_HW_TXRX_RAW;
-@@ -7210,6 +7217,18 @@
- 	.event = ath11k_nss_mesh_event,
+@@ -7211,6 +7218,18 @@ static const struct nss_wifi_mesh_ops at
  	.rx = ath11k_nss_mesh_rx,
  };
-+
+ 
 +static void ath11k_nss_vdev_unregister(struct ath11k_vif *arvif)
 +{
 +	struct wireless_dev *wdev;
@@ -102,10 +101,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		nss_wifi_vdev_unregister(wdev->netdev);
 +	arvif->nss_ifnum = -1;
 +}
- 
++
  /* The firmware owns the radio's rings, so an interface it does not take
   * cannot carry data at all and is refused.
-@@ -7273,13 +7292,8 @@
+  */
+@@ -7273,13 +7292,8 @@ static void ath11k_mac_op_update_vif_off
  		vif->offload_flags &= ~(IEEE80211_OFFLOAD_ENCAP_ENABLED |
  					IEEE80211_OFFLOAD_DECAP_ENABLED);
  
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    param_id, param_value);
  	if (ret) {
-@@ -7289,13 +7303,8 @@
+@@ -7289,13 +7303,8 @@ static void ath11k_mac_op_update_vif_off
  	}
  
  	param_id = WMI_VDEV_PARAM_RX_DECAP_TYPE;
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    param_id, param_value);
  	if (ret) {
-@@ -7713,6 +7722,7 @@
+@@ -7713,6 +7722,7 @@ static int ath11k_mac_op_add_interface(s
  	return 0;
  
  err_peer_del:
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (arvif->vdev_type == WMI_VDEV_TYPE_AP) {
  		fbret = ath11k_peer_delete(ar, arvif->vdev_id, vif->addr);
  		if (fbret) {
-@@ -7723,6 +7733,7 @@
+@@ -7723,6 +7733,7 @@ err_peer_del:
  	}
  
  err_vdev_del:
@@ -153,7 +153,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath11k_mac_vdev_delete(ar, arvif);
  	spin_lock_bh(&ar->data_lock);
  	list_del(&arvif->list);
-@@ -7785,13 +7796,7 @@
+@@ -7785,13 +7796,7 @@ static void ath11k_mac_op_remove_interfa
  	/* Before the vdev goes, so the firmware stops naming an interface
  	 * whose peers are already gone.
  	 */

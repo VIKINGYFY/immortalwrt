@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-@@ -102,7 +102,7 @@
+@@ -102,7 +102,7 @@ static struct sk_buff *edma_tx_map_unmap
  {
  	struct sk_buff *skb = map->skb;
  
@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case EDMA_TX_MAP_SINGLE:
  		dma_unmap_single(dev, map->dma, map->len, DMA_TO_DEVICE);
  		break;
-@@ -116,7 +116,11 @@
+@@ -116,7 +116,11 @@ static struct sk_buff *edma_tx_map_unmap
  		break;
  	}
  
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return skb;
  }
  
-@@ -370,7 +374,7 @@
+@@ -370,7 +374,7 @@ static int edma_tx_map_record(struct edm
  {
  	struct edma_tx_map *map = &txdesc_ring->maps[index];
  

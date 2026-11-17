@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/sched/sch_cake.c
 +++ b/net/sched/sch_cake.c
-@@ -228,6 +228,7 @@
+@@ -228,6 +228,7 @@ struct cake_sched_data {
  	/* time_next = time_this + ((len * rate_ns) >> rate_shft) */
  	ktime_t		time_next_packet;
  	ktime_t		failsafe_next_packet;
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u64		rate_ns;
  	u16		rate_shft;
  	u16		overflow_timeout;
-@@ -1791,7 +1792,8 @@
+@@ -1791,7 +1792,8 @@ static s32 cake_enqueue(struct sk_buff *
  					    ktime_to_ns(
  						   q->failsafe_next_packet));
  				sch->qstats.overlimits++;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			}
  		}
  	}
-@@ -2057,7 +2059,8 @@
+@@ -2057,7 +2059,8 @@ begin:
  			       ktime_to_ns(q->failsafe_next_packet));
  
  		sch->qstats.overlimits++;
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return NULL;
  	}
  
-@@ -2265,7 +2268,8 @@
+@@ -2265,7 +2268,8 @@ retry:
  		u64 next = min(ktime_to_ns(q->time_next_packet),
  			       ktime_to_ns(q->failsafe_next_packet));
  
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (!sch->q.qlen) {
  		int i;
  
-@@ -2611,6 +2615,16 @@
+@@ -2611,6 +2615,16 @@ static void cake_configure_rates(struct
  
  	qd->rate_ns   = qd->tins[ft].tin_rate_ns;
  	qd->rate_shft = qd->tins[ft].tin_rate_shft;

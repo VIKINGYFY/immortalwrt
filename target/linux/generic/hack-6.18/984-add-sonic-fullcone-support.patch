@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/netfilter/nf_conntrack.h
 +++ b/include/net/netfilter/nf_conntrack.h
-@@ -101,9 +101,18 @@
+@@ -101,9 +101,18 @@ struct nf_conn {
  
  #if IS_ENABLED(CONFIG_NF_NAT)
  	struct hlist_node	nat_bysource;
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static unsigned int nf_nat_htable_size __read_mostly;
  static siphash_aligned_key_t nf_nat_hash_rnd;
  
-@@ -179,6 +188,102 @@
+@@ -179,6 +188,102 @@ hash_by_src(const struct net *net,
  	return reciprocal_scale(hash, nf_nat_htable_size);
  }
  
@@ -203,7 +203,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * nf_nat_used_tuple - check if proposed nat tuple clashes with existing entry
   * @tuple: proposed NAT binding
-@@ -471,22 +576,81 @@
+@@ -471,22 +576,81 @@ find_appropriate_src(struct net *net,
  {
  	unsigned int h = hash_by_src(net, zone, tuple);
  	const struct nf_conn *ct;
@@ -289,7 +289,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /* For [FUTURE] fragmentation handling, we want the least-used
   * src-ip/dst-ip/proto triple.  Fairness doesn't come into it.  Thus
-@@ -567,7 +731,7 @@
+@@ -567,7 +731,7 @@ find_best_ips_proto(const struct nf_conn
   *
   * Per-protocol part of tuple is initialized to the incoming packet.
   */
@@ -298,7 +298,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					const struct nf_nat_range2 *range,
  					enum nf_nat_manip_type maniptype,
  					const struct nf_conn *ct)
-@@ -595,7 +759,7 @@
+@@ -595,7 +759,7 @@ static void nf_nat_l4proto_unique_tuple(
  		/* If there is no master conntrack we are not PPTP,
  		   do not change tuples */
  		if (!ct->master)
@@ -307,7 +307,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (maniptype == NF_NAT_MANIP_SRC)
  			keyptr = &tuple->src.u.gre.key;
-@@ -622,14 +786,14 @@
+@@ -622,14 +786,14 @@ static void nf_nat_l4proto_unique_tuple(
  
  		break;
  	default:
@@ -324,7 +324,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (ntohs(*keyptr) < 1024) {
  			/* Loose convention: >> 512 is credential passing */
-@@ -674,12 +838,19 @@
+@@ -674,12 +838,19 @@ find_free_id:
  another_round:
  	for (i = 0; i < attempts; i++, off++) {
  		*keyptr = htons(min + off % range_size);
@@ -347,7 +347,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	attempts /= 2;
  	off = get_random_u16();
  	goto another_round;
-@@ -691,7 +862,7 @@
+@@ -691,7 +862,7 @@ another_round:
   * range. It might not be possible to get a unique tuple, but we try.
   * At worst (or if we race), we will end up with a final duplicate in
   * __nf_conntrack_confirm and drop the packet. */
@@ -356,7 +356,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  get_unique_tuple(struct nf_conntrack_tuple *tuple,
  		 const struct nf_conntrack_tuple *orig_tuple,
  		 const struct nf_nat_range2 *range,
-@@ -703,6 +874,17 @@
+@@ -703,6 +874,17 @@ get_unique_tuple(struct nf_conntrack_tup
  
  	zone = nf_ct_zone(ct);
  
@@ -374,7 +374,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* 1) If this srcip/proto/src-proto-part is currently mapped,
  	 * and that same mapping gives a unique tuple within the given
  	 * range, use that.
-@@ -712,18 +894,30 @@
+@@ -712,18 +894,30 @@ get_unique_tuple(struct nf_conntrack_tup
  	 * manips not an issue.
  	 */
  	if (maniptype == NF_NAT_MANIP_SRC &&
@@ -410,7 +410,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -736,7 +930,8 @@
+@@ -736,7 +930,8 @@ get_unique_tuple(struct nf_conntrack_tup
  	 */
  
  	/* Only bother mapping if it's not already in range and unique */
@@ -420,7 +420,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (range->flags & NF_NAT_RANGE_PROTO_SPECIFIED) {
  			if (!(range->flags & NF_NAT_RANGE_PROTO_OFFSET) &&
  			    l4proto_in_range(tuple, maniptype,
-@@ -744,14 +939,14 @@
+@@ -744,14 +939,14 @@ get_unique_tuple(struct nf_conntrack_tup
  					     &range->max_proto) &&
  			    (range->min_proto.all == range->max_proto.all ||
  			     !nf_nat_used_tuple(tuple, ct)))
@@ -438,7 +438,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  struct nf_conn_nat *nf_ct_nat_ext_add(struct nf_conn *ct)
-@@ -767,13 +962,18 @@
+@@ -767,13 +962,18 @@ struct nf_conn_nat *nf_ct_nat_ext_add(st
  }
  EXPORT_SYMBOL_GPL(nf_ct_nat_ext_add);
  
@@ -459,7 +459,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Can't setup nat info for confirmed ct. */
  	if (nf_ct_is_confirmed(ct))
-@@ -794,7 +994,31 @@
+@@ -794,7 +994,31 @@ nf_nat_setup_info(struct nf_conn *ct,
  	nf_ct_invert_tuple(&curr_tuple,
  			   &ct->tuplehash[IP_CT_DIR_REPLY].tuple);
  
@@ -491,7 +491,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!nf_ct_tuple_equal(&new_tuple, &curr_tuple)) {
  		struct nf_conntrack_tuple reply;
-@@ -810,14 +1034,25 @@
+@@ -810,14 +1034,25 @@ nf_nat_setup_info(struct nf_conn *ct,
  			ct->status |= IPS_DST_NAT;
  
  		if (nfct_help(ct) && !nfct_seqadj(ct))
@@ -518,7 +518,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		srchash = hash_by_src(net, nf_ct_zone(ct),
  				      &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
  		lock = &nf_nat_locks[srchash % CONNTRACK_LOCKS];
-@@ -835,6 +1070,68 @@
+@@ -835,6 +1070,68 @@ nf_nat_setup_info(struct nf_conn *ct,
  
  	return NF_ACCEPT;
  }
@@ -587,7 +587,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  EXPORT_SYMBOL(nf_nat_setup_info);
  
  static unsigned int
-@@ -996,6 +1293,15 @@
+@@ -996,6 +1293,15 @@ static int nf_nat_proto_remove(struct nf
  static void nf_nat_cleanup_conntrack(struct nf_conn *ct)
  {
  	unsigned int h;
@@ -603,7 +603,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	h = hash_by_src(nf_ct_net(ct), nf_ct_zone(ct), &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
  	spin_lock_bh(&nf_nat_locks[h % CONNTRACK_LOCKS]);
-@@ -1353,12 +1659,28 @@
+@@ -1353,12 +1659,28 @@ static int __init nf_nat_init(void)
  	if (!nf_nat_bysource)
  		return -ENOMEM;
  
@@ -633,7 +633,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -1375,6 +1697,9 @@
+@@ -1375,6 +1697,9 @@ static int __init nf_nat_init(void)
  		nf_ct_helper_expectfn_destroy(&follow_master_nat);
  		unregister_pernet_subsys(&nat_net_ops);
  		kvfree(nf_nat_bysource);
@@ -643,7 +643,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return ret;
-@@ -1392,6 +1717,9 @@
+@@ -1392,6 +1717,9 @@ static void __exit nf_nat_cleanup(void)
  	synchronize_net();
  	nf_ct_helper_expectfn_destroy(&follow_master_nat);
  	kvfree(nf_nat_bysource);
@@ -655,7 +655,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/netfilter/Kconfig
 +++ b/net/netfilter/Kconfig
-@@ -431,6 +431,16 @@
+@@ -431,6 +431,16 @@ config NF_NAT
  	  forms of full Network Address Port Translation. This can be
  	  controlled by iptables, ip6tables or nft.
  

@@ -288,7 +288,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  MODULE_DESCRIPTION("Qualcomm Atheros QCA808X PHY driver");
  MODULE_AUTHOR("Matus Ujhelyi, Luo Jie");
  MODULE_LICENSE("GPL");
-@@ -175,6 +181,10 @@
+@@ -175,6 +181,10 @@ struct qca808x_priv {
  	int led_polarity_mode;
  	int channel_id;
  	struct qcom_phy_hw_stats hw_stats;
@@ -299,7 +299,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct qca808x_shared_priv {
-@@ -971,6 +981,31 @@
+@@ -971,6 +981,31 @@ static int qca8084_phy_package_config_in
  					      shared_priv->mdiodev[0]);
  		if (ret)
  			return ret;
@@ -331,7 +331,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	/* Initialize the PHY package clock and reset, which is the
-@@ -1015,8 +1050,51 @@
+@@ -1015,8 +1050,51 @@ static int qca8084_config_init(struct ph
  
  static void qca8084_link_change_notify(struct phy_device *phydev)
  {
@@ -384,7 +384,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Assert the FIFO between PHY and MAC. */
  	ret = phy_modify(phydev, QCA8084_FIFO_CONTROL,
-@@ -1184,6 +1262,7 @@
+@@ -1184,6 +1262,7 @@ static void qca8084_phy_package_remove_o
  
  static int qca8084_probe(struct phy_device *phydev)
  {
@@ -392,7 +392,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct qca808x_shared_priv *shared_priv;
  	struct device *dev = &phydev->mdio.dev;
  	struct reset_control *rstc;
-@@ -1203,6 +1282,7 @@
+@@ -1203,6 +1282,7 @@ static int qca8084_probe(struct phy_devi
  	ret = qca808x_probe(phydev);
  	if (ret)
  		return ret;
@@ -400,7 +400,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Enable clock of PHY device, so that the PHY register
  	 * can be accessed to get PHY features.
-@@ -1212,6 +1292,26 @@
+@@ -1212,6 +1292,26 @@ static int qca8084_probe(struct phy_devi
  		return dev_err_probe(dev, PTR_ERR(clk),
  				     "Enable PHY clock failed\n");
  
@@ -427,7 +427,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* De-assert PHY reset after the clock of PHY enabled. */
  	rstc = devm_reset_control_get_exclusive(dev, NULL);
  	if (IS_ERR(rstc))
-@@ -1223,9 +1323,6 @@
+@@ -1223,9 +1323,6 @@ static int qca8084_probe(struct phy_devi
  
  static void qca8084_remove(struct phy_device *phydev)
  {

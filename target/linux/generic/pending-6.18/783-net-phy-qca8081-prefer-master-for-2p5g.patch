@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -148,13 +148,21 @@
+@@ -148,13 +148,21 @@ static int qca808x_phy_ms_seed_enable(st
  
  static bool qca808x_is_prefer_master(struct phy_device *phydev)
  {
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static bool qca808x_is_1g_only(struct phy_device *phydev)
-@@ -223,6 +231,14 @@
+@@ -223,6 +231,14 @@ static int qca808x_config_init(struct ph
  		return ret;
  
  	if (qca808x_has_fast_retrain_or_slave_seed(phydev)) {
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* Config the fast retrain for the link 2500M */
  		ret = qca808x_phy_fast_retrain_config(phydev);
  		if (ret)
-@@ -232,14 +248,10 @@
+@@ -232,14 +248,10 @@ static int qca808x_config_init(struct ph
  		if (ret < 0)
  			return ret;
  
@@ -82,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	qca808x_fill_possible_interfaces(phydev);
-@@ -314,7 +326,8 @@
+@@ -314,7 +326,8 @@ static int qca808x_soft_reset(struct phy
  		return ret;
  
  	if (qca808x_has_fast_retrain_or_slave_seed(phydev))
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return ret;
  }
-@@ -393,6 +406,13 @@
+@@ -393,6 +406,13 @@ static int qca808x_config_aneg(struct ph
  	if (ret)
  		return ret;
  

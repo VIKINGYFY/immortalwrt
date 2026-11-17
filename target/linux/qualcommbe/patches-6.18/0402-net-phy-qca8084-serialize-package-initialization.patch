@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -192,6 +192,7 @@
+@@ -192,6 +192,7 @@ struct qca808x_priv {
  };
  
  struct qca808x_shared_priv {
@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int package_mode;
  	int phy_addr[4];
  	struct clk *clk[PACKAGE_CLK_MAX];
-@@ -958,7 +959,12 @@
+@@ -958,7 +959,12 @@ static void qca808x_get_phy_stats(struct
  
  static int qca8084_package_clock_init(struct qca808x_shared_priv *shared_priv)
  {
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Configure clock rate 312.5MHZ for the PHY package
  	 * APB bridge clock tree.
-@@ -967,46 +973,25 @@
+@@ -967,46 +973,25 @@ static int qca8084_package_clock_init(st
  	if (ret)
  		return ret;
  
@@ -102,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int qca8084_phy_package_config_init_once(struct phy_device *phydev)
-@@ -1103,15 +1088,35 @@
+@@ -1103,15 +1088,35 @@ static int qca8084_mac_clock_set(struct
  	return 0;
  }
  

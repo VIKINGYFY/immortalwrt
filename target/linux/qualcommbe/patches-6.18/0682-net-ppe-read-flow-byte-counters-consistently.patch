@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -467,21 +467,34 @@
+@@ -467,21 +467,34 @@ int ppe_flow_stats_get(struct ppe_device
  		       u64 *bytes)
  {
  	u32 reg = PPE_FLOW_CNT_TBL_ADDR + PPE_FLOW_CNT_TBL_INC * index;
@@ -23,18 +23,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EINVAL;
 -
 -	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
--	if (ret)
--		return ret;
--
++	ret = regmap_read(ppe_dev->regmap, reg, &pkts);
+ 	if (ret)
+ 		return ret;
+ 
 -	*packets = val[0];
 -	*bytes = (u64)FIELD_GET(PPE_FLOW_CNT_W2_BYTE_CNT_HI, val[2]) << 32 |
 -		 val[1];
 -
 -	return 0;
-+	ret = regmap_read(ppe_dev->regmap, reg, &pkts);
-+	if (ret)
-+		return ret;
-+
 +	/* Bulk MMIO reads do not provide a coherent 40-bit snapshot. */
 +	for (i = 0; i < 3; i++) {
 +		ret = regmap_read(ppe_dev->regmap, reg + 8, &hi);

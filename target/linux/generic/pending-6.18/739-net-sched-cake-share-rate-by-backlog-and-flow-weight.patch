@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/sched/sch_cake.c
 +++ b/net/sched/sch_cake.c
-@@ -136,6 +136,8 @@
+@@ -136,6 +136,8 @@ struct cake_flow {
  	u16		  srchost; /* index into cake_host table */
  	u16		  dsthost;
  	u8		  set;
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }; /* please try to keep this structure <= 64 bytes */
  
  struct cake_host {
-@@ -143,6 +145,9 @@
+@@ -143,6 +145,9 @@ struct cake_host {
  	u32 dsthost_tag;
  	u16 srchost_bulk_flow_count;
  	u16 dsthost_bulk_flow_count;
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct cake_heap_entry {
-@@ -267,6 +272,13 @@
+@@ -267,6 +272,13 @@ struct cake_sched_data {
  	/* mq sync state */
  	u64		last_checked_active;
  	u64		last_active;
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32		active_queues;
  };
  
-@@ -646,13 +658,20 @@
+@@ -646,13 +658,20 @@ static bool cake_ddst(int flow_mode)
  	return (flow_mode & CAKE_FLOW_DUAL_DST) == CAKE_FLOW_DUAL_DST;
  }
  
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void cake_inc_srchost_bulk_flow_count(struct cake_tin_data *q,
-@@ -661,7 +680,8 @@
+@@ -661,7 +680,8 @@ static void cake_inc_srchost_bulk_flow_c
  {
  	if (likely(cake_dsrc(flow_mode) &&
  		   q->hosts[flow->srchost].srchost_bulk_flow_count < CAKE_QUEUES))
@@ -80,7 +80,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void cake_dec_dsthost_bulk_flow_count(struct cake_tin_data *q,
-@@ -670,7 +690,8 @@
+@@ -670,7 +690,8 @@ static void cake_dec_dsthost_bulk_flow_c
  {
  	if (likely(cake_ddst(flow_mode) &&
  		   q->hosts[flow->dsthost].dsthost_bulk_flow_count))
@@ -90,28 +90,36 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void cake_inc_dsthost_bulk_flow_count(struct cake_tin_data *q,
-@@ -679,27 +700,41 @@
+@@ -679,27 +700,41 @@ static void cake_inc_dsthost_bulk_flow_c
  {
  	if (likely(cake_ddst(flow_mode) &&
  		   q->hosts[flow->dsthost].dsthost_bulk_flow_count < CAKE_QUEUES))
 -		q->hosts[flow->dsthost].dsthost_bulk_flow_count++;
 +		WRITE_ONCE(q->hosts[flow->dsthost].dsthost_bulk_flow_count,
 +			   q->hosts[flow->dsthost].dsthost_bulk_flow_count + 1);
-+}
-+
+ }
+ 
+-static u16 cake_get_flow_quantum(struct cake_tin_data *q,
+-				 struct cake_flow *flow,
+-				 int flow_mode)
 +static u32 cake_host_load(struct cake_tin_data *q, struct cake_flow *flow,
 +			  int flow_mode)
-+{
+ {
+-	u16 host_load = 1;
 +	struct cake_host *srchost = &q->hosts[flow->srchost];
 +	struct cake_host *dsthost = &q->hosts[flow->dsthost];
 +	u32 host_load = 1;
-+
-+	if (cake_dsrc(flow_mode))
+ 
+ 	if (cake_dsrc(flow_mode))
+-		host_load = max(host_load,
+-				q->hosts[flow->srchost].srchost_bulk_flow_count);
 +		host_load = max_t(u32, host_load,
 +				  srchost->srchost_bulk_flow_count +
 +				  srchost->srchost_mq_count);
-+
-+	if (cake_ddst(flow_mode))
+ 
+ 	if (cake_ddst(flow_mode))
+-		host_load = max(host_load,
+-				q->hosts[flow->dsthost].dsthost_bulk_flow_count);
 +		host_load = max_t(u32, host_load,
 +				  dsthost->dsthost_bulk_flow_count +
 +				  dsthost->dsthost_mq_count);
@@ -120,22 +128,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		host_load = 1 + flow->mq_count;
 +
 +	return min(host_load, CAKE_QUEUES);
- }
++}
  
- static u16 cake_get_flow_quantum(struct cake_tin_data *q,
- 				 struct cake_flow *flow,
- 				 int flow_mode)
- {
--	u16 host_load = 1;
--
--	if (cake_dsrc(flow_mode))
--		host_load = max(host_load,
--				q->hosts[flow->srchost].srchost_bulk_flow_count);
--
--	if (cake_ddst(flow_mode))
--		host_load = max(host_load,
--				q->hosts[flow->dsthost].dsthost_bulk_flow_count);
--
++static u16 cake_get_flow_quantum(struct cake_tin_data *q,
++				 struct cake_flow *flow,
++				 int flow_mode)
++{
  	/* Uniform rounding dither needs no cryptographic randomness. The
  	 * qdisc lock protects the tin's private generator.
  	 */
@@ -144,7 +142,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		(u16)prandom_u32_state(&q->dither)) >> 16;
  }
  
-@@ -855,7 +890,10 @@
+@@ -855,7 +890,10 @@ skip_hash:
  found:
  		/* reserve queue for future packets in same flow */
  		reduced_hash = outer_hash + k;
@@ -156,7 +154,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (allocate_src) {
  			srchost_idx = srchost_hash % CAKE_QUEUES;
-@@ -872,7 +910,8 @@
+@@ -872,7 +910,8 @@ found:
  				if (!q->hosts[outer_hash + k].srchost_bulk_flow_count)
  					break;
  			}
@@ -166,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  found_src:
  			srchost_idx = outer_hash + k;
  			q->flows[reduced_hash].srchost = srchost_idx;
-@@ -896,7 +935,8 @@
+@@ -896,7 +935,8 @@ found_src:
  				if (!q->hosts[outer_hash + k].dsthost_bulk_flow_count)
  					break;
  			}
@@ -176,7 +174,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  found_dst:
  			dsthost_idx = outer_hash + k;
  			q->flows[reduced_hash].dsthost = dsthost_idx;
-@@ -1554,6 +1594,7 @@
+@@ -1554,6 +1594,7 @@ static int cake_advance_shaper(struct ca
  
  		q->time_next_packet = ktime_add_ns(q->time_next_packet,
  						   global_dur);
@@ -184,7 +182,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!drop)
  			q->failsafe_next_packet = \
  				ktime_add_ns(q->failsafe_next_packet,
-@@ -1925,7 +1966,7 @@
+@@ -1925,7 +1966,7 @@ static s32 cake_enqueue(struct sk_buff *
  			b->decaying_flow_count--;
  			list_move_tail(&flow->flowchain, &b->new_flows);
  		}
@@ -193,7 +191,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		b->sparse_flow_count++;
  
  		flow->deficit = cake_get_flow_quantum(b, flow, q->config->flow_mode);
-@@ -1933,7 +1974,7 @@
+@@ -1933,7 +1974,7 @@ static s32 cake_enqueue(struct sk_buff *
  		/* this flow was empty, accounted as a sparse flow, but actually
  		 * in the bulk rotation.
  		 */
@@ -202,7 +200,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		b->sparse_flow_count--;
  		b->bulk_flow_count++;
  
-@@ -2005,6 +2046,165 @@
+@@ -2005,6 +2046,165 @@ static void cake_clear_tin(struct Qdisc
  			kfree_skb_reason(skb, SKB_DROP_REASON_QUEUE_PURGE);
  }
  
@@ -368,19 +366,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct sk_buff *cake_dequeue(struct Qdisc *sch)
  {
  	struct cake_sched_data *q = qdisc_priv(sch);
-@@ -2023,31 +2223,76 @@
+@@ -2023,31 +2223,76 @@ static struct sk_buff *cake_dequeue(stru
  		struct net_device *dev = qdisc_dev(sch);
  		struct cake_sched_data *other_priv;
  		u64 new_rate = q->config->rate_bps;
 -		u64 other_qlen, other_last_active;
+-		struct Qdisc *other_sch;
 +		u64 elapsed = now - q->last_checked_active;
 +		u64 est, weights, reserved = 0;
 +		u32 weight = 0;
-+		u32 num_active_qs = 1;
- 		struct Qdisc *other_sch;
--		u32 num_active_qs = 1;
+ 		u32 num_active_qs = 1;
++		struct Qdisc *other_sch;
  		unsigned int ntx;
--
 +		bool backlogged;
 +		int i;
 +
@@ -408,7 +405,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		WRITE_ONCE(q->mq_rate, est);
 +		WRITE_ONCE(q->mq_weight, weight);
 +		WRITE_ONCE(q->mq_backlogged, backlogged);
-+
+ 
 +		weights = weight;
  		for (ntx = 0; ntx < dev->num_tx_queues; ntx++) {
 +			u64 other_rate;
@@ -421,16 +418,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 -			other_qlen = READ_ONCE(other_sch->q.qlen);
 -			other_last_active = READ_ONCE(other_priv->last_active);
--
--			if (other_qlen || other_last_active > q->last_checked_active)
--				num_active_qs++;
--		}
--
--		if (num_active_qs > 1)
--			new_rate = div64_u64(q->config->rate_bps, num_active_qs);
 +			if (!cake_mq_sibling_active(other_sch, other_priv, now))
 +				continue;
-+
+ 
+-			if (other_qlen || other_last_active > q->last_checked_active)
+-				num_active_qs++;
 +			num_active_qs++;
 +			if (READ_ONCE(other_priv->mq_backlogged)) {
 +				weights += READ_ONCE(other_priv->mq_weight);
@@ -439,8 +431,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				reserved += other_rate +
 +					    (other_rate >> CAKE_MQ_HEADROOM_SHIFT);
 +			}
-+		}
-+
+ 		}
+ 
+-		if (num_active_qs > 1)
+-			new_rate = div64_u64(q->config->rate_bps, num_active_qs);
 +		if (reserved < new_rate)
 +			new_rate = mul_u64_u64_div_u64(new_rate - reserved,
 +						       weight, weights);
@@ -458,7 +452,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  begin:
-@@ -2161,13 +2406,13 @@
+@@ -2161,13 +2406,13 @@ retry:
  				cake_inc_srchost_bulk_flow_count(b, flow, q->config->flow_mode);
  				cake_inc_dsthost_bulk_flow_count(b, flow, q->config->flow_mode);
  
@@ -474,7 +468,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			}
  		}
  
-@@ -2204,7 +2449,7 @@
+@@ -2204,7 +2449,7 @@ retry:
  					b->sparse_flow_count--;
  					b->decaying_flow_count++;
  				}
@@ -483,7 +477,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			} else {
  				/* remove empty queue from the flowchain */
  				list_del_init(&flow->flowchain);
-@@ -2219,7 +2464,7 @@
+@@ -2219,7 +2464,7 @@ retry:
  				} else
  					b->decaying_flow_count--;
  

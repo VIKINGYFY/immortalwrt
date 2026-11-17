@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/cfg80211.h>
  #include <linux/etherdevice.h>
  #include <linux/bitfield.h>
-@@ -4555,6 +4556,7 @@
+@@ -4555,6 +4556,7 @@ static int ath11k_mac_op_set_key(struct
  	const u8 *peer_addr;
  	int ret = 0;
  	u32 flags = 0;
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* BIP needs to be done in software */
  	if (key->cipher == WLAN_CIPHER_SUITE_AES_CMAC ||
-@@ -4701,6 +4703,10 @@
+@@ -4701,6 +4703,10 @@ static int ath11k_mac_op_set_key(struct
  	spin_lock_bh(&ab->base_lock);
  	peer = ath11k_peer_find(ab, arvif->vdev_id, peer_addr);
  	if (peer && cmd == SET_KEY) {
@@ -63,11 +63,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		peer->keys[key->keyidx] = key;
  		if (key->flags & IEEE80211_KEY_FLAG_PAIRWISE) {
  			peer->ucast_keyidx = key->keyidx;
-@@ -4748,6 +4754,33 @@
- 	}
+@@ -4749,6 +4755,33 @@ static int ath11k_mac_op_set_key(struct
  
  	spin_unlock_bh(&ab->base_lock);
-+
+ 
 +	/* The firmware builds the transmit descriptor, so the cipher the
 +	 * hardware is to apply has to reach it. Left unsaid it is none, and a
 +	 * station that has just installed a key discards everything that
@@ -94,10 +93,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			nss_wifi_peer_security(ab->nss_soc, nss_peer_id, group,
 +					       key->cipher, mic);
 +	}
- 
++
  exit:
  	mutex_unlock(&ar->conf_mutex);
-@@ -10206,6 +10239,8 @@
+ 	return ret;
+@@ -10206,6 +10239,8 @@ static int ath11k_mac_op_sta_state(struc
  	enum ieee80211_ap_reg_power power_type;
  	struct cur_regulatory_info *reg_info;
  	struct ath11k_peer *peer;
@@ -106,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret = 0;
  
  	/* cancel must be done outside the mutex to avoid deadlock */
-@@ -10272,9 +10307,30 @@
+@@ -10272,9 +10307,30 @@ static int ath11k_mac_op_sta_state(struc
  		spin_lock_bh(&ar->ab->base_lock);
  
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
@@ -138,7 +138,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		spin_unlock_bh(&ar->ab->base_lock);
  
  		if (vif->type == NL80211_IFTYPE_STATION && arvif->is_up) {
-@@ -10316,8 +10372,20 @@
+@@ -10316,9 +10372,21 @@ static int ath11k_mac_op_sta_state(struc
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  		if (peer)
  			peer->is_authorized = false;
@@ -146,7 +146,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		peer_id = peer ? peer->peer_id : 0;
  
  		spin_unlock_bh(&ar->ab->base_lock);
-+
+ 
 +		if (ar->ab->nss_offload) {
 +			ret = peer_found ?
 +				nss_wifi_peer_authorize(ar->ab->nss_soc, peer_id, false) :
@@ -156,10 +156,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				goto out;
 +			}
 +		}
- 
++
  		if (arsta->ptk_clear_pending)
  			ret = ath11k_mac_clear_ptk(arvif, sta);
-@@ -10332,6 +10400,7 @@
+ 	} else if (old_state == IEEE80211_STA_ASSOC &&
+@@ -10332,6 +10400,7 @@ static int ath11k_mac_op_sta_state(struc
  				    sta->addr);
  	}
  

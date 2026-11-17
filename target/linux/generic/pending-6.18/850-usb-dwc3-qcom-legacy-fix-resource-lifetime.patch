@@ -21,21 +21,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/usb/dwc3/dwc3-qcom-legacy.c
 +++ b/drivers/usb/dwc3/dwc3-qcom-legacy.c
-@@ -241,9 +241,10 @@
+@@ -241,9 +241,10 @@ static int dwc3_qcom_interconnect_disabl
   * @qcom:			Pointer to the concerned usb core.
   *
   */
 -static int dwc3_qcom_interconnect_init(struct dwc3_qcom *qcom)
--{
--	enum usb_device_speed max_speed;
 +static int dwc3_qcom_interconnect_init(struct dwc3_qcom *qcom,
 +				       struct device_node *dwc3_np)
-+{
+ {
+-	enum usb_device_speed max_speed;
 +	const char *maximum_speed;
  	struct device *dev = qcom->dev;
  	int ret;
  
-@@ -260,13 +261,15 @@
+@@ -260,13 +261,15 @@ static int dwc3_qcom_interconnect_init(s
  		goto put_path_ddr;
  	}
  
@@ -55,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  	if (ret) {
  		dev_err(dev, "failed to set bandwidth for usb-ddr path: %d\n", ret);
-@@ -700,23 +703,18 @@
+@@ -700,23 +703,18 @@ static int dwc3_qcom_clk_init(struct dwc
  	return 0;
  }
  
@@ -82,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -738,6 +736,11 @@
+@@ -738,6 +736,11 @@ static int dwc3_qcom_probe(struct platfo
  	int			ret, i;
  	bool			ignore_pipe_clk;
  	bool			wakeup_source;
@@ -94,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	qcom = devm_kzalloc(&pdev->dev, sizeof(*qcom), GFP_KERNEL);
  	if (!qcom)
-@@ -793,15 +796,16 @@
+@@ -793,16 +796,17 @@ static int dwc3_qcom_probe(struct platfo
  	if (ignore_pipe_clk)
  		dwc3_qcom_select_utmi_clk(qcom);
  
@@ -108,17 +107,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret) {
  		dev_err(dev, "failed to register DWC3 Core, err=%d\n", ret);
 -		goto clk_disable;
--	}
--
++		goto interconnect_exit;
+ 	}
+ 
 -	ret = dwc3_qcom_interconnect_init(qcom);
 -	if (ret)
 -		goto depopulate;
-+		goto interconnect_exit;
-+	}
- 
+-
  	qcom->mode = usb_get_dr_mode(&qcom->dwc3->dev);
  
-@@ -812,7 +816,7 @@
+ 	/* enable vbus override for device mode */
+@@ -812,7 +816,7 @@ static int dwc3_qcom_probe(struct platfo
  	/* register extcon to override sw_vbus on Vbus change later */
  	ret = dwc3_qcom_register_extcon(qcom);
  	if (ret)
@@ -127,7 +126,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	wakeup_source = of_property_read_bool(dev->of_node, "wakeup-source");
  	device_init_wakeup(&pdev->dev, wakeup_source);
-@@ -825,11 +829,11 @@
+@@ -825,11 +829,11 @@ static int dwc3_qcom_probe(struct platfo
  
  	return 0;
  
@@ -141,7 +140,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  clk_disable:
  	for (i = qcom->num_clocks - 1; i >= 0; i--) {
  		clk_disable_unprepare(qcom->clks[i]);
-@@ -847,11 +851,16 @@
+@@ -847,11 +851,16 @@ static void dwc3_qcom_remove(struct plat
  	struct device *dev = &pdev->dev;
  	int i;
  
@@ -159,7 +158,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		clk_put(qcom->clks[i]);
  	}
  	qcom->num_clocks = 0;
-@@ -859,8 +868,7 @@
+@@ -859,8 +868,7 @@ static void dwc3_qcom_remove(struct plat
  	dwc3_qcom_interconnect_exit(qcom);
  	reset_control_assert(qcom->resets);
  

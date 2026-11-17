@@ -806,7 +806,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int qca808x_phy_fast_retrain_config(struct phy_device *phydev)
  {
  	int ret;
-@@ -169,6 +337,9 @@
+@@ -169,6 +337,9 @@ static bool qca808x_is_1g_only(struct ph
  {
  	int ret;
  
@@ -816,7 +816,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = phy_read_mmd(phydev, MDIO_MMD_AN, QCA808X_PHY_MMD7_CHIP_TYPE);
  	if (ret < 0)
  		return true;
-@@ -290,6 +461,23 @@
+@@ -290,6 +461,23 @@ static int qca808x_read_status(struct ph
  		return ret;
  
  	if (phydev->link) {
@@ -840,7 +840,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (phydev->speed == SPEED_2500)
  			phydev->interface = PHY_INTERFACE_MODE_2500BASEX;
  		else
-@@ -370,6 +558,18 @@
+@@ -370,6 +558,18 @@ static int qca808x_cable_test_start(stru
  	phy_write_mmd(phydev, MDIO_MMD_PCS, 0x807a, 0xc060);
  	phy_write_mmd(phydev, MDIO_MMD_PCS, 0x807e, 0xb060);
  
@@ -859,7 +859,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -663,6 +863,298 @@
+@@ -663,6 +863,298 @@ static void qca808x_get_phy_stats(struct
  	qcom_phy_get_stats(stats, priv->hw_stats);
  }
  
@@ -1158,7 +1158,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct phy_driver qca808x_driver[] = {
  {
  	/* Qualcomm QCA8081 */
-@@ -694,12 +1186,35 @@
+@@ -694,12 +1186,35 @@ static struct phy_driver qca808x_driver[
  	.led_polarity_set	= qca808x_led_polarity_set,
  	.update_stats		= qca808x_update_stats,
  	.get_phy_stats		= qca808x_get_phy_stats,

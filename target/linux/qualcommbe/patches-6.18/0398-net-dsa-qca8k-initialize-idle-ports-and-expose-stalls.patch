@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int offset;
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -1084,6 +1084,25 @@
+@@ -1084,6 +1084,25 @@ static int qca8084_phy_package_config_in
  	return qca8084_package_clock_init(shared_priv);
  }
  
@@ -157,7 +157,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int qca8084_config_init(struct phy_device *phydev)
  {
  	int ret;
-@@ -1094,6 +1113,14 @@
+@@ -1094,6 +1113,14 @@ static int qca8084_config_init(struct ph
  			return ret;
  	}
  
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (phydev->interface == PHY_INTERFACE_MODE_10G_QXGMII)
  		__set_bit(PHY_INTERFACE_MODE_10G_QXGMII,
  			  phydev->possible_interfaces);
-@@ -1128,16 +1155,9 @@
+@@ -1128,16 +1155,9 @@ static int qca8084_config_init(struct ph
  
  static void qca8084_link_change_notify(struct phy_device *phydev)
  {
@@ -190,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (phydev->link) {
  		switch (phydev->speed) {
-@@ -1160,19 +1180,19 @@
+@@ -1160,19 +1180,19 @@ static void qca8084_link_change_notify(s
  			return;
  		}
  

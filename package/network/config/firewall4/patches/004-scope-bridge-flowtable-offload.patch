@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/root/usr/share/firewall4/templates/ruleset.uc
 +++ b/root/usr/share/firewall4/templates/ruleset.uc
-@@ -493,7 +493,8 @@
+@@ -493,7 +493,8 @@ flush table bridge fw4
  delete flowtable bridge fw4 fb
  {% endif %}
  
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {% if (length(bridge_devices) > 0): %}
  table bridge fw4 {
  	#
-@@ -508,9 +509,9 @@
+@@ -508,9 +509,9 @@ table bridge fw4 {
  {% endif %}
  	}
  
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {% endif %}
 --- a/root/usr/share/ucode/fw4.uc
 +++ b/root/usr/share/ucode/fw4.uc
-@@ -653,32 +653,36 @@
+@@ -653,32 +653,36 @@ return {
  		return false;
  	},
  
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	},
  
  	read_state: function() {
-@@ -2208,6 +2212,9 @@
+@@ -2208,6 +2212,9 @@ return {
  			disable_ipv6: [ "bool", null, UNSUPPORTED ],
  			flow_offloading: [ "bool", "0" ],
  			flow_offloading_hw: [ "bool", "0" ],

@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/iopoll.h>
  #include <linux/usb/hcd.h>
  #include <linux/usb.h>
-@@ -85,6 +86,8 @@
+@@ -85,6 +86,8 @@ struct dwc3_qcom {
  	struct icc_path		*icc_path_apps;
  
  	enum usb_role		current_role;
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  #define to_dwc3_qcom(d) container_of((d), struct dwc3_qcom, dwc)
-@@ -607,6 +610,20 @@
+@@ -607,6 +610,20 @@ struct dwc3_glue_ops dwc3_qcom_glue_ops
  	.pre_run_stop	= dwc3_qcom_run_stop_notifier,
  };
  
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int dwc3_qcom_probe(struct platform_device *pdev)
  {
  	struct dwc3_probe_data	probe_data = {};
-@@ -699,6 +716,18 @@
+@@ -699,6 +716,18 @@ static int dwc3_qcom_probe(struct platfo
  			qcom->current_role = USB_ROLE_DEVICE;
  	}
  
@@ -84,7 +84,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ref_clk = devm_clk_get_optional(dev, "mock_utmi");
  	if (IS_ERR(ref_clk)) {
  		ret = dev_err_probe(dev, PTR_ERR(ref_clk), "failed to get ref clock\n");
-@@ -719,10 +748,26 @@
+@@ -719,10 +748,26 @@ static int dwc3_qcom_probe(struct platfo
  		goto clk_disable;
  	}
  
@@ -111,7 +111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wakeup_source = of_property_read_bool(dev->of_node, "wakeup-source");
  	device_init_wakeup(&pdev->dev, wakeup_source);
  
-@@ -730,6 +775,8 @@
+@@ -730,6 +775,8 @@ static int dwc3_qcom_probe(struct platfo
  
  	return 0;
  
@@ -120,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  remove_core:
  	dwc3_core_remove(&qcom->dwc);
  clk_disable:
-@@ -743,10 +790,14 @@
+@@ -743,10 +790,14 @@ static void dwc3_qcom_remove(struct plat
  	struct dwc3 *dwc = platform_get_drvdata(pdev);
  	struct dwc3_qcom *qcom = to_dwc3_qcom(dwc);
  

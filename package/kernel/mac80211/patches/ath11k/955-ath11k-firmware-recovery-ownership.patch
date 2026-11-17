@@ -48,11 +48,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/ce.c
 +++ b/drivers/net/wireless/ath/ath11k/ce.c
-@@ -469,6 +469,14 @@
- 	nentries_mask = pipe->src_ring->nentries_mask;
+@@ -470,6 +470,14 @@ static struct sk_buff *ath11k_ce_complet
  
  	srng = &ab->hal.srng_list[pipe->src_ring->hal_ring_id];
-+
+ 
 +	/* A recovery that failed before ath11k_ce_init_pipes() leaves the
 +	 * ring, lock included, as ath11k_hal_srng_clear() zeroed it.
 +	 */
@@ -60,10 +59,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		spin_unlock_bh(&ab->ce.ce_lock);
 +		return ERR_PTR(-EIO);
 +	}
- 
++
  	spin_lock_bh(&srng->lock);
  
-@@ -718,6 +726,9 @@
+ 	ath11k_hal_srng_access_begin(ab, srng);
+@@ -718,6 +726,9 @@ int ath11k_ce_send(struct ath11k_base *a
  	u8 byte_swap_data = 0;
  	int num_used;
  
@@ -73,19 +73,19 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Check if some entries could be regained by handling tx completion if
  	 * the CE has interrupts disabled and the used entries is more than the
  	 * defined usage threshold.
-@@ -739,9 +750,6 @@
- 		if (num_used > ATH11K_CE_USAGE_THRESHOLD)
+@@ -740,9 +751,6 @@ int ath11k_ce_send(struct ath11k_base *a
  			ath11k_ce_poll_send_completed(ab, pipe->pipe_num);
  	}
--
+ 
 -	if (test_bit(ATH11K_FLAG_CRASH_FLUSH, &ab->dev_flags))
 -		return -ESHUTDOWN;
- 
+-
  	spin_lock_bh(&ab->ce.ce_lock);
  
+ 	write_index = pipe->src_ring->write_index;
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2374,7 +2374,8 @@
+@@ -2374,7 +2374,8 @@ static int ath11k_core_start(struct ath1
  err_reo_cleanup:
  	ath11k_dp_pdev_reo_cleanup(ab);
  err_mac_destroy:
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_hif_stop:
  	ath11k_hif_stop(ab);
  err_wmi_detach:
-@@ -2436,6 +2437,8 @@
+@@ -2436,6 +2437,8 @@ int ath11k_core_qmi_firmware_ready(struc
  		goto err_firmware_stop;
  	}
  
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ath11k_frame_mode == ATH11K_HW_TXRX_RAW)
  		set_bit(ATH11K_FLAG_RAW_MODE, &ab->dev_flags);
  
-@@ -2458,8 +2461,10 @@
+@@ -2458,8 +2461,10 @@ int ath11k_core_qmi_firmware_ready(struc
  
  err_core_stop:
  	ath11k_core_stop(ab);
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath11k_dp_free(ab);
  	mutex_unlock(&ab->core_lock);
  err_firmware_stop:
-@@ -2489,19 +2494,13 @@
+@@ -2489,19 +2494,13 @@ static int ath11k_core_reconfigure_on_cr
  
  	ab->free_vdev_map = (1LL << (ab->num_radios * TARGET_NUM_VDEVS(ab))) - 1;
  
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  void ath11k_core_halt(struct ath11k *ar)
-@@ -2912,6 +2911,7 @@
+@@ -2912,6 +2911,7 @@ struct ath11k_base *ath11k_core_alloc(st
  				      enum ath11k_bus bus)
  {
  	struct ath11k_base *ab;
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ab = kzalloc(sizeof(*ab) + priv_size, GFP_KERNEL);
  	if (!ab)
-@@ -2938,6 +2938,10 @@
+@@ -2938,6 +2938,10 @@ struct ath11k_base *ath11k_core_alloc(st
  	INIT_LIST_HEAD(&ab->peers);
  	init_waitqueue_head(&ab->peer_mapping_wq);
  	init_waitqueue_head(&ab->wmi_ab.tx_credits_wq);
@@ -158,18 +158,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	INIT_WORK(&ab->update_11d_work, ath11k_update_11d);
 --- a/drivers/net/wireless/ath/ath11k/wmi.c
 +++ b/drivers/net/wireless/ath/ath11k/wmi.c
-@@ -302,6 +302,10 @@
- 	struct ath11k_base *ab = wmi_ab->ab;
+@@ -303,6 +303,10 @@ int ath11k_wmi_cmd_send(struct ath11k_pd
  
  	might_sleep();
-+
+ 
 +	if (test_bit(ATH11K_FLAG_RECOVERY, &ab->dev_flags) &&
 +	    current_work() != &ab->restart_work)
 +		return -ESHUTDOWN;
- 
++
  	if (ab->hw_params.credit_flow) {
  		wait_event_timeout(wmi_ab->tx_credits_wq, ({
-@@ -9066,7 +9070,6 @@
+ 			ret = ath11k_wmi_cmd_send_nowait(wmi, skb, cmd_id);
+@@ -9066,7 +9070,6 @@ static int ath11k_connect_pdev_htc_servi
  	ab->wmi_ab.wmi_endpoint_id[pdev_idx] = conn_resp.eid;
  	ab->wmi_ab.wmi[pdev_idx].eid = conn_resp.eid;
  	ab->wmi_ab.max_msg_len[pdev_idx] = conn_resp.max_msg_len;

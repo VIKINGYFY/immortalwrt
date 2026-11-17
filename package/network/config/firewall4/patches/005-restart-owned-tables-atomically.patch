@@ -13,7 +13,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/root/sbin/fw4
 +++ b/root/sbin/fw4
-@@ -33,7 +33,7 @@
+@@ -33,7 +33,7 @@ start() {
  		esac
  
  		ACTION=start \
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		ACTION=includes \
  			utpl -S $MAIN
-@@ -49,12 +49,50 @@
+@@ -49,12 +49,50 @@ stop() {
  	{
  		flock -x 1000
  
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  flush() {
  	{
  		flock -x 1000
-@@ -70,7 +108,7 @@
+@@ -70,7 +108,7 @@ flush() {
  
  reload_sets() {
  	ACTION=reload-sets \
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  lookup() {
-@@ -105,9 +143,7 @@
+@@ -105,9 +143,7 @@ case "$1" in
  		flush
  	;;
  	restart)
@@ -96,7 +96,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if [ -n "$QUIET" ]; then
 --- a/root/usr/share/ucode/fw4.uc
 +++ b/root/usr/share/ucode/fw4.uc
-@@ -638,6 +638,9 @@
+@@ -638,6 +638,9 @@ return {
  	},
  
  	check_flowtable: function() {
@@ -106,7 +106,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		for (let item in nft_json_command("list", "flowtables", "inet"))
  			if (item.flowtable?.table == "fw4" && item.flowtable?.name == "ft")
  				return true;
-@@ -646,6 +649,9 @@
+@@ -646,6 +649,9 @@ return {
  	},
  
  	check_bridge_flowtable: function() {

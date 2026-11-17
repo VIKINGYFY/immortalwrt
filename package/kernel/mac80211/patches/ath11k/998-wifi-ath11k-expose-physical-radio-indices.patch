@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <net/if_inet6.h>
  #include <net/ipv6.h>
  
-@@ -10725,6 +10726,80 @@
+@@ -10725,6 +10726,80 @@ void ath11k_mac_unregister(struct ath11k
  	ath11k_peer_rhash_tbl_destroy(ab);
  }
  
@@ -108,13 +108,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int __ath11k_mac_register(struct ath11k *ar)
  {
  	struct ath11k_base *ab = ar->ab;
-@@ -10742,6 +10817,9 @@
- 	};
+@@ -10743,6 +10818,9 @@ static int __ath11k_mac_register(struct
  	int ret;
  	u32 ht_cap = 0;
-+
+ 
 +	if (ath11k_mac_device_index(ar) >= 0)
 +		ar->hw->wiphy->dev.groups = ath11k_mac_groups;
- 
++
  	ath11k_pdev_caps_update(ar);
  
+ 	SET_IEEE80211_PERM_ADDR(ar->hw, ar->mac_addr);

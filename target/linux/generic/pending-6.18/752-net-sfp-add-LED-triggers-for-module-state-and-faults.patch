@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/mdio/mdio-i2c.h>
  #include <linux/module.h>
  #include <linux/mutex.h>
-@@ -237,6 +238,26 @@
+@@ -237,6 +238,26 @@ struct sff_data {
  	bool (*module_supported)(const struct sfp_eeprom_id *id);
  };
  
@@ -55,18 +55,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct sfp {
  	struct device *dev;
  	struct i2c_adapter *i2c;
-@@ -314,6 +335,10 @@
- 
+@@ -315,6 +336,10 @@ struct sfp {
  #if IS_ENABLED(CONFIG_DEBUG_FS)
  	struct dentry *debugfs_dir;
-+#endif
+ #endif
 +
 +#if IS_ENABLED(CONFIG_LEDS_TRIGGERS)
 +	struct sfp_led led[SFP_LED_MAX];
- #endif
++#endif
  };
  
-@@ -2085,23 +2110,27 @@
+ static void sfp_schedule_poll(struct sfp *sfp)
+@@ -2085,23 +2110,27 @@ static void sfp_sm_link_down(struct sfp
  	sfp_link_down(sfp->sfp_bus);
  }
  
@@ -86,22 +86,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		los = !(sfp->state & SFP_F_LOS);
 -	else if (los_options == los_normal)
 -		los = !!(sfp->state & SFP_F_LOS);
--
--	if (los)
 +		return !(sfp->state & SFP_F_LOS);
 +	if (los_options == los_normal)
 +		return !!(sfp->state & SFP_F_LOS);
 +
 +	return false;
 +}
-+
+ 
+-	if (los)
 +static void sfp_sm_link_check_los(struct sfp *sfp)
 +{
 +	if (sfp_los_asserted(sfp))
  		sfp_sm_next(sfp, SFP_S_WAIT_LOS, 0);
  	else
  		sfp_sm_link_up(sfp);
-@@ -2960,6 +2989,102 @@
+@@ -2960,6 +2989,102 @@ static void sfp_sm_main(struct sfp *sfp,
  	}
  }
  
@@ -204,7 +203,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void __sfp_sm_event(struct sfp *sfp, unsigned int event)
  {
  	dev_dbg(sfp->dev, "SM: enter %s:%s:%s event %s\n",
-@@ -2976,6 +3101,8 @@
+@@ -2976,6 +3101,8 @@ static void __sfp_sm_event(struct sfp *s
  		mod_state_to_str(sfp->sm_mod_state),
  		dev_state_to_str(sfp->sm_dev_state),
  		sm_state_to_str(sfp->sm_state));
@@ -213,7 +212,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void sfp_sm_event(struct sfp *sfp, unsigned int event)
-@@ -3316,6 +3443,10 @@
+@@ -3316,6 +3443,10 @@ static int sfp_probe(struct platform_dev
  	dev_info(sfp->dev, "Host maximum power %u.%uW\n",
  		 sfp->max_power_mW / 1000, (sfp->max_power_mW / 100) % 10);
  

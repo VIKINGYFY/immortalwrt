@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -108,6 +108,13 @@
+@@ -108,6 +108,13 @@ struct ppe_device {
  	struct mutex qos_lock;
  	unsigned long shaped_ports;
  	u8 flow_cmd_id;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Serialize tunnel object ID and dedicated VP allocation. */
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -34,6 +34,10 @@
+@@ -34,6 +34,10 @@ static int ppe_flow_op_issue(struct ppe_
  	u32 val, cmd_id;
  	int ret;
  
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	cmd_id = ppe_dev->flow_cmd_id;
  	ppe_dev->flow_cmd_id = (cmd_id + 1) % 16;
  	val = FIELD_PREP(PPE_FLOW_OP_CMD_ID, cmd_id) |
-@@ -50,6 +54,13 @@
+@@ -50,6 +54,13 @@ static int ppe_flow_op_issue(struct ppe_
  	ret = regmap_write(ppe_dev->regmap, PPE_FLOW_TBL_OP_ADDR, val);
  	if (ret)
  		return ret;
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Poll for completion without sleeping first. The engine normally
  	 * finishes within a few microseconds, and keeping the flow_lock owner
  	 * on the CPU lets other installers optimistically spin on the mutex
-@@ -72,11 +83,21 @@
+@@ -72,11 +83,21 @@ static int ppe_flow_op_issue(struct ppe_
  		result->result = val;
  		result->result_valid = true;
  	}
@@ -80,7 +80,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return FIELD_GET(PPE_FLOW_OP_RSLT_ENTRY_INDEX, val);
  }
  
-@@ -124,6 +145,10 @@
+@@ -124,6 +145,10 @@ static int ppe_host_op_issue(struct ppe_
  	u32 val, cmd_id;
  	int ret;
  
@@ -91,7 +91,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	cmd_id = ppe_dev->flow_cmd_id;
  	ppe_dev->flow_cmd_id = (cmd_id + 1) % 16;
  	val = FIELD_PREP(PPE_HOST_OP_CMD_ID, cmd_id) |
-@@ -140,6 +165,13 @@
+@@ -140,6 +165,13 @@ static int ppe_host_op_issue(struct ppe_
  	ret = regmap_write(ppe_dev->regmap, PPE_HOST_TBL_OP_ADDR, val);
  	if (ret)
  		return ret;
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Fast non-sleeping poll first, sleeping fallback for a stuck engine;
  	 * see ppe_flow_op_issue() for the load-average rationale.
  	 */
-@@ -158,11 +190,21 @@
+@@ -158,11 +190,21 @@ static int ppe_host_op_issue(struct ppe_
  		result->result = val;
  		result->result_valid = true;
  	}
@@ -128,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return FIELD_GET(PPE_HOST_OP_RSLT_ENTRY_INDEX, val);
  }
  
-@@ -271,6 +313,10 @@
+@@ -271,6 +313,10 @@ int ppe_host_entry_add(struct ppe_device
  	result->index = -1;
  	ppe_host_entry_pack(flow, host);
  	mutex_lock(&ppe_dev->flow_lock);
@@ -139,7 +139,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = regmap_bulk_write(ppe_dev->regmap, PPE_HOST_TBL_OP_DATA_ADDR,
  				host, ARRAY_SIZE(host));
  	if (!ret)
-@@ -310,6 +356,10 @@
+@@ -310,6 +356,10 @@ int ppe_flow_entry_add(struct ppe_device
  	result->index = -1;
  	ppe_flow_entry_pack(flow, val);
  	mutex_lock(&ppe_dev->flow_lock);
@@ -152,7 +152,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!ret)
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.h
-@@ -24,6 +24,7 @@
+@@ -24,6 +24,7 @@ struct ppe_flow_op_result {
  	u32 result_reg;
  	int index;
  	bool result_valid;
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2620,6 +2620,8 @@
+@@ -2620,6 +2620,8 @@ static int ppe_ft_host_get(struct ppe_fl
  
  	hash_for_each_possible(ft->hosts, host, node, key)
  		if (ppe_ft_host_match(host, flow)) {
@@ -171,7 +171,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			host->refcnt++;
  			flow->host_index = host->index;
  			return 0;
-@@ -2635,7 +2637,14 @@
+@@ -2635,7 +2637,14 @@ static int ppe_ft_host_get(struct ppe_fl
  	host->is_ipv6 = flow->is_ipv6;
  	ret = ppe_host_entry_add(ft->ppe_dev, flow, operation);
  	if (ret < 0) {
@@ -187,7 +187,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
  	}
  	host->index = ret;
-@@ -2654,6 +2663,8 @@
+@@ -2654,6 +2663,8 @@ static void ppe_ft_host_put(struct ppe_f
  
  	hash_for_each_possible(ft->hosts, host, node, key)
  		if (ppe_ft_host_match(host, flow)) {
@@ -196,7 +196,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (--host->refcnt)
  				return;
  			ret = ppe_host_entry_del(ft->ppe_dev, host->index);
-@@ -2784,6 +2795,27 @@
+@@ -2784,6 +2795,27 @@ static bool ppe_ft_flow_hw_del(struct pp
   * the object remains on the quarantine list even when that succeeds because
   * the table row was not proven reusable.
   */
@@ -224,7 +224,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ppe_ft_flow_quarantine(struct ppe_flowtable *ft,
  				   struct ppe_ft_flow *flow)
  {
-@@ -3037,6 +3069,8 @@
+@@ -3037,6 +3069,8 @@ static int ppe_ft_flow_replace(struct pp
  	int pppoe_pushes = 0, csums = 0;
  	int iport = -1, imtu = 0, egress_core_port = -1;
  
@@ -233,7 +233,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_lock(&ft->lock);
  	topology_seq = ft->topology_seq;
  	mutex_unlock(&ft->lock);
-@@ -4118,13 +4152,18 @@
+@@ -4118,13 +4152,18 @@ add_host:
  	operation.index = -1;
  	ret = ppe_ft_resource_result(ft, PPE_FT_RES_HOST,
  				    ppe_ft_host_get(ft, &flow->entry, &operation));
@@ -253,7 +253,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (operation.index >= 0) {
  			flow->index = operation.index;
  			goto err_added_flow;
-@@ -4200,6 +4239,10 @@
+@@ -4200,6 +4239,10 @@ add_host:
  
  	return 0;
  
@@ -264,7 +264,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_added_flow:
  	/* The row is not a published owner until enable and readback both
  	 * succeed. Remove the add result directly. If that fails, preserve the
-@@ -4555,6 +4598,11 @@
+@@ -4555,6 +4598,11 @@ static int ppe_ft_flows_show(struct seq_
  		zombies++;
  	topology_seq = ft->topology_seq;
  	topology_invalidated = ft->topology_invalidated;

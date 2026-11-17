@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -3530,6 +3530,36 @@
+@@ -3530,6 +3530,36 @@ static bool ath11k_mac_supports_station_
  		chandef->chan->band == NL80211_BAND_6GHZ;
  }
  
@@ -59,25 +59,25 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_mac_op_bss_info_changed(struct ieee80211_hw *hw,
  					   struct ieee80211_vif *vif,
  					   struct ieee80211_bss_conf *info,
-@@ -3888,6 +3918,9 @@
- 			   vif->cfg.arp_addr_cnt,
+@@ -3889,6 +3919,9 @@ static void ath11k_mac_op_bss_info_chang
  			   vif->addr, arvif->arp_ns_offload.ipv4_addr);
  	}
-+
+ 
 +	if (changed & BSS_CHANGED_AP_ISOLATE)
 +		ath11k_nss_vdev_isolate(arvif, vif);
- 
++
  	mutex_unlock(&ar->conf_mutex);
  }
-@@ -7215,6 +7248,11 @@
- 	}
+ 
+@@ -7216,6 +7249,11 @@ static int ath11k_nss_vdev_register(stru
  
  	arvif->nss_ifnum = ret;
-+
+ 
 +	/* A firmware restart registers the vdev again, and its isolation
 +	 * starts over with it.
 +	 */
 +	ath11k_nss_vdev_isolate(arvif, vif);
- 
++
  	return 0;
  }
+ 

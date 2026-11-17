@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/root/usr/share/firewall4/templates/ruleset.uc
 +++ b/root/usr/share/firewall4/templates/ruleset.uc
-@@ -118,7 +118,10 @@
+@@ -118,7 +118,10 @@ table inet fw4 {
  		iif "lo" accept comment "!fw4: Accept traffic from loopback"
  
  {% fw4.includes('chain-prepend', 'input') %}
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {% if (fw4.default_option("synflood_protect") && fw4.default_option("synflood_rate")): %}
  		tcp flags & (fin | syn | rst | ack) == syn jump syn_flood comment "!fw4: Rate limit TCP syn packets"
  {% endif %}
-@@ -141,7 +144,10 @@
+@@ -141,7 +144,10 @@ table inet fw4 {
  		meta l4proto { tcp, udp } flow offload @ft;
  {% endif %}
  {% fw4.includes('chain-prepend', 'forward') %}
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {% for (let rule in fw4.rules("forward")): %}
  		{%+ include("rule.uc", { fw4, zone: (rule.src?.zone?.log_limit ? rule.src.zone : rule.dest?.zone), rule }) %}
  {% endfor %}
-@@ -160,7 +166,10 @@
+@@ -160,7 +166,10 @@ table inet fw4 {
  		oif "lo" accept comment "!fw4: Accept traffic towards loopback"
  
  {% fw4.includes('chain-prepend', 'output') %}
