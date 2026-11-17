@@ -77,6 +77,14 @@ struct nss_n2h_buffer_stats {
 
 /* Dynamic interfaces. */
 
+#define NSS_DYNAMIC_IF_START		28
+#define NSS_DYNAMIC_IF_END		156
+
+static inline bool nss_dynamic_interface_valid(s32 if_num)
+{
+	return if_num >= NSS_DYNAMIC_IF_START && if_num < NSS_DYNAMIC_IF_END;
+}
+
 #define NSS_DYNAMIC_INTERFACE_ALLOC_NODE	0
 #define NSS_DYNAMIC_INTERFACE_DEALLOC_NODE	1
 #define NSS_DYNAMIC_INTERFACE_MAX		2

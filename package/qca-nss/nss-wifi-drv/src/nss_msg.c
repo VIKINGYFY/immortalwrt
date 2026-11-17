@@ -126,6 +126,8 @@ static int nss_msg_xact(struct nss_core *core, void *msg, size_t len,
 	struct nss_if_mem_map *map = core->if_map;
 	unsigned long timeout = msecs_to_jiffies(NSS_MSG_TIMEOUT_MS);
 	struct h2n_descriptor *desc;
+	struct nss_dynamic_interface_msg *dynamic = msg;
+	bool dynamic_node;
 	u32 next;
 	int ret;
 
@@ -134,6 +136,21 @@ static int nss_msg_xact(struct nss_core *core, void *msg, size_t len,
 	if (len < sizeof(*ncm) || len > NSS_MSG_BUF_SIZE ||
 	    room < len || room > NSS_MSG_BUF_SIZE)
 		return -EMSGSIZE;
+
+	/* The dynamic-node service itself is a special interface. Its payload
+	 * must name a dynamic node, never another special or physical node.
+	 * Check all consumers here, including radio and diagnostic callers.
+	 */
+	dynamic_node = ncm->interface == NSS_INTERFACE_DYNAMIC &&
+		(ncm->type == NSS_DYNAMIC_INTERFACE_ALLOC_NODE ||
+		 ncm->type == NSS_DYNAMIC_INTERFACE_DEALLOC_NODE);
+	if (dynamic_node) {
+		if (len < sizeof(*dynamic))
+			return -EMSGSIZE;
+		if (ncm->type == NSS_DYNAMIC_INTERFACE_DEALLOC_NODE &&
+		    !nss_dynamic_interface_valid(dynamic->msg.dealloc_node.if_num))
+			return -ERANGE;
+	}
 
 	guard(mutex)(&core->msg.lock);
 
@@ -226,6 +243,14 @@ static int nss_msg_xact(struct nss_core *core, void *msg, size_t len,
 	}
 
 	memcpy(msg, core->msg.buf, room);
+
+	/* A syntactically successful ACK is not permission to address a static
+	 * firmware service as a VAP, radio, mesh, redirect or PPPoE node.
+	 * Invalid allocation replies must not reach a later deallocation.
+	 */
+	if (!ret && dynamic_node &&
+	    !nss_dynamic_interface_valid(dynamic->msg.alloc_node.if_num))
+		return -ERANGE;
 
 	return ret;
 }
