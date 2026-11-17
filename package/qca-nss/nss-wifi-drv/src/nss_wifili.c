@@ -1442,7 +1442,7 @@ int nss_wifi_vdev_security(int if_num, u32 cipher)
 	if (!ret && v->cm.error)
 		ret = -EIO;
 
-	dev_info(core->dev, "interface %d protects frames with %u\n", if_num,
+	dev_dbg(core->dev, "interface %d protects frames with %u\n", if_num,
 		 v->msg.vdev_cmd.value);
 
 	kfree(v);
@@ -1637,7 +1637,7 @@ int nss_wifi_peer_create(int id, u32 vdev_id, const u8 *mac, u16 peer_id,
 	 * or hash of zero is what an unmapped peer looks like, and a frame
 	 * built on one is dropped after the ring rather than at it.
 	 */
-	dev_info(core->dev, "peer %pM: id %u ast_idx %u ast_hash %#x vdev %u\n",
+	dev_dbg(core->dev, "peer %pM: id %u ast_idx %u ast_hash %#x vdev %u\n",
 		 mac, peer_id, hw_ast_idx, tx_ast_hash, vdev_id);
 
 	nss_wifili_peer_tbl[i].soc = soc;
@@ -1686,7 +1686,7 @@ static void nss_wifili_peer_release(struct nss_core *core, int i)
 		return;
 	}
 
-	dev_info(core->dev, "peer %pM: id %u released from vdev %u\n",
+	dev_dbg(core->dev, "peer %pM: id %u released from vdev %u\n",
 		 nss_wifili_peer_tbl[i].mac, nss_wifili_peer_tbl[i].peer_id,
 		 nss_wifili_peer_tbl[i].vdev_id);
 
@@ -1938,7 +1938,7 @@ int nss_wifi_wds_vdev_register(struct net_device *dev, struct net_device *parent
 	rcu_assign_pointer(core->iface[if_num], dev);
 	set_bit(if_num, nss_wifili_vdev_on);
 	set_bit(if_num, nss_wifili_vdev_live);
-	dev_info(core->dev, "WDS %s: interface %d parent %d peer %u\n",
+	dev_dbg(core->dev, "WDS %s: interface %d parent %d peer %u\n",
 		 dev->name, if_num, p->if_num, peer_id);
 	return if_num;
 }
