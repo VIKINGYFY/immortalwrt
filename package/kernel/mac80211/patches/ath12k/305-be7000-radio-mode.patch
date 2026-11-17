@@ -1,0 +1,124 @@
+From: zh8416 <1652191269@qq.com>
+Date: Sun, 15 Nov 2026 15:00:00 +0800
+Subject: [PATCH] wifi: ath12k: runtime 5 GHz radio mode for Xiaomi BE7000
+
+The Xiaomi BE7000 wires one QCN9274 either as a single 4x4 5 GHz radio
+(dual-band mode) or as two 2x2 radios on the 5.2/5.8 GHz sub-bands
+(tri-band mode). The RF switch GPIOs, QMI board id and radio count must
+all agree, so select them together from the be7000_dual module parameter
+at probe time. The parameter is written to /etc/modules.d/ath12k by
+luci-app-xiaomi-control and takes effect on the following reboot.
+
+Boards without xiaomi,selectable-radio-mode keep the existing DT-based
+defaults, so BE10000 and every other device are unaffected.
+
+This patch applies on top of 301-ath12k-dt-radio-identity.patch.
+
+--- a/drivers/net/wireless/ath/ath12k/mhi.c
++++ b/drivers/net/wireless/ath/ath12k/mhi.c
+@@ -8,4 +8,65 @@
+ #include <linux/of.h>
+ 
+ #include "core.h"
++#include <linux/gpio/consumer.h>
++#include <linux/module.h>
++
++/* Xiaomi BE7000 runtime radio mode. Kept here (rather than a separate
++ * translation unit) so no Makefile change is needed. pr_* is used because
++ * debug.h is included further below. */
++static int be7000_dual = -1;
++module_param(be7000_dual, int, 0444);
++MODULE_PARM_DESC(be7000_dual, "Xiaomi BE7000: 0=single 5 GHz radio, 1=two 5 GHz radios");
++
++static bool ath12k_be7000_selectable(struct ath12k_base *ab)
++{
++	return ab->dev && ab->dev->of_node &&
++	       of_property_read_bool(ab->dev->of_node,
++				     "xiaomi,selectable-radio-mode");
++}
++
++int ath12k_be7000_num_radios(struct ath12k_base *ab, u32 *num_radios)
++{
++	if (ath12k_be7000_selectable(ab)) {
++		*num_radios = (be7000_dual == 1) ? 2 : 1;
++		return 0;
++	}
++	return of_property_read_u32(ab->dev->of_node, "qcom,num-radios",
++				    num_radios);
++}
++
++int ath12k_be7000_board_id(struct ath12k_base *ab, u32 *board_id)
++{
++	if (ath12k_be7000_selectable(ab)) {
++		*board_id = (be7000_dual == 1) ? 0x1008 : 0x2;
++		return 0;
++	}
++	return of_property_read_u32(ab->dev->of_node, "qcom,board-id",
++				    board_id);
++}
++
++int ath12k_be7000_init(struct ath12k_base *ab)
++{
++	struct gpio_desc *low, *high;
++
++	if (!ath12k_be7000_selectable(ab))
++		return 0;
++	if (be7000_dual != 0 && be7000_dual != 1) {
++		pr_warn("ath12k: BE7000 radio mode not configured, using single\n");
++		be7000_dual = 0;
++	}
++
++	low = devm_gpiod_get(ab->dev, "rf-low",
++			     be7000_dual ? GPIOD_OUT_HIGH : GPIOD_OUT_LOW);
++	if (IS_ERR(low))
++		pr_warn("ath12k: BE7000 rf-low GPIO unavailable (%ld)\n", PTR_ERR(low));
++	high = devm_gpiod_get(ab->dev, "rf-high",
++			      be7000_dual ? GPIOD_OUT_LOW : GPIOD_OUT_HIGH);
++	if (IS_ERR(high))
++		pr_warn("ath12k: BE7000 rf-high GPIO unavailable (%ld)\n", PTR_ERR(high));
++
++	pr_info("ath12k: BE7000 radio mode %s\n",
++		be7000_dual ? "dual (tri-band)" : "single (dual-band)");
++	return 0;
++}
+ #include "debug.h"
+@@ -204,7 +260,8 @@ int ath12k_mhi_register(struct ath12k_pc
+ 	mhi_ctrl->rddm_size = ab->hw_params->rddm_size;
+ 
++	ath12k_be7000_init(ab);
+ 	if (ab->hw_params->otp_board_id_register) {
+-		if (of_property_read_u32(ab->dev->of_node, "qcom,board-id", &board_id)) {
++		if (ath12k_be7000_board_id(ab, &board_id)) {
+ 			board_id =
+ 				ath12k_pci_read32(ab, ab->hw_params->otp_board_id_register);
+ 			board_id = u32_get_bits(board_id, OTP_BOARD_ID_MASK);
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -2322,5 +2322,5 @@
+ 	ab->qmi.num_radios = resp.num_phy;
+-	if (!of_property_read_u32(ab->dev->of_node, "qcom,num-radios",
+-				  &num_radios) && num_radios) {
++	extern int ath12k_be7000_num_radios(struct ath12k_base *, u32 *);
++	if (!ath12k_be7000_num_radios(ab, &num_radios) && num_radios) {
+ 		num_radios = min_t(u32, num_radios, ab->hw_params->max_radios);
+ 		ab->qmi.num_radios = min_t(u8, ab->qmi.num_radios, num_radios);
+@@ -2907,6 +2908,7 @@
+ 	}
+ 
+-	if (!of_property_read_u32(dev->of_node, "qcom,board-id", &board_id))
++	extern int ath12k_be7000_board_id(struct ath12k_base *, u32 *);
++	if (!ath12k_be7000_board_id(ab, &board_id))
+ 		ab->qmi.target.board_id = board_id;
+ 	else if (resp.board_info_valid)
+ 		ab->qmi.target.board_id = resp.board_info.board_id;
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -4849,6 +4849,6 @@
+ 	svc_rdy_ext->soc_hal_reg_caps = ptr;
+ 	svc_rdy_ext->arg.num_phy = le32_to_cpu(svc_rdy_ext->soc_hal_reg_caps->num_phy);
+-	if (!of_property_read_u32(soc->dev->of_node, "qcom,num-radios",
+-				  &num_radios) && num_radios) {
++	extern int ath12k_be7000_num_radios(struct ath12k_base *, u32 *);
++	if (!ath12k_be7000_num_radios(soc, &num_radios) && num_radios) {
+ 		max_radios = min_t(u32, num_radios, soc->hw_params->max_radios);
+ 		svc_rdy_ext->arg.num_phy = min_t(u32, svc_rdy_ext->arg.num_phy,
