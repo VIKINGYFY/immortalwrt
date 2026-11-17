@@ -1,0 +1,11 @@
+#!/bin/sh /etc/rc.common
+
+# Runs after /etc/init.d/boot (START=10), which calls "/sbin/wifi config" and
+# would recreate a stale radio section, and after router-tool (START=18), so
+# the wireless layout matches the selected 5 GHz radio mode. Must stay before
+# network (START=20) so netifd starts from the corrected configuration.
+START=19
+
+start() {
+	/usr/libexec/be7000-radio boot-late || logger -t be7000-radio 'wireless preparation failed'
+}

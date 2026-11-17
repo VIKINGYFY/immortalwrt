@@ -9,7 +9,7 @@ PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_MAINTAINER:=ViKing <viking.yfy@qq.com>
 
-LUCI_TITLE:=LuCI Xiaomi fan, RGB lighting and NFC control
+LUCI_TITLE:=LuCI Xiaomi fan, RGB lighting, NFC and RF mode control
 LUCI_DEPENDS:=@TARGET_qualcommbe_ipq95xx +luci-base +rpcd-mod-file \
 	+ucode +ucode-mod-fs +ucode-mod-uci +ucode-mod-uloop +ucode-mod-ubus \
 	+kmod-hwmon-emc2305 +kmod-leds-pwm +i2c-tools +kmod-i2c-core
@@ -17,6 +17,7 @@ LUCI_PKGARCH:=all
 
 define Package/$(PKG_NAME)/conffiles
 /etc/config/xiaomi-control
+/etc/config/be7000_radio
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk

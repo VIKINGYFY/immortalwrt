@@ -1,0 +1,7 @@
+#!/bin/sh /etc/rc.common
+
+START=09
+
+start() {
+	/usr/libexec/be7000-radio boot-early || logger -t be7000-radio 'early preparation failed'
+}
