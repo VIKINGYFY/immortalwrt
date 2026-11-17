@@ -1,0 +1,172 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 17 Nov 2026 12:50:48 +0800
+Subject: [PATCH] net: ppe: add optional Direct Switch progress statistics
+
+Expose pending depth, high-water marks, pending-without-consumption
+samples, monotonic progress age, sampling intervals and IRQ sources
+through the existing DS statistics. Empty stationary rings remain idle.
+Sampling is disabled by default and never changes the ring handoff or
+polling policy.
+
+Adapt diagnostic ideas from QSDK r50 nss-ppe
+e7cbf8a718ffe57c4aff63e1951e7a676fdf97b0 to the native EDMA v2
+transport.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
+@@ -12,6 +12,7 @@
+ #include <linux/dma-direct.h>
+ #include <linux/hrtimer.h>
+ #include <linux/interrupt.h>
++#include <linux/ktime.h>
+ #include <linux/iommu.h>
+ #include <linux/module.h>
+ #include <linux/netdevice.h>
+@@ -58,6 +59,18 @@
+ };
+ module_param_cb(ds_rx_retry_us, &ppe_ds_rx_retry_ops, &ds_rx_retry_us, 0644);
+ MODULE_PARM_DESC(ds_rx_retry_us, "Direct Switch index/refill and completion poll delay (100-1000 us)");
++
++/* Optional instrumentation only: no change to ring or IRQ scheduling. */
++static bool ds_ring_stats;
++module_param(ds_ring_stats, bool, 0644);
++MODULE_PARM_DESC(ds_ring_stats, "Sample Direct Switch ring progress and interrupt sources");
++
++struct ppe_ds_ring_stats {
++	u64 last_progress_ns;
++	u64 stall_samples;
++	u32 pending, high_water;
++	u32 consecutive, longest;
++};
+ 
+ enum ppe_ds_irq {
+ 	PPE_DS_RX,
+@@ -101,6 +114,10 @@
+ 	atomic64_t down_desc, up_desc, refilled, released;
+ 	atomic64_t index_updates, refill_failures;
+ 	atomic64_t poll_retries, refill_wakes, tx_deferred;
++	atomic64_t irq_count[PPE_DS_IRQ_COUNT];
++	/* Protected by index_lock; timestamps use the monotonic clock. */
++	struct ppe_ds_ring_stats down_stats, up_stats;
++	u64 sample_ns, samples, interval[4];
+ };
+ 
+ /* Registration and supplier teardown are serialized. A registered WLAN
+@@ -180,6 +197,25 @@
+ {
+ 	return count >= 256 && is_power_of_2(count) && IS_ALIGNED(addr, 8) &&
+ 	       addr && addr <= U32_MAX - (u32)count * 32 + 1;
++}
++
++/* A stationary empty ring is idle, not stalled. Start a fresh age when
++ * work first appears; only consumer progress clears a pending-work streak.
++ */
++static void ppe_ds_ring_sample(struct ppe_ds_ring_stats *stats, u16 pending,
++			       bool progressed, u64 now)
++{
++	if (!pending || !stats->pending || progressed) {
++		stats->consecutive = 0;
++		stats->last_progress_ns = now;
++	} else {
++		stats->stall_samples++;
++		if (stats->consecutive < U32_MAX)
++			stats->consecutive++;
++		stats->longest = max(stats->longest, stats->consecutive);
++	}
++	stats->pending = pending;
++	stats->high_water = max_t(u32, stats->high_water, pending);
+ }
+ 
+ /* Called under index_lock. Ordering is between two DMA engines, not just
+@@ -204,6 +240,28 @@
+ 		if (ds->cfg.ops->fault)
+ 			ds->cfg.ops->fault(ds->cfg.priv);
+ 		return;
++	}
++
++	if (unlikely(READ_ONCE(ds_ring_stats))) {
++		u64 now = ktime_get_ns(), delta = now - ds->sample_ns;
++		u16 down = (rx_prod - tcl_cons) & (ds->cfg.ppe2tcl_count - 1);
++		u16 up = (reo_prod - tx_cons) & (ds->cfg.reo2ppe_count - 1);
++		int bucket = delta < 32000 ? 0 : delta < 250000 ? 1 :
++			     delta < 1000000 ? 2 : 3;
++
++		if (ds->sample_ns)
++			ds->interval[bucket]++;
++		ppe_ds_ring_sample(&ds->down_stats, down,
++				   tcl_cons != ds->rx_cons, now);
++		ppe_ds_ring_sample(&ds->up_stats, up,
++				   tx_cons != ds->tx_cons, now);
++		ds->sample_ns = now;
++		ds->samples++;
++	} else {
++		/* Do not count a disabled interval as a stall on re-enable. */
++		ds->sample_ns = 0;
++		ds->down_stats.pending = 0;
++		ds->up_stats.pending = 0;
+ 	}
+ 
+ 	dma_rmb();
+@@ -423,6 +481,16 @@
+ static irqreturn_t ppe_ds_interrupt(int irq, void *priv)
+ {
+ 	struct qcom_ppe_ds *ds = priv;
++
++	if (unlikely(READ_ONCE(ds_ring_stats))) {
++		int i;
++
++		for (i = 0; i < PPE_DS_IRQ_COUNT; i++)
++			if (irq == ds->provider->irqs[ds->ring - 1][i]) {
++				atomic64_inc(&ds->irq_count[i]);
++				break;
++			}
++	}
+ 
+ 	/* index_lock can lead into the WLAN PCI window lock. Taking it in
+ 	 * hard IRQ context would invert a window-lock holder interrupted here.
+@@ -1027,6 +1095,9 @@
+ {
+ 	struct ppe_ds_provider *provider = seq->private;
+ 	struct qcom_ppe_ds *ds;
++	struct ppe_ds_ring_stats down, up;
++	unsigned long flags;
++	u64 samples, intervals[4], now, down_age, up_age;
+ 	int i;
+ 
+ 	mutex_lock(&ppe_ds_lock);
+@@ -1046,6 +1117,33 @@
+ 			   atomic64_read(&ds->index_updates), atomic64_read(&ds->refill_failures),
+ 			   atomic64_read(&ds->poll_retries), atomic64_read(&ds->refill_wakes),
+ 			   atomic64_read(&ds->tx_deferred));
++		spin_lock_irqsave(&ds->index_lock, flags);
++		down = ds->down_stats;
++		up = ds->up_stats;
++		samples = ds->samples;
++		memcpy(intervals, ds->interval, sizeof(intervals));
++		spin_unlock_irqrestore(&ds->index_lock, flags);
++		now = ktime_get_ns();
++		down_age = down.pending && down.last_progress_ns ?
++			   div_u64(now - down.last_progress_ns, NSEC_PER_USEC) : 0;
++		up_age = up.pending && up.last_progress_ns ?
++			 div_u64(now - up.last_progress_ns, NSEC_PER_USEC) : 0;
++		seq_printf(seq, "  ring_stats:%u samples:%llu irq_rx:%lld irq_fill:%lld irq_complete:%lld "
++			   "interval_lt32us:%llu lt250us:%llu lt1ms:%llu ge1ms:%llu\n",
++			   READ_ONCE(ds_ring_stats), samples,
++			   atomic64_read(&ds->irq_count[PPE_DS_RX]),
++			   atomic64_read(&ds->irq_count[PPE_DS_FILL]),
++			   atomic64_read(&ds->irq_count[PPE_DS_COMPLETE]),
++			   intervals[0], intervals[1], intervals[2], intervals[3]);
++		seq_printf(seq, "  down_pending:%u down_high:%u down_stall_samples:%llu "
++			   "down_streak:%u down_longest:%u down_age_us:%llu "
++			   "up_pending:%u up_high:%u up_stall_samples:%llu "
++			   "up_streak:%u up_longest:%u up_age_us:%llu\n",
++			   down.pending, down.high_water, down.stall_samples,
++			   down.consecutive, down.longest, down_age,
++			   up.pending, up.high_water, up.stall_samples,
++			   up.consecutive, up.longest, up_age);
++
+ 	}
+ 	mutex_unlock(&ppe_ds_lock);
+ 	return 0;
