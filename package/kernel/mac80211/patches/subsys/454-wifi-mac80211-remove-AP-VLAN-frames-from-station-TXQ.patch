@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Fri, 23 Oct 2026 11:40:33 +0200
+Date: Thu, 19 Nov 2026 00:24:26 +0800
 Subject: [PATCH] wifi: mac80211: remove AP VLAN frames from station TXQs on
  ifdown
 
@@ -35,9 +35,11 @@ Fixes: 531682159092 ("mac80211: fix VLAN handling with TXQs")
 Cc: stable@vger.kernel.org
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -712,8 +712,15 @@ static void ieee80211_do_stop(struct iee
+@@ -713,8 +713,15 @@
  		ieee80211_free_txskb(&local->hw, skb);
  	}
  
@@ -56,7 +58,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		ieee80211_txq_purge(sdata->local, to_txq_info(sdata->vif.txq));
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -1506,38 +1506,129 @@ static void ieee80211_txq_enqueue(struct
+@@ -1506,38 +1506,129 @@
  	spin_unlock_bh(&fq->lock);
  }
  

@@ -2019,7 +2019,6 @@ static int edma_ndo_open(struct net_device *netdev)
 		prod = edma_idx_read(priv, EDMA_REG_RXDESC_PROD_IDX(q->rxdesc));
 		q->stats.rx_pending_reopen += (prod - q->rxdesc_cons) &
 					    (q->rxdesc_ring.count - 1);
-		netdev_tx_reset_queue(netdev_get_tx_queue(netdev, i));
 		napi_enable(&q->napi);
 	}
 

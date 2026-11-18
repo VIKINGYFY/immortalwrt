@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 25 Oct 2026 16:44:33 +0100
+Date: Thu, 19 Nov 2026 00:24:26 +0800
 Subject: [PATCH] wifi: mac80211: do not send an off-channel frame after the ROC expired
 
 ieee80211_ready_on_channel() and ieee80211_remain_on_channel_expired()
@@ -30,9 +30,11 @@ followed by the expiry.
 Fixes: 90fc4b3a5ba2 ("mac80211: implement off-channel TX using hw r-o-c offload")
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1768,6 +1768,7 @@ struct ieee80211_local {
+@@ -1779,6 +1779,7 @@
  	struct list_head roc_list;
  	struct wiphy_work hw_roc_start, hw_roc_done;
  	unsigned long hw_roc_start_time;
@@ -42,7 +44,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct idr ack_status_frames;
 --- a/net/mac80211/offchannel.c
 +++ b/net/mac80211/offchannel.c
-@@ -262,6 +262,7 @@ static void ieee80211_hw_roc_start(struc
+@@ -262,6 +262,7 @@
  {
  	struct ieee80211_local *local =
  		container_of(work, struct ieee80211_local, hw_roc_start);
@@ -50,7 +52,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct ieee80211_roc_work *roc;
  
  	lockdep_assert_wiphy(local->hw.wiphy);
-@@ -271,6 +272,11 @@ static void ieee80211_hw_roc_start(struc
+@@ -271,6 +272,11 @@
  			break;
  
  		roc->hw_begun = true;
@@ -62,7 +64,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		ieee80211_handle_roc_started(roc, local->hw_roc_start_time);
  	}
  }
-@@ -319,8 +325,11 @@ static void _ieee80211_start_next_roc(st
+@@ -319,8 +325,11 @@
  	}
  
  	if (local->ops->remain_on_channel) {
@@ -76,7 +78,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  		if (ret) {
  			wiphy_warn(local->hw.wiphy,
-@@ -512,6 +521,7 @@ void ieee80211_remain_on_channel_expired
+@@ -512,6 +521,7 @@
  
  	trace_api_remain_on_channel_expired(local);
  
@@ -84,7 +86,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	wiphy_work_queue(hw->wiphy, &local->hw_roc_done);
  }
  EXPORT_SYMBOL_GPL(ieee80211_remain_on_channel_expired);
-@@ -533,6 +543,9 @@ ieee80211_coalesce_hw_started_roc(struct
+@@ -533,6 +543,9 @@
  	if (!cur_roc->hw_begun && new_roc->duration > cur_roc->duration)
  		return false;
  
@@ -94,7 +96,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	remaining = cur_roc->start_time +
  		    msecs_to_jiffies(cur_roc->duration) -
  		    now;
-@@ -625,6 +638,7 @@ static int ieee80211_start_roc_work(stru
+@@ -625,6 +638,7 @@
  			/* otherwise actually kick it off here
  			 * (for error handling)
  			 */

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 27 Sep 2026 23:55:00 +0200
+Date: Thu, 19 Nov 2026 00:22:57 +0800
 Subject: [PATCH] wifi: mac80211_hwsim: let mac80211 monitor the connection of an MLO station
 
 An MLO radio declares CONNECTION_MONITOR, which stops mac80211's beacon
@@ -11,10 +11,12 @@ mac80211 monitors the active links of an MLD station, so leave the flag
 out and let it.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/wireless/virtual/mac80211_hwsim_main.c
 +++ b/drivers/net/wireless/virtual/mac80211_hwsim_main.c
-@@ -6076,7 +6076,6 @@ static int mac80211_hwsim_new_radio(stru
+@@ -6309,7 +6309,6 @@
  		hw->wiphy->flags |= WIPHY_FLAG_SUPPORTS_MLO;
  		ieee80211_hw_set(hw, HAS_RATE_CONTROL);
  		ieee80211_hw_set(hw, SUPPORTS_DYNAMIC_PS);

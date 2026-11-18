@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 19:49:50 +0800
+Date: Thu, 19 Nov 2026 00:24:27 +0800
 Subject: [PATCH] wifi: mac80211: preserve offloaded AP VLAN interfaces
 
 Add an opt-in AP VLAN offload contract, preserve VLAN identity through all
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -3128,6 +3128,9 @@ struct ieee80211_txq {
+@@ -3128,6 +3128,9 @@
   *	aggregating MPDUs with the same keyid, allowing mac80211 to keep Tx
   *	A-MPDU sessions active while rekeying with Extended Key ID.
   *
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @IEEE80211_HW_SUPPORTS_TX_ENCAP_OFFLOAD: Hardware supports tx encapsulation
   *	offload
   *
-@@ -3214,6 +3217,7 @@ enum ieee80211_hw_flags {
+@@ -3231,6 +3234,7 @@
  	IEEE80211_HW_SUPPORTS_MULTI_BSSID,
  	IEEE80211_HW_SUPPORTS_ONLY_HE_MULTI_BSSID,
  	IEEE80211_HW_AMPDU_KEYBORDER_SUPPORT,
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	IEEE80211_HW_SUPPORTS_TX_ENCAP_OFFLOAD,
  	IEEE80211_HW_SUPPORTS_RX_DECAP_OFFLOAD,
  	IEEE80211_HW_SUPPORTS_CONC_MON_RX_DECAP,
-@@ -5722,6 +5726,16 @@ static inline int ieee80211_sta_ps_trans
+@@ -5741,6 +5745,16 @@
   * and possibly ieee80211_sta_uapsd_trigger(); calls to all three must
   * be serialized.
   */
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -2812,7 +2812,9 @@ static int ieee80211_set_sta_4addr(struc
+@@ -2918,7 +2918,9 @@
  
  	rcu_assign_pointer(sdata->u.vlan.sta, sta);
  	__ieee80211_check_fast_rx_iface(sdata);
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -2886,8 +2888,11 @@ static int ieee80211_change_station(stru
+@@ -2992,8 +2994,11 @@
  		}
  
  		if (sta->sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ieee80211_vif_dec_num_mcast(sta->sdata);
 --- a/net/mac80211/debugfs.c
 +++ b/net/mac80211/debugfs.c
-@@ -474,6 +474,7 @@ static const char *hw_flag_names[] = {
+@@ -474,6 +474,7 @@
  	FLAG(SUPPORTS_MULTI_BSSID),
  	FLAG(SUPPORTS_ONLY_HE_MULTI_BSSID),
  	FLAG(AMPDU_KEYBORDER_SUPPORT),
@@ -97,7 +97,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	FLAG(SUPPORTS_CONC_MON_RX_DECAP),
 --- a/net/mac80211/driver-ops.c
 +++ b/net/mac80211/driver-ops.c
-@@ -62,7 +62,8 @@ int drv_add_interface(struct ieee80211_l
+@@ -62,7 +62,8 @@
  	might_sleep();
  	lockdep_assert_wiphy(local->hw.wiphy);
  
@@ -109,7 +109,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		     !ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR) &&
 --- a/net/mac80211/driver-ops.h
 +++ b/net/mac80211/driver-ops.h
-@@ -499,6 +499,7 @@ static inline void drv_vif_add_debugfs(s
+@@ -499,6 +499,7 @@
  	might_sleep();
  
  	if (sdata->vif.type == NL80211_IFTYPE_MONITOR ||
@@ -117,7 +117,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    WARN_ON(!sdata->vif.debugfs_dir))
  		return;
  
-@@ -1675,7 +1676,8 @@ static inline void drv_sta_set_4addr(str
+@@ -1675,7 +1676,8 @@
  				     struct ieee80211_sub_if_data *sdata,
  				     struct ieee80211_sta *sta, bool enabled)
  {
@@ -129,7 +129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	lockdep_assert_wiphy(local->hw.wiphy);
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -620,7 +620,6 @@ static void ieee80211_do_stop(struct iee
+@@ -620,7 +620,6 @@
  		RCU_INIT_POINTER(sdata->vif.bss_conf.chanctx_conf, NULL);
  		/* see comment in the default case below */
  		ieee80211_free_keys(sdata, true);
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
  	case NL80211_IFTYPE_MONITOR:
  		local->monitors--;
-@@ -753,6 +752,8 @@ static void ieee80211_do_stop(struct iee
+@@ -754,6 +753,8 @@
  
  	switch (sdata->vif.type) {
  	case NL80211_IFTYPE_AP_VLAN:
@@ -146,7 +146,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
  	case NL80211_IFTYPE_MONITOR:
  		if (local->virt_monitors == 0)
-@@ -1507,6 +1508,11 @@ int ieee80211_do_open(struct wireless_de
+@@ -1509,6 +1510,11 @@
  				ieee80211_link_vlan_copy_chanctx(link);
  			}
  
@@ -160,7 +160,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		} else {
 --- a/net/mac80211/rx.c
 +++ b/net/mac80211/rx.c
-@@ -1807,6 +1807,21 @@ void ieee80211_sta_uapsd_trigger(struct
+@@ -1843,6 +1843,21 @@
  }
  EXPORT_SYMBOL(ieee80211_sta_uapsd_trigger);
  
@@ -184,7 +184,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -1916,8 +1916,9 @@ static bool __ieee80211_tx(struct ieee80
+@@ -1916,8 +1916,9 @@
  			vif = NULL;
  		break;
  	case NL80211_IFTYPE_AP_VLAN:
@@ -196,7 +196,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		fallthrough;
  	default:
  		vif = &sdata->vif;
-@@ -3947,7 +3948,8 @@ void __ieee80211_xmit_fast(struct ieee80
+@@ -3950,7 +3951,8 @@
  		goto free;
  	}
  
@@ -206,7 +206,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		sdata = container_of(sdata->bss,
  				     struct ieee80211_sub_if_data, u.ap);
  
-@@ -4232,8 +4234,9 @@ begin:
+@@ -4236,8 +4238,9 @@
  		}
  		break;
  	case NL80211_IFTYPE_AP_VLAN:
@@ -218,7 +218,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		fallthrough;
  	default:
  		vif = &tx.sdata->vif;
-@@ -4958,7 +4961,8 @@ static void ieee80211_8023_xmit(struct i
+@@ -4963,7 +4966,8 @@
  
  	info->hw_queue = sdata->vif.hw_queue[queue];
  
@@ -230,7 +230,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/mac80211/util.c
 +++ b/net/mac80211/util.c
-@@ -1719,6 +1719,9 @@ static void ieee80211_assign_chanctx(str
+@@ -1719,6 +1719,9 @@
  
  	lockdep_assert_wiphy(local->hw.wiphy);
  
@@ -240,7 +240,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	conf = rcu_dereference_protected(link->conf->chanctx_conf,
  					 lockdep_is_held(&local->hw.wiphy->mtx));
  	if (conf) {
-@@ -1746,10 +1749,32 @@ static void ieee80211_reconfig_stations(
+@@ -1746,10 +1749,32 @@
  			WARN_ON(drv_sta_state(local, sta->sdata, sta, state,
  					      state + 1));
  
@@ -273,7 +273,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int
  ieee80211_reconfig_nan_offload_de(struct ieee80211_sub_if_data *sdata)
  {
-@@ -2009,7 +2034,8 @@ int ieee80211_reconfig(struct ieee80211_
+@@ -2009,7 +2034,8 @@
  		/* These vifs can't be added before NAN was started */
  		if (sdata->vif.type == NL80211_IFTYPE_NAN_DATA)
  			continue;
@@ -283,7 +283,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    ieee80211_sdata_running(sdata)) {
  			res = drv_add_interface(local, sdata);
  			if (WARN_ON(res))
-@@ -2028,7 +2054,8 @@ int ieee80211_reconfig(struct ieee80211_
+@@ -2028,7 +2054,8 @@
  				continue;
  			if (sdata->vif.type == NL80211_IFTYPE_NAN_DATA)
  				continue;
@@ -293,7 +293,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			    ieee80211_sdata_running(sdata))
  				drv_remove_interface(local, sdata);
  		}
-@@ -2269,6 +2296,8 @@ int ieee80211_reconfig(struct ieee80211_
+@@ -2270,6 +2297,8 @@
  	list_for_each_entry(sdata, &local->interfaces, list)
  		ieee80211_reenable_keys(sdata);
  

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Thu, 1 Oct 2026 22:24:19 +0200
+Date: Thu, 19 Nov 2026 00:22:58 +0800
 Subject: [PATCH] wifi: mac80211_hwsim: free a frame whose rate is wider than
  the channel
 
@@ -9,13 +9,12 @@ the skb and the frame never gets a TX status. Free it as the other drop
 paths of the function do.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
- drivers/net/wireless/virtual/mac80211_hwsim_main.c | 4 +++-
- 1 file changed, 3 insertions(+), 1 deletion(-)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/virtual/mac80211_hwsim_main.c
 +++ b/drivers/net/wireless/virtual/mac80211_hwsim_main.c
-@@ -2457,8 +2457,10 @@ static void mac80211_hwsim_tx(struct iee
+@@ -2474,8 +2474,10 @@
  		else if (rflags & IEEE80211_TX_RC_160_MHZ_WIDTH)
  			bw = NL80211_CHAN_WIDTH_160;
  

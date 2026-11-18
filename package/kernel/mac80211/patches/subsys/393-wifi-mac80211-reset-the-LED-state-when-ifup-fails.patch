@@ -1,6 +1,5 @@
-From 78183e8331958fda11cd2b6850bb424a9747c4b2 Mon Sep 17 00:00:00 2001
 From: Johannes Berg <johannes.berg@intel.com>
-Date: Fri, 4 Sep 2026 16:57:13 +0200
+Date: Thu, 19 Nov 2026 00:22:57 +0800
 Subject: [PATCH] wifi: mac80211: reset the LED state when ifup fails
 
 When the first interface comes up, the radio LED is turned on. This can
@@ -25,11 +24,12 @@ Reported-by: syzbot+e84ecca6d1fa09a9b3d9@syzkaller.appspotmail.com
 Closes: https://syzkaller.appspot.com/bug?extid=e84ecca6d1fa09a9b3d9
 Link: https://patch.msgid.link/20260904165722.044aa432f873.I601a67a2cd558b8ef8416a07554ae7efe896e9d8@changeid
 Signed-off-by: Johannes Berg <johannes.berg@intel.com>
----
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -1610,8 +1610,12 @@ int ieee80211_do_open(struct wireless_de
+@@ -1611,8 +1611,12 @@
   err_del_interface:
  	drv_remove_interface(local, sdata);
   err_stop:

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 26 Sep 2026 22:00:00 +0200
+Date: Thu, 19 Nov 2026 00:22:57 +0800
 Subject: [PATCH] wifi: mac80211_hwsim: keep radar detection on a multi-radio wiphy
 
 A radio that uses channel contexts gets no radar detection widths in its
@@ -23,11 +23,13 @@ them in the per-radio combination too, which cfg80211 would refuse
 otherwise.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/wireless/virtual/mac80211_hwsim_main.c
 +++ b/drivers/net/wireless/virtual/mac80211_hwsim_main.c
-@@ -6099,8 +6099,14 @@ static int mac80211_hwsim_new_radio(stru
- 		data->if_combination.num_different_channels *= n_bands;
+@@ -6320,8 +6320,14 @@
+ 		data->if_combination.num_different_channels *= data->n_radio;
  	}
  
 -	if (data->use_chanctx)

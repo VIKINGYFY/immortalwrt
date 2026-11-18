@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Wed, 11 Nov 2026 12:15:55 +0800
+Date: Thu, 19 Nov 2026 00:26:06 +0800
 Subject: [PATCH] AP: Learn the OBSS colours from received Beacon frames
 
 hostapd adds an OBSS colour to the set of the radio only from the
@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -6042,9 +6042,10 @@ void hostapd_switch_color_timeout_handle
+@@ -6045,9 +6045,10 @@
  
  
  /* The colours of the OBSSs around the radio, which the kernel's BSS colour
@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * - the kernel repeats an event every 500 ms while it hears the colliding
   *   OBSS, and hostapd judges a collision persistent within
   *   DOT11BSS_COLOR_COLLISION_AP_PERIOD + 10 s;
-@@ -6141,6 +6142,30 @@ void hostapd_bss_colors_collision_event(
+@@ -6144,6 +6145,30 @@
  				      BSS_COLOR_EVENT_AGE);
  }
  
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void hostapd_bss_colors_collision_report(struct hostapd_iface *iface,
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -920,6 +920,7 @@ void hostapd_bss_colors_collision_event(
+@@ -920,6 +920,7 @@
  					u64 bitmap);
  void hostapd_bss_colors_collision_report(struct hostapd_iface *iface,
  					 u64 bitmap);
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void hostapd_cleanup_cca_params(struct hostapd_data *hapd);
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9663,6 +9663,28 @@ static void handle_deauth(struct hostapd
+@@ -9663,6 +9663,28 @@
  }
  
  
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void handle_beacon(struct hostapd_data *hapd,
  			  const struct ieee80211_mgmt *mgmt, size_t len,
  			  struct hostapd_frame_info *fi)
-@@ -9684,6 +9706,10 @@ static void handle_beacon(struct hostapd
+@@ -9684,6 +9706,10 @@
  					     sizeof(mgmt->u.beacon)), &elems,
  				      0);
  

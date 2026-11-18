@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 26 Sep 2026 14:00:00 +0200
+Date: Thu, 19 Nov 2026 00:22:57 +0800
 Subject: [PATCH] wifi: mac80211_hwsim: reserve headroom for software encryption
 
 mac80211_hwsim accepts CCMP and GCMP keys in mac80211_hwsim_set_key()
@@ -20,10 +20,12 @@ Reserve the header as driver headroom. IEEE80211_CCMP_HDR_LEN,
 IEEE80211_CCMP_256_HDR_LEN and IEEE80211_GCMP_HDR_LEN are all 8 bytes.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/wireless/virtual/mac80211_hwsim_main.c
 +++ b/drivers/net/wireless/virtual/mac80211_hwsim_main.c
-@@ -5913,6 +5913,7 @@ static int mac80211_hwsim_new_radio(stru
+@@ -6146,6 +6146,7 @@
  
  	hw->queues = 5;
  	hw->offchannel_tx_hw_queue = 4;

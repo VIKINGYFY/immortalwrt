@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 26 Jun 2022 11:43:25 +0200
+Date: Thu, 19 Nov 2026 00:22:57 +0800
 Subject: [PATCH] mac80211: increase quantum for airtime scheduler
 
 Given the typical AQL budget and queue length, a quantum of 256 with the
@@ -8,11 +8,12 @@ until one of them becomes eligible.
 Improve performance by using 8 times station weight as scheduler quantum
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -112,6 +112,8 @@ ieee80211_sta_keep_active(struct sta_inf
+@@ -123,6 +123,8 @@
  	return time_before_eq(jiffies, sta->airtime[ac].last_active + HZ / 10);
  }
  
@@ -23,7 +24,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -4207,7 +4207,7 @@ struct ieee80211_txq *ieee80211_next_txq
+@@ -4207,7 +4207,7 @@
  
  		if (deficit < 0)
  			sta->airtime[txqi->txq.ac].deficit +=
@@ -32,7 +33,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  		if (deficit < 0 || !aql_check) {
  			list_move_tail(&txqi->schedule_order,
-@@ -4352,7 +4352,8 @@ bool ieee80211_txq_may_transmit(struct i
+@@ -4352,7 +4352,8 @@
  		}
  		sta = container_of(iter->txq.sta, struct sta_info, sta);
  		if (ieee80211_sta_deficit(sta, ac) < 0)
@@ -42,7 +43,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		list_move_tail(&iter->schedule_order, &local->active_txqs[ac]);
  	}
  
-@@ -4360,7 +4361,7 @@ bool ieee80211_txq_may_transmit(struct i
+@@ -4360,7 +4361,7 @@
  	if (sta->airtime[ac].deficit >= 0)
  		goto out;
  
