@@ -69,8 +69,7 @@ try {
 	let before = configuration(uci);
 	let changed = [];
 	let ap = uci.get('router-tool', 'main', 'ap_mode') == '1';
-	let missing_snapshot = ap && !uci.get('router-tool', 'main', 'ap_state');
-	if (missing_snapshot) {
+	if (ap && !uci.get('router-tool', 'main', 'ap_state')) {
 		let marker = '/var/run/router-tool-ap-warning';
 		// Interface events may be frequent; warn at most once per boot.
 		if (!stat(marker)) {
@@ -141,12 +140,11 @@ try {
 		changed = commit(pending);
 	}
 	let mode = ap ? 'ap' : uci.get('network', 'wan', 'proto') == 'pppoe' ? 'main' : 'sub';
-	let status = sprintf('%J', { mode: missing_snapshot ? 'ap-pending' : mode,
+	let status = sprintf('%J', { mode,
 		lan_proto: uci.get('network', 'lan', 'proto'), lan_address: uci.get('network', 'lan', 'ipaddr') });
 	if (readfile('/var/run/router-tool-status') != status) {
-		if (!missing_snapshot)
-			syslog(LOG_INFO, '%s', sprintf('Configuration mode: %s; LAN protocol: %s; LAN IPv4: %s',
-				mode, uci.get('network', 'lan', 'proto'), format_addresses(uci.get('network', 'lan', 'ipaddr'))));
+		syslog(LOG_INFO, '%s', sprintf('Configuration mode: %s; LAN protocol: %s; LAN IPv4: %s',
+			mode, uci.get('network', 'lan', 'proto'), format_addresses(uci.get('network', 'lan', 'ipaddr'))));
 		writefile('/var/run/router-tool-status', status);
 	}
 	if (readfile('/var/run/router-tool-log-error'))

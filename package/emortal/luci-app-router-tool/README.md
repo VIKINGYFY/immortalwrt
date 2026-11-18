@@ -39,6 +39,18 @@ the wifi-scripts generator's untouched-AP values intact, so custom build
 credentials do not suppress channel, bandwidth, country, and security defaults.
 Keep this configuration private when using a private Wi-Fi password.
 
+## Saving and applying network presets
+
+Router Tool remembers the committed values when a LuCI session saves its
+network form. Checked and unchecked LuCI Apply compare the session's pending
+edits with the current values. This includes Apply from the pending changes
+dialog. A conflict leaves the draft available to review or revert. Disjoint
+edits from other sessions are preserved.
+
+Relay AP mode requests its management address from the upstream router. Use
+the assigned address to reconnect. Checked Apply restores the previous
+configuration if LuCI cannot confirm the change before the timer expires.
+
 ## Configuration migration
 
 `/etc/uci-defaults/90-router-tool-migrate` owns historical settings and snapshot
