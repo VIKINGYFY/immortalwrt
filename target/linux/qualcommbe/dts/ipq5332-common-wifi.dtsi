@@ -4,6 +4,19 @@
  * Q6. M3, CALDB and the group's shared MLO pool are allocated on demand.
  */
 
+/ {
+	reserved-memory {
+		/* The Q6 WLAN_SRAM pool ends at 0x80000000, also with more RAM. */
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0x0 0x08000000>;
+			alloc-ranges = <0x0 0x4b240000 0x0 0x34dc0000>;
+			linux,cma-default;
+		};
+	};
+};
+
 &pcie1 {
 	status = "okay";
 

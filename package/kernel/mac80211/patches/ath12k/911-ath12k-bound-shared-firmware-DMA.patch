@@ -1,0 +1,80 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 18 Nov 2026 11:19:42 +0800
+Subject: [PATCH] wifi: ath12k: validate the IPQ5332 firmware memory window
+
+The IPQ5332 WBE.1.6 Q6 maps dynamic shared memory through WLAN_SRAM at
+[0x4b240000, 0x80000000). A low CMA area supplies the firmware buffers
+even on RAM-upgraded boards. Keep the AHB driver's existing 32-bit DMA
+mask, as the direct DMA layer rejects a 31-bit mask when ZONE_DMA
+extends above 2 GiB, regardless of the placement of CMA.
+
+Check dynamic buffers before returning them to Q6, including the shared
+MLO pool when a PCIe partner makes the first request. Use the existing
+allocation and release device for both mixed and PCI-only groups.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -18,6 +18,8 @@
+ #define HOST_CSTATE_BIT			0x04
+ #define PLATFORM_CAP_PCIE_GLOBAL_RESET	0x08
+ #define ATH12K_QMI_MAX_CHUNK_SIZE	2097152
++#define ATH12K_QMI_IPQ5332_FW_MEM_START	0x4b240000ULL
++#define ATH12K_QMI_IPQ5332_FW_MEM_END	0x80000000ULL
+ 
+ static const struct qmi_elem_info wlfw_host_mlo_chip_info_s_v01_ei[] = {
+ 	{
+@@ -2838,6 +2840,29 @@
+ 	}
+ }
+ 
++static bool ath12k_qmi_needs_ipq5332_window(struct ath12k_base *ab, u32 type)
++{
++	struct ath12k_hw_group *ag = ab->ag;
++	struct ath12k_base *partner;
++	int i;
++
++	if (ab->hw_rev == ATH12K_HW_IPQ5332_HW10)
++		return true;
++
++	if (type != MLO_GLOBAL_MEM_REGION_TYPE)
++		return false;
++
++	lockdep_assert_held(&ag->mutex);
++
++	for (i = 0; i < ag->num_devices; i++) {
++		partner = ag->ab[i];
++		if (partner && partner->hw_rev == ATH12K_HW_IPQ5332_HW10)
++			return true;
++	}
++
++	return false;
++}
++
+ static int ath12k_qmi_alloc_chunk(struct ath12k_base *ab,
+ 				  struct target_mem_chunk *chunk)
+ {
+@@ -2878,6 +2903,22 @@
+ 	chunk->prev_type = chunk->type;
+ 	chunk->prev_size = chunk->size;
+ 	chunk->dma_allocated = true;
++
++	/*
++	 * CMA normally supplies these buffers. Check the entire range before
++	 * sending a QMI response in case DMA allocation fell back to other RAM.
++	 */
++	if (ath12k_qmi_needs_ipq5332_window(ab, chunk->type) &&
++	    (chunk->paddr < ATH12K_QMI_IPQ5332_FW_MEM_START ||
++	     chunk->paddr >= ATH12K_QMI_IPQ5332_FW_MEM_END ||
++	     chunk->size > ATH12K_QMI_IPQ5332_FW_MEM_END - chunk->paddr)) {
++		ath12k_warn(ab,
++			    "firmware memory type %u addr %pad size %u outside Q6 WLAN_SRAM\n",
++			    chunk->type, &chunk->paddr, chunk->size);
++		ath12k_qmi_free_dma_chunk(ab, chunk);
++		return -ERANGE;
++	}
++
+ 	if (test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags) &&
+ 	    (chunk->type == M3_DUMP_REGION_TYPE ||
+ 	     chunk->type == CALDB_MEM_REGION_TYPE))
