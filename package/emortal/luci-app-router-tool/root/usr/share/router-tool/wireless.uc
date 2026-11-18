@@ -131,16 +131,15 @@ export function synchronize_wireless(uci, board) {
 		// PHY capabilities may arrive after the first boot event. Retry when
 		// they are available instead of permanently skipping the defaults.
 		if (!caps) continue;
-		let suffix, channel, width = band == '2G' ? 20 : caps.width;
-		if (band == '2G') { suffix = '2.4G'; channel = '1'; }
-		else if (band == '6G') { suffix = '6G'; channel = 'auto'; }
-		else if (caps.first_channel >= 100) { suffix = '5.8G'; channel = 'auto'; }
-		else if (caps.width == 80) { suffix = '5.8G'; channel = 'auto'; }
-		else { suffix = '5.2G'; channel = 'auto'; }
+		let suffix, width = band == '2G' ? 20 : caps.width;
+		if (band == '2G') suffix = '2.4G';
+		else if (band == '6G') suffix = '6G';
+		else if (caps.first_channel >= 100 || caps.width == 80) suffix = '5.8G';
+		else suffix = '5.2G';
 		let mode = htmode(caps, width);
 		if (!mode) { mark_done(radio['.name']); continue; }
 		load_defaults();
-		set('wireless', radio['.name'], { country: 'US', channel, htmode: mode });
+		set('wireless', radio['.name'], { country: 'US', channel: 'auto', htmode: mode });
 		for (let ap in aps)
 			set('wireless', ap['.name'], { ssid: default_ssid(uci, board, suffix, custom_ssid), key: custom_key, encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
 		mark_done(radio['.name']);
