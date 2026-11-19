@@ -477,7 +477,8 @@ static int ppe_offload_show(struct seq_file *s, void *data)
 		   priv->flow_op_result_rejected);
 	seq_printf(s, "%-24s %u\n", "xmit_drop",
 		   atomic_read(&priv->flow_xmit_drop));
-	seq_printf(s, "flow_xmit_stale %u\n", atomic_read(&priv->flow_xmit_stale));
+	seq_printf(s, "%-24s %u\n", "xmit_stale",
+		   atomic_read(&priv->flow_xmit_stale));
 	seq_printf(s, "%-24s %u\n", "shaper_miss",
 		   atomic_read(&priv->flow_shaper_miss));
 	seq_printf(s, "%-24s %u\n", "shaper_busy",

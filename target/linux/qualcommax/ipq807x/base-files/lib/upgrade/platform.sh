@@ -38,7 +38,8 @@ platform_check_image() {
 
 platform_pre_upgrade() {
 	case "$(board_name)" in
-	asus,rt-ax89x)
+	asus,rt-ax89x-b1|\
+	asus,rt-ax89x-b2)
 		asus_initial_setup
 		;;
 	redmi,ax6|\
@@ -82,7 +83,8 @@ platform_do_upgrade() {
 		CI_UBIPART="rootfs"
 		nand_do_upgrade "$1"
 		;;
-	asus,rt-ax89x)
+	asus,rt-ax89x-b1|\
+	asus,rt-ax89x-b2)
 		CI_UBIPART="UBI_DEV"
 		CI_KERNPART="linux"
 		CI_ROOTPART="jffs2"

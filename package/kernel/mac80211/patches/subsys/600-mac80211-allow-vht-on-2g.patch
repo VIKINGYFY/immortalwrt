@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Thu, 8 Oct 2026 21:19:52 +0800
+Date: Thu, 19 Nov 2026 00:24:26 +0800
 Subject: [PATCH] wifi: mac80211: allow 2 GHz VHT without ignoring disabled channels
 
 
@@ -7,10 +7,10 @@ Keep disabled-channel checks on every band. Only the private 2 GHz VHT
 policy may bypass NO_80MHZ; use logical conditions rather than masking flags
 with a boolean.
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/net/mac80211/mlme.c
 +++ b/net/mac80211/mlme.c
-@@ -6601,8 +6601,9 @@ ieee80211_determine_our_sta_mode(struct
+@@ -6597,8 +6597,9 @@
  
  		/* Allow VHT if at least one channel on the sband supports 80 MHz */
  		for (i = 0; i < sband->n_channels; i++) {
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			have_80mhz = true;
 --- a/net/mac80211/util.c
 +++ b/net/mac80211/util.c
-@@ -1378,8 +1378,9 @@ static int ieee80211_put_preq_ies_band(s
+@@ -1378,8 +1378,9 @@
  
  	/* Check if any channel in this sband supports at least 80 MHz */
  	for (i = 0; i < sband->n_channels; i++) {
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		have_80mhz = true;
 --- a/net/mac80211/vht.c
 +++ b/net/mac80211/vht.c
-@@ -142,8 +142,9 @@ ieee80211_vht_cap_ie_to_sta_vht_cap(stru
+@@ -142,8 +142,9 @@
  		bool have_80mhz = false;
  
  		for (i = 0; i < sband->n_channels; i++) {

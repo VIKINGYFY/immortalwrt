@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 04:20:07 +0200
+Date: Thu, 19 Nov 2026 00:24:26 +0800
 Subject: [PATCH] wifi: mac80211: follow the station links on its 4-address AP
  VLAN
 
@@ -26,9 +26,11 @@ ieee80211_set_sta_4addr() does.
 Fixes: 469d5d5a3b7a ("wifi: mac80211: synchronize valid links for WDS AP_VLAN interfaces")
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -2790,13 +2790,7 @@ static int ieee80211_set_sta_4addr(struc
+@@ -2790,13 +2790,7 @@
  				   struct ieee80211_sub_if_data *sdata,
  				   struct sta_info *sta)
  {
@@ -42,7 +44,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	int err;
  
  	lockdep_assert_wiphy(local->hw.wiphy);
-@@ -2804,38 +2798,16 @@ static int ieee80211_set_sta_4addr(struc
+@@ -2804,38 +2798,16 @@
  	if (sdata->u.vlan.sta)
  		return -EBUSY;
  
@@ -85,7 +87,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  
  	rcu_assign_pointer(sdata->u.vlan.sta, sta);
-@@ -6006,14 +5978,19 @@ ieee80211_add_link_station(struct wiphy
+@@ -6006,14 +5978,19 @@
  	if (sta->sta.valid_links & BIT(params->link_id))
  		return -EALREADY;
  
@@ -107,7 +109,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  
  	if (test_sta_flag(sta, WLAN_STA_ASSOC)) {
-@@ -6024,7 +6001,11 @@ ieee80211_add_link_station(struct wiphy
+@@ -6024,7 +6001,11 @@
  	}
  
  	/* ieee80211_sta_activate_link frees the link upon failure */
@@ -120,7 +122,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  static int
-@@ -6069,6 +6050,7 @@ ieee80211_del_link_station(struct wiphy
+@@ -6069,6 +6050,7 @@
  		return -EINVAL;
  
  	ieee80211_sta_remove_link(sta, params->link_id);
@@ -130,7 +132,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -2300,6 +2300,9 @@ static inline void ieee80211_vif_clear_l
+@@ -2311,6 +2311,9 @@
  
  void ieee80211_apvlan_link_setup(struct ieee80211_sub_if_data *sdata);
  void ieee80211_apvlan_link_clear(struct ieee80211_sub_if_data *sdata);

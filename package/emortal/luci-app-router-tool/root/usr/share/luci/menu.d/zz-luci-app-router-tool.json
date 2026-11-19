@@ -7,5 +7,50 @@
 		"depends": {
 			"acl": [ "luci-mod-network-config", "luci-app-router-tool" ]
 		}
+	},
+	"admin/uci/router_tool_prepare": {
+		"action": {
+			"type": "function",
+			"module": "luci.controller.admin.router_tool",
+			"function": "action_prepare_save",
+			"post": true
+		},
+		"depends": {
+			"acl": [ "luci-mod-network-config", "luci-app-router-tool" ]
+		},
+		"auth": {
+			"methods": [ "cookie:sysauth_https", "cookie:sysauth_http" ]
+		}
+	},
+	"admin/uci/apply_rollback": {
+		"action": {
+			"type": "function",
+			"module": "luci.controller.admin.router_tool",
+			"function": "action_apply_rollback",
+			"post": true
+		}
+	},
+	"admin/uci/apply_unchecked": {
+		"action": {
+			"type": "function",
+			"module": "luci.controller.admin.router_tool",
+			"function": "action_apply_unchecked",
+			"post": true
+		}
+	},
+	"admin/uci/confirm": {
+		"action": {
+			"type": "function",
+			"module": "luci.controller.admin.router_tool",
+			"function": "action_confirm"
+		}
+	},
+	"admin/uci/revert": {
+		"action": {
+			"type": "function",
+			"module": "luci.controller.admin.router_tool",
+			"function": "action_revert",
+			"post": true
+		}
 	}
 }

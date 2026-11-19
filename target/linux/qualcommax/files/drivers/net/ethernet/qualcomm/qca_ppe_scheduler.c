@@ -2069,7 +2069,9 @@ static void __ppe_port_queue_limit_set_txn(struct qca_ppe_priv *priv, int port,
 		}
 	}
 
-	/* A class sum must fit both the admission field and the physical pool. */
+	/* Twelve class depths at the ceiling are more than the queue manager
+	 * has buffers and more than a group's limit field holds.
+	 */
 	rate_bufs = min_t(u32, rate_bufs, priv->data->qm_total_buf);
 
 	if (sh->rate_bps && nport)
@@ -2191,6 +2193,10 @@ module_param_named(aqm_interval_us, ppe_aqm_interval_us, uint, 0644);
 MODULE_PARM_DESC(aqm_interval_us,
 		 "How long a shaped queue may stay above the target before the AQM drops");
 
+/* A negative @group opens a new group for the queue, so that every group the
+ * tick walks has a queue and a rate. Returns the group the queue went to, or
+ * @group when it was not added.
+ */
 static int ppe_aqm_add(struct ppe_aqm *a, u16 queue, int group, u64 rate_bps,
 		       u32 frame_len)
 {

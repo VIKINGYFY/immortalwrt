@@ -1,0 +1,30 @@
+From: Felix Fietkau <nbd@nbd.name>
+Date: Thu, 19 Nov 2026 00:36:36 +0800
+Subject: [PATCH] AP MLD: expect no SA Query of a non-AP MLD after a channel
+ switch
+
+After a channel switch, hostapd_event_ch_switch() marks each OCV station
+of the BSS and disconnects it after 15 s unless an SA Query Request
+arrives on that link. A non-AP MLD gets the channel from protected Beacon
+frames of the setup link (IEEE Std 802.11be-2024 12.2.10), and
+wpa_supplicant sends no SA Query for a switch on a link other than the
+association link. Mark no non-AP MLD.
+
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/ap/drv_callbacks.c
++++ b/src/ap/drv_callbacks.c
+@@ -1476,6 +1476,11 @@
+ 		bool check_sa_query = false;
+ 
+ 		for (sta = hapd->sta_list; sta; sta = sta->next) {
++			/* An MLD validates a channel change from the Beacon
++			 * frames of the setup link (802.11be 12.2.10) */
++			if (ap_sta_is_mld(hapd, sta))
++				continue;
++
+ 			if (wpa_auth_uses_ocv(sta->wpa_sm) &&
+ 			    !(sta->flags & WLAN_STA_WNM_SLEEP_MODE)) {
+ 				sta->post_csa_sa_query = 1;

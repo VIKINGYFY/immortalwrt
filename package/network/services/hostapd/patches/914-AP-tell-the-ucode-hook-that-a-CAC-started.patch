@@ -1,0 +1,25 @@
+From: Felix Fietkau <nbd@nbd.name>
+Date: Thu, 19 Nov 2026 00:36:36 +0800
+Subject: [PATCH] AP: tell the ucode hook that a CAC started
+
+The ubus object of a BSS does not exist while hostapd runs a CAC, and
+the kernel sends no NL80211_RADAR_CAC_STARTED for a CAC that hostapd
+starts, so nothing outside hostapd can see such a CAC start. Call a
+ucode hook once the driver took the CAC. A CAC on a background radar
+chain does not use the channel of the interface and stays out.
+
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/ap/ap_drv_ops.c
++++ b/src/ap/ap_drv_ops.c
+@@ -1243,6 +1243,8 @@
+ 		else
+ 			iface->cac_started = 1;
+ 		os_get_reltime(&iface->dfs_cac_start);
++		if (!radar_background)
++			hostapd_ucode_cac_start(iface);
+ 	}
+ 
+ 	return res;

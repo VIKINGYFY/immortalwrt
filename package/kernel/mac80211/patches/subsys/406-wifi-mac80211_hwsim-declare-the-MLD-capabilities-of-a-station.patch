@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 27 Sep 2026 22:00:00 +0200
+Date: Thu, 19 Nov 2026 00:22:57 +0800
 Subject: [PATCH] wifi: mac80211_hwsim: declare the MLD capabilities of a station
 
 An MLO radio declares extended capabilities, EML capabilities and MLD
@@ -17,10 +17,12 @@ Request from this entry, so an MLO station of hwsim now announces that
 maximum number of simultaneous links instead of 0.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/drivers/net/wireless/virtual/mac80211_hwsim_main.c
 +++ b/drivers/net/wireless/virtual/mac80211_hwsim_main.c
-@@ -5665,6 +5665,14 @@ static const u8 iftypes_ext_capa_ap[] =
+@@ -5899,6 +5899,14 @@
  	 [9] = WLAN_EXT_CAPA10_TWT_RESPONDER_SUPPORT,
  };
  
@@ -35,7 +37,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #define MAC80211_HWSIM_MLD_CAPA_OPS				\
  	FIELD_PREP_CONST(IEEE80211_MLD_CAP_OP_TID_TO_LINK_MAP_NEG_SUPP, \
  			 IEEE80211_MLD_CAP_OP_TID_TO_LINK_MAP_NEG_SUPP_SAME) | \
-@@ -5680,6 +5688,14 @@ static const struct wiphy_iftype_ext_cap
+@@ -5914,6 +5922,14 @@
  		.eml_capabilities = IEEE80211_EML_CAP_EMLSR_SUPP |
  				    IEEE80211_EML_CAP_EMLMR_SUPPORT,
  		.mld_capa_and_ops = MAC80211_HWSIM_MLD_CAPA_OPS,

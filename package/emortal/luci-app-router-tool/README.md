@@ -19,12 +19,11 @@ is capitalized. The suffix follows the radio's capabilities (`2.4G`, `5.2G`,
 characters. A custom key must contain 8 to 63 printable ASCII characters,
 supporting both WPA2 and WPA3-SAE.
 
-The 5 GHz and 6 GHz radios use automatic channel selection. The 2.4 GHz
-default remains channel 1. On a wiphy with multiple radios, each radio's
-own band information determines its suffix. The 2.4 GHz default uses the
-lowest supported width (20 MHz); 5 GHz and 6 GHz use the highest advertised
-width that fits the selected radio's frequency range. EHT320 is selected
-only on a 6 GHz radio advertising that mode; AX and narrower radios keep
+The 2.4 GHz, 5 GHz, and 6 GHz radios default to automatic channel selection.
+On a wiphy with multiple radios, each radio's own band information determines
+its suffix. The 2.4 GHz default uses 20 MHz. The 5 GHz and 6 GHz defaults use
+the highest advertised width that fits the selected radio's frequency range.
+Only 6 GHz radios advertising EHT320 select it. AX and narrower radios use
 their supported maximum. A restricted 5.8 GHz radio keeps its `5.8G` suffix
 without imposing an unrelated fixed width.
 
@@ -39,6 +38,18 @@ OpenWRT-CI passes `WRT_SSID` and `WRT_WORD` through this section. It must leave
 the wifi-scripts generator's untouched-AP values intact, so custom build
 credentials do not suppress channel, bandwidth, country, and security defaults.
 Keep this configuration private when using a private Wi-Fi password.
+
+## Saving and applying network presets
+
+Router Tool remembers the committed values when a LuCI session saves its
+network form. Checked and unchecked LuCI Apply compare the session's pending
+edits with the current values. This includes Apply from the pending changes
+dialog. A conflict leaves the draft available to review or revert. Disjoint
+edits from other sessions are preserved.
+
+Relay AP mode requests its management address from the upstream router. Use
+the assigned address to reconnect. Checked Apply restores the previous
+configuration if LuCI cannot confirm the change before the timer expires.
 
 ## Configuration migration
 
