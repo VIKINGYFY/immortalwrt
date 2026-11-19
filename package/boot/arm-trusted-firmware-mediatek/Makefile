@@ -894,6 +894,7 @@ TFA_MAKE_FLAGS += \
 # scripts/gen-boot-logos.py writes it.
 define Build/Prepare
 	$(call Build/Prepare/Default)
+	$(INSTALL_DIR) $(PKG_BUILD_DIR)/plat/mediatek/apsoc_common/drivers/panel
 	$(CP) ./files/st7789p3_splash.bin \
 		$(PKG_BUILD_DIR)/plat/mediatek/apsoc_common/drivers/panel/
 endef
