@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -1938,6 +1938,21 @@
+@@ -1938,6 +1938,21 @@ switch_link_scan(struct hostapd_data *ha
  
  #define HAPD_BROADCAST ((struct hostapd_data *) -1)
  
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct hostapd_data * get_hapd_bssid(struct hostapd_iface *iface,
  					    const u8 *bssid, int link_id)
  {
-@@ -1961,14 +1976,13 @@
+@@ -1961,14 +1976,13 @@ static struct hostapd_data * get_hapd_bs
  #endif /* CONFIG_IEEE80211BE */
  
  		hapd = iface->bss[i];
@@ -84,7 +84,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return hapd;
  
  		if (!hapd->conf->mld_ap)
-@@ -1978,7 +1992,7 @@
+@@ -1978,7 +1992,7 @@ static struct hostapd_data * get_hapd_bs
  			if (p_hapd == hapd)
  				continue;
  
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			    (ether_addr_equal(bssid, p_hapd->mld->mld_addr) &&
  			     link_id == p_hapd->mld_link_id))
  				return p_hapd;
-@@ -1990,11 +2004,38 @@
+@@ -1990,11 +2004,38 @@ static struct hostapd_data * get_hapd_bs
  }
  
  
@@ -133,7 +133,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (hapd == NULL || hapd == HAPD_BROADCAST)
  		return;
  
-@@ -2035,7 +2076,7 @@
+@@ -2035,7 +2076,7 @@ static int hostapd_mgmt_rx(struct hostap
  	if (bssid == NULL)
  		return 0;
  

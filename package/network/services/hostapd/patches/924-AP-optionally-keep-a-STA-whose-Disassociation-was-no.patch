@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -10969,7 +10969,7 @@
+@@ -10969,7 +10969,7 @@ static void handle_disassoc_cb(struct ho
  		wpa_printf(MSG_DEBUG, "STA " MACSTR " did not acknowledge "
  			   "disassoc", MAC2STR(sta->addr));
  
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -1275,19 +1275,30 @@
+@@ -1275,19 +1275,30 @@ static void ap_sta_remove_in_other_bss(s
  }
  
  
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ap_sta_disconnect_common(struct hostapd_data *hapd,
  				     struct sta_info *sta, unsigned int timeout,
  				     bool free_1x)
-@@ -2259,14 +2270,15 @@
+@@ -2259,14 +2270,15 @@ void ap_sta_deauth_cb(struct hostapd_dat
  }
  
  
@@ -89,7 +89,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -2285,6 +2297,7 @@
+@@ -2285,6 +2297,7 @@ void ap_sta_clear_disconnect_timeouts(st
  			   hapd->conf->iface, MAC2STR(sta->addr));
  	sta->flags &= ~(WLAN_STA_PENDING_DEAUTH_CB |
  			WLAN_STA_PENDING_DISASSOC_CB);
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG,
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -185,6 +185,7 @@
+@@ -185,6 +185,7 @@ struct sta_info {
  	unsigned int ft_over_ds:1;
  	unsigned int external_dh_updated:1;
  	unsigned int post_csa_sa_query:1;
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	u16 auth_alg;
  
-@@ -511,7 +512,8 @@
+@@ -511,7 +512,8 @@ static inline int ap_sta_is_authorized(s
  }
  
  void ap_sta_deauth_cb(struct hostapd_data *hapd, struct sta_info *sta);

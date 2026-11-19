@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -225,6 +225,17 @@
+@@ -225,6 +225,17 @@ static inline int hostapd_drv_sta_remove
  	return hapd->driver->sta_remove(hapd->drv_priv, addr);
  }
  
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					      size_t data_len, int encrypt,
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -734,6 +734,52 @@
+@@ -734,6 +734,52 @@ static int hostapd_wpa_auth_eapol_link_i
  }
  
  
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int hostapd_wpa_auth_send_eapol(void *ctx, const u8 *addr,
  				const u8 *data, size_t data_len,
  				int encrypt)
-@@ -761,6 +807,10 @@
+@@ -761,6 +807,10 @@ int hostapd_wpa_auth_send_eapol(void *ct
  	if (sta)
  		flags = hostapd_sta_flags_to_drv(sta->flags);
  
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					   hostapd_sta_eapol_link_id(hapd, sta));
 --- a/src/common/wpa_common.c
 +++ b/src/common/wpa_common.c
-@@ -440,6 +440,31 @@
+@@ -440,6 +440,31 @@ static int rsn_eapol_key_mic_hash(const
  
  
  /**
@@ -152,7 +152,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @key_len: KCK length in octets
 --- a/src/common/wpa_common.h
 +++ b/src/common/wpa_common.h
-@@ -488,6 +488,8 @@
+@@ -488,6 +488,8 @@ struct rsn_rdie {
  #endif /* _MSC_VER */
  
  
@@ -163,7 +163,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		      const u8 *buf, size_t len, u8 *mic, u16 pasn_group);
 --- a/src/drivers/driver_nl80211_event.c
 +++ b/src/drivers/driver_nl80211_event.c
-@@ -4430,6 +4430,11 @@
+@@ -4430,6 +4430,11 @@ nl80211_control_port_frame_tx_status(str
  	event.eapol_tx_status.dst = frame;
  	event.eapol_tx_status.data = frame + ETH_HLEN;
  	event.eapol_tx_status.data_len = len - ETH_HLEN;
@@ -177,7 +177,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		nla_get_u64(cookie) == drv->eapol_tx_cookie ?
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -366,6 +366,7 @@
+@@ -366,6 +366,7 @@ void wpa_supplicant_mark_disassoc(struct
  {
  	int bssid_changed;
  
@@ -185,7 +185,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wnm_bss_keep_alive_deinit(wpa_s);
  
  #ifdef CONFIG_IBSS_RSN
-@@ -7923,6 +7924,14 @@
+@@ -7923,6 +7924,14 @@ void supplicant_event(void *ctx, enum wp
  #endif /* CONFIG_PR */
  		break;
  	case EVENT_EAPOL_RX:
@@ -202,7 +202,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					data->eapol_rx.data_len,
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -7572,6 +7572,7 @@
+@@ -7572,6 +7572,7 @@ wpa_supplicant_alloc(struct wpa_supplica
  #endif /* CONFIG_P2P */
  	wpa_s->sched_scanning = 0;
  	wpa_s->setband_mask = WPA_SETBAND_AUTO;
@@ -212,7 +212,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dl_list_init(&wpa_s->fils_hlp_req);
 --- a/wpa_supplicant/wpa_supplicant_i.h
 +++ b/wpa_supplicant/wpa_supplicant_i.h
-@@ -1094,6 +1094,7 @@
+@@ -1094,6 +1094,7 @@ struct wpa_supplicant {
  	enum frame_encryption pending_eapol_encrypted;
  	int pending_eapol_link_id;
  	unsigned int last_eapol_matches_bssid:1;
@@ -222,7 +222,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int reattach:1; /* reassociation to the same BSS requested */
 --- a/wpa_supplicant/wpas_glue.c
 +++ b/wpa_supplicant/wpas_glue.c
-@@ -86,6 +86,25 @@
+@@ -86,6 +86,25 @@ static u8 * wpa_alloc_eapol(const struct
  }
  
  
@@ -248,7 +248,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * wpa_ether_send - Send Ethernet frame
   * @wpa_s: Pointer to wpa_supplicant data
-@@ -118,6 +137,11 @@
+@@ -118,6 +137,11 @@ int wpa_ether_send(struct wpa_supplicant
  		int encrypt = wpa_s->wpa &&
  			wpa_sm_has_ptk_installed(wpa_s->wpa);
  

@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -970,8 +970,16 @@
+@@ -970,8 +970,16 @@ int hostapd_drv_send_mlme(struct hostapd
  	int link_id = -1;
  
  #ifdef CONFIG_IEEE80211BE
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  
  	if (!hapd->driver || !hapd->driver->send_mlme || !hapd->drv_priv)
-@@ -992,7 +1000,7 @@
+@@ -992,7 +1000,7 @@ int hostapd_drv_sta_deauth(struct hostap
  	if (hapd->conf->mld_ap) {
  		struct sta_info *sta = ap_get_sta(hapd, addr);
  
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ap_sta_is_mld(hapd, sta))
  			own_addr = hapd->mld->mld_addr;
  	}
-@@ -1015,7 +1023,7 @@
+@@ -1015,7 +1023,7 @@ int hostapd_drv_sta_disassoc(struct host
  	if (hapd->conf->mld_ap) {
  		struct sta_info *sta = ap_get_sta(hapd, addr);
  
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ap_sta_is_mld(hapd, sta))
  			own_addr = hapd->mld->mld_addr;
  	}
-@@ -1116,6 +1124,9 @@
+@@ -1116,6 +1124,9 @@ static int hapd_drv_send_action(struct h
  		bssid = wildcard_bssid;
  #ifdef CONFIG_IEEE80211BE
  	} else if (hapd->conf->mld_ap) {
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		sta = ap_get_sta(hapd, dst);
  
  		if (ap_sta_is_mld(hapd, sta)) {
-@@ -1123,9 +1134,17 @@
+@@ -1123,9 +1134,17 @@ static int hapd_drv_send_action(struct h
  			bssid = own_addr;
  		}
  
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/ieee802_11.h
 +++ b/src/ap/ieee802_11.h
-@@ -340,6 +340,8 @@
+@@ -340,6 +340,8 @@ void hostapd_link_reconf_resp_tx_status(
  					const struct ieee80211_mgmt *mgmt,
  					size_t len, int ok);
  u16 hostapd_mld_neg_ttlm_capa(struct hostapd_data *hapd);
@@ -111,7 +111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				     const struct ieee80211_mgmt *mgmt,
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -2962,6 +2962,10 @@
+@@ -2962,6 +2962,10 @@ static u16 hostapd_sta_setup_links(struc
  }
  
  
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static u16 hostapd_neg_ttlm_links(const struct eht_neg_ttlm *ttlm)
  {
  	u16 links = 0;
-@@ -2974,6 +2978,37 @@
+@@ -2974,6 +2978,37 @@ static u16 hostapd_neg_ttlm_links(const
  }
  
  
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * value 1 the map of TID 0 for every TID (35.3.7.2.3) */
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -98,7 +98,8 @@
+@@ -98,7 +98,8 @@ static void ieee802_1x_send(struct hosta
  		int link_id = -1;
  
  #ifdef CONFIG_IEEE80211BE
@@ -174,7 +174,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			hapd, sta->addr, buf, len,
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -736,6 +736,8 @@
+@@ -736,6 +736,8 @@ int hostapd_wpa_auth_send_eapol(void *ct
  		if (ap_sta_is_mld(hapd, sta) &&
  		    (sta->flags & WLAN_STA_AUTHORIZED))
  			link_id = -1;

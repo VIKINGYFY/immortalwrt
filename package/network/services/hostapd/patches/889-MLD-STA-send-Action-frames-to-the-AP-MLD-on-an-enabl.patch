@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -10323,6 +10323,12 @@
+@@ -10323,6 +10323,12 @@ static int wpa_driver_nl80211_send_actio
  		      drv->nlmode == NL80211_IFTYPE_NAN_DATA))
  		offchanok = 0;
  
@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		   MACSTR " src=" MACSTR " bssid=" MACSTR ", link_id=%d)",
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -6304,7 +6304,7 @@
+@@ -6304,7 +6304,7 @@ static void wpas_event_rx_mgmt_action(st
  		wpas_rrm_handle_radio_measurement_request(wpa_s, mgmt->sa,
  							  mgmt->da,
  							  payload + 1,
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  	}
  
-@@ -6319,7 +6319,7 @@
+@@ -6319,7 +6319,7 @@ static void wpas_event_rx_mgmt_action(st
  	    payload[0] == WLAN_RRM_LINK_MEASUREMENT_REQUEST) {
  		wpas_rrm_handle_link_measurement_request(wpa_s, mgmt->sa,
  							 payload + 1, plen - 1,
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  	}
  #endif /* CONFIG_NO_RRM */
-@@ -6400,7 +6400,7 @@
+@@ -6400,7 +6400,7 @@ static void wpas_event_rx_mgmt_action(st
  	if (category == WLAN_ACTION_VENDOR_SPECIFIC_PROTECTED && plen > 4 &&
  	    WPA_GET_BE32(payload) == QM_ACTION_VENDOR_TYPE) {
  		wpas_handle_qos_mgmt_recv_action(wpa_s, mgmt->da, mgmt->sa,
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_NO_ROBUST_AV */
 --- a/wpa_supplicant/mbo.c
 +++ b/wpa_supplicant/mbo.c
-@@ -300,8 +300,8 @@
+@@ -300,8 +300,8 @@ static void wpas_mbo_send_wnm_notificati
  
  	wpabuf_put_data(buf, data, len);
  
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG,
 --- a/wpa_supplicant/robust_av.c
 +++ b/wpa_supplicant/robust_av.c
-@@ -361,8 +361,8 @@
+@@ -361,8 +361,8 @@ int wpas_send_mscs_req(struct wpa_suppli
  	wpas_populate_mscs_descriptor_ie(&wpa_s->robust_av, buf);
  
  	wpa_hexdump_buf(MSG_MSGDUMP, "MSCS Request", buf);
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				  wpabuf_head(buf), wpabuf_len(buf), 0);
  	if (ret < 0)
  		wpa_dbg(wpa_s, MSG_INFO, "MSCS: Failed to send MSCS Request");
-@@ -629,8 +629,8 @@
+@@ -629,8 +629,8 @@ static int _wpa_send_scs_req(struct wpa_
  	}
  
  	wpa_hexdump_buf(MSG_DEBUG, "SCS Request", buf);
@@ -114,7 +114,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				  wpabuf_head(buf), wpabuf_len(buf), 0);
  	if (ret < 0) {
  		wpa_dbg(wpa_s, MSG_ERROR, "SCS: Failed to send SCS Request");
-@@ -1658,7 +1658,8 @@
+@@ -1658,7 +1658,8 @@ static void wpas_fill_dscp_policy(struct
  
  void wpas_handle_qos_mgmt_recv_action(struct wpa_supplicant *wpa_s,
  				      const u8 *dst, const u8 *src,
@@ -124,7 +124,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	int rem_len;
  	const u8 *qos_ie, *attr;
-@@ -1714,6 +1715,7 @@
+@@ -1714,6 +1715,7 @@ void wpas_handle_qos_mgmt_recv_action(st
  	}
  
  	wpa_s->dscp_req_dialog_token = buf[1];
@@ -132,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	more = buf[2] & DSCP_POLICY_CTRL_MORE;
  	reset = buf[2] & DSCP_POLICY_CTRL_RESET;
  
-@@ -1840,8 +1842,10 @@
+@@ -1840,8 +1842,10 @@ int wpas_send_dscp_response(struct wpa_s
  	}
  
  	wpa_hexdump_buf(MSG_MSGDUMP, "DSCP response frame: ", buf);
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				  wpabuf_head(buf), wpabuf_len(buf), 0);
  	if (ret < 0) {
  		wpa_msg(wpa_s, MSG_INFO, "QM: Failed to send DSCP response");
-@@ -1921,8 +1925,8 @@
+@@ -1921,8 +1925,8 @@ int wpas_send_dscp_query(struct wpa_supp
  	}
  #undef DOMAIN_NAME_OFFSET
  
@@ -158,7 +158,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_dbg(wpa_s, MSG_ERROR, "QM: Failed to send DSCP query");
 --- a/wpa_supplicant/rrm.c
 +++ b/wpa_supplicant/rrm.c
-@@ -304,8 +304,8 @@
+@@ -304,8 +304,8 @@ int wpas_rrm_send_neighbor_rep_request(s
  
  	wpa_s->rrm.next_neighbor_rep_token++;
  
@@ -169,7 +169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				wpabuf_head(buf), wpabuf_len(buf), 0) < 0) {
  		wpa_dbg(wpa_s, MSG_DEBUG,
  			"RRM: Failed to send Neighbor Report Request");
-@@ -427,7 +427,7 @@
+@@ -427,7 +427,7 @@ static void wpas_rrm_send_msr_report_mpd
  
  	wpabuf_put_data(report, data, len);
  
@@ -178,7 +178,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				wpa_s->own_addr, wpa_s->bssid,
  				wpabuf_head(report), wpabuf_len(report), 0)) {
  		wpa_printf(MSG_ERROR,
-@@ -1431,7 +1431,8 @@
+@@ -1431,7 +1431,8 @@ out:
  
  void wpas_rrm_handle_radio_measurement_request(struct wpa_supplicant *wpa_s,
  					       const u8 *src, const u8 *dst,
@@ -188,7 +188,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct wpabuf *report;
  
-@@ -1455,6 +1456,7 @@
+@@ -1455,6 +1456,7 @@ void wpas_rrm_handle_radio_measurement_r
  
  	wpa_s->rrm.token = *frame;
  	os_memcpy(wpa_s->rrm.dst_addr, dst, ETH_ALEN);
@@ -196,7 +196,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Number of repetitions is not supported */
  
-@@ -1470,7 +1472,7 @@
+@@ -1470,7 +1472,7 @@ void wpas_rrm_handle_radio_measurement_r
  void wpas_rrm_handle_link_measurement_request(struct wpa_supplicant *wpa_s,
  					      const u8 *src,
  					      const u8 *frame, size_t len,
@@ -205,7 +205,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct wpabuf *buf;
  	const struct rrm_link_measurement_request *req;
-@@ -1525,7 +1527,7 @@
+@@ -1525,7 +1527,7 @@ void wpas_rrm_handle_link_measurement_re
  	wpabuf_put_data(buf, &report, sizeof(report));
  	wpa_hexdump_buf(MSG_DEBUG, "RRM: Link measurement report", buf);
  
@@ -216,7 +216,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_ERROR,
 --- a/wpa_supplicant/sme.c
 +++ b/wpa_supplicant/sme.c
-@@ -6662,8 +6662,10 @@
+@@ -6662,8 +6662,10 @@ static void sme_send_sa_query_req(struct
  	}
  #endif /* CONFIG_OCV */
  
@@ -229,7 +229,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				req, req_len, 0) < 0)
  		wpa_msg(wpa_s, MSG_INFO, "SME: Failed to send SA Query "
  			"Request");
-@@ -6826,8 +6828,10 @@
+@@ -6826,8 +6828,10 @@ static void sme_process_sa_query_request
  	}
  #endif /* CONFIG_OCV */
  
@@ -244,7 +244,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			"SME: Failed to send SA Query Response");
 --- a/wpa_supplicant/wnm_sta.c
 +++ b/wpa_supplicant/wnm_sta.c
-@@ -227,8 +227,9 @@
+@@ -227,8 +227,9 @@ int ieee802_11_send_wnmsleep_req(struct
  	len = 1 + sizeof(mgmt->u.action.u.wnm_sleep_req) + wnmsleep_ie_len +
  		wnmtfs_ie_len + oci_ie_len;
  
@@ -256,7 +256,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				  &mgmt->u.action.category, len, 0);
  	if (res < 0) {
  		wpa_printf(MSG_DEBUG, "Failed to send WNM-Sleep Request "
-@@ -1127,8 +1128,8 @@
+@@ -1127,8 +1128,8 @@ static int wnm_send_bss_transition_mgmt_
  	}
  #endif /* CONFIG_MBO */
  
@@ -267,7 +267,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				  wpabuf_head_u8(buf), wpabuf_len(buf), 0);
  	if (res < 0) {
  		wpa_printf(MSG_DEBUG,
-@@ -1923,8 +1924,8 @@
+@@ -1923,8 +1924,8 @@ int wnm_send_bss_transition_mgmt_query(s
  		wpabuf_put(buf, ret);
  	}
  
@@ -280,7 +280,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wpabuf_free(buf);
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -588,8 +588,8 @@
+@@ -588,8 +588,8 @@ static void wpas_wfa_capab_tx(void *eloo
  	wpabuf_free(attr);
  
  	wpa_printf(MSG_DEBUG, "WFA: Send WFA Capabilities frame");
@@ -291,7 +291,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				wpabuf_head(buf), wpabuf_len(buf), 0) < 0)
  		wpa_printf(MSG_DEBUG,
  			   "WFA: Failed to send WFA Capabilities frame");
-@@ -11293,6 +11293,15 @@
+@@ -11293,6 +11293,15 @@ bool wpas_ap_link_address(struct wpa_sup
  }
  
  
@@ -309,7 +309,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			const u8 *bssid, const u8 *data, size_t data_len,
 --- a/wpa_supplicant/wpa_supplicant_i.h
 +++ b/wpa_supplicant/wpa_supplicant_i.h
-@@ -497,6 +497,9 @@
+@@ -497,6 +497,9 @@ struct rrm_data {
  
  	/* destination address of the current radio measurement request */
  	u8 dst_addr[ETH_ALEN];
@@ -319,7 +319,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  enum wpa_supplicant_test_failure {
-@@ -1713,6 +1716,7 @@
+@@ -1713,6 +1716,7 @@ struct wpa_supplicant {
  	struct dl_list active_scs_ids;
  	bool ongoing_scs_req;
  	u8 dscp_req_dialog_token;
@@ -327,7 +327,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 dscp_query_dialog_token;
  	unsigned int enable_dscp_policy_capa:1;
  	unsigned int connection_dscp:1;
-@@ -2005,11 +2009,12 @@
+@@ -2005,11 +2009,12 @@ int wpas_rrm_send_neighbor_rep_request(s
  				       void *cb_ctx);
  void wpas_rrm_handle_radio_measurement_request(struct wpa_supplicant *wpa_s,
  					       const u8 *src, const u8 *dst,
@@ -342,7 +342,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void wpas_rrm_refuse_request(struct wpa_supplicant *wpa_s);
  int wpas_beacon_rep_scan_process(struct wpa_supplicant *wpa_s,
  				 struct wpa_scan_results *scan_res,
-@@ -2235,7 +2240,8 @@
+@@ -2235,7 +2240,8 @@ void wpas_handle_robust_av_scs_recv_acti
  void wpas_scs_deinit(struct wpa_supplicant *wpa_s);
  void wpas_handle_qos_mgmt_recv_action(struct wpa_supplicant *wpa_s,
  				      const u8 *dst, const u8 *src,
@@ -352,7 +352,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void wpas_dscp_deinit(struct wpa_supplicant *wpa_s);
  int wpas_send_dscp_response(struct wpa_supplicant *wpa_s,
  			    struct dscp_resp_data *resp_data);
-@@ -2272,6 +2278,7 @@
+@@ -2272,6 +2278,7 @@ bool wpas_is_6ghz_supported(struct wpa_s
  
  bool wpa_is_non_eht_scs_traffic_desc_supported(struct wpa_bss *bss);
  bool wpas_ap_link_address(struct wpa_supplicant *wpa_s, const u8 *addr);
@@ -362,7 +362,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  bool wpas_ap_supports_rsn_overriding_2(struct wpa_supplicant *wpa_s,
 --- a/wpa_supplicant/wpas_glue.c
 +++ b/wpa_supplicant/wpas_glue.c
-@@ -755,9 +755,11 @@
+@@ -755,9 +755,11 @@ static int wpa_supplicant_send_ft_action
  	pos += ETH_ALEN;
  	os_memcpy(pos, ies, ies_len);
  

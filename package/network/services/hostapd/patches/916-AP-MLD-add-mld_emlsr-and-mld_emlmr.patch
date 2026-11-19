@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -5301,6 +5301,10 @@
+@@ -5301,6 +5301,10 @@ static int hostapd_config_fill(struct ho
  			return 1;
  		}
  		bss->mld_link_id = val;
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_ERROR, "Line %d: Invalid mld_addr",
 --- a/hostapd/hostapd.conf
 +++ b/hostapd/hostapd.conf
-@@ -1180,6 +1180,16 @@
+@@ -1180,6 +1180,16 @@ wmm_ac_vo_acm=0
  # will be used as the AP MLD MAC address.
  #mld_addr=02:03:04:05:06:07
  
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  # to 1, disabling EHT-MCS 15. If set to 0, the subfield is set to 0, enabling
 --- a/src/ap/ap_config.c
 +++ b/src/ap/ap_config.c
-@@ -193,6 +193,8 @@
+@@ -193,6 +193,8 @@ void hostapd_config_defaults_bss(struct
  	bss->urnm_mfpr = -1;
  #ifdef CONFIG_IEEE80211BE
  	bss->mld_link_id = -1;
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bss->assoc_frame_encryption = 0;
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1023,6 +1023,10 @@
+@@ -1023,6 +1023,10 @@ struct hostapd_bss_config {
  	/* The link ID of the AP within the AP MLD, -1 to assign one */
  	int mld_link_id;
  
@@ -79,7 +79,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * If set indicate the AP as disabled in the RNR element included in the
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -444,6 +444,43 @@
+@@ -444,6 +444,43 @@ void hostapd_get_eht_capab(struct hostap
   * beacon interval (2) + TSF offset (8) + DTIM info (2)
   */
  #define EHT_ML_STA_INFO_LEN 21
@@ -123,7 +123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u8 * hostapd_eid_eht_basic_ml_common(struct hostapd_data *hapd,
  				     u8 *eid, struct mld_info *mld_info,
  				     bool include_mld_id, bool include_bpcc)
-@@ -467,21 +504,25 @@
+@@ -467,21 +504,25 @@ u8 * hostapd_eid_eht_basic_ml_common(str
  	if (!buf)
  		return pos;
  
@@ -153,7 +153,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (include_mld_id) {
  		/* AP MLD ID */
-@@ -507,16 +548,11 @@
+@@ -507,16 +548,11 @@ u8 * hostapd_eid_eht_basic_ml_common(str
  
  	wpabuf_put_u8(buf, hapd->eht_mld_bss_param_change);
  
@@ -175,7 +175,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	mld_cap = hapd->iface->mld_mld_capa;
  	max_simul_links = mld_cap & EHT_ML_MLD_CAPA_MAX_NUM_SIM_LINKS_MASK;
-@@ -726,7 +762,7 @@
+@@ -726,7 +762,7 @@ size_t hostapd_eid_eht_basic_ml_len(stru
  	/* control field */
  	len += 2;
  	/* Common info len for Basic MLE */
@@ -184,7 +184,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (include_mld_id)
  		len++;
  
-@@ -866,7 +902,7 @@
+@@ -866,7 +902,7 @@ static size_t hostapd_eid_eht_ml_len(str
  				     bool include_mld_id, bool include_bpcc)
  {
  	size_t len = 0;

@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/bss.c
 +++ b/wpa_supplicant/bss.c
-@@ -942,6 +942,83 @@
+@@ -942,6 +942,83 @@ void wpa_bss_update_start(struct wpa_sup
  }
  
  
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * wpa_bss_update_scan_res - Update a BSS table entry based on a scan result
   * @wpa_s: Pointer to wpa_supplicant data
-@@ -959,6 +1036,9 @@
+@@ -959,6 +1036,9 @@ void wpa_bss_update_scan_res(struct wpa_
  	const u8 *ssid, *p2p, *mesh;
  	struct wpa_bss *bss;
  
@@ -125,7 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		calculate_update_time(fetch_time, res->age, &update);
 --- a/wpa_supplicant/bss.h
 +++ b/wpa_supplicant/bss.h
-@@ -161,6 +161,7 @@
+@@ -161,6 +161,7 @@ void wpa_bss_update_start(struct wpa_sup
  void wpa_bss_update_scan_res(struct wpa_supplicant *wpa_s,
  			     struct wpa_scan_res *res,
  			     struct os_reltime *fetch_time);
@@ -135,7 +135,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void wpa_bss_update_end(struct wpa_supplicant *wpa_s, struct scan_info *info,
 --- a/wpa_supplicant/ctrl_iface.c
 +++ b/wpa_supplicant/ctrl_iface.c
-@@ -12906,7 +12906,11 @@
+@@ -12906,7 +12906,11 @@ wpa_supplicant_ctrl_iface_setup_link_rec
  		info.add_link_ies_len = len;
  	}
  
@@ -150,7 +150,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -353,6 +353,7 @@
+@@ -353,6 +353,7 @@ void wpas_reset_mlo_info(struct wpa_supp
  		return;
  
  	wpa_s->valid_links = 0;
@@ -158,7 +158,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wpa_s->mlo_assoc_link_id = 0;
  	os_memset(wpa_s->ap_mld_addr, 0, ETH_ALEN);
  	for (i = 0; i < MAX_NUM_MLD_LINKS; i++)
-@@ -7055,8 +7056,24 @@
+@@ -7055,8 +7056,24 @@ static void wpas_setup_link_reconfig(str
  }
  
  
@@ -183,7 +183,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 bssid[ETH_ALEN];
  
  	if (wpa_drv_get_bssid(wpa_s, bssid) < 0) {
-@@ -7092,6 +7109,11 @@
+@@ -7092,6 +7109,11 @@ static void wpas_link_reconfig(struct wp
  	    wpa_s->links[wpa_s->mlo_assoc_link_id].freq)
  		wpa_s->assoc_freq = wpa_s->links[wpa_s->mlo_assoc_link_id].freq;
  
@@ -197,7 +197,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/wpa_supplicant/wpa_supplicant_i.h
 +++ b/wpa_supplicant/wpa_supplicant_i.h
-@@ -836,6 +836,11 @@
+@@ -836,6 +836,11 @@ struct wpa_supplicant {
  		unsigned int max_nss_tx:4;
  		enum chan_width channel_bandwidth;
  	} links[MAX_NUM_MLD_LINKS];

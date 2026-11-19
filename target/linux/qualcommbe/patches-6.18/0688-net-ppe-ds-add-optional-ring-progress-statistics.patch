@@ -24,11 +24,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/iommu.h>
  #include <linux/module.h>
  #include <linux/netdevice.h>
-@@ -58,6 +59,18 @@
- };
+@@ -59,6 +60,18 @@ static const struct kernel_param_ops ppe
  module_param_cb(ds_rx_retry_us, &ppe_ds_rx_retry_ops, &ds_rx_retry_us, 0644);
  MODULE_PARM_DESC(ds_rx_retry_us, "Direct Switch index/refill and completion poll delay (100-1000 us)");
-+
+ 
 +/* Optional instrumentation only: no change to ring or IRQ scheduling. */
 +static bool ds_ring_stats;
 +module_param(ds_ring_stats, bool, 0644);
@@ -40,10 +39,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	u32 pending, high_water;
 +	u32 consecutive, longest;
 +};
- 
++
  enum ppe_ds_irq {
  	PPE_DS_RX,
-@@ -101,6 +114,10 @@
+ 	PPE_DS_FILL,
+@@ -101,6 +114,10 @@ struct qcom_ppe_ds {
  	atomic64_t down_desc, up_desc, refilled, released;
  	atomic64_t index_updates, refill_failures;
  	atomic64_t poll_retries, refill_wakes, tx_deferred;
@@ -54,12 +54,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  /* Registration and supplier teardown are serialized. A registered WLAN
-@@ -180,6 +197,25 @@
- {
- 	return count >= 256 && is_power_of_2(count) && IS_ALIGNED(addr, 8) &&
+@@ -182,6 +199,25 @@ static bool ppe_ds_ring_valid(dma_addr_t
  	       addr && addr <= U32_MAX - (u32)count * 32 + 1;
-+}
-+
+ }
+ 
 +/* A stationary empty ring is idle, not stalled. Start a fresh age when
 + * work first appears; only consumer progress clears a pending-work streak.
 + */
@@ -77,15 +75,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	}
 +	stats->pending = pending;
 +	stats->high_water = max_t(u32, stats->high_water, pending);
- }
- 
- /* Called under index_lock. Ordering is between two DMA engines, not just
-@@ -204,6 +240,28 @@
- 		if (ds->cfg.ops->fault)
- 			ds->cfg.ops->fault(ds->cfg.priv);
- 		return;
-+	}
++}
 +
+ /* Called under index_lock. Ordering is between two DMA engines, not just
+  * between the CPU and one device: publish an index only after observing the
+  * producer's writeback; never inspect or translate packet descriptors.
+@@ -206,6 +242,28 @@ static void ppe_ds_sync_locked(struct qc
+ 		return;
+ 	}
+ 
 +	if (unlikely(READ_ONCE(ds_ring_stats))) {
 +		u64 now = ktime_get_ns(), delta = now - ds->sample_ns;
 +		u16 down = (rx_prod - tcl_cons) & (ds->cfg.ppe2tcl_count - 1);
@@ -106,14 +104,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		ds->sample_ns = 0;
 +		ds->down_stats.pending = 0;
 +		ds->up_stats.pending = 0;
- 	}
- 
++	}
++
  	dma_rmb();
-@@ -423,6 +481,16 @@
- static irqreturn_t ppe_ds_interrupt(int irq, void *priv)
+ 	if (rx_prod != ds->rx_prod) {
+ 		atomic64_add((rx_prod - ds->rx_prod) &
+@@ -424,6 +482,16 @@ static irqreturn_t ppe_ds_interrupt(int
  {
  	struct qcom_ppe_ds *ds = priv;
-+
+ 
 +	if (unlikely(READ_ONCE(ds_ring_stats))) {
 +		int i;
 +
@@ -123,10 +122,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				break;
 +			}
 +	}
- 
++
  	/* index_lock can lead into the WLAN PCI window lock. Taking it in
  	 * hard IRQ context would invert a window-lock holder interrupted here.
-@@ -1027,6 +1095,9 @@
+ 	 * Stop masks these IRQs, synchronizes them and then disables NAPI.
+@@ -1027,6 +1095,9 @@ static int ppe_ds_stats_show(struct seq_
  {
  	struct ppe_ds_provider *provider = seq->private;
  	struct qcom_ppe_ds *ds;
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int i;
  
  	mutex_lock(&ppe_ds_lock);
-@@ -1046,6 +1117,33 @@
+@@ -1046,6 +1117,33 @@ static int ppe_ds_stats_show(struct seq_
  			   atomic64_read(&ds->index_updates), atomic64_read(&ds->refill_failures),
  			   atomic64_read(&ds->poll_retries), atomic64_read(&ds->refill_wakes),
  			   atomic64_read(&ds->tx_deferred));

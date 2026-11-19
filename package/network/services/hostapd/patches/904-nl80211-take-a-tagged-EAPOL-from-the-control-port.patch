@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -7632,6 +7632,12 @@
+@@ -7632,6 +7632,12 @@ union wpa_event_data {
  		size_t data_len;
  		enum frame_encryption encrypted;
  		int link_id;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} eapol_rx;
  
  	/**
-@@ -8220,13 +8226,14 @@
+@@ -8220,13 +8226,14 @@ static inline void drv_event_eapol_rx(vo
  	event.eapol_rx.data_len = data_len;
  	event.eapol_rx.encrypted = FRAME_ENCRYPTION_UNKNOWN;
  	event.eapol_rx.link_id = -1;
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	union wpa_event_data event;
  	os_memset(&event, 0, sizeof(event));
-@@ -8235,6 +8242,7 @@
+@@ -8235,6 +8242,7 @@ static inline void drv_event_eapol_rx2(v
  	event.eapol_rx.data_len = data_len;
  	event.eapol_rx.encrypted = encrypted;
  	event.eapol_rx.link_id = link_id;
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/drivers/driver_nl80211_event.c
 +++ b/src/drivers/driver_nl80211_event.c
-@@ -4348,9 +4348,13 @@
+@@ -4348,9 +4348,13 @@ static void nl80211_sta_opmode_change_ev
  }
  
  
@@ -72,7 +72,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u16 ethertype;
  	enum frame_encryption encrypted;
  	int link_id;
-@@ -4380,7 +4384,22 @@
+@@ -4380,7 +4384,22 @@ static void nl80211_control_port_frame(s
  		drv_event_eapol_rx2(bss->ctx, src_addr,
  				    nla_data(tb[NL80211_ATTR_FRAME]),
  				    nla_len(tb[NL80211_ATTR_FRAME]),

@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8092,6 +8092,7 @@
+@@ -8092,6 +8092,7 @@ int ieee80211_ml_process_link(struct hos
  	}
  
  	sta->flags |= origin_sta->flags | WLAN_STA_ASSOC_REQ_OK;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ap_sta_set_mld(sta, true);
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
-@@ -1928,8 +1928,9 @@
+@@ -1928,8 +1928,9 @@ static bool recover_from_zero_links(u16
  
  static u16
  hostapd_ml_process_reconf_link(struct hostapd_data *hapd,
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct hostapd_data *lhapd, *other_hapd;
  	struct mld_link_info link;
-@@ -1942,12 +1943,14 @@
+@@ -1942,12 +1943,14 @@ hostapd_ml_process_reconf_link(struct ho
  	os_memset(&link, 0, sizeof(link));
  
  	link.valid = 1;
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (link.status != WLAN_STATUS_SUCCESS)
  		return link.status;
  
-@@ -2690,10 +2693,9 @@
+@@ -2690,10 +2693,9 @@ hostapd_validate_link_reconf_req(struct
  		    info->sta_prof_len < 2)
  			continue;
  

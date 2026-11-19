@@ -80,7 +80,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -401,6 +401,7 @@
+@@ -401,6 +401,7 @@ static inline int hostapd_drv_stop_ap(st
  	if (!hapd->driver || !hapd->driver->stop_ap || !hapd->drv_priv)
  		return 0;
  #ifdef CONFIG_IEEE80211BE
@@ -90,7 +90,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2867,6 +2867,9 @@
+@@ -2867,6 +2867,9 @@ static int __ieee802_11_set_beacon(struc
  	int res, ret = -1, i;
  	struct hostapd_hw_modes *mode;
  	struct hostapd_channel_info info;
@@ -100,7 +100,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (hostapd_beacon_held(hapd))
  		return 0;
-@@ -3001,10 +3004,17 @@
+@@ -3001,10 +3004,17 @@ static int __ieee802_11_set_beacon(struc
  
  	res = hostapd_drv_set_ap(hapd, &params);
  	hostapd_free_ap_extra_ies(hapd, beacon, proberesp, assocresp);
@@ -120,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -3051,6 +3051,10 @@
+@@ -3051,6 +3051,10 @@ void hostapd_wpa_event(void *ctx, enum w
  	case EVENT_ADV_TTLM:
  		hostapd_adv_ttlm_event(hapd, &data->adv_ttlm);
  		break;
@@ -133,7 +133,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG, "Unknown event %d", event);
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -477,6 +477,7 @@
+@@ -477,6 +477,7 @@ static int hostapd_broadcast_wep_set(str
  
  static void hostapd_link_remove_timeout_handler(void *eloop_data,
  						void *user_ctx);
@@ -141,7 +141,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  /* A nontransmitted BSSID sends no Beacon frames of its own, so the driver does
-@@ -542,6 +543,47 @@
+@@ -542,6 +543,47 @@ static unsigned int hostapd_link_remove_
  }
  
  
@@ -189,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static u64 hostapd_link_remove_expiry_us(struct hostapd_data *hapd)
  {
  	struct os_reltime now, left;
-@@ -575,21 +617,86 @@
+@@ -575,21 +617,86 @@ u64 hostapd_link_remove_expiry_ms(struct
   * caller commits no earlier than the link stops. */
  u64 hostapd_link_remove_ms(struct hostapd_data *hapd)
  {
@@ -278,7 +278,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct hostapd_data *
  hostapd_link_remove_partner(struct hostapd_data *hapd, struct sta_info *sta)
  {
-@@ -741,21 +848,28 @@
+@@ -741,21 +848,28 @@ static void hostapd_link_remove_notify_s
  }
  
  
@@ -311,7 +311,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	hostapd_free_link_stas(hapd);
  	hostapd_link_remove_notify_stas(hapd);
  
-@@ -773,6 +887,144 @@
+@@ -773,6 +887,144 @@ static void hostapd_link_remove_expire(s
  }
  
  
@@ -456,7 +456,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* hostapd sees no TBTT: the countdown runs from the return of the first
   * Beacon update and expires before the TBTT that the count names. */
  static void hostapd_link_remove_timeout_handler(void *eloop_data,
-@@ -780,7 +1032,9 @@
+@@ -780,7 +1032,9 @@ static void hostapd_link_remove_timeout_
  {
  	struct hostapd_data *hapd = (struct hostapd_data *) eloop_data;
  
@@ -467,7 +467,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  	hapd->eht_mld_link_removal_count--;
  
-@@ -788,6 +1042,14 @@
+@@ -788,6 +1042,14 @@ static void hostapd_link_remove_timeout_
  		   hapd->mld_link_id,
  		   hapd->eht_mld_link_removal_count);
  
@@ -482,7 +482,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!hapd->eht_mld_link_removal_count) {
  		hostapd_link_remove_expire(hapd);
  		return;
-@@ -861,13 +1123,82 @@
+@@ -861,13 +1123,82 @@ int hostapd_link_remove(struct hostapd_d
  		hapd->eht_mld_bss_param_change = 0;
  
  	hostapd_mld_crit_update_start(hapd);
@@ -566,7 +566,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Unlike switch_link_hapd(), a link that hostapd no longer has is not
   * replaced by the first link */
  void hostapd_crit_update_done(struct hostapd_data *hapd, int link_id, u32 id)
-@@ -1164,12 +1495,24 @@
+@@ -1164,12 +1495,24 @@ static void hostapd_bss_radius_deinit(st
  void hostapd_free_hapd_data(struct hostapd_data *hapd)
  {
  #ifdef CONFIG_IEEE80211BE
@@ -591,7 +591,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
  
  	os_free(hapd->probereq_cb);
-@@ -5753,6 +6096,29 @@
+@@ -5753,6 +6096,29 @@ void hostapd_chan_switch_config(struct h
  }
  
  
@@ -621,7 +621,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int hostapd_switch_channel(struct hostapd_data *hapd,
  			   struct csa_settings *settings)
  {
-@@ -5775,6 +6141,7 @@
+@@ -5775,6 +6141,7 @@ int hostapd_switch_channel(struct hostap
  #endif /* CONFIG_IEEE80211AX */
  
  	if (ret) {
@@ -629,7 +629,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* if we failed, clean cs parameters */
  		hostapd_cleanup_cs_params(hapd);
  		return ret;
-@@ -5982,10 +6349,12 @@
+@@ -5982,10 +6349,12 @@ int hostapd_cca_start(struct hostapd_ifa
  		}
  
  		ret = hostapd_drv_switch_color(bss, &settings);
@@ -646,7 +646,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		free_beacon_data(&settings.beacon_after);
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -544,6 +544,16 @@
+@@ -544,6 +544,16 @@ struct hostapd_data {
  	struct os_reltime eht_mld_link_removal_due;
  	bool eht_mld_link_removal_expired;
  	unsigned int eht_mld_link_removal_tx;
@@ -663,7 +663,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Critical Update flag set until EVENT_CRIT_UPDATE_DONE */
  	bool eht_mld_crit_update;
  	u32 eht_mld_crit_update_id;
-@@ -1028,6 +1038,9 @@
+@@ -1028,6 +1038,9 @@ u64 hostapd_link_remove_expiry_ms(struct
  u64 hostapd_link_remove_ms(struct hostapd_data *hapd);
  void hostapd_mld_beacons_update(struct hostapd_data *hapd);
  void hostapd_link_remove_tx_status(struct hostapd_data *hapd, const u8 *addr);
@@ -675,7 +675,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  u8 hostapd_get_mld_id(struct hostapd_data *hapd);
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -2640,6 +2640,10 @@
+@@ -2640,6 +2640,10 @@ struct wpa_driver_capa {
  /** Driver advertises a TID-to-link mapping of an AP MLD and reports its steps
   * with EVENT_ADV_TTLM */
  #define WPA_DRIVER_FLAGS2_AP_ADV_TTLM		0x0000020000000000ULL
@@ -686,7 +686,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u64 flags2;
  /** Driver supports Security Profile element (IEEE P802.11bn/D2.0, 9.4.2.369
   * and 37.33) handling */
-@@ -6842,6 +6846,14 @@
+@@ -6842,6 +6846,14 @@ enum wpa_event_type {
  	 * Described in wpa_event_data.adv_ttlm.
  	 */
  	EVENT_ADV_TTLM,
@@ -701,7 +701,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  
-@@ -7865,6 +7877,15 @@
+@@ -7865,6 +7877,15 @@ union wpa_event_data {
  	} adv_ttlm;
  
  	/**
@@ -719,7 +719,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct pasn_auth pasn_auth;
 --- a/src/drivers/driver_common.c
 +++ b/src/drivers/driver_common.c
-@@ -113,6 +113,7 @@
+@@ -113,6 +113,7 @@ const char * event_to_string(enum wpa_ev
  	E2S(ROAM_STATUS);
  	E2S(CRIT_UPDATE_DONE);
  	E2S(ADV_TTLM);
@@ -729,7 +729,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return "UNKNOWN";
 --- a/src/drivers/driver_nl80211_capa.c
 +++ b/src/drivers/driver_nl80211_capa.c
-@@ -616,6 +616,9 @@
+@@ -616,6 +616,9 @@ static void wiphy_info_ext_feature_flags
  			      NL80211_EXT_FEATURE_AP_ADV_TTLM))
  		capa->flags2 |= WPA_DRIVER_FLAGS2_AP_ADV_TTLM;
  	if (ext_feature_isset(ext_features, len,
@@ -741,7 +741,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ext_feature_isset(ext_features, len,
 --- a/src/drivers/driver_nl80211_event.c
 +++ b/src/drivers/driver_nl80211_event.c
-@@ -943,15 +943,12 @@
+@@ -943,15 +943,12 @@ out:
  #endif /* CONFIG_DRIVER_NL80211_QCA */
  
  
@@ -760,7 +760,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	nla_for_each_nested(link, mlo_links, rem_links) {
  		struct nlattr *tb[NL80211_ATTR_MAX + 1];
  		int link_id;
-@@ -966,9 +963,23 @@
+@@ -966,9 +963,23 @@ static void mlme_event_link_removal(stru
  		if (link_id >= MAX_NUM_MLD_LINKS)
  			continue;
  
@@ -785,7 +785,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	drv->sta_mlo_info.valid_links &= ~removed_links;
  	drv->sta_mlo_info.req_links &= ~removed_links;
  
-@@ -997,6 +1008,24 @@
+@@ -997,6 +1008,24 @@ static void mlme_event_link_removal(stru
  }
  
  
@@ -810,7 +810,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void mlme_event_connect(struct wpa_driver_nl80211_data *drv,
  			       enum nl80211_commands cmd, bool qca_roam_auth,
  			       struct nlattr *status,
-@@ -5385,7 +5414,11 @@
+@@ -5385,7 +5414,11 @@ static void do_process_drv_event(struct
  		break;
  #endif /* CONFIG_IEEE80211AX */
  	case NL80211_CMD_LINKS_REMOVED:
@@ -836,7 +836,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * @NL80211_CMD_SET_TID_TO_LINK_MAPPING: Set the TID to Link Mapping for a
   *      non-AP MLD station. The %NL80211_ATTR_MLO_TTLM_DLINK and
-@@ -7297,6 +7301,21 @@
+@@ -7297,6 +7301,21 @@ enum nl80211_feature_flags {
   *	%NL80211_CMD_ADV_TTLM_ENDED. A link that the mapping disables or
   *	enables is a critical update (35.3.10), so the request also needs
   *	%NL80211_EXT_FEATURE_BEACON_CRIT_UPDATE.
@@ -858,7 +858,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * @NUM_NL80211_EXT_FEATURES: number of extended features.
   * @MAX_NL80211_EXT_FEATURES: highest extended feature index.
-@@ -7384,6 +7403,9 @@
+@@ -7384,6 +7403,9 @@ enum nl80211_ext_feature_index {
  	NL80211_EXT_FEATURE_UPDATE_BEACON,
  	NL80211_EXT_FEATURE_BEACON_CRIT_UPDATE,
  	NL80211_EXT_FEATURE_AP_ADV_TTLM,

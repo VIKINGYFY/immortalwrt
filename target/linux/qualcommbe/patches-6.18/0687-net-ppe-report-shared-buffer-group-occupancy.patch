@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-@@ -290,6 +290,17 @@
+@@ -290,6 +290,17 @@ static int ppe_bm_counter_get(struct ppe
  
  	seq_putc(seq, '\n');
  
@@ -33,12 +33,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -669,6 +680,18 @@
- 		}
- 	}
+@@ -671,6 +682,18 @@ static int ppe_queue_counter_get(struct
  
-+	seq_putc(seq, '\n');
-+
+ 	seq_putc(seq, '\n');
+ 
 +	seq_puts(seq, "AC GROUP PEND/ALLOC_USED:");
 +	for (i = 0; i < PPE_AC_GRP_CNT_TBL_ENTRIES; i++) {
 +		reg = PPE_AC_GRP_CNT_TBL_ADDR + i * PPE_AC_GRP_CNT_TBL_INC;
@@ -49,9 +47,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			   (u32)FIELD_GET(PPE_AC_GRP_CNT_TBL_PENDING, val),
 +			   (u32)FIELD_GET(PPE_AC_GRP_CNT_TBL_ALLOC_USED, val), i);
 +	}
- 	seq_putc(seq, '\n');
- 
++	seq_putc(seq, '\n');
++
  	return 0;
+ }
+ 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
 @@ -1120,6 +1120,12 @@
@@ -67,17 +67,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define PPE_BM_SHARED_GROUP_CFG_ADDR		0x600290
  #define PPE_BM_SHARED_GROUP_CFG_ENTRIES		4
  #define PPE_BM_SHARED_GROUP_CFG_INC		0x4
-@@ -1251,6 +1257,13 @@
- #define PPE_AC_UNICAST_QUEUE_CNT_TBL_ENTRIES	256
+@@ -1252,6 +1258,13 @@
  #define PPE_AC_UNICAST_QUEUE_CNT_TBL_INC	0x10
  #define PPE_AC_UNICAST_QUEUE_CNT_TBL_PEND_CNT	GENMASK(12, 0)
-+
+ 
 +/* Current admission-group occupancy and reserved buffers in use. */
 +#define PPE_AC_GRP_CNT_TBL_ADDR			0x854000
 +#define PPE_AC_GRP_CNT_TBL_ENTRIES		4
 +#define PPE_AC_GRP_CNT_TBL_INC			0x10
 +#define PPE_AC_GRP_CNT_TBL_PENDING		GENMASK(15, 0)
 +#define PPE_AC_GRP_CNT_TBL_ALLOC_USED		GENMASK(31, 16)
- 
++
  /* Counters for packets handled by multicast queues (256-299). */
  #define PPE_AC_MULTICAST_QUEUE_CNT_TBL_ADDR	0x852000
+ #define PPE_AC_MULTICAST_QUEUE_CNT_TBL_ENTRIES	44
