@@ -1,0 +1,26 @@
+From: zh8416 <1652191269@qq.com>
+Date: Sun, 15 Nov 2026 21:45:00 +0800
+Subject: [PATCH] wifi: ath12k: apply BE7000 runtime radio count in htc
+
+The Xiaomi BE7000 selects its 5 GHz radio mode at probe time through the
+be7000_dual module parameter; 305-be7000-radio-mode.patch provides
+ath12k_be7000_num_radios() for qmi.c and wmi.c. htc.c must use the same
+value, otherwise the static DT property qcom,num-radios (=1) caps the WMI
+endpoint count at one and MAC1 can never connect in tri-band mode.
+
+Applied after 908-ath12k-limit-wmi-endpoints-to-phy-capability.patch, which
+needs the original of_property_read_u32() lines as hunk context. This patch
+keeps the context minimal on purpose: the surrounding htc.c block was
+itself introduced by 301-ath12k-dt-radio-identity.patch and contains a
+debug log call after the assignment, so a long trailing context (as in
+the first version of this patch) does not match the real source.
+
+--- a/drivers/net/wireless/ath/ath12k/htc.c
++++ b/drivers/net/wireless/ath/ath12k/htc.c
+@@ -788,4 +788,4 @@
+-	if (!of_property_read_u32(ab->dev->of_node, "qcom,num-radios",
+-				  &num_radios) && num_radios) {
++	extern int ath12k_be7000_num_radios(struct ath12k_base *, u32 *);
++	if (!ath12k_be7000_num_radios(ab, &num_radios) && num_radios) {
+ 		num_radios = min_t(u32, num_radios, ab->hw_params->max_radios);
+ 		htc->wmi_ep_count = min_t(u8, htc->wmi_ep_count, num_radios);

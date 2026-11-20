@@ -283,20 +283,6 @@
 };
 
 &tlmm {
-	wifi-5g-split-disable {
-		gpio-hog;
-		gpios = <6 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "wifi-5g-split-disable";
-	};
-
-	wifi-5g-full-band-enable {
-		gpio-hog;
-		gpios = <7 GPIO_ACTIVE_HIGH>;
-		output-high;
-		line-name = "wifi-5g-full-band-enable";
-	};
-
 	i2c1_pins: i2c1-state {
 		pins = "gpio36", "gpio37";
 		function = "blsp1_i2c";
@@ -350,6 +336,12 @@
 
 &wifi2 {
 	compatible = "pci17cb,1109";
+	/* Runtime radio mode is selected by the ath12k be7000_dual module
+	 * parameter; see luci-app-xiaomi-control. The two RF switch GPIOs are
+	 * owned by the driver instead of pinctrl hogs. */
+	xiaomi,selectable-radio-mode;
+	rf-low-gpios = <&tlmm 6 GPIO_ACTIVE_HIGH>;
+	rf-high-gpios = <&tlmm 7 GPIO_ACTIVE_HIGH>;
 	qcom,num-radios = <1>;
 	qcom,ath12k-fw-memory-mode = <1>;
 	qcom,board-id = <2>;

@@ -1,0 +1,351 @@
+#!/bin/sh
+# Xiaomi BE7000 dual/tri-band 5 GHz radio mode controller.
+# Only ever active on xiaomi,be7000. Any other board gets available=0.
+
+. /usr/share/libubox/jshn.sh
+. /lib/functions/system.sh
+
+CAL=/lib/firmware/ath12k/QCN9274/hw2.0/cal-pci-0002:01:00.0.bin
+MODULES=/etc/modules.d/ath12k
+LOCK=/var/lock/be7000-radio.lock
+CFG=be7000_radio
+
+board_ok() {
+	[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = "xiaomi,be7000" ]
+}
+
+get_mode() {
+	local m
+	m=$(uci -q get "$CFG.settings.mode")
+	[ "$m" = dual ] && echo dual || echo single
+}
+
+current_mode() {
+	local p=/sys/module/ath12k/parameters/be7000_dual
+	if [ -r "$p" ] && [ "$(cat "$p")" = 1 ]; then
+		echo dual
+	else
+		echo single
+	fi
+}
+
+# 0:art holds two calibration blocks:
+#   single (one 5 GHz 4x4 radio): offset 0x65000 = 101 * 4096
+#   dual   (two 5 GHz 2x2 radios): offset 0x33000 =  51 * 4096
+prepare_cal() {
+	local art skip mode tmp
+	board_ok || return 0
+	art=$(find_mtd_chardev "0:art") || return 1
+	[ -c "$art" ] || return 1
+	mode=$(get_mode)
+	case "$mode" in
+		dual) skip=51 ;;
+		*)    skip=101 ;;
+	esac
+	tmp="$CAL.tmp.$$"
+	dd if="$art" of="$tmp" bs=4096 skip="$skip" count=45 iflag=fullblock 2>/dev/null || {
+		rm -f "$tmp"; return 1; }
+	[ "$(wc -c < "$tmp")" = 184320 ] || { rm -f "$tmp"; return 1; }
+	mv "$tmp" "$CAL" || return 1
+	logger -t be7000-radio "prepared $mode calibration (art skip=$skip)"
+}
+
+# ath12k is loaded by kmodloader from /etc/modules.d/ath12k.
+# The be7000_dual module parameter must be present before probe, hence the
+# file is written now and takes effect on the following boot (a reboot is
+# always required when the number of radios changes).
+prepare_modules() {
+	local dual=0
+	[ "$(get_mode)" = dual ] && dual=1
+	[ -f "$MODULES" ] || return 1
+	printf 'ath12k be7000_dual=%s\nath12k_wifi7\n' "$dual" > "$MODULES" || return 1
+}
+
+# Derive a stable SSID base from the current primary 5 GHz SSID.
+# Derive the SSID base from the current primary 5 GHz SSID every time, so the
+# value always matches the device's actual naming (including the model code
+# added by router-tool) and stays correct after the user renames the AP.
+# Never cache it: a stale cached base is what made the UI preview disagree
+# with the real SSID. Boards with no model code simply yield the vendor base.
+ssid_base() {
+	local b i
+	i=$(find_primary_5g_iface) || i=''
+	b=$(uci -q get "wireless.$i.ssid" 2>/dev/null)
+	b=${b%-5G}; b=${b%-5.2G}; b=${b%-5.8G}; b=${b%_High}
+	[ -n "$b" ] || b=OWRT-Xiaomi
+	printf '%s' "$b"
+}
+
+find_primary_5g_radio() {
+	local s p phy first
+	first=''
+	for s in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+		[ "$(uci -q get "wireless.$s.band")" = 5g ] || continue
+		# The split-off 5.8G radio is tagged radio=1; never treat it as primary.
+		[ "$(uci -q get "wireless.$s.radio")" = 1 ] && continue
+		[ -n "$first" ] || first="$s"
+		p=$(uci -q get "wireless.$s.path")
+		case "$p" in
+			*20000000*) printf '%s' "$s"; return 0 ;;
+		esac
+		# Configs binding by phy leave path empty; resolve the phy symlink.
+		phy=$(uci -q get "wireless.$s.phy")
+		[ -n "$phy" ] || continue
+		p=$(readlink -f "/sys/class/ieee80211/$phy/device" 2>/dev/null)
+		case "$p" in
+			*20000000*) printf '%s' "$s"; return 0 ;;
+		esac
+	done
+	# sysfs may not be populated yet when this runs during early boot; the
+	# only remaining 5 GHz device is the primary one on this board.
+	[ -n "$first" ] && { printf '%s' "$first"; return 0; }
+	return 1
+}
+
+find_primary_5g_iface() {
+	local r i
+	r=$(find_primary_5g_radio) || return 1
+	for i in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+		[ "$(uci -q get "wireless.$i.device")" = "$r" ] || continue
+		[ "$(uci -q get "wireless.$i.mode")" = ap ] || continue
+		printf '%s' "$i"; return 0
+	done
+	return 1
+}
+
+has_secondary_radio() {
+	uci -q show wireless | grep -qE '^wireless\.(radio|default_radio)[2-9][0-9]*='
+}
+
+# wifi-scripts can number a second radio as radio3 when an older, unbound
+# radio2 section already exists. Remove every secondary wifi-device (radio2 and
+# above) so the layout always converges to a single, properly bound radio2.
+# Returns 0 when at least one section was removed.
+drop_extra_radios() {
+	local s found=1
+	for s in $(uci -q show wireless | sed -n 's/^wireless\.\(radio[2-9][0-9]*\)=wifi-device$/\1/p'); do
+		uci -q delete "wireless.$s"
+		uci -q delete "wireless.default_$s"
+		found=0
+	done
+	return $found
+}
+
+# Remember the user's current 5.8G SSID before the section is removed, so a
+# later switch back to tri-band restores the name the user actually set.
+# Only a section we have taken over (named2=1) carries a user choice: a fresh
+# section from wifi-scripts/router-tool must never overwrite the saved name.
+remember_5g8() {
+	local s n
+	[ "$(uci -q get "$CFG.settings.named2")" = 1 ] || return 0
+	for s in $(uci -q show wireless | sed -n 's/^wireless\.\(default_radio[2-9][0-9]*\)=wifi-iface$/\1/p'); do
+		n=$(uci -q get "wireless.$s.ssid")
+		[ -n "$n" ] || continue
+		uci -q set "$CFG.settings.ssid_5g8=$n"
+		return 0
+	done
+}
+
+prepare_wireless() {
+	local mode r i base o v name changed=0
+	board_ok || return 0
+	mode=$(get_mode)
+
+	# The layout is compared against the real wireless state on every boot. A
+	# stored marker is not enough: a stale or duplicated radio section left by
+	# an earlier boot must always be corrected.
+	r=$(find_primary_5g_radio) || return 1
+	i=$(find_primary_5g_iface) || return 1
+
+	if [ "$mode" = dual ]; then
+		base=$(ssid_base)
+		# Pick up a name the user may have set on a section wifi-scripts
+		# numbered differently (radio3) before it is collapsed below.
+		remember_5g8
+		name=$(uci -q get "$CFG.settings.ssid_5g8")
+		[ -n "$name" ] || name="${base}-5.8G"
+
+		drop_extra_radios && changed=1
+
+		# Create the second 5 GHz device/AP only when absent. The device
+		# binding (phy/path) must be copied from the primary radio: this
+		# board binds by phy, and an unbound section makes wifi-scripts
+		# create a duplicate radio3 on the next wifi config run.
+		if [ -z "$(uci -q get wireless.radio2)" ]; then
+			uci -q set wireless.radio2=wifi-device
+			uci -q set "wireless.radio2.type=mac80211"
+			for o in path phy band country txpower; do
+				v=$(uci -q get "wireless.$r.$o")
+				[ -z "$v" ] || uci -q set "wireless.radio2.$o=$v"
+			done
+			uci -q set wireless.radio2.radio=1
+			changed=1
+		elif [ -z "$(uci -q get wireless.radio2.phy)" ] && [ -z "$(uci -q get wireless.radio2.path)" ]; then
+			# Repair a section created before the binding was copied.
+			v=$(uci -q get "wireless.$r.phy")
+			if [ -n "$v" ]; then
+				uci -q set "wireless.radio2.phy=$v"
+			else
+				v=$(uci -q get "wireless.$r.path")
+				[ -z "$v" ] || uci -q set "wireless.radio2.path=$v"
+			fi
+			uci -q set wireless.radio2.radio=1
+			changed=1
+		fi
+		[ -n "$(uci -q get wireless.default_radio2)" ] || {
+			uci -q set wireless.default_radio2=wifi-iface
+			for o in mode network encryption key ieee80211w isolate hidden; do
+				v=$(uci -q get "wireless.$i.$o")
+				[ -z "$v" ] || uci -q set "wireless.default_radio2.$o=$v"
+			done
+			uci -q set wireless.default_radio2.device=radio2
+			uci -q set "wireless.default_radio2.ssid=$name"
+			changed=1
+		}
+		# Take the section over once. Afterwards the SSID is the user's
+		# choice and must never be rewritten, even if it looks like the
+		# factory value "OWRT".
+		if [ "$(uci -q get "$CFG.settings.named2")" = 1 ]; then
+			[ -n "$(uci -q get wireless.default_radio2.ssid)" ] || {
+				uci -q set "wireless.default_radio2.ssid=$name"; changed=1; }
+		else
+			uci -q set "wireless.default_radio2.ssid=$name"
+			uci -q set "$CFG.settings.named2=1"
+			changed=1
+		fi
+		# Keep country and device binding consistent with the primary 5 GHz.
+		v=$(uci -q get "wireless.$r.country")
+		[ -z "$v" ] || uci -q set "wireless.radio2.country=$v"
+		# Enforce the tri-band radio parameters so a section generated by
+		# wifi-scripts (auto channel on the full band) is narrowed to 5.8G.
+		uci -q set wireless.radio2.channel=149
+		uci -q set wireless.radio2.htmode=EHT80
+		uci -q set wireless.radio2.noscan=1
+		uci -q set wireless.radio2.disabled=0
+		uci -q set wireless.default_radio2.disabled=0
+		uci -q set "wireless.$r.radio=0"
+		uci -q set "wireless.$r.channel=36"
+		uci -q set "wireless.$r.htmode=EHT80"
+		# 2.4G and the primary 5G SSID are user-owned: never touch them.
+		# Lock the 5.8G section against router-tool's default-name pass,
+		# which runs earlier in boot and would otherwise rename it.
+		if [ "$(uci -q get router-tool.radio2.defaults_done)" != 1 ]; then
+			uci -q set router-tool.radio2=radio
+			uci -q set router-tool.radio2.defaults_done=1
+			uci -q commit router-tool
+		fi
+		changed=1
+	else
+		if has_secondary_radio; then
+			# Back to dual-band: save the 5.8G name, then remove every
+			# secondary section so it disappears from LuCI instead of
+			# showing an "unassociated" AP, and restore the primary 5G.
+			remember_5g8
+			drop_extra_radios && changed=1
+			uci -q delete "wireless.$r.radio"
+			uci -q set "wireless.$r.channel=auto"
+			uci -q set "wireless.$r.htmode=EHT160"
+			# Drop router-tool's naming markers so a later tri-band boot
+			# applies the default name policy again.
+			v=0
+			for o in radio2 radio3 radio4 radio5; do
+				if [ -n "$(uci -q get "router-tool.$o")" ]; then
+					uci -q delete "router-tool.$o"
+					v=1
+				fi
+			done
+			[ "$v" = 0 ] || uci -q commit router-tool
+			# Next tri-band boot takes a fresh section over again.
+			uci -q set "$CFG.settings.named2=0"
+			changed=1
+		fi
+	fi
+	[ "$changed" = 1 ] && uci -q commit wireless
+	uci -q set "$CFG.settings.applied=$mode"
+	uci -q commit "$CFG"
+}
+
+json_fail() {
+	json_init
+	json_add_string error "$1"
+	json_dump
+	exit 0
+}
+
+status() {
+	local available=0 cur sel base s24 s52 s58
+	board_ok && available=1
+	cur=$(current_mode)
+	sel=$(get_mode)
+	base=$(ssid_base 2>/dev/null)
+	# Build the preview from the SSIDs actually configured on the device, so
+	# custom names are shown instead of a synthetic base-derived guess.
+	s24=$(uci -q get wireless.default_radio0.ssid)
+	s52=$(uci -q get wireless.default_radio1.ssid)
+	# Tri-band: the live 5.8G SSID wins. Dual-band: fall back to the saved name
+	# (the section does not exist), then to the derived default.
+	s58=$(uci -q get wireless.default_radio2.ssid)
+	[ -n "$s58" ] || s58=$(uci -q get "$CFG.settings.ssid_5g8")
+	[ -n "$s58" ] || s58="${base}-5.8G"
+	[ -n "$s24" ] || s24="${base}-2.4G"
+	[ -n "$s52" ] || s52="${base}-5.2G"
+	json_init
+	json_add_boolean available "$available"
+	json_add_string current "$cur"
+	json_add_string selected "$sel"
+	[ "$cur" = "$sel" ] && json_add_boolean pending 0 || json_add_boolean pending 1
+	json_add_string ssid_base "$base"
+	json_add_string ssid_24 "$s24"
+	json_add_string ssid_52 "$s52"
+	json_add_string ssid_58 "$s58"
+	if [ "$sel" = dual ]; then
+		json_add_string ssid_preview "${s24} / ${s52} / ${s58}"
+	else
+		json_add_string ssid_preview "${s24} / ${s52}"
+	fi
+	json_dump
+}
+
+set_mode() {
+	local mode=$1
+	board_ok || json_fail unavailable
+	case "$mode" in
+		single|dual) ;;
+		*) json_fail bad_mode ;;
+	esac
+	exec 9>"$LOCK"
+	flock -n 9 || json_fail busy
+	uci -q set "$CFG.settings.mode=$mode"
+	uci -q commit "$CFG"
+	prepare_cal || json_fail calibration
+	prepare_modules || json_fail modules
+	# The wireless layout is migrated on the next boot (see boot), once the
+	# new number of radios is actually present. Changing it here would leave
+	# a radio2 section pointing at a phy that does not exist yet.
+	status
+}
+
+case "${1:-}" in
+	status) status; exit 0 ;;
+	set)    set_mode "${2:-}"; exit 0 ;;
+	boot-early)
+		# Must run before ath12k is probed: calibration blob and the
+		# be7000_dual module parameter only take effect at load time.
+		board_ok || exit 0
+		prepare_cal || logger -t be7000-radio 'calibration preparation failed'
+		prepare_modules || logger -t be7000-radio 'module parameter preparation failed'
+		exit 0 ;;
+	boot-late)
+		# Must run after /etc/init.d/boot (/sbin/wifi config) has generated
+		# radio sections, otherwise they are recreated with factory defaults.
+		board_ok || exit 0
+		prepare_wireless || logger -t be7000-radio 'wireless preparation failed'
+		exit 0 ;;
+	boot)
+		board_ok || exit 0
+		prepare_cal || logger -t be7000-radio 'calibration preparation failed'
+		prepare_modules || logger -t be7000-radio 'module parameter preparation failed'
+		prepare_wireless || logger -t be7000-radio 'wireless preparation failed'
+		exit 0 ;;
+	*) exit 1 ;;
+esac

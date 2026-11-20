@@ -1,0 +1,31 @@
+#!/bin/sh
+
+RADIO=/usr/libexec/be7000-radio
+
+case "$1:$2" in
+	list:)
+		printf '%s\n' '{"status":{},"set":{"mode":""}}'
+		;;
+	call:status)
+		exec $RADIO status
+		;;
+	call:set)
+		. /usr/share/libubox/jshn.sh
+		json_load "$(cat)" || exit 1
+		json_get_var mode mode
+		out=$($RADIO set "$mode") || exit 1
+		printf '%s' "$out"
+		# Apply failures (wrong board, bad mode, busy lock) are reported as an
+		# error object and must never reboot the device.
+		case "$out" in
+			*'"error"'*) exit 0 ;;
+		esac
+		# The radio mode only takes effect at probe time, so schedule the
+		# reboot here; the UI therefore needs no system reboot permission.
+		( sleep 2; /sbin/reboot ) >/dev/null 2>&1 &
+		exit 0
+		;;
+	*)
+		exit 1
+		;;
+esac
