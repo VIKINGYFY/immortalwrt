@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <linux/debugfs.h>
+#include <linux/delay.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/syscon.h>
 #include <linux/module.h>
@@ -52,6 +53,7 @@ struct rtsds_config {
 	int sds_cnt;
 	int page_cnt;
 	int base;
+	unsigned int post_op_delay_us;
 	int (*get_backing_sds)(int sds, int page);
 	int (*read)(struct rtsds_ctrl *ctrl, int sds, int page, int regnum);
 	int (*write)(struct rtsds_ctrl *ctrl, int sds, int page, int regnum, u16 value);
@@ -429,6 +431,8 @@ static int rtsds_93xx_read(struct rtsds_ctrl *ctrl, int sds, int page, int regnu
 		return ret;
 
 	ret = regmap_read(ctrl->map, ctrl->cfg->base + 4, &value);
+	if (ctrl->cfg->post_op_delay_us)
+		udelay(ctrl->cfg->post_op_delay_us);
 
 	return ret ? ret : value & RTSDS_VAL_MASK;
 }
@@ -443,7 +447,11 @@ static int rtsds_93xx_write(struct rtsds_ctrl *ctrl, int sds, int page, int regn
 	if (ret)
 		return ret;
 
-	return rtsds_rt93xx_io(ctrl, backsds, subpage, regnum, RTSDS_93XX_CMD_WRITE);
+	ret = rtsds_rt93xx_io(ctrl, backsds, subpage, regnum, RTSDS_93XX_CMD_WRITE);
+	if (ctrl->cfg->post_op_delay_us)
+		udelay(ctrl->cfg->post_op_delay_us);
+
+	return ret;
 }
 
 static int rtsds_read(struct mii_bus *bus, int addr, int devad, int regnum)
@@ -533,6 +541,8 @@ static const struct rtsds_config rtsds_930x_cfg = {
 	.sds_cnt		= RTSDS_930X_SDS_CNT,
 	.page_cnt		= RTSDS_930X_PAGE_CNT,
 	.base			= RTSDS_930X_BASE,
+	/* RTL930x needs an idle interval between SerDes transactions. */
+	.post_op_delay_us	= 10,
 	.get_backing_sds	= rtsds_930x_get_backing_sds,
 	.read			= rtsds_93xx_read,
 	.write			= rtsds_93xx_write,
