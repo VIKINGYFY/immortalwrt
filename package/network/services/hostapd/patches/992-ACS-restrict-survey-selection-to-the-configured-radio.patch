@@ -1,0 +1,106 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 20 Nov 2026 16:35:36 +0800
+Subject: [PATCH] ACS: restrict survey selection to the configured radio
+
+An nl80211 wiphy may expose more than one radio in the same band.
+When netifd binds an AP to a radio, limit ACS scans and channel
+selection to the ranges exported by that radio. Require the whole
+candidate segment to fit in one frequency range.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -3434,6 +3434,12 @@
+ 			return 1;
+ 		}
+ 		conf->acs_freq_list_present = 1;
++	} else if (os_strcmp(buf, "acs_radio_ranges") == 0) {
++		if (freq_range_list_parse(&conf->acs_radio_ranges, pos)) {
++			wpa_printf(MSG_ERROR, "Line %d: invalid ACS radio ranges",
++				   line);
++			return 1;
++		}
+ 	} else if (os_strcmp(buf, "acs_exclude_6ghz_non_psc") == 0) {
+ 		conf->acs_exclude_6ghz_non_psc = atoi(pos);
+ 	} else if (os_strcmp(buf, "enable_background_radar") == 0) {
+--- a/src/ap/acs.c
++++ b/src/ap/acs.c
+@@ -840,6 +840,27 @@
+ }
+ 
+ 
++static bool acs_radio_supports_segment(struct hostapd_iface *iface,
++				       int first, int last)
++{
++	const struct wpa_freq_range_list *ranges = &iface->conf->acs_radio_ranges;
++	unsigned int i, low, high;
++
++	if (!ranges->num)
++		return true;
++
++	/* The entire segment must fit within one radio frequency range. */
++	low = (first < last ? first : last) * 1000 - 10000;
++	high = (first > last ? first : last) * 1000 + 10000;
++	for (i = 0; i < ranges->num; i++) {
++		if (ranges->range[i].min <= low && ranges->range[i].max >= high)
++			return true;
++	}
++
++	return false;
++}
++
++
+ static void
+ acs_find_ideal_chan_mode(struct hostapd_iface *iface,
+ 			 struct hostapd_hw_modes *mode,
+@@ -851,7 +872,7 @@
+ 	struct hostapd_channel_data *chan, *adj_chan = NULL,
+ 		*chan2 = NULL, *best;
+ 	long double factor;
+-	int i, j;
++	int i, j, last_freq;
+ 	int bw320_offset = 0, ideal_bw320_offset = 0;
+ 	unsigned int k;
+ 	int secondary_channel = 1, freq_offset;
+@@ -868,6 +889,10 @@
+ 
+ 		chan = &mode->channels[i];
+ 
++		last_freq = chan->freq + (n_chans - 1) * secondary_channel * 20;
++		if (!acs_radio_supports_segment(iface, chan->freq, last_freq))
++			continue;
++
+ 		/* HT40 on 5 GHz has a limited set of primary channels as per
+ 		 * 11n Annex J */
+ 		if (bw == 40 &&
+@@ -1508,6 +1533,9 @@
+ 		     iface->conf->acs_exclude_dfs))
+ 			continue;
+ 
++		if (!acs_radio_supports_segment(iface, chan->freq, chan->freq))
++			continue;
++
+ 		if (!is_in_chanlist(iface, chan))
+ 			continue;
+ 
+--- a/src/ap/ap_config.c
++++ b/src/ap/ap_config.c
+@@ -1068,6 +1068,7 @@
+ 	os_free(conf->bss);
+ 	os_free(conf->acs_ch_list.range);
+ 	os_free(conf->acs_freq_list.range);
++	os_free(conf->acs_radio_ranges.range);
+ 	os_free(conf->driver_params);
+ #ifdef CONFIG_ACS
+ 	os_free(conf->acs_chan_bias);
+--- a/src/ap/ap_config.h
++++ b/src/ap/ap_config.h
+@@ -1148,6 +1148,7 @@
+ 	u8 acs;
+ 	struct wpa_freq_range_list acs_ch_list;
+ 	struct wpa_freq_range_list acs_freq_list;
++	struct wpa_freq_range_list acs_radio_ranges; /* kHz */
+ 	u8 acs_freq_list_present;
+ 	int acs_exclude_dfs;
+ 	u8 min_tx_power;

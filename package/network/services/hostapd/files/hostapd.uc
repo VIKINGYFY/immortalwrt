@@ -1,5 +1,6 @@
 let libubus = require("ubus");
 import * as uloop from "uloop";
+import * as nl80211 from "nl80211";
 import { open, readfile, access } from "fs";
 import { wdev_remove, is_equal, vlist_new, phy_is_fullmac, phy_open, wdev_set_radio_mask, wdev_set_up, macaddr_keep, macaddr_sync, macaddr_sync_defer, macaddr_sync_entry, macaddr_release_defer, mld_prev_match } from "common";
 
@@ -1906,6 +1907,25 @@ function config_add_bss(config, name)
 	return bss;
 }
 
+function iface_acs_radio_ranges(phy, radio)
+{
+	if (radio == null)
+		return;
+
+	let phydev = phy_open(phy, radio);
+	if (!phydev)
+		return;
+
+	let wiphy = nl80211.request(nl80211.const.NL80211_CMD_GET_WIPHY,
+				   nl80211.const.NLM_F_DUMP,
+				   { wiphy: phydev.idx, split_wiphy_dump: true });
+	for (let r in wiphy?.radios) {
+		if (r.index == phydev.radio)
+			return join(",", map(r.freq_ranges ?? [],
+					     range => `${range.start}-${range.end}`));
+	}
+}
+
 function iface_load_config(phy, radio, filename)
 {
 	if (radio < 0)
@@ -2005,6 +2025,12 @@ function iface_load_config(phy, radio, filename)
 		push(bss.data, line);
 	}
 	f.close();
+
+	if (config.radio.channel in [ "0", "acs_survey" ]) {
+		let ranges = iface_acs_radio_ranges(phy, radio);
+		if (ranges)
+			push(config.radio.data, "acs_radio_ranges=" + ranges);
+	}
 
 	for (let bss in config.bss)
 		if (!bss.bssid)
