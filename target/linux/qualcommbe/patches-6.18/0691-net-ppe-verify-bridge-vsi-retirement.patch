@@ -1,0 +1,1147 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 22:26:08 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: verify bridge VSI retirement
+
+Bind deferred FDB updates to the exact PPE port membership that
+accepted the event. A membership change invalidates its cookie before
+the port or VLAN can publish a new one. Restrict VLAN, MDB and FDB
+replay to the PPE port being offloaded or withdrawn.
+
+Park a retired VSI with learning disabled, withdraw its ingress keys
+and verify that its hardware address table is empty before allowing
+reuse. Hold VSI and translation rule ownership on unverified hardware
+changes. Remove both learned and static addresses for a leaving port
+and update the remaining hardware multicast destinations.
+
+Read back the complete L3 port row after its VSI binding changes.
+Serialize full-row updates with L3 interface and MAC programming.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
+@@ -24,6 +24,7 @@
+ #include <linux/netdevice.h>
+ #include <linux/notifier.h>
+ #include <linux/rtnetlink.h>
++#include <linux/spinlock.h>
+ #include <linux/slab.h>
+ #include <linux/workqueue.h>
+ #include <net/switchdev.h>
+@@ -51,6 +52,7 @@
+  * allocated.
+  * @ageing_time: Ageing time of the bridge in jiffies, applied to the
+  * dynamic hardware FDB entries of the VSI.
++ * @fdb_cookie: Published membership identity per PPE port, or zero.
+  * @poisoned: Hardware teardown failed; never allocate this slot again.
+  */
+ struct ppe_bridge_vsi {
+@@ -62,6 +64,7 @@
+ 	int xlt_tagged;
+ 	int xlt_pvid;
+ 	unsigned long ageing_time;
++	u32 fdb_cookie[PPE_PORT_MAX];
+ 	bool poisoned;
+ };
+ 
+@@ -77,6 +80,7 @@
+  * @flags: Offloaded bridge port flags of the port.
+  * @mrouter: Port leads to a multicast router and is included in the
+  * bitmap of every offloaded multicast group of its bridge.
++ * @poisoned: The port's hardware bridge state could not be retired.
+  */
+ struct ppe_bridge_port {
+ 	struct net_device *bridge;
+@@ -85,6 +89,7 @@
+ 	u16 pvid;
+ 	unsigned long flags;
+ 	bool mrouter;
++	bool poisoned;
+ };
+ 
+ /* The bridge port flags the offload supports, matching the defaults of
+@@ -100,6 +105,8 @@
+  * @switchdev_nb: Notifier for atomic switchdev events (FDB).
+  * @switchdev_blocking_nb: Notifier for blocking switchdev events.
+  * @fdb_wq: Ordered workqueue processing the deferred FDB events.
++ * @fdb_cookie_lock: Protects publication and atomic lookup of membership.
++ * @next_fdb_cookie: Sequence for distinct port/VSI memberships.
+  * @fdb_sync: Delayed work synchronizing hardware-learned FDB entries
+  * to the bridge and aging them out, running while any port is
+  * offloaded.
+@@ -116,7 +123,8 @@
+  * All state is protected by RTNL: bridge join and leave events run
+  * under RTNL, and the deferred switchdev attribute events, the FDB
+  * work items and the FDB synchronization are processed under RTNL
+- * as well.
++ * as well. The cookie lock also lets the atomic FDB notifier read the
++ * identity of an active membership without taking RTNL.
+  */
+ struct ppe_bridge {
+ 	struct ppe_device *ppe_dev;
+@@ -124,6 +132,8 @@
+ 	struct notifier_block switchdev_nb;
+ 	struct notifier_block switchdev_blocking_nb;
+ 	struct workqueue_struct *fdb_wq;
++	spinlock_t fdb_cookie_lock; /* Active membership cookies */
++	u32 next_fdb_cookie;
+ 	struct delayed_work fdb_sync;
+ 	DECLARE_HASHTABLE(fdb_ht, 8);
+ 	DECLARE_HASHTABLE(mdb_ht, 6);
+@@ -172,6 +182,8 @@
+  * @event: SWITCHDEV_FDB_ADD_TO_DEVICE or SWITCHDEV_FDB_DEL_TO_DEVICE.
+  * @addr: MAC address of the FDB entry.
+  * @vid: VLAN ID of the FDB entry, 0 on VLAN-unaware bridges.
++ * @vsi: Hardware domain selected when the event was queued.
++ * @cookie: Identity of the port's membership in that domain.
+  * @host_addr: Entry points to the CPU port instead of the PPE port,
+  * used for the addresses of the bridge itself and for addresses on
+  * software ports of the bridge (assisted learning).
+@@ -183,7 +195,9 @@
+ 	struct net_device *dev;
+ 	unsigned long event;
+ 	unsigned char addr[ETH_ALEN];
++	u32 cookie;
+ 	u16 vid;
++	u8 vsi;
+ 	bool host_addr;
+ 	bool notify_offloaded;
+ };
+@@ -219,7 +233,7 @@
+ 
+ 	vsi = ppe_bridge_vsi_find(pb, br, vid);
+ 	if (vsi >= 0)
+-		return vsi;
++		return pb->vsis[vsi].poisoned ? -EIO : vsi;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(pb->vsis) - PPE_L3_RESERVED_VSIS; i++) {
+ 		if (pb->vsis[i].br || pb->vsis[i].poisoned)
+@@ -240,6 +254,68 @@
+ 	return -ENOSPC;
+ }
+ 
++/* A cookie only exists after the hardware membership is installed. The
++ * bridge and VID stay stable while any cookie of the VSI is published.
++ */
++static void ppe_bridge_fdb_member_set(struct ppe_bridge *pb, int vsi,
++				      int port, bool present)
++{
++	u32 cookie = 0;
++
++	spin_lock_bh(&pb->fdb_cookie_lock);
++	if (present) {
++		cookie = ++pb->next_fdb_cookie;
++		if (!cookie)
++			cookie = ++pb->next_fdb_cookie;
++	}
++	pb->vsis[vsi].fdb_cookie[port] = cookie;
++	spin_unlock_bh(&pb->fdb_cookie_lock);
++}
++
++static u32 ppe_bridge_fdb_member_find(struct ppe_bridge *pb,
++				      struct net_device *br, int port,
++				      u16 vid, u8 *vsi)
++{
++	u32 cookie = 0;
++	int i;
++
++	spin_lock_bh(&pb->fdb_cookie_lock);
++	for (i = 0; i < ARRAY_SIZE(pb->vsis); i++) {
++		struct ppe_bridge_vsi *v = &pb->vsis[i];
++
++		if (!v->fdb_cookie[port] || v->br != br || v->vid != vid)
++			continue;
++
++		cookie = v->fdb_cookie[port];
++		*vsi = i;
++		break;
++	}
++	spin_unlock_bh(&pb->fdb_cookie_lock);
++
++	return cookie;
++}
++
++/* Preserve the VSI number after an uncertain hardware transition. Park
++ * the datapath if possible even if some of its ingress keys still exist.
++ */
++static void ppe_bridge_vsi_quarantine(struct ppe_bridge *pb, int vsi, int err)
++{
++	struct ppe_bridge_vsi *v = &pb->vsis[vsi];
++	int ret;
++
++	if (v->poisoned)
++		return;
++
++	v->poisoned = true;
++	spin_lock_bh(&pb->fdb_cookie_lock);
++	memset(v->fdb_cookie, 0, sizeof(v->fdb_cookie));
++	spin_unlock_bh(&pb->fdb_cookie_lock);
++
++	ret = ppe_vsi_members_set(pb->ppe_dev, vsi, BIT(0), BIT(0), BIT(0), BIT(0));
++	dev_err(pb->ppe_dev->dev, "quarantined bridge VSI %d: error %d, park %d\n",
++		vsi, err, ret);
++}
++
+ /* Update the member and flood bitmaps of a VSI from its members and
+  * their bridge port flags. The CPU port is always a member and a flood
+  * target, so that packets without a hit on a hardware FDB entry reach
+@@ -250,6 +326,10 @@
+ 	unsigned int member, uuc, umc, bc;
+ 	int i;
+ 
++	if (pb->vsis[vsi].poisoned)
++		return ppe_vsi_members_set(pb->ppe_dev, vsi, BIT(0), BIT(0),
++					   BIT(0), BIT(0));
++
+ 	member = BIT(0) | pb->vsis[vsi].members;
+ 	uuc = BIT(0);
+ 	umc = BIT(0);
+@@ -290,7 +370,7 @@
+ 	int i, mode;
+ 
+ 	for (i = 0; i < pb->ppe_dev->num_ports; i++) {
+-		if (!v->vid)
++		if (!v->vid || !v->members)
+ 			mode = PPE_EG_VLAN_MODE_UNMODIFIED;
+ 		else if (i == 0)
+ 			mode = PPE_EG_VLAN_MODE_TAGGED;
+@@ -355,6 +435,12 @@
+ 			if (idx >= PPE_XLT_RULE_TBL_ENTRIES -
+ 				   PPE_L3_RESERVED_VSIS)
+ 				return -ENOSPC;
++
++			/* Own the key before the first write. A failed
++			 * readback leaves it reserved until a verified clear.
++			 */
++			set_bit(idx, pb->xlt_used);
++			*rules[i].index = idx;
+ 		}
+ 
+ 		ret = ppe_ing_xlt_rule_set(pb->ppe_dev, idx, rules[i].bitmap,
+@@ -362,9 +448,6 @@
+ 					   false, false);
+ 		if (ret)
+ 			return ret;
+-
+-		set_bit(idx, pb->xlt_used);
+-		*rules[i].index = idx;
+ 	}
+ 
+ 	return 0;
+@@ -498,6 +581,9 @@
+ 	unsigned int ports = mdb->ports;
+ 	int i;
+ 
++	if (v->poisoned)
++		return 0;
++
+ 	for (i = 1; i < pb->ppe_dev->num_ports; i++)
+ 		if (pb->ports[i].mrouter && pb->ports[i].bridge == v->br)
+ 			ports |= BIT(i);
+@@ -523,6 +609,53 @@
+ 	return ppe_fdb_entry_del(pb->ppe_dev, &entry);
+ }
+ 
++static int ppe_bridge_mdb_member_del(struct ppe_bridge *pb,
++				     struct ppe_bridge_mdb *mdb, int port)
++{
++	int ret;
++
++	mdb->ports &= ~BIT(port);
++	if (mdb->ports) {
++		ret = ppe_bridge_mdb_hw_update(pb, mdb);
++	} else {
++		ret = ppe_bridge_mdb_hw_remove(pb, mdb);
++		if (!ret || ret == -ENOENT) {
++			hash_del(&mdb->node);
++			kfree(mdb);
++			return 0;
++		}
++	}
++
++	if (ret)
++		mdb->ports |= BIT(port);
++
++	return ret;
++}
++
++static int ppe_bridge_mdb_port_flush(struct ppe_bridge *pb, int vsi, int port)
++{
++	struct ppe_bridge_mdb *mdb;
++	struct hlist_node *tmp;
++	int bkt, ret;
++
++	hash_for_each_safe(pb->mdb_ht, bkt, tmp, mdb, node) {
++		if (mdb->vsi != vsi)
++			continue;
++
++		if (mdb->ports & BIT(port))
++			ret = ppe_bridge_mdb_member_del(pb, mdb, port);
++		else if (pb->ports[port].mrouter)
++			ret = ppe_bridge_mdb_hw_update(pb, mdb);
++		else
++			continue;
++
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
+ /* Drop the offloaded groups of a released VSI, whose hardware entries
+  * the FDB flush of the release removes, or of a whole bridge, removing
+  * the hardware entries here. A NULL bridge with a negative VSI matches
+@@ -557,49 +690,80 @@
+ 	return err;
+ }
+ 
+-/* Release a VSI which lost its last member port: drop its translation
+- * rules, park it back to the CPU-only state the PPE core initialized,
+- * and flush its FDB entries, including the CPU-directed entries which
+- * are not tied to any PPE port.
++static int ppe_bridge_vsi_fdb_check(struct ppe_bridge *pb, int vsi)
++{
++	struct ppe_fdb_entry entry;
++	bool valid;
++	int i, ret;
++
++	for (i = 0; i < PPE_FDB_TBL_ENTRIES; i++) {
++		ret = ppe_fdb_entry_read(pb->ppe_dev, i, &entry, &valid);
++		if (ret)
++			return ret;
++		if (valid && entry.vsi == vsi)
++			return -EIO;
++	}
++
++	return 0;
++}
++
++/* Retire the ingress keys and stop learning before removing all address
++ * entries, including multicast and CPU entries. Publish a free slot only
++ * after a complete hardware walk confirms that nothing remains.
+  */
+ static int ppe_bridge_vsi_release(struct ppe_bridge *pb, int vsi)
+ {
+ 	struct ppe_bridge_vsi *v = &pb->vsis[vsi];
+-	int err = 0, ret;
+-
+-	v->members = 0;
+-	v->untagged = 0;
+-	v->pvids = 0;
++	int err, ret;
+ 
++	err = ppe_bridge_vsi_hw_update(pb, vsi);
+ 	ret = ppe_bridge_vsi_xlt_update(pb, vsi);
+-	if (ret)
++	if (!err)
+ 		err = ret;
+-	ret = ppe_bridge_vsi_hw_update(pb, vsi);
+-	if (ret && !err)
++	ret = ppe_bridge_vsi_eg_update(pb, vsi);
++	if (!err)
+ 		err = ret;
++	if (!err)
++		err = ppe_fdb_vsi_flush(pb->ppe_dev, vsi);
++	if (!err)
++		err = ppe_bridge_vsi_fdb_check(pb, vsi);
++	if (err)
++		ppe_bridge_vsi_quarantine(pb, vsi, err);
+ 
++	ppe_bridge_fdb_shadow_purge(pb, -1, vsi);
++	ppe_bridge_mdb_purge(pb, NULL, vsi);
+ 	v->br = NULL;
+ 	v->vid = 0;
+ 
+-	ret = ppe_bridge_vsi_eg_update(pb, vsi);
+-	if (ret && !err)
+-		err = ret;
+-	ret = ppe_fdb_vsi_flush(pb->ppe_dev, vsi);
+-	if (ret && !err)
+-		err = ret;
+-	if (!ret) {
+-		ppe_bridge_fdb_shadow_purge(pb, -1, vsi);
+-		ppe_bridge_mdb_purge(pb, NULL, vsi);
+-	}
++	return err;
++}
+ 
+-	if (err) {
+-		v->poisoned = true;
+-		dev_err(pb->ppe_dev->dev,
+-			"failed to clear VSI %d, quarantining slot: %d\n",
+-			vsi, err);
+-	}
++static int ppe_bridge_vsi_port_del(struct ppe_bridge *pb, int vsi, int port)
++{
++	struct ppe_bridge_vsi *v = &pb->vsis[vsi];
++	int ret;
+ 
+-	return err;
++	if (!(v->members & BIT(port)))
++		return 0;
++
++	ppe_bridge_fdb_member_set(pb, vsi, port, false);
++	v->members &= ~BIT(port);
++	v->untagged &= ~BIT(port);
++	v->pvids &= ~BIT(port);
++
++	if (!v->members)
++		return ppe_bridge_vsi_release(pb, vsi);
++
++	ret = ppe_bridge_vsi_resync(pb, vsi);
++	if (!ret)
++		ret = ppe_fdb_port_vsi_flush(pb->ppe_dev, port, vsi);
++	if (!ret)
++		ret = ppe_bridge_mdb_port_flush(pb, vsi, port);
++	ppe_bridge_fdb_shadow_purge(pb, port, vsi);
++	if (ret)
++		ppe_bridge_vsi_quarantine(pb, vsi, ret);
++
++	return ret;
+ }
+ 
+ /* Synchronize the dynamic entries the hardware has learned to the
+@@ -643,7 +807,7 @@
+ 		 * which is no longer a member, they are about to be
+ 		 * flushed.
+ 		 */
+-		if (!pb->vsis[entry.vsi].br ||
++		if (!pb->vsis[entry.vsi].br || pb->vsis[entry.vsi].poisoned ||
+ 		    !(pb->vsis[entry.vsi].members & BIT(entry.port)))
+ 			continue;
+ 
+@@ -720,36 +884,86 @@
+ 	rtnl_unlock();
+ }
+ 
+-/* Drop the port from every VSI it is a member of, releasing the VSIs
+- * which lose their last member. Used when a port leaves its bridge and
+- * to unwind a failed join.
++static void ppe_bridge_port_quarantine(struct ppe_bridge *pb, int port,
++				       int err)
++{
++	int vsi;
++
++	pb->ports[port].poisoned = true;
++	for (vsi = 0; vsi < ARRAY_SIZE(pb->vsis); vsi++)
++		if (pb->vsis[vsi].members & BIT(port))
++			ppe_bridge_vsi_quarantine(pb, vsi, err);
++}
++
++/* Tear down a leaving port or unwind a failed join. Gate the port and
++ * stop learning before switchdev replays deletions that can retire a VSI.
+  */
+-static void ppe_bridge_port_vlans_flush(struct ppe_bridge *pb, int port)
++static void ppe_bridge_port_detach(struct ppe_bridge *pb,
++				   struct net_device *dev, bool offloaded)
+ {
+-	struct ppe_bridge_vsi *v;
+-	int i;
++	struct ppe_device *ppe_dev = pb->ppe_dev;
++	int port = ppe_bridge_port_id(dev);
++	struct ppe_bridge_port *p = &pb->ports[port];
++	bool vlan_aware = p->vsi < 0;
++	int err, ret, i;
+ 
+-	if (pb->ports[port].pvid) {
+-		ppe_port_default_cvid_set(pb->ppe_dev, port, -1);
+-		pb->ports[port].pvid = 0;
+-	}
++	ppe_bridge_port_offload_mark_set(dev, false);
++	err = ppe_port_bridge_txmac_set(ppe_dev, port, false);
++	ret = ppe_port_bridge_learning_set(ppe_dev, port, false);
++	if (!err)
++		err = ret;
+ 
+-	for (i = 0; i < ARRAY_SIZE(pb->vsis); i++) {
+-		v = &pb->vsis[i];
++	if (!vlan_aware) {
++		ret = ppe_port_vsi_set(ppe_dev, port, -1);
++		if (!err)
++			err = ret;
++	}
+ 
+-		if (!v->br || !(v->members & BIT(port)))
+-			continue;
++	ret = ppe_fdb_port_flush(ppe_dev, port, true);
++	if (!err)
++		err = ret;
++	if (err)
++		ppe_bridge_port_quarantine(pb, port, err);
+ 
+-		v->members &= ~BIT(port);
+-		v->untagged &= ~BIT(port);
+-		v->pvids &= ~BIT(port);
++	if (offloaded)
++		switchdev_bridge_port_unoffload(dev, p, &pb->switchdev_nb,
++						&pb->switchdev_blocking_nb);
++
++	if (!err && p->poisoned)
++		err = -EIO;
++	if (p->pvid) {
++		ret = ppe_port_default_cvid_set(ppe_dev, port, -1);
++		if (ret)
++			ppe_bridge_port_quarantine(pb, port, ret);
++		if (!err)
++			err = ret;
++	}
+ 
+-		if (!v->members) {
+-			ppe_bridge_vsi_release(pb, i);
+-			continue;
+-		}
++	for (i = 0; i < ARRAY_SIZE(pb->vsis); i++) {
++		ret = ppe_bridge_vsi_port_del(pb, i, port);
++		if (!err)
++			err = ret;
++	}
+ 
+-		ppe_bridge_vsi_resync(pb, i);
++	ppe_bridge_fdb_shadow_purge(pb, port, -1);
++	p->bridge = NULL;
++	p->dev = NULL;
++	p->vsi = -1;
++	p->pvid = 0;
++	p->flags = 0;
++	p->mrouter = false;
++
++	if (!err && vlan_aware)
++		err = ppe_port_vlan_ingress_filter_set(ppe_dev, port, false);
++	if (!err)
++		err = ppe_port_bridge_learning_set(ppe_dev, port, true);
++	if (!err)
++		err = ppe_port_stp_state_set(ppe_dev, port, PPE_STP_STATE_FORWARDING);
++	if (err) {
++		ppe_bridge_port_quarantine(pb, port, err);
++		ret = ppe_port_stp_state_set(ppe_dev, port, PPE_STP_STATE_DISABLED);
++		netdev_err(dev, "quarantined bridge port: error %d, disable %d\n",
++			   err, ret);
+ 	}
+ }
+ 
+@@ -764,6 +978,11 @@
+ 	int vsi = -1, ret;
+ 	u16 proto;
+ 
++	if (pb->ports[port].poisoned) {
++		NL_SET_ERR_MSG_MOD(extack, "PPE bridge port is quarantined");
++		return -EIO;
++	}
++
+ 	if (vlan_aware) {
+ 		ret = br_vlan_get_proto(br, &proto);
+ 		if (ret)
+@@ -776,11 +995,15 @@
+ 		 * its ports.
+ 		 */
+ 		vsi = ppe_bridge_vsi_get(pb, br, 0);
+-		if (vsi < 0) {
++		if (vsi == -ENOSPC) {
+ 			NL_SET_ERR_MSG_MOD(extack,
+ 					   "No free VSI to offload the bridge");
+ 			return 0;
+ 		}
++		if (vsi < 0) {
++			NL_SET_ERR_MSG_MOD(extack, "PPE bridge VSI is quarantined");
++			return vsi;
++		}
+ 	}
+ 
+ 	/* Commit the port state before the switchdev offload below,
+@@ -800,22 +1023,22 @@
+ 
+ 		ret = ppe_bridge_vsi_hw_update(pb, vsi);
+ 		if (ret)
+-			goto err_state;
++			goto err_detach;
+ 
+ 		ret = ppe_bridge_vsi_eg_update(pb, vsi);
+ 		if (ret)
+-			goto err_state;
++			goto err_detach;
+ 
+ 		ret = ppe_port_vsi_set(ppe_dev, port, vsi);
+ 		if (ret)
+-			goto err_state;
++			goto err_detach;
+ 	} else {
+ 		/* The VLANs of the port arrive as objects, everything
+ 		 * without a translation rule is dropped at ingress.
+ 		 */
+ 		ret = ppe_port_vlan_ingress_filter_set(ppe_dev, port, true);
+ 		if (ret)
+-			goto err_state;
++			goto err_detach;
+ 	}
+ 
+ 	/* The bridge TX MAC gates packets forwarded to the port by the
+@@ -824,90 +1047,33 @@
+ 	 */
+ 	ret = ppe_port_bridge_txmac_set(ppe_dev, port, true);
+ 	if (ret)
+-		goto err_datapath;
++		goto err_detach;
+ 
++	if (vsi >= 0)
++		ppe_bridge_fdb_member_set(pb, vsi, port, true);
+ 	ppe_bridge_port_offload_mark_set(dev, true);
+ 
+-	ret = switchdev_bridge_port_offload(dev, dev, pb,
++	ret = switchdev_bridge_port_offload(dev, dev, &pb->ports[port],
+ 					    &pb->switchdev_nb,
+ 					    &pb->switchdev_blocking_nb,
+ 					    false, extack);
+ 	if (ret)
+-		goto err_offload;
++		goto err_detach;
+ 
+ 	queue_delayed_work(pb->fdb_wq, &pb->fdb_sync,
+ 			   PPE_BRIDGE_FDB_SYNC_INTERVAL);
+ 
+ 	return 0;
+ 
+-err_offload:
+-	ppe_bridge_port_offload_mark_set(dev, false);
+-	ppe_port_bridge_txmac_set(ppe_dev, port, false);
+-err_datapath:
+-	if (!vlan_aware)
+-		ppe_port_vsi_set(ppe_dev, port, -1);
+-	else
+-		ppe_port_vlan_ingress_filter_set(ppe_dev, port, false);
+-err_state:
+-	ppe_bridge_port_vlans_flush(pb, port);
+-	pb->ports[port].bridge = NULL;
+-	pb->ports[port].dev = NULL;
+-	pb->ports[port].vsi = -1;
+-	pb->ports[port].flags = 0;
+-	pb->ports[port].mrouter = false;
+-
++err_detach:
++	ppe_bridge_port_detach(pb, dev, false);
+ 	return ret;
+ }
+ 
+-static void ppe_bridge_port_leave(struct ppe_bridge *pb,
+-				  struct net_device *dev)
++static void ppe_bridge_port_leave(struct ppe_bridge *pb, struct net_device *dev)
+ {
+-	struct ppe_device *ppe_dev = pb->ppe_dev;
+-	int port = ppe_bridge_port_id(dev);
+-	bool vlan_aware = pb->ports[port].vsi < 0;
+-
+-	if (!pb->ports[port].bridge)
+-		return;
+-
+-	/* Replays the VLAN deletions of the port on a VLAN-aware
+-	 * bridge into the object handler.
+-	 */
+-	switchdev_bridge_port_unoffload(dev, pb,
+-					&pb->switchdev_nb,
+-					&pb->switchdev_blocking_nb);
+-
+-	ppe_bridge_port_offload_mark_set(dev, false);
+-	ppe_port_bridge_txmac_set(ppe_dev, port, false);
+-
+-	if (!vlan_aware)
+-		ppe_port_vsi_set(ppe_dev, port, -1);
+-	else
+-		ppe_port_vlan_ingress_filter_set(ppe_dev, port, false);
+-
+-	/* Restore hardware learning, disabled bridge port flags do not
+-	 * outlive the bridge membership.
+-	 */
+-	ppe_port_bridge_learning_set(ppe_dev, port, true);
+-
+-	/* Drop the remaining VSI memberships of the port. On a
+-	 * VLAN-aware bridge the replay above has normally removed
+-	 * them already.
+-	 */
+-	ppe_bridge_port_vlans_flush(pb, port);
+-
+-	pb->ports[port].bridge = NULL;
+-	pb->ports[port].dev = NULL;
+-	pb->ports[port].vsi = -1;
+-	pb->ports[port].flags = 0;
+-	pb->ports[port].mrouter = false;
+-
+-	/* The bridge leaves the port in the disabled spanning tree
+-	 * state, restore the forwarding of the now standalone port.
+-	 */
+-	ppe_port_stp_state_set(ppe_dev, port, PPE_STP_STATE_FORWARDING);
+-
+-	ppe_fdb_port_flush(ppe_dev, port, true);
+-	ppe_bridge_fdb_shadow_purge(pb, port, -1);
++	if (pb->ports[ppe_bridge_port_id(dev)].bridge)
++		ppe_bridge_port_detach(pb, dev, true);
+ }
+ 
+ static int ppe_bridge_port_vlan_add(struct ppe_bridge *pb,
+@@ -922,7 +1088,7 @@
+ 	unsigned int old_members, old_untagged, old_pvids;
+ 	struct ppe_bridge_vsi *v;
+ 	u16 old_port_pvid;
+-	int vsi, old = -1, ret;
++	int vsi, old = -1, ret, undo;
+ 
+ 	/* Only ports offloaded to a VLAN-aware bridge consume VLAN
+ 	 * objects.
+@@ -930,10 +1096,15 @@
+ 	br = pb->ports[port].bridge;
+ 	if (!br || pb->ports[port].vsi >= 0)
+ 		return -EOPNOTSUPP;
++	if (pb->ports[port].poisoned)
++		return -EIO;
+ 
+ 	vsi = ppe_bridge_vsi_get(pb, br, vlan->vid);
+ 	if (vsi < 0) {
+-		NL_SET_ERR_MSG_MOD(extack, "No free VSI to back the VLAN");
++		if (vsi == -ENOSPC)
++			NL_SET_ERR_MSG_MOD(extack, "No free VSI to back the VLAN");
++		else
++			NL_SET_ERR_MSG_MOD(extack, "PPE bridge VSI is quarantined");
+ 		return vsi;
+ 	}
+ 	v = &pb->vsis[vsi];
+@@ -986,7 +1157,9 @@
+ 				ret = ppe_bridge_vsi_xlt_update(pb, old);
+ 				if (ret) {
+ 					pb->vsis[old].pvids |= BIT(port);
+-					ppe_bridge_vsi_xlt_update(pb, old);
++					undo = ppe_bridge_vsi_xlt_update(pb, old);
++					if (undo)
++						ppe_bridge_port_quarantine(pb, port, undo);
+ 					goto err_undo;
+ 				}
+ 			}
+@@ -1003,16 +1176,22 @@
+ 			goto err_pvid;
+ 	}
+ 
++	if (!(old_members & BIT(port)))
++		ppe_bridge_fdb_member_set(pb, vsi, port, true);
++
+ 	return 0;
+ 
+ err_pvid:
+ 	pb->ports[port].pvid = old_port_pvid;
+ 	if (old >= 0) {
+ 		pb->vsis[old].pvids |= BIT(port);
+-		ppe_bridge_vsi_xlt_update(pb, old);
+-	}
+-	ppe_port_default_cvid_set(pb->ppe_dev, port,
+-				  old_port_pvid ? old_port_pvid : -1);
++		undo = ppe_bridge_vsi_xlt_update(pb, old);
++		if (undo)
++			ppe_bridge_port_quarantine(pb, port, undo);
++	}
++	undo = ppe_port_default_cvid_set(pb->ppe_dev, port, old_port_pvid ?: -1);
++	if (undo)
++		ppe_bridge_port_quarantine(pb, port, undo);
+ err_undo:
+ 	/* Undo the membership and ingress translation rule programmed above so
+ 	 * the hardware matches the bridge's view of the failed VLAN add.
+@@ -1020,12 +1199,14 @@
+ 	v->members = old_members;
+ 	v->untagged = old_untagged;
+ 	v->pvids = old_pvids;
+-	if (ppe_bridge_vsi_resync(pb, vsi)) {
+-		v->poisoned = true;
+-		dev_err(pb->ppe_dev->dev,
+-			"failed to roll back VSI %d, quarantining slot\n", vsi);
+-	} else if (!v->members) {
+-		v->br = NULL;
++	if (!v->members)
++		undo = ppe_bridge_vsi_release(pb, vsi);
++	else
++		undo = ppe_bridge_vsi_resync(pb, vsi);
++
++	if (undo) {
++		ppe_bridge_vsi_quarantine(pb, vsi, undo);
++		ppe_bridge_port_quarantine(pb, port, undo);
+ 	}
+ 
+ 	return ret;
+@@ -1036,52 +1217,30 @@
+ 				    const struct switchdev_obj_port_vlan *vlan)
+ {
+ 	int port = ppe_bridge_port_id(dev);
+-	struct net_device *br;
+-	struct ppe_bridge_vsi *v;
+-	int vsi, err = 0, ret;
++	struct ppe_bridge_port *p = &pb->ports[port];
++	int vsi, ret;
+ 
+-	br = pb->ports[port].bridge;
+-	if (!br || pb->ports[port].vsi >= 0)
++	if (!p->bridge || p->vsi >= 0)
+ 		return -EOPNOTSUPP;
+ 
+-	vsi = ppe_bridge_vsi_find(pb, br, vlan->vid);
+-	if (vsi < 0)
+-		return 0;
+-	v = &pb->vsis[vsi];
+-
+-	if (!(v->members & BIT(port)))
++	vsi = ppe_bridge_vsi_find(pb, p->bridge, vlan->vid);
++	if (vsi < 0 || !(pb->vsis[vsi].members & BIT(port)))
+ 		return 0;
+ 
+-	v->members &= ~BIT(port);
+-	v->untagged &= ~BIT(port);
+-	v->pvids &= ~BIT(port);
+-
+-	if (pb->ports[port].pvid == vlan->vid) {
+-		pb->ports[port].pvid = 0;
++	if (p->pvid == vlan->vid) {
+ 		ret = ppe_port_default_cvid_set(pb->ppe_dev, port, -1);
+-		if (ret)
+-			err = ret;
+-	}
+-
+-	if (!v->members) {
+-		ret = ppe_bridge_vsi_release(pb, vsi);
+-		return err ?: ret;
++		if (ret) {
++			ppe_bridge_port_quarantine(pb, port, ret);
++			return ret;
++		}
++		p->pvid = 0;
+ 	}
+ 
+-	ret = ppe_bridge_vsi_resync(pb, vsi);
+-	if (ret && !err)
+-		err = ret;
+-
+-	/* The bridge deletes its FDB entries of the removed VLAN and
+-	 * notifies the static ones, flush what the hardware learned
+-	 * for the port in this VLAN.
+-	 */
+-	ret = ppe_fdb_port_vsi_flush(pb->ppe_dev, port, vsi);
+-	if (ret && !err)
+-		err = ret;
+-	ppe_bridge_fdb_shadow_purge(pb, port, vsi);
++	ret = ppe_bridge_vsi_port_del(pb, vsi, port);
++	if (ret)
++		ppe_bridge_port_quarantine(pb, port, ret);
+ 
+-	return err;
++	return ret;
+ }
+ 
+ /* Resolve the VSI a multicast group of a port maps to, negative when
+@@ -1110,7 +1269,8 @@
+ 		return 0;
+ 
+ 	vsi = ppe_bridge_mdb_vsi(pb, port, obj->vid);
+-	if (vsi < 0)
++	if (vsi < 0 || pb->vsis[vsi].poisoned ||
++	    !(pb->vsis[vsi].members & BIT(port)))
+ 		return 0;
+ 
+ 	mdb = ppe_bridge_mdb_find(pb, obj->addr, vsi);
+@@ -1144,7 +1304,7 @@
+ {
+ 	int port = ppe_bridge_port_id(dev);
+ 	struct ppe_bridge_mdb *mdb;
+-	int vsi, ret;
++	int vsi;
+ 
+ 	if (!pb->ports[port].bridge)
+ 		return -EOPNOTSUPP;
+@@ -1156,22 +1316,7 @@
+ 	if (!mdb || !(mdb->ports & BIT(port)))
+ 		return 0;
+ 
+-	mdb->ports &= ~BIT(port);
+-	if (mdb->ports) {
+-		ret = ppe_bridge_mdb_hw_update(pb, mdb);
+-		if (ret)
+-			mdb->ports |= BIT(port);
+-	} else {
+-		ret = ppe_bridge_mdb_hw_remove(pb, mdb);
+-		if (ret) {
+-			mdb->ports |= BIT(port);
+-		} else {
+-			hash_del(&mdb->node);
+-			kfree(mdb);
+-		}
+-	}
+-
+-	return ret;
++	return ppe_bridge_mdb_member_del(pb, mdb, port);
+ }
+ 
+ static int ppe_bridge_stp_state_set(struct ppe_bridge *pb,
+@@ -1340,6 +1485,9 @@
+ 	int port = ppe_bridge_port_id(dev);
+ 	bool vlan_aware = pb->ports[port].vsi < 0;
+ 
++	if (ctx && ctx != &pb->ports[port])
++		return -EOPNOTSUPP;
++
+ 	if (!pb->ports[port].bridge)
+ 		return -EOPNOTSUPP;
+ 
+@@ -1427,18 +1575,9 @@
+ 
+ 	port = ppe_bridge_port_id(fdb_work->dev);
+ 
+-	/* The port or the VLAN may be gone before the work runs, the
+-	 * leave paths have flushed the FDB entries already.
+-	 */
+-	if (!pb->ports[port].bridge)
+-		goto out;
+-
+-	if (fdb_work->vid)
+-		vsi = ppe_bridge_vsi_find(pb, pb->ports[port].bridge,
+-					  fdb_work->vid);
+-	else
+-		vsi = pb->ports[port].vsi;
+-	if (vsi < 0)
++	vsi = fdb_work->vsi;
++	/* The same domain may be in use by a different membership now. */
++	if (pb->vsis[vsi].fdb_cookie[port] != fdb_work->cookie)
+ 		goto out;
+ 
+ 	ether_addr_copy(entry.addr, fdb_work->addr);
+@@ -1494,9 +1633,13 @@
+ 	struct edma_port_priv *port_priv = netdev_priv(dev);
+ 	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
+ 	struct ppe_bridge_fdb_work *fdb_work;
++	struct net_device *br;
++	int port = ppe_bridge_port_id(dev);
+ 	bool host_addr;
++	u32 cookie;
++	u8 vsi;
+ 
+-	if (ctx && ctx != pb)
++	if (ctx && ctx != &pb->ports[port])
+ 		return 0;
+ 
+ 	if (fdb_info->locked)
+@@ -1509,6 +1652,16 @@
+ 	else
+ 		return 0;
+ 
++	/* The switchdev FDB walk runs in RCU context. */
++	br = netif_is_bridge_master(orig_dev) ? orig_dev :
++		netdev_master_upper_dev_get_rcu(orig_dev);
++	if (!br)
++		return 0;
++
++	cookie = ppe_bridge_fdb_member_find(pb, br, port, fdb_info->vid, &vsi);
++	if (!cookie)
++		return 0;
++
+ 	fdb_work = kzalloc(sizeof(*fdb_work), GFP_ATOMIC);
+ 	if (!fdb_work)
+ 		return -ENOMEM;
+@@ -1519,6 +1672,8 @@
+ 	fdb_work->event = event;
+ 	ether_addr_copy(fdb_work->addr, fdb_info->addr);
+ 	fdb_work->vid = fdb_info->vid;
++	fdb_work->cookie = cookie;
++	fdb_work->vsi = vsi;
+ 	fdb_work->host_addr = host_addr;
+ 	fdb_work->notify_offloaded = !host_addr &&
+ 				     event == SWITCHDEV_FDB_ADD_TO_DEVICE;
+@@ -1539,7 +1694,7 @@
+ 	 * a foreign port's FDB event to its PPE ports for assisted learning.
+ 	 */
+ 	if (netif_is_bridge_master(foreign_dev))
+-		return netdev_master_upper_dev_get_rcu(dev) != foreign_dev;
++		return netdev_master_upper_dev_get_rcu((struct net_device *)dev) != foreign_dev;
+ 
+ 	if (!edma_port_dev_check(foreign_dev))
+ 		return true;
+@@ -1573,6 +1728,10 @@
+ {
+ 	struct edma_port_priv *port_priv = netdev_priv(dev);
+ 	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
++	int port = ppe_bridge_port_id(dev);
++
++	if (ctx && ctx != &pb->ports[port])
++		return -EOPNOTSUPP;
+ 
+ 	/* VLANs of the bridge device itself terminate at the CPU port,
+ 	 * which is a member of every VSI already. Host multicast joins
+@@ -1600,6 +1759,10 @@
+ {
+ 	struct edma_port_priv *port_priv = netdev_priv(dev);
+ 	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
++	int port = ppe_bridge_port_id(dev);
++
++	if (ctx && ctx != &pb->ports[port])
++		return -EOPNOTSUPP;
+ 
+ 	if (netif_is_bridge_master(obj->orig_dev))
+ 		return 0;
+@@ -1678,6 +1841,7 @@
+ 	for (i = 0; i < ppe_dev->num_ports; i++)
+ 		pb->ports[i].vsi = -1;
+ 
++	spin_lock_init(&pb->fdb_cookie_lock);
+ 	hash_init(pb->fdb_ht);
+ 	hash_init(pb->mdb_ht);
+ 	INIT_DELAYED_WORK(&pb->fdb_sync, ppe_bridge_fdb_sync_work);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -1662,7 +1662,10 @@
+ 			unsigned int umc_bitmap,
+ 			unsigned int bc_bitmap)
+ {
+-	u32 reg, vsi_cfg[2];
++	u32 mask = PPE_VSI_W1_NEW_ADDR_LRN_EN | PPE_VSI_W1_NEW_ADDR_FWD_CMD |
++		   PPE_VSI_W1_STATION_MOVE_LRN_EN | PPE_VSI_W1_STATION_MOVE_FWD_CMD;
++	bool learn = member_bitmap & ~BIT(0);
++	u32 reg, vsi_cfg[2], readback[2];
+ 	int ret;
+ 
+ 	reg = PPE_VSI_TBL_ADDR + PPE_VSI_TBL_INC * vsi;
+@@ -1675,13 +1678,23 @@
+ 	PPE_VSI_SET_UUC_BITMAP(vsi_cfg, uuc_bitmap);
+ 	PPE_VSI_SET_UMC_BITMAP(vsi_cfg, umc_bitmap);
+ 	PPE_VSI_SET_BC_BITMAP(vsi_cfg, bc_bitmap);
+-	PPE_VSI_SET_NEW_ADDR_LRN_EN(vsi_cfg, true);
++	PPE_VSI_SET_NEW_ADDR_LRN_EN(vsi_cfg, learn);
+ 	PPE_VSI_SET_NEW_ADDR_FWD_CMD(vsi_cfg, PPE_ACTION_FORWARD);
+-	PPE_VSI_SET_STATION_MOVE_LRN_EN(vsi_cfg, true);
++	PPE_VSI_SET_STATION_MOVE_LRN_EN(vsi_cfg, learn);
+ 	PPE_VSI_SET_STATION_MOVE_FWD_CMD(vsi_cfg, PPE_ACTION_FORWARD);
+ 
+-	return regmap_bulk_write(ppe_dev->regmap, reg,
+-				 vsi_cfg, ARRAY_SIZE(vsi_cfg));
++	ret = regmap_bulk_write(ppe_dev->regmap, reg, vsi_cfg, ARRAY_SIZE(vsi_cfg));
++	if (ret || learn)
++		return ret;
++
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, readback, ARRAY_SIZE(readback));
++	if (ret)
++		return ret;
++
++	if (vsi_cfg[0] != readback[0] || ((vsi_cfg[1] ^ readback[1]) & mask))
++		return -EIO;
++
++	return 0;
+ }
+ 
+ /**
+@@ -1699,20 +1712,32 @@
+  */
+ int ppe_port_vsi_set(struct ppe_device *ppe_dev, int port, int vsi)
+ {
+-	u32 reg, port_cfg[4];
++	u32 mask = PPE_L3_VP_PORT_W1_VSI_VALID | PPE_L3_VP_PORT_W1_VSI;
++	u32 reg, port_cfg[4], readback[4];
+ 	int ret;
+ 
++	guard(mutex)(&ppe_dev->l3_if_lock);
++
++	/* Commit the complete row, including the L3 binding and MAC. */
+ 	reg = PPE_L3_VP_PORT_TBL_ADDR + PPE_L3_VP_PORT_TBL_INC * port;
+-	ret = regmap_bulk_read(ppe_dev->regmap, reg,
+-			       port_cfg, ARRAY_SIZE(port_cfg));
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, port_cfg,
++			       ARRAY_SIZE(port_cfg));
+ 	if (ret)
+ 		return ret;
+ 
+ 	PPE_L3_VP_PORT_SET_VSI_VALID(port_cfg, vsi >= 0);
+ 	PPE_L3_VP_PORT_SET_VSI(port_cfg, vsi >= 0 ? vsi : 0);
+ 
+-	return regmap_bulk_write(ppe_dev->regmap, reg,
+-				 port_cfg, ARRAY_SIZE(port_cfg));
++	ret = regmap_bulk_write(ppe_dev->regmap, reg, port_cfg, ARRAY_SIZE(port_cfg));
++	if (ret)
++		return ret;
++
++	ret = regmap_bulk_read(ppe_dev->regmap, reg, readback,
++			       ARRAY_SIZE(readback));
++	if (ret)
++		return ret;
++
++	return (port_cfg[1] ^ readback[1]) & mask ? -EIO : 0;
+ }
+ 
+ /**
+@@ -3063,20 +3088,19 @@
+ }
+ 
+ /**
+- * ppe_fdb_port_vsi_flush - Flush dynamic entries of a port in one VSI
++ * ppe_fdb_port_vsi_flush - Flush entries of a port in one VSI
+  * @ppe_dev: PPE device
+  * @port: PPE port to flush the FDB entries of
+  * @vsi: VSI to restrict the flush to
+  *
+- * Flush the dynamic entries a port learned within one VSI, used when
+- * the port leaves a single VLAN of its bridge. Static entries follow
+- * the FDB notifications of the bridge instead.
++ * Flush learned and static addresses when a port leaves a bridge VLAN.
++ * Deferred switchdev updates for the retired membership are obsolete.
+  *
+  * Return: 0 on success, negative error code on failure.
+  */
+ int ppe_fdb_port_vsi_flush(struct ppe_device *ppe_dev, int port, int vsi)
+ {
+-	return ppe_fdb_flush(ppe_dev, port, vsi, false);
++	return ppe_fdb_flush(ppe_dev, port, vsi, true);
+ }
+ 
+ /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -886,6 +886,8 @@
+ 	    l3_if >= PPE_IN_L3_IF_TBL_ENTRIES)
+ 		return -EINVAL;
+ 
++	guard(mutex)(&ppe_dev->l3_if_lock);
++
+ 	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+ 	if (ret)
+ 		return ret;
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+@@ -612,6 +612,8 @@
+ 
+ 	/* The fixed-function L3 pipeline owns a separate physical-port MAC. */
+ 	reg = PPE_L3_VP_PORT_TBL_ADDR + PPE_L3_VP_PORT_TBL_INC * port;
++	guard(mutex)(&ppe_dev->l3_if_lock);
++
+ 	ret = regmap_bulk_read(ppe_dev->regmap, reg, port_cfg,
+ 			       ARRAY_SIZE(port_cfg));
+ 	if (ret)
+@@ -641,6 +643,8 @@
+ 
+ 	reg = PPE_L3_VP_PORT_TBL_ADDR +
+ 	      PPE_L3_VP_PORT_TBL_INC * ppe_port->port_id;
++	guard(mutex)(&ppe_dev->l3_if_lock);
++
+ 	ret = regmap_bulk_read(ppe_dev->regmap, reg, port_cfg,
+ 			       ARRAY_SIZE(port_cfg));
+ 	if (ret)
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+@@ -103,6 +103,7 @@
+ 	u8 fdb_cmd_id;
+ 	/* Serialize the L3 flow operation registers. */
+ 	struct mutex flow_lock;
++	/* Serialize L3 interface and L3 port table updates. */
+ 	struct mutex l3_if_lock;
+ 	/* Outer lock for TBF and negotiated BM pause policy. */
+ 	struct mutex qos_lock;
+--- a/Documentation/networking/qualcomm-ppe-offload.rst
++++ b/Documentation/networking/qualcomm-ppe-offload.rst
+@@ -74,8 +74,9 @@
+ -----------------
+ 
+ A VLAN-unaware software bridge is backed by one VSI; joining binds the
+-port to the VSI and enables its bridge TX MAC, leaving reverts to the
+-parked state, so failure at any point falls back to a software bridge.
++port to the VSI and enables its bridge TX MAC. Leaving retires the
++port membership and parks the last VSI before flushing and verifying
++its address table. A VSI with uncertain hardware state stays reserved.
+ The CPU port is a member of every VSI: packets without an FDB hit
+ flood to the CPU and reach the software ports of the bridge (wireless
+ interfaces). Received packets carry skb->offload_fwd_mark and all
