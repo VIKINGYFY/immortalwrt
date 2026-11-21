@@ -1,0 +1,136 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 15:06:52 +0800
+Subject: [PATCH] net: dsa: rtl837x: allow dynamic bridges with disjoint C-VIDs
+
+Use the DSA shared-VID checks instead of counting bridge devices.
+Continue to derive forwarding masks from the current bridge members.
+When enabling VLAN filtering, keep the native row only on ports which
+have VLAN 1 configured. Age dynamic entries after removing a user VLAN
+so its VID can be assigned to another bridge.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl837x_mdio.c
++++ b/src/rtl837x_mdio.c
+@@ -254,6 +254,7 @@
+ 
+ 	priv->ds->phys_mii_mask = GENMASK(7, 4);
+ 	priv->ds->configure_vlan_while_not_filtering = true;
++	priv->ds->vid_only_fdb = true;
+ 	priv->ds->needs_standalone_vlan_filtering = true;
+ 	priv->ds->untag_bridge_pvid = false;
+ 	priv->ds->ageing_time_min = 14000;
+--- a/src/rtl837x_policy.c
++++ b/src/rtl837x_policy.c
+@@ -3,6 +3,7 @@
+ #include <linux/if_bridge.h>
+ #include <linux/if_vlan.h>
+ #include "rtl837x.h"
++#include "rtl837x_l2.h"
+ #include "rtl837x_vlan.h"
+ 
+ #define RTL837X_VLAN_PORT_EGR_KEEP_ADDR(_p)                      (0x6728 + (((_p / 3) << 2)))
+@@ -664,22 +665,11 @@
+ 			    struct netlink_ext_ack *extack)
+ {
+ 	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
+-	struct dsa_port *dp;
+ 	int ret;
+ 
+ 	if (!rtl837x_user_port(gsw, port))
+ 		return -EINVAL;
+ 
+-	/* The switch has one shared customer VLAN table and IVL database. */
+-	dsa_switch_for_each_user_port(dp, ds) {
+-		struct net_device *other = dsa_port_bridge_dev_get(dp);
+-
+-		if (other && other != bridge.dev) {
+-			NL_SET_ERR_MSG_MOD(extack, "Only one hardware bridge per switch");
+-			return -EOPNOTSUPP;
+-		}
+-	}
+-
+ 	mutex_lock(&gsw->lock);
+ 	ret = rtl837x_update_bridge(gsw);
+ 	mutex_unlock(&gsw->lock);
+@@ -729,7 +719,10 @@
+ static int __rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
+ {
+ 	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	struct dsa_port *dp = dsa_to_port(ds, port);
++	bool bridge_filtering = vlan_filtering && dsa_port_bridge_dev_get(dp);
+ 	struct rtl837x_vlan_snapshot old, next;
++	struct bridge_vlan_info vlan1;
+ 	const char *phase = "filtering";
+ 	int ret;
+ 
+@@ -743,11 +736,28 @@
+ 		next.row.mbr |= BIT(port) | BIT(gsw->cpu_port);
+ 		next.row.untag |= BIT(port);
+ 		next.row.untag &= ~BIT(gsw->cpu_port);
++	} else if (bridge_filtering) {
++		/* Leave only explicitly configured members in the native row
++		 * when a port switches from standalone mode to VLAN filtering.
++		 */
++		if (br_vlan_get_info(dp->user, 1, &vlan1)) {
++			next.row.mbr &= ~BIT(port);
++			next.row.untag &= ~BIT(port);
++		} else {
++			next.row.mbr |= BIT(port) | BIT(gsw->cpu_port);
++			next.row.untag &= ~BIT(gsw->cpu_port);
++			if (vlan1.flags & BRIDGE_VLAN_INFO_UNTAGGED)
++				next.row.untag |= BIT(port);
++			else
++				next.row.untag &= ~BIT(port);
++		}
++	}
++	next.filtering = vlan_filtering;
++	next.pvid = 1;
++	if (bridge_filtering) {
++		next.pvid = 0;
++		br_vlan_get_pvid(dp->user, &next.pvid);
+ 	}
+-	next.filtering = vlan_filtering ? 1 : 0;
+-	next.pvid = !vlan_filtering ? 1 : gsw->bridge_pvid_valid[port] ?
+-		gsw->bridge_pvid[port] :
+-		dsa_port_bridge_dev_get(dsa_to_port(ds, port)) ? 0 : 1;
+ 	next.keep = rtl837x_cpu_keep(gsw, port, vlan_filtering);
+ 	ret = rtl837x_vlan_set(gsw->priv, 1, &next.row);
+ 	if (ret)
+@@ -767,6 +777,10 @@
+ 	ret = rtl837x_vlan_verify(gsw, &next);
+ 	if (ret)
+ 		goto failed;
++	if (bridge_filtering) {
++		gsw->bridge_pvid[port] = next.pvid;
++		gsw->bridge_pvid_valid[port] = next.pvid != 0;
++	}
+ 	return 0;
+ 
+ failed:
+@@ -820,6 +834,7 @@
+ {
+ 	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
+ 	u16 vid = vlan->vid;
++	int ret;
+ 
+ 	if (!rtl837x_valid_port(gsw, port))
+ 		return -EINVAL;
+@@ -830,7 +845,16 @@
+ 	if (vid_is_dsa_8021q(vid)) {
+ 		return -EBUSY;
+ 	}
+-	return rtl837x_vlan_update(gsw, port, vid, vlan->flags, false, false);
++	ret = rtl837x_vlan_update(gsw, port, vid, vlan->flags, false, false);
++	if (ret || !rtl837x_user_port(gsw, port))
++		return ret;
++
++	/* This VID can now be re-used by a different bridge. */
++	ret = rtl837x_lut_l2_flush(gsw->priv, RTL837X_l2_FLUSH_MODE_PORT, port, 0, 0);
++	if (ret)
++		dev_err(gsw->dev, "Failed to age FDB on port %d: %pe\n", port,
++			ERR_PTR(ret));
++	return 0;
+ }
+ 
+ int rtl837x_port_vlan_del(struct dsa_switch *ds, int port, const struct switchdev_obj_port_vlan *vlan)

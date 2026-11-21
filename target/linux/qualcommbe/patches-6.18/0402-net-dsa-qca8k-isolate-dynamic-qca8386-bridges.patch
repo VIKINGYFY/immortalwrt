@@ -1,0 +1,440 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 15:06:52 +0800
+Subject: [PATCH] net: dsa: qca8k: isolate dynamic bridges on QCA8386
+
+Use the DSA VID checks for the QCA8386 native bridge path.
+Compute both sides of membership changes and restore affected registers
+on failed writes. Isolate a departing port if the update cannot complete.
+Track native PVID changes when VLAN filtering is enabled or removed,
+and age dynamic entries after removing a user VLAN. Stop ATU commands
+when the address transfer fails.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/dsa/qca/qca8k-8xxx.c
++++ b/drivers/net/dsa/qca/qca8k-8xxx.c
+@@ -2224,6 +2224,7 @@
+ 		ret = qca8k_qca8386_reset(priv);
+ 		if (ret)
+ 			return ret;
++		ds->vid_only_fdb = true;
+ 	}
+ 
+ 	/* Parse CPU port config to be later used in phy_link mac_config */
+--- a/drivers/net/dsa/qca/qca8k-common.c
++++ b/drivers/net/dsa/qca/qca8k-common.c
+@@ -138,8 +138,8 @@
+ 	return 0;
+ }
+ 
+-static void qca8k_fdb_write(struct qca8k_priv *priv, u16 vid, u8 port_mask,
+-			    const u8 *mac, u8 aging)
++static int qca8k_fdb_write(struct qca8k_priv *priv, u16 vid, u8 port_mask,
++			   const u8 *mac, u8 aging)
+ {
+ 	u32 reg[QCA8K_ATU_TABLE_SIZE] = { 0 };
+ 
+@@ -158,8 +158,8 @@
+ 	reg[0] |= FIELD_PREP(QCA8K_ATU_ADDR5_MASK, mac[5]);
+ 
+ 	/* load the array into the ARL table */
+-	regmap_bulk_write(priv->regmap, QCA8K_REG_ATU_DATA0, reg,
+-			  QCA8K_ATU_TABLE_SIZE);
++	return regmap_bulk_write(priv->regmap, QCA8K_REG_ATU_DATA0, reg,
++				 QCA8K_ATU_TABLE_SIZE);
+ }
+ 
+ static int qca8k_fdb_access(struct qca8k_priv *priv, enum qca8k_fdb_cmd cmd,
+@@ -203,7 +203,10 @@
+ {
+ 	int ret;
+ 
+-	qca8k_fdb_write(priv, fdb->vid, fdb->port_mask, fdb->mac, fdb->aging);
++	ret = qca8k_fdb_write(priv, fdb->vid, fdb->port_mask, fdb->mac, fdb->aging);
++	if (ret)
++		return ret;
++
+ 	ret = qca8k_fdb_access(priv, QCA8K_FDB_NEXT, port);
+ 	if (ret < 0)
+ 		return ret;
+@@ -217,8 +220,9 @@
+ 	int ret;
+ 
+ 	mutex_lock(&priv->reg_mutex);
+-	qca8k_fdb_write(priv, vid, port_mask, mac, aging);
+-	ret = qca8k_fdb_access(priv, QCA8K_FDB_LOAD, -1);
++	ret = qca8k_fdb_write(priv, vid, port_mask, mac, aging);
++	if (!ret)
++		ret = qca8k_fdb_access(priv, QCA8K_FDB_LOAD, -1);
+ 	mutex_unlock(&priv->reg_mutex);
+ 
+ 	return ret;
+@@ -230,8 +234,9 @@
+ 	int ret;
+ 
+ 	mutex_lock(&priv->reg_mutex);
+-	qca8k_fdb_write(priv, vid, port_mask, mac, 0);
+-	ret = qca8k_fdb_access(priv, QCA8K_FDB_PURGE, -1);
++	ret = qca8k_fdb_write(priv, vid, port_mask, mac, 0);
++	if (!ret)
++		ret = qca8k_fdb_access(priv, QCA8K_FDB_PURGE, -1);
+ 	mutex_unlock(&priv->reg_mutex);
+ 
+ 	return ret;
+@@ -252,7 +257,9 @@
+ 
+ 	mutex_lock(&priv->reg_mutex);
+ 
+-	qca8k_fdb_write(priv, vid, 0, mac, 0);
++	ret = qca8k_fdb_write(priv, vid, 0, mac, 0);
++	if (ret)
++		goto exit;
+ 	ret = qca8k_fdb_access(priv, QCA8K_FDB_SEARCH, -1);
+ 	if (ret < 0)
+ 		goto exit;
+@@ -273,8 +280,9 @@
+ 	/* Add port to fdb portmask */
+ 	fdb.port_mask |= port_mask;
+ 
+-	qca8k_fdb_write(priv, vid, fdb.port_mask, mac, fdb.aging);
+-	ret = qca8k_fdb_access(priv, QCA8K_FDB_LOAD, -1);
++	ret = qca8k_fdb_write(priv, vid, fdb.port_mask, mac, fdb.aging);
++	if (!ret)
++		ret = qca8k_fdb_access(priv, QCA8K_FDB_LOAD, -1);
+ 
+ exit:
+ 	mutex_unlock(&priv->reg_mutex);
+@@ -289,7 +297,9 @@
+ 
+ 	mutex_lock(&priv->reg_mutex);
+ 
+-	qca8k_fdb_write(priv, vid, 0, mac, 0);
++	ret = qca8k_fdb_write(priv, vid, 0, mac, 0);
++	if (ret)
++		goto exit;
+ 	ret = qca8k_fdb_access(priv, QCA8K_FDB_SEARCH, -1);
+ 	if (ret < 0)
+ 		goto exit;
+@@ -315,8 +325,9 @@
+ 	/* Remove port from port mask */
+ 	fdb.port_mask &= ~port_mask;
+ 
+-	qca8k_fdb_write(priv, vid, fdb.port_mask, mac, fdb.aging);
+-	ret = qca8k_fdb_access(priv, QCA8K_FDB_LOAD, -1);
++	ret = qca8k_fdb_write(priv, vid, fdb.port_mask, mac, fdb.aging);
++	if (!ret)
++		ret = qca8k_fdb_access(priv, QCA8K_FDB_LOAD, -1);
+ 
+ exit:
+ 	mutex_unlock(&priv->reg_mutex);
+@@ -331,7 +342,9 @@
+ 
+ 	mutex_lock(&priv->reg_mutex);
+ 
+-	qca8k_fdb_write(priv, vid, 0, mac, 0);
++	ret = qca8k_fdb_write(priv, vid, 0, mac, 0);
++	if (ret)
++		goto exit;
+ 	ret = qca8k_fdb_access(priv, QCA8K_FDB_SEARCH, -1);
+ 	if (ret < 0)
+ 		goto exit;
+@@ -796,45 +809,102 @@
+ 				    const struct net_device *bridge_dev,
+ 				    bool join)
+ {
+-	bool isolated = !!(priv->port_isolated_map & BIT(port)), other_isolated;
+-	struct dsa_port *dp = dsa_to_port(priv->ds, port), *other_dp;
+-	u32 port_mask = BIT(dp->cpu_dp->index);
+-	int i, ret;
++	struct {
++		u8 port;
++		u8 old;
++		u8 new;
++	} updates[QCA8K_NUM_PORTS];
++	struct dsa_port *dp = dsa_to_port(priv->ds, port), *peer;
++	u8 cpu = BIT(dp->cpu_dp->index);
++	u8 members = cpu;
++	unsigned int count = 0;
++	bool isolated = priv->port_isolated_map & BIT(port);
++	int i, ret, recovery = 0;
++	u32 val;
+ 
+-	for (i = 0; i < QCA8K_NUM_PORTS; i++) {
+-		if (i == port)
+-			continue;
+-		if (dsa_is_cpu_port(priv->ds, i))
+-			continue;
++	dsa_switch_for_each_user_port(peer, priv->ds) {
++		int index = peer->index;
++		bool forward;
+ 
+-		other_dp = dsa_to_port(priv->ds, i);
+-		if (!dsa_port_offloads_bridge_dev(other_dp, bridge_dev))
++		if (index == port)
+ 			continue;
+ 
+-		other_isolated = !!(priv->port_isolated_map & BIT(i));
++		ret = qca8k_read(priv, QCA8K_PORT_LOOKUP_CTRL(index), &val);
++		if (ret)
++			goto fail;
+ 
+-		/* Add/remove this port to/from the portvlan mask of the other
+-		 * ports in the bridge
+-		 */
+-		if (join && !(isolated && other_isolated)) {
+-			port_mask |= BIT(i);
+-			ret = regmap_set_bits(priv->regmap,
+-					      QCA8K_PORT_LOOKUP_CTRL(i),
+-					      BIT(port));
+-		} else {
+-			ret = regmap_clear_bits(priv->regmap,
+-						QCA8K_PORT_LOOKUP_CTRL(i),
+-						BIT(port));
++		forward = join && dsa_port_offloads_bridge_dev(peer, bridge_dev) &&
++			  !(isolated && (priv->port_isolated_map & BIT(index)));
++		updates[count].port = index;
++		updates[count].old = val & QCA8K_PORT_LOOKUP_MEMBER;
++		updates[count].new = updates[count].old & ~BIT(port);
++		if (forward) {
++			updates[count].new |= BIT(port);
++			members |= BIT(index);
+ 		}
++		count++;
++	}
+ 
++	ret = qca8k_read(priv, QCA8K_PORT_LOOKUP_CTRL(port), &val);
++	if (ret)
++		goto fail;
++	updates[count].port = port;
++	updates[count].old = val & QCA8K_PORT_LOOKUP_MEMBER;
++	updates[count].new = members;
++	count++;
++
++	for (i = 0; i < count; i++) {
++		if (updates[i].old == updates[i].new)
++			continue;
++		ret = qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(updates[i].port),
++				QCA8K_PORT_LOOKUP_MEMBER, updates[i].new);
+ 		if (ret)
+-			return ret;
++			goto rollback;
+ 	}
+ 
+-	/* Add/remove all other ports to/from this port's portvlan mask */
+-	ret = qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(port),
+-			QCA8K_PORT_LOOKUP_MEMBER, port_mask);
++	return 0;
++
++rollback:
++	/* The failing MDIO operation might have reached the switch. */
++	for (; i >= 0; i--) {
++		int reg = QCA8K_PORT_LOOKUP_CTRL(updates[i].port);
++		int err;
+ 
++		if (updates[i].old == updates[i].new)
++			continue;
++		err = qca8k_rmw(priv, reg, QCA8K_PORT_LOOKUP_MEMBER, updates[i].old);
++		if (!err) {
++			err = qca8k_read(priv, reg, &val);
++			if (!err && (val & QCA8K_PORT_LOOKUP_MEMBER) != updates[i].old)
++				err = -EIO;
++		}
++		if (err)
++			recovery = err;
++	}
++fail:
++	if (join && !recovery)
++		return ret;
++
++	/* A port which has left the Linux bridge must not keep forwarding
++	 * to its old peers. A later join recomputes both directions.
++	 */
++	recovery = qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(port),
++			     QCA8K_PORT_LOOKUP_MEMBER, cpu);
++	dsa_switch_for_each_user_port(peer, priv->ds) {
++		int err;
++
++		if (peer->index == port)
++			continue;
++		err = regmap_clear_bits(priv->regmap, QCA8K_PORT_LOOKUP_CTRL(peer->index),
++					BIT(port));
++		if (err)
++			recovery = err;
++	}
++	if (recovery) {
++		qca8k_port_set_status(priv, port, 0);
++		dev_err(priv->dev, "Failed to isolate port %d after bridge update: %pe\n",
++			port, ERR_PTR(recovery));
++	}
+ 	return ret;
+ }
+ 
+@@ -867,6 +937,7 @@
+ 	if (flags.mask & BR_ISOLATED) {
+ 		struct dsa_port *dp = dsa_to_port(ds, port);
+ 		struct net_device *bridge_dev = dsa_port_bridge_dev_get(dp);
++		u8 old_isolated = priv->port_isolated_map;
+ 
+ 		if (flags.val & BR_ISOLATED)
+ 			priv->port_isolated_map |= BIT(port);
+@@ -874,8 +945,10 @@
+ 			priv->port_isolated_map &= ~BIT(port);
+ 
+ 		ret = qca8k_update_port_member(priv, port, bridge_dev, true);
+-		if (ret)
++		if (ret) {
++			priv->port_isolated_map = old_isolated;
+ 			return ret;
++		}
+ 	}
+ 
+ 	return 0;
+@@ -904,6 +977,7 @@
+ 		return;
+ 
+ 	err = qca8k_update_port_member(priv, port, bridge.dev, false);
++	priv->port_isolated_map &= ~BIT(port);
+ 	if (err)
+ 		dev_err(priv->dev,
+ 			"Failed to update switch config for bridge leave: %d\n",
+@@ -913,10 +987,14 @@
+ void qca8k_port_fast_age(struct dsa_switch *ds, int port)
+ {
+ 	struct qca8k_priv *priv = ds->priv;
++	int ret;
+ 
+ 	mutex_lock(&priv->reg_mutex);
+-	qca8k_fdb_access(priv, QCA8K_FDB_FLUSH_PORT, port);
++	ret = qca8k_fdb_access(priv, QCA8K_FDB_FLUSH_PORT, port);
+ 	mutex_unlock(&priv->reg_mutex);
++	if (ret)
++		dev_err(priv->dev, "Failed to age FDB on port %d: %pe\n", port,
++			ERR_PTR(ret));
+ }
+ 
+ int qca8k_set_ageing_time(struct dsa_switch *ds, unsigned int msecs)
+@@ -1075,8 +1153,9 @@
+ 	int ret = 0;
+ 
+ 	mutex_lock(&priv->reg_mutex);
+-	while (cnt-- && !qca8k_fdb_next(priv, &_fdb, port)) {
+-		if (!_fdb.aging)
++	while (cnt--) {
++		ret = qca8k_fdb_next(priv, &_fdb, port);
++		if (ret || !_fdb.aging)
+ 			break;
+ 		is_static = (_fdb.aging == QCA8K_ATU_STATUS_STATIC);
+ 		ret = cb(_fdb.mac, _fdb.vid, is_static, data);
+@@ -1085,7 +1164,7 @@
+ 	}
+ 	mutex_unlock(&priv->reg_mutex);
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ int qca8k_port_mdb_add(struct dsa_switch *ds, int port,
+@@ -1208,6 +1287,55 @@
+ 	dev_err(priv->dev, "Failed to del mirror port from %d", port);
+ }
+ 
++static bool qca8k_uses_native_vid(struct qca8k_priv *priv, int port)
++{
++	return qca8k_is_qca8386(priv) && priv->proto != DSA_TAG_PROTO_QCA_8021Q &&
++	       dsa_is_user_port(priv->ds, port);
++}
++
++static int qca8k_set_pvid(struct qca8k_priv *priv, int port, u16 vid)
++{
++	u32 old;
++	int ret;
++
++	ret = qca8k_read(priv, QCA8K_REG_PORT_VLAN_CTRL0(port), &old);
++	if (ret)
++		return ret;
++
++	ret = qca8k_rmw(priv, QCA8K_EGRESS_VLAN(port),
++			QCA8K_EGREES_VLAN_PORT_MASK(port),
++			QCA8K_EGREES_VLAN_PORT(port, vid));
++	if (ret)
++		return ret;
++
++	ret = qca8k_rmw(priv, QCA8K_REG_PORT_VLAN_CTRL0(port),
++			QCA8K_PORT_VLAN_CVID_MASK | QCA8K_PORT_VLAN_SVID_MASK,
++			QCA8K_PORT_VLAN_CVID(vid) | QCA8K_PORT_VLAN_SVID(vid));
++	if (ret) {
++		u16 previous = FIELD_GET(QCA8K_PORT_VLAN_CVID_MASK, old);
++
++		qca8k_rmw(priv, QCA8K_EGRESS_VLAN(port),
++			  QCA8K_EGREES_VLAN_PORT_MASK(port),
++			  QCA8K_EGREES_VLAN_PORT(port, previous));
++	}
++
++	return ret;
++}
++
++static int qca8k_clear_pvid(struct qca8k_priv *priv, int port, u16 vid)
++{
++	struct dsa_port *dp = dsa_to_port(priv->ds, port);
++	u32 val;
++	int ret;
++
++	ret = qca8k_read(priv, QCA8K_REG_PORT_VLAN_CTRL0(port), &val);
++	if (ret || FIELD_GET(QCA8K_PORT_VLAN_CVID_MASK, val) != vid)
++		return ret;
++
++	return qca8k_set_pvid(priv, port, dsa_port_is_vlan_filtering(dp) ?
++			      0 : QCA8K_PORT_VID_DEF);
++}
++
+ int qca8k_port_vlan_filtering(struct dsa_switch *ds, int port,
+ 			      bool vlan_filtering,
+ 			      struct netlink_ext_ack *extack)
+@@ -1220,6 +1348,18 @@
+ 				   QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
+ 				   QCA8K_PORT_LOOKUP_VLAN_MODE_SECURE);
+ 
++	if (qca8k_uses_native_vid(priv, port)) {
++		u16 vid = QCA8K_PORT_VID_DEF;
++
++		if (vlan_filtering) {
++			vid = 0;
++			br_vlan_get_pvid(dsa_to_port(ds, port)->user, &vid);
++		}
++		ret = qca8k_set_pvid(priv, port, vid);
++		if (ret)
++			return ret;
++	}
++
+ 	if (vlan_filtering) {
+ 		ret = qca8k_rmw(priv, QCA8K_PORT_LOOKUP_CTRL(port),
+ 				QCA8K_PORT_LOOKUP_VLAN_MODE_MASK,
+@@ -1248,6 +1388,10 @@
+ 		return ret;
+ 	}
+ 
++	if (qca8k_uses_native_vid(priv, port))
++		return pvid ? qca8k_set_pvid(priv, port, vlan->vid) :
++			      qca8k_clear_pvid(priv, port, vlan->vid);
++
+ 	if (pvid) {
+ 		ret = qca8k_rmw(priv, QCA8K_EGRESS_VLAN(port),
+ 				QCA8K_EGREES_VLAN_PORT_MASK(port),
+@@ -1270,9 +1414,16 @@
+ 	int ret;
+ 
+ 	ret = qca8k_vlan_del(priv, port, vlan->vid);
+-	if (ret)
++	if (ret) {
+ 		dev_err(priv->dev, "Failed to delete VLAN from port %d (%d)", port, ret);
++		return ret;
++	}
++
++	if (!qca8k_uses_native_vid(priv, port))
++		return 0;
+ 
++	ret = qca8k_clear_pvid(priv, port, vlan->vid);
++	qca8k_port_fast_age(ds, port);
+ 	return ret;
+ }
+ 
