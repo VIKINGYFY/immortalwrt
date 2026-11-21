@@ -1,0 +1,180 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 22:26:08 +0800
+Subject: [PATCH] net: qualcomm: ppe: assign the bridge PVID in ingress translation
+
+The PVID rule selects the correct VSI but leaves the C-VID unchanged.
+On BE10000, an untagged packet classified to PVID 100 leaves a tagged
+member with VID 0. An ingress packet already carrying VID 100 leaves
+with the correct tag over the same hardware path.
+
+Assign the PVID in the ingress translation action for untagged and
+priority-tagged packets. Keep the priority bits and let the VSI egress
+mode decide whether to emit a tag. Keep the existing match and
+translation actions for tagged bridge traffic and routed VLANs.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
+@@ -399,10 +399,11 @@
+ 	struct {
+ 		unsigned int bitmap;
+ 		int vid;
++		int new_cvid;
+ 		int *index;
+ 	} rules[2] = {
+-		{ v->members, v->vid, &v->xlt_tagged },
+-		{ v->pvids, -1, &v->xlt_pvid },
++		{ v->members, v->vid, -1, &v->xlt_tagged },
++		{ v->pvids, -1, v->vid, &v->xlt_pvid },
+ 	};
+ 	int i, idx, ret;
+ 
+@@ -445,7 +446,7 @@
+ 
+ 		ret = ppe_ing_xlt_rule_set(pb->ppe_dev, idx, rules[i].bitmap,
+ 					   false, -1, rules[i].vid, vsi,
+-					   false, false);
++					   false, false, rules[i].new_cvid);
+ 		if (ret)
+ 			return ret;
+ 	}
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
+@@ -1770,8 +1770,8 @@
+  * @vid: VLAN ID assigned to packets received untagged, negative value
+  * to assign none
+  *
+- * The default VLAN ID provides the VLAN ID used when a packet received
+- * without a C-tag leaves the bridge through a tagged port.
++ * The bridge ingress translation action also sets the C-VID so
++ * packets received without a C-tag can leave through a tagged port.
+  *
+  * Return: 0 on success, negative error code on failure.
+  */
+@@ -1861,6 +1861,7 @@
+  * @vsi: VSI assigned to the matching packets
+  * @strip_svid: Delete the matched S-VLAN tag after classification
+  * @strip_cvid: Delete the matched C-VLAN tag after classification
++ * @new_cvid: Add or replace the C-VID, or -1 to skip this action
+  *
+  * The rule independently matches the provider and customer VLAN slots.
+  * This permits an 802.1ad DSA source tag to coexist with one ordinary
+@@ -1870,7 +1871,7 @@
+  */
+ int ppe_ing_xlt_rule_set(struct ppe_device *ppe_dev, int index,
+ 			 unsigned int port_value, bool is_vp, int svid, int cvid,
+-			 int vsi, bool strip_svid, bool strip_cvid)
++			 int vsi, bool strip_svid, bool strip_cvid, int new_cvid)
+ {
+ 	u32 rule[4] = {}, action[3] = {};
+ 	u32 count[3] = {};
+@@ -1886,7 +1887,9 @@
+ 		       port_value >= PPE_VP_PORT_BASE + PPE_VP_SLOTS)) ||
+ 	    vsi < 0 || vsi >= PPE_VSI_TBL_ENTRIES ||
+ 	    svid < -1 || svid > VLAN_VID_MASK ||
+-	    cvid < -1 || cvid > VLAN_VID_MASK)
++	    cvid < -1 || cvid > VLAN_VID_MASK ||
++	    new_cvid < -1 || new_cvid > VLAN_VID_MASK ||
++	    (new_cvid >= 0 && strip_cvid))
+ 		return -EINVAL;
+ 
+ 	/* Withdraw and verify an old key before replacing its action.
+@@ -1916,9 +1919,14 @@
+ 	if (strip_svid && svid >= 0)
+ 		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_SVID_CMD,
+ 					PPE_XLT_VID_CMD_DELETE);
+-	if (strip_cvid && cvid >= 0)
++	if (new_cvid >= 0) {
++		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_CVID_CMD,
++					PPE_XLT_VID_CMD_ADD_OR_REPLACE);
++		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_CVID, new_cvid);
++	} else if (strip_cvid && cvid >= 0) {
+ 		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_CVID_CMD,
+ 					PPE_XLT_VID_CMD_DELETE);
++	}
+ 
+ 	reg = PPE_XLT_ACTION_TBL_ADDR + PPE_XLT_ACTION_TBL_INC * index;
+ 	ret = ppe_xlt_write_verify(ppe_dev, reg, action, ARRAY_SIZE(action));
+@@ -2126,11 +2134,11 @@
+ 
+ 	if (add_svid)
+ 		action[0] |= FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_SVID_CMD,
+-					PPE_EG_XLT_VID_CMD_ADD_OR_REPLACE) |
++					PPE_XLT_VID_CMD_ADD_OR_REPLACE) |
+ 			     FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_SVID, svid);
+ 	if (add_cvid)
+ 		action[0] |= FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_CVID_CMD,
+-					PPE_EG_XLT_VID_CMD_ADD_OR_REPLACE) |
++					PPE_XLT_VID_CMD_ADD_OR_REPLACE) |
+ 			     FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_CVID, cvid);
+ 
+ 	/* The action must be valid before the rule is made visible. */
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+@@ -359,7 +359,7 @@
+ 				  bool core);
+ int ppe_ing_xlt_rule_set(struct ppe_device *ppe_dev, int index,
+ 			 unsigned int port_value, bool is_vp, int svid, int cvid,
+-			 int vsi, bool strip_svid, bool strip_cvid);
++			 int vsi, bool strip_svid, bool strip_cvid, int new_cvid);
+ int ppe_ing_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
+ int ppe_ing_xlt_l3_if_set(struct ppe_device *ppe_dev, int index, int l3_if);
+ int ppe_ing_xlt_source_vp_set(struct ppe_device *ppe_dev, int index, int vp);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
+@@ -1601,7 +1601,7 @@
+ 	ret = ppe_ing_xlt_rule_set(ft->ppe_dev, ppe_ft_vlan_port_xlt(port),
+ 				   BIT(port), false, -1, -1,
+ 				   ppe_ft_vlan_port_vsi(port),
+-				   false, false);
++				   false, false, -1);
+ 	if (ret)
+ 		goto rollback;
+ 	ret = ppe_port_l3_if_set(ft->ppe_dev, port, -1);
+@@ -1784,7 +1784,7 @@
+ 	ret = ppe_ing_xlt_rule_set(ft->ppe_dev, ppe_ft_vlan_xlt(i),
+ 				   is_vp ? port : BIT(port), is_vp,
+ 				   svid, cvid, ppe_ft_vlan_vsi(i),
+-				   svid >= 0, cvid >= 0);
++				   svid >= 0, cvid >= 0, -1);
+ 	if (ret)
+ 		goto err_config;
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_regs.h
+@@ -166,6 +166,7 @@
+ #define PPE_XLT_ACTION_W1_CNT_EN			BIT(28)
+ #define PPE_XLT_ACTION_W1_CNT_ID_LO		GENMASK(31, 29)
+ #define PPE_XLT_ACTION_W2_CNT_ID_HI		GENMASK(3, 0)
++#define PPE_XLT_VID_CMD_ADD_OR_REPLACE		1
+ #define PPE_XLT_VID_CMD_DELETE			2
+ 
+ /* QSDK INGRESS_POLICER_BASE + VLAN_DEV_CNT_TBL: per XLT action,
+@@ -238,7 +239,6 @@
+ #define PPE_EG_XLT_ACTION_W0_XLT_SVID		GENMASK(14, 3)
+ #define PPE_EG_XLT_ACTION_W0_XLT_CVID_CMD	GENMASK(16, 15)
+ #define PPE_EG_XLT_ACTION_W0_XLT_CVID		GENMASK(28, 17)
+-#define PPE_EG_XLT_VID_CMD_ADD_OR_REPLACE	1
+ 
+ /* PPE queue counters enable/disable control. */
+ #define PPE_EG_BRIDGE_CONFIG_ADDR		0x20044
+--- a/Documentation/networking/qualcomm-ppe-offload.rst
++++ b/Documentation/networking/qualcomm-ppe-offload.rst
+@@ -111,11 +111,11 @@
+ PPE ports use software forwarding for other VLAN protocols. Detach
+ offloaded PPE ports before changing a bridge's VLAN filtering mode.
+ Ingress VLAN translation rules, matching by port bitmap so they scale
+-with VLANs rather than ports times VLANs, assign tagged and
+-PVID-untagged packets to the VSI; per-VSI egress tag modes provide
+-tagged or untagged egress per port; translation misses drop, which is
+-the ingress side of VLAN filtering. Resource exhaustion (64 VSIs, 128
+-rules) fails only the VLAN object at hand.
++with VLANs rather than ports times VLANs, assign packets to a VSI.
++The PVID rule sets the C-VID on untagged and priority-tagged ingress
++packets. Per-VSI tag modes select tagged or untagged egress per port.
++Dropping translation misses implements ingress VLAN filtering.
++Resource exhaustion (64 VSIs, 128 rules) fails the VLAN object at hand.
+ 
+ Multicast without snooping floods to the members with BR_MCAST_FLOOD,
+ exactly as the software bridge treats groups outside its MDB. With
