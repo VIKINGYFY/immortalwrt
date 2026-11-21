@@ -1,14 +1,15 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 02:10:13 +0800
+Date: Sat, 21 Nov 2026 09:47:57 +0800
 Subject: [PATCH] rtl837x: program fixed host MAC from phylink
 
-A fixed CPU link cannot inherit its force-link, speed, duplex or pause bits from U-Boot after a switch reset. Program these fields from phylink link-up parameters and force link down on the matching callback. Apply this only to fixed CPU links using standard initialization; retain the upstream PHY and external-port behavior.
+Program the force-link, speed, duplex and pause fields from phylink on
+fixed CPU links. Force link down on the matching callback.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -1139,6 +1139,33 @@ static void rtl8372n_phylink_mac_config(
+@@ -1063,6 +1063,33 @@ static void rtl8372n_phylink_mac_config(
  		state->pause);
  }
  
@@ -42,23 +43,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void rtl8372n_phylink_mac_link_down(struct phylink_config *config,
  					   unsigned int mode,
  					   phy_interface_t interface)
-@@ -1147,6 +1174,10 @@ static void rtl8372n_phylink_mac_link_do
+@@ -1071,6 +1098,9 @@ static void rtl8372n_phylink_mac_link_do
  	struct dsa_port *dp = dsa_phylink_to_port(config);
  
  	priv = dp->ds->priv;
 +	if (dsa_port_is_cpu(dp) && mode == MLO_AN_FIXED &&
-+	    !priv->preserve_boot_config &&
 +	    rtl8372n_fixed_mac(priv, dp->index, false, 0, 0, false, false))
 +		dev_err(priv->dev, "failed to force host MAC down\n");
  
  	if (!rtl8372n_is_serdes_port(dp->index))
  		return;
-@@ -1164,6 +1195,11 @@ static void rtl8372n_phylink_mac_link_up
+@@ -1088,6 +1118,10 @@ static void rtl8372n_phylink_mac_link_up
  	struct dsa_port *dp = dsa_phylink_to_port(config);
  
  	priv = dp->ds->priv;
 +	if (dsa_port_is_cpu(dp) && mode == MLO_AN_FIXED &&
-+	    !priv->preserve_boot_config &&
 +	    rtl8372n_fixed_mac(priv, dp->index, true, speed, duplex,
 +			      tx_pause, rx_pause))
 +		dev_err(priv->dev, "failed to set fixed host MAC parameters\n");

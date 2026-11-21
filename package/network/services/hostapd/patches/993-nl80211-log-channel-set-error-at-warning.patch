@@ -1,0 +1,26 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 20 Nov 2026 22:33:01 +0800
+Subject: [PATCH] nl80211: log channel-set errors at warning level
+
+The default message priority filters MSG_DEBUG while retaining warnings.
+Log only rejected channel operations, with the interface and nl80211
+command so the kernel error can be identified on affected radios.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -6361,8 +6361,11 @@
+ 		nl80211_link_set_freq(bss, freq->link_id, freq->freq);
+ 		return 0;
+ 	}
+-	wpa_printf(MSG_DEBUG, "nl80211: Failed to set channel (freq=%d): "
+-		   "%d (%s)", freq->freq, ret, strerror(-ret));
++	wpa_printf(MSG_WARNING,
++		   "nl80211: Failed to set channel on %s via %s "
++		   "(freq=%d): %d (%s)", bss->ifname,
++		   set_chan ? "SET_CHANNEL" : "SET_WIPHY",
++		   freq->freq, ret, strerror(-ret));
+ 	return -1;
+ }
+ 

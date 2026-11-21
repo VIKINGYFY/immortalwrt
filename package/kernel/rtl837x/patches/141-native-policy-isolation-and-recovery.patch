@@ -1,8 +1,10 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 22:33:07 +0800
+Date: Sat, 21 Nov 2026 12:32:28 +0800
 Subject: [PATCH] rtl837x: native policy isolation and recovery
 
 Preserve the existing service-VLAN policy, transactional recovery and DSA callbacks on the upstream VLAN helper API.
+
+Reuse the upstream VLAN table, PVID and ingress-filter accessors during recovery.
 
 Split from:
   package/kernel/rtl837x/patches/140-native-policy-state-and-register-access.patch ([PATCH] rtl837x: define native policy state and register access)
@@ -15,10 +17,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl837x_policy.c
 +++ b/src/rtl837x_policy.c
-@@ -188,3 +188,191 @@ static int rtl837x_update_cpu_keep(struc
+@@ -168,3 +168,190 @@
+ 
  	return 0;
  }
- 
++
 +static int rtl837x_update_isolation(struct rtl837x_local *gsw)
 +{
 +	u32 permit;
@@ -102,20 +105,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	state->port = port;
 +	state->vid = vid;
 +	if (vid) {
-+		ret = rtl837x_row_get(gsw, vid, &state->row);
++		ret = rtl837x_vlan_get(gsw->priv, vid, &state->row);
 +		if (ret)
 +			return ret;
 +	}
-+	ret = rtl837x_pvid_get(gsw, port, &state->pvid);
++	ret = rtl837x_vlan_port_get_pvid(gsw->priv, port, &state->pvid);
 +	if (ret)
 +		return ret;
 +	ret = rtl837x_svid_get(gsw, port, &state->svid);
 +	if (ret)
 +		return ret;
-+	ret = rtl837x_filter_get(gsw, port, &state->filtering);
++	ret = rtl837x_vlan_port_get_ingress_filtering(gsw->priv, port, &state->filtering);
 +	if (ret)
 +		return ret;
-+	return (rtl837x_keep_get(gsw, gsw->cpu_port, &state->keep));
++	return rtl837x_vlan_port_get_egress_vlan_keep_mbr(gsw->priv, gsw->cpu_port, &state->keep);
 +}
 +
 +static bool rtl837x_vlan_state_equal(const struct rtl837x_vlan_snapshot *a,
@@ -150,17 +153,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
 +	/* Try every field, including writes whose completion was uncertain. */
 +	if (state->vid) {
-+		ret = (rtl837x_row_set(gsw, state->vid, &state->row));
++		ret = rtl837x_vlan_set(gsw->priv, state->vid, &state->row);
 +		if (ret)
 +			first = ret;
 +	}
-+	ret = (rtl837x_pvid_set(gsw, state->port, state->pvid));
++	ret = rtl837x_vlan_port_set_pvid(gsw->priv, state->port, state->pvid);
 +	if (ret && !first)
 +		first = ret;
 +	ret = (rtl837x_svid_set(gsw, state->port, state->svid));
 +	if (ret && !first)
 +		first = ret;
-+	ret = (rtl837x_filter_set(gsw, state->port, state->filtering));
++	ret = rtl837x_vlan_port_set_ingress_filtering(gsw->priv, state->port, state->filtering);
 +	if (ret && !first)
 +		first = ret;
 +	ret = (rtl837x_keep_set(gsw, gsw->cpu_port, state->keep));
@@ -183,7 +186,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			gsw->vlan_rollback.port, gsw->vlan_rollback.vid, ret);
 +		return ret;
 +	}
-+	gsw->port_pvid[gsw->vlan_rollback.port] = gsw->vlan_rollback.pvid;
 +	gsw->vlan_state_dirty = false;
 +	/* STP stays blocked until update_bridge has rebuilt its own state. */
 +	dev_info(gsw->dev, "VLAN hardware state recovered: port=%u vid=%u\n",
@@ -206,4 +208,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		phase, old->port, old->vid, ret, rollback, gsw->vlan_state_dirty);
 +	return ret;
 +}
-+

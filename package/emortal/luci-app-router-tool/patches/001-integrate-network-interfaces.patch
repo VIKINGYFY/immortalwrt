@@ -8,7 +8,7 @@
  'require tools.widgets as widgets';
  'require tools.network as nettools';
  
-@@ -498,6 +499,7 @@ return view.extend({
+@@ -527,6 +528,7 @@ return view.extend({
  		m = new form.Map('network');
  		m.tabbed = true;
  		m.chain('dhcp');
@@ -16,7 +16,7 @@
  
  		s = m.section(form.GridSection, 'interface', _('Interfaces'));
  		s.anonymous = true;
-@@ -590,6 +592,7 @@ return view.extend({
+@@ -619,6 +621,7 @@ return view.extend({
  		};
  
  		s.addModalOptions = function(s) {
@@ -24,7 +24,7 @@
  			const protoval = uci.get('network', s.section, 'proto') || 'none';
  			let o, proto_select, proto_switch, ss, so;
  
-@@ -1607,6 +1610,7 @@ return view.extend({
+@@ -1646,6 +1649,7 @@ return view.extend({
  		};
  
  		s.addModalOptions = function(s) {
@@ -32,7 +32,7 @@
  			const isNew = (uci.get('network', s.section, 'name') == null);
  			const dev = getDevice(s.section);
  			const devName = dev ? dev.getName() : null;
-@@ -1852,6 +1856,8 @@ return view.extend({
+@@ -1891,6 +1895,8 @@ return view.extend({
  		s.addremove = false;
  		s.anonymous = true;
  

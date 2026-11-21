@@ -25,14 +25,15 @@ if (!device || !bus)
 
 let status = bus.call('network.wireless', 'status', {});
 for (let radio, state in status) {
-	if (state.up || state.pending || state.disabled ||
-	    !state.autostart || !state.retry_setup_failed)
+	if (state.up || state.disabled || !state.autostart ||
+	    (!state.pending && !state.retry_setup_failed))
 		continue;
 
 	let phy = find_phy(state.config, true);
 	if (!phy || realpath(`/sys/class/ieee80211/${phy}/device`) != device)
 		continue;
 
+	// netifd queues a retry when PHY arrival overlaps a running setup.
 	bus.call('network.wireless', 'retry', { device: radio });
 }
 EOF

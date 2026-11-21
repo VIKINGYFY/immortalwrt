@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -2790,13 +2790,7 @@
+@@ -2790,13 +2790,7 @@ static int ieee80211_set_sta_4addr(struc
  				   struct ieee80211_sub_if_data *sdata,
  				   struct sta_info *sta)
  {
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int err;
  
  	lockdep_assert_wiphy(local->hw.wiphy);
-@@ -2804,38 +2798,16 @@
+@@ -2804,38 +2798,16 @@ static int ieee80211_set_sta_4addr(struc
  	if (sdata->u.vlan.sta)
  		return -EBUSY;
  
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	rcu_assign_pointer(sdata->u.vlan.sta, sta);
-@@ -6006,14 +5978,19 @@
+@@ -6006,14 +5978,19 @@ ieee80211_add_link_station(struct wiphy
  	if (sta->sta.valid_links & BIT(params->link_id))
  		return -EALREADY;
  
@@ -109,7 +109,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (test_sta_flag(sta, WLAN_STA_ASSOC)) {
-@@ -6024,7 +6001,11 @@
+@@ -6024,7 +6001,11 @@ ieee80211_add_link_station(struct wiphy
  	}
  
  	/* ieee80211_sta_activate_link frees the link upon failure */
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int
-@@ -6069,6 +6050,7 @@
+@@ -6069,6 +6050,7 @@ ieee80211_del_link_station(struct wiphy
  		return -EINVAL;
  
  	ieee80211_sta_remove_link(sta, params->link_id);
@@ -132,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -2311,6 +2311,9 @@
+@@ -2311,6 +2311,9 @@ static inline void ieee80211_vif_clear_l
  
  void ieee80211_apvlan_link_setup(struct ieee80211_sub_if_data *sdata);
  void ieee80211_apvlan_link_clear(struct ieee80211_sub_if_data *sdata);

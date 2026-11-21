@@ -1,0 +1,34 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 19 Nov 2026 09:02:00 +0800
+Subject: [PATCH] thermal: qcom: tsens: Mask critical IRQs without a thermal zone
+
+TSENS v2 critical IRQs share a level-triggered line on IPQ9574. The
+critical handler skips sensors for which Linux could not register a
+thermal zone. If firmware left one of those IRQs unmasked, its pending
+status can retrigger the IRQ continuously.
+
+Mask and clear the critical IRQ for these sensors before installing the
+handler. Leave all interrupts and trip programming of registered thermal
+zones and the TSENS watchdog handling unchanged.
+
+Link: https://github.com/VIKINGYFY/immortalwrt/issues/229
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/thermal/qcom/tsens.c
++++ b/drivers/thermal/qcom/tsens.c
+@@ -1295,8 +1295,14 @@ static int tsens_register(struct tsens_p
+ 		tzd = devm_thermal_of_zone_register(priv->dev, priv->sensor[i].hw_id,
+ 						    &priv->sensor[i],
+ 						    &tsens_of_ops);
+-		if (IS_ERR(tzd))
++		if (IS_ERR(tzd)) {
++			/* The handler cannot service sensors without a zone. */
++			if (priv->feat->crit_int &&
++			    tsens_version(priv) >= VER_2_X)
++				tsens_set_interrupt(priv, priv->sensor[i].hw_id,
++						    CRITICAL, false);
+ 			continue;
++		}
+ 		priv->sensor[i].tzd = tzd;
+ 		if (priv->ops->enable)
+ 			priv->ops->enable(priv, i);

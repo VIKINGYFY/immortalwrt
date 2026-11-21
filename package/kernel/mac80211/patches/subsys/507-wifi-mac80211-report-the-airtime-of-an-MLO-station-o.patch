@@ -99,7 +99,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  
  	if (!(sinfo->filled & BIT_ULL(NL80211_STA_INFO_AIRTIME_WEIGHT))) {
-@@ -3409,8 +3425,11 @@ void sta_set_sinfo(struct sta_info *sta,
+@@ -3409,6 +3425,9 @@ void sta_set_sinfo(struct sta_info *sta,
  			sta_set_link_sinfo(sta, sinfo->links[link_id],
  					   link, tidstats);
  		}
@@ -109,5 +109,3 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  }
  
- u32 sta_get_expected_throughput(struct sta_info *sta)
- {

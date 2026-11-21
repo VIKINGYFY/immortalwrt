@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -478,6 +478,7 @@
+@@ -478,6 +478,7 @@ static int hostapd_broadcast_wep_set(str
  static void hostapd_link_remove_timeout_handler(void *eloop_data,
  						void *user_ctx);
  static void hostapd_link_remove_offload_expire(struct hostapd_data *hapd);
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  /* A nontransmitted BSSID sends no Beacon frames of its own, so the driver does
-@@ -587,11 +588,54 @@
+@@ -587,11 +588,54 @@ static u64 hostapd_link_remove_tbtt_afte
  }
  
  
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!hapd->eht_mld_link_removal_count)
  		return 0;
  
-@@ -616,21 +660,35 @@
+@@ -616,21 +660,35 @@ u64 hostapd_link_remove_expiry_ms(struct
  }
  
  
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -967,6 +1025,7 @@
+@@ -967,6 +1025,7 @@ static bool hostapd_link_remove_expire_b
  			   "MLD: Keep link_id=%u, no other link beacons",
  			   hapd->mld_link_id);
  		ieee802_11_set_beacon(hapd);
@@ -139,7 +139,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return false;
  	}
  
-@@ -1197,41 +1256,38 @@
+@@ -1197,41 +1256,38 @@ static void hostapd_mld_crit_update_star
  }
  
  
@@ -193,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wpa_printf(MSG_DEBUG,
  		   "MLD: Remove link_id=%u in %u beacons",
  		   hapd->mld_link_id, count);
-@@ -1278,6 +1334,83 @@
+@@ -1278,6 +1334,83 @@ int hostapd_link_remove(struct hostapd_d
  }
  
  
@@ -277,7 +277,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The driver counts from the first TBTT after it took the template of the
   * removed link, and the Probe Response frames must not count ahead of the
   * Beacon frames, so the host count starts when that update returns */
-@@ -1619,6 +1752,7 @@
+@@ -1619,6 +1752,7 @@ void hostapd_free_hapd_data(struct hosta
  {
  #ifdef CONFIG_IEEE80211BE
  	bool removal_offload = hapd->eht_mld_link_removal_offload;
@@ -285,7 +285,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	eloop_cancel_timeout(hostapd_link_remove_timeout_handler, hapd, NULL);
  	eloop_cancel_timeout(hostapd_link_remove_finish, hapd, NULL);
-@@ -1626,16 +1760,20 @@
+@@ -1626,16 +1760,20 @@ void hostapd_free_hapd_data(struct hosta
  	eloop_cancel_timeout(hostapd_link_remove_offload_tbtt, hapd, NULL);
  	eloop_cancel_timeout(hostapd_link_remove_held_start, hapd,
  			     ELOOP_ALL_CTX);
@@ -308,7 +308,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_free(hapd->probereq_cb);
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -544,6 +544,10 @@
+@@ -544,6 +544,10 @@ struct hostapd_data {
  	struct os_reltime eht_mld_link_removal_due;
  	bool eht_mld_link_removal_expired;
  	unsigned int eht_mld_link_removal_tx;

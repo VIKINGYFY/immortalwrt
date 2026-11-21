@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -3091,6 +3091,14 @@
+@@ -3091,6 +3091,14 @@ struct ieee80211_txq {
   *	ieee80211_sta_register_airtime() for each station and AC at a
   *	regular interval, also with an airtime of 0.
   *
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @NUM_IEEE80211_HW_FLAGS: number of hardware flags, used for sizing arrays
   */
  enum ieee80211_hw_flags {
-@@ -3153,6 +3161,7 @@
+@@ -3153,6 +3161,7 @@ enum ieee80211_hw_flags {
  	IEEE80211_HW_STRICT,
  	IEEE80211_HW_SUPPORTS_NDP_BLOCKACK,
  	IEEE80211_HW_DEFERRED_AIRTIME_REPORT,
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	NUM_IEEE80211_HW_FLAGS
 --- a/include/uapi/linux/nl80211.h
 +++ b/include/uapi/linux/nl80211.h
-@@ -7419,10 +7419,10 @@
+@@ -7419,10 +7419,10 @@ enum nl80211_feature_flags {
   *	element in the beacon of an AP MLD link announces (IEEE 802.11be-2024,
   *	35.3.6.3), in the Beacon frames of every link that carries the element,
   *	and reports its expiry with %NL80211_CMD_LINKS_REMOVED on the AP
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @NL80211_EXT_FEATURE_AP_NEG_TTLM: The driver applies the TID-to-link
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -1678,6 +1678,100 @@
+@@ -1678,6 +1678,100 @@ static u8 ieee80211_num_beaconing_links(
  	return num;
  }
  
@@ -171,7 +171,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
  			      struct cfg80211_ap_settings *params)
  {
-@@ -1700,6 +1794,7 @@
+@@ -1700,6 +1794,7 @@ static int ieee80211_start_ap(struct wip
  		.oper = params->chandef,
  		.require_npca = true,
  	};
@@ -179,7 +179,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u64 tsf;
  
  	lockdep_assert_wiphy(local->hw.wiphy);
-@@ -1714,6 +1809,10 @@
+@@ -1714,6 +1809,10 @@ static int ieee80211_start_ap(struct wip
  	if (old)
  		return -EALREADY;
  
@@ -190,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	link->smps_mode = IEEE80211_SMPS_OFF;
  
  	link->needed_rx_chains = sdata->local->rx_chains;
-@@ -1969,6 +2068,7 @@
+@@ -1969,6 +2068,7 @@ static int ieee80211_start_ap(struct wip
  
  	ieee80211_vif_cfg_change_notify(sdata, BSS_CHANGED_SSID);
  	ieee80211_link_info_change_notify(sdata, link, changed);
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (ieee80211_num_beaconing_links(sdata) <= 1)
  		netif_carrier_on(dev);
-@@ -1995,6 +2095,7 @@
+@@ -1995,6 +2095,7 @@ static int ieee80211_change_beacon(struc
  	int err;
  	struct ieee80211_bss_conf *link_conf;
  	u64 changed = 0;
@@ -206,7 +206,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	lockdep_assert_wiphy(wiphy);
  
-@@ -2014,6 +2115,10 @@
+@@ -2014,6 +2115,10 @@ static int ieee80211_change_beacon(struc
  	if (!old)
  		return -ENOENT;
  
@@ -217,7 +217,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	err = ieee80211_assign_beacon(sdata, link, beacon, NULL, NULL,
  				      &changed);
  	if (err < 0)
-@@ -2051,6 +2156,7 @@
+@@ -2051,6 +2156,7 @@ static int ieee80211_change_beacon(struc
  	}
  
  	ieee80211_link_info_change_notify(sdata, link, changed);
@@ -225,7 +225,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -4793,14 +4899,18 @@
+@@ -4793,14 +4899,18 @@ __ieee80211_channel_switch(struct wiphy
  		goto out;
  	}
  
@@ -246,7 +246,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ch_switch.timestamp = 0;
  	ch_switch.device_timestamp = 0;
  	ch_switch.block_tx = params->block_tx;
-@@ -5863,6 +5973,7 @@
+@@ -5863,6 +5973,7 @@ ieee80211_color_change(struct wiphy *wip
  {
  	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
  	struct ieee80211_local *local = sdata->local;
@@ -254,7 +254,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ieee80211_bss_conf *link_conf;
  	struct ieee80211_link_data *link;
  	u8 link_id = params->link_id;
-@@ -5890,6 +6001,15 @@
+@@ -5890,6 +6001,15 @@ ieee80211_color_change(struct wiphy *wip
  		err = -EBUSY;
  		goto out;
  	}
@@ -272,7 +272,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  						   &params->unsol_bcast_probe_resp,
 --- a/net/mac80211/chan.c
 +++ b/net/mac80211/chan.c
-@@ -200,6 +200,22 @@
+@@ -200,6 +200,22 @@ int ieee80211_chanctx_num_assigned(struc
  	return num;
  }
  
@@ -297,7 +297,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/net/mac80211/debugfs.c
 +++ b/net/mac80211/debugfs.c
-@@ -484,6 +484,7 @@
+@@ -484,6 +484,7 @@ static const char *hw_flag_names[] = {
  	FLAG(STRICT),
  	FLAG(SUPPORTS_NDP_BLOCKACK),
  	FLAG(DEFERRED_AIRTIME_REPORT),
@@ -307,7 +307,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1308,6 +1308,12 @@
+@@ -1308,6 +1308,12 @@ struct ieee80211_sub_if_data {
  	struct wiphy_work links_removed_work;
  	atomic_t links_removed;
  
@@ -320,7 +320,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u16 restart_active_links;
  
  #ifdef CPTCFG_MAC80211_DEBUGFS
-@@ -2305,6 +2311,7 @@
+@@ -2305,6 +2311,7 @@ void ieee80211_link_init(struct ieee8021
  void ieee80211_link_stop(struct ieee80211_link_data *link);
  int ieee80211_vif_set_links(struct ieee80211_sub_if_data *sdata,
  			    u16 new_links, u16 dormant_links);
@@ -328,7 +328,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static inline void ieee80211_vif_clear_links(struct ieee80211_sub_if_data *sdata)
  {
  	ieee80211_vif_set_links(sdata, 0, 0);
-@@ -3010,6 +3017,8 @@
+@@ -3010,6 +3017,8 @@ void ieee80211_free_chanctx(struct ieee8
  			    bool skip_idle_recalc);
  int ieee80211_chanctx_num_assigned(struct ieee80211_local *local,
  				   struct ieee80211_chanctx *ctx);
@@ -339,7 +339,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			const u8 *peer, int link_id,
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -880,6 +880,7 @@
+@@ -880,6 +880,7 @@ static int ieee80211_stop(struct net_dev
  	wiphy_work_cancel(sdata->local->hw.wiphy, &sdata->activate_links_work);
  	wiphy_work_cancel(sdata->local->hw.wiphy, &sdata->links_removed_work);
  	atomic_set(&sdata->links_removed, 0);
@@ -347,7 +347,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Close the dependent MBSSID interfaces with wiphy lock as we may be
  	 * terminating its partner links too in case of MLD.
-@@ -1934,6 +1935,9 @@
+@@ -1934,6 +1935,9 @@ static void ieee80211_links_removed_work
  	u16 links = atomic_xchg(&sdata->links_removed, 0);
  	u16 valid_links = sdata->wdev.valid_links;
  
@@ -357,7 +357,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* a link that user space removed meanwhile is gone already */
  	links &= valid_links;
  	if (!ieee80211_sdata_running(sdata) || !links || links == valid_links)
-@@ -1954,6 +1958,16 @@
+@@ -1954,6 +1958,16 @@ void ieee80211_links_removed(struct ieee
  }
  EXPORT_SYMBOL_GPL(ieee80211_links_removed);
  
@@ -376,7 +376,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
 --- a/net/mac80211/link.c
 +++ b/net/mac80211/link.c
-@@ -416,6 +416,7 @@
+@@ -416,6 +416,7 @@ static int ieee80211_vif_update_links(st
  		ieee80211_tear_down_links(sdata, to_free, rem);
  
  		ieee80211_set_vif_links_bitmaps(sdata, new_links, dormant_links);

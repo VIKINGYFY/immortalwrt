@@ -17,6 +17,7 @@ PKG_SOURCE_DATE:=2026-05-21
 PKG_SOURCE_VERSION:=476cf6629f7675c9857b59458851dda64de88343
 PKG_MIRROR_HASH:=964c832abc1c072f6fb68d7f6f38ca619d98ea5649f11e0b13c7fe5b04c7cc46
 PKG_PARALLEL_VARIANTS:=1
+PKG_SHARED_PATCHES:=1
 
 PKG_MAINTAINER:=Daniel Golle <daniel@makrotopia.org>
 
@@ -894,6 +895,7 @@ TFA_MAKE_FLAGS += \
 # scripts/gen-boot-logos.py writes it.
 define Build/Prepare
 	$(call Build/Prepare/Default)
+	$(INSTALL_DIR) $(PKG_BUILD_DIR)/plat/mediatek/apsoc_common/drivers/panel
 	$(CP) ./files/st7789p3_splash.bin \
 		$(PKG_BUILD_DIR)/plat/mediatek/apsoc_common/drivers/panel/
 endef

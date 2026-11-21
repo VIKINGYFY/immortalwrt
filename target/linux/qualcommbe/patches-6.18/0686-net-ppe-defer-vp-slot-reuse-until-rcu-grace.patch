@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
-@@ -1166,6 +1166,13 @@
+@@ -1166,6 +1166,13 @@ static int ppe_tbf_queues_show(struct se
  DEFINE_SHOW_ATTRIBUTE(ppe_tbf_queues);
  
  
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ppe_debugfs_setup(struct ppe_device *ppe_dev)
  {
  	struct ppe_debugfs_entry *entry;
-@@ -1179,6 +1186,8 @@
+@@ -1179,6 +1186,8 @@ void ppe_debugfs_setup(struct ppe_device
  	}
  
  	ppe_flowtable_debugfs_init(ppe_dev);
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #include <net/dsa.h>
  #include <net/dst_metadata.h>
-@@ -75,6 +77,9 @@
+@@ -75,6 +77,9 @@ struct ppe_vp_slot {
  	struct rhashtable flows;
  	atomic_t nflows;
  	struct nf_hook_ops nf_ops;
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u64 host_mac;		/* router (bridge) MAC; zero = inject all unicast */
  	int vp;			/* PPE port id, read by the ingress hook */
  	int refcnt;
-@@ -97,12 +102,15 @@
+@@ -97,6 +102,7 @@ struct ppe_vp {
  	struct mutex lock;		/* serialises slot allocation */
  	struct notifier_block notifier;
  	bool inject_disabled;
@@ -75,15 +75,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 athtag_orig_eg_gen;
  	u32 athtag_orig_rx[PPE_PORT_ID_COUNT];
  	u8 athtag_rx_users[PPE_PORT_ID_COUNT];
- 	u8 athtag_users;
+@@ -104,6 +110,8 @@ struct ppe_vp {
  	struct ppe_vp_slot slots[PPE_VP_SLOTS];
  };
-+
-+static DEFINE_MUTEX(ppe_vp_lifetime_lock);
  
++static DEFINE_MUTEX(ppe_vp_lifetime_lock);
++
  static const struct rhashtable_params ppe_vp_flow_params = {
  	.head_offset = offsetof(struct ppe_vp_flow, node),
-@@ -576,6 +584,13 @@
+ 	.key_offset = offsetof(struct ppe_vp_flow, key),
+@@ -576,6 +584,13 @@ static unsigned int ppe_vp_ingress(void
  	bool tagged = false;
  	int mac_len, ret;
  
@@ -97,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* A hardware miss trips this VP's persistent fail-open circuit
  	 * breaker before its packet is returned to this receive path.
  	 */
-@@ -770,6 +785,8 @@
+@@ -770,6 +785,8 @@ static void ppe_vp_slot_release(struct p
  	struct net_device *dev = rcu_access_pointer(slot->dev);
  	int ret;
  
@@ -106,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_vp_hook_unregister(slot, dev);
  	if (slot->type == PPE_VP_SLOT_QCA4B) {
  		dev_info(ppe_dev->dev,
-@@ -809,6 +826,34 @@
+@@ -809,6 +826,34 @@ static void ppe_vp_slot_reset(struct ppe
  	slot->carrier_up = false;
  }
  
@@ -141,7 +142,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ppe_vp_qca4b_create_locked(struct ppe_vp *vp,
  				      struct net_device *dev)
  {
-@@ -829,6 +874,7 @@
+@@ -829,6 +874,7 @@ static int ppe_vp_qca4b_create_locked(st
  			return vp->slots[i].type == PPE_VP_SLOT_QCA4B ? 0 :
  				-EEXIST;
  		if (free < 0 && !vp->slots[i].poisoned &&
@@ -149,7 +150,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !rcu_access_pointer(vp->slots[i].dev) &&
  		    !vp->slots[i].refcnt)
  			free = i;
-@@ -927,7 +973,7 @@
+@@ -927,7 +973,7 @@ int ppe_vp_get_rtl837x_source(struct ppe
  			ret = slot->vp;
  			goto unlock;
  		}
@@ -158,7 +159,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !rcu_access_pointer(slot->dev) && !slot->refcnt)
  			free = i;
  	}
-@@ -1004,6 +1050,7 @@
+@@ -1004,6 +1050,7 @@ int ppe_vp_get(struct ppe_device *ppe_de
  			return PPE_VP_PORT_BASE + i;
  		}
  		if (free < 0 && !vp->slots[i].poisoned &&
@@ -166,7 +167,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !rcu_access_pointer(vp->slots[i].dev) &&
  		    !vp->slots[i].refcnt)
  			free = i;
-@@ -1166,7 +1213,7 @@
+@@ -1166,7 +1213,7 @@ void ppe_vp_put(struct ppe_device *ppe_d
  
  	if (rcu_access_pointer(vpt->slots[i].dev))
  		ppe_vp_slot_release(ppe_dev, vpt, i);
@@ -175,7 +176,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&vpt->lock);
  }
  
-@@ -1568,12 +1615,34 @@
+@@ -1568,7 +1615,7 @@ static int ppe_vp_netdev_event(struct no
  			if (!vp->slots[i].refcnt &&
  			    !rcu_access_pointer(vp->slots[i].dev) &&
  			    vp->slots[i].type != PPE_VP_SLOT_NONE)
@@ -184,10 +185,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  		mutex_unlock(&vp->lock);
  	}
- 
+@@ -1576,6 +1623,28 @@ static int ppe_vp_netdev_event(struct no
  	return NOTIFY_DONE;
-+}
-+
+ }
+ 
 +void ppe_vp_lifetime_show(struct ppe_device *ppe_dev, struct seq_file *seq)
 +{
 +	struct ppe_vp *vp;
@@ -208,10 +209,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	seq_printf(seq, "active:%#x retiring:%#x retire_queued:%llu retire_completed:%llu\n",
 +		   active, retiring, vp->retire_queued, vp->retire_completed);
 +	mutex_unlock(&vp->lock);
- }
- 
++}
++
  int ppe_vp_setup(struct ppe_device *ppe_dev)
-@@ -1593,6 +1662,8 @@
+ {
+ 	struct ppe_vp *vp;
+@@ -1593,6 +1662,8 @@ int ppe_vp_setup(struct ppe_device *ppe_
  	mutex_init(&vp->lock);
  	vp->notifier.notifier_call = ppe_vp_netdev_event;
  	for (i = 0; i < PPE_VP_SLOTS; i++) {
@@ -220,7 +223,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = rhashtable_init(&vp->slots[i].flows,
  				      &ppe_vp_flow_params);
  		if (ret)
-@@ -1609,8 +1680,10 @@
+@@ -1609,8 +1680,10 @@ int ppe_vp_setup(struct ppe_device *ppe_
  err_publish:
  	ppe_dev->vp = NULL;
  err_flows:
@@ -232,7 +235,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_destroy(&vp->lock);
  	return ret;
  }
-@@ -1642,7 +1715,9 @@
+@@ -1642,7 +1715,9 @@ void ppe_vp_teardown(struct ppe_device *
  	if (!vp)
  		return;
  
@@ -242,7 +245,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unregister_netdevice_notifier(&vp->notifier);
  
  	/* The PPE port net devices are already unregistered, which flushed
-@@ -1662,6 +1737,7 @@
+@@ -1662,6 +1737,7 @@ void ppe_vp_teardown(struct ppe_device *
  
  	synchronize_rcu();
  	for (i = 0; i < PPE_VP_SLOTS; i++) {
@@ -252,7 +255,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
-@@ -57,6 +57,7 @@
+@@ -57,6 +57,7 @@ struct ppe_vp_flow {
  #define PPE_VP_PORT_BASE	64
  #define PPE_VP_SLOTS		8
  

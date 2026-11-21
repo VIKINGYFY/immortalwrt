@@ -1,8 +1,10 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 22:33:07 +0800
+Date: Sat, 21 Nov 2026 12:32:28 +0800
 Subject: [PATCH] rtl837x: native policy bridge and vlan transactions
 
 Preserve the existing service-VLAN policy, transactional recovery and DSA callbacks on the upstream VLAN helper API.
+
+Use upstream VLAN helpers without changing transaction or readback ordering.
 
 Split from:
   package/kernel/rtl837x/patches/140-native-policy-state-and-register-access.patch ([PATCH] rtl837x: define native policy state and register access)
@@ -15,10 +17,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl837x_policy.c
 +++ b/src/rtl837x_policy.c
-@@ -376,3 +376,224 @@ static int rtl837x_vlan_failed(struct rt
+@@ -355,3 +355,228 @@
+ 		phase, old->port, old->vid, ret, rollback, gsw->vlan_state_dirty);
  	return ret;
  }
- 
++
 +static int rtl837x_update_bridge(struct rtl837x_local *gsw)
 +{
 +	struct rtl837x_vlan_entry old[RTL837X_MAX_PORT_COUNT] = { 0 };
@@ -45,8 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			goto snapshot_failed;
 +		if (!rtl837x_user_port(gsw, port) || !gsw->tag8021q_pvid_valid[port])
 +			continue;
-+		ret = (rtl837x_row_get(gsw, 
-+			gsw->tag8021q_pvid[port], &entry));
++		ret = rtl837x_vlan_get(gsw->priv, gsw->tag8021q_pvid[port], &entry);
 +		if (ret)
 +			goto snapshot_failed;
 +		old[port].mbr = entry.mbr;
@@ -57,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		changed[port] = recovering ||
 +			memcmp(&next[port], &old[port], sizeof(next[port]));
 +	}
-+	ret = (rtl837x_keep_get(gsw, gsw->cpu_port, &keep));
++	ret = rtl837x_vlan_port_get_egress_vlan_keep_mbr(gsw->priv, gsw->cpu_port, &keep);
 +	if (ret)
 +		goto snapshot_failed;
 +
@@ -149,6 +151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	struct rtl837x_vlan_snapshot old, next;
 +	bool pvid = flags & BRIDGE_VLAN_INFO_PVID;
++	bool standalone = !dsa_port_bridge_dev_get(dsa_to_port(gsw->ds, port));
 +	bool pvid_valid, change_pvid;
 +	u16 new_pvid;
 +	const char *phase = "row";
@@ -160,7 +163,12 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	next = old;
 +	if (add) {
 +		next.row.mbr |= BIT(port);
-+		if (flags & BRIDGE_VLAN_INFO_UNTAGGED)
++		/* A software bridge's RX filter adds VID 1 with flags=0.
++		 * Keep native egress untagged for a standalone user port.
++		 */
++		if (flags & BRIDGE_VLAN_INFO_UNTAGGED ||
++		    (!service && vid == 1 && rtl837x_user_port(gsw, port) &&
++		     standalone))
 +			next.row.untag |= BIT(port);
 +		else
 +			next.row.untag &= ~BIT(port);
@@ -169,7 +177,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			next.row.untag &= ~BIT(gsw->cpu_port);
 +		}
 +	} else if (!service && vid == 1 &&
-+		   (!dsa_port_bridge_dev_get(dsa_to_port(gsw->ds, port)) ||
++		   (standalone ||
 +		    !dsa_port_is_vlan_filtering(dsa_to_port(gsw->ds, port)))) {
 +		/* VLAN1 is the private baseline for standalone/unaware ports. */
 +		next.row.mbr |= BIT(port) | BIT(gsw->cpu_port);
@@ -208,7 +216,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +				    dsa_port_bridge_dev_get(dp) ? 0 : 1;
 +		}
 +	}
-+	ret = (rtl837x_row_set(gsw, vid, &next.row));
++	ret = rtl837x_vlan_set(gsw->priv, vid, &next.row);
 +	if (ret)
 +		goto failed;
 +	phase = "pvid";
@@ -216,7 +224,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		if (service)
 +			ret = (rtl837x_svid_set(gsw, port, next.svid));
 +		else
-+			ret = (rtl837x_pvid_set(gsw, port, next.pvid));
++			ret = rtl837x_vlan_port_set_pvid(gsw->priv, port, next.pvid);
 +		if (ret)
 +			goto failed;
 +	}
@@ -224,7 +232,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	ret = rtl837x_vlan_verify(gsw, &next);
 +	if (ret)
 +		goto failed;
-+	gsw->port_pvid[port] = next.pvid;
 +	if (change_pvid) {
 +		if (service) {
 +			gsw->tag8021q_pvid[port] = new_pvid;
@@ -239,4 +246,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +failed:
 +	return rtl837x_vlan_failed(gsw, &old, phase, ret);
 +}
-+

@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -447,7 +447,8 @@
+@@ -447,7 +447,8 @@ static inline int hostapd_drv_channel_in
  {
  	if (!hapd->driver || !hapd->driver->channel_info)
  		return -1;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static inline int
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -1094,6 +1094,15 @@
+@@ -1094,6 +1094,15 @@ static inline bool hostapd_mld_is_first_
  
  #endif /* CONFIG_IEEE80211BE */
  
@@ -50,7 +50,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void hostapd_get_oper_chan_info_of_bss(struct hostapd_data *hapd,
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -5069,10 +5069,12 @@
+@@ -5069,10 +5069,12 @@ struct wpa_driver_ops {
  	/**
  	 * channel_info - Get parameters of the current operating channel
  	 * @priv: Private driver interface data
@@ -66,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/**
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -2076,18 +2076,46 @@
+@@ -2076,18 +2076,46 @@ int nl80211_get_link_noise(struct i802_b
  }
  
  
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (tb[NL80211_ATTR_WIPHY_FREQ])
  		chan_info->frequency =
  			nla_get_u32(tb[NL80211_ATTR_WIPHY_FREQ]);
-@@ -2129,14 +2157,19 @@
+@@ -2129,14 +2157,19 @@ static int get_channel_info(struct nl_ms
  }
  
  
@@ -140,7 +140,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/wpa_supplicant/driver_i.h
 +++ b/wpa_supplicant/driver_i.h
-@@ -546,11 +546,14 @@
+@@ -546,11 +546,14 @@ wpa_drv_setup_link_reconfig(struct wpa_s
  }
  
  static inline int wpa_drv_channel_info(struct wpa_supplicant *wpa_s,
@@ -160,7 +160,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static inline int wpa_drv_pktcnt_poll(struct wpa_supplicant *wpa_s,
 --- a/wpa_supplicant/mesh_mpm.c
 +++ b/wpa_supplicant/mesh_mpm.c
-@@ -402,7 +402,7 @@
+@@ -402,7 +402,7 @@ static void mesh_mpm_send_plink_action(s
  	if (type != PLINK_CLOSE && conf->ocv) {
  		struct wpa_channel_info ci;
  
@@ -169,7 +169,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_WARNING,
  				   "Mesh MPM: Failed to get channel info for OCI element");
  			goto fail;
-@@ -1321,7 +1321,7 @@
+@@ -1321,7 +1321,7 @@ void mesh_mpm_action_rx(struct wpa_suppl
  			int tx_chanwidth;
  			int tx_seg1_idx;
  
@@ -180,7 +180,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				return;
 --- a/wpa_supplicant/sme.c
 +++ b/wpa_supplicant/sme.c
-@@ -6624,7 +6624,7 @@
+@@ -6624,7 +6624,7 @@ static void sme_send_sa_query_req(struct
  	if (wpa_sm_ocv_enabled(wpa_s->wpa)) {
  		struct wpa_channel_info ci;
  
@@ -189,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_WARNING,
  				   "Failed to get channel info for OCI element in SA Query Request frame");
  			return;
-@@ -6790,7 +6790,7 @@
+@@ -6790,7 +6790,7 @@ static void sme_process_sa_query_request
  	if (wpa_sm_ocv_enabled(wpa_s->wpa)) {
  		struct wpa_channel_info ci;
  
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_WARNING,
  				   "Failed to get channel info for OCI element in SA Query Response frame");
  			return;
-@@ -6885,7 +6885,7 @@
+@@ -6885,7 +6885,7 @@ void sme_sa_query_rx(struct wpa_supplica
  			return;
  		}
  
@@ -209,7 +209,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return;
 --- a/wpa_supplicant/wnm_sta.c
 +++ b/wpa_supplicant/wnm_sta.c
-@@ -154,7 +154,7 @@
+@@ -154,7 +154,7 @@ int ieee802_11_send_wnmsleep_req(struct
  	if (action == WNM_SLEEP_MODE_EXIT && wpa_sm_ocv_enabled(wpa_s->wpa)) {
  		struct wpa_channel_info ci;
  
@@ -218,7 +218,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_WARNING,
  				   "Failed to get channel info for OCI element in WNM-Sleep Mode frame");
  			os_free(wnmsleep_ie);
-@@ -447,7 +447,7 @@
+@@ -447,7 +447,7 @@ static void ieee802_11_rx_wnmsleep_resp(
  	    wpa_sm_ocv_enabled(wpa_s->wpa)) {
  		struct wpa_channel_info ci;
  
@@ -229,7 +229,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return;
 --- a/wpa_supplicant/wpas_glue.c
 +++ b/wpa_supplicant/wpas_glue.c
-@@ -1327,7 +1327,7 @@
+@@ -1327,7 +1327,7 @@ static int wpa_supplicant_channel_info(v
  {
  	struct wpa_supplicant *wpa_s = _wpa_s;
  

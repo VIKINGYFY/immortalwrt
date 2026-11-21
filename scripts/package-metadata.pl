@@ -529,6 +529,10 @@ sub gen_package_mk() {
 			printf "\$(curdir)/%s/parallel-variants := 1\n", $src->{path};
 		}
 
+		if ($src->{shared_patches}) {
+			printf "\$(curdir)/%s/shared-patches := 1\n", $src->{path};
+		}
+
 		unless (grep {!$_->{buildonly}} @{$src->{packages}}) {
 			printf "package- += %s\n", $src->{path};
 		}

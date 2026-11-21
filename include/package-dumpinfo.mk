@@ -10,6 +10,7 @@ $(if $(PKG_BUILD_DEPENDS),Build-Depends: $(PKG_BUILD_DEPENDS)
 )$(if $(HOST_BUILD_DEPENDS),Build-Depends/host: $(HOST_BUILD_DEPENDS)
 )$(if $(BUILD_TYPES),Build-Types: $(BUILD_TYPES)
 )$(if $(PKG_PARALLEL_VARIANTS),Parallel-Variants: 1
+)$(if $(filter 1,$(PKG_SHARED_PATCHES)),Shared-Patches: 1
 )
 
 endef

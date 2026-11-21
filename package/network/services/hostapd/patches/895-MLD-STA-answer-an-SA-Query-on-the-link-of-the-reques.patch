@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -6222,7 +6222,8 @@
+@@ -6222,7 +6222,8 @@ static void wpas_event_rx_mgmt_action(st
  
  #ifdef CONFIG_SME
  	if (category == WLAN_ACTION_SA_QUERY) {
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_SME */
 --- a/wpa_supplicant/sme.c
 +++ b/wpa_supplicant/sme.c
-@@ -6772,12 +6772,26 @@
+@@ -6772,12 +6772,26 @@ void sme_event_ch_switch(struct wpa_supp
  }
  
  
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	wpa_dbg(wpa_s, MSG_DEBUG, "SME: Sending SA Query Response to "
  		MACSTR, MAC2STR(wpa_s->bssid));
-@@ -6785,12 +6799,18 @@
+@@ -6785,12 +6799,18 @@ static void sme_process_sa_query_request
  	resp[0] = WLAN_ACTION_SA_QUERY;
  	resp[1] = WLAN_SA_QUERY_RESPONSE;
  	os_memcpy(resp + 2, data + 1, WLAN_SA_QUERY_TR_ID_LEN);
@@ -81,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_WARNING,
  				   "Failed to get channel info for OCI element in SA Query Response frame");
  			return;
-@@ -6813,11 +6833,8 @@
+@@ -6813,11 +6833,8 @@ static void sme_process_sa_query_request
  	}
  #endif /* CONFIG_OCV */
  
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_msg(wpa_s, MSG_INFO,
  			"SME: Failed to send SA Query Response");
  }
-@@ -6858,8 +6875,10 @@
+@@ -6858,8 +6875,10 @@ static void sme_process_sa_query_respons
  
  
  void sme_sa_query_rx(struct wpa_supplicant *wpa_s, const u8 *da, const u8 *sa,
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (len < 1 + WLAN_SA_QUERY_TR_ID_LEN)
  		return;
  	if (is_multicast_ether_addr(da)) {
-@@ -6885,7 +6904,7 @@
+@@ -6885,7 +6904,7 @@ void sme_sa_query_rx(struct wpa_supplica
  			return;
  		}
  
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_WARNING,
  				   "Failed to get channel info to validate received OCI in SA Query Action frame");
  			return;
-@@ -6904,7 +6923,7 @@
+@@ -6904,7 +6923,7 @@ void sme_sa_query_rx(struct wpa_supplica
  #endif /* CONFIG_OCV */
  
  	if (data[0] == WLAN_SA_QUERY_REQUEST)
@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/wpa_supplicant/sme.h
 +++ b/wpa_supplicant/sme.h
-@@ -32,7 +32,7 @@
+@@ -32,7 +32,7 @@ void sme_event_unprot_disconnect(struct
  				 const u8 *da, u16 reason_code);
  void sme_event_ch_switch(struct wpa_supplicant *wpa_s);
  void sme_sa_query_rx(struct wpa_supplicant *wpa_s, const u8 *da, const u8 *sa,

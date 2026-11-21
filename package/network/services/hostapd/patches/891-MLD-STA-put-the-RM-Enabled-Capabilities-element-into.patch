@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/ctrl_iface.c
 +++ b/wpa_supplicant/ctrl_iface.c
-@@ -12812,7 +12812,8 @@
+@@ -12812,7 +12812,8 @@ wpa_supplicant_ctrl_iface_setup_link_rec
  	const char *pos, *add_pos, *dlt_pos;
  	struct wpa_mlo_reconfig_info info;
  	struct wpa_ssid *ssid = wpa_s->current_ssid;
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int link_id;
  
  	add_pos = os_strstr(cmd, "add=");
-@@ -12881,12 +12882,25 @@
+@@ -12881,12 +12882,25 @@ wpa_supplicant_ctrl_iface_setup_link_rec
  		} while (pos && pos != add_pos);
  	}
  
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return wpa_drv_setup_link_reconfig(wpa_s, &info);
 --- a/wpa_supplicant/rrm.c
 +++ b/wpa_supplicant/rrm.c
-@@ -54,6 +54,39 @@
+@@ -54,6 +54,39 @@ void wpas_rrm_reset(struct wpa_supplican
  
  
  /*
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @da: DA of the received frame
 --- a/wpa_supplicant/sme.c
 +++ b/wpa_supplicant/sme.c
-@@ -1285,8 +1285,7 @@
+@@ -1285,8 +1285,7 @@ sme_build_802_1x_auth_request(struct wpa
  static void sme_auth_handle_rrm(struct wpa_supplicant *wpa_s,
  				struct wpa_bss *bss)
  {
@@ -115,7 +115,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const u8 *rrm_ie;
  
  	wpa_s->rrm.rrm_used = 0;
-@@ -1310,31 +1309,17 @@
+@@ -1310,31 +1309,17 @@ static void sme_auth_handle_rrm(struct w
  		return;
  	}
  
@@ -154,7 +154,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/wpa_supplicant/wpa_supplicant_i.h
 +++ b/wpa_supplicant/wpa_supplicant_i.h
-@@ -1998,6 +1998,8 @@
+@@ -1998,6 +1998,8 @@ int wpas_twt_send_setup(struct wpa_suppl
  int wpas_twt_send_teardown(struct wpa_supplicant *wpa_s, u8 flags);
  
  void wpas_rrm_reset(struct wpa_supplicant *wpa_s);

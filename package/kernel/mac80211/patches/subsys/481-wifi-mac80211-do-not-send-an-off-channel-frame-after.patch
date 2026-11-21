@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1779,6 +1779,7 @@
+@@ -1779,6 +1779,7 @@ struct ieee80211_local {
  	struct list_head roc_list;
  	struct wiphy_work hw_roc_start, hw_roc_done;
  	unsigned long hw_roc_start_time;
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct idr ack_status_frames;
 --- a/net/mac80211/offchannel.c
 +++ b/net/mac80211/offchannel.c
-@@ -262,6 +262,7 @@
+@@ -262,6 +262,7 @@ static void ieee80211_hw_roc_start(struc
  {
  	struct ieee80211_local *local =
  		container_of(work, struct ieee80211_local, hw_roc_start);
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ieee80211_roc_work *roc;
  
  	lockdep_assert_wiphy(local->hw.wiphy);
-@@ -271,6 +272,11 @@
+@@ -271,6 +272,11 @@ static void ieee80211_hw_roc_start(struc
  			break;
  
  		roc->hw_begun = true;
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ieee80211_handle_roc_started(roc, local->hw_roc_start_time);
  	}
  }
-@@ -319,8 +325,11 @@
+@@ -319,8 +325,11 @@ static void _ieee80211_start_next_roc(st
  	}
  
  	if (local->ops->remain_on_channel) {
@@ -78,7 +78,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (ret) {
  			wiphy_warn(local->hw.wiphy,
-@@ -512,6 +521,7 @@
+@@ -512,6 +521,7 @@ void ieee80211_remain_on_channel_expired
  
  	trace_api_remain_on_channel_expired(local);
  
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wiphy_work_queue(hw->wiphy, &local->hw_roc_done);
  }
  EXPORT_SYMBOL_GPL(ieee80211_remain_on_channel_expired);
-@@ -533,6 +543,9 @@
+@@ -533,6 +543,9 @@ ieee80211_coalesce_hw_started_roc(struct
  	if (!cur_roc->hw_begun && new_roc->duration > cur_roc->duration)
  		return false;
  
@@ -96,7 +96,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	remaining = cur_roc->start_time +
  		    msecs_to_jiffies(cur_roc->duration) -
  		    now;
-@@ -625,6 +638,7 @@
+@@ -625,6 +638,7 @@ static int ieee80211_start_roc_work(stru
  			/* otherwise actually kick it off here
  			 * (for error handling)
  			 */

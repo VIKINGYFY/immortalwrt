@@ -13,17 +13,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/devices.txt
 +++ b/devices.txt
-@@ -261,8 +261,10 @@
+@@ -271,6 +271,7 @@
  "qca,qca9560-wmac"      0      0  "Qualcomm Atheros"  "QCA9560"
  "qcom,ipq4019-wifi"     0      0  "Qualcomm Atheros" "IPQ4019"
  "qcom,ipq5018-wifi"     0      0  "Qualcomm Atheros" "IPQ5018"
 +"qcom,ipq5332-wifi"     0      0  "Qualcomm Atheros" "IPQ5332"
  "qcom,ipq6018-wifi"     0      0  "Qualcomm Atheros" "IPQ6018"
  "qcom,ipq8074-wifi"     0      0  "Qualcomm Atheros" "IPQ8074"
-+"qcom,ipq9574-wifi"     0      0  "Qualcomm Atheros" "IPQ9574"
- "qcom,qcn6122-wifi"     0      0  "Qualcomm Atheros" "QCN6102/QCN6122"
- "mediatek,mt7622-wmac"  0      0  "MediaTek" "MT7622"
- "mediatek,mt7628-wmac"  0      0  "MediaTek" "MT7628"
+ "qcom,ipq9574-wifi"     0      0  "Qualcomm Atheros" "IPQ9574"
 --- a/iwinfo_nl80211.c
 +++ b/iwinfo_nl80211.c
 @@ -40,8 +40,11 @@ static struct nl80211_state *nls = NULL;

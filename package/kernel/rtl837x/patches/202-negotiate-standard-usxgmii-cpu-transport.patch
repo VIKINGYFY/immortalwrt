@@ -1,20 +1,31 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 02:10:13 +0800
+Date: Sat, 21 Nov 2026 09:47:57 +0800
 Subject: [PATCH] rtl837x: negotiate standard USXGMII CPU transport
 
-Use the upstream standard USXGMII register sequence on non-preserved CPU links. A fixed 10G host MAC still needs in-band USXGMII control-word negotiation with QCOM PCS. Preserve this transport requirement independently of the former second-switch boot workaround. Propagate RX reset errors.
+Allow fixed CPU MACs and enable standard USXGMII control-word negotiation
+with the QCOM PCS. Return auto-negotiation and receiver-reset errors.
+
+Merged from:
+  package/kernel/rtl837x/patches/150-preserve-cpu-pcs-and-realtek-nway.patch ([PATCH] rtl837x: preserve cpu pcs and realtek nway)
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -985,6 +985,13 @@ static int rtl8372n_sds_pcs_config(struc
- 			return ret;
- 	}
+@@ -863,7 +863,7 @@ static unsigned int rtl8372n_sds_pcs_inb
+ 		case PHY_INTERFACE_MODE_10GBASER:
+ 			return LINK_INBAND_DISABLE;
+ 		case PHY_INTERFACE_MODE_USXGMII:
+-			return LINK_INBAND_ENABLE;
++			return LINK_INBAND_ENABLE | LINK_INBAND_DISABLE;
+ 		default:
+ 			return 0;
+ 		}
+@@ -910,6 +910,11 @@ static int rtl8372n_sds_pcs_config(struc
+ 	int port = port_priv->index;
+ 	int ret;
  
-+	/* The host MAC uses fixed speed, but the USXGMII transport still
-+	 * exchanges in-band control words with the QCOM PCS.
-+	 */
++	/* A fixed host MAC still exchanges USXGMII control words with the PCS. */
 +	if (dsa_is_cpu_port(priv->ds, port) &&
 +	    interface == PHY_INTERFACE_MODE_USXGMII)
 +		neg_mode = PHYLINK_PCS_NEG_INBAND_ENABLED;
@@ -22,18 +33,40 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sds_idx = PORT_TO_SERDES_IDX(port);
  
  	dev_dbg(priv->dev, "[%s]PCS config serdes(%d) mode(%s) neg_mode(0x%x)\n", __func__,
-@@ -1034,12 +1041,10 @@ static int rtl8372n_sds_pcs_config(struc
+@@ -935,6 +940,8 @@ static int rtl8372n_sds_pcs_config(struc
+ 
+ 	ret = rtl837x_serdes_set_autoneg(priv, sds_idx,
+ 					 interface, advertising, neg_mode);
++	if (ret)
++		return ret;
+ 
+ 	ret = rtl837x_serdes_on(priv, sds_idx);
+ 	if (ret)
+@@ -953,15 +960,11 @@ static int rtl8372n_sds_pcs_config(struc
  	case PHY_INTERFACE_MODE_USXGMII:
  	case PHY_INTERFACE_MODE_10GBASER:
  		dev_dbg(priv->dev, "[%s]Reset Serdes RX R\n", __func__);
 -		rtl837x_serdes_reset_10G(priv, PORT_TO_SERDES_IDX(port));
 -		break;
-+		return rtl837x_serdes_reset_10G(priv, PORT_TO_SERDES_IDX(port));
++		return rtl837x_serdes_reset_10G(priv, sds_idx);
  	default:
  		dev_dbg(priv->dev, "[%s]Reset Serdes RX X\n", __func__);
 -		rtl837x_serdes_reset_XSG(priv, PORT_TO_SERDES_IDX(port));
 -		break;
-+		return rtl837x_serdes_reset_XSG(priv, PORT_TO_SERDES_IDX(port));
++		return rtl837x_serdes_reset_XSG(priv, sds_idx);
  	}
+-
+-	return 0;
+ }
  
- 	return 0;
+ static void rtl8372n_sds_pcs_link_up(struct phylink_pcs *pcs, unsigned int neg_mode,
+--- a/src/rtl837x_serdes.c
++++ b/src/rtl837x_serdes.c
+@@ -1030,6 +1030,7 @@ int rtl837x_serdes_set_autoneg(struct re
+ 							 0x0);
+ 		if (ret)
+ 			return ret;
++		break;
+ 	default:
+ 		break;
+ 	}

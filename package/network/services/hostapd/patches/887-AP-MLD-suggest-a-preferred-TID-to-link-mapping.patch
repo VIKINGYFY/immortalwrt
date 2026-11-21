@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -592,6 +592,8 @@
+@@ -592,6 +592,8 @@ struct hostapd_sta_info {
  };
  
  #ifdef CONFIG_IEEE80211BE
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * struct hostapd_mld - hostapd per-mld data structure
   */
-@@ -627,6 +629,16 @@
+@@ -627,6 +629,16 @@ struct hostapd_mld {
  	struct os_reltime adv_ttlm_established;
  	u64 adv_ttlm_cookie;
  
@@ -65,7 +65,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	char *ctrl_interface; /* Directory for UNIX domain sockets */
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8473,6 +8473,7 @@
+@@ -8473,6 +8473,7 @@ static u16 send_assoc_resp(struct hostap
  		if (ap_sta_is_mld(hapd, sta)) {
  			buflen += hostapd_eid_eht_ml_tid_to_link_map_len(hapd);
  			buflen += hostapd_eid_eht_ml_assoc_len(hapd, sta);
@@ -75,7 +75,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* CONFIG_IEEE80211BE */
 --- a/src/ap/ieee802_11.h
 +++ b/src/ap/ieee802_11.h
-@@ -351,9 +351,16 @@
+@@ -351,9 +351,16 @@ void hostapd_neg_ttlm_assoc_cb(struct ho
  void hostapd_neg_ttlm_assoc_req(struct hostapd_data *hapd,
  				struct sta_info *sta,
  				const struct ieee802_11_elems *elems);
@@ -102,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  
  static u16 ieee80211_eht_ppet_size(u16 ppe_thres_hdr, const u8 *phy_cap_info)
-@@ -1750,6 +1751,9 @@
+@@ -1750,6 +1751,9 @@ struct sta_info * hostapd_ml_move_assoc_
  	assoc_sta->neg_ttlm_req_dflt = sta->neg_ttlm_req_dflt;
  	assoc_sta->neg_ttlm_req_token = sta->neg_ttlm_req_token;
  	assoc_sta->neg_ttlm_req = sta->neg_ttlm_req;
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return assoc_sta;
  }
  
-@@ -2928,13 +2932,13 @@
+@@ -2928,13 +2932,13 @@ out:
  
  /* The TID-To-Link Mapping Negotiation Support of the AP MLD, as its bits of
   * the MLD Capabilities And Operations subfield, or 0 where the driver does not
@@ -128,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    !(hapd->iface->drv_flags2 & WPA_DRIVER_FLAGS2_AP_NEG_TTLM) ||
  	    capa == EHT_ML_MLD_CAPA_TID_TO_LINK_MAP_ALL_TO_ONE)
  		return 0;
-@@ -2970,6 +2974,27 @@
+@@ -2970,6 +2974,27 @@ static u16 hostapd_neg_ttlm_links(const
  }
  
  
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* IEEE Std 802.11be-2024, 35.3.7.2.3. Only one element for both directions
   * is accepted, with a map for every TID, since a TID without a map would map
   * to no link. */
-@@ -2979,8 +3004,6 @@
+@@ -2979,8 +3004,6 @@ static u16 hostapd_neg_ttlm_parse(struct
  				  struct eht_neg_ttlm *ttlm, bool *dflt)
  {
  	u16 capa = hostapd_mld_neg_ttlm_capa(hapd);
@@ -165,7 +165,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 control, map_size;
  	const u8 *pos, *end;
  	int tid;
-@@ -3012,18 +3035,8 @@
+@@ -3012,18 +3035,8 @@ static u16 hostapd_neg_ttlm_parse(struct
  		u16 map = map_size == 1 ? *pos : WPA_GET_LE16(pos);
  
  		pos += map_size;
@@ -186,7 +186,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return WLAN_STATUS_DENIED_TID_TO_LINK_MAPPING;
  
  		ttlm->dlink[tid] = map;
-@@ -3034,6 +3047,106 @@
+@@ -3034,6 +3047,106 @@ static u16 hostapd_neg_ttlm_parse(struct
  }
  
  
@@ -293,7 +293,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int hostapd_neg_ttlm_apply(struct hostapd_data *hapd,
  				  struct sta_info *sta,
  				  const struct eht_neg_ttlm *ttlm)
-@@ -3056,12 +3169,16 @@
+@@ -3056,12 +3169,16 @@ static int hostapd_neg_ttlm_apply(struct
  
  static int hostapd_send_neg_ttlm_action(struct hostapd_data *hapd,
  					struct sta_info *sta, u8 action,
@@ -312,7 +312,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_memset(buf, 0, sizeof(buf));
  	mgmt->frame_control = IEEE80211_FC(WLAN_FC_TYPE_MGMT,
  					   WLAN_FC_STYPE_ACTION);
-@@ -3077,6 +3194,11 @@
+@@ -3077,6 +3194,11 @@ static int hostapd_send_neg_ttlm_action(
  		pos += 2;
  	}
  
@@ -324,7 +324,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return hostapd_drv_send_mlme(hapd, buf, pos - buf, 0, NULL, 0, 0);
  }
  
-@@ -3086,7 +3208,8 @@
+@@ -3086,7 +3208,8 @@ void hostapd_neg_ttlm_teardown(struct ho
  {
  	sta->neg_ttlm_req_pending = false;
  	hostapd_send_neg_ttlm_action(hapd, sta,
@@ -334,7 +334,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	hostapd_neg_ttlm_apply(hapd, sta, NULL);
  }
  
-@@ -3098,10 +3221,13 @@
+@@ -3098,10 +3221,13 @@ static void hostapd_rx_neg_ttlm_req(stru
  	const u8 *pos = (const u8 *) mgmt + IEEE80211_HDRLEN + 2;
  	const u8 *end = (const u8 *) mgmt + len;
  	u16 status = WLAN_STATUS_DENIED_TID_TO_LINK_MAPPING;
@@ -348,7 +348,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (end - pos < 1)
  		return;
-@@ -3118,6 +3244,14 @@
+@@ -3118,6 +3244,14 @@ static void hostapd_rx_neg_ttlm_req(stru
  						&sta->neg_ttlm_req,
  						&sta->neg_ttlm_req_dflt);
  
@@ -363,7 +363,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wpa_printf(MSG_DEBUG,
  		   "MLD: Negotiated TTLM Request from " MACSTR
  		   " dialog_token=%u status=%u",
-@@ -3131,7 +3265,8 @@
+@@ -3131,7 +3265,8 @@ static void hostapd_rx_neg_ttlm_req(stru
  	/* The station is awake on the link of its request */
  	if (hostapd_send_neg_ttlm_action(hapd, sta,
  					 WLAN_PROT_EHT_T2L_MAPPING_RESPONSE,
@@ -373,7 +373,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		sta->neg_ttlm_req_pending = false;
  }
  
-@@ -3194,13 +3329,27 @@
+@@ -3194,13 +3329,27 @@ void hostapd_neg_ttlm_assoc_req(struct h
  }
  
  
@@ -405,7 +405,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    (hostapd_neg_ttlm_links(&sta->neg_ttlm_req) &
  	     ~hostapd_sta_setup_links(sta))) {
  		sta->neg_ttlm_assoc = false;
-@@ -3210,17 +3359,62 @@
+@@ -3210,17 +3359,62 @@ u8 * hostapd_eid_neg_ttlm_assoc(struct h
  			   " rejected for a refused link", MAC2STR(sta->addr));
  	}
  
@@ -475,7 +475,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -3263,6 +3457,45 @@
+@@ -3263,6 +3457,45 @@ void hostapd_neg_ttlm_adv_request(struct
  }
  
  
@@ -523,7 +523,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -2077,6 +2077,10 @@
+@@ -2077,6 +2077,10 @@ void ap_sta_set_authorized_event(struct
  
  	if (authorized)
  		hostapd_ucode_sta_connected(hapd, sta);
@@ -536,7 +536,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (sta->p2p_ie != NULL &&
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -377,6 +377,12 @@
+@@ -377,6 +377,12 @@ struct sta_info {
  	/* The (Re)Association Request frame asked for a mapping */
  	bool neg_ttlm_assoc;
  	bool neg_ttlm_assoc_reject;

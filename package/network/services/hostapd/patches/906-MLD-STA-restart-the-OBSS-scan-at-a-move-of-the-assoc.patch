@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -7075,6 +7075,7 @@
+@@ -7075,6 +7075,7 @@ static void wpas_removed_links_forget(st
  static void wpas_link_reconfig(struct wpa_supplicant *wpa_s)
  {
  	u16 old_links = wpa_s->valid_links;
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 bssid[ETH_ALEN];
  
  	if (wpa_drv_get_bssid(wpa_s, bssid) < 0) {
-@@ -7110,6 +7111,16 @@
+@@ -7110,6 +7111,16 @@ static void wpas_link_reconfig(struct wp
  	    wpa_s->links[wpa_s->mlo_assoc_link_id].freq)
  		wpa_s->assoc_freq = wpa_s->links[wpa_s->mlo_assoc_link_id].freq;
  

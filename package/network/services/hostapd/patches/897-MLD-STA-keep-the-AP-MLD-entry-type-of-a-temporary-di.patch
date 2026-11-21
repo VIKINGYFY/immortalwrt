@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/config_ssid.h
 +++ b/wpa_supplicant/config_ssid.h
-@@ -903,6 +903,11 @@
+@@ -903,6 +903,11 @@ struct wpa_ssid {
  	u8 disabled_due_to[ETH_ALEN];
  
  	/**
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * This pointer can be used to delete temporary networks when a wpa_cred
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -5923,7 +5923,10 @@
+@@ -5923,7 +5923,10 @@ static void wpas_event_disconnect(struct
  		(wpa_s->key_mgmt & WPA_KEY_MGMT_IEEE8021X_NO_WPA)) &&
  	       eapol_sm_failed(wpa_s->eapol))) &&
  	     !wpa_s->eap_expected_failure))
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (deauth && reason_code > 0) {
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -10658,8 +10658,12 @@
+@@ -10658,8 +10658,12 @@ void wpas_auth_failed(struct wpa_supplic
  		ssid->id, wpa_ssid_txt(ssid->ssid, ssid->ssid_len),
  		ssid->auth_failures, dur, reason);
  
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -10682,7 +10686,10 @@
+@@ -10682,7 +10686,10 @@ void wpas_clear_temp_disabled(struct wpa
  		wpa_printf(MSG_DEBUG, "Mark BSSID " MACSTR
  			   " ignored to allow a lower priority BSS, if any, to be tried next",
  			   MAC2STR(ssid->disabled_due_to));

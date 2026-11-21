@@ -178,6 +178,13 @@ function wdev_setup_cb(wdev)
 	wdev.teardown();
 }
 
+function wdev_reset(wdev)
+{
+	wdev.retry = DEFAULT_RETRY;
+	delete wdev.retry_setup_failed;
+	delete wdev.retry_setup_pending;
+}
+
 function wdev_teardown_cb(wdev)
 {
 	for (let section, data in wdev.handler_data) {
@@ -396,13 +403,6 @@ function wdev_update_disabled_vifs(wdev)
 		wdev.config_change = true;
 
 	return wdev.config_change;
-}
-
-function wdev_reset(wdev)
-{
-	wdev.retry = DEFAULT_RETRY;
-	delete wdev.retry_setup_failed;
-	delete wdev.retry_setup_pending;
 }
 
 function update(data)

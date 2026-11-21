@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/virtual/mac80211_hwsim_main.c
 +++ b/drivers/net/wireless/virtual/mac80211_hwsim_main.c
-@@ -72,6 +72,11 @@
+@@ -72,6 +72,11 @@ static bool mlo;
  module_param(mlo, bool, 0444);
  MODULE_PARM_DESC(mlo, "Support MLO");
  
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static bool multi_radio;
  module_param(multi_radio, bool, 0444);
  MODULE_PARM_DESC(multi_radio, "Support Multiple Radios per wiphy");
-@@ -6159,7 +6164,7 @@
+@@ -6159,7 +6164,7 @@ static int mac80211_hwsim_new_radio(stru
  	}
  
  	if (param->iftypes & HWSIM_DEFAULT_IF_LIMIT) {

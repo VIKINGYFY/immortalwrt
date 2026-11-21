@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -1975,7 +1975,7 @@
+@@ -1975,7 +1975,7 @@ static int hostapd_ctrl_iface_eapol_rx(s
  		return -1;
  	}
  
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2160,7 +2160,7 @@
+@@ -2160,7 +2160,7 @@ static void hostapd_event_eapol_rx(struc
  		hapd = orig_hapd;
  	}
  
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif /* HOSTAPD */
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -4125,7 +4125,7 @@
+@@ -4125,7 +4125,7 @@ static void handle_auth_802_1x(struct ho
  
  	/* Forward the extracted EAP PDU to AS */
  	ieee802_1x_receive(hapd, sta->addr, (const u8 *) eapol_pdu,
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return;
  
  fail:
-@@ -7681,7 +7681,7 @@
+@@ -7681,7 +7681,7 @@ skip_wpa_ies:
  			goto out;
  		}
  
@@ -77,7 +77,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					  channel_width_to_int(ci.chanwidth),
  					  ci.seg1_idx, &tx_chanwidth,
  					  &tx_seg1_idx) < 0) {
-@@ -10833,7 +10833,8 @@
+@@ -10833,7 +10833,8 @@ skip_update:
  				hapd, mgmt->da,
  				wpabuf_head(sta->pending_eapol_rx->buf),
  				wpabuf_len(sta->pending_eapol_rx->buf),
@@ -89,7 +89,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		os_free(sta->pending_eapol_rx);
 --- a/src/ap/ieee802_11_shared.c
 +++ b/src/ap/ieee802_11_shared.c
-@@ -89,9 +89,19 @@
+@@ -89,9 +89,19 @@ void ieee802_11_send_sa_query_req(struct
  
  #ifdef CONFIG_OCV
  	if (sta && wpa_auth_uses_ocv(sta->wpa_sm)) {
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_WARNING,
  				   "Failed to get channel info for OCI element in SA Query Request");
  			return;
-@@ -309,6 +319,7 @@
+@@ -309,6 +319,7 @@ void ieee802_11_sa_query_action(struct h
  		}
  
  		if (get_sta_tx_parameters(sta->wpa_sm,
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					  channel_width_to_int(ci.chanwidth),
  					  ci.seg1_idx, &tx_chanwidth,
  					  &tx_seg1_idx) < 0)
-@@ -347,6 +358,25 @@
+@@ -347,6 +358,25 @@ void ieee802_11_sa_query_action(struct h
  
  	/* MLME-SAQuery.confirm */
  
@@ -146,7 +146,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   "pending SA Query request found");
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -1087,7 +1087,8 @@
+@@ -1087,7 +1087,8 @@ ieee802_1x_alloc_eapol_sm(struct hostapd
  
  
  static void ieee802_1x_save_eapol(struct sta_info *sta, const u8 *buf,
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	if (sta->pending_eapol_rx) {
  		wpabuf_free(sta->pending_eapol_rx->buf);
-@@ -1106,6 +1107,7 @@
+@@ -1106,6 +1107,7 @@ static void ieee802_1x_save_eapol(struct
  	}
  
  	sta->pending_eapol_rx->encrypted = encrypted;
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_get_reltime(&sta->pending_eapol_rx->rx_time);
  }
  
-@@ -1133,11 +1135,13 @@
+@@ -1133,11 +1135,13 @@ static bool ieee802_1x_check_encryption(
   * @buf: EAPOL frame
   * @len: Length of buf in octets
   * @encrypted: Whether the frame was encrypted
@@ -179,7 +179,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct sta_info *sta;
  	struct ieee802_1x_hdr *hdr;
-@@ -1167,7 +1171,8 @@
+@@ -1167,7 +1171,8 @@ void ieee802_1x_receive(struct hostapd_d
  		if (sta && (sta->flags & WLAN_STA_AUTH)) {
  			wpa_printf(MSG_DEBUG, "Saving EAPOL frame from " MACSTR
  				   " for later use", MAC2STR(sta->addr));
@@ -189,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		return;
-@@ -1207,7 +1212,7 @@
+@@ -1207,7 +1212,7 @@ void ieee802_1x_receive(struct hostapd_d
  	    (key->type == EAPOL_KEY_TYPE_WPA ||
  	     key->type == EAPOL_KEY_TYPE_RSN)) {
  		wpa_receive(hapd->wpa_auth, sta->wpa_sm, (u8 *) hdr,
@@ -200,7 +200,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/ieee802_1x.h
 +++ b/src/ap/ieee802_1x.h
-@@ -19,7 +19,8 @@
+@@ -19,7 +19,8 @@ struct radius_msg;
  
  
  void ieee802_1x_receive(struct hostapd_data *hapd, const u8 *sa, const u8 *buf,
@@ -212,7 +212,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ieee802_1x_move_station(struct hostapd_data *new_hapd,
 --- a/src/ap/preauth_auth.c
 +++ b/src/ap/preauth_auth.c
-@@ -90,7 +90,7 @@
+@@ -90,7 +90,7 @@ static void rsn_preauth_receive(void *ct
  		return;
  	sta->preauth_iface = piface;
  	ieee802_1x_receive(hapd, ethhdr->h_source, (u8 *) (ethhdr + 1),
@@ -223,7 +223,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -66,6 +66,7 @@
+@@ -66,6 +66,7 @@ struct pending_eapol_rx {
  	struct wpabuf *buf;
  	struct os_reltime rx_time;
  	enum frame_encryption encrypted;
@@ -233,7 +233,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct eap_over_auth_data {
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -491,12 +491,22 @@
+@@ -491,12 +491,22 @@ static void wpa_sta_disconnect(struct wp
  
  
  #ifdef CONFIG_OCV
@@ -258,7 +258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  #endif /* CONFIG_OCV */
  
-@@ -1065,6 +1075,7 @@
+@@ -1065,6 +1075,7 @@ wpa_auth_sta_init(struct wpa_authenticat
  	sm->wpa_auth = wpa_auth;
  	sm->group = wpa_auth->group;
  	wpa_group_get(sm->wpa_auth, sm->group);
@@ -266,7 +266,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #ifdef CONFIG_IEEE80211BE
  	sm->mld_assoc_link_id = -1;
  #endif /* CONFIG_IEEE80211BE */
-@@ -1698,7 +1709,7 @@
+@@ -1698,7 +1709,7 @@ static bool wpa_auth_valid_counter(struc
  
  void wpa_receive(struct wpa_authenticator *wpa_auth,
  		 struct wpa_state_machine *sm,
@@ -275,7 +275,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ieee802_1x_hdr *hdr;
  	struct wpa_eapol_key *key;
-@@ -2047,6 +2058,7 @@
+@@ -2047,6 +2058,7 @@ void wpa_receive(struct wpa_authenticato
  	if (!sm->last_rx_eapol_key)
  		goto out;
  	sm->last_rx_eapol_key_len = data_len;
@@ -283,7 +283,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	sm->rx_eapol_key_secure = !!(key_info & WPA_KEY_INFO_SECURE);
  	sm->EAPOLKeyReceived = true;
-@@ -3675,7 +3687,7 @@
+@@ -3675,7 +3687,7 @@ static struct wpabuf * fils_prepare_plai
  		struct wpa_channel_info ci;
  		u8 *pos;
  
@@ -292,7 +292,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			wpa_printf(MSG_WARNING,
  				   "FILS: Failed to get channel info for OCI element");
  			wpabuf_clear_free(plain);
-@@ -3782,16 +3794,18 @@
+@@ -3782,16 +3794,18 @@ u8 * hostapd_eid_assoc_fils_session(stru
  
  
  #ifdef CONFIG_OCV
@@ -315,7 +315,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  #endif /* CONFIG_OCV */
  
-@@ -4119,14 +4133,15 @@
+@@ -4119,14 +4133,15 @@ SM_STATE(WPA_PTK, PTKCALCNEGOTIATING)
  		int tx_seg1_idx;
  		enum oci_verify_result res;
  
@@ -333,7 +333,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					  channel_width_to_int(ci.chanwidth),
  					  ci.seg1_idx, &tx_chanwidth,
  					  &tx_seg1_idx) < 0)
-@@ -4392,7 +4407,7 @@
+@@ -4392,7 +4407,7 @@ static int ocv_oci_add(struct wpa_state_
  	if (!wpa_auth_uses_ocv(sm))
  		return 0;
  
@@ -342,7 +342,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_WARNING,
  			   "Failed to get channel info for OCI element");
  		return -1;
-@@ -5820,6 +5835,7 @@
+@@ -5820,6 +5835,7 @@ SM_STATE(WPA_PTK_GROUP, REKEYNEGOTIATING
  	} else if (sm->wpa == WPA_VERSION_WPA2 && is_mld) {
  		kde_len = wpa_auth_ml_group_kdes_len(sm, KDE_ALL_LINKS);
  		if (kde_len) {
@@ -350,7 +350,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			kde_buf = os_malloc(kde_len);
  			if (!kde_buf)
  				return;
-@@ -5831,6 +5847,11 @@
+@@ -5831,6 +5847,11 @@ SM_STATE(WPA_PTK_GROUP, REKEYNEGOTIATING
  				os_free(kde_buf);
  				return;
  			}
@@ -362,7 +362,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			kde_len = pos - kde_buf;
  		}
  #endif /* CONFIG_IEEE80211BE */
-@@ -5895,14 +5916,15 @@
+@@ -5895,14 +5916,15 @@ SM_STATE(WPA_PTK_GROUP, REKEYESTABLISHED
  		int tx_chanwidth;
  		int tx_seg1_idx;
  
@@ -382,7 +382,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					  &tx_seg1_idx) < 0)
 --- a/src/ap/wpa_auth.h
 +++ b/src/ap/wpa_auth.h
-@@ -412,9 +412,10 @@
+@@ -412,9 +412,10 @@ struct wpa_auth_callbacks {
  			  size_t data_len);
  	int (*send_oui)(void *ctx, const u8 *dst, u8 oui_suffix, const u8 *data,
  			size_t data_len);
@@ -395,7 +395,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				 int ap_max_chanwidth, int ap_seg1_idx,
  				 int *bandwidth, int *seg1_idx);
  	void (*store_ptksa)(void *ctx, const u8 *addr, int cipher,
-@@ -503,7 +504,7 @@
+@@ -503,7 +504,7 @@ void wpa_auth_sta_no_wpa(struct wpa_stat
  void wpa_auth_sta_deinit(struct wpa_state_machine *sm);
  void wpa_receive(struct wpa_authenticator *wpa_auth,
  		 struct wpa_state_machine *sm,
@@ -404,7 +404,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  enum wpa_event {
  	WPA_AUTH, WPA_ASSOC, WPA_DISASSOC, WPA_DEAUTH, WPA_REAUTH,
  	WPA_REAUTH_EAPOL, WPA_ASSOC_FT, WPA_ASSOC_FILS, WPA_DRV_STA_REMOVED
-@@ -653,8 +654,9 @@
+@@ -653,8 +654,9 @@ const u8 *  wpa_fils_validate_fils_sessi
  int wpa_fils_validate_key_confirm(struct wpa_state_machine *sm, const u8 *ies,
  				  size_t ies_len);
  
@@ -418,7 +418,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		       struct wpa_state_machine *sm,
 --- a/src/ap/wpa_auth_ft.c
 +++ b/src/ap/wpa_auth_ft.c
-@@ -771,7 +771,7 @@
+@@ -771,7 +771,7 @@ static int wpa_channel_info(struct wpa_a
  {
  	if (!wpa_auth->cb->channel_info)
  		return -1;
@@ -427,7 +427,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  #endif /* CONFIG_OCV */
  
-@@ -3685,7 +3685,7 @@
+@@ -3685,7 +3685,7 @@ int wpa_ft_validate_reassoc(struct wpa_s
  			goto out;
  		}
  
@@ -438,7 +438,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					  &tx_seg1_idx) < 0)
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -701,6 +701,39 @@
+@@ -701,6 +701,39 @@ static int hostapd_wpa_auth_get_seqnum(v
  }
  
  
@@ -478,7 +478,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int hostapd_wpa_auth_send_eapol(void *ctx, const u8 *addr,
  				const u8 *data, size_t data_len,
  				int encrypt)
-@@ -708,11 +741,6 @@
+@@ -708,11 +741,6 @@ int hostapd_wpa_auth_send_eapol(void *ct
  	struct hostapd_data *hapd = ctx;
  	struct sta_info *sta;
  	u32 flags = 0;
@@ -490,7 +490,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #ifdef CONFIG_TESTING_OPTIONS
  	if (hapd->ext_eapol_frame_io) {
-@@ -730,19 +758,12 @@
+@@ -730,19 +758,12 @@ int hostapd_wpa_auth_send_eapol(void *ct
  #endif /* CONFIG_TESTING_OPTIONS */
  
  	sta = ap_get_sta(hapd, addr);
@@ -513,7 +513,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -1150,10 +1171,24 @@
+@@ -1150,10 +1171,24 @@ static int hostapd_wpa_auth_send_oui(voi
  }
  
  
@@ -540,7 +540,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return hostapd_drv_channel_info(hapd, ci);
  }
  
-@@ -1226,16 +1261,17 @@
+@@ -1226,16 +1261,17 @@ static int hostapd_wpa_auth_update_vlan(
  
  
  #ifdef CONFIG_OCV
@@ -563,7 +563,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					"Failed to get STA info to validate received OCI");
  		return -1;
  	}
-@@ -1860,6 +1896,7 @@
+@@ -1860,6 +1896,7 @@ int hostapd_setup_wpa(struct hostapd_dat
  		.send_ether = hostapd_wpa_auth_send_ether,
  		.send_oui = hostapd_wpa_auth_send_oui,
  		.channel_info = hostapd_channel_info,
@@ -573,7 +573,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.store_ptksa = hostapd_store_ptksa,
 --- a/src/ap/wpa_auth_i.h
 +++ b/src/ap/wpa_auth_i.h
-@@ -81,6 +81,7 @@
+@@ -81,6 +81,7 @@ struct wpa_state_machine {
  
  	u8 *last_rx_eapol_key; /* starting from IEEE 802.1X header */
  	size_t last_rx_eapol_key_len;
@@ -583,7 +583,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned int in_step_loop:1;
 --- a/tests/fuzzing/eapol-key-auth/eapol-key-auth.c
 +++ b/tests/fuzzing/eapol-key-auth/eapol-key-auth.c
-@@ -87,7 +87,7 @@
+@@ -87,7 +87,7 @@ static void auth_eapol_rx(void *eloop_da
  	wpa_printf(MSG_DEBUG, "AUTH: RX EAPOL frame");
  	wpa->auth_sent = 0;
  	wpa_receive(wpa->auth_group, wpa->auth, wpa->supp_eapol,
@@ -594,7 +594,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_DEBUG,
 --- a/wpa_supplicant/ap.c
 +++ b/wpa_supplicant/ap.c
-@@ -1313,7 +1313,7 @@
+@@ -1313,7 +1313,7 @@ void wpa_supplicant_ap_rx_eapol(struct w
  				enum frame_encryption encrypted)
  {
  	ieee802_1x_receive(wpa_s->ap_iface->bss[0], src_addr, buf, len,
@@ -605,7 +605,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/wpa_supplicant/ibss_rsn.c
 +++ b/wpa_supplicant/ibss_rsn.c
-@@ -815,7 +815,7 @@
+@@ -815,7 +815,7 @@ static int ibss_rsn_process_rx_eapol(str
  
  		wpa_printf(MSG_DEBUG, "RSN: IBSS RX EAPOL for Authenticator "
  			   "from "MACSTR, MAC2STR(peer->addr));

@@ -1,8 +1,10 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 22:33:07 +0800
+Date: Sat, 21 Nov 2026 12:32:28 +0800
 Subject: [PATCH] rtl837x: native policy customer vlan and lifecycle
 
 Preserve the existing service-VLAN policy, transactional recovery and DSA callbacks on the upstream VLAN helper API.
+
+Use upstream VLAN helpers without changing the rollback and quarantine policy.
 
 Split from:
   package/kernel/rtl837x/patches/140-native-policy-state-and-register-access.patch ([PATCH] rtl837x: define native policy state and register access)
@@ -15,10 +17,59 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl837x_policy.c
 +++ b/src/rtl837x_policy.c
-@@ -778,3 +778,126 @@ failed:
- 	return rtl837x_vlan_failed(gsw, &old, phase, ret);
+@@ -725,3 +725,175 @@
+ 			 port, bridge.dev->name,
+ 			 gsw->tag8021q_pvid_valid[port] ? gsw->tag8021q_pvid[port] : -1);
  }
- 
++
++static int __rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
++{
++	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
++	struct rtl837x_vlan_snapshot old, next;
++	const char *phase = "filtering";
++	int ret;
++
++	if (!rtl837x_user_port(gsw, port))
++		return 0;
++	ret = rtl837x_vlan_prepare(gsw, port, 1, &old);
++	if (ret)
++		return ret;
++	next = old;
++	if (!vlan_filtering) {
++		next.row.mbr |= BIT(port) | BIT(gsw->cpu_port);
++		next.row.untag |= BIT(port);
++		next.row.untag &= ~BIT(gsw->cpu_port);
++	}
++	next.filtering = vlan_filtering ? 1 : 0;
++	next.pvid = !vlan_filtering ? 1 : gsw->bridge_pvid_valid[port] ?
++		gsw->bridge_pvid[port] :
++		dsa_port_bridge_dev_get(dsa_to_port(ds, port)) ? 0 : 1;
++	next.keep = rtl837x_cpu_keep(gsw, port, vlan_filtering);
++	ret = rtl837x_vlan_set(gsw->priv, 1, &next.row);
++	if (ret)
++		goto failed;
++	ret = rtl837x_vlan_port_set_ingress_filtering(gsw->priv, port, next.filtering);
++	if (ret)
++		goto failed;
++	phase = "filter-pvid";
++	ret = rtl837x_vlan_port_set_pvid(gsw->priv, port, next.pvid);
++	if (ret)
++		goto failed;
++	phase = "filter-keep";
++	ret = (rtl837x_keep_set(gsw, gsw->cpu_port, next.keep));
++	if (ret)
++		goto failed;
++	phase = "filter-readback";
++	ret = rtl837x_vlan_verify(gsw, &next);
++	if (ret)
++		goto failed;
++	return 0;
++
++failed:
++	NL_SET_ERR_MSG_MOD(extack, "VLAN filtering transaction failed; inspect driver recovery state");
++	return rtl837x_vlan_failed(gsw, &old, phase, ret);
++}
++
 +int rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
 +{
 +	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;

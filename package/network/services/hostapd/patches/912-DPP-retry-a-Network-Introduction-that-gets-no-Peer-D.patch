@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/dpp_supplicant.c
 +++ b/wpa_supplicant/dpp_supplicant.c
-@@ -69,6 +69,11 @@
+@@ -69,6 +69,11 @@ static const u8 broadcast[ETH_ALEN] = {
   * a single transaction in progress at any point in time. */
  static const u8 TRANSACTION_ID = 1;
  
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /**
   * wpas_dpp_qr_code - Parse and add DPP bootstrapping info from a QR Code
-@@ -2805,6 +2810,50 @@
+@@ -2805,6 +2810,50 @@ static void wpas_dpp_pmksa_cache_add(str
  }
  
  
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void wpas_dpp_rx_peer_disc_resp(struct wpa_supplicant *wpa_s,
  				       const u8 *src,
  				       const u8 *buf, size_t len)
-@@ -2865,13 +2914,14 @@
+@@ -2865,13 +2914,14 @@ static void wpas_dpp_rx_peer_disc_resp(s
  			" fail=transaction_id_mismatch", MAC2STR(src));
  		goto fail;
  	}
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  	if (status[0] != DPP_STATUS_OK) {
  		wpa_printf(MSG_DEBUG,
-@@ -2882,7 +2932,7 @@
+@@ -2882,7 +2932,7 @@ static void wpas_dpp_rx_peer_disc_resp(s
  #ifdef CONFIG_DPP2
  		wpas_dpp_send_conn_status_result(wpa_s, status[0]);
  #endif /* CONFIG_DPP2 */
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	connector = dpp_get_attr(buf, len, DPP_ATTR_CONNECTOR, &connector_len);
-@@ -2891,7 +2941,7 @@
+@@ -2891,7 +2941,7 @@ static void wpas_dpp_rx_peer_disc_resp(s
  			   "DPP: Peer did not include its Connector");
  		wpa_msg(wpa_s, MSG_INFO, DPP_EVENT_INTRO "peer=" MACSTR
  			" fail=missing_connector", MAC2STR(src));
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	res = dpp_peer_intro(&intro, ssid->dpp_connector,
-@@ -2908,12 +2958,12 @@
+@@ -2908,12 +2958,12 @@ static void wpas_dpp_rx_peer_disc_resp(s
  #ifdef CONFIG_DPP2
  		wpas_dpp_send_conn_status_result(wpa_s, res);
  #endif /* CONFIG_DPP2 */
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_memcpy(entry->aa, src, ETH_ALEN);
  	os_memcpy(entry->spa, wpa_s->own_addr, ETH_ALEN);
  	os_memcpy(entry->pmkid, intro.pmkid, PMKID_LEN);
-@@ -2932,7 +2982,7 @@
+@@ -2932,7 +2982,7 @@ static void wpas_dpp_rx_peer_disc_resp(s
  			   "DPP: Protocol version mismatch (Connector: %d Attribute: %d",
  			   intro.peer_version, peer_version);
  		wpas_dpp_send_conn_status_result(wpa_s, DPP_STATUS_NO_MATCH);
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  #endif /* CONFIG_DPP3 */
  	entry->dpp_pfs = peer_version >= 2;
-@@ -2958,6 +3008,9 @@
+@@ -2958,6 +3008,9 @@ static void wpas_dpp_rx_peer_disc_resp(s
  		wpa_supplicant_cancel_sched_scan(wpa_s);
  		wpa_supplicant_req_scan(wpa_s, 0, 0);
  	}
@@ -155,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  fail:
  	dpp_peer_intro_deinit(&intro);
  }
-@@ -4027,6 +4080,7 @@
+@@ -4027,6 +4080,7 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
  			" fail=transaction_id_mismatch", MAC2STR(src));
  		goto fail;
  	}
@@ -163,7 +163,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	connector = dpp_get_attr(buf, len, DPP_ATTR_CONNECTOR, &connector_len);
  	if (!connector) {
-@@ -4034,7 +4088,7 @@
+@@ -4034,7 +4088,7 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
  			   "DPP: Peer did not include its Connector");
  		wpa_msg(wpa_s, MSG_INFO, DPP_EVENT_INTRO "peer=" MACSTR
  			" fail=missing_connector", MAC2STR(src));
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	version = dpp_get_attr(buf, len, DPP_ATTR_PROTOCOL_VERSION,
-@@ -4044,7 +4098,7 @@
+@@ -4044,7 +4098,7 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
  			   "DPP: Peer did not include valid Version");
  		wpa_msg(wpa_s, MSG_INFO, DPP_EVENT_INTRO "peer=" MACSTR
  			" fail=missing_version", MAC2STR(src));
@@ -181,7 +181,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	res = dpp_peer_intro(&intro, ssid->dpp_connector,
-@@ -4059,7 +4113,7 @@
+@@ -4059,7 +4113,7 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
  		wpa_msg(wpa_s, MSG_INFO, DPP_EVENT_INTRO "peer=" MACSTR
  			" fail=peer_connector_validation_failed", MAC2STR(src));
  		wpas_dpp_send_conn_status_result(wpa_s, res);
@@ -190,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	peer_version = version[0];
-@@ -4069,13 +4123,13 @@
+@@ -4069,13 +4123,13 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
  			   "DPP: Protocol version mismatch (Connector: %d Attribute: %d",
  			   intro.peer_version, peer_version);
  		wpas_dpp_send_conn_status_result(wpa_s, DPP_STATUS_NO_MATCH);
@@ -206,7 +206,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	entry->dpp_pfs = peer_version >= 2;
  	os_memcpy(entry->aa, src, ETH_ALEN);
  	os_memcpy(entry->spa, wpa_s->own_addr, ETH_ALEN);
-@@ -4093,7 +4147,7 @@
+@@ -4093,7 +4147,7 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
  	if (wpas_dpp_send_private_peer_intro_update(wpa_s, &intro, ssid, src,
  						    freq) < 0) {
  		os_free(entry);
@@ -215,7 +215,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	os_get_reltime(&rnow);
-@@ -4104,7 +4158,9 @@
+@@ -4104,7 +4158,9 @@ wpas_dpp_rx_priv_peer_intro_notify(struc
  
  	/* Association will be initiated from TX status handler for the Private
  	 * Peer Intro Update: wpas_dpp_tx_priv_intro_status() */
@@ -226,7 +226,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  fail:
  	dpp_peer_intro_deinit(&intro);
  }
-@@ -4555,7 +4611,6 @@
+@@ -4555,7 +4611,6 @@ static int wpas_dpp_start_private_peer_i
  
  	wpa_hexdump_buf(MSG_MSGDUMP, "DPP: Private Peer Intro Query", msg);
  
@@ -234,7 +234,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wait_time = wpa_s->max_remain_on_chan;
  	if (wait_time > 2000)
  		wait_time = 2000;
-@@ -4569,8 +4624,7 @@
+@@ -4569,8 +4624,7 @@ static int wpas_dpp_start_private_peer_i
  
  	/* Request this connection attempt to terminate - new one will be
  	 * started when network introduction protocol completes */
@@ -244,7 +244,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 1;
  }
  #endif /* CONFIG_DPP3 */
-@@ -4753,7 +4807,6 @@
+@@ -4753,7 +4807,6 @@ skip_connector:
  skip_proto_ver:
  #endif /* CONFIG_TESTING_OPTIONS */
  
@@ -252,7 +252,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wait_time = wpa_s->max_remain_on_chan;
  	if (wait_time > 2000)
  		wait_time = 2000;
-@@ -4767,8 +4820,7 @@
+@@ -4767,8 +4820,7 @@ skip_proto_ver:
  
  	/* Request this connection attempt to terminate - new one will be
  	 * started when network introduction protocol completes */
@@ -262,7 +262,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 1;
  }
  
-@@ -4967,6 +5019,7 @@
+@@ -4967,6 +5019,7 @@ void wpas_dpp_deinit(struct wpa_supplica
  	wpa_s->dpp_groups_override = NULL;
  	wpa_s->dpp_ignore_netaccesskey_mismatch = 0;
  #endif /* CONFIG_TESTING_OPTIONS */

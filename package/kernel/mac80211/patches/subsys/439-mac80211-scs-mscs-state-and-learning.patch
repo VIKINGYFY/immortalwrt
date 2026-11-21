@@ -29,7 +29,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/Makefile
 +++ b/net/mac80211/Makefile
-@@ -35,7 +35,8 @@
+@@ -35,7 +35,8 @@ mac80211-y := \
  	tdls.o \
  	ocb.o \
  	airtime.o \
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  mac80211-$(CPTCFG_MAC80211_DEBUGFS) += \
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -6251,6 +6251,8 @@
+@@ -6251,6 +6251,8 @@ const struct cfg80211_ops mac80211_confi
  	.end_cac = ieee80211_end_cac,
  	.channel_switch = ieee80211_channel_switch,
  	.set_qos_map = ieee80211_set_qos_map,
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.del_tx_ts = ieee80211_del_tx_ts,
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -352,6 +352,11 @@
+@@ -352,6 +352,11 @@ struct ieee80211_if_ap {
  
  	bool multicast_to_unicast;
  	bool active;
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct ieee80211_if_vlan {
-@@ -2273,6 +2278,19 @@
+@@ -2273,6 +2278,19 @@ void ieee80211_recalc_txpower(struct iee
  			      bool update_bss);
  void ieee80211_recalc_offload(struct ieee80211_local *local);
  
@@ -84,7 +84,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* link handling */
  void ieee80211_link_setup(struct ieee80211_link_data *link);
  void ieee80211_link_init(struct ieee80211_sub_if_data *sdata,
-@@ -2324,7 +2342,7 @@
+@@ -2324,7 +2342,7 @@ void __ieee80211_xmit_fast(struct ieee80
  			   struct sta_info *sta,
  			   struct ieee80211_fast_tx *fast_tx,
  			   struct sk_buff *skb, bool ampdu,
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -542,6 +542,8 @@
+@@ -542,6 +542,8 @@ static void ieee80211_do_stop(struct iee
  		atomic_dec(&local->iff_allmultis);
  
  	if (sdata->vif.type == NL80211_IFTYPE_AP) {
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		local->fif_pspoll--;
  		local->fif_probe_req--;
  	} else if (sdata->vif.type == NL80211_IFTYPE_ADHOC) {
-@@ -1433,6 +1435,10 @@
+@@ -1433,6 +1435,10 @@ int ieee80211_do_open(struct wireless_de
  		break;
  		}
  	case NL80211_IFTYPE_AP:
@@ -115,7 +115,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case NL80211_IFTYPE_MESH_POINT:
  	case NL80211_IFTYPE_STATION:
  	case NL80211_IFTYPE_MONITOR:
-@@ -1467,7 +1473,7 @@
+@@ -1467,7 +1473,7 @@ int ieee80211_do_open(struct wireless_de
  			 * no need to worry about AP_VLAN/NAN_DATA cleanup since
  			 * in that case we can't have open_count == 0
  			 */
@@ -124,7 +124,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  		ieee80211_led_radio(local, true);
  		ieee80211_mod_tpt_led_trig(local,
-@@ -1643,6 +1649,9 @@
+@@ -1643,6 +1649,9 @@ int ieee80211_do_open(struct wireless_de
  		list_del(&sdata->u.vlan.list);
  	/* Might not be initialized yet, but it is harmless */
  	sdata->bss = NULL;
@@ -985,7 +985,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +}
 --- a/net/mac80211/sta_info.c
 +++ b/net/mac80211/sta_info.c
-@@ -534,6 +534,7 @@
+@@ -534,6 +534,7 @@ void sta_info_free(struct ieee80211_loca
  	kfree(sta->mesh);
  #endif
  
@@ -993,7 +993,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sta_info_free_link(&sta->deflink);
  	kfree(sta);
  }
-@@ -688,6 +689,7 @@
+@@ -688,6 +689,7 @@ __sta_info_alloc(struct ieee80211_sub_if
  	sta->sta.cur = &sta->sta.deflink.agg;
  
  	spin_lock_init(&sta->lock);
@@ -1003,7 +1003,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wiphy_work_init(&sta->ampdu_mlme.work, ieee80211_ba_session_work);
 --- a/net/mac80211/sta_info.h
 +++ b/net/mac80211/sta_info.h
-@@ -635,6 +635,93 @@
+@@ -635,6 +635,93 @@ struct ieee80211_sta_removed_link_stats
  };
  
  /**
@@ -1097,7 +1097,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * struct sta_info - STA information
   *
   * This structure collects information about a station that
-@@ -694,6 +781,10 @@
+@@ -694,6 +781,10 @@ struct ieee80211_sta_removed_link_stats
   *
   * @fast_tx: TX fastpath information
   * @fast_rx: RX fastpath information
@@ -1108,7 +1108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @tdls_chandef: a TDLS peer can have a wider chandef that is compatible to
   *	the BSS one.
   * @frags: fragment cache
-@@ -730,6 +821,10 @@
+@@ -730,6 +821,10 @@ struct sta_info {
  	struct ieee80211_fast_tx __rcu *fast_tx;
  	struct ieee80211_fast_rx __rcu *fast_rx;
  

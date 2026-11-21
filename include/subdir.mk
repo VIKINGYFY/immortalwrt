@@ -60,6 +60,10 @@ endif
 
 subdir_variants = $(filter-out *,$(if $(BUILD_VARIANT),$(BUILD_VARIANT),$(if $(strip $($(1)/variants)),$($(1)/variants),$(if $($(1)/default-variant),$($(1)/default-variant),__default))))
 
+# Refresh or export a shared patch stack from one selected variant.
+subdir_target_variants = $(if $(and $(filter refresh update,$(2)),$($(1)/shared-patches)),\
+  $(firstword $(call subdir_variants,$(1))),$(call subdir_variants,$(1)))
+
 # Parameters: <subdir> <builddir> <target> <variant>
 define subdir_variant
 	$(if $(BUILD_LOG),@mkdir -p $(BUILD_LOG_DIR)/$(1)/$(2)/$(filter-out __default,$(4)))
@@ -90,10 +94,10 @@ define subdir
           $(call warn_eval,$(1)/$(bd),t,T,$(1)/$(bd)/$(variant)/$(target): $(if $(NO_DEPS)$(QUILT),,$($(1)/$(bd)/$(target)) $(call $(1)//$(target),$(1)/$(bd))))
 	$$(call subdir_variant,$(1),$(bd),$(target),$(variant))
         )
-        $(call warn_eval,$(1)/$(bd),t,T,$(1)/$(bd)/$(target): $(foreach variant,$(call subdir_variants,$(1)/$(bd)),$(1)/$(bd)/$(variant)/$(target)))
+        $(call warn_eval,$(1)/$(bd),t,T,$(1)/$(bd)/$(target): $(foreach variant,$(call subdir_target_variants,$(1)/$(bd),$(target)),$(1)/$(bd)/$(variant)/$(target)))
       ,
         $(call warn_eval,$(1)/$(bd),t,T,$(1)/$(bd)/$(target): $(if $(NO_DEPS)$(QUILT),,$($(1)/$(bd)/$(target)) $(call $(1)//$(target),$(1)/$(bd))))
-          $(foreach variant,$(call subdir_variants,$(1)/$(bd)),
+          $(foreach variant,$(call subdir_target_variants,$(1)/$(bd),$(target)),
 	$$(call subdir_variant,$(1),$(bd),$(target),$(variant))
           )
       )

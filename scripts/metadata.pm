@@ -249,6 +249,7 @@ sub parse_package_metadata($) {
 		/^Build-Depends\/(\w+): \s*(.+)\s*$/ and $src->{"builddepends/$1"} = [ split /\s+/, $2 ];
 		/^Build-Types:\s*(.+)\s*$/ and $src->{buildtypes} = [ split /\s+/, $1 ];
 		/^Parallel-Variants:/ and $src->{parallel_variants} = 1;
+		/^Shared-Patches:/ and $src->{shared_patches} = 1;
 		next unless $pkg;
 		/^Version: \s*(.+)\s*$/ and $pkg->{version} = $1;
 		/^Title: \s*(.+)\s*$/ and $pkg->{title} = $1;

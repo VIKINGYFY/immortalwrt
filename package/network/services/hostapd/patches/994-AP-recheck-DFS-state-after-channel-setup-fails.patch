@@ -1,0 +1,115 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 20 Nov 2026 23:49:38 +0800
+Subject: [PATCH] AP: recheck DFS state after channel setup fails
+
+A DFS channel may expire after the initial wiphy dump and before
+SET_WIPHY. Preserve the nl80211 error and re-read the channel flags
+when setup fails with EINVAL and hostapd previously skipped CAC.
+Start the normal CAC flow if the same channel now needs CAC.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/ap/dfs.c
++++ b/src/ap/dfs.c
+@@ -19,6 +19,7 @@
+ #include "ap_drv_ops.h"
+ #include "drivers/driver.h"
+ #include "dfs.h"
++#include "hw_features.h"
+ #include "crypto/crypto.h"
+ 
+ 
+@@ -970,6 +971,35 @@
+ }
+ 
+ 
++bool hostapd_dfs_recheck_cac(struct hostapd_iface *iface)
++{
++	int start, start_seg1, n_chans, n_chans_seg1;
++
++	if (iface->assisted_dfs || dfs_use_radar_background(iface) ||
++	    (iface->drv_flags & WPA_DRIVER_FLAGS_DFS_OFFLOAD) ||
++	    hostapd_is_dfs_required(iface) <= 0)
++		return false;
++
++	n_chans = dfs_get_used_n_chans(iface, &n_chans_seg1);
++	if (n_chans_seg1 || !hostapd_is_dfs_chan_available(iface))
++		return false;
++
++	/* DFS availability can expire between the wiphy dump and SET_WIPHY. */
++	if (hostapd_get_hw_features(iface) ||
++	    hostapd_set_current_hw_info(iface, iface->freq) ||
++	    hostapd_is_dfs_required(iface) <= 0)
++		return false;
++
++	start = dfs_get_start_chan_idx(iface, &start_seg1);
++	if (start < 0 ||
++	    dfs_check_chans_available(iface, start, n_chans) ||
++	    dfs_check_chans_unavailable(iface, start, n_chans))
++		return false;
++
++	return hostapd_handle_dfs(iface) == 0;
++}
++
++
+ int hostapd_is_dfs_chan_available(struct hostapd_iface *iface)
+ {
+ 	int n_chans, n_chans1, start_chan_idx, start_chan_idx1;
+--- a/src/ap/dfs.h
++++ b/src/ap/dfs.h
+@@ -10,6 +10,7 @@
+ #define DFS_H
+ 
+ int hostapd_handle_dfs(struct hostapd_iface *iface);
++bool hostapd_dfs_recheck_cac(struct hostapd_iface *iface);
+ 
+ int hostapd_dfs_complete_cac(struct hostapd_iface *iface, int success, int freq,
+ 			     int ht_enabled, int chan_offset, int chan_width,
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -4178,6 +4178,7 @@
+ 	u8 *prev_addr;
+ 	int delay_apply_cfg = 0;
+ 	int res_dfs_offload = 0;
++	int freq_ret = 0;
+ 
+ 	if (err)
+ 		goto fail;
+@@ -4258,8 +4259,9 @@
+ 		}
+ #endif /* CONFIG_IEEE80211AX */
+ 
+-		if (!delay_apply_cfg &&
+-		    hostapd_set_freq(hapd, hapd->iconf->hw_mode, iface->freq,
++		if (!delay_apply_cfg)
++			freq_ret = hostapd_set_freq(
++				     hapd, hapd->iconf->hw_mode, iface->freq,
+ 				     hapd->iconf->channel,
+ 				     hapd->iconf->enable_edmg,
+ 				     hapd->iconf->edmg_channel,
+@@ -4272,7 +4274,13 @@
+ 				     hostapd_get_oper_centr_freq_seg0_idx(
+ 					     hapd->iconf),
+ 				     hostapd_get_oper_centr_freq_seg1_idx(
+-					     hapd->iconf))) {
++					     hapd->iconf));
++		if (freq_ret) {
++#ifdef NEED_AP_MLME
++			if (freq_ret == -EINVAL && !hapd->started &&
++			    hostapd_dfs_recheck_cac(iface))
++				return 0;
++#endif /* NEED_AP_MLME */
+ 			wpa_printf(MSG_ERROR, "Could not set channel for "
+ 				   "kernel driver");
+ 			goto fail;
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -6366,7 +6366,7 @@
+ 		   "(freq=%d): %d (%s)", bss->ifname,
+ 		   set_chan ? "SET_CHANNEL" : "SET_WIPHY",
+ 		   freq->freq, ret, strerror(-ret));
+-	return -1;
++	return ret;
+ }
+ 
+ 
