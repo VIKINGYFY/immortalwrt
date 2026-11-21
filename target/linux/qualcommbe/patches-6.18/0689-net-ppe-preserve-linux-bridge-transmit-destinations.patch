@@ -1,0 +1,338 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 22:26:08 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: preserve bridge transmit destinations
+
+The Linux bridge selects the egress for known unicast and applies
+per-group multicast and bridge port policy to CPU forwarding. Do not
+advertise TX forwarding offload when EDMA can only replicate to a
+destination-class bitmap.
+
+Send CPU bridge packets to their selected ports and keep PPE forwarding
+and the receive offload mark for traffic switched in hardware.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.h
+@@ -87,16 +87,6 @@
+  * @vp_tx_enabled: Private injection may borrow the port while TX NAPI is live
+  * @flags: Feature flags
+  */
+-/* Bridge flood bitmaps of the port for the TX forwarding offload,
+- * selected by the destination address class of the transmitted frame.
+- */
+-enum edma_port_br_flood {
+-	EDMA_PORT_FLOOD_UC,
+-	EDMA_PORT_FLOOD_MC,
+-	EDMA_PORT_FLOOD_BC,
+-	EDMA_PORT_FLOOD_MAX
+-};
+-
+ struct edma_port_priv {
+ 	struct ppe_port *ppe_port;
+ 	struct net_device *netdev;
+@@ -104,7 +94,6 @@
+ 	struct edma_txdesc_ring *txr_map[EDMA_PORT_MAX_CORE];
+ 	bool br_offload;
+ 	bool vp_tx_enabled;
+-	u32 br_flood[EDMA_PORT_FLOOD_MAX];
+ 	unsigned long flags;
+ };
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
+@@ -7,7 +7,6 @@
+  */
+ 
+ #include <linux/dma-mapping.h>
+-#include <linux/etherdevice.h>
+ #include <linux/kernel.h>
+ #include <linux/netdevice.h>
+ #include <linux/platform_device.h>
+@@ -516,29 +515,6 @@
+ 
+ 	/* Set destination information in the descriptor. */
+ 	EDMA_TXDESC_SERVICE_CODE_SET(txd, PPE_EDMA_SC_BYPASS_ID);
+-
+-	/* The bridge transmits one copy of a flooded packet when the TX
+-	 * forwarding offload is enabled on the port, marked with
+-	 * offload_fwd_mark: replicate it to the flood ports of the
+-	 * bridge with a bitmap destination.
+-	 */
+-	if (unlikely(skb->offload_fwd_mark)) {
+-		const struct ethhdr *eth = (struct ethhdr *)skb->data;
+-		u32 bitmap;
+-
+-		if (is_broadcast_ether_addr(eth->h_dest))
+-			bitmap = READ_ONCE(port_priv->br_flood[EDMA_PORT_FLOOD_BC]);
+-		else if (is_multicast_ether_addr(eth->h_dest))
+-			bitmap = READ_ONCE(port_priv->br_flood[EDMA_PORT_FLOOD_MC]);
+-		else
+-			bitmap = READ_ONCE(port_priv->br_flood[EDMA_PORT_FLOOD_UC]);
+-
+-		if (bitmap) {
+-			EDMA_DST_BITMAP_INFO_SET(txd, bitmap);
+-			return;
+-		}
+-	}
+-
+ 	EDMA_DST_INFO_SET(txd, port_id);
+ }
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
+@@ -48,14 +48,6 @@
+ #define EDMA_DST_INFO_SET(desc, x)	((desc)->word4 |= \
+ 	(EDMA_DST_PORT_TYPE_SET(EDMA_DST_PORT_TYPE) | EDMA_DST_PORT_ID_SET(x)))
+ 
+-/* A bitmap destination reaches every port of the bitmap with a single
+- * transmitted frame.
+- */
+-#define EDMA_DST_PORT_BITMAP_TYPE	3
+-#define EDMA_DST_BITMAP_INFO_SET(desc, x)	((desc)->word4 |= \
+-	(EDMA_DST_PORT_TYPE_SET(EDMA_DST_PORT_BITMAP_TYPE) | \
+-	 EDMA_DST_PORT_ID_SET(x)))
+-
+ /* A virtual-port inject tags the frame's SOURCE (not its destination) with
+  * the virtual port, so the PPE runs the L3 ingress pipeline (flow lookup and
+  * NAT) and routes the packet in hardware instead of forwarding it straight
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
+@@ -77,8 +77,6 @@
+  * @flags: Offloaded bridge port flags of the port.
+  * @mrouter: Port leads to a multicast router and is included in the
+  * bitmap of every offloaded multicast group of its bridge.
+- * @forwarding: Port is in the forwarding spanning tree state,
+- * a prerequisite for being a TX flood replication target.
+  */
+ struct ppe_bridge_port {
+ 	struct net_device *bridge;
+@@ -87,7 +85,6 @@
+ 	u16 pvid;
+ 	unsigned long flags;
+ 	bool mrouter;
+-	bool forwarding;
+ };
+ 
+ /* The bridge port flags the offload supports, matching the defaults of
+@@ -243,8 +240,6 @@
+ 	return -ENOSPC;
+ }
+ 
+-static void ppe_bridge_tx_flood_update(struct ppe_bridge *pb, int vsi);
+-
+ /* Update the member and flood bitmaps of a VSI from its members and
+  * their bridge port flags. The CPU port is always a member and a flood
+  * target, so that packets without a hit on a hardware FDB entry reach
+@@ -278,8 +273,6 @@
+ 			bc |= BIT(i);
+ 	}
+ 
+-	ppe_bridge_tx_flood_update(pb, vsi);
+-
+ 	return ppe_vsi_members_set(pb->ppe_dev, vsi, member, uuc, umc, bc);
+ }
+ 
+@@ -564,68 +557,6 @@
+ 	return err;
+ }
+ 
+-/* Push the flood bitmaps of a VLAN-unaware bridge to its member port
+- * net devices for the TX forwarding offload: the bridge transmits one
+- * copy of a flooded packet, and the EDMA replicates it along these
+- * bitmaps. A bitmap destination bypasses the spanning tree state and
+- * the hardware groups, so ports outside the forwarding state are
+- * excluded here, and multicast is the union of the flood members and
+- * the offloaded group members, which can only over-deliver.
+- */
+-static void ppe_bridge_tx_flood_update(struct ppe_bridge *pb, int vsi)
+-{
+-	struct ppe_bridge_vsi *v = &pb->vsis[vsi];
+-	u32 fwd = 0, uc = 0, mc = 0, bc = 0;
+-	struct ppe_bridge_mdb *mdb;
+-	int i, bkt;
+-
+-	if (v->vid)
+-		return;
+-
+-	for (i = 1; i < pb->ppe_dev->num_ports; i++) {
+-		if (!(v->members & BIT(i)))
+-			continue;
+-
+-		if (pb->ports[i].forwarding)
+-			fwd |= BIT(i);
+-		if (pb->ports[i].flags & BR_FLOOD)
+-			uc |= BIT(i);
+-		if (pb->ports[i].flags & BR_MCAST_FLOOD)
+-			mc |= BIT(i);
+-		if (pb->ports[i].flags & BR_BCAST_FLOOD)
+-			bc |= BIT(i);
+-	}
+-
+-	hash_for_each(pb->mdb_ht, bkt, mdb, node)
+-		if (mdb->vsi == vsi)
+-			mc |= mdb->ports;
+-
+-	uc &= fwd;
+-	mc &= fwd;
+-	bc &= fwd;
+-
+-	for (i = 1; i < pb->ppe_dev->num_ports; i++) {
+-		struct edma_port_priv *port_priv;
+-
+-		if (!(v->members & BIT(i)) || !pb->ports[i].dev)
+-			continue;
+-
+-		port_priv = netdev_priv(pb->ports[i].dev);
+-		WRITE_ONCE(port_priv->br_flood[EDMA_PORT_FLOOD_UC], uc);
+-		WRITE_ONCE(port_priv->br_flood[EDMA_PORT_FLOOD_MC], mc);
+-		WRITE_ONCE(port_priv->br_flood[EDMA_PORT_FLOOD_BC], bc);
+-	}
+-}
+-
+-static void ppe_bridge_port_tx_flood_clear(struct net_device *dev)
+-{
+-	struct edma_port_priv *port_priv = netdev_priv(dev);
+-	int i;
+-
+-	for (i = 0; i < EDMA_PORT_FLOOD_MAX; i++)
+-		WRITE_ONCE(port_priv->br_flood[i], 0);
+-}
+-
+ /* Release a VSI which lost its last member port: drop its translation
+  * rules, park it back to the CPU-only state the PPE core initialized,
+  * and flush its FDB entries, including the CPU-directed entries which
+@@ -856,10 +787,6 @@
+ 	pb->ports[port].pvid = 0;
+ 	pb->ports[port].flags = PPE_BRIDGE_SUPPORTED_FLAGS;
+ 	pb->ports[port].mrouter = false;
+-	/* Excluded from TX flood replication until the bridge reports
+-	 * the forwarding state.
+-	 */
+-	pb->ports[port].forwarding = false;
+ 
+ 	if (!vlan_aware) {
+ 		pb->vsis[vsi].members |= BIT(port);
+@@ -894,15 +821,10 @@
+ 
+ 	ppe_bridge_port_offload_mark_set(dev, true);
+ 
+-	/* On a VLAN-unaware bridge every replication target receives
+-	 * the identical frame, so the bridge may hand over a single
+-	 * copy of flooded packets. VLAN-aware bridges keep cloning in
+-	 * software, their egress tagging differs per port.
+-	 */
+ 	ret = switchdev_bridge_port_offload(dev, dev, pb,
+ 					    &pb->switchdev_nb,
+ 					    &pb->switchdev_blocking_nb,
+-					    !vlan_aware, extack);
++					    false, extack);
+ 	if (ret)
+ 		goto err_offload;
+ 
+@@ -913,7 +835,6 @@
+ 
+ err_offload:
+ 	ppe_bridge_port_offload_mark_set(dev, false);
+-	ppe_bridge_port_tx_flood_clear(dev);
+ 	ppe_port_bridge_txmac_set(ppe_dev, port, false);
+ err_datapath:
+ 	if (!vlan_aware)
+@@ -949,7 +870,6 @@
+ 					&pb->switchdev_blocking_nb);
+ 
+ 	ppe_bridge_port_offload_mark_set(dev, false);
+-	ppe_bridge_port_tx_flood_clear(dev);
+ 	ppe_port_bridge_txmac_set(ppe_dev, port, false);
+ 
+ 	if (!vlan_aware)
+@@ -1208,8 +1128,6 @@
+ 		return ret;
+ 	}
+ 
+-	ppe_bridge_tx_flood_update(pb, vsi);
+-
+ 	return 0;
+ }
+ 
+@@ -1246,8 +1164,6 @@
+ 		}
+ 	}
+ 
+-	if (!ret)
+-		ppe_bridge_tx_flood_update(pb, vsi);
+ 	return ret;
+ }
+ 
+@@ -1281,10 +1197,6 @@
+ 	if (ret)
+ 		return ret;
+ 
+-	pb->ports[port].forwarding = stp_state == PPE_STP_STATE_FORWARDING;
+-	if (pb->ports[port].vsi >= 0)
+-		ppe_bridge_tx_flood_update(pb, pb->ports[port].vsi);
+-
+ 	if (stp_state != PPE_STP_STATE_FORWARDING)
+ 		ret = ppe_fdb_port_flush(ppe_dev, port, false);
+ 
+@@ -1406,21 +1318,10 @@
+ 	int port = ppe_bridge_port_id(dev);
+ 	struct net_device *br = pb->ports[port].bridge;
+ 
+-	if (disabled) {
+-		int i;
+-
+-		int ret;
+-
+-		ret = ppe_bridge_mdb_purge(pb, br, -1);
+-		if (ret)
+-			return ret;
+-
+-		for (i = 0; i < ARRAY_SIZE(pb->vsis); i++)
+-			if (pb->vsis[i].br == br)
+-				ppe_bridge_tx_flood_update(pb, i);
+-	}
++	if (!disabled)
++		return 0;
+ 
+-	return 0;
++	return ppe_bridge_mdb_purge(pb, br, -1);
+ }
+ 
+ static int ppe_bridge_attr_set(struct net_device *dev, const void *ctx,
+--- a/Documentation/networking/qualcomm-ppe-offload.rst
++++ b/Documentation/networking/qualcomm-ppe-offload.rst
+@@ -57,7 +57,6 @@
+   flow/host/next-hop entries      4096/6144/2560  2048/768/768    variant-specific
+   PPPoE offload                   64 sessions     64 sessions     portable, 16
+   VLAN uplinks                    yes             yes             register-portable
+-  single-copy flood               yes             yes             needs EDMA support
+   TBF port shaper                 yes             yes             register-portable
+   on-die tunnel engine seam       present         present         absent
+   virtual ports (wireless)        present         present         absent
+@@ -81,12 +80,8 @@
+ flood to the CPU and reach the software ports of the bridge (wireless
+ interfaces). Received packets carry skb->offload_fwd_mark and all
+ ports share one parent switch ID, so the bridge does not repeat
+-forwarding the hardware already did. In the other direction,
+-VLAN-unaware bridges hand over a single copy of flooded packets (TX
+-forwarding offload), which the EDMA replicates through a bitmap
+-destination in the transmit descriptor; the bitmaps mirror the flood
+-flags, the offloaded groups and the spanning tree states, since an
+-explicit destination bypasses those checks in hardware.
++forwarding the hardware already did. For egress from Linux, the bridge
++selects each destination and EDMA sends each packet to that port.
+ 
+  - FDB, downwards: user-added and bridge-local entries are written
+    through the FDB operation registers as static entries. Entries the
+@@ -228,9 +223,7 @@
+  - report the carrier of each PPE port to
+    ppe_flowtable_port_carrier(), which records state even before the
+    flowtable is ready and gates stale-flow expiry;
+- - transmit one copy of a flooded packet through the port-bitmap
+-   destination of the transmit descriptor, driven by the per-VSI flood
+-   bitmaps;
++ - transmit CPU-originated bridge packets to the selected port;
+  - for the virtual-port work, deliver a receive descriptor whose
+    destination is a virtual port to its bound net device, and inject an
+    uplink frame with that virtual port as source only while its exact
