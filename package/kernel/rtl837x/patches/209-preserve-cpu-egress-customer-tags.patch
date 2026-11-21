@@ -1,0 +1,33 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 23:42:17 +0800
+Subject: [PATCH] rtl837x: preserve C-tags on CPU egress to user ports
+
+The CPU sends packets with a service tag that selects the user port.
+When the port is in a VLAN-aware bridge without VID 1, the switch
+adds the CPU PVID (1) to otherwise untagged packets sent by Linux.
+
+Enable C-tag retention from the CPU port to user ports so a frame
+keeps the customer tagging chosen by the software bridge.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl837x_policy.c
++++ b/src/rtl837x_policy.c
+@@ -892,6 +892,17 @@
+ 	ret = rtl837x_seed_vlan_table(gsw);
+ 	if (ret)
+ 		return ret;
++
++	/* The CPU service tag selects the user port. Keep the C-tag
++	 * chosen by Linux, including the absence of a tag.
++	 */
++	dsa_switch_for_each_user_port(dp, ds) {
++		ret = rtl837x_vlan_port_set_egress_vlan_keep(priv, gsw->cpu_port,
++							     dp->index, true);
++		if (ret)
++			return ret;
++	}
++
+ 	dsa_switch_for_each_available_port(dp, ds) {
+ 		ret = rtl837x_set_stp_state(gsw, dp->index,
+ 			dsa_port_is_cpu(dp) ? BR_STATE_FORWARDING : BR_STATE_DISABLED);
