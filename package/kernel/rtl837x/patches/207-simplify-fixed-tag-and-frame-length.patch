@@ -1,0 +1,87 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 12:32:28 +0800
+Subject: [PATCH] rtl837x: reuse MTU definitions and the fixed tag path
+
+Use the upstream frame-length register fields with the two-tag length
+allowance. Enter the fixed S-tag path without a redundant protocol test.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -91,6 +91,7 @@
+ #define RTL837X_MAC_MAX_LEN_REG(_p)                     (0x1250 + (((_p) << 8)))
+ #define   RTL837X_MAC_MAX_LEN_LO_MASK                   GENMASK(13, 0)
+ #define   RTL837X_MAC_MAX_LEN_HI_MASK                   GENMASK(27, 14)
++#define   RTL837X_MAC_MAX_LEN_EN                       BIT(28)
+ #define RTL837X_MAC_MAX_LEN_MAX                         0x3FFF
+ 
+ /* Energy Efficient Ethernet control and status */
+@@ -502,16 +503,6 @@
+ 	},
+ };
+ 
+-static bool is_8021q_tag(enum dsa_tag_protocol tag_proto)
+-{
+-	switch (tag_proto) {
+-	case DSA_TAG_PROTO_RTL837X_8021AD:
+-		return true;
+-	default:
+-		return false;
+-	}
+-}
+-
+ static int rtl837x_get_chip_info(struct realtek_priv *priv,
+ 				 const struct rtl837x_chip_info **chip_info)
+ {
+@@ -1470,15 +1461,22 @@
+ {
+ 	struct realtek_priv *priv = ds->priv;
+ 	u32 length = mtu + ETH_HLEN + 2 * VLAN_HLEN + ETH_FCS_LEN;
+-	if (length > 0x3fff)
++
++	if (length > RTL837X_MAC_MAX_LEN_MAX)
+ 		return -ERANGE;
+-	return regmap_update_bits(priv->map, 0x1250 + (port << 8),
+-		GENMASK(28, 0), length | (length << 14) | BIT(28));
++
++	return regmap_update_bits(priv->map, RTL837X_MAC_MAX_LEN_REG(port),
++				  RTL837X_MAC_MAX_LEN_LO_MASK |
++				  RTL837X_MAC_MAX_LEN_HI_MASK |
++				  RTL837X_MAC_MAX_LEN_EN,
++				  FIELD_PREP(RTL837X_MAC_MAX_LEN_LO_MASK, length) |
++				  FIELD_PREP(RTL837X_MAC_MAX_LEN_HI_MASK, length) |
++				  RTL837X_MAC_MAX_LEN_EN);
+ }
+ 
+ static int rtl8372n_port_max_mtu(struct dsa_switch *ds, int port)
+ {
+-	return 0x3fff - ETH_HLEN - 2 * VLAN_HLEN - ETH_FCS_LEN;
++	return RTL837X_MAC_MAX_LEN_MAX - ETH_HLEN - 2 * VLAN_HLEN - ETH_FCS_LEN;
+ }
+ 
+ static int rtl8372n_port_pre_bridge_flags(struct dsa_switch *ds, int port,
+@@ -1673,7 +1671,7 @@
+ 		if (entry.addr < i)
+ 			break;
+ 		/* We need to hide the dsa_8021q VLANs from the user. */
+-		if (vid_is_dsa_8021q(entry.uc.key.vid_fid) && is_8021q_tag(priv->tag_proto))
++		if (vid_is_dsa_8021q(entry.uc.key.vid_fid))
+ 			entry.uc.key.vid_fid = 0;
+ 		ret = cb(entry.uc.key.mac_addr, entry.uc.key.vid_fid, entry.uc.is_static,
+ 			 data);
+@@ -2366,13 +2364,7 @@
+ 		return ret;
+ 
+ 	rtnl_lock();
+-	switch (priv->tag_proto) {
+-	case DSA_TAG_PROTO_RTL837X_8021AD:
+-		ret = rtl8372n_set_tag_8021q(ds);
+-		break;
+-	default:
+-		ret = -EPROTONOSUPPORT;
+-	}
++	ret = rtl8372n_set_tag_8021q(ds);
+ 	rtnl_unlock();
+ 	if (ret)
+ 		return ret;

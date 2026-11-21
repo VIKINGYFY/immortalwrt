@@ -1,0 +1,54 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 12:32:28 +0800
+Subject: [PATCH] rtl837x: propagate device tree extra-init errors
+
+Reject incomplete tuples and zero masks, and report the first register
+write failure to switch setup. Keep the existing field value encoding.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -1151,25 +1151,31 @@
+ {
+ 	struct realtek_priv *priv = ds->priv;
+ 	struct device_node *np = ds->dev->of_node;
++	const int tuple_size = 3 * sizeof(__be32);
+ 	const __be32 *list;
+-	int size, data_len;
+-	u32 reg, mask, val;
++	int size, ret;
+ 
+ 	list = of_get_property(np, "extra-init", &size);
+ 	if (!list || !size)
+ 		return 0;
+ 
+-	data_len = size / (3 * sizeof(__be32));
+-	for (int i = 0; i < data_len; i++) {
+-		reg = be32_to_cpu(*list);
+-		list++;
+-		mask = be32_to_cpu(*list);
+-		list++;
+-		val = be32_to_cpu(*list);
+-		list++;
++	if (size % tuple_size)
++		return dev_err_probe(ds->dev, -EINVAL, "incomplete extra-init tuple\n");
++
++	for (; size; size -= tuple_size, list += 3) {
++		u32 reg = be32_to_cpu(list[0]);
++		u32 mask = be32_to_cpu(list[1]);
++		u32 val = be32_to_cpu(list[2]);
++
++		if (!mask)
++			return dev_err_probe(ds->dev, -EINVAL,
++					     "extra-init: empty mask at %#x\n", reg);
+ 		dev_dbg(ds->dev, "[%s] reg:0x%04X mask:0x%08X val:0x%08X\n",
+ 			__func__, reg, mask, val);
+-		rtl837x_reg_bits_write(priv, reg, mask, val);
++		ret = rtl837x_reg_bits_write(priv, reg, mask, val);
++		if (ret)
++			return dev_err_probe(ds->dev, ret,
++					     "extra-init: write failed at %#x\n", reg);
+ 	}
+ 	return 0;
+ }

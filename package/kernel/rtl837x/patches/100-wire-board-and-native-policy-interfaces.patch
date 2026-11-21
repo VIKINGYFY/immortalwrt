@@ -1,8 +1,8 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 22:33:07 +0800
+Date: Sat, 21 Nov 2026 09:47:57 +0800
 Subject: [PATCH] rtl837x: wire board and native policy interfaces
 
-Connect the existing board and native forwarding policy to the upstream dev driver without replacing its register, VLAN or L2 helpers.
+Connect the board hooks, switch reset operation and native forwarding policy to the upstream driver.
 
 Split from:
   package/kernel/rtl837x/patches/120-wire-native-policy-and-board-interfaces.patch ([PATCH] rtl837x: wire native policy and board interfaces)
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  rtl8372n_dsa-objs += rtl837x_mdio.o
 --- a/src/rtl837x.h
 +++ b/src/rtl837x.h
-@@ -41,7 +41,12 @@ struct rtl837x_led {
+@@ -41,7 +41,10 @@ struct rtl837x_led {
  	u8 led_id;
  };
  
@@ -30,12 +30,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +
  struct realtek_priv {
 +	struct rtl837x_local *local;
-+	bool preserve_boot_config;
-+	bool reinit_cpu_serdes;
  	struct device *dev;
  	struct regmap		*map;
  	struct mutex		map_lock;	/* Protects regmap access */
-@@ -157,4 +162,20 @@ int rtl837x_sds_reg_bits_read(struct rea
+@@ -157,4 +160,20 @@ int rtl837x_sds_reg_bits_read(struct rea
  
  extern const struct rtl837x_variant rtl8372n_variant;
  

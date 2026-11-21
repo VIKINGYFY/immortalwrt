@@ -1,14 +1,14 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 02:10:13 +0800
+Date: Sat, 21 Nov 2026 09:47:57 +0800
 Subject: [PATCH] rtl837x: reset switch core before DSA setup
 
-Start the non-preserved setup from a chip reset, wait for its ready state, and isolate physical MACs before DSA recreates the service-tag and forwarding state. Perform the reset after device and conduit prerequisites are available, before exposing ports or starting any MIB work. The reset command and ready status follow RTLPlayground and the RTL8372N initialization state; no vendor SDK is linked.
+Start switch setup from a chip reset, wait for its ready state, and isolate physical MACs before DSA recreates the service-tag and forwarding state. Perform the reset after device and conduit prerequisites are available, before exposing ports or starting any MIB work. The reset command and ready status follow RTLPlayground and the RTL8372N initialization state; no vendor SDK is linked.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -545,6 +545,37 @@ static int rtl837x_get_chip_info(struct
+@@ -538,6 +538,37 @@
  	return -ENODEV;
  }
  
@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int rtl8372n_detect(struct realtek_priv *priv)
  {
  	const struct rtl837x_chip_info *chip_info;
-@@ -2454,6 +2485,7 @@ static const struct dsa_switch_ops rtl83
+@@ -2349,6 +2380,7 @@
  
  static const struct rtl837x_ops rtl8372n_ops = {
  	.detect		= rtl8372n_detect,
@@ -56,15 +56,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.get_mib_counter = rtl8372n_get_mib_counter,
 --- a/src/rtl837x_mdio.c
 +++ b/src/rtl837x_mdio.c
-@@ -242,6 +242,12 @@ static int rtl837x_mdio_probe(struct mdi
+@@ -237,6 +237,10 @@
  		return ret;
  	}
  
-+	if (!priv->preserve_boot_config) {
-+		ret = priv->ops->reset_chip(priv);
-+		if (ret)
-+			return ret;
-+	}
++	ret = priv->ops->reset_chip(priv);
++	if (ret)
++		return ret;
 +
  	priv->ds = devm_kzalloc(dev, sizeof(*priv->ds), GFP_KERNEL);
  	if (!priv->ds)

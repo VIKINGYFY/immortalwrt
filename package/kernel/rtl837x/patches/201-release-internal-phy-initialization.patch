@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 02:10:13 +0800
+Date: Sat, 21 Nov 2026 09:47:57 +0800
 Subject: [PATCH] rtl837x: release internal PHY initialization
 
 Signal host initialization readiness before registering the internal PHY bus, allowing the internal PHY boot state to progress after a switch core reset. Wait for the hardware initialization interval used in the RTL8372N reference flow. Keep PHY configuration and auto negotiation under the kernel PHY driver.
@@ -8,16 +8,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -2354,6 +2354,13 @@ static int rtl8372n_setup(struct dsa_swi
+@@ -2251,6 +2251,11 @@ static int rtl8372n_setup(struct dsa_swi
  			return ret;
  	}
  
-+	if (!priv->preserve_boot_config) {
-+		ret = regmap_set_bits(priv->map, 0x6040, BIT(0));
-+		if (ret)
-+			return ret;
-+		msleep(100);
-+	}
++	ret = regmap_set_bits(priv->map, 0x6040, BIT(0));
++	if (ret)
++		return ret;
++	msleep(100);
 +
  	ret = rtl8372n_setup_mdio(priv);
  	if (ret) {

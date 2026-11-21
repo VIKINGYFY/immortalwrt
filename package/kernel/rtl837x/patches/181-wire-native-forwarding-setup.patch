@@ -1,8 +1,8 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 22:33:07 +0800
-Subject: [PATCH] rtl837x: preserve boot and native forwarding setup
+Date: Sat, 21 Nov 2026 09:47:57 +0800
+Subject: [PATCH] rtl837x: wire native forwarding setup
 
-Preserve boot PHY/SerDes wiring and CPU force-link, wait for VLAN-table reset and initialize the native policy within the upstream chip/port setup.
+Isolate unused ports, check hardware setup errors, wait for the VLAN table reset and initialize native forwarding.
 
 Split from:
   package/kernel/rtl837x/patches/181-preserve-cold-and-boot-initialization.patch ([PATCH] rtl8372n: preserve cold and boot initialization)
@@ -13,7 +13,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl8372n.c
 +++ b/src/rtl8372n.c
-@@ -1946,6 +1946,9 @@ static int rtl8372n_setup_port(struct re
+@@ -1872,6 +1872,9 @@ static int rtl8372n_setup_port(struct re
  	if (chip_info->port_feature[port] == RTL837X_PORT_FEATURE_NONEXIST)
  		return 0;
  
@@ -23,61 +23,68 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (of_get_phy_mode(dn, &mode)) {
  		dev_warn(priv->dev,
  			 "Failed to get port(%d) phy-mode, Use PHY_INTERFACE_MODE_INTERNAL by default",
-@@ -1961,15 +1964,17 @@ static int rtl8372n_setup_port(struct re
- 			port_type = RTL837X_SMI_MAC_TYPE_PORT;
- 	}
+@@ -1889,44 +1892,29 @@ static int rtl8372n_setup_port(struct re
  
--	ret = regmap_update_bits(priv->map, RTL837X_SMI_MAC_TYPE_REG,
-+	if (!priv->preserve_boot_config) {
-+		ret = regmap_update_bits(priv->map, RTL837X_SMI_MAC_TYPE_REG,
+ 	ret = regmap_update_bits(priv->map, RTL837X_SMI_MAC_TYPE_REG,
  				 RTL837X_SMI_MAC_TYPE_MASK(port),
- 				    port_type << __ffs(RTL837X_SMI_MAC_TYPE_MASK(port))
- 				);
--	if (ret)
--		return ret;
-+		if (ret)
-+			return ret;
-+	}
+-				    port_type << __ffs(RTL837X_SMI_MAC_TYPE_MASK(port))
+-				);
++				 port_type << __ffs(RTL837X_SMI_MAC_TYPE_MASK(port)));
+ 	if (ret)
+ 		return ret;
  
- 	if (!dsa_port_is_unused(dp)) {
+-	if (!dsa_port_is_unused(dp)) {
 -		if (port_type == RTL837X_SMI_MAC_TYPE_PORT) {
-+		if (port_type == RTL837X_SMI_MAC_TYPE_PORT && !priv->preserve_boot_config) {
- 			// TODO?: may be we can add poll phy status?
- 			port_priv->have_pcs = false;
- 
-@@ -1995,19 +2000,23 @@ static int rtl8372n_setup_port(struct re
- 			port_priv->pcs.poll = true;
- 		}
- 
+-			// TODO?: may be we can add poll phy status?
+-			port_priv->have_pcs = false;
+-
+-			/*
+-			 * Configure ports to poll the phy internal status register.
+-			 *
+-			 * Will this have any effect on the RTL8372N/RTL8372? I tried
+-			 * disabling these bits and checked the status of the MAC
+-			 * and MIB registers; it did not affect the normal
+-			 * behavior/updates of these registers.
+-			 */
+-			ret = regmap_set_bits(priv->map, RTL837X_PORT_POLLING_REG,
+-					      RTL837X_PORT_POLLING_PORT_BIT(port)
+-						);
+-			if (ret)
+-				return ret;
+-		} else if (port_type == RTL837X_SMI_MAC_TYPE_SERDES) {
+-			port_priv->have_pcs = true;
+-			port_priv->pcs.ops = &rtl8372n_sds_pcs_ops;
+-			port_priv->pcs.poll = true;
+-		}
+-
 -		/* Use the polled (PHY/Serdes). */
 -		ret = regmap_set_bits(priv->map, RTL837X_SMI_GLB_CTRL_REG,
-+		if (!priv->preserve_boot_config) {
-+			/* Use the polled PHY/SerDes state. */
-+			ret = regmap_set_bits(priv->map, RTL837X_SMI_GLB_CTRL_REG,
- 				      RTL837X_SMI_GLB_CTRL_POLLING_PORT_BIT(port)
- 			);
--		if (ret)
--			return ret;
-+			if (ret)
-+				return ret;
-+		}
+-				      RTL837X_SMI_GLB_CTRL_POLLING_PORT_BIT(port)
+-			);
++	if (port_type == RTL837X_SMI_MAC_TYPE_PORT) {
++		/* Configure the port to poll the internal PHY status. */
++		ret = regmap_set_bits(priv->map, RTL837X_PORT_POLLING_REG,
++				      RTL837X_PORT_POLLING_PORT_BIT(port));
+ 		if (ret)
+ 			return ret;
++	} else if (port_type == RTL837X_SMI_MAC_TYPE_SERDES) {
++		port_priv->have_pcs = true;
++		port_priv->pcs.ops = &rtl8372n_sds_pcs_ops;
++		port_priv->pcs.poll = true;
  	}
  
 -	/* Clean the force link bit */
--	ret = regmap_clear_bits(priv->map, RTL837X_MAC_FORCE_MODE_REG(port),
-+	/* Clean user force-link without destroying the boot CPU link. */
-+	if (!dsa_port_is_cpu(dp)) {
-+		ret = regmap_clear_bits(priv->map, RTL837X_MAC_FORCE_MODE_REG(port),
++	/* Use the polled PHY/SerDes state. */
++	ret = regmap_set_bits(priv->map, RTL837X_SMI_GLB_CTRL_REG,
++			      RTL837X_SMI_GLB_CTRL_POLLING_PORT_BIT(port));
++	if (ret)
++		return ret;
++
++	/* Clear forced link state before phylink starts. */
+ 	ret = regmap_clear_bits(priv->map, RTL837X_MAC_FORCE_MODE_REG(port),
  				RTL837X_MAC_FORCE_MODE_FORCE_LINK_MASK);
--	if (ret)
--		return ret;
-+		if (ret)
-+			return ret;
-+	}
- 
- 	ret = regmap_write(priv->map, RTL837X_FC_PORT_ACT_CTRL_REG(port), 0x1050);
  	if (ret)
-@@ -2232,13 +2241,12 @@ static void rtl8372n_teardown(struct dsa
+@@ -2155,13 +2143,12 @@ static void rtl8372n_teardown(struct dsa
  // TODO: init chip based on rtl837x_chip_info
  static int rtl8372n_setup(struct dsa_switch *ds)
  {
@@ -92,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	dsa_switch_for_each_port(dp, ds) {
  		if (dsa_port_is_dsa(dp)) {
-@@ -2269,33 +2277,45 @@ static int rtl8372n_setup(struct dsa_swi
+@@ -2192,17 +2179,21 @@ static int rtl8372n_setup(struct dsa_swi
  	}
  
  	//#cfg_FWD_INVLD_MAC_CTRL_EN,cfg_FWD_UNKN_OPCODE_EN
@@ -111,17 +118,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	ret = rtl837x_reg_bits_write(priv, RTL837X_RS_LAYER_CONFIG_REG,
  			       RTL837X_RS_LAYER_CONFIG_RS_LINK_FAULT_INDI_OFF_MASK,
  			       1);
--
--	ret = rtl8372n_of_setup_phy_and_serdes(priv);
- 	if (ret)
- 		return ret;
++	if (ret)
++		return ret;
  
-+	if (!priv->preserve_boot_config) {
-+		ret = rtl8372n_of_setup_phy_and_serdes(priv);
-+		if (ret)
-+			return ret;
-+	}
-+
+ 	ret = rtl8372n_of_setup_phy_and_serdes(priv);
+ 	if (ret)
+@@ -2210,15 +2201,18 @@ static int rtl8372n_setup(struct dsa_swi
+ 
  	msleep(20);
  
 -	of_extra_init(ds);
@@ -131,21 +134,23 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 -	// enable SMI0/1/2 MDC clock output
 -	rtl837x_reg_bits_write(priv, RTL837X_SMI_CTRL_REG,
-+	if (!priv->preserve_boot_config) {
-+		/* Enable SMI0/1/2 MDC clock output. */
-+		ret = rtl837x_reg_bits_write(priv, RTL837X_SMI_CTRL_REG,
- 			       RTL837X_SMI_CTRL_SMI0_MDC_EN_MASK |
- 			  RTL837X_SMI_CTRL_SMI1_MDC_EN_MASK |
- 			  RTL837X_SMI_CTRL_SMI2_MDC_EN_MASK,
- 			 0xffffffff
- 			);
-+		if (ret)
-+			return ret;
-+	}
+-			       RTL837X_SMI_CTRL_SMI0_MDC_EN_MASK |
+-			  RTL837X_SMI_CTRL_SMI1_MDC_EN_MASK |
+-			  RTL837X_SMI_CTRL_SMI2_MDC_EN_MASK,
+-			 0xffffffff
+-			);
++	/* Enable SMI0/1/2 MDC clock output. */
++	ret = rtl837x_reg_bits_write(priv, RTL837X_SMI_CTRL_REG,
++				    RTL837X_SMI_CTRL_SMI0_MDC_EN_MASK |
++				    RTL837X_SMI_CTRL_SMI1_MDC_EN_MASK |
++				    RTL837X_SMI_CTRL_SMI2_MDC_EN_MASK,
++				    0xffffffff);
++	if (ret)
++		return ret;
  
  	dsa_switch_for_each_port(dp, ds) {
  		ret = rtl8372n_setup_port(priv, dp->index);
-@@ -2314,55 +2334,24 @@ static int rtl8372n_setup(struct dsa_swi
+@@ -2237,55 +2231,24 @@ static int rtl8372n_setup(struct dsa_swi
  				     RTL837X_VLAN_CTRL_TABLE_RST_MASK, 1);
  	if (ret)
  		return ret;
@@ -211,7 +216,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	ret = rtl837x_lut_l2_flush_all(priv);
-@@ -2376,6 +2365,28 @@ static int rtl8372n_setup(struct dsa_swi
+@@ -2299,6 +2262,28 @@ static int rtl8372n_setup(struct dsa_swi
  	if (ret)
  		return ret;
  

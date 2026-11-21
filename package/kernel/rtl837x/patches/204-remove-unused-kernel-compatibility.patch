@@ -1,0 +1,79 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 09:47:57 +0800
+Subject: [PATCH] rtl837x: remove unused kernel compatibility code
+
+The driver targets Linux 6.18 and later. Remove unused version headers
+and the unreachable MDIO fallback after the device-tree node check.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -2,7 +2,6 @@
+ /*
+  * Copyright (C) 2025 StarField Xu <air_jinkela@163.com>
+  */
+-#include <linux/version.h>
+ #include <linux/regmap.h>
+ #include <linux/if_bridge.h>
+ #include <linux/if_vlan.h>
+@@ -771,9 +770,6 @@ static int rtl8372n_setup_mdio(struct re
+ 		goto out;
+ 	}
+ 
+-	if (!mnp)
+-		ds->user_mii_bus = bus;
+-
+ 	bus->priv = priv;
+ 	bus->name = KBUILD_MODNAME "-mdio";
+ 	snprintf(bus->id, MII_BUS_ID_SIZE, KBUILD_MODNAME "-%d", idx++);
+--- a/src/rtl837x_gpio.c
++++ b/src/rtl837x_gpio.c
+@@ -2,7 +2,6 @@
+ /*
+  * Copyright (C) 2025 StarField Xu <air_jinkela@163.com>
+  */
+-#include <linux/version.h>
+ #include <linux/gpio/driver.h>
+ 
+ #include "rtl837x.h"
+--- a/src/rtl837x_l2.c
++++ b/src/rtl837x_l2.c
+@@ -3,7 +3,6 @@
+  *
+  * Copyright (C) 2025 StarField Xu <air_jinkela@163.com>
+  */
+-#include <linux/version.h>
+ 
+ #include "rtl837x.h"
+ #include "rtl837x_l2.h"
+--- a/src/rtl837x_led.c
++++ b/src/rtl837x_led.c
+@@ -2,7 +2,6 @@
+ /*
+  * Copyright (C) 2025 StarField Xu <air_jinkela@163.com>
+  */
+-#include <linux/version.h>
+ 
+ #include "rtl837x.h"
+ #include "rtl837x_gpio.h"
+--- a/src/rtl837x_reg.c
++++ b/src/rtl837x_reg.c
+@@ -10,7 +10,6 @@
+ #include <linux/irqchip/chained_irq.h>
+ #include <linux/of_irq.h>
+ #include <linux/regmap.h>
+-#include <linux/version.h>
+ 
+ #include "rtl837x.h"
+ 
+--- a/src/rtl837x_serdes.c
++++ b/src/rtl837x_serdes.c
+@@ -2,7 +2,6 @@
+ /*
+  * Copyright (C) 2025 StarField Xu <air_jinkela@163.com>
+  */
+-#include <linux/version.h>
+ 
+ #include "rtl837x.h"
+ #include "rtl837x_serdes.h"

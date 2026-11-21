@@ -1,0 +1,39 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 12:32:28 +0800
+Subject: [PATCH] rtl837x: report link down on PCS read errors
+
+Phylink starts PCS resolution with link up. Clear link and AN completion
+when an indirect C37 or MAC status read fails.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/rtl8372n.c
++++ b/src/rtl8372n.c
+@@ -874,18 +874,24 @@
+ 	struct rtl8372n_port *port_priv = container_of(pcs, struct rtl8372n_port, pcs);
+ 	struct realtek_priv *priv = port_priv->priv;
+ 	int port = port_priv->index;
++	int ret;
+ 
+ 	switch (state->interface) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+ 	case PHY_INTERFACE_MODE_1000BASEX:
+ 	case PHY_INTERFACE_MODE_2500BASEX:
+-		rtl837x_serdes_get_status_c37(priv, PORT_TO_SERDES_IDX(port),
+-					      neg_mode, state);
++		ret = rtl837x_serdes_get_status_c37(priv, PORT_TO_SERDES_IDX(port),
++						    neg_mode, state);
+ 		break;
+ 	default:
+-		rtl837x_serdes_get_status_mac(priv, port, state);
++		ret = rtl837x_serdes_get_status_mac(priv, port, state);
+ 		break;
+ 	}
++
++	if (ret) {
++		state->link = false;
++		state->an_complete = false;
++	}
+ }
+ 
+ /*
