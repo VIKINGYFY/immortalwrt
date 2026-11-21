@@ -1,0 +1,135 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 17:28:22 +0800
+Subject: [PATCH] net: dsa: retain bridge numbers across switch trees
+
+DSA assigns hardware bridge numbers globally but shares each bridge
+object inside a single switch tree. Retain an ID until every numbered
+tree-local object is gone, so leaving one tree cannot hand an active
+bridge's ID to an unrelated bridge.
+
+Check the receiving switch's bridge ID range when reusing a number,
+including when it is held by another switch in the same tree.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/net/dsa/dsa.c
++++ b/net/dsa/dsa.c
+@@ -36,8 +36,11 @@
+ 
+ static struct workqueue_struct *dsa_owq;
+ 
+-/* Track the bridges with forwarding offload enabled */
+-static unsigned long dsa_fwd_offloading_bridges;
++/* Each numbered tree-local bridge owns one reference to its global ID. */
++static struct {
++	const struct net_device *dev;
++	refcount_t users;
++} dsa_numbered_bridges[DSA_MAX_NUM_OFFLOADING_BRIDGES];
+ 
+ bool dsa_schedule_work(struct work_struct *work)
+ {
+@@ -126,55 +129,56 @@
+ 	return NULL;
+ }
+ 
+-static int dsa_bridge_num_find(const struct net_device *bridge_dev)
+-{
+-	struct dsa_switch_tree *dst;
+-
+-	list_for_each_entry(dst, &dsa_tree_list, list) {
+-		struct dsa_bridge *bridge;
+-
+-		bridge = dsa_tree_bridge_find(dst, bridge_dev);
+-		if (bridge)
+-			return bridge->num;
+-	}
+-
+-	return 0;
+-}
+-
+ unsigned int dsa_bridge_num_get(const struct net_device *bridge_dev, int max)
+ {
+-	unsigned int bridge_num = dsa_bridge_num_find(bridge_dev);
++	unsigned int bridge_num, available = 0;
++
++	ASSERT_RTNL();
+ 
+ 	/* Switches without FDB isolation support don't get unique
+ 	 * bridge numbering
+ 	 */
+-	if (!max)
++	if (max <= 0)
+ 		return 0;
+ 
+-	if (!bridge_num) {
+-		/* First port that requests FDB isolation or TX forwarding
+-		 * offload for this bridge
++	for (bridge_num = 1; bridge_num < ARRAY_SIZE(dsa_numbered_bridges);
++	     bridge_num++) {
++		const struct net_device *dev = dsa_numbered_bridges[bridge_num].dev;
++
++		/* A bridge that already has an ID must use it in each tree
++		 * that requires numbered bridges.
+ 		 */
+-		bridge_num = find_next_zero_bit(&dsa_fwd_offloading_bridges,
+-						DSA_MAX_NUM_OFFLOADING_BRIDGES,
+-						1);
+-		if (bridge_num > max)
+-			return 0;
++		if (dev == bridge_dev) {
++			if (bridge_num > max)
++				return 0;
+ 
+-		set_bit(bridge_num, &dsa_fwd_offloading_bridges);
++			refcount_inc(&dsa_numbered_bridges[bridge_num].users);
++			return bridge_num;
++		}
++
++		if (!dev && !available && bridge_num <= max)
++			available = bridge_num;
+ 	}
+ 
+-	return bridge_num;
++	if (!available)
++		return 0;
++
++	dsa_numbered_bridges[available].dev = bridge_dev;
++	refcount_set(&dsa_numbered_bridges[available].users, 1);
++
++	return available;
+ }
+ 
+ void dsa_bridge_num_put(const struct net_device *bridge_dev,
+ 			unsigned int bridge_num)
+ {
+-	/* Since we refcount bridges, we know that when we call this function
+-	 * it is no longer in use, so we can just go ahead and remove it from
+-	 * the bit mask.
+-	 */
+-	clear_bit(bridge_num, &dsa_fwd_offloading_bridges);
++	ASSERT_RTNL();
++
++	if (WARN_ON_ONCE(dsa_numbered_bridges[bridge_num].dev != bridge_dev))
++		return;
++
++	if (refcount_dec_and_test(&dsa_numbered_bridges[bridge_num].users))
++		dsa_numbered_bridges[bridge_num].dev = NULL;
+ }
+ 
+ struct dsa_switch *dsa_switch_find(int tree_index, int sw_index)
+--- a/net/dsa/port.c
++++ b/net/dsa/port.c
+@@ -436,6 +436,13 @@
+ 
+ 	bridge = dsa_tree_bridge_find(ds->dst, br);
+ 	if (bridge) {
++		if (ds->max_num_bridges &&
++		    (!bridge->num || bridge->num > ds->max_num_bridges)) {
++			NL_SET_ERR_MSG_MOD(extack,
++					   "Existing bridge ID is unsupported by this switch");
++			return -EOPNOTSUPP;
++		}
++
+ 		refcount_inc(&bridge->refcount);
+ 		dp->bridge = bridge;
+ 		return 0;
