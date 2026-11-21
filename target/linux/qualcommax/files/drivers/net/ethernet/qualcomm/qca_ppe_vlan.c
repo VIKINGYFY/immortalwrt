@@ -142,13 +142,13 @@ ppe_vlan_alloc(struct qca_ppe_priv *priv, struct net_device *br_dev,
 	struct qca_ppe_vlan_entry *entry;
 	int vsi, i;
 
-	vsi = ppe_vsi_alloc(priv);
-	if (vsi < 0)
-		return NULL;
-
 	for (i = 0; i < PPE_VSI_MAX; i++) {
 		if (priv->vlans[i].br_dev)
 			continue;
+
+		vsi = ppe_vsi_alloc(priv);
+		if (vsi < 0)
+			return ERR_PTR(vsi);
 
 		entry = &priv->vlans[i];
 		entry->br_dev = br_dev;
@@ -160,8 +160,7 @@ ppe_vlan_alloc(struct qca_ppe_priv *priv, struct net_device *br_dev,
 		return entry;
 	}
 
-	ppe_vsi_free(priv, vsi);
-	return NULL;
+	return ERR_PTR(-ENOSPC);
 }
 
 static void ppe_vlan_free(struct qca_ppe_priv *priv,
@@ -330,8 +329,11 @@ int qca_ppe_port_vlan_add(struct dsa_switch *ds, int port,
 	entry = ppe_vlan_find(priv, br_dev, vid);
 	if (!entry) {
 		entry = ppe_vlan_alloc(priv, br_dev, vid);
-		if (!entry)
-			return -ENOSPC;
+		if (IS_ERR(entry)) {
+			if (PTR_ERR(entry) == -ENOSPC)
+				NL_SET_ERR_MSG_MOD(extack, "No free PPE VLAN VSI");
+			return PTR_ERR(entry);
+		}
 	}
 
 	if (entry->xlt_idx < 0) {
@@ -401,6 +403,7 @@ int qca_ppe_port_vlan_add(struct dsa_switch *ds, int port,
 err_free_entry:
 	if (!entry->ports)
 		ppe_vlan_free(priv, entry);
+	NL_SET_ERR_MSG_MOD(extack, "No free PPE bridge VLAN translation entry");
 	return -ENOSPC;
 }
 
