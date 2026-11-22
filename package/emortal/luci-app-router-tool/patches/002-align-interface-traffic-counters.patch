@@ -1,0 +1,37 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 22 Nov 2026 16:23:30 +0800
+Subject: [PATCH] luci-app-router-tool: align interface traffic counters
+
+Use binary byte units and identify the device supplying interface counters.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/htdocs/luci-static/resources/view/network/interfaces-router-tool.js
++++ b/htdocs/luci-static/resources/view/network/interfaces-router-tool.js
+@@ -88,8 +88,8 @@
+ 				_('Device'),    dev ? dev.getName() : _('Not present'),
+ 				_('Connected'), up ? _('yes') : _('no'),
+ 				_('MAC'),       dev ? dev.getMAC() : null,
+-				_('RX'),        dev ? '%.2mB (%d %s)'.format(dev.getRXBytes(), dev.getRXPackets(), _('Pkts.')) : null,
+-				_('TX'),        dev ? '%.2mB (%d %s)'.format(dev.getTXBytes(), dev.getTXPackets(), _('Pkts.')) : null
++				_('RX'),        dev ? '%1024.2mB (%d %s)'.format(dev.getRXBytes(), dev.getRXPackets(), _('Pkts.')) : null,
++				_('TX'),        dev ? '%1024.2mB (%d %s)'.format(dev.getTXBytes(), dev.getTXPackets(), _('Pkts.')) : null
+ 			])
+ 		])
+ 	]);
+@@ -141,12 +141,12 @@
+ 
+ 	return L.itemlist(node, [
+ 		_('Protocol'), with_device ? null : (desc || '?'),
+-		_('Device'), with_device ? (maindev ? maindev.getShortName() : E('em', _('Not present'))) : null,
++		_('Device'), (with_device || cond02) ? (maindev ? maindev.getName() : E('em', _('Not present'))) : null,
+ 		_('Carrier'), (cond02) ? (carrier ? _('Present') : _('Absent')) : null,
+ 		_('Uptime'), (!changecount && ifc.isUp()) ? '%t'.format(ifc.getUptime()) : null,
+ 		_('MAC'), (cond01) ? macaddr : null,
+-		_('RX'), (cond02) ? '%.2mB (%d %s)'.format(maindev.getRXBytes(), maindev.getRXPackets(), _('Pkts.')) : null,
+-		_('TX'), (cond02) ? '%.2mB (%d %s)'.format(maindev.getTXBytes(), maindev.getTXPackets(), _('Pkts.')) : null,
++		_('RX'), (cond02) ? '%1024.2mB (%d %s)'.format(maindev.getRXBytes(), maindev.getRXPackets(), _('Pkts.')) : null,
++		_('TX'), (cond02) ? '%1024.2mB (%d %s)'.format(maindev.getTXBytes(), maindev.getTXPackets(), _('Pkts.')) : null,
+ 		...addEntries(_('IPv4'), changecount ? [] : ifc.getIPAddrs()),
+ 		...addEntries(_('IPv6'), changecount ? [] : ifc.getIP6Addrs()),
+ 		...addEntries(_('IPv6-PD'), changecount ? null : ifc.getIP6Prefixes?.()),

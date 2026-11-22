@@ -1,0 +1,44 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 22 Nov 2026 16:29:54 +0800
+Subject: [PATCH] luci-app-router-tool: align overview port traffic counters
+
+Select the Router Tool port view at the existing overview load point and use the same binary byte precision as the interface view.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/htdocs/luci-static/resources/view/status/index-router-tool.js
++++ b/htdocs/luci-static/resources/view/status/index-router-tool.js
+@@ -103,7 +103,7 @@
+ 			}).map(function(e) {
+ 				return 'view.status.include.' + e.name.replace(/\.js$/, '');
+ 			}).sort().map(function(n) {
+-				return L.require(n);
++				return L.require(n === 'view.status.include.29_ports' ? 'view.status.ports-router-tool' : n);
+ 			}));
+ 		});
+ 	},
+--- a/htdocs/luci-static/resources/view/status/ports-router-tool.js
++++ b/htdocs/luci-static/resources/view/status/ports-router-tool.js
+@@ -485,9 +485,9 @@
+ 			}
+ 
+ 			const statsContent = [
+-				'\u25b2\u202f%1024.1mB'.format(port.netdev.getTXBytes()),
++				'\u25b2\u202f%1024.2mB'.format(port.netdev.getTXBytes()),
+ 				E('br'),
+-				'\u25bc\u202f%1024.1mB'.format(port.netdev.getRXBytes())
++				'\u25bc\u202f%1024.2mB'.format(port.netdev.getRXBytes())
+ 			];
+ 
+ 			if (psePower) {
+--- a/root/usr/share/ucode/luci/template/admin_status/overview-router-tool.ut
++++ b/root/usr/share/ucode/luci/template/admin_status/overview-router-tool.ut
+@@ -62,7 +62,7 @@
+ 
+ <script>
+ 	L.require('ui').then(function(ui) {
+-		ui.instantiateView('status/index');
++		ui.instantiateView('status/index-router-tool');
+ 	});
+ </script>
+ 
