@@ -1,0 +1,95 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 21 Nov 2026 22:26:08 +0800
+Subject: [PATCH] net: ethernet: qualcomm: ppe: validate active bridge VLAN mode
+
+PPE ingress classification uses the bridge mode selected at port join.
+Switchdev treats -EOPNOTSUPP as an unhandled attribute, which leaves the
+software bridge free to change mode while the hardware retains its old
+classification. Veto unsupported changes with an extack before DSA
+members can program a different mode on a mixed bridge.
+
+Use software forwarding when a VLAN-aware bridge uses a protocol other
+than 802.1Q. Accept attribute replay that matches the current mode.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
+@@ -762,8 +762,15 @@
+ 	bool vlan_aware = br_vlan_enabled(br);
+ 	int port = ppe_bridge_port_id(dev);
+ 	int vsi = -1, ret;
++	u16 proto;
+ 
+-	if (!vlan_aware) {
++	if (vlan_aware) {
++		ret = br_vlan_get_proto(br, &proto);
++		if (ret)
++			return ret;
++		if (proto != ETH_P_8021Q)
++			return 0;
++	} else {
+ 		/* Failure to back the bridge with a VSI is not an
+ 		 * error, the bridge stays a software bridge for all
+ 		 * its ports.
+@@ -1331,6 +1338,7 @@
+ 	struct edma_port_priv *port_priv = netdev_priv(dev);
+ 	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
+ 	int port = ppe_bridge_port_id(dev);
++	bool vlan_aware = pb->ports[port].vsi < 0;
+ 
+ 	if (!pb->ports[port].bridge)
+ 		return -EOPNOTSUPP;
+@@ -1353,10 +1361,24 @@
+ 		return ppe_bridge_ageing_time_set(pb, dev,
+ 						  attr->u.ageing_time);
+ 	case SWITCHDEV_ATTR_ID_BRIDGE_VLAN_FILTERING:
+-		/* The bridge is offloaded in the mode it had when its
+-		 * first port joined, refuse changing it mid-flight.
+-		 */
+-		return -EOPNOTSUPP;
++		if (attr->orig_dev != pb->ports[port].bridge)
++			return -EOPNOTSUPP;
++		if (attr->u.vlan_filtering == vlan_aware)
++			return 0;
++
++		NL_SET_ERR_MSG_MOD(extack,
++				   "Detach PPE bridge ports before changing VLAN filtering");
++		return -EBUSY;
++	case SWITCHDEV_ATTR_ID_BRIDGE_VLAN_PROTOCOL:
++		if (attr->orig_dev != pb->ports[port].bridge)
++			return -EOPNOTSUPP;
++		if (!vlan_aware ||
++		    attr->u.vlan_protocol == ETH_P_8021Q)
++			return 0;
++
++		NL_SET_ERR_MSG_MOD(extack,
++				   "PPE VLAN filtering requires the 802.1Q protocol");
++		return -EBUSY;
+ 	default:
+ 		return -EOPNOTSUPP;
+ 	}
+@@ -1677,6 +1699,10 @@
+ 		goto err_netdev_nb;
+ 
+ 	pb->switchdev_blocking_nb.notifier_call = ppe_bridge_switchdev_blocking_event;
++	/* Reject unsupported bridge-wide mode changes before a DSA
++	 * member can apply them to its hardware.
++	 */
++	pb->switchdev_blocking_nb.priority = 1;
+ 	ret = register_switchdev_blocking_notifier(&pb->switchdev_blocking_nb);
+ 	if (ret)
+ 		goto err_switchdev_nb;
+--- a/Documentation/networking/qualcomm-ppe-offload.rst
++++ b/Documentation/networking/qualcomm-ppe-offload.rst
+@@ -106,7 +106,9 @@
+    BR_FLOOD/BR_MCAST_FLOOD/BR_BCAST_FLOOD gate membership in the
+    per-VSI flood bitmaps.
+ 
+-VLAN-aware bridging backs each VLAN of a bridge with its own VSI.
++VLAN-aware bridging backs each 802.1Q VLAN of a bridge with its own VSI.
++PPE ports use software forwarding for other VLAN protocols. Detach
++offloaded PPE ports before changing a bridge's VLAN filtering mode.
+ Ingress VLAN translation rules, matching by port bitmap so they scale
+ with VLANs rather than ports times VLANs, assign tagged and
+ PVID-untagged packets to the VSI; per-VSI egress tag modes provide

@@ -3,7 +3,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=dsa-rtl837x
 PKG_VERSION:=20261121
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/airjinkela/rtl837x-dsa-driver.git
