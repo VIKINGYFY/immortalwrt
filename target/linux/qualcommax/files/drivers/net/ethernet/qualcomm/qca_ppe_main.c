@@ -1327,6 +1327,29 @@ static u16 ppe_fdb_vid(struct qca_ppe_priv *priv, u32 vsi)
 	return 0;
 }
 
+int ppe_fdb_replay_vlan(struct qca_ppe_priv *priv, struct dsa_port *cpu_dp,
+			const struct qca_ppe_vlan_entry *vlan)
+{
+	struct dsa_mac_addr *entry;
+	int ret;
+
+	lockdep_assert_held(&cpu_dp->addr_lists_lock);
+	lockdep_assert_held(&priv->vlan_lock);
+
+	list_for_each_entry(entry, &cpu_dp->fdbs, list) {
+		if (entry->vid != vlan->vid || entry->db.type != DSA_DB_BRIDGE ||
+		    entry->db.bridge.dev != vlan->br_dev)
+			continue;
+
+		ret = ppe_fdb_op(priv, entry->addr, cpu_dp->index, vlan->vsi,
+				 PPE_FDB_OP_ADD);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
 /* A trunk is named in the destination field of an ordinary entry, so a LAG's
  * addresses differ from a port's only in the value written there.
  */
@@ -1340,10 +1363,19 @@ static int ppe_fdb_set(struct dsa_switch *ds, int dst,
 	guard(mutex)(&priv->vlan_lock);
 
 	vsi = ppe_fdb_vsi(priv, vid, db);
-	if (vsi == PPE_VSI_INVALID)
-		return op_type == PPE_FDB_OP_DEL ? 0 : -EOPNOTSUPP;
+	if (vsi != PPE_VSI_INVALID)
+		return ppe_fdb_op(priv, addr, dst, vsi, op_type);
+	if (op_type == PPE_FDB_OP_DEL)
+		return 0;
 
-	return ppe_fdb_op(priv, addr, dst, vsi, op_type);
+	/* Bridge replay can deliver a host FDB before the first port acquires
+	 * this VLAN. Let DSA retain its reference so VLAN setup can replay it.
+	 */
+	if (dst == QCA_PPE_CPU_PORT && vid && db.type == DSA_DB_BRIDGE &&
+	    bridge_vsi_find(priv, db.bridge.dev))
+		return 0;
+
+	return -EOPNOTSUPP;
 }
 
 static int qca_ppe_port_fdb_add(struct dsa_switch *ds, int port,
