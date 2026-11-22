@@ -403,6 +403,7 @@ struct rtpcs_serdes {
 	u8 id;
 	u8 num_of_links;
 	bool first_start;
+	bool config_failed;
 };
 
 struct rtpcs_ctrl {
@@ -3151,6 +3152,8 @@ static int rtpcs_930x_sds_config_attachment(struct rtpcs_serdes *sds,
 
 static int rtpcs_930x_sds_post_config(struct rtpcs_serdes *sds, enum rtpcs_sds_mode hw_mode)
 {
+	bool single_usxgmii = hw_mode == RTPCS_SDS_MODE_USXGMII &&
+			       sds->usxgmii_submode == RTPCS_SDS_USXGMII_SM_10GSXGMII;
 	int attempt, ret;
 
 	if (hw_mode == RTPCS_SDS_MODE_QSGMII)
@@ -3164,6 +3167,17 @@ static int rtpcs_930x_sds_post_config(struct rtpcs_serdes *sds, enum rtpcs_sds_m
 		rtpcs_930x_sds_do_rx_calibration(sds, hw_mode);
 		msleep(50);
 		ret = rtpcs_930x_sds_check_calibration(sds, hw_mode);
+		if (ret > 0 && single_usxgmii) {
+			/* Give the PHY link time to settle after RX adaptation
+			 * before running the SerDes calibration again.
+			 */
+			msleep(200);
+			ret = rtpcs_930x_sds_check_calibration(sds, hw_mode);
+			if (!ret)
+				dev_info(sds->ctrl->dev,
+					 "SerDes %u: RX calibration passed on recheck\n",
+					 sds->id);
+		}
 		if (ret <= 0)
 			return ret;
 	}
@@ -4271,7 +4285,10 @@ static int rtpcs_pcs_config(struct phylink_pcs *pcs, unsigned int neg_mode,
 	}
 
 	scoped_guard(mutex, &ctrl->lock) {
-		if (sds->hw_mode != hw_mode || sds->usxgmii_submode != submode) {
+		if (sds->config_failed || sds->hw_mode != hw_mode ||
+		    sds->usxgmii_submode != submode) {
+			sds->config_failed = true;
+
 			ret = rtpcs_sds_config_polarity(sds, interface);
 			if (ret < 0) {
 				dev_err(ctrl->dev, "failed to configure polarity of SerDes %u\n",
@@ -4317,6 +4334,7 @@ static int rtpcs_pcs_config(struct phylink_pcs *pcs, unsigned int neg_mode,
 			}
 
 			sds->first_start = false;
+			sds->config_failed = false;
 
 			dev_info(ctrl->dev, "SerDes %u configured for %s mode\n",
 				 sds->id, phy_modes(interface));

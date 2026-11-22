@@ -2,8 +2,8 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=rtl9303-spi
-PKG_VERSION:=20261011
-PKG_RELEASE:=2
+PKG_VERSION:=20261122
+PKG_RELEASE:=1
 PKG_LICENSE:=GPL-2.0-only
 PKG_BUILD_PARALLEL:=1
 include $(INCLUDE_DIR)/package.mk
