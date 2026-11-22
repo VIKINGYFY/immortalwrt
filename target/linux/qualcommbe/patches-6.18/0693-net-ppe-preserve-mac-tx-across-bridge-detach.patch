@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -896,8 +896,9 @@
+@@ -896,8 +896,9 @@ static void ppe_bridge_port_quarantine(s
  			ppe_bridge_vsi_quarantine(pb, vsi, err);
  }
  
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   */
  static void ppe_bridge_port_detach(struct ppe_bridge *pb,
  				   struct net_device *dev, bool offloaded)
-@@ -908,8 +909,8 @@
+@@ -908,8 +909,8 @@ static void ppe_bridge_port_detach(struc
  	bool vlan_aware = p->vsi < 0;
  	int err, ret, i;
  
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ppe_port_bridge_learning_set(ppe_dev, port, false);
  	if (!err)
  		err = ret;
-@@ -1042,14 +1043,6 @@
+@@ -1042,14 +1043,6 @@ static int ppe_bridge_port_join(struct p
  			goto err_detach;
  	}
  
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_bridge_port_offload_mark_set(dev, true);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -2205,28 +2205,6 @@
+@@ -2205,28 +2205,6 @@ int ppe_eg_xlt_rule_clear(struct ppe_dev
  }
  
  /**
@@ -84,7 +84,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @port: PPE port to configure
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -368,8 +368,6 @@
+@@ -368,8 +368,6 @@ int ppe_eg_xlt_rule_set(struct ppe_devic
  			unsigned int port_bitmap, int svid, int cvid,
  			int vsi, bool add_svid, bool add_cvid);
  int ppe_eg_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
@@ -95,7 +95,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ppe_port_shaper_set(struct ppe_device *ppe_dev, int port, u64 rate,
 --- a/Documentation/networking/qualcomm-ppe-offload.rst
 +++ b/Documentation/networking/qualcomm-ppe-offload.rst
-@@ -73,10 +73,12 @@
+@@ -73,10 +73,12 @@ cores, which OpenWrt leaves idle - so wi
  L2 bridge offload
  -----------------
  

@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3434,6 +3434,12 @@
+@@ -3434,6 +3434,12 @@ static int hostapd_config_fill(struct ho
  			return 1;
  		}
  		conf->acs_freq_list_present = 1;
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (os_strcmp(buf, "enable_background_radar") == 0) {
 --- a/src/ap/acs.c
 +++ b/src/ap/acs.c
-@@ -840,6 +840,27 @@
+@@ -840,6 +840,27 @@ acs_usable_bw320_chan(struct hostapd_ifa
  }
  
  
@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void
  acs_find_ideal_chan_mode(struct hostapd_iface *iface,
  			 struct hostapd_hw_modes *mode,
-@@ -851,7 +872,7 @@
+@@ -851,7 +872,7 @@ acs_find_ideal_chan_mode(struct hostapd_
  	struct hostapd_channel_data *chan, *adj_chan = NULL,
  		*chan2 = NULL, *best;
  	long double factor;
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int bw320_offset = 0, ideal_bw320_offset = 0;
  	unsigned int k;
  	int secondary_channel = 1, freq_offset;
-@@ -868,6 +889,10 @@
+@@ -868,6 +889,10 @@ acs_find_ideal_chan_mode(struct hostapd_
  
  		chan = &mode->channels[i];
  
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* HT40 on 5 GHz has a limited set of primary channels as per
  		 * 11n Annex J */
  		if (bw == 40 &&
-@@ -1508,6 +1533,9 @@
+@@ -1508,6 +1533,9 @@ static int * acs_request_scan_add_freqs(
  		     iface->conf->acs_exclude_dfs))
  			continue;
  
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/ap_config.c
 +++ b/src/ap/ap_config.c
-@@ -1068,6 +1068,7 @@
+@@ -1068,6 +1068,7 @@ void hostapd_config_free(struct hostapd_
  	os_free(conf->bss);
  	os_free(conf->acs_ch_list.range);
  	os_free(conf->acs_freq_list.range);
@@ -96,7 +96,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	os_free(conf->acs_chan_bias);
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1148,6 +1148,7 @@
+@@ -1148,6 +1148,7 @@ struct hostapd_config {
  	u8 acs;
  	struct wpa_freq_range_list acs_ch_list;
  	struct wpa_freq_range_list acs_freq_list;

@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/linux/if_bridge.h
 +++ b/include/linux/if_bridge.h
-@@ -113,6 +113,9 @@
+@@ -113,6 +113,9 @@ static inline bool br_multicast_router(c
  
  #if IS_ENABLED(CONFIG_BRIDGE) && IS_ENABLED(CONFIG_BRIDGE_VLAN_FILTERING)
  bool br_vlan_enabled(const struct net_device *dev);
@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int br_vlan_get_pvid(const struct net_device *dev, u16 *p_pvid);
  int br_vlan_get_pvid_rcu(const struct net_device *dev, u16 *p_pvid);
  int br_vlan_get_proto(const struct net_device *dev, u16 *p_proto);
-@@ -124,6 +127,18 @@
+@@ -124,6 +127,18 @@ bool br_mst_enabled(const struct net_dev
  int br_mst_get_info(const struct net_device *dev, u16 msti, unsigned long *vids);
  int br_mst_get_state(const struct net_device *dev, u16 msti, u8 *state);
  #else
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return false;
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -450,6 +450,9 @@
+@@ -450,6 +450,9 @@ struct dsa_switch {
  	 */
  	u32			fdb_isolation:1;
  
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 */
 --- a/net/bridge/br_vlan.c
 +++ b/net/bridge/br_vlan.c
-@@ -927,6 +927,41 @@
+@@ -927,6 +927,41 @@ bool br_vlan_enabled(const struct net_de
  }
  EXPORT_SYMBOL_GPL(br_vlan_enabled);
  
@@ -99,7 +99,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct net_bridge *br = netdev_priv(dev);
 --- a/net/dsa/port.c
 +++ b/net/dsa/port.c
-@@ -368,6 +368,8 @@
+@@ -368,6 +368,8 @@ static int dsa_port_switchdev_sync_attrs
  {
  	struct net_device *brport_dev = dsa_port_to_bridge_port(dp);
  	struct net_device *br = dsa_port_bridge_dev_get(dp);
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int err;
  
  	err = dsa_port_inherit_brport_flags(dp, extack);
-@@ -378,7 +380,15 @@
+@@ -378,7 +380,15 @@ static int dsa_port_switchdev_sync_attrs
  	if (err && err != -EOPNOTSUPP)
  		return err;
  
@@ -125,7 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (err && err != -EOPNOTSUPP)
  		return err;
  
-@@ -484,6 +494,72 @@
+@@ -484,6 +494,72 @@ static bool dsa_port_supports_mst(struct
  		dsa_port_can_configure_learning(dp);
  }
  
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int dsa_port_bridge_join(struct dsa_port *dp, struct net_device *br,
  			 struct netlink_ext_ack *extack)
  {
-@@ -498,6 +574,10 @@
+@@ -498,6 +574,10 @@ int dsa_port_bridge_join(struct dsa_port
  	if (br_mst_enabled(br) && !dsa_port_supports_mst(dp))
  		return -EOPNOTSUPP;
  
@@ -209,7 +209,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Here the interface is already bridged. Reflect the current
  	 * configuration so that drivers can program their chips accordingly.
  	 */
-@@ -817,7 +897,7 @@
+@@ -817,7 +897,7 @@ int dsa_port_vlan_filtering(struct dsa_p
  	if (!apply)
  		return -EINVAL;
  
@@ -220,7 +220,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	err = ds->ops->port_vlan_filtering(ds, dp->index, vlan_filtering,
 --- a/net/dsa/port.h
 +++ b/net/dsa/port.h
-@@ -26,6 +26,8 @@
+@@ -26,6 +26,8 @@ int dsa_port_enable_rt(struct dsa_port *
  int dsa_port_enable(struct dsa_port *dp, struct phy_device *phy);
  void dsa_port_disable_rt(struct dsa_port *dp);
  void dsa_port_disable(struct dsa_port *dp);
@@ -231,7 +231,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void dsa_port_pre_bridge_leave(struct dsa_port *dp, struct net_device *br);
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -584,6 +584,43 @@
+@@ -584,6 +584,43 @@ static int dsa_user_ioctl(struct net_dev
  	return phylink_mii_ioctl(p->dp->pl, ifr, cmd);
  }
  
@@ -275,7 +275,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int dsa_user_port_attr_set(struct net_device *dev, const void *ctx,
  				  const struct switchdev_attr *attr,
  				  struct netlink_ext_ack *extack)
-@@ -719,6 +756,10 @@
+@@ -719,6 +756,10 @@ static int dsa_user_vlan_add(struct net_
  		}
  	}
  
@@ -286,7 +286,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return dsa_port_vlan_add(dp, vlan, extack);
  }
  
-@@ -731,6 +772,7 @@
+@@ -731,6 +772,7 @@ static int dsa_user_host_vlan_add(struct
  {
  	struct dsa_port *dp = dsa_user_to_port(dev);
  	struct switchdev_obj_port_vlan vlan;
@@ -294,7 +294,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Do nothing if this is a software bridge */
  	if (!dp->bridge)
-@@ -742,6 +784,10 @@
+@@ -742,6 +784,10 @@ static int dsa_user_host_vlan_add(struct
  	}
  
  	vlan = *SWITCHDEV_OBJ_PORT_VLAN(obj);
@@ -305,7 +305,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Even though drivers often handle CPU membership in special ways,
  	 * it doesn't make sense to program a PVID, so clear this flag.
-@@ -1836,6 +1882,13 @@
+@@ -1836,6 +1882,13 @@ static int dsa_user_vlan_rx_add_vid(stru
  	struct dsa_vlan *v;
  	int ret;
  
@@ -319,7 +319,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* User port... */
  	ret = dsa_port_vlan_add(dp, &vlan, &extack);
  	if (ret) {
-@@ -4115,6 +4168,7 @@
+@@ -4115,6 +4168,7 @@ static int dsa_user_switchdev_blocking_e
  					     unsigned long event, void *ptr)
  {
  	struct net_device *dev = switchdev_notifier_info_to_dev(ptr);
@@ -327,7 +327,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int err;
  
  	switch (event) {
-@@ -4131,6 +4185,16 @@
+@@ -4131,6 +4185,16 @@ static int dsa_user_switchdev_blocking_e
  							    dsa_user_port_obj_del);
  		return notifier_from_errno(err);
  	case SWITCHDEV_PORT_ATTR_SET:

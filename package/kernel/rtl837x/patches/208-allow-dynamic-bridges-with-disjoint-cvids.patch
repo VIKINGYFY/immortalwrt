@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/rtl837x_mdio.c
 +++ b/src/rtl837x_mdio.c
-@@ -254,6 +254,7 @@
+@@ -254,6 +254,7 @@ static int rtl837x_mdio_probe(struct mdi
  
  	priv->ds->phys_mii_mask = GENMASK(7, 4);
  	priv->ds->configure_vlan_while_not_filtering = true;
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "rtl837x_vlan.h"
  
  #define RTL837X_VLAN_PORT_EGR_KEEP_ADDR(_p)                      (0x6728 + (((_p / 3) << 2)))
-@@ -664,22 +665,11 @@
+@@ -664,22 +665,11 @@ int rtl837x_port_bridge_join(struct dsa_
  			    struct netlink_ext_ack *extack)
  {
  	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_lock(&gsw->lock);
  	ret = rtl837x_update_bridge(gsw);
  	mutex_unlock(&gsw->lock);
-@@ -729,7 +719,10 @@
+@@ -729,7 +719,10 @@ void rtl837x_port_bridge_leave(struct ds
  static int __rtl837x_port_vlan_filtering(struct dsa_switch *ds, int port, bool vlan_filtering, struct netlink_ext_ack *extack)
  {
  	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	const char *phase = "filtering";
  	int ret;
  
-@@ -743,11 +736,28 @@
+@@ -743,11 +736,28 @@ static int __rtl837x_port_vlan_filtering
  		next.row.mbr |= BIT(port) | BIT(gsw->cpu_port);
  		next.row.untag |= BIT(port);
  		next.row.untag &= ~BIT(gsw->cpu_port);
@@ -97,7 +97,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	next.keep = rtl837x_cpu_keep(gsw, port, vlan_filtering);
  	ret = rtl837x_vlan_set(gsw->priv, 1, &next.row);
  	if (ret)
-@@ -767,6 +777,10 @@
+@@ -767,6 +777,10 @@ static int __rtl837x_port_vlan_filtering
  	ret = rtl837x_vlan_verify(gsw, &next);
  	if (ret)
  		goto failed;
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  
  failed:
-@@ -820,6 +834,7 @@
+@@ -820,6 +834,7 @@ static int __rtl837x_port_vlan_del(struc
  {
  	struct rtl837x_local *gsw = ((struct realtek_priv *)ds->priv)->local;
  	u16 vid = vlan->vid;
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!rtl837x_valid_port(gsw, port))
  		return -EINVAL;
-@@ -830,7 +845,16 @@
+@@ -830,7 +845,16 @@ static int __rtl837x_port_vlan_del(struc
  	if (vid_is_dsa_8021q(vid)) {
  		return -EBUSY;
  	}

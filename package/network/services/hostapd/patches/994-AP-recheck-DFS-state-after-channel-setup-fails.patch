@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include "crypto/crypto.h"
  
  
-@@ -970,6 +971,35 @@
+@@ -970,6 +971,35 @@ int hostapd_handle_dfs(struct hostapd_if
  }
  
  
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			     int ht_enabled, int chan_offset, int chan_width,
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -4178,6 +4178,7 @@
+@@ -4178,6 +4178,7 @@ static int hostapd_setup_interface_compl
  	u8 *prev_addr;
  	int delay_apply_cfg = 0;
  	int res_dfs_offload = 0;
@@ -75,7 +75,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (err)
  		goto fail;
-@@ -4258,8 +4259,9 @@
+@@ -4258,8 +4259,9 @@ static int hostapd_setup_interface_compl
  		}
  #endif /* CONFIG_IEEE80211AX */
  
@@ -87,7 +87,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				     hapd->iconf->channel,
  				     hapd->iconf->enable_edmg,
  				     hapd->iconf->edmg_channel,
-@@ -4272,7 +4274,13 @@
+@@ -4272,7 +4274,13 @@ static int hostapd_setup_interface_compl
  				     hostapd_get_oper_centr_freq_seg0_idx(
  					     hapd->iconf),
  				     hostapd_get_oper_centr_freq_seg1_idx(
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			goto fail;
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -6366,7 +6366,7 @@
+@@ -6366,7 +6366,7 @@ static int nl80211_set_channel(struct i8
  		   "(freq=%d): %d (%s)", bss->ifname,
  		   set_chan ? "SET_CHANNEL" : "SET_WIPHY",
  		   freq->freq, ret, strerror(-ret));

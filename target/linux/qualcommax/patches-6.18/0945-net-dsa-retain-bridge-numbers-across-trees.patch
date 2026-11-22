@@ -14,7 +14,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/net/dsa/dsa.c
 +++ b/net/dsa/dsa.c
-@@ -36,8 +36,11 @@
+@@ -36,8 +36,11 @@ LIST_HEAD(dsa_tree_list);
  
  static struct workqueue_struct *dsa_owq;
  
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  bool dsa_schedule_work(struct work_struct *work)
  {
-@@ -126,55 +129,56 @@
+@@ -126,55 +129,56 @@ struct dsa_bridge *dsa_tree_bridge_find(
  	return NULL;
  }
  
@@ -119,7 +119,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct dsa_switch *dsa_switch_find(int tree_index, int sw_index)
 --- a/net/dsa/port.c
 +++ b/net/dsa/port.c
-@@ -436,6 +436,13 @@
+@@ -436,6 +436,13 @@ static int dsa_port_bridge_create(struct
  
  	bridge = dsa_tree_bridge_find(ds->dst, br);
  	if (bridge) {

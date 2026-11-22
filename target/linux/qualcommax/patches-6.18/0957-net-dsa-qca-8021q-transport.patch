@@ -574,7 +574,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  module_dsa_tag_drivers(dsa_tag_driver_array);
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -4133,6 +4133,47 @@ static int dsa_user_switchdev_event(stru
+@@ -4186,6 +4186,47 @@ static int dsa_user_switchdev_event(stru
  	return NOTIFY_OK;
  }
  
@@ -622,7 +622,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int dsa_user_switchdev_blocking_event(struct notifier_block *unused,
  					     unsigned long event, void *ptr)
  {
-@@ -4145,12 +4186,16 @@ static int dsa_user_switchdev_blocking_e
+@@ -4199,12 +4240,16 @@ static int dsa_user_switchdev_blocking_e
  							    dsa_user_dev_check,
  							    dsa_foreign_dev_check,
  							    dsa_user_port_obj_add);
@@ -638,4 +638,4 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			err = dsa_user_foreign_tree_vlan(dev, ptr, false);
  		return notifier_from_errno(err);
  	case SWITCHDEV_PORT_ATTR_SET:
- 		err = switchdev_handle_port_attr_set(dev, ptr,
+ 		info = ptr;

@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 * then the option would get removed), but it is unknown whether this
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -618,7 +618,15 @@ static int dsa_user_port_attr_set(struct
+@@ -655,7 +655,15 @@ static int dsa_user_port_attr_set(struct
  		if (!dsa_port_offloads_bridge_dev(dp, attr->orig_dev))
  			return -EOPNOTSUPP;
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
  	case SWITCHDEV_ATTR_ID_BRIDGE_MC_DISABLED:
  		if ((!dsa_port_offloads_bridge_dev(dp, attr->orig_dev) &&
-@@ -1865,6 +1873,9 @@ static int dsa_user_vlan_rx_add_vid(stru
+@@ -1918,6 +1926,9 @@ static int dsa_user_vlan_rx_add_vid(stru
  		if (extack._msg)
  			netdev_err(dev, "CPU port %d: %s\n", dp->cpu_dp->index,
  				   extack._msg);
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -2016,8 +2027,16 @@ static int dsa_user_clear_vlan(struct ne
+@@ -2069,8 +2080,16 @@ static int dsa_user_clear_vlan(struct ne
  int dsa_user_manage_vlan_filtering(struct net_device *user,
  				   bool vlan_filtering)
  {
@@ -74,7 +74,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (vlan_filtering) {
  		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
  
-@@ -2884,7 +2903,8 @@ void dsa_user_setup_tagger(struct net_de
+@@ -2937,7 +2956,8 @@ void dsa_user_setup_tagger(struct net_de
  	    cpu_dp->tag_ops->needed_tailroom)
  		user->features &= ~(NETIF_F_HW_VLAN_CTAG_TX |
  				    NETIF_F_HW_VLAN_STAG_TX);

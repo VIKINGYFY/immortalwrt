@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define RTL837X_MAC_MAX_LEN_MAX                         0x3FFF
  
  /* Energy Efficient Ethernet control and status */
-@@ -502,16 +503,6 @@
+@@ -502,16 +503,6 @@ static const struct rtl837x_chip_info rt
  	},
  };
  
@@ -34,7 +34,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int rtl837x_get_chip_info(struct realtek_priv *priv,
  				 const struct rtl837x_chip_info **chip_info)
  {
-@@ -1470,15 +1461,22 @@
+@@ -1470,15 +1461,22 @@ static int rtl8372n_port_change_mtu(stru
  {
  	struct realtek_priv *priv = ds->priv;
  	u32 length = mtu + ETH_HLEN + 2 * VLAN_HLEN + ETH_FCS_LEN;
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int rtl8372n_port_pre_bridge_flags(struct dsa_switch *ds, int port,
-@@ -1673,7 +1671,7 @@
+@@ -1673,7 +1671,7 @@ rtl8372n_port_fdb_dump(struct dsa_switch
  		if (entry.addr < i)
  			break;
  		/* We need to hide the dsa_8021q VLANs from the user. */
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			entry.uc.key.vid_fid = 0;
  		ret = cb(entry.uc.key.mac_addr, entry.uc.key.vid_fid, entry.uc.is_static,
  			 data);
-@@ -2366,13 +2364,7 @@
+@@ -2366,13 +2364,7 @@ static int rtl8372n_setup(struct dsa_swi
  		return ret;
  
  	rtnl_lock();

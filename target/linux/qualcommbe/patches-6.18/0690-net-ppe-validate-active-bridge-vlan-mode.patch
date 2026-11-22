@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -762,8 +762,15 @@
+@@ -762,8 +762,15 @@ static int ppe_bridge_port_join(struct p
  	bool vlan_aware = br_vlan_enabled(br);
  	int port = ppe_bridge_port_id(dev);
  	int vsi = -1, ret;
@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* Failure to back the bridge with a VSI is not an
  		 * error, the bridge stays a software bridge for all
  		 * its ports.
-@@ -1331,6 +1338,7 @@
+@@ -1331,6 +1338,7 @@ static int ppe_bridge_attr_set(struct ne
  	struct edma_port_priv *port_priv = netdev_priv(dev);
  	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
  	int port = ppe_bridge_port_id(dev);
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!pb->ports[port].bridge)
  		return -EOPNOTSUPP;
-@@ -1353,10 +1361,24 @@
+@@ -1353,10 +1361,24 @@ static int ppe_bridge_attr_set(struct ne
  		return ppe_bridge_ageing_time_set(pb, dev,
  						  attr->u.ageing_time);
  	case SWITCHDEV_ATTR_ID_BRIDGE_VLAN_FILTERING:
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -1677,6 +1699,10 @@
+@@ -1677,6 +1699,10 @@ int ppe_bridge_setup(struct ppe_device *
  		goto err_netdev_nb;
  
  	pb->switchdev_blocking_nb.notifier_call = ppe_bridge_switchdev_blocking_event;
@@ -82,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto err_switchdev_nb;
 --- a/Documentation/networking/qualcomm-ppe-offload.rst
 +++ b/Documentation/networking/qualcomm-ppe-offload.rst
-@@ -106,7 +106,9 @@
+@@ -106,7 +106,9 @@ selects each destination and EDMA sends
     BR_FLOOD/BR_MCAST_FLOOD/BR_BCAST_FLOOD gate membership in the
     per-VSI flood bitmaps.
  

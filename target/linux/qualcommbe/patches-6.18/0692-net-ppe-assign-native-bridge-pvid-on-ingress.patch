@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
-@@ -399,10 +399,11 @@
+@@ -399,10 +399,11 @@ static int ppe_bridge_vsi_xlt_update(str
  	struct {
  		unsigned int bitmap;
  		int vid;
@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	};
  	int i, idx, ret;
  
-@@ -445,7 +446,7 @@
+@@ -445,7 +446,7 @@ static int ppe_bridge_vsi_xlt_update(str
  
  		ret = ppe_ing_xlt_rule_set(pb->ppe_dev, idx, rules[i].bitmap,
  					   false, -1, rules[i].vid, vsi,
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1770,8 +1770,8 @@
+@@ -1770,8 +1770,8 @@ int ppe_vsi_eg_mode_set(struct ppe_devic
   * @vid: VLAN ID assigned to packets received untagged, negative value
   * to assign none
   *
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * Return: 0 on success, negative error code on failure.
   */
-@@ -1861,6 +1861,7 @@
+@@ -1861,6 +1861,7 @@ static int ppe_xlt_write_verify(struct p
   * @vsi: VSI assigned to the matching packets
   * @strip_svid: Delete the matched S-VLAN tag after classification
   * @strip_cvid: Delete the matched C-VLAN tag after classification
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   *
   * The rule independently matches the provider and customer VLAN slots.
   * This permits an 802.1ad DSA source tag to coexist with one ordinary
-@@ -1870,7 +1871,7 @@
+@@ -1870,7 +1871,7 @@ static int ppe_xlt_write_verify(struct p
   */
  int ppe_ing_xlt_rule_set(struct ppe_device *ppe_dev, int index,
  			 unsigned int port_value, bool is_vp, int svid, int cvid,
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	u32 rule[4] = {}, action[3] = {};
  	u32 count[3] = {};
-@@ -1886,7 +1887,9 @@
+@@ -1886,7 +1887,9 @@ int ppe_ing_xlt_rule_set(struct ppe_devi
  		       port_value >= PPE_VP_PORT_BASE + PPE_VP_SLOTS)) ||
  	    vsi < 0 || vsi >= PPE_VSI_TBL_ENTRIES ||
  	    svid < -1 || svid > VLAN_VID_MASK ||
@@ -80,7 +80,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EINVAL;
  
  	/* Withdraw and verify an old key before replacing its action.
-@@ -1916,9 +1919,14 @@
+@@ -1916,9 +1919,14 @@ int ppe_ing_xlt_rule_set(struct ppe_devi
  	if (strip_svid && svid >= 0)
  		action[0] |= FIELD_PREP(PPE_XLT_ACTION_W0_XLT_SVID_CMD,
  					PPE_XLT_VID_CMD_DELETE);
@@ -96,7 +96,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	reg = PPE_XLT_ACTION_TBL_ADDR + PPE_XLT_ACTION_TBL_INC * index;
  	ret = ppe_xlt_write_verify(ppe_dev, reg, action, ARRAY_SIZE(action));
-@@ -2126,11 +2134,11 @@
+@@ -2126,11 +2134,11 @@ int ppe_eg_xlt_rule_set(struct ppe_devic
  
  	if (add_svid)
  		action[0] |= FIELD_PREP(PPE_EG_XLT_ACTION_W0_XLT_SVID_CMD,
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* The action must be valid before the rule is made visible. */
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -359,7 +359,7 @@
+@@ -359,7 +359,7 @@ int ppe_port_vlan_egress_type_set(struct
  				  bool core);
  int ppe_ing_xlt_rule_set(struct ppe_device *ppe_dev, int index,
  			 unsigned int port_value, bool is_vp, int svid, int cvid,
@@ -123,7 +123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ppe_ing_xlt_source_vp_set(struct ppe_device *ppe_dev, int index, int vp);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -1601,7 +1601,7 @@
+@@ -1601,7 +1601,7 @@ static int ppe_ft_vlan_port_get(struct p
  	ret = ppe_ing_xlt_rule_set(ft->ppe_dev, ppe_ft_vlan_port_xlt(port),
  				   BIT(port), false, -1, -1,
  				   ppe_ft_vlan_port_vsi(port),
@@ -132,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		goto rollback;
  	ret = ppe_port_l3_if_set(ft->ppe_dev, port, -1);
-@@ -1784,7 +1784,7 @@
+@@ -1784,7 +1784,7 @@ static int ppe_ft_vlan_get(struct ppe_fl
  	ret = ppe_ing_xlt_rule_set(ft->ppe_dev, ppe_ft_vlan_xlt(i),
  				   is_vp ? port : BIT(port), is_vp,
  				   svid, cvid, ppe_ft_vlan_vsi(i),
@@ -161,7 +161,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define PPE_EG_BRIDGE_CONFIG_ADDR		0x20044
 --- a/Documentation/networking/qualcomm-ppe-offload.rst
 +++ b/Documentation/networking/qualcomm-ppe-offload.rst
-@@ -111,11 +111,11 @@
+@@ -111,11 +111,11 @@ VLAN-aware bridging backs each 802.1Q VL
  PPE ports use software forwarding for other VLAN protocols. Detach
  offloaded PPE ports before changing a bridge's VLAN filtering mode.
  Ingress VLAN translation rules, matching by port bitmap so they scale

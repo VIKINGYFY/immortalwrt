@@ -15,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2750,9 +2750,54 @@
+@@ -2750,9 +2750,54 @@ static void ppe_ft_flow_forget(struct pp
  	kfree_rcu(flow, rcu);
  }
  
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	int ret;
  
-@@ -2780,6 +2825,13 @@
+@@ -2780,6 +2825,13 @@ static bool ppe_ft_flow_hw_del(struct pp
  		return false;
  	}
  
@@ -85,7 +85,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ppe_flow_entry_del(ft->ppe_dev, flow->index);
  	if (!ret || ret == -ENOENT) {
  		ppe_ft_flow_owner_clear(ft, flow);
-@@ -2924,7 +2976,7 @@
+@@ -2924,7 +2976,7 @@ static int ppe_ft_flow_refresh(struct pp
  		/* The cookie now describes a different request. Withdraw
  		 * the verified old owner before installing the replacement.
  		 */
@@ -94,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return -EIO;
  		atomic_long_inc(&ft->flow_rule_replaces);
  	} else {
-@@ -4258,7 +4310,7 @@
+@@ -4258,7 +4310,7 @@ err_added_flow:
  	}
  	goto err_host;
  err_hw_flow:
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* The quarantined flow retains its next-hop reference so the
  		 * shared row cannot be released or reused underneath it.
  		 */
-@@ -4330,7 +4382,7 @@
+@@ -4330,7 +4382,7 @@ static void ppe_ft_flow_destroy_locked(s
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
  	ppe_ft_flow_count_dec(ft, flow);
  
@@ -112,7 +112,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ppe_ft_flow_deps_put(ft, flow);
  	} else {
  		ppe_ft_flow_quarantine(ft, flow);
-@@ -4378,7 +4430,7 @@
+@@ -4378,7 +4430,7 @@ static void ppe_ft_invalidate_locked(str
  				     struct ppe_ft_flow *flow)
  {
  	lockdep_assert_held(&ft->lock);
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ppe_ft_flow_forget(ft, flow);
  	} else {
  		rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
-@@ -4416,10 +4468,6 @@
+@@ -4416,10 +4468,6 @@ static int ppe_ft_flow_stats(struct ppe_
  			     struct flow_cls_offload *f)
  {
  	struct ppe_ft_flow *flow;
@@ -132,7 +132,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  
  	/* Serialize the identity read with replacement and deletion. A counter
-@@ -4433,24 +4481,10 @@
+@@ -4433,24 +4481,10 @@ static int ppe_ft_flow_stats(struct ppe_
  		return -ENOENT;
  	}
  
@@ -160,7 +160,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mutex_unlock(&ft->lock);
  		return 0;
  	}
-@@ -4473,22 +4507,7 @@
+@@ -4473,22 +4507,7 @@ static int ppe_ft_flow_stats(struct ppe_
  		return ret;
  	}
  
