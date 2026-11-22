@@ -1,7 +1,7 @@
 #!/usr/bin/ucode
 'use strict';
 import { cursor } from 'uci';
-import { readfile, open, mkdir, stat, writefile, unlink } from 'fs';
+import { readfile, open, mkdir, stat, writefile, unlink, glob, access } from 'fs';
 import { connect } from 'ubus';
 import { openlog, syslog, closelog, LOG_PID, LOG_DAEMON, LOG_DEBUG, LOG_INFO, LOG_NOTICE, LOG_WARNING, LOG_ERR } from 'log';
 import { synchronize } from '/usr/share/router-tool/auto.uc';
@@ -30,8 +30,13 @@ let stage = 'configuration lock';
 let lock;
 let committed = [];
 try {
-	lock = open('/var/lock/router-tool.lock', 'a');
+	lock = open('/var/lock/network-config.lock', 'a');
 	if (!lock || !lock.lock('x')) die('Cannot lock router tool configuration');
+	// rpcd keeps its rollback files until confirmation or timeout.
+	if (length(glob('/var/run/rpcd/snapshot-files/*'))) {
+		closelog();
+		exit(0);
+	}
 	if (stat('/etc/uci-defaults/90-router-tool-migrate'))
 		die('Router tool configuration migration is pending; complete the uci-defaults script first');
 	// LuCI uses session-specific deltas. Also avoid consuming unapplied CLI edits.
@@ -112,6 +117,18 @@ try {
 	}
 	else {
 		unlink('/var/run/router-tool-log-wireless-pending');
+		let unplanned;
+		uci.foreach('wireless', 'wifi-device', radio => {
+			if (uci.get('router-tool', radio['.name'], 'defaults_done') != '1') unplanned = true;
+		});
+		// The first network event can occur after the configured regulatory
+		// domain takes effect, later than the board snapshot from PHY discovery.
+		if (unplanned && access('/usr/share/hostap/wifi-detect.uc', 'x')) {
+			if (system([ 'ucode', '/usr/share/hostap/wifi-detect.uc' ]))
+				log_once(LOG_WARNING, 'wireless-discovery', 'Could not refresh wireless capabilities');
+			else
+				unlink('/var/run/router-tool-log-wireless-discovery');
+		}
 		let board = null;
 		let text = readfile('/etc/board.json');
 		try {

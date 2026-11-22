@@ -1,4 +1,5 @@
 // Project defaults for untouched APs. The caller owns the UCI transaction.
+import { access } from "fs";
 function array(value) {
 	if (type(value) == 'array') return value;
 	if (type(value) == 'object') {
@@ -10,65 +11,25 @@ function array(value) {
 }
 
 function capabilities(board, radio, band) {
-	for (let name, phy in board?.wlan || {}) {
-		if (!(radio.phy && name == radio.phy) &&
-			!(radio.path && index(array(phy.path), radio.path) >= 0)) continue;
-		let info = phy.info;
-		let caps = info?.bands?.[band];
-		if (type(caps) != 'object') continue;
-		let default_channel = caps.default_channel, radio_caps;
-		if (radio.radio != null && '' + radio.radio != '' && type(info.radios) == 'array') {
-			radio_caps = filter(info.radios, entry => '' + entry.index == '' + radio.radio)[0];
-			if (type(radio_caps?.bands?.[band]) != 'object') return null;
-			default_channel = radio_caps.bands[band].default_channel ?? default_channel;
-		}
-		let modes = array(caps.modes);
-		if (!length(modes)) return null;
-		let width = match('' + caps.max_width, /^\d+$/) ? int(caps.max_width) : 20;
-		// Older wifi-scripts reports max_width=160 even with EHT320.
-		if (band == '6G' && index(modes, 'EHT320') >= 0) width = 320;
-		if (band != '6G') width = min(width, 160);
-		let radio_band = radio_caps?.bands?.[band];
-		if (type(radio_band?.modes) == 'array')
-			modes = filter(modes, mode => index(radio_band.modes, mode) >= 0);
-		if (match('' + radio_band?.max_width, /^\d+$/))
-			width = min(width, int(radio_band.max_width));
-		// A shared wiphy can advertise widths its narrower radio cannot fit.
-		let limits = { '2G': [ 2400000, 2500000 ], '5G': [ 4900000, 5925000 ], '6G': [ 5925000, 7125000 ] }[band];
-		let span = 0;
-		for (let range in radio_caps?.freq_ranges || []) {
-			if (type(range) != 'array' || length(range) != 2) continue;
-			span = max(span, min(range[1], limits[1]) - max(range[0], limits[0]));
-		}
-		if (span > 0) width = min(width, int(span / 1000));
-		let blocks = (radio_band ?? caps).channel_blocks;
-		let factory_width = band == '2G' ? 20 : min(int(caps.max_width || 20), 80);
-		let factory_mode = filter([ 'EHT', 'HE', 'VHT', 'HT' ], mode => caps[lc(mode)])[0];
-		let factory_htmode = factory_mode ? factory_mode + factory_width : 'NOHT';
-		return { modes, width, first_channel: default_channel, blocks, factory_htmode };
-	}
-	return null;
-}
-
-function channel_plan(caps, radio) {
-	for (let width in [ 320, 160, 80, 40, 20 ]) {
-		if (width > caps.width) continue;
-		for (let mode in [ 'EHT', 'HE', 'VHT', 'HT' ]) {
-			let htmode = mode + width;
-			if (index(caps.modes, htmode) < 0) continue;
-			let channels = [];
-			for (let block in caps.blocks?.[width] || []) {
-				if ((radio.acs_exclude_dfs == '1' && block.dfs) ||
-				    (radio.country3 == '0x4f' && block.indoor_only) ||
-				    ((mode == 'EHT' || mode == 'HE') && block.no_he) ||
-				    (mode == 'EHT' && block.no_eht)) continue;
-				for (let channel in block.channels)
-					if (index(channels, channel) < 0) push(channels, channel);
-			}
-			if (length(channels)) return { htmode, channels: map(channels, channel => '' + channel) };
-		}
-	}
-	return null;
+	let wlan = board.wlan;
+	let names = keys(wlan);
+	let paths = value => filter(array(value), path => type(path) == 'string' && length(path));
+	let name = radio.path && filter(names, key => length(filter(paths(wlan[key].path),
+		path => radio.path == path || substr(radio.path, -length(path) - 1) == '/' + path)))[0];
+	name ||= radio.macaddr && filter(names, key => lc(wlan[key].info?.macaddr || '') == lc(radio.macaddr))[0];
+	name ||= radio.phy;
+	let info = wlan[name]?.info;
+	let band_caps = info?.bands?.[band];
+	if (!band_caps) return null;
+	let ap = band_caps.ap || band_caps;
+	let selected = radio.radio == null || radio.radio == '' ? null :
+		filter(info.radios || [], entry => +entry.index == +radio.radio)[0]?.bands?.[band];
+	if (radio.radio != null && radio.radio != '' && length(info.radios) && !selected) return null;
+	let blocks = selected ? selected.ap_channel_blocks ?? selected.channel_blocks : ap.channel_blocks;
+	let factory_width = band == '2G' ? 20 : min(+band_caps.max_width || 20, 80);
+	let factory_mode = filter([ 'EHT', 'HE', 'VHT', 'HT' ], mode => band_caps[lc(mode)])[0];
+	return { modes: ap.modes, blocks, first_channel: selected?.default_channel ?? band_caps.default_channel,
+		factory_htmode: factory_mode ? factory_mode + factory_width : 'NOHT' };
 }
 
 function default_ssid(uci, board, suffix, custom_ssid) {
@@ -87,7 +48,11 @@ function default_ssid(uci, board, suffix, custom_ssid) {
 }
 
 export function synchronize_wireless(uci, board) {
-	if (type(board?.wlan) != 'object') return false;
+	if (type(board?.wlan) != 'object' || !length(board.wlan)) return false;
+	let channels;
+	try { channels = import('wifi.channels'); }
+	catch (error) { return false; }
+	const live_plan = access('/usr/share/schema/wireless.wifi-device.json');
 	let defaults_loaded = false, custom_ssid, custom_key;
 	let radios = [], interfaces = [], changed = {};
 	function load_defaults() {
@@ -119,12 +84,12 @@ export function synchronize_wireless(uci, board) {
 			changed[config] = true;
 		}
 	}
-	function mark_done(sid) {
+	function mark_done(sid, result) {
 		let saved = uci.get_all('router-tool', sid);
 		if (saved && saved['.type'] != 'radio') die(`Cannot store wireless defaults marker at router-tool.${sid}`);
 		if (!saved && !uci.set('router-tool', sid, 'radio')) die(`Cannot create router-tool.${sid}`);
 		if (!saved) changed['router-tool'] = true;
-		set('router-tool', sid, { defaults_done: '1' });
+		set('router-tool', sid, { defaults_done: '1', defaults_result: result });
 	}
 	for (let radio in radios) {
 		if (uci.get('router-tool', radio['.name'], 'defaults_done') == '1') continue;
@@ -133,27 +98,27 @@ export function synchronize_wireless(uci, board) {
 		// station/mesh/WDS backhauls are explicit user configuration.
 		if (!length(attached)) continue;
 		if (length(filter(attached, iface => iface.mode != 'ap' || iface.wds == '1' || length(array(iface.device)) != 1 || iface.mlo == '1'))) {
-			mark_done(radio['.name']);
+			mark_done(radio['.name'], 'preserved');
 			continue;
 		}
 		let aps = attached;
 		if (length(filter(aps, iface => iface.ssid != 'OWRT' || iface.key != '12345678' || iface.encryption != 'psk2+ccmp'))) {
-			mark_done(radio['.name']);
+			mark_done(radio['.name'], 'preserved');
 			continue;
 		}
 		let band = { '2g': '2G', '5g': '5G', '6g': '6G' }[radio.band];
-		if (!band) { mark_done(radio['.name']); continue; }
+		if (!band) { mark_done(radio['.name'], 'preserved'); continue; }
 		let caps = capabilities(board, radio, band);
 		// PHY capabilities may arrive after the first boot event. Retry when
 		// they are available instead of permanently skipping the defaults.
 		if (!caps) continue;
-		if (length(array(radio.channels ?? radio.chanlist ?? radio.channel_list)) ||
+		if (length(radio.channels) ||
 		    (radio.channel && radio.channel != 'auto' && +radio.channel != caps.first_channel) ||
 		    (radio.htmode && radio.htmode != caps.factory_htmode)) {
-			mark_done(radio['.name']);
+			mark_done(radio['.name'], 'preserved');
 			continue;
 		}
-		let plan = channel_plan(caps, radio);
+		let plan = channels.maximum_channel_plan(caps.modes, caps.blocks, radio);
 		if (!plan) continue;
 		let suffix;
 		if (band == '2G') suffix = '2.4G';
@@ -161,10 +126,13 @@ export function synchronize_wireless(uci, board) {
 		else if (caps.first_channel >= 100) suffix = '5.8G';
 		else suffix = '5.2G';
 		load_defaults();
-		set('wireless', radio['.name'], { country: 'US', channel: 'auto', htmode: plan.htmode, channels: plan.channels });
+		set('wireless', radio['.name'], {
+			channel: 'auto', htmode: plan.htmode,
+			...(live_plan ? { auto_htmode: plan.htmode } : { channels: join(' ', plan.channels) })
+		});
 		for (let ap in aps)
 			set('wireless', ap['.name'], { ssid: default_ssid(uci, board, suffix, custom_ssid), key: custom_key, encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
-		mark_done(radio['.name']);
+		mark_done(radio['.name'], 'planned');
 	}
 	let result = keys(changed);
 	return length(result) ? result : false;

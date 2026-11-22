@@ -10,7 +10,7 @@ import { configuration, transaction, save_transaction, commit_transaction } from
 import { read_snapshot, tracked_option, section_values, option_equal, equal } from '/usr/share/router-tool/snapshot.uc';
 
 const path = '/etc/router-tool/pending.json';
-let lock = open('/var/lock/router-tool.lock', 'a');
+let lock = open('/var/lock/network-config.lock', 'a');
 if (!lock || !lock.lock('x')) die('Cannot lock router tool configuration migration');
 for (let config in [ 'network', 'dhcp', 'firewall', 'wireless', 'router-tool' ])
 	if (stat('/tmp/.uci/' + config)?.size)
@@ -57,20 +57,26 @@ uci.foreach('network', 'globals', section => {
 	for (let old, name in fields) move('network', section['.name'], old, 'main', name);
 });
 uci.foreach('wireless', 'wifi-device', radio => {
-	if (radio.router_tool_defaults_done == null) return;
-	ensure(radio['.name'], 'radio');
-	move('wireless', radio['.name'], 'router_tool_defaults_done', radio['.name'], 'defaults_done');
-});
+	const sid = radio['.name'];
+	if (radio.router_tool_defaults_done != null) {
+		ensure(sid, 'radio');
+		move('wireless', sid, 'router_tool_defaults_done', sid, 'defaults_done');
+	}
 
-// The historical generated ULA cleanup is also a one-time migration. Later
-// user-added prefixes must survive every ordinary save and interface event.
-if (uci.get('router-tool', 'main', 'ula_cleanup_done') != '1') {
-	uci.foreach('network', 'globals', section => {
-		if (section.ula_prefix != null && !uci.delete('network', section['.name'], 'ula_prefix'))
-			die('Cannot remove the initial ULA prefix');
-	});
-	if (!uci.set('router-tool', 'main', 'ula_cleanup_done', '1')) die('Cannot record ULA cleanup');
-}
+	const configured = radio.channels ?? radio.channel_list ?? radio.chanlist;
+	if (configured == null) return;
+	const text = type(configured) == 'array' ? join(' ', configured) : configured;
+	const channels = join(' ', filter(split(text, /[ ,\t]+/), entry => length(entry)));
+	if (length(channels)) {
+		if (radio.channels != channels && !uci.set('wireless', sid, 'channels', channels))
+			die(`Cannot set wireless.${sid}.channels`);
+	}
+	else if (radio.channels != null && !uci.delete('wireless', sid, 'channels'))
+		die(`Cannot remove empty wireless.${sid}.channels`);
+	for (let legacy in [ 'channel_list', 'chanlist' ])
+		if (radio[legacy] != null && !uci.delete('wireless', sid, legacy))
+			die(`Cannot remove wireless.${sid}.${legacy}`);
+});
 
 // Retire the old uplink-name restriction once, without changing manual filters
 // or teaching the regular save/interface-event paths about legacy defaults.

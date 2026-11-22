@@ -125,10 +125,11 @@ export function synchronize(uci, data, upstream4, target) {
 	}
 	if (defaults?.firewall && uci.get('router-tool', 'main', 'offload_defaults_done') != '1') {
 		let firewall = sections(uci, 'firewall', 'defaults')[0]?.['.name'] || ensure('firewall', 'defaults', 'defaults');
-		// Initialize the preset even when firewall4 ships its own defaults.
-		// The marker preserves later user choices, including LuCI "None",
-		// which removes both options.
-		set('firewall', firewall, defaults.firewall);
+		// An explicit setting on either option also describes the intended
+		// offload mode when the other option is absent.
+		if (uci.get('firewall', firewall, 'flow_offloading') == null &&
+		    uci.get('firewall', firewall, 'flow_offloading_hw') == null)
+			set('firewall', firewall, defaults.firewall);
 		set('router-tool', 'main', { offload_defaults_done: '1' });
 	}
 	if (ap) return keys(changed);

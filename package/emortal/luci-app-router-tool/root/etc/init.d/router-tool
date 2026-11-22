@@ -38,7 +38,7 @@ start_service() {
 }
 
 reload_service() {
-	local changed result plan remaining service config
+	local changed result plan remaining service config snapshot
 	changed="$(/usr/libexec/router-tool-auto)"
 	result=$?
 	plan="$(cat "$RELOAD_PLAN" 2>/dev/null)"
@@ -58,6 +58,9 @@ reload_service() {
 	save_reload_plan "$remaining" || return 1
 	[ "$result" -eq 0 ] || return "$result"
 	[ -n "$remaining" ] || return 0
+	for snapshot in /var/run/rpcd/snapshot-files/*; do
+		[ ! -f "$snapshot" ] || return 0
+	done
 	# Reloads also read the shared UCI delta directory. An older queued
 	# request must not apply edits which the helper deliberately deferred.
 	for config in network dhcp firewall router-tool; do
@@ -88,8 +91,10 @@ reload_service() {
 
 service_triggers() {
 	procd_add_reload_trigger network
+	procd_add_reload_trigger wireless
 	procd_add_reload_trigger router-tool
 	# Includes changes applied outside LuCI and a newly acquired WAN lease.
 	procd_add_raw_trigger "interface.*" 1000 /etc/init.d/router-tool reload
 	procd_add_raw_trigger "router-tool.wireless" 1000 /etc/init.d/router-tool reload
+	procd_add_raw_trigger "router-tool.apply_done" 1000 /etc/init.d/router-tool reload
 }

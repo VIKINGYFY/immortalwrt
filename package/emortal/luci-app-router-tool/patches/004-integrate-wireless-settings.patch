@@ -1,0 +1,180 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 22 Nov 2026 20:34:48 +0800
+Subject: [PATCH] luci: protect wireless drafts and consolidate radio status
+
+Track wireless form saves through the existing UCI baseline. Display the
+radio and network status once below the channel. Show current standard,
+region, and transmit power beneath the BSSID after the interface is up.
+Use the Router Tool form option for editing ACS channel restrictions.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/htdocs/luci-static/resources/view/network/wireless-router-tool.js
++++ b/htdocs/luci-static/resources/view/network/wireless-router-tool.js
+@@ -1,4 +1,5 @@
+ 'use strict';
++'require tools.router-tool as routertool';
+ 'require view';
+ 'require dom';
+ 'require poll';
+@@ -14,13 +15,6 @@
+ 
+ const isReadonlyView = !L.hasViewPermission();
+ 
+-function count_changes(section_id) {
+-	const changes = ui.changes.changes?.wireless;
+-	if (!Array.isArray(changes)) return 0;
+-
+-	return changes.reduce((count, [, id]) => count + (id === section_id), 0);
+-}
+-
+ function render_radio_badge(radioDev) {
+ 	return E('span', { 'class': 'ifacebadge' }, [
+ 		E('img', { 'src': L.resource('icons/wifi%s.svg').format(radioDev.isUp() ? '' : '_disabled') }),
+@@ -120,9 +114,10 @@
+ 		radioNet.getSignal(), radioNet.getNoise(), false, radioNet.getMode());
+ }
+ 
+-function render_radio_status(radioDev, wifiNets) {
++function render_radio_status(radioDev, wifiNets, running) {
+ 	const name = radioDev.getI18n().replace(/ Wireless Controller .+$/, '');
+ 	const node = E('div', [ E('big', {}, E('strong', {}, name)), E('div') ]);
++	const up = radioDev.isUp();
+ 	let channel, frequency, bitrate;
+ 
+ 	wifiNets.forEach(wifiNet => {
+@@ -131,42 +126,33 @@
+ 		bitrate   = bitrate   ?? wifiNet.getBitRate();
+ 	});
+ 
+-	if (radioDev.isUp())
+-		L.itemlist(node.lastElementChild, [
+-			_('Channel'), `${channel || '?'} (${frequency || '?'} ${_('GHz')})`,
+-			_('Bitrate'), `${bitrate || '?'} ${_('Mbit/s')}`
+-		], ' | ');
+-	else
+-		node.lastElementChild.appendChild(E('em', _('Device is not active')));
++	L.itemlist(node.lastElementChild, [
++		_('Channel'), up ? `${channel || '?'} (${frequency || '?'} ${_('GHz')})` : '—',
++		_('Bitrate'), up ? `${bitrate || '?'} ${_('Mbit/s')}` : null
++	], up ? ' | ' : '');
++	const state = routertool.renderWirelessState(running, radioDev, wifiNets);
++	if (state) node.appendChild(state);
+ 
+ 	return node;
+ }
+ 
+-function render_network_status(radioNet) {
+-	const mode = radioNet.getActiveMode();
+-	const bssid = radioNet.getActiveBSSID();
+-	const channel = radioNet.getChannel();
+-	const disabled = (radioNet.get('disabled') == '1' || uci.get('wireless', radioNet.getWifiDeviceName(), 'disabled') == '1');
+-	const is_assoc = (bssid && bssid != '00:00:00:00:00:00' && channel && mode != 'Unknown' && !disabled);
++function render_network_status(radioNet, running) {
++	const { mode, bssid, associated, pending } = routertool.wirelessNetworkInfo(radioNet);
+ 	const is_mesh = (radioNet.getMode() == 'mesh');
+-	const changecount = count_changes(radioNet.getName());
+-	let status_text = null;
+-
+-	if (changecount)
+-		status_text = E('a', {
+-			href: '#',
+-			click: L.bind(ui.changes.displayChanges, ui.changes)
+-		}, _('Interface has %d pending changes').format(changecount));
+-	else if (!is_assoc)
+-		status_text = E('em', disabled ? _('Wireless is disabled') : _('Wireless is not associated'));
+-
+-	return L.itemlist(E('div'), [
+-		is_mesh ? _('Mesh ID') : _('SSID'), (is_mesh ? radioNet.getMeshID() : radioNet.getSSID()) ?? '?',
+-		_('Mode'),       mode,
+-		_('BSSID'),      (!changecount && is_assoc) ? bssid : null,
+-		_('Encryption'), (!changecount && is_assoc) ? radioNet.getActiveEncryption() ?? _('None') : null,
+-		'',            status_text
+-	], [ ' | ', E('br') ]);
++	const name = is_mesh ? radioNet.getMeshID() : radioNet.getSSID();
++	const node = L.itemlist(E('div'), [
++		is_mesh ? _('Mesh ID') : _('SSID'), name ?? '?',
++		_('Mode'), mode
++	], ' | ');
++	if (!pending && associated) {
++		node.appendChild(L.itemlist(E('div'), [
++			_('BSSID'), bssid,
++			_('Encryption'), radioNet.getActiveEncryption() ?? _('None')
++		], ' | '));
++		const details = routertool.renderWirelessDetails(running, radioNet);
++		if (details) node.appendChild(details);
++	}
++	return node;
+ }
+ 
+ function render_modal_status(node, radioNet) {
+@@ -611,6 +597,10 @@
+ 	},
+ 
+ 	write: function(section_id, value) {
++		const old = this.cfgvalue(section_id);
++		if (value.some((option, index) => option != old[index]))
++			uci.unset('wireless', section_id, 'auto_htmode');
++
+ 		uci.set('wireless', section_id, 'htmode', value[0] || null);
+ 
+ 		this.useBandOption ?
+@@ -708,11 +698,12 @@
+ 
+ 			if (radioDev) {
+ 				dom.content(badge, render_radio_badge(radioDev));
+-				dom.content(stat, render_radio_status(radioDev, data[2].filter(function(n) { return n.getWifiDeviceName() == radioDev.getName(); })));
++				const networks = data[2].filter(n => n.getWifiDeviceName() == section_id);
++				dom.content(stat, render_radio_status(radioDev, networks, data[5]?.[section_id]));
+ 			}
+ 			else {
+ 				dom.content(badge, render_network_badge(radioNet));
+-				dom.content(stat, render_network_status(radioNet));
++				dom.content(stat, render_network_status(radioNet, data[5]?.[radioNet.getWifiDeviceName()]));
+ 			}
+ 
+ 			if (stat.hasAttribute('restart'))
+@@ -881,6 +872,7 @@
+ 		let m, s, o;
+ 
+ 		m = new form.Map('wireless');
++		routertool.trackWireless(m);
+ 		m.chain('network');
+ 		m.chain('firewall');
+ 
+@@ -992,6 +984,7 @@
+ 		};
+ 
+ 		s.addModalOptions = function(s) {
++			routertool.trackWireless(s.map);
+ 			return network.getWifiNetwork(s.section).then(function(radioNet) {
+ 				const hwtype = uci.get('wireless', radioNet.getWifiDeviceName(), 'type');
+ 				const have_mesh = L.hasSystemFeature('hostapd', 'mesh') || L.hasSystemFeature('wpasupplicant', 'mesh');
+@@ -1031,6 +1024,8 @@
+ 					o = ss.taboption('general', CBIWifiCountryValue, 'country', _('Country Code'));
+ 					o.wifiNetwork = radioNet;
+ 
++					routertool.addAcsChannelList(ss);
++
+ 					o = ss.taboption('advanced', form.ListValue, 'cell_density', _('Coverage cell density'), _('Configures data rates based on the coverage cell density. Normal configures basic rates to 6, 12, 24 Mbps if legacy 802.11b rates are not used else to 5.5, 11 Mbps. High configures basic rates to 12, 24 Mbps if legacy 802.11b rates are not used else to the 11 Mbps rate. Very High configures 24 Mbps as the basic rate. Supported rates lower than the minimum basic rate are not offered.'));
+ 					o.value('0', _('Disabled'));
+ 					o.value('1', _('Normal'));
+@@ -2499,6 +2494,7 @@
+ 			if (this.pollFn)
+ 				poll.remove(this.pollFn);
+ 			const m2 = new form.Map('wireless');
++			routertool.trackWireless(m2);
+ 			const s2 = m2.section(form.NamedSection, '_new_');
+ 			const enc = L.isObject(bss.encryption) ? bss.encryption : null;
+ 			const is_wep = (enc && Array.isArray(enc.wep));
+@@ -2678,6 +2674,10 @@
+ 						data.push(zones);
+ 						return data;
+ 					}, network, zones))
++					.then(async data => {
++						data.push(await routertool.wirelessStatus());
++						return data;
++					})
+ 					.then(L.bind(this.poll_status, this, nodes));
+ 			}, this), 5);
+ 

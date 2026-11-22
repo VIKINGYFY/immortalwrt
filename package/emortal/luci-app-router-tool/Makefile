@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-router-tool
 PKG_VERSION:=20261122
-PKG_RELEASE:=3
+PKG_RELEASE:=16
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 PKG_LICENSE:=GPL-2.0-only
 
@@ -23,11 +23,13 @@ LUCI_NETWORK_SOURCE:=$(TOPDIR)/feeds/luci/modules/luci-mod-network
 LUCI_STATUS_SOURCE:=$(TOPDIR)/feeds/luci/modules/luci-mod-status
 LUCI_VIEW_DIR:=htdocs/luci-static/resources/view
 LUCI_NETWORK_VIEW:=$(LUCI_VIEW_DIR)/network/interfaces.js
+LUCI_WIRELESS_VIEW:=$(LUCI_VIEW_DIR)/network/wireless.js
 LUCI_STATUS_VIEW:=$(LUCI_VIEW_DIR)/status/index.js
 LUCI_PORTS_VIEW:=$(LUCI_VIEW_DIR)/status/include/29_ports.js
 LUCI_STATUS_TEMPLATE:=ucode/template/admin_status/index.ut
 ROUTER_TOOL_STATUS_TEMPLATE:=root/usr/share/ucode/luci/template/admin_status/overview-router-tool.ut
 PKG_FILE_DEPENDS:=$(LUCI_NETWORK_SOURCE)/$(LUCI_NETWORK_VIEW) \
+	$(LUCI_NETWORK_SOURCE)/$(LUCI_WIRELESS_VIEW) \
 	$(LUCI_STATUS_SOURCE)/$(LUCI_PORTS_VIEW) $(LUCI_STATUS_SOURCE)/$(LUCI_STATUS_VIEW) \
 	$(LUCI_STATUS_SOURCE)/$(LUCI_STATUS_TEMPLATE)
 
@@ -36,6 +38,7 @@ define Build/Prepare/luci-app-router-tool
 	$(INSTALL_DIR) $(PKG_BUILD_DIR)/$(LUCI_VIEW_DIR)/status
 	$(INSTALL_DIR) $(dir $(PKG_BUILD_DIR)/$(ROUTER_TOOL_STATUS_TEMPLATE))
 	$(CP) $(LUCI_NETWORK_SOURCE)/$(LUCI_NETWORK_VIEW) $(PKG_BUILD_DIR)/$(LUCI_VIEW_DIR)/network/interfaces-router-tool.js
+	$(CP) $(LUCI_NETWORK_SOURCE)/$(LUCI_WIRELESS_VIEW) $(PKG_BUILD_DIR)/$(LUCI_VIEW_DIR)/network/wireless-router-tool.js
 	$(CP) $(LUCI_STATUS_SOURCE)/$(LUCI_STATUS_VIEW) $(PKG_BUILD_DIR)/$(LUCI_VIEW_DIR)/status/index-router-tool.js
 	$(CP) $(LUCI_STATUS_SOURCE)/$(LUCI_PORTS_VIEW) $(PKG_BUILD_DIR)/$(LUCI_VIEW_DIR)/status/ports-router-tool.js
 	$(CP) $(LUCI_STATUS_SOURCE)/$(LUCI_STATUS_TEMPLATE) $(PKG_BUILD_DIR)/$(ROUTER_TOOL_STATUS_TEMPLATE)
