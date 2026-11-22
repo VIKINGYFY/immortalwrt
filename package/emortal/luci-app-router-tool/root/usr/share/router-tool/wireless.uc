@@ -41,16 +41,32 @@ function capabilities(board, radio, band) {
 			span = max(span, min(range[1], limits[1]) - max(range[0], limits[0]));
 		}
 		if (span > 0) width = min(width, int(span / 1000));
-		return { modes, width, first_channel: default_channel };
+		let blocks = (radio_band ?? caps).channel_blocks;
+		let factory_width = band == '2G' ? 20 : min(int(caps.max_width || 20), 80);
+		let factory_mode = filter([ 'EHT', 'HE', 'VHT', 'HT' ], mode => caps[lc(mode)])[0];
+		let factory_htmode = factory_mode ? factory_mode + factory_width : 'NOHT';
+		return { modes, width, first_channel: default_channel, blocks, factory_htmode };
 	}
 	return null;
 }
 
-function htmode(caps, requested) {
+function channel_plan(caps, radio) {
 	for (let width in [ 320, 160, 80, 40, 20 ]) {
-		if (width > requested || width > caps.width) continue;
-		for (let mode in [ 'EHT', 'HE', 'VHT', 'HT' ])
-			if (index(caps.modes, mode + width) >= 0) return mode + width;
+		if (width > caps.width) continue;
+		for (let mode in [ 'EHT', 'HE', 'VHT', 'HT' ]) {
+			let htmode = mode + width;
+			if (index(caps.modes, htmode) < 0) continue;
+			let channels = [];
+			for (let block in caps.blocks?.[width] || []) {
+				if ((radio.acs_exclude_dfs == '1' && block.dfs) ||
+				    (radio.country3 == '0x4f' && block.indoor_only) ||
+				    ((mode == 'EHT' || mode == 'HE') && block.no_he) ||
+				    (mode == 'EHT' && block.no_eht)) continue;
+				for (let channel in block.channels)
+					if (index(channels, channel) < 0) push(channels, channel);
+			}
+			if (length(channels)) return { htmode, channels: map(channels, channel => '' + channel) };
+		}
 	}
 	return null;
 }
@@ -131,15 +147,21 @@ export function synchronize_wireless(uci, board) {
 		// PHY capabilities may arrive after the first boot event. Retry when
 		// they are available instead of permanently skipping the defaults.
 		if (!caps) continue;
-		let suffix, width = band == '2G' ? 20 : caps.width;
+		if (length(array(radio.channels ?? radio.chanlist ?? radio.channel_list)) ||
+		    (radio.channel && radio.channel != 'auto' && +radio.channel != caps.first_channel) ||
+		    (radio.htmode && radio.htmode != caps.factory_htmode)) {
+			mark_done(radio['.name']);
+			continue;
+		}
+		let plan = channel_plan(caps, radio);
+		if (!plan) continue;
+		let suffix;
 		if (band == '2G') suffix = '2.4G';
 		else if (band == '6G') suffix = '6G';
-		else if (caps.first_channel >= 100 || caps.width == 80) suffix = '5.8G';
+		else if (caps.first_channel >= 100) suffix = '5.8G';
 		else suffix = '5.2G';
-		let mode = htmode(caps, width);
-		if (!mode) { mark_done(radio['.name']); continue; }
 		load_defaults();
-		set('wireless', radio['.name'], { country: 'US', channel: 'auto', htmode: mode });
+		set('wireless', radio['.name'], { country: 'US', channel: 'auto', htmode: plan.htmode, channels: plan.channels });
 		for (let ap in aps)
 			set('wireless', ap['.name'], { ssid: default_ssid(uci, board, suffix, custom_ssid), key: custom_key, encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
 		mark_done(radio['.name']);

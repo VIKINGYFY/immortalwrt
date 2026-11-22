@@ -19,13 +19,12 @@ is capitalized. The suffix follows the radio's capabilities (`2.4G`, `5.2G`,
 characters. A custom key must contain 8 to 63 printable ASCII characters,
 supporting both WPA2 and WPA3-SAE.
 
-The 2.4 GHz, 5 GHz, and 6 GHz radios default to automatic channel selection.
-On a wiphy with multiple radios, each radio's own band information determines
-its suffix. The 2.4 GHz default uses 20 MHz. The 5 GHz and 6 GHz defaults use
-the highest advertised width that fits the selected radio's frequency range.
-Only 6 GHz radios advertising EHT320 select it. AX and narrower radios use
-their supported maximum. A restricted 5.8 GHz radio keeps its `5.8G` suffix
-without imposing an unrelated fixed width.
+The 2.4 GHz, 5 GHz, and 6 GHz radios use automatic channel selection. Router
+Tool selects the widest supported mode that has a complete usable channel
+block on the selected PHY or radio. It stores the mode and its candidate
+channels together. An explicit width, fixed channel, or channel list is
+preserved. If usable channel information has yet to arrive, initialization
+waits for the next wireless configuration event.
 
 These settings are initialization defaults. Only unmarked, untouched APs with
 `OWRT` / `12345678` / `psk2+ccmp` are initialized. Existing custom credentials,
