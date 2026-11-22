@@ -1,11 +1,18 @@
 #!/usr/bin/env ucode
-import { readfile } from "fs";
+import { readfile, open, stat, glob } from "fs";
 import * as uci from 'uci';
 import { board_wlan } from 'wifi.utils';
 
 const bands_order = [ "60G", "6G", "5G", "2G" ];
 const htmode_order = [ "EHT", "HE", "VHT", "HT" ];
 
+let lock = open('/var/lock/network-config.lock', 'a');
+if (!lock || !lock.lock('x'))
+	die('Cannot lock wireless configuration');
+if (system([ 'ucode', '/usr/share/hostap/wifi-detect.uc' ]))
+	exit(1);
+if (length(glob('/var/run/rpcd/snapshot-files/*')) || stat('/tmp/.uci/wireless')?.size)
+	exit(0);
 let wlan = board_wlan();
 if (!wlan)
 	exit(0);
@@ -33,7 +40,21 @@ let provision_country = provision_country_get();
 let idx = 0;
 let commit;
 
-let config = uci.cursor().get_all("wireless") ?? {};
+let path = '/etc/config/wireless';
+let cfg = uci.cursor();
+if (!stat(path) && !open(path, 'a')?.close())
+	die('Cannot create wireless configuration');
+// Absolute loading excludes CLI and rpcd deltas. Further lookups find the
+// already-loaded package by its UCI name, including at commit time.
+let config = cfg.get_all(path);
+if (!config) die('Cannot read wireless configuration');
+
+function set_section(name, type_name, options) {
+	if (!cfg.set('wireless', name, type_name)) die(`Cannot create wireless.${name}`);
+	for (let key, value in options)
+		if (value != null && !cfg.set('wireless', name, key, value))
+			die(`Cannot set wireless.${name}.${key}`);
+}
 
 function radio_exists(path, macaddr, phy, radio) {
 	for (let name, s in config) {
@@ -59,12 +80,11 @@ for (let phy_name, phy in wlan) {
 
 	let radios = length(info.radios) > 0 ? info.radios : [{ bands: info.bands }];
 	for (let radio in radios) {
-		while (config[`radio${idx}`])
+		while (config[`radio${idx}`] || config[`default_radio${idx}`])
 			idx++;
 		let name = "radio" + idx;
 
-		let s = "wireless." + name;
-		let si = "wireless.default_" + name;
+		let iface = "default_" + name;
 
 		let band_name = filter(bands_order, (b) => radio.bands[b])[0];
 		if (!band_name)
@@ -93,19 +113,10 @@ for (let phy_name, phy in wlan) {
 		if (radio_exists(phy.path, macaddr, phy_name, radio.index))
 			continue;
 
-		let id = `phy='${phy_name}'`;
-		if (match(phy_name, /^phy[0-9]/))
-			id = `path='${phy.path}'`;
-
+		let id = match(phy_name, /^phy[0-9]/) ? { path: phy.path } : { phy: phy_name };
 		band_name = lc(band_name);
-
-		let country, encryption, defaults, num_global_macaddr;
-		if (band_name == '6g') {
-			country = '00';
-			encryption = 'owe';
-		} else {
-			encryption = 'none';
-		}
+		let country = band_name == '6g' ? '00' : null;
+		let defaults, num_global_macaddr;
 		if (wlan.defaults) {
 			defaults = wlan.defaults.ssids?.[band_name]?.ssid ? wlan.defaults.ssids?.[band_name] : wlan.defaults.ssids?.all;
 			country = wlan.defaults.country;
@@ -118,32 +129,21 @@ for (let phy_name, phy in wlan) {
 		if (!country && band_name != '2g')
 			defaults = null;
 
-		if (length(info.radios) > 0)
-			id += `\nset ${s}.radio='${radio.index}'`;
-
-		print(`set ${s}=wifi-device
-set ${s}.type='mac80211'
-set ${s}.${id}
-set ${s}.band='${band_name}'
-set ${s}.channel='${channel}'
-set ${s}.htmode='${htmode}'
-set ${s}.country='${country || 'CN'}'
-set ${s}.num_global_macaddr='${num_global_macaddr || ''}'
-
-set ${si}=wifi-iface
-set ${si}.device='${name}'
-set ${si}.network='lan'
-set ${si}.mode='ap'
-set ${si}.ssid='${defaults?.ssid || 'OWRT'}'
-set ${si}.encryption='${defaults?.encryption || 'psk2+ccmp'}'
-set ${si}.key='${defaults?.key || '12345678'}'
-set ${si}.disabled='0'
-
-`);
+		set_section(name, 'wifi-device', {
+			type: 'mac80211', ...id, band: band_name, channel: '' + channel,
+			htmode, country: country || 'CN',
+			radio: radio.index == null ? null : '' + radio.index,
+			num_global_macaddr: '' + (num_global_macaddr || '')
+		});
+		set_section(iface, 'wifi-iface', {
+			device: name, network: 'lan', mode: 'ap', ssid: defaults?.ssid || 'OWRT',
+			encryption: defaults?.encryption || 'psk2+ccmp',
+			key: defaults?.key || '12345678', disabled: '0'
+		});
 		config[name] = {};
 		commit = true;
 	}
 }
 
-if (commit)
-	print("commit wireless\n");
+if (commit && !cfg.commit('wireless'))
+	die('Cannot commit newly discovered radios');

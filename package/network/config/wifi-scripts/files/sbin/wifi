@@ -24,13 +24,16 @@ ubus_wifi_cmd() {
 wifi_isup() {
 	local dev="$1"
 
-	json_load "$(ubus_wifi_cmd "status" "$dev")"
+	local status
+	status="$(ubus_wifi_cmd "status" "$dev")" || return 1
+	json_load "$status" || return 1
 	json_get_keys devices
+	[ -n "$devices" ] || return 1
 
 	for device in $devices; do
 		json_select "$device"
 			json_get_var up up
-			[ $up -eq 0 ] && return 1
+			[ "$up" = 1 ] || return 1
 		json_select ..
 	done
 
@@ -62,9 +65,7 @@ wifi_detect_notice() {
 }
 
 wifi_config() {
-	ucode /usr/share/hostap/wifi-detect.uc
-	[ ! -f /etc/config/wireless ] && touch /etc/config/wireless
-	ucode /lib/wifi/mac80211.uc | uci -q batch
+	ucode /lib/wifi/mac80211.uc || return $?
 
 	for driver in $DRIVERS; do (
 		if eval "type detect_$driver" 2>/dev/null >/dev/null; then

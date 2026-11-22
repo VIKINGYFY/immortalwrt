@@ -272,6 +272,8 @@ function device_htmode_append(config) {
 					config.eht_oper_centr_freq_seg0_idx = v[1];
 					break;
 				}
+			config.eht_oper_centr_freq_seg0_idx = config.channel_plan?.center_channel ??
+				config.eht_oper_centr_freq_seg0_idx;
 			config.op_class = 137;
 			config.eht_oper_chwidth = 9;
 
@@ -625,8 +627,9 @@ export function setup(data) {
 		system('ubus wait_for hostapd');
 	let ret = global.ubus.call('hostapd', 'config_set', msg);
 
-	if (ret)
+	if (ret?.pid && ret.accepted != false) {
 		netifd.add_process('/usr/sbin/hostapd', ret.pid, true, true);
-	else
-		netifd.setup_failed('HOSTAPD_START_FAILED');
+		return true;
+	}
+	return false;
 };

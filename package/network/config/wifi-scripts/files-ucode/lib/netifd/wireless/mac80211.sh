@@ -2,13 +2,14 @@
 
 'use strict';
 
-import { set_default, log } from 'wifi.common';
+import { set_default, log, wiphy_info, wiphy_band } from 'wifi.common';
 import { validate, dump_options } from 'wifi.validate';
 import * as supplicant from 'wifi.supplicant';
 import * as hostapd from 'wifi.hostapd';
 import * as netifd from 'wifi.netifd';
 import * as iface from 'wifi.iface';
 import { find_phy } from 'wifi.utils';
+import { ap_channel_plan } from 'wifi.channels';
 import * as nl80211 from 'nl80211';
 import * as fs from 'fs';
 
@@ -70,11 +71,6 @@ function setup_phy(phy, config, data) {
 	config.channel = +config.channel;
 	config.frequency = get_channel_frequency(config.band, config.channel);
 
-	if (config.country_code) {
-		log(`Setting country code to ${config.country_code}`);
-		system(`iw reg set ${config.country_code}`);
-	}
-
 	set_default(config, 'rxantenna', 0xffffffff);
 	set_default(config, 'txantenna', 0xffffffff);
 
@@ -91,6 +87,7 @@ function setup_phy(phy, config, data) {
 	netifd.set_data({
 		phy,
 		radio: config.radio,
+		channel_plan: config.channel_plan,
 		txantenna: config.txantenna,
 		rxantenna: config.rxantenna
 	});
@@ -170,7 +167,7 @@ function setup() {
 	data.phy = find_phy(data.config, true);
 	if (!data.phy) {
 		log('Bug: PHY is undefined for device');
-		netifd.set_retry(false);
+		netifd.setup_failed('PHY_NOT_FOUND');
 		return 1;
 	}
 	data.phy_suffix = phy_suffix(data.config.radio, ":");
@@ -205,6 +202,29 @@ function setup() {
 	delete config.hwmode;
 
 	validate('device', config);
+	if (config.country_code) {
+		let country = uc(config.country_code);
+		if (!match(country, /^([A-Z]{2}|00)$/) || system([ 'iw', 'reg', 'set', country ])) {
+			netifd.setup_failed('REGULATORY_COUNTRY_FAILED');
+			return 1;
+		}
+		config.country_code = country;
+	}
+	// Shared STA/AP radios follow the supplicant's negotiated channel.
+	// Leave specialized narrow-band and raw hostapd configurations to their owners.
+	let modes = map(values(data.interfaces || {}), v => v.config.mode);
+	if (length(modes) && !length(filter(modes, mode => mode != 'ap')) &&
+	    config.band in [ '2g', '5g', '6g' ] && !config.chanbw && !length(config.hostapd_options)) {
+		let phy = wiphy_info(data.phy);
+		let plan = ap_channel_plan(phy, wiphy_band(phy, config.band), config);
+		if (plan.error) {
+			netifd.setup_failed(plan.error);
+			return 1;
+		}
+		config.htmode = plan.htmode;
+		config.chanlist = plan.channels ?? config.chanlist;
+		config.channel_plan = plan;
+	}
 	setup_phy(data.phy, data.config, data.data);
 
 	let supplicant_mesh;
@@ -303,7 +323,11 @@ function setup() {
 	if (fs.access('/usr/sbin/wpa_supplicant', 'x'))
 		supplicant.setup(supplicant_data, data);
 
-	if (fs.access('/usr/sbin/hostapd', 'x'))
+	if (has_ap && (!fs.access('/usr/sbin/hostapd', 'x') || !hostapd.setup(data))) {
+		netifd.setup_failed('HOSTAPD_START_FAILED');
+		return 1;
+	}
+	if (!has_ap && fs.access('/usr/sbin/hostapd', 'x'))
 		hostapd.setup(data);
 
 	if (length(supplicant_data) > 0)

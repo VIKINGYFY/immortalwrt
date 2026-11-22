@@ -183,6 +183,7 @@ function wdev_reset(wdev)
 	wdev.retry = DEFAULT_RETRY;
 	delete wdev.retry_setup_failed;
 	delete wdev.retry_setup_pending;
+	delete wdev.setup_error;
 }
 
 function wdev_teardown_cb(wdev)
@@ -579,6 +580,8 @@ function notify(req)
 			this.retry = data.retry;
 		else
 			this.retry = DEFAULT_RETRY;
+		if (data.error)
+			this.setup_error = data.error;
 		return 0;
 	default:
 		return ubus.STATUS_INVALID_ARGUMENT;
@@ -653,6 +656,9 @@ function status()
 		autostart: this.autostart,
 		disabled: !!this.data.config.disabled,
 		retry_setup_failed: !!this.retry_setup_failed,
+		error: this.setup_error,
+		phy: this.handler_data[this.name]?.phy,
+		channel_plan: this.handler_data[this.name]?.channel_plan,
 		config: this.data.config,
 		interfaces
 	};
