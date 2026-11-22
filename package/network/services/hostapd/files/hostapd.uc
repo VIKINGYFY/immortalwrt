@@ -375,6 +375,7 @@ function __iface_pending_next(pending, state, ret, data)
 			});
 			if (err) {
 				hostapd.printf(`Failed to create ${bss.ifname} on phy ${phy}: ${err}`);
+				hostapd.data.setup_errors[phy] = 'AP_INTERFACE_CREATE_FAILED';
 				iface_supplicant_start(phydev);
 				return null;
 			}
@@ -408,8 +409,10 @@ function __iface_pending_next(pending, state, ret, data)
 		if (iface_pending_phy_wait(pending))
 			return "wpas_stopped";
 
-		if (!iface_add(phy, config))
+		if (!iface_add(phy, config)) {
 			hostapd.printf(`hostapd.add_iface failed for phy ${phy} ifname=${bss.ifname}`);
+			hostapd.data.setup_errors[phy] = 'AP_INTERFACE_START_FAILED';
+		}
 		pending.call("wpa_supplicant", "phy_set_state", {
 			phy: phydev.phy,
 			radio: phydev.radio ?? -1,
@@ -437,6 +440,7 @@ function iface_pending_next(ret, data)
 			}
 		} catch(e) {
 			hostapd.printf(`Exception: ${e}\n${e.stacktrace[0].context}`);
+			hostapd.data.setup_errors[cfg.phy] = 'AP_SETUP_FAILED';
 			iface_supplicant_start(cfg.phydev);
 			__iface_pending_next(cfg, "done");
 			return;
@@ -519,6 +523,8 @@ function iface_link_reload_cancel(name)
 function iface_restart(phydev, config, old_config)
 {
 	let phy = phydev.name;
+	hostapd.data.setup_errors ??= {};
+	delete hostapd.data.setup_errors[phy];
 	let pending = hostapd.data.pending_config[phy];
 
 	csa_timer_cancel(phy);
@@ -543,7 +549,7 @@ function iface_restart(phydev, config, old_config)
 		hostapd.printf(`No bss for phy ${phy}`);
 		if (pending)
 			iface_supplicant_start(phydev);
-		return;
+		return false;
 	}
 
 	iface_macaddr_prune(phydev.name, config);
@@ -560,11 +566,12 @@ function iface_restart(phydev, config, old_config)
 				delete cur.bssid;
 		if (pending)
 			iface_supplicant_start(phydev);
-		return;
+		return false;
 	}
 	iface_macaddr_sync(phydev, config);
 
 	iface_pending_init(phydev, config);
+	return true;
 }
 
 function array_to_obj(arr, key, start)
@@ -2588,13 +2595,32 @@ let main_obj = {
 			let config = iface_load_config(phy, radio, file);
 
 			hostapd.printf(`Set new config for phy ${name}: ${file}`);
-			iface_set_config(name, config);
+			hostapd.data.setup_errors ??= {};
+			delete hostapd.data.setup_errors[name];
+			let accepted = (!file || config) && iface_set_config(name, config) !== false;
+			if (!accepted)
+				hostapd.data.setup_errors[name] = 'AP_CONFIG_REJECTED';
 
 			if (hostapd.data.auth_obj)
 				hostapd.data.auth_obj.notify("reload", { phy, radio });
 
 			return {
-				pid: hostapd.getpid()
+				pid: hostapd.getpid(), accepted: !!accepted
+			};
+		}
+	},
+	config_status: {
+		args: { phy: "", radio: 0 },
+		call: function(req) {
+			if (!req.args.phy)
+				return libubus.STATUS_INVALID_ARGUMENT;
+			let name = phy_name(req.args.phy, req.args.radio);
+			let iface = hostapd.interfaces[name];
+			return {
+				status: hostapd.data.apsta_stopped[name] ? "WAITING_STA" :
+					(hostapd.data.pending_config[name] || hostapd.data.link_reload[name]) ? "STARTING" :
+					iface?.state(),
+				error: hostapd.data.setup_errors?.[name],
 			};
 		}
 	},
