@@ -1,0 +1,63 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sun, 22 Nov 2026 17:41:56 +0800
+Subject: [PATCH] wifi: ath12k: attach a device-specific WLAN DMA pool
+
+IPQ5332 multi-chip firmware needs contiguous buffers inside the Q6
+WLAN_SRAM window. A boot argument such as cma=0 can disable the default
+CMA pool, leaving QMI unable to allocate shared MLO memory.
+
+Attach a named reserved DMA pool during the common AHB and PCI probe
+path. Both radios can allocate from the same pool using their own DMA
+device, so existing QMI ownership and address checks apply. Keep the
+pool attached through driver teardown. Boards without a named pool
+continue to use the normal DMA allocator.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1893,9 +1893,44 @@
+ }
+ EXPORT_SYMBOL(ath12k_core_get_memory_mode);
+ 
++static void ath12k_core_release_dma_pool(void *data)
++{
++	of_reserved_mem_device_release(data);
++}
++
++static int ath12k_core_init_dma_pool(struct ath12k_base *ab)
++{
++	struct device *dev = ab->dev;
++	struct device_node *pool;
++	bool available;
++	int index, ret;
++
++	index = of_property_match_string(dev->of_node, "memory-region-names",
++					 "wlan-dma");
++	if (index < 0)
++		return 0;
++
++	pool = of_parse_phandle(dev->of_node, "memory-region", index);
++	available = of_device_is_available(pool);
++	of_node_put(pool);
++	if (!available)
++		return dev_err_probe(dev, -ENODEV, "WLAN DMA pool is unavailable\n");
++
++	ret = of_reserved_mem_device_init_by_idx(dev, dev->of_node, index);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to attach WLAN DMA pool\n");
++
++	return devm_add_action_or_reset(dev, ath12k_core_release_dma_pool, dev);
++}
++
+ int ath12k_core_pre_init(struct ath12k_base *ab)
+ {
+ 	const struct ath12k_mem_profile_based_param *param;
++	int ret;
++
++	ret = ath12k_core_init_dma_pool(ab);
++	if (ret)
++		return ret;
+ 
+ 	param = &ath12k_mem_profile_based_param[ab->target_mem_mode];
+ 	/* Long-lived RX ring entries can pin mostly unused shared page fragments.

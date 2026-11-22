@@ -6,13 +6,12 @@
 
 / {
 	reserved-memory {
-		/* The Q6 WLAN_SRAM pool ends at 0x80000000, also with more RAM. */
-		linux,cma {
+		/* The Q6 WLAN_SRAM window ends at 0x80000000. */
+		wlan_dma: wlan-dma-pool {
 			compatible = "shared-dma-pool";
 			reusable;
 			size = <0x0 0x08000000>;
 			alloc-ranges = <0x0 0x4b240000 0x0 0x34dc0000>;
-			linux,cma-default;
 		};
 	};
 };
@@ -30,6 +29,8 @@
 		wifi1: wifi@0 {
 			compatible = "pci17cb,1109";
 			reg = <0x00000000 0 0 0 0>;
+			memory-region = <&wlan_dma>;
+			memory-region-names = "wlan-dma";
 			qcom,num-radios = <1>;
 			qcom,ath12k-fw-memory-mode = <1>;
 			qcom,rx-skb-slab;
@@ -75,8 +76,8 @@
 	status = "okay";
 
 	firmware-name = "ath12k/IPQ5332/hw1.0/q6_fw1.mdt", "ath12k/IPQ5332/hw1.0/iu_fw.mdt";
-	memory-region = <&q6_region>, <&q6_region>;
-	memory-region-names = "q6-region", "host-ddr-mem";
+	memory-region = <&q6_region>, <&q6_region>, <&wlan_dma>;
+	memory-region-names = "q6-region", "host-ddr-mem", "wlan-dma";
 	qcom,host-ddr-offset = <0x00c00000>;
 	qcom,rproc = <&q6v5_wcss>;
 	qcom,wsi-controller;
