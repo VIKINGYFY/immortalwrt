@@ -5,6 +5,7 @@
 'require uci';
 'require rpc';
 'require poll';
+'require ui';
 'require tools.widgets as widgets';
 
 const callStatus = rpc.declare({
@@ -13,7 +14,7 @@ const callStatus = rpc.declare({
 	expect: { '': {} }
 });
 
-function shaperStatus(node, status) {
+function updateShaperStatus(table, warnings, status) {
 	const errors = {
 		'invalid-configuration': _('Invalid or duplicate port configuration; existing limits were kept.'),
 		'hardware-status-unavailable': _('Hardware status is unavailable; no limit was applied.'),
@@ -37,13 +38,10 @@ function shaperStatus(node, status) {
 			p.active ? '%s kbit/s'.format(p.rate) : '—',
 			p.active ? '%s / %s'.format(p.burst, p.buffers * 256) : '—' ];
 	});
-	const table = E('table', { 'class': 'table' }, [ E('tr', { 'class': 'tr table-titles' },
-		[ _('Physical port'), _('Link'), _('Hardware status'), _('Rate'), _('Burst / hardware queue (bytes)') ]
-			.map((label) => E('th', { 'class': 'th' }, label))) ]);
-	rows.forEach((row) => table.appendChild(E('tr', { 'class': 'tr' }, row.map((value) => E('td', { 'class': 'td' }, value)))));
 	const messages = Object.entries(status.errors || {}).map(([device, error]) =>
 		E('p', { 'class': 'alert-message warning' }, '%s: %s'.format(device, errors[error] || error)));
-	node.replaceChildren(E('h3', _('Hardware status')), table, ...messages);
+	table.update(rows);
+	warnings.replaceChildren(...messages);
 }
 
 function renderShapers(status) {
@@ -83,12 +81,20 @@ function renderShapers(status) {
 			? true : _('Queue limit must be at least the burst size');
 	};
 	return m.render().then((formNode) => {
-		const live = E('div');
-		shaperStatus(live, status);
-		poll.add(() => callStatus().then((next) => shaperStatus(live, next)).catch(() => {
-			live.replaceChildren(E('p', { 'class': 'alert-message warning' }, _('Unable to read hardware status.')));
+		const table = new ui.Table([
+			_('Physical port'), _('Link'), _('Hardware status'), _('Rate'), _('Burst / hardware queue (bytes)')
+		], { id: 'qca-ppe-qos-hardware-status' });
+		const live = E('div', { 'class': 'cbi-section cbi-tblsection' }, [
+			E('h3', _('Hardware status')),
+			table.render()
+		]);
+		const warnings = E('div');
+		updateShaperStatus(table, warnings, status);
+		poll.add(() => callStatus().then((next) => updateShaperStatus(table, warnings, next)).catch(() => {
+			table.update([], E('em', _('Unable to read hardware status.')));
+			warnings.replaceChildren();
 		}), 5);
-		return E('div', [ live, formNode ]);
+		return E('div', [ live, warnings, formNode ]);
 	});
 }
 
