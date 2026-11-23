@@ -1,0 +1,25 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 23 Nov 2026 12:16:21 +0800
+Subject: [PATCH] hostapd: ucode: report interface enable failures
+
+Return the result of the synchronous enable operation to the ucode
+caller, which may need to fall back from a station-provided channel.
+An accepted enable can still complete asynchronously after ACS or CAC.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/ap/ucode.c
++++ b/src/ap/ucode.c
+@@ -851,10 +851,8 @@
+ 	if (conf->channel && !iface->freq)
+ 		iface->freq = hostapd_hw_get_freq(iface->bss[0], conf->channel);
+ 
+-	if (iface->state != HAPD_IFACE_ENABLED) {
+-		hostapd_enable_iface(iface);
+-		return ucv_boolean_new(true);
+-	}
++	if (iface->state != HAPD_IFACE_ENABLED)
++		return ucv_boolean_new(hostapd_enable_iface(iface) >= 0);
+ 
+ 	for (i = 0; i < iface->num_bss; i++) {
+ 		struct hostapd_data *hapd = iface->bss[i];

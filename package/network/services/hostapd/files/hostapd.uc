@@ -17,6 +17,7 @@ libubus.guard(ex_handler);
 
 hostapd.data.config = {};
 hostapd.data.pending_config = {};
+hostapd.data.setup_errors = {};
 hostapd.data.apsta_freq = {};
 hostapd.data.apsta_stopped = {};
 hostapd.data.link_reload = {};
@@ -207,7 +208,11 @@ function iface_add(phy, config, phy_status)
 
 	let freq_info = iface_freq_info(iface, config, phy_status);
 
-	return iface.start(freq_info) >= 0;
+	if (freq_info && iface.start(freq_info))
+		return true;
+
+	hostapd.remove_iface(phy);
+	return false;
 }
 
 function bss_macaddr_name(group, bss)
@@ -413,11 +418,7 @@ function __iface_pending_next(pending, state, ret, data)
 			hostapd.printf(`hostapd.add_iface failed for phy ${phy} ifname=${bss.ifname}`);
 			hostapd.data.setup_errors[phy] = 'AP_INTERFACE_START_FAILED';
 		}
-		pending.call("wpa_supplicant", "phy_set_state", {
-			phy: phydev.phy,
-			radio: phydev.radio ?? -1,
-			stop: false
-		});
+		iface_supplicant_start(phydev);
 		return null;
 	case "done":
 	default:
@@ -523,7 +524,6 @@ function iface_link_reload_cancel(name)
 function iface_restart(phydev, config, old_config)
 {
 	let phy = phydev.name;
-	hostapd.data.setup_errors ??= {};
 	delete hostapd.data.setup_errors[phy];
 	let pending = hostapd.data.pending_config[phy];
 
@@ -571,7 +571,7 @@ function iface_restart(phydev, config, old_config)
 	iface_macaddr_sync(phydev, config);
 
 	iface_pending_init(phydev, config);
-	return true;
+	return !hostapd.data.setup_errors[phy];
 }
 
 function array_to_obj(arr, key, start)
@@ -1651,6 +1651,8 @@ function iface_config_remove(name, old_config)
 {
 	let pending = hostapd.data.pending_config[name];
 
+	csa_timer_cancel(name);
+	iface_link_reload_cancel(name);
 	// an aborted setup can have stopped wpa_supplicant
 	if (pending) {
 		pending.abort();
@@ -1854,12 +1856,9 @@ function iface_set_config(name, config)
 		old_config = reload.old_config;
 
 	if (!config) {
-		iface_link_reload_cancel(name);
 		delete hostapd.data.config[name];
 		return iface_config_remove(name, old_config);
 	}
-
-	hostapd.data.config[name] = config;
 
 	let phy = config.phy;
 	let phydev = phy_open(phy, config.radio_idx);
@@ -1868,10 +1867,10 @@ function iface_set_config(name, config)
 		return false;
 	}
 
+	hostapd.data.config[name] = config;
 	config.orig_bss = [ ...config.bss ];
 	iface_check_mld(phydev, name, config);
 	if (!length(config.bss)) {
-		iface_link_reload_cancel(name);
 		iface_macaddr_prune(name, config);
 		return iface_config_remove(name, old_config);
 	}
@@ -1950,7 +1949,7 @@ function iface_load_config(phy, radio, filename)
 
 	let f = open(filename, "r");
 	if (!f)
-		return config;
+		return null;
 
 	let bss;
 	let line;
@@ -1963,7 +1962,8 @@ function iface_load_config(phy, radio, filename)
 			continue;
 
 		if (val[0] == "interface") {
-			bss = config_add_bss(config, val[1]);
+			if (val[1])
+				bss = config_add_bss(config, val[1]);
 			break;
 		}
 
@@ -1990,6 +1990,10 @@ function iface_load_config(phy, radio, filename)
 			config[val[0]] = int(val[1]);
 
 		push(config.radio.data, line);
+	}
+	if (!bss) {
+		f.close();
+		return null;
 	}
 
 	while ((line = rtrim(f.read("line"), "\n")) != null) {
@@ -2508,10 +2512,13 @@ let main_obj = {
 			}
 
 			let ret = iface.start(freq_info);
-			if (!ret)
+			if (!ret) {
+				hostapd.data.setup_errors[phy] = 'AP_INTERFACE_START_FAILED';
 				return libubus.STATUS_UNKNOWN_ERROR;
+			}
 
 			delete hostapd.data.apsta_stopped[phy];
+			delete hostapd.data.setup_errors[phy];
 			return 0;
 		}
 	},
@@ -2592,20 +2599,20 @@ let main_obj = {
 				hostapd.data.config[name] = config;
 			}
 
-			let config = iface_load_config(phy, radio, file);
+			let config = file ? iface_load_config(phy, radio, file) : null;
 
 			hostapd.printf(`Set new config for phy ${name}: ${file}`);
-			hostapd.data.setup_errors ??= {};
 			delete hostapd.data.setup_errors[name];
 			let accepted = (!file || config) && iface_set_config(name, config) !== false;
 			if (!accepted)
-				hostapd.data.setup_errors[name] = 'AP_CONFIG_REJECTED';
+				hostapd.data.setup_errors[name] ??= 'AP_CONFIG_REJECTED';
 
 			if (hostapd.data.auth_obj)
 				hostapd.data.auth_obj.notify("reload", { phy, radio });
 
 			return {
-				pid: hostapd.getpid(), accepted: !!accepted
+				pid: hostapd.getpid(), accepted: !!accepted,
+				error: hostapd.data.setup_errors[name]
 			};
 		}
 	},
