@@ -1,0 +1,167 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 24 Nov 2026 00:01:40 +0800
+Subject: [PATCH] ustream-ssl: drain TLS records until the transport blocks
+
+OpenSSL can complete one record from a larger write while the socket stays
+writable. Returning that partial success leaves the remaining bytes queued
+without a new writable edge. Continue sending record-sized chunks until the
+backend actually blocks or the buffer is drained.
+
+Limit a blocked write to one ustream buffer. Retry it with the same length
+and defer to the underlying stream's writable notification when it buffers
+ciphertext. Treat positive progress from any TLS provider as success and
+keep the retry length only when the provider reports WANT_READ/WANT_WRITE.
+Apply the same default write buffer to both fd and chained transports.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/ustream-ssl.c
++++ b/ustream-ssl.c
+@@ -24,6 +24,8 @@
+ #include "ustream-ssl.h"
+ #include "ustream-internal.h"
+ 
++#define U_SSL_MAX_WRITE_FRAGMENT 16384
++
+ static void ustream_ssl_error_cb(struct uloop_timeout *t)
+ {
+ 	struct ustream_ssl *us = container_of(t, struct ustream_ssl, error_timer);
+@@ -166,35 +168,46 @@
+ static int ustream_ssl_write(struct ustream *s, const char *buf, int len, bool more)
+ {
+ 	struct ustream_ssl *us = container_of(s, struct ustream_ssl, stream);
+-	int ret;
++	int maxlen = s->w.buffer_len;
++	int done = 0;
+ 
+ 	if (!us->connected || us->error)
+ 		return 0;
+ 
+-	if (us->conn && us->conn->w.data_bytes)
+-		return 0;
++	if (maxlen > U_SSL_MAX_WRITE_FRAGMENT)
++		maxlen = U_SSL_MAX_WRITE_FRAGMENT;
+ 
+-	/* Data that the SSL library did not accept is buffered by the ustream
+-	 * core and retried from the buffers, i.e. with a different address and
+-	 * typically a different length. SSL write retry semantics require the
+-	 * retry to cover exactly the data of the failed call: with a shorter
+-	 * retry OpenSSL fails ("bad write retry"), while mbedTLS reports the
+-	 * retried length as written even though only the previously packaged
+-	 * record is sent, corrupting the stream. Cap the retry length to the
+-	 * length of the failed call to keep both libraries consistent.
++	/* Keep writing while the transport makes progress. A successful TLS
++	 * record does not imply a new writable event on an edge-triggered fd.
++	 * Limit each attempt so a blocked record fits in one ustream buffer.
++	 * A retry must use the same length as the blocked attempt.
+ 	 */
+-	if (us->pending_write > 0 && len > us->pending_write)
+-		len = us->pending_write;
++	while (done < len) {
++		int chunk = len - done;
++		int ret;
+ 
+-	ret = __ustream_ssl_write(us, buf, len);
+-	if (ret < 0) {
+-		us->pending_write = 0;
+-		return ret;
+-	}
++		if (us->conn && us->conn->w.data_bytes)
++			break;
++
++		if (us->pending_write) {
++			if (us->pending_write > chunk)
++				return -EINVAL;
++			chunk = us->pending_write;
++		} else if (chunk > maxlen) {
++			chunk = maxlen;
++		}
++
++		ret = __ustream_ssl_write(us, buf + done, chunk);
++		us->pending_write = ret == 0 ? chunk : 0;
++		if (ret < 0)
++			return ret;
++		if (!ret)
++			break;
+ 
+-	us->pending_write = len - ret;
++		done += ret;
++	}
+ 
+-	return ret;
++	return done;
+ }
+ 
+ static void ustream_ssl_set_read_blocked(struct ustream *s)
+@@ -295,6 +308,9 @@
+ {
+ 	us->error_timer.cb = ustream_ssl_error_cb;
+ 
++	if (!us->stream.w.buffer_len)
++		us->stream.w.buffer_len = U_SSL_MAX_WRITE_FRAGMENT;
++
+ 	us->ssl = __ustream_ssl_session_new(us->ctx);
+ 	if (!us->ssl)
+ 		return -ENOMEM;
+@@ -319,14 +335,6 @@
+ 	us->ctx = ctx;
+ 	us->fd.fd = fd;
+ 
+-	/* Writes can block on the socket, so blocked data is buffered and
+-	 * retried one buffer chunk at a time. The first retried chunk must
+-	 * cover the record pending inside the SSL library, so it has to hold
+-	 * at least the maximum TLS plaintext fragment size.
+-	 */
+-	if (!us->stream.w.buffer_len)
+-		us->stream.w.buffer_len = 16384;
+-
+ 	return _ustream_ssl_init_common(us);
+ }
+ 
+--- a/ustream-openssl.c
++++ b/ustream-openssl.c
+@@ -437,7 +437,7 @@
+ 
+ 	ret = SSL_write(ssl, buf, len);
+ 
+-	if (ret < 0) {
++	if (ret <= 0) {
+ 		int err = SSL_get_error(ssl, ret);
+ 		if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
+ 			return 0;
+--- a/ustream-mbedtls.c
++++ b/ustream-mbedtls.c
+@@ -537,25 +537,16 @@
+ __hidden int __ustream_ssl_write(struct ustream_ssl *us, const char *buf, int len)
+ {
+ 	void *ssl = us->ssl;
+-	int done = 0, ret = 0;
++	int ret;
+ 
+-	while (done != len) {
+-		ret = mbedtls_ssl_write(ssl, (const unsigned char *) buf + done, len - done);
+-		if (ret < 0) {
+-			ret = ssl_check_return(us, ret);
+-			if (ret == U_SSL_RETRY)
+-				continue;
++	do {
++		ret = mbedtls_ssl_write(ssl, (const unsigned char *) buf, len);
++		if (ret >= 0)
++			return ret ?: -1;
++		ret = ssl_check_return(us, ret);
++	} while (ret == U_SSL_RETRY);
+ 
+-			if (ret == U_SSL_PENDING)
+-				return done;
+-
+-			return -1;
+-		}
+-
+-		done += ret;
+-	}
+-
+-	return done;
++	return ret == U_SSL_PENDING ? 0 : -1;
+ }
+ 
+ __hidden int __ustream_ssl_read(struct ustream_ssl *us, char *buf, int len)
