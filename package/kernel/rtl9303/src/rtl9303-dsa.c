@@ -21,6 +21,7 @@
 #include <linux/phylink.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#include <linux/workqueue.h>
 #include <net/dsa.h>
 
 #define RTL9303_PORTS		28
@@ -57,6 +58,47 @@
 #define RTL9303_RX_PAUSE		BIT(8)
 #define RTL9303_FORCE_FC		BIT(9)
 #define RTL9303_MAX_FRAME		12288
+#define RTL9303_PORT_MIB(p)	(0x0664 + (p) * 0x100 + 0xfc)
+#define RTL9303_STATS_INTERVAL	(3 * HZ)
+
+enum rtl9303_mib_idx {
+	RTL9303_RX_OCTETS,
+	RTL9303_TX_OCTETS,
+	RTL9303_RX_UCAST,
+	RTL9303_RX_MCAST,
+	RTL9303_RX_BCAST,
+	RTL9303_TX_UCAST,
+	RTL9303_TX_MCAST,
+	RTL9303_TX_BCAST,
+	RTL9303_RX_DISCARDS,
+	RTL9303_TX_DISCARDS,
+	RTL9303_RX_CRC_ALIGN,
+	RTL9303_TX_COLLISIONS,
+	RTL9303_MIB_COUNT,
+};
+
+/* RTL930x standard port MIB offsets, measured back from the last word. */
+static const u8 rtl9303_mib_offsets[RTL9303_MIB_COUNT] = {
+	[RTL9303_RX_OCTETS]	= 0xf8,
+	[RTL9303_TX_OCTETS]	= 0xf0,
+	[RTL9303_RX_UCAST]	= 0xe8,
+	[RTL9303_RX_MCAST]	= 0xe0,
+	[RTL9303_RX_BCAST]	= 0xd8,
+	[RTL9303_TX_UCAST]	= 0xd0,
+	[RTL9303_TX_MCAST]	= 0xc8,
+	[RTL9303_TX_BCAST]	= 0xc0,
+	[RTL9303_RX_DISCARDS]	= 0xb8,
+	[RTL9303_TX_DISCARDS]	= 0xbc,
+	[RTL9303_RX_CRC_ALIGN]	= 0x80,
+	[RTL9303_TX_COLLISIONS]	= 0x5c,
+};
+
+struct rtl9303_port_stats {
+	spinlock_t lock;
+	struct rtnl_link_stats64 totals;
+	u64 last[RTL9303_MIB_COUNT];
+	bool valid;
+};
 
 struct rtl9303_port {
 	u8 bridge;
@@ -72,11 +114,116 @@ struct rtl9303 {
 	/* Serializes the shared table command/data registers. */
 	struct mutex table_lock;
 	struct rtl9303_port ports[RTL9303_PORTS];
+	struct rtl9303_port_stats stats[RTL9303_PORTS];
+	struct delayed_work stats_work;
 	bool bridge_valid;
 	u32 enabled;
 	u32 user_mask;
 	int cpu_port;
 };
+
+static int rtl9303_mib_read(struct rtl9303 *priv, int port, int index, u64 *value)
+{
+	u32 reg = RTL9303_PORT_MIB(port) - rtl9303_mib_offsets[index];
+	u32 high, low, check;
+	int ret;
+
+	if (index <= RTL9303_TX_BCAST) {
+		ret = regmap_read(priv->map, reg - 4, &high);
+		if (ret)
+			return ret;
+		ret = regmap_read(priv->map, reg, &low);
+		if (ret)
+			return ret;
+		ret = regmap_read(priv->map, reg - 4, &check);
+		if (ret)
+			return ret;
+		if (high != check)
+			return -EAGAIN;
+		*value = (u64)high << 32 | low;
+		return 0;
+	}
+
+	ret = regmap_read(priv->map, reg, &low);
+	if (!ret)
+		*value = low;
+	return ret;
+}
+
+static void rtl9303_update_stats(struct rtl9303 *priv, int port)
+{
+	struct rtl9303_port_stats *stats = &priv->stats[port];
+	struct rtnl_link_stats64 *totals = &stats->totals;
+	u64 raw[RTL9303_MIB_COUNT], delta[RTL9303_MIB_COUNT];
+	bool reset;
+	int i;
+
+	for (i = 0; i < RTL9303_MIB_COUNT; i++)
+		if (rtl9303_mib_read(priv, port, i, &raw[i]))
+			return;
+
+	spin_lock_bh(&stats->lock);
+	if (!stats->valid) {
+		/* A warm boot can leave counters from the previous driver instance. */
+		memcpy(stats->last, raw, sizeof(raw));
+		stats->valid = true;
+		goto unlock;
+	}
+	reset = raw[RTL9303_RX_OCTETS] < stats->last[RTL9303_RX_OCTETS] ||
+		raw[RTL9303_TX_OCTETS] < stats->last[RTL9303_TX_OCTETS];
+	for (i = 0; i < RTL9303_MIB_COUNT; i++) {
+		u64 previous = reset ? 0 : stats->last[i];
+
+		delta[i] = raw[i] - previous;
+		if (i > RTL9303_TX_BCAST)
+			delta[i] = (u32)delta[i];
+		stats->last[i] = raw[i];
+	}
+	totals->rx_bytes += delta[RTL9303_RX_OCTETS];
+	totals->tx_bytes += delta[RTL9303_TX_OCTETS];
+	totals->rx_packets += delta[RTL9303_RX_UCAST] + delta[RTL9303_RX_MCAST] +
+			      delta[RTL9303_RX_BCAST];
+	totals->tx_packets += delta[RTL9303_TX_UCAST] + delta[RTL9303_TX_MCAST] +
+			      delta[RTL9303_TX_BCAST];
+	totals->multicast += delta[RTL9303_RX_MCAST];
+	totals->rx_dropped += delta[RTL9303_RX_DISCARDS];
+	totals->tx_dropped += delta[RTL9303_TX_DISCARDS];
+	totals->rx_crc_errors += delta[RTL9303_RX_CRC_ALIGN];
+	totals->rx_errors += delta[RTL9303_RX_CRC_ALIGN];
+	totals->collisions += delta[RTL9303_TX_COLLISIONS];
+unlock:
+	spin_unlock_bh(&stats->lock);
+}
+
+static void rtl9303_stats_poll(struct work_struct *work)
+{
+	struct rtl9303 *priv = container_of(to_delayed_work(work), struct rtl9303,
+					   stats_work);
+	struct dsa_port *dp;
+
+	/* SPI reads may sleep. The netdevice callback reads only the cache. */
+	dsa_switch_for_each_user_port(dp, &priv->ds)
+		rtl9303_update_stats(priv, dp->index);
+	schedule_delayed_work(&priv->stats_work, RTL9303_STATS_INTERVAL);
+}
+
+static void rtl9303_get_stats64(struct dsa_switch *ds, int port,
+			       struct rtnl_link_stats64 *totals)
+{
+	struct rtl9303 *priv = ds->priv;
+	struct rtl9303_port_stats *stats = &priv->stats[port];
+
+	spin_lock_bh(&stats->lock);
+	*totals = stats->totals;
+	spin_unlock_bh(&stats->lock);
+}
+
+static void rtl9303_teardown(struct dsa_switch *ds)
+{
+	struct rtl9303 *priv = ds->priv;
+
+	cancel_delayed_work_sync(&priv->stats_work);
+}
 
 static u16 rtl9303_vid(struct dsa_switch *ds, int port)
 {
@@ -961,6 +1108,11 @@ out:
 			if (mask & BIT(i))
 				regmap_update_bits(priv->map, RTL9303_MAC_CTRL(i), RTL9303_MAC_RX_TX, 0);
 	mutex_unlock(&priv->table_lock);
+	if (!ret) {
+		dsa_switch_for_each_user_port(dp, ds)
+			rtl9303_update_stats(priv, dp->index);
+		schedule_delayed_work(&priv->stats_work, RTL9303_STATS_INTERVAL);
+	}
 	return ret;
 }
 
@@ -1142,6 +1294,8 @@ static const struct phylink_mac_ops rtl9303_mac_ops = {
 static const struct dsa_switch_ops rtl9303_switch_ops = {
 	.get_tag_protocol = rtl9303_tag_protocol,
 	.setup = rtl9303_setup,
+	.teardown = rtl9303_teardown,
+	.get_stats64 = rtl9303_get_stats64,
 	.port_bridge_join = rtl9303_bridge_join,
 	.port_bridge_leave = rtl9303_bridge_leave,
 	.port_stp_state_set = rtl9303_stp_state_set,
@@ -1198,6 +1352,9 @@ static int rtl9303_dsa_probe(struct platform_device *pdev)
 	if (!priv->map)
 		return -ENODEV;
 	mutex_init(&priv->table_lock);
+	for (int port = 0; port < RTL9303_PORTS; port++)
+		spin_lock_init(&priv->stats[port].lock);
+	INIT_DELAYED_WORK(&priv->stats_work, rtl9303_stats_poll);
 	priv->ds.dev = dev;
 	priv->ds.priv = priv;
 	priv->ds.num_ports = RTL9303_PORTS;
@@ -1218,6 +1375,7 @@ static void rtl9303_dsa_shutdown(struct platform_device *pdev)
 {
 	struct rtl9303 *priv = platform_get_drvdata(pdev);
 
+	rtl9303_teardown(&priv->ds);
 	dsa_switch_shutdown(&priv->ds);
 }
 
