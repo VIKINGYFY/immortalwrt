@@ -1,6 +1,8 @@
-# Router Tool wireless defaults
+# Wi-Fi factory settings
 
-Build systems may set the optional wireless defaults in `/etc/config/router-tool`:
+`wifi-scripts` creates the full wireless configuration when it first discovers a
+radio. OpenWRT-CI supplies its optional `WRT_SSID` and `WRT_WORD` inputs through
+the existing `/etc/config/router-tool` section:
 
 ```uci
 config settings 'main'
@@ -11,32 +13,23 @@ config wireless 'defaults'
 ```
 
 When both values are non-empty, `ssid` produces names such as
-`Home-2.4G` and `Home-5.2G`, with the same key on every band. If either value is
-empty, Router Tool uses the system hostname, vendor, and band in the SSID and
-`12345678` as the key. Hostname case is preserved and the vendor's first letter
-is capitalized. The suffix follows the radio's capabilities (`2.4G`, `5.2G`,
-`5.8G`, or `6G`). Names are shortened to 32 bytes without splitting UTF-8
-characters. A custom key must contain 8 to 63 printable ASCII characters,
-supporting both WPA2 and WPA3-SAE.
+`Home-2.4G` and `Home-5.2G`, with the same key on each generic factory AP. An
+SSID prefix must contain 1 to 32 bytes without control characters, and a key
+must contain 8 to 63 printable ASCII characters. With either input missing or
+invalid, the generic AP uses the hostname, vendor, and band for its name and
+`12345678` for its key. Names are shortened at a UTF-8 boundary within the
+32-byte SSID limit.
 
-The 2.4 GHz, 5 GHz, and 6 GHz radios use automatic channel selection. Router
-Tool selects the widest supported mode that has a complete usable channel
-block on the selected PHY or radio. It stores the mode and its candidate
-channels together. An explicit width, fixed channel, or channel list is
-preserved. If usable channel information has yet to arrive, initialization
-waits for the next wireless configuration event.
+The factory generator uses the provisioned country, then the board default,
+then `US`. It selects automatic channels for generic 2.4, 5, and 6 GHz APs, with
+SAE and required protected management frames on 6 GHz. The ucode backend
+plans the usable width and candidate channels from the live PHY during setup.
+Existing radios retain their settings on repeated discovery and configuration-
+preserving upgrades.
 
-These settings are initialization defaults. Only unmarked, untouched APs with
-`OWRT` / `12345678` / `psk2+ccmp` are initialized. Existing custom credentials,
-STA/mesh/WDS/MLO profiles, and radios with `defaults_done=1` are preserved.
-Subsequent LuCI edits and upgrades that retain configuration do not reapply the
-build defaults. Do not clear the markers to enforce new credentials on an
-already configured router; edit its Wireless form instead.
-
-OpenWRT-CI passes `WRT_SSID` and `WRT_WORD` through this section. It must leave
-the wifi-scripts generator's untouched-AP values intact, so custom build
-credentials do not suppress channel, bandwidth, country, and security defaults.
-Keep this configuration private when using a private Wi-Fi password.
+Router Tool displays the running channel plan and handles explicit edits in
+the Wireless form. The form reads `channels`, `channel_list`, and `chanlist`
+in that order and saves explicit edits to `channels`.
 
 ## Saving and applying network presets
 
@@ -52,11 +45,14 @@ configuration if LuCI cannot confirm the change before the timer expires.
 
 ## Configuration migration
 
-`/etc/uci-defaults/90-router-tool-migrate` owns historical settings and snapshot
-normalization and the initial generated ULA cleanup. It removes only the unchanged, owned `wan6`/`local` prefix
-filter, including its saved routed value when AP mode is active. Custom filters
-remain intact. It also normalizes older routed snapshots before regular service
-reloads and LuCI saves can use them.
+Router Tool's early `uci-defaults` script clears the initial ULA `auto` value
+before the base system generates a prefix. Explicit ULA prefixes and IPv6
+prefix delegation remain available.
+
+`/etc/uci-defaults/90-router-tool-migrate` normalizes historical settings and
+snapshots. It removes the unchanged, owned `wan6`/`local` prefix filter,
+including its saved routed value when AP mode is active. Custom filters remain
+intact.
 
 Regular runtime paths do not repair old snapshot formats. They still record new
 sections, restore AP settings, preserve manual edits, and resume interrupted

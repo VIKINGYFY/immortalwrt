@@ -1,6 +1,0 @@
-#!/bin/sh
-
-[ "${ACTION:-}" = add ] || exit 0
-
-# Coalesce PHY arrivals with role changes in the service's locked reload.
-ubus call service event '{"type":"router-tool.wireless","data":{}}' >/dev/null

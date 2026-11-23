@@ -66,8 +66,7 @@ reload_service() {
 	for config in network dhcp firewall router-tool; do
 		[ ! -s "/tmp/.uci/$config" ] || return 0
 	done
-	# PHY events can arrive before S20network starts netifd. Keep the plan;
-	# the first interface event will dispatch it once the object is present.
+	# Keep the plan until netifd starts and wireless edits can be applied.
 	case " $remaining " in
 		*" netifd "*)
 			[ ! -s /tmp/.uci/wireless ] || return 0
@@ -91,10 +90,8 @@ reload_service() {
 
 service_triggers() {
 	procd_add_reload_trigger network
-	procd_add_reload_trigger wireless
 	procd_add_reload_trigger router-tool
 	# Includes changes applied outside LuCI and a newly acquired WAN lease.
 	procd_add_raw_trigger "interface.*" 1000 /etc/init.d/router-tool reload
-	procd_add_raw_trigger "router-tool.wireless" 1000 /etc/init.d/router-tool reload
 	procd_add_raw_trigger "router-tool.apply_done" 1000 /etc/init.d/router-tool reload
 }

@@ -1,11 +1,11 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 22 Nov 2026 20:34:48 +0800
-Subject: [PATCH] luci: protect wireless drafts and consolidate radio status
+Date: Mon, 23 Nov 2026 16:49:00 +0800
+Subject: [PATCH] luci: protect wireless drafts and avoid writing implicit defaults
 
 Track wireless form saves through the existing UCI baseline. Display the
 radio and network status once below the channel. Show current standard,
 region, and transmit power beneath the BSSID after the interface is up.
-Use the Router Tool form option for editing ACS channel restrictions.
+Check ACS syntax in the form and keep an absent cell density implicit.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  function render_radio_badge(radioDev) {
  	return E('span', { 'class': 'ifacebadge' }, [
  		E('img', { 'src': L.resource('icons/wifi%s.svg').format(radioDev.isUp() ? '' : '_disabled') }),
-@@ -120,9 +114,10 @@ function render_network_badge(radioNet)
+@@ -120,9 +114,10 @@
  		radioNet.getSignal(), radioNet.getNoise(), false, radioNet.getMode());
  }
  
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	let channel, frequency, bitrate;
  
  	wifiNets.forEach(wifiNet => {
-@@ -131,42 +126,33 @@ function render_radio_status(radioDev, w
+@@ -131,42 +126,33 @@
  		bitrate   = bitrate   ?? wifiNet.getBitRate();
  	});
  
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  function render_modal_status(node, radioNet) {
-@@ -611,6 +597,10 @@ var CBIWifiFrequencyValue = form.Value.e
+@@ -611,6 +597,10 @@
  	},
  
  	write: function(section_id, value) {
@@ -119,7 +119,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		uci.set('wireless', section_id, 'htmode', value[0] || null);
  
  		this.useBandOption ?
-@@ -708,11 +698,12 @@ return view.extend({
+@@ -708,11 +698,12 @@
  
  			if (radioDev) {
  				dom.content(badge, render_radio_badge(radioDev));
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			}
  
  			if (stat.hasAttribute('restart'))
-@@ -881,6 +872,7 @@ return view.extend({
+@@ -881,6 +872,7 @@
  		let m, s, o;
  
  		m = new form.Map('wireless');
@@ -142,7 +142,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		m.chain('network');
  		m.chain('firewall');
  
-@@ -992,6 +984,7 @@ return view.extend({
+@@ -992,6 +984,7 @@
  		};
  
  		s.addModalOptions = function(s) {
@@ -150,7 +150,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return network.getWifiNetwork(s.section).then(function(radioNet) {
  				const hwtype = uci.get('wireless', radioNet.getWifiDeviceName(), 'type');
  				const have_mesh = L.hasSystemFeature('hostapd', 'mesh') || L.hasSystemFeature('wpasupplicant', 'mesh');
-@@ -1031,6 +1024,8 @@ return view.extend({
+@@ -1031,11 +1024,14 @@
  					o = ss.taboption('general', CBIWifiCountryValue, 'country', _('Country Code'));
  					o.wifiNetwork = radioNet;
  
@@ -159,7 +159,13 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					o = ss.taboption('advanced', form.ListValue, 'cell_density', _('Coverage cell density'), _('Configures data rates based on the coverage cell density. Normal configures basic rates to 6, 12, 24 Mbps if legacy 802.11b rates are not used else to 5.5, 11 Mbps. High configures basic rates to 12, 24 Mbps if legacy 802.11b rates are not used else to the 11 Mbps rate. Very High configures 24 Mbps as the basic rate. Supported rates lower than the minimum basic rate are not offered.'));
  					o.value('0', _('Disabled'));
  					o.value('1', _('Normal'));
-@@ -2499,6 +2494,7 @@ return view.extend({
+ 					o.value('2', _('High'));
+ 					o.value('3', _('Very High'));
++					o.load = sid => uci.get('wireless', sid, 'cell_density') ?? '0';
+ 
+ 					o = ss.taboption('advanced', form.Value, 'distance', _('Distance Optimization'), _('Distance to farthest network member in meters. Set only for distances above one kilometer; otherwise it is harmful.'));
+ 					o.datatype = 'or(range(0,114750),"auto")';
+@@ -2499,6 +2495,7 @@
  			if (this.pollFn)
  				poll.remove(this.pollFn);
  			const m2 = new form.Map('wireless');
@@ -167,7 +173,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			const s2 = m2.section(form.NamedSection, '_new_');
  			const enc = L.isObject(bss.encryption) ? bss.encryption : null;
  			const is_wep = (enc && Array.isArray(enc.wep));
-@@ -2678,6 +2674,10 @@ return view.extend({
+@@ -2678,6 +2675,10 @@
  						data.push(zones);
  						return data;
  					}, network, zones))

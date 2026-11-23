@@ -3,9 +3,10 @@
 import { open, mkdir, rename, unlink, stat } from 'fs';
 import { equal, section_values, value_valid } from './snapshot.uc';
 
-export function configuration(uci) {
+export function configuration(uci, names) {
 	let result = {};
-	for (let config in [ 'network', 'dhcp', 'firewall', 'wireless', 'router-tool' ]) result[config] = uci.get_all(config) || {};
+	for (let config in names ?? [ 'network', 'dhcp', 'firewall', 'wireless', 'router-tool' ])
+		result[config] = uci.get_all(config) || {};
 	return result;
 }
 

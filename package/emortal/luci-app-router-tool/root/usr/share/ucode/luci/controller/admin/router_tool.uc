@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { open, stat, readfile } from 'fs';
+import { open, stat, readfile, glob } from 'fs';
 import { cursor } from 'uci';
 import { equal, section_values, value_valid } from '/usr/share/router-tool/snapshot.uc';
 import { synchronize } from '/usr/share/router-tool/auto.uc';
@@ -8,6 +8,7 @@ import { transaction } from '/usr/share/router-tool/transaction.uc';
 
 const upstream = require('luci.controller.admin.uci');
 const configs = [ 'network', 'dhcp', 'firewall', 'wireless', 'router-tool' ];
+const wireless_configs = [ 'wireless', 'network', 'firewall' ];
 const baseline_key = 'router_tool_apply_baseline';
 const default_session = '00000000000000000000000000000000';
 
@@ -121,7 +122,8 @@ function prepare_save() {
 	const before = baseline(sid);
 	const live = {}, values = {}, next = { ...(before || {}) };
 	for (let name in configs) {
-		if (wireless_only && name != 'wireless' && !before?.[name]) continue;
+		const included = !wireless_only || name in wireless_configs;
+		if (!included && !before?.[name]) continue;
 		if (!can_access(sid, name, 'read')) continue;
 		live[name] = committed(name);
 		if (name == 'wireless' && !live[name]) {
@@ -129,7 +131,7 @@ function prepare_save() {
 			continue;
 		}
 		if (!live[name]) die(`Cannot read committed ${name} configuration`);
-		if (wireless_only && name != 'wireless') continue;
+		if (!included) continue;
 		values[name] = rpc('uci', 'get', { ubus_rpc_session: sid, config: name }).values;
 		next[name] = live[name];
 	}
@@ -199,16 +201,68 @@ function routed_plan() {
 	}
 }
 
+function invalid_wireless_plan(sid, pending) {
+	if (!length(pending) || !stat('/usr/share/schema/wireless.wifi-device.json'))
+		return;
+	const options = [ 'band', 'channel', 'htmode', 'auto_htmode', 'channels', 'channel_list', 'chanlist',
+	                  'country', 'country3', 'acs_exclude_dfs', 'radio', 'disabled' ];
+	let touched = {};
+	for (let change in pending)
+		if (change[2] in options)
+			touched[change[1]] = true;
+	if (!length(keys(touched)))
+		return;
+
+	const config = rpc('uci', 'get', { ubus_rpc_session: sid, config: 'wireless' }).values;
+	const live = ubus.call('network.wireless', 'status', {});
+	const radio_utils = import('wifi.utils');
+	const channels = import('wifi.channels');
+	for (let name in keys(touched)) {
+		let radio = config?.[name];
+		if (radio?.['.type'] != 'wifi-device' || radio.type != 'mac80211' || +radio.disabled ||
+		    !(radio.band in [ '2g', '5g', '6g' ]) || radio.chanbw || length(radio.hostapd_options))
+			continue;
+		let list = radio.channels ?? radio.channel_list ?? radio.chanlist;
+		if (type(list) != 'array')
+			list = list ? [list] : [];
+		if (!length(list) || (radio.channel && radio.channel != 'auto' && +radio.channel))
+			continue;
+		let ifaces = filter(values(config), bss => bss['.type'] == 'wifi-iface' && !+bss.disabled &&
+		                    (bss.device == name || (type(bss.device) == 'array' && name in bss.device)));
+		if (!length(ifaces) || length(filter(ifaces, bss => bss.mode != 'ap')))
+			continue;
+		let phy = live?.[name]?.phy;
+		let country = uc(radio.country ?? radio.country_code ?? '');
+		if (!phy || (country && country != radio_utils.wiphy_country(phy)))
+			continue;
+		let info = radio_utils.wiphy_info(phy);
+		let band = radio_utils.wiphy_band(info, radio.band);
+		if (!band?.freqs)
+			continue;
+		let plan = channels.ap_channel_plan(info, band, { ...radio, chanlist: list });
+		if (plan.error)
+			return `${name}: ${_('The ACS list has no usable channel for the selected band and bandwidth.')} (${plan.error})`;
+	}
+}
+
 function apply(checked) {
+	if (length(glob('/var/run/rpcd/snapshot-files/*')))
+		return response(409, 'Conflict', _('Another configuration change is waiting for confirmation. Confirm it or wait for it to roll back.'));
+
 	const sid = ctx.authsession;
 	const before = baseline(sid);
+	const pending = changes(sid);
 	if (before) {
-		const pending = changes(sid);
 		const live = {};
 		for (let name in configs)
 			if (before[name]) live[name] = committed(name);
 		const changed = length(keys(pending)) ? conflicts(before, live, pending) : [];
 		if (length(changed)) return refuse(changed);
+	}
+	if (pending?.wireless && can_access(sid, 'wireless', 'write')) {
+		let error = invalid_wireless_plan(sid, pending.wireless);
+		if (error)
+			return response(422, 'Unprocessable Entity', error);
 	}
 	if (checked)
 		upstream.action_apply_rollback();

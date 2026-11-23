@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# config_generate stages "auto" before the base-files ULA generator runs.
+[ "$(uci -q get network.globals.ula_prefix)" = auto ] || exit 0
+[ ! -s /tmp/.uci/network ] || exit 1
+uci -q delete network.globals.ula_prefix && uci -q commit network

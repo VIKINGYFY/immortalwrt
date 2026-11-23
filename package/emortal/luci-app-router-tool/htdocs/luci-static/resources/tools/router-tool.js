@@ -50,6 +50,7 @@ function sectionValues(config, sid, section = uci.sections(config).find(s => s['
 }
 
 const routedConfigs = [ 'network', 'dhcp', 'firewall', 'router-tool' ];
+const wirelessConfigs = [ 'wireless', 'network', 'firewall' ];
 
 function values(configs) {
 	return Object.fromEntries(configs.filter(config => uci.state.values[config]).map(config =>
@@ -535,20 +536,44 @@ return baseclass.extend({
 	},
 
 	addAcsChannelList(section) {
+		const options = [ 'channels', 'channel_list', 'chanlist' ];
 		const list = section.taboption('advanced', form.Value, 'channels', _('ACS channel list'),
 			_('Separate channels with spaces. Use a hyphen for a range. Leave empty to use every channel compatible with the selected bandwidth.'));
 		list.placeholder = '36 40 44 48';
-		list.validate = (section_id, value) => !value || /^ *\d+(?:-\d+)?(?: +\d+(?:-\d+)?)* *$/.test(value)
-			|| _('Use spaces to separate channel numbers or ranges.');
+		list.load = sid => {
+			const value = options.map(name => uci.get('wireless', sid, name)).find(value => value != null);
+			return value == null ? null : L.toArray(value).join(' ').trim().replace(/[ ,\t]+/g, ' ');
+		};
+		list.write = (sid, value) => {
+			uci.set('wireless', sid, 'channels', value.trim());
+			for (const name of options.slice(1)) uci.unset('wireless', sid, name);
+		};
+		list.remove = sid => {
+			if (list.cfgvalue(sid))
+				for (const name of options) uci.unset('wireless', sid, name);
+		};
+		list.validate = (section_id, value) => {
+			const text = value?.trim();
+			if (!text) return true;
+			const valid = text.split(/ +/).every(token => {
+				const range = /^(\d{1,3})(?:-(\d{1,3}))?$/.exec(token);
+				if (!range) return false;
+				const first = Number(range[1]);
+				const last = Number(range[2] ?? range[1]);
+				return first >= 1 && last >= first && last <= 233;
+			});
+			return valid || _('Enter channel numbers from 1 to 233 or ascending ranges, separated by spaces.');
+		};
 	},
 
 	trackWireless(map) {
 		if (map._routerToolWireless) return;
 		map._routerToolWireless = true;
+		for (const config of wirelessConfigs) map.chain(config);
 		let before;
 		const load = map.load.bind(map), save = map.save.bind(map);
 		map.load = function() {
-			return load().then(() => { before = values([ 'wireless' ]); });
+			return load().then(() => { before = values(wirelessConfigs); });
 		};
 		map.save = function(cb, silent) {
 			return queueSave(() => save(async () => {

@@ -1,11 +1,10 @@
 #!/usr/bin/ucode
 'use strict';
 import { cursor } from 'uci';
-import { readfile, open, mkdir, stat, writefile, unlink, glob, access } from 'fs';
+import { readfile, open, mkdir, stat, writefile, unlink, glob } from 'fs';
 import { connect } from 'ubus';
 import { openlog, syslog, closelog, LOG_PID, LOG_DAEMON, LOG_DEBUG, LOG_INFO, LOG_NOTICE, LOG_WARNING, LOG_ERR } from 'log';
 import { synchronize } from '/usr/share/router-tool/auto.uc';
-import { synchronize_wireless } from '/usr/share/router-tool/wireless.uc';
 import { read_snapshot, check_snapshot } from '/usr/share/router-tool/snapshot.uc';
 import { configuration, transaction, save_transaction, commit_transaction } from '/usr/share/router-tool/transaction.uc';
 
@@ -71,7 +70,7 @@ try {
 		closelog();
 		exit(0);
 	}
-	let before = configuration(uci);
+	let before = configuration(uci, [ 'network', 'dhcp', 'firewall', 'router-tool' ]);
 	let changed = [];
 	let ap = uci.get('router-tool', 'main', 'ap_mode') == '1';
 	if (ap && !uci.get('router-tool', 'main', 'ap_state')) {
@@ -111,39 +110,6 @@ try {
 	let target = match(release, /(^|\n)DISTRIB_TARGET=['"]?([^'"\r\n]+)/)?.[2];
 	for (let config in synchronize(uci, data, upstream, target))
 		if (index(changed, config) < 0) push(changed, config);
-	stage = 'wireless defaults';
-	if (stat('/tmp/.uci/wireless')?.size) {
-		log_once(LOG_NOTICE, 'wireless-pending', 'Unapplied CLI wireless changes found; wireless defaults are deferred');
-	}
-	else {
-		unlink('/var/run/router-tool-log-wireless-pending');
-		let unplanned;
-		uci.foreach('wireless', 'wifi-device', radio => {
-			if (uci.get('router-tool', radio['.name'], 'defaults_done') != '1') unplanned = true;
-		});
-		// The first network event can occur after the configured regulatory
-		// domain takes effect, later than the board snapshot from PHY discovery.
-		if (unplanned && access('/usr/share/hostap/wifi-detect.uc', 'x')) {
-			if (system([ 'ucode', '/usr/share/hostap/wifi-detect.uc' ]))
-				log_once(LOG_WARNING, 'wireless-discovery', 'Could not refresh wireless capabilities');
-			else
-				unlink('/var/run/router-tool-log-wireless-discovery');
-		}
-		let board = null;
-		let text = readfile('/etc/board.json');
-		try {
-			if (text) board = json(text);
-			unlink('/var/run/router-tool-log-wireless-board');
-		}
-		catch (e) {
-			log_once(LOG_WARNING, 'wireless-board', 'Wireless board capabilities are invalid; defaults deferred: ' + e.message);
-		}
-		if (board) {
-			let wireless_changed = synchronize_wireless(uci, board);
-			if (wireless_changed) for (let config in wireless_changed)
-				if (index(changed, config) < 0) push(changed, config);
-		}
-	}
 	if (length(changed)) {
 		log_once(LOG_INFO, 'update', 'Applying configuration updates: ' + join(' ', changed));
 		let next_lan = uci.get('network', 'lan', 'ipaddr');
