@@ -2,9 +2,9 @@
 
 import {
 	append, append_raw, append_vars, network_append, network_append_raw, network_append_vars,
-	network_append_string_vars, set_default, dump_network, flush_network,
-	wiphy_info, wiphy_band
+	network_append_string_vars, set_default, dump_network, flush_network
 } from 'wifi.common';
+import { wiphy_info, wiphy_band } from 'wifi.utils';
 import * as netifd from 'wifi.netifd';
 import * as iface from 'wifi.iface';
 import * as fs from 'fs';

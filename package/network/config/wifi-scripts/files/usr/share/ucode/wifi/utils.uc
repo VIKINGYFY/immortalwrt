@@ -3,6 +3,35 @@
 import { readfile, realpath, lsdir } from "fs";
 import * as nl80211 from "nl80211";
 
+const nl80211_bands = [ '2g', '5g', '60g', '6g' ];
+
+export function wiphy_info(phy) {
+	let idx = readfile(`/sys/class/ieee80211/${phy}/index`);
+	if (idx == null)
+		return null;
+	return nl80211.request(nl80211.const.NL80211_CMD_GET_WIPHY, nl80211.const.NLM_F_DUMP, {
+		wiphy: +idx,
+		split_wiphy_dump: true
+	});
+};
+
+export function wiphy_band(info, band) {
+	let idx = index(nl80211_bands, band);
+	return idx >= 0 ? info?.wiphy_bands?.[idx] : null;
+};
+
+export function wiphy_country(phy) {
+	let args = {};
+	if (phy != null) {
+		let idx = readfile(`/sys/class/ieee80211/${phy}/index`);
+		if (idx == null)
+			return null;
+		args.wiphy = +idx;
+	}
+	let reg = nl80211.request(nl80211.const.NL80211_CMD_GET_REG, 0, args);
+	return reg?.reg_alpha2;
+};
+
 function phy_filename(phy, name) {
 	return `/sys/class/ieee80211/${phy}/${name}`;
 }

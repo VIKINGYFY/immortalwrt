@@ -1,9 +1,9 @@
 'use strict';
 
 import {
-	append, append_raw, append_vars, dump_config, flush_config, set_default,
-	wiphy_info, wiphy_band
+	append, append_raw, append_vars, dump_config, flush_config, set_default
 } from 'wifi.common';
+import { wiphy_info, wiphy_band } from 'wifi.utils';
 import { validate } from 'wifi.validate';
 import * as netifd from 'wifi.netifd';
 import * as iface from 'wifi.iface';
@@ -70,7 +70,7 @@ function device_country_code(config) {
 	if (config.country)
 		config.country_code = config.country;
 
-	if (!exists(config, 'country_code'))
+	if (!config.country_code || config.country_code == '00')
 		return;
 
 	if (config.hw_mode != 'a')
@@ -479,10 +479,8 @@ function device_extended_features(data, flag) {
 	return !!(data[flag / 8] & (1 << (flag % 8)));
 }
 
-function device_capabilities(config) {
-	let phy = config.phy;
-
-	phy = wiphy_info(phy);
+function device_capabilities(config, phy) {
+	phy ??= wiphy_info(config.phy);
 	let band = wiphy_band(phy, config.band);
 
 	phy_capabilities.ht_capa = band.ht_capa ?? 0;
@@ -503,11 +501,11 @@ function device_capabilities(config) {
 	phy_features.cipher_gcmp256 = iface.phy_cipher_gcmp256(phy);
 }
 
-function generate(config) {
+function generate(config, phy) {
 	if (!config)
 		die(`${config.path} is an unknown phy`);
 
-	device_capabilities(config);
+	device_capabilities(config, phy);
 
 	append('driver', 'nl80211');
 
@@ -577,17 +575,29 @@ function setup_interface(interface, data, config, vlans, stas, phy_features, fix
 	return true;
 }
 
-export function setup(data) {
-	let file_name = `/var/run/hostapd-${data.phy}${data.vif_phy_suffix}.conf`;
+function stage_config(path, config) {
+	let file = fs.open(path, 'w', 0600);
+	if (!file)
+		return false;
+	let written = file.write(config);
+	let closed = file.close();
+	// wpad drops privileges to network under ujail.
+	if (written == length(config) && closed && fs.chown(path, null, 'network') && fs.chmod(path, 0640))
+		return true;
+	fs.unlink(path);
+	return false;
+}
+
+export function prepare(data, phy) {
+	let file = `/var/run/hostapd-${data.phy}${data.vif_phy_suffix}.conf`;
+	if (!length(filter(values(data.interfaces), interface => interface.config.mode == 'ap')))
+		return { file, has_ap: false };
 
 	flush_config();
+	iface_idx = 0;
 
-	if (fs.stat(file_name))
-		fs.rename(file_name, file_name + '.prev');
-
-	data.config.phy = data.phy;
-
-	generate(data.config);
+	data = { ...data, config: { ...data.config, phy: data.phy } };
+	generate(data.config, phy);
 
 	if (data.config.num_global_macaddr)
 		append('\n#num_global_macaddr', data.config.num_global_macaddr);
@@ -598,7 +608,6 @@ export function setup(data) {
 	if (data.channel_follow)
 		append('\n#channel_follow', 1);
 
-	let has_ap;
 	for (let k, interface in data.interfaces) {
 		if (interface.config.mode != 'ap')
 			continue;
@@ -612,16 +621,37 @@ export function setup(data) {
 			continue;
 		if (owe)
 			setup_interface(k, data, interface.config, interface.vlans, interface.stas, phy_features, 'owe-transition');
-		has_ap = true;
 	}
 
-	let config = dump_config(file_name);
+	if (!iface_idx)
+		return { error: 'AP_NO_VALID_BSS' };
+	if (!stage_config(file + '.new', dump_config()))
+		return { error: 'AP_CONFIG_WRITE_FAILED' };
+	return { file, has_ap: true };
+}
+
+export function setup(data, candidate) {
+	let { file, has_ap } = candidate;
+	let previous = file + '.prev';
+	let replaced = has_ap && fs.stat(file);
+	if (has_ap) {
+		if (replaced && !fs.rename(file, previous)) {
+			fs.unlink(file + '.new');
+			return 'AP_CONFIG_WRITE_FAILED';
+		}
+		if (!fs.rename(file + '.new', file)) {
+			if (replaced)
+				fs.rename(previous, file);
+			fs.unlink(file + '.new');
+			return 'AP_CONFIG_WRITE_FAILED';
+		}
+	}
 
 	let msg = {
 		phy: data.phy,
 		radio: data.config.radio,
-		config: has_ap ? file_name : "",
-		prev_config: file_name + '.prev'
+		config: has_ap ? file : "",
+		prev_config: has_ap ? previous : file
 	};
 	if (!global.ubus.list('hostapd'))
 		system('ubus wait_for hostapd');
@@ -629,7 +659,17 @@ export function setup(data) {
 
 	if (ret?.pid && ret.accepted != false) {
 		netifd.add_process('/usr/sbin/hostapd', ret.pid, true, true);
-		return true;
+		if (!has_ap) {
+			fs.unlink(file);
+			fs.unlink(previous);
+		}
+		return null;
 	}
-	return false;
+	if (has_ap) {
+		if (replaced)
+			fs.rename(previous, file);
+		else
+			fs.unlink(file);
+	}
+	return ret?.error ?? 'HOSTAPD_START_FAILED';
 };

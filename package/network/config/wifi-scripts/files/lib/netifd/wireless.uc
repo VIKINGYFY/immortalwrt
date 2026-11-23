@@ -564,10 +564,16 @@ const ubus_obj = {
 		}
 	},
 	retry: {
-		args: wdev_args,
+		args: { ...wdev_args, devices: [] },
 		call: function(req) {
 			hostapd_update_mlo();
 
+			if (req.args.devices != null) {
+				for (let name in req.args.devices)
+					if (type(name) == 'string')
+						wireless.devices[name]?.retry_setup();
+				return 0;
+			}
 			return wdev_call(req, (dev) => {
 				dev.retry_setup();
 				return 0;

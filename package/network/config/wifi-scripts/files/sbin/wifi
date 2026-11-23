@@ -21,6 +21,29 @@ ubus_wifi_cmd() {
 	ubus call network.wireless "$cmd" "$(json_dump)"
 }
 
+wifi_device_isup() (
+	local up phy interfaces interface mode disabled ifname error status
+	json_get_vars up phy
+	[ "$up" = 1 ] || return 1
+	# The ucode backend reports a PHY once the configuration is handed off.
+	[ -n "$phy" ] && json_select interfaces || return 0
+	json_get_keys interfaces
+	for interface in $interfaces; do
+		json_select "$interface"
+		json_select config
+		json_get_vars mode disabled
+		json_select ..
+		if [ "$mode" = ap ] && [ "$disabled" != 1 ]; then
+			json_get_vars ifname error
+			[ -z "$error" ] && [ -n "$ifname" ] || return 1
+			status="$(ubus -S call "hostapd.$ifname" get_status)" || return 1
+			( json_load "$status" && json_get_var status status && [ "$status" = ENABLED ] ) || return 1
+		fi
+		json_select ..
+	done
+	return 0
+)
+
 wifi_isup() {
 	local dev="$1"
 
@@ -32,8 +55,7 @@ wifi_isup() {
 
 	for device in $devices; do
 		json_select "$device"
-			json_get_var up up
-			[ "$up" = 1 ] || return 1
+		wifi_device_isup || return 1
 		json_select ..
 	done
 
@@ -65,7 +87,13 @@ wifi_detect_notice() {
 }
 
 wifi_config() {
-	ucode /lib/wifi/mac80211.uc || return $?
+	local rc=0
+	ucode /lib/wifi/mac80211.uc "$1" || rc=$?
+	case "$rc" in
+		0) ;;
+		75) ucode /lib/wifi/mac80211.uc --deferred </dev/null >/dev/null 2>&1 & ;;
+		*) return "$rc" ;;
+	esac
 
 	for driver in $DRIVERS; do (
 		if eval "type detect_$driver" 2>/dev/null >/dev/null; then
@@ -83,7 +111,7 @@ include /lib/wifi
 case "$1" in
 	down) wifi_updown "disable" "$2";;
 	detect) wifi_detect_notice ;;
-	config) wifi_config ;;
+	config) wifi_config "$2" ;;
 	status) ubus_wifi_cmd "status" "$2";;
 	isup) wifi_isup "$2"; exit $?;;
 	reload) wifi_reload "$2";;

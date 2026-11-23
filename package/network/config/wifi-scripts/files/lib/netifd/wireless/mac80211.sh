@@ -36,7 +36,7 @@ drv_mac80211_init_device_config() {
 	config_add_int num_global_macaddr multiple_bssid
 	config_add_boolean noscan ht_coex acs_exclude_dfs background_radar
 	config_add_array ht_capab
-	config_add_array channels
+	config_add_array channels channel_list chanlist
 	config_add_array scan_list
 	config_add_array he_spr_srg_bss_colors he_spr_srg_partial_bssid
 	config_add_boolean \
@@ -149,7 +149,10 @@ mac80211_hostapd_setup_base() {
 
 	json_get_vars noscan ht_coex min_tx_power:0 tx_burst vendor_vht
 	json_get_values ht_capab_list ht_capab
-	json_get_values channel_list channels
+	json_get_values channel_list channels ||
+		json_get_values channel_list channel_list ||
+		json_get_values channel_list chanlist
+	channel_list="${channel_list//,/ }"
 
 	[ "$auto_channel" = 0 ] && [ -z "$channel_list" ] && \
 		channel_list="$channel"

@@ -168,7 +168,7 @@ hostapd_prepare_device_config() {
 	set_default airtime_mode 0
 	set_default cell_density 0
 
-	[ -n "$country" ] && {
+	[ -n "$country" ] && [ "$country" != 00 ] && {
 		append base_cfg "country_code=$country" "$N"
 		[ -n "$country3" ] && append base_cfg "country3=$country3" "$N"
 

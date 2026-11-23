@@ -42,10 +42,10 @@ export function set_vlan(interface, ifname, vlan) {
 	notify(CMD_SET_DATA, { interface, vlan }, { ifname });
 };
 
-export function setup_failed(reason) {
+export function setup_failed(reason, retain) {
 	log(`Device setup failed: ${reason}`);
 	printf('%s\n', reason);
-	notify(CMD_SET_RETRY, null, { retry: false, error: reason });
+	notify(CMD_SET_RETRY, null, { retry: false, error: reason, retain: !!retain });
 };
 
 export function bss_failed(interface, ifname, reason) {
