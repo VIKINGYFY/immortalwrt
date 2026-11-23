@@ -1,0 +1,26 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 23 Nov 2026 11:17:12 +0800
+Subject: [PATCH] wifi: ath12k: skip temperature reads for inactive pdevs
+
+With a shared wiphy, the hardware can be running while an individual
+pdev has no usable channels and did not complete MAC start. Its WMI
+temperature response is ignored because the pdev is inactive, causing
+the sysfs reader to wait for the five-second timeout.
+
+Check the active pdev table under the existing wiphy lock before
+sending the request. Leave temperature reads for active radios intact.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/thermal.c
++++ b/drivers/net/wireless/ath/ath12k/thermal.c
+@@ -153,7 +153,8 @@
+ 
+ 	guard(wiphy)(ath12k_ar_to_hw(ar)->wiphy);
+ 
+-	if (ar->ah->state != ATH12K_HW_STATE_ON)
++	if (ar->ah->state != ATH12K_HW_STATE_ON ||
++	    !rcu_access_pointer(ar->ab->pdevs_active[ar->pdev_idx]))
+ 		return -ENETDOWN;
+ 
+ 	reinit_completion(&ar->thermal.wmi_sync);
