@@ -2940,6 +2940,8 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 		if (ret)
 			goto err_session;
 		entry->dsa_egress_port = port;
+		/* Attribute traffic to the external port's logical uppers. */
+		entry->ocasc = data->odev->ifindex;
 	}
 
 	if (entry->uplink >= 0 && priv->uplink[entry->uplink].ref == 1)
@@ -3826,7 +3828,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	entry->dsa_service = -1;
 	entry->dsa_egress_port = -1;
 	entry->iport = iport;
-	entry->icasc = qca_icasc;
+	entry->icasc = data.ingress_svid_valid ? ingress_ifindex : qca_icasc;
 	entry->bridge = data.bridge;
 	entry->bridge_ifindex = bridge_ifindex;
 	entry->bridge_iif = data.bridge ? ingress_ifindex : 0;
