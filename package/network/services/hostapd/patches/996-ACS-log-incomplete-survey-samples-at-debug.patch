@@ -1,0 +1,47 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 24 Nov 2026 09:54:43 +0800
+Subject: [PATCH] ACS: log incomplete survey samples at debug level
+
+Survey scans can return multiple incomplete samples for a frequency.
+Log the per-sample and per-channel details at debug level. Keep the
+aggregate diagnostics for missing surveys and ACS failure.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/ap/acs.c
++++ b/src/ap/acs.c
+@@ -488,14 +488,14 @@
+ static int acs_survey_is_sufficient(struct freq_survey *survey)
+ {
+ 	if (!(survey->filled & SURVEY_HAS_NF)) {
+-		wpa_printf(MSG_INFO,
++		wpa_printf(MSG_DEBUG,
+ 			   "ACS: Survey for freq %d is missing noise floor",
+ 			   survey->freq);
+ 		return 0;
+ 	}
+ 
+ 	if (!(survey->filled & SURVEY_HAS_CHAN_TIME)) {
+-		wpa_printf(MSG_INFO,
++		wpa_printf(MSG_DEBUG,
+ 			   "ACS: Survey for freq %d is missing channel time",
+ 			   survey->freq);
+ 		return 0;
+@@ -503,7 +503,7 @@
+ 
+ 	if (!(survey->filled & SURVEY_HAS_CHAN_TIME_BUSY) &&
+ 	    !(survey->filled & SURVEY_HAS_CHAN_TIME_RX)) {
+-		wpa_printf(MSG_INFO,
++		wpa_printf(MSG_DEBUG,
+ 			   "ACS: Survey for freq %d is missing RX and busy time (at least one is required)",
+ 			   survey->freq);
+ 		return 0;
+@@ -531,7 +531,7 @@
+ 		ret = 0; /* no survey list entries */
+ 
+ 	if (!ret) {
+-		wpa_printf(MSG_INFO,
++		wpa_printf(MSG_DEBUG,
+ 			   "ACS: Channel %d has insufficient survey data",
+ 			   chan->chan);
+ 	}
