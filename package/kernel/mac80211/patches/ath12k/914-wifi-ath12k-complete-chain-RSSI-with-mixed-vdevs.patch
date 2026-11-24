@@ -1,0 +1,81 @@
+From: Gael Julien <jgm509@protonmail.com>
+Date: Tue, 24 Nov 2026 18:35:49 +0800
+Subject: [PATCH] wifi: ath12k: complete chain RSSI stats with mixed vdevs
+
+Firmware may report AP and unassociated vdevs alongside a connected
+station. Skip entries without a vif or link STA and complete the
+request even if none can update signal data. Complete a valid empty
+chain RSSI reply as well, using the pdev from the stats event.
+
+Link: https://github.com/openwrt/openwrt/pull/26567
+
+Signed-off-by: Gael Julien <jgm509@protonmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -8752,10 +8752,19 @@ static int ath12k_wmi_tlv_rssi_chain_par
+ 		return -EPROTO;
+ 	}
+ 
++	/* The firmware reports per-chain RSSI for every vdev on the pdev,
++	 * including AP vdevs and stations that aren't connected. Only a
++	 * connected station has a link sta for its BSSID; skip the other
++	 * entries instead of failing the whole event, which would leave the
++	 * request waiting for its timeout.
++	 */
++	stats->stats_id = WMI_REQUEST_RSSI_PER_CHAIN_STAT;
++
+ 	arvif = ath12k_mac_get_arvif(ar, vdev_id);
+ 	if (!arvif) {
+-		ath12k_warn(ab, "not found vif for vdev id %d\n", vdev_id);
+-		return -EPROTO;
++		ath12k_dbg(ab, ATH12K_DBG_WMI,
++			   "rssi chain: no vif for vdev id %d, skipping\n", vdev_id);
++		return 0;
+ 	}
+ 
+ 	ath12k_dbg(ab, ATH12K_DBG_WMI,
+@@ -8765,10 +8774,10 @@ static int ath12k_wmi_tlv_rssi_chain_par
+ 	guard(spinlock_bh)(&ab->base_lock);
+ 	arsta = ath12k_link_sta_find_by_addr(ab, arvif->bssid);
+ 	if (!arsta) {
+-		ath12k_warn(ab,
+-			    "not found link sta with bssid %pM for rssi chain\n",
+-			    arvif->bssid);
+-		return -EPROTO;
++		ath12k_dbg(ab, ATH12K_DBG_WMI,
++			   "rssi chain: no link sta with bssid %pM, skipping\n",
++			   arvif->bssid);
++		return 0;
+ 	}
+ 
+ 	BUILD_BUG_ON(ARRAY_SIZE(arsta->chain_signal) >
+@@ -8777,8 +8786,6 @@ static int ath12k_wmi_tlv_rssi_chain_par
+ 	for (j = 0; j < ARRAY_SIZE(arsta->chain_signal); j++)
+ 		arsta->chain_signal[j] = le32_to_cpu(stats_rssi->rssi_avg_beacon[j]);
+ 
+-	stats->stats_id = WMI_REQUEST_RSSI_PER_CHAIN_STAT;
+-
+ 	return 0;
+ }
+ 
+@@ -8797,9 +8804,16 @@ static int ath12k_wmi_tlv_fw_stats_parse
+ 		ret = ath12k_wmi_tlv_fw_stats_data_parse(ab, parse, ptr, len);
+ 		break;
+ 	case WMI_TAG_PER_CHAIN_RSSI_STATS:
++		if (!parse->ev)
++			return -EPROTO;
++		if (!(le32_to_cpu(parse->ev->stats_id) & WMI_REQUEST_RSSI_PER_CHAIN_STAT))
++			break;
+ 		parse->rssi = ptr;
+-		if (le32_to_cpu(parse->ev->stats_id) & WMI_REQUEST_RSSI_PER_CHAIN_STAT)
+-			parse->rssi_num = le32_to_cpu(parse->rssi->num_per_chain_rssi);
++		parse->rssi_num = le32_to_cpu(parse->rssi->num_per_chain_rssi);
++		if (!parse->rssi_num) {
++			parse->stats->pdev_id = le32_to_cpu(parse->ev->pdev_id);
++			parse->stats->stats_id = WMI_REQUEST_RSSI_PER_CHAIN_STAT;
++		}
+ 		break;
+ 	case WMI_TAG_ARRAY_STRUCT:
+ 		if (parse->rssi_num && !parse->chain_rssi_done) {
