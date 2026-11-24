@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -42,6 +42,11 @@
+@@ -42,6 +42,11 @@ bool ath11k_nss_offload;
  module_param_named(nss_offload, ath11k_nss_offload, bool, 0644);
  MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
  
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  bool ath11k_nss_host_tx;
  #ifdef CONFIG_NSS_WIFI_DEBUG
  module_param_named(nss_host_tx, ath11k_nss_host_tx, bool, 0644);
-@@ -2429,9 +2434,11 @@
+@@ -2429,9 +2434,11 @@ static int ath11k_core_start_firmware(st
  
  int ath11k_core_qmi_firmware_ready(struct ath11k_base *ab)
  {
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	case ATH11K_CRYPT_MODE_SW:
  		set_bit(ATH11K_FLAG_HW_CRYPTO_DISABLED, &ab->dev_flags);
  		set_bit(ATH11K_FLAG_RAW_MODE, &ab->dev_flags);
-@@ -2441,7 +2448,7 @@
+@@ -2441,7 +2448,7 @@ int ath11k_core_qmi_firmware_ready(struc
  		clear_bit(ATH11K_FLAG_RAW_MODE, &ab->dev_flags);
  		break;
  	default:
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EINVAL;
  	}
  
-@@ -2829,7 +2836,8 @@
+@@ -2829,7 +2836,8 @@ static int ath11k_init_hw_params(struct
  	 * it receives; left unreplenished the ring runs dry and the radio
  	 * stops receiving, so a station's frames go unacknowledged.
  	 */
@@ -57,7 +57,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   ab->hw_rev == ATH11K_HW_QCN9074_HW10);
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -1053,6 +1053,7 @@
+@@ -1053,6 +1053,7 @@ struct ath11k_base {
  	struct ath11k_hw_ring_mask nss_ring_mask;
  	/* ath11k_nss_offload, for a radio the NSS firmware drives */
  	bool nss_offload;
@@ -67,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -7313,7 +7313,7 @@
+@@ -7313,7 +7313,7 @@ static void ath11k_mac_op_update_vif_off
  	int ret;
  
  	param_id = WMI_VDEV_PARAM_TX_ENCAP_TYPE;
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    (vif->type != NL80211_IFTYPE_STATION &&
  	     vif->type != NL80211_IFTYPE_AP))
  		vif->offload_flags &= ~(IEEE80211_OFFLOAD_ENCAP_ENABLED |
-@@ -11420,7 +11420,7 @@
+@@ -11420,7 +11420,7 @@ static int __ath11k_mac_register(struct
  	ieee80211_hw_set(ar->hw, SUPPORTS_TX_FRAG);
  	ieee80211_hw_set(ar->hw, REPORTS_LOW_ACK);
  

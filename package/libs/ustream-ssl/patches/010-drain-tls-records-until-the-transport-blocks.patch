@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ustream_ssl_error_cb(struct uloop_timeout *t)
  {
  	struct ustream_ssl *us = container_of(t, struct ustream_ssl, error_timer);
-@@ -166,35 +168,46 @@
+@@ -166,35 +168,46 @@ static void ustream_ssl_notify_state(str
  static int ustream_ssl_write(struct ustream *s, const char *buf, int len, bool more)
  {
  	struct ustream_ssl *us = container_of(s, struct ustream_ssl, stream);
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void ustream_ssl_set_read_blocked(struct ustream *s)
-@@ -295,6 +308,9 @@
+@@ -295,6 +308,9 @@ static int _ustream_ssl_init_common(stru
  {
  	us->error_timer.cb = ustream_ssl_error_cb;
  
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	us->ssl = __ustream_ssl_session_new(us->ctx);
  	if (!us->ssl)
  		return -ENOMEM;
-@@ -319,14 +335,6 @@
+@@ -319,14 +335,6 @@ static int _ustream_ssl_init_fd(struct u
  	us->ctx = ctx;
  	us->fd.fd = fd;
  
@@ -120,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/ustream-openssl.c
 +++ b/ustream-openssl.c
-@@ -437,7 +437,7 @@
+@@ -437,7 +437,7 @@ __hidden int __ustream_ssl_write(struct
  
  	ret = SSL_write(ssl, buf, len);
  
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			return 0;
 --- a/ustream-mbedtls.c
 +++ b/ustream-mbedtls.c
-@@ -537,25 +537,16 @@
+@@ -537,25 +537,16 @@ __hidden enum ssl_conn_status __ustream_
  __hidden int __ustream_ssl_write(struct ustream_ssl *us, const char *buf, int len)
  {
  	void *ssl = us->ssl;

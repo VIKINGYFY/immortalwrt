@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  enum auth_type {
  	AUTH_TYPE_UNKNOWN,
  	AUTH_TYPE_NONE,
-@@ -121,6 +124,8 @@
+@@ -121,6 +124,8 @@ struct uclient_http {
  
  	struct blob_buf headers;
  	struct blob_buf meta;
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  enum {
-@@ -254,6 +259,7 @@
+@@ -254,6 +259,7 @@ static void uclient_http_reset_state(str
  	uh->disconnect = false;
  	uh->connection_close = false;
  	uh->state = HTTP_STATE_INIT;
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (uh->auth_type == AUTH_TYPE_UNKNOWN && !uh->uc.url->auth)
  		uh->auth_type = AUTH_TYPE_NONE;
-@@ -818,6 +824,62 @@
+@@ -818,6 +824,62 @@ error:
  	uclient_notify_eof(uh);
  }
  
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void __uclient_notify_read(struct uclient_http *uh)
  {
  	struct uclient *uc = &uh->uc;
-@@ -831,56 +893,20 @@
+@@ -831,56 +893,20 @@ static void __uclient_notify_read(struct
  	if (uh->state == HTTP_STATE_PROCESS_HEADERS)
  		return;
  
@@ -174,7 +174,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return;
  
  	if (uh->state == HTTP_STATE_RECV_DATA) {
-@@ -1092,6 +1118,7 @@
+@@ -1092,6 +1118,7 @@ static void uclient_http_free(struct ucl
  	uclient_http_free_ssl_ctx(uh);
  	blob_buf_free(&uh->headers);
  	blob_buf_free(&uh->meta);
@@ -182,7 +182,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	free(uh);
  }
  
-@@ -1223,7 +1250,7 @@
+@@ -1223,7 +1250,7 @@ uclient_http_read(struct uclient *cl, ch
  		errno = 0;
  		chunk_len = strtoll(data, &end, 16);
  		if (end == data || chunk_len < 0 || chunk_len > LONG_MAX || errno) {
@@ -193,7 +193,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		uh->read_chunked = chunk_len;
 --- a/uclient-fetch.c
 +++ b/uclient-fetch.c
-@@ -532,6 +532,10 @@
+@@ -532,6 +532,10 @@ static void handle_uclient_error(struct
  		ignore = !verify;
  		error_ret = 5;
  		break;
@@ -206,7 +206,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		break;
 --- a/uclient.c
 +++ b/uclient.c
-@@ -498,6 +498,8 @@
+@@ -498,6 +498,8 @@ const char * uclient_strerror(unsigned e
  		return "ssl cn mismatch";
  	case UCLIENT_ERROR_MISSING_SSL_CONTEXT:
  		return "missing ssl context";
@@ -217,7 +217,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/uclient.h
 +++ b/uclient.h
-@@ -36,6 +36,7 @@
+@@ -36,6 +36,7 @@ enum uclient_error_code {
  	UCLIENT_ERROR_SSL_INVALID_CERT,
  	UCLIENT_ERROR_SSL_CN_MISMATCH,
  	UCLIENT_ERROR_MISSING_SSL_CONTEXT,

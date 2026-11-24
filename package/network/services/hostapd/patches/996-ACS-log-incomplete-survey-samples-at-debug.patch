@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/acs.c
 +++ b/src/ap/acs.c
-@@ -488,14 +488,14 @@
+@@ -488,14 +488,14 @@ static int acs_get_bw_center_chan(int fr
  static int acs_survey_is_sufficient(struct freq_survey *survey)
  {
  	if (!(survey->filled & SURVEY_HAS_NF)) {
@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   "ACS: Survey for freq %d is missing channel time",
  			   survey->freq);
  		return 0;
-@@ -503,7 +503,7 @@
+@@ -503,7 +503,7 @@ static int acs_survey_is_sufficient(stru
  
  	if (!(survey->filled & SURVEY_HAS_CHAN_TIME_BUSY) &&
  	    !(survey->filled & SURVEY_HAS_CHAN_TIME_RX)) {
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   "ACS: Survey for freq %d is missing RX and busy time (at least one is required)",
  			   survey->freq);
  		return 0;
-@@ -531,7 +531,7 @@
+@@ -531,7 +531,7 @@ static int acs_survey_list_is_sufficient
  		ret = 0; /* no survey list entries */
  
  	if (!ret) {

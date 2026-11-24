@@ -12,7 +12,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -4697,6 +4697,10 @@
+@@ -4697,6 +4697,10 @@ struct ieee80211_prep_tx_info {
   *	This callback may sleep.
   * @sta_set_4addr: Called to notify the driver when a station starts/stops using
   *	4-address mode
@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @set_sar_specs: Update the SAR (TX power) settings.
   * @sta_set_decap_offload: Called to notify the driver when a station is allowed
   *	to use rx decapsulation offload
-@@ -5198,6 +5202,9 @@
+@@ -5198,6 +5202,9 @@ struct ieee80211_ops {
  				   struct ieee80211_vif *vif);
  	void (*sta_set_4addr)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
  			      struct ieee80211_sta *sta, bool enabled);
@@ -33,7 +33,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int (*set_sar_specs)(struct ieee80211_hw *hw,
  			     const struct cfg80211_sar_specs *sar);
  	void (*sta_set_decap_offload)(struct ieee80211_hw *hw,
-@@ -6931,6 +6938,16 @@
+@@ -6931,6 +6938,16 @@ void ieee80211_stop_tx_ba_cb_irqsafe(str
  				     u16 tid);
  
  /**
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @vif: virtual interface to look for station on
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -2984,6 +2984,13 @@
+@@ -2984,6 +2984,13 @@ static int ieee80211_change_station(stru
  	if (params->vlan && params->vlan != sta->sdata->dev) {
  		vlansdata = IEEE80211_DEV_TO_SUB_IF(params->vlan);
  
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (err)
 --- a/net/mac80211/driver-ops.h
 +++ b/net/mac80211/driver-ops.h
-@@ -1688,6 +1688,22 @@
+@@ -1688,6 +1688,22 @@ static inline void drv_sta_set_4addr(str
  	trace_drv_return_void(local);
  }
  
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					     struct ieee80211_sta *sta,
 --- a/net/mac80211/sta_info.c
 +++ b/net/mac80211/sta_info.c
-@@ -199,6 +199,16 @@
+@@ -199,6 +199,16 @@ struct rhlist_head *sta_info_hash_lookup
  	return rhltable_lookup(&local->sta_hash, addr, sta_rht_params);
  }
  

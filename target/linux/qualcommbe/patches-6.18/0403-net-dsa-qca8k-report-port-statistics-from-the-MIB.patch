@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -2212,6 +2212,162 @@
+@@ -2212,6 +2212,162 @@ static int qca8k_qca8386_reset(struct qc
  	return 0;
  }
  
@@ -179,7 +179,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int
  qca8k_setup(struct dsa_switch *ds)
  {
-@@ -2383,6 +2539,8 @@
+@@ -2383,6 +2539,8 @@ qca8k_setup(struct dsa_switch *ds)
  	/* HW learn on CPU port is limited and require manual setting */
  	ds->assisted_learning_on_cpu_port = true;
  
@@ -188,7 +188,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
  }
  
-@@ -2396,6 +2554,8 @@
+@@ -2396,6 +2554,8 @@ static const struct phylink_mac_ops qca8
  static const struct dsa_switch_ops qca8k_switch_ops = {
  	.get_tag_protocol	= qca8k_get_tag_protocol,
  	.setup			= qca8k_setup,
@@ -197,7 +197,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.get_strings		= qca8k_get_strings,
  	.get_ethtool_stats	= qca8k_get_ethtool_stats,
  	.get_sset_count		= qca8k_get_sset_count,
-@@ -2495,6 +2655,9 @@
+@@ -2495,6 +2655,9 @@ qca8k_sw_probe(struct mdio_device *mdiod
  	priv->ds->priv = priv;
  	priv->ds->ops = &qca8k_switch_ops;
  	priv->ds->phylink_mac_ops = &qca8k_phylink_mac_ops;
@@ -207,7 +207,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_init(&priv->reg_mutex);
  	dev_set_drvdata(&mdiodev->dev, priv);
  
-@@ -2529,6 +2692,7 @@
+@@ -2529,6 +2692,7 @@ static void qca8k_sw_shutdown(struct mdi
  		return;
  
  
@@ -217,7 +217,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	dev_set_drvdata(&mdiodev->dev, NULL);
 --- a/drivers/net/dsa/qca/qca8k.h
 +++ b/drivers/net/dsa/qca/qca8k.h
-@@ -467,6 +467,51 @@
+@@ -467,6 +467,51 @@ struct qca8k_led {
  	struct led_classdev cdev;
  };
  
@@ -269,7 +269,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct qca8k_priv {
  	u8 switch_id;
  	u8 switch_revision;
-@@ -495,6 +540,8 @@
+@@ -495,6 +540,8 @@ struct qca8k_priv {
  	const struct qca8k_match_data *info;
  	enum dsa_tag_protocol proto;
  	struct qca8k_led ports_led[QCA8K_LED_COUNT];
