@@ -1,0 +1,27 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Date: Tue, 24 Nov 2026 18:35:49 +0800
+Subject: [PATCH] wifi: ath12k: derive VHT160 NSS from radio chains
+
+Use the radio TX NSS when applying the firmware bandwidth ratio,
+then clamp the result to the peer NSS. Match the existing HE160
+calculation and avoid reducing the receive NSS of a 2-stream peer
+on a 4-chain radio reporting a 1:2 ratio.
+
+Fixes: 18ab9d038fad ("wifi: ath12k: add support for 160 MHz bandwidth")
+Link: https://lore.kernel.org/all/20261021165138.388593-3-julius@bairaktaris.de/
+Link: https://github.com/openwrt/openwrt/pull/25807
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -2521,7 +2521,7 @@ static void ath12k_peer_assoc_h_vht(stru
+ 	arg->tx_max_mcs_nss = 0xFF;
+ 
+ 	if (arg->peer_phymode == MODE_11AC_VHT160) {
+-		tx_nss = ath12k_get_nss_160mhz(ar, max_nss);
++		tx_nss = ath12k_get_nss_160mhz(ar, ar->num_tx_chains);
+ 		rx_nss = min(arg->peer_nss, tx_nss);
+ 		arg->peer_bw_rxnss_override = ATH12K_BW_NSS_MAP_ENABLE;
+ 
