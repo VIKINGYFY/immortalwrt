@@ -1,0 +1,46 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 24 Nov 2026 21:16:50 +0800
+Subject: [PATCH] wifi: mac80211: sync AP VLAN TX encapsulation when the AP starts
+
+An AP VLAN opened before its parent AP skips the TX netdev ops update.
+It keeps the software encapsulation path when the AP starts with TX
+encapsulation offload, even though its carrier comes up. Refresh its
+TX ops before enabling carrier, after the driver's AP setup.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -2073,8 +2073,10 @@
+ 	if (ieee80211_num_beaconing_links(sdata) <= 1)
+ 		netif_carrier_on(dev);
+ 
+-	list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list)
++	list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list) {
++		ieee80211_set_vif_encap_ops(vlan);
+ 		netif_carrier_on(vlan->dev);
++	}
+ 
+ 	return 0;
+ 
+--- a/net/mac80211/ieee80211_i.h
++++ b/net/mac80211/ieee80211_i.h
+@@ -2287,6 +2287,7 @@
+ bool __ieee80211_recalc_txpower(struct ieee80211_link_data *link);
+ void ieee80211_recalc_txpower(struct ieee80211_link_data *link,
+ 			      bool update_bss);
++void ieee80211_set_vif_encap_ops(struct ieee80211_sub_if_data *sdata);
+ void ieee80211_recalc_offload(struct ieee80211_local *local);
+ 
+ /* SCS and MSCS */
+--- a/net/mac80211/iface.c
++++ b/net/mac80211/iface.c
+@@ -1140,7 +1140,7 @@
+ 	return true;
+ }
+ 
+-static void ieee80211_set_vif_encap_ops(struct ieee80211_sub_if_data *sdata)
++void ieee80211_set_vif_encap_ops(struct ieee80211_sub_if_data *sdata)
+ {
+ 	struct ieee80211_local *local = sdata->local;
+ 	struct ieee80211_sub_if_data *bss = sdata;

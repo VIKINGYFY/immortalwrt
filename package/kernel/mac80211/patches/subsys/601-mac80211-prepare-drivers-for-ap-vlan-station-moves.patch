@@ -1,0 +1,112 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 24 Nov 2026 20:46:05 +0800
+Subject: [PATCH] wifi: mac80211: prepare drivers for AP VLAN station moves
+
+A driver-owned forwarding path must be withdrawn before the station
+is moved to a three-address AP VLAN. Notify drivers with the parent AP
+vif, and keep the old interface if preparation fails. Four-address
+assignments retain their existing callback. Expose the VLAN type for
+station creation and driver reconfiguration.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/include/net/mac80211.h
++++ b/include/net/mac80211.h
+@@ -4697,6 +4697,10 @@
+  *	This callback may sleep.
+  * @sta_set_4addr: Called to notify the driver when a station starts/stops using
+  *	4-address mode
++ * @sta_prepare_ap_vlan: Prepare a station for assignment to a three-address
++ *	AP VLAN. The callback receives the parent AP vif and runs before the
++ *	station's data interface is changed. It may sleep, and an error
++ *	prevents the move.
+  * @set_sar_specs: Update the SAR (TX power) settings.
+  * @sta_set_decap_offload: Called to notify the driver when a station is allowed
+  *	to use rx decapsulation offload
+@@ -5198,6 +5202,9 @@
+ 				   struct ieee80211_vif *vif);
+ 	void (*sta_set_4addr)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 			      struct ieee80211_sta *sta, bool enabled);
++	int (*sta_prepare_ap_vlan)(struct ieee80211_hw *hw,
++				   struct ieee80211_vif *vif,
++				   struct ieee80211_sta *sta);
+ 	int (*set_sar_specs)(struct ieee80211_hw *hw,
+ 			     const struct cfg80211_sar_specs *sar);
+ 	void (*sta_set_decap_offload)(struct ieee80211_hw *hw,
+@@ -6931,6 +6938,16 @@
+ 				     u16 tid);
+ 
+ /**
++ * ieee80211_sta_uses_ap_vlan - check whether a station belongs to an AP VLAN
++ * @sta: the station
++ *
++ * Called under the wiphy lock. This is valid during station creation and
++ * driver reconfiguration, before the station is authorized.
++ * Return: true if the station's data interface is an AP VLAN.
++ */
++bool ieee80211_sta_uses_ap_vlan(const struct ieee80211_sta *sta);
++
++/**
+  * ieee80211_find_sta - find a station
+  *
+  * @vif: virtual interface to look for station on
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -2984,6 +2984,13 @@
+ 	if (params->vlan && params->vlan != sta->sdata->dev) {
+ 		vlansdata = IEEE80211_DEV_TO_SUB_IF(params->vlan);
+ 
++		if (vlansdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
++		    !params->vlan->ieee80211_ptr->use_4addr) {
++			err = drv_sta_prepare_ap_vlan(local, sdata, &sta->sta);
++			if (err)
++				return err;
++		}
++
+ 		if (params->vlan->ieee80211_ptr->use_4addr) {
+ 			err = ieee80211_set_sta_4addr(local, vlansdata, sta);
+ 			if (err)
+--- a/net/mac80211/driver-ops.h
++++ b/net/mac80211/driver-ops.h
+@@ -1688,6 +1688,22 @@
+ 	trace_drv_return_void(local);
+ }
+ 
++static inline int drv_sta_prepare_ap_vlan(struct ieee80211_local *local,
++					  struct ieee80211_sub_if_data *sdata,
++					  struct ieee80211_sta *sta)
++{
++	if (!local->ops->sta_prepare_ap_vlan)
++		return 0;
++
++	sdata = get_bss_sdata(sdata);
++	might_sleep();
++	lockdep_assert_wiphy(local->hw.wiphy);
++	if (!check_sdata_in_driver(sdata))
++		return -EIO;
++
++	return local->ops->sta_prepare_ap_vlan(&local->hw, &sdata->vif, sta);
++}
++
+ static inline void drv_sta_set_decap_offload(struct ieee80211_local *local,
+ 					     struct ieee80211_sub_if_data *sdata,
+ 					     struct ieee80211_sta *sta,
+--- a/net/mac80211/sta_info.c
++++ b/net/mac80211/sta_info.c
+@@ -199,6 +199,16 @@
+ 	return rhltable_lookup(&local->sta_hash, addr, sta_rht_params);
+ }
+ 
++bool ieee80211_sta_uses_ap_vlan(const struct ieee80211_sta *pubsta)
++{
++	const struct sta_info *sta = container_of_const(pubsta, struct sta_info, sta);
++
++	lockdep_assert_wiphy(sta->local->hw.wiphy);
++
++	return sta->sdata->vif.type == NL80211_IFTYPE_AP_VLAN;
++}
++EXPORT_SYMBOL_GPL(ieee80211_sta_uses_ap_vlan);
++
+ /* protected by RCU */
+ struct sta_info *sta_info_get(struct ieee80211_sub_if_data *sdata,
+ 			      const u8 *addr)
