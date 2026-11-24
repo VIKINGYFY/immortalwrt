@@ -1,8 +1,12 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
-Subject: [PATCH] wifi: ath12k: own fixed and dynamic firmware memory
+Date: Tue, 24 Nov 2026 18:35:49 +0800
+Subject: [PATCH] wifi: ath12k: own firmware allocations and bound the IPQ5332 DMA window
 
-Use the final per-segment DMA ownership, bounded AHB host-DDR views, optional CALDB/M3 allocation and shared MLO pool directly. Preserve fixed-region and coherent-DMA release APIs without intermediate map/unmap implementations.
+Keep fixed and dynamic firmware memory ownership, host DDR views, optional
+CALDB/M3 regions and the shared MLO allocation in the QMI allocator.
+Validate the active IPQ5332 firmware DMA window before returning dynamic
+addresses, including when a PCIe partner first allocates the MLO pool.
+Retain the allocation device, input DMA mask and matching release APIs.
 
 Split from:
   315-01-ath12k-share-fixed-mlo-memory.patch - wifi: ath12k: share fixed MLO memory in mixed bus groups
@@ -17,6 +21,7 @@ Merged from:
   342-ath12k-support-host-ddr-view-within-wcss-memory.patch - wifi: ath12k: support host DDR view within WCSS memory
   913-ath12k-allocate-afc-memory-in-dynamic-path.patch - wifi: ath12k: allocate AFC memory in dynamic path
   914-ath12k-allocate-optional-firmware-memory-dynamically.patch - wifi: ath12k: allocate optional firmware memory dynamically
+  911-ath12k-bound-shared-firmware-DMA.patch - wifi: ath12k: validate the IPQ5332 firmware memory window
 
 Previous split from (317-ath12k-resolve-named-firmware-memory-and-AFC-types.patch):
   317-ath12k-use-reserved-pci-host-ddr.patch - wifi: ath12k: use fixed host DDR for PCI firmware
@@ -31,7 +36,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -2508,11 +2508,16 @@ void ath12k_qmi_reset_mlo_mem(struct ath
+@@ -18,6 +18,8 @@
+ #define HOST_CSTATE_BIT			0x04
+ #define PLATFORM_CAP_PCIE_GLOBAL_RESET	0x08
+ #define ATH12K_QMI_MAX_CHUNK_SIZE	2097152
++#define ATH12K_QMI_IPQ5332_FW_MEM_START	0x4b240000ULL
++#define ATH12K_QMI_IPQ5332_FW_MEM_END	0x80000000ULL
+ 
+ static const struct qmi_elem_info wlfw_host_mlo_chip_info_s_v01_ei[] = {
+ 	{
+@@ -2508,11 +2510,16 @@ void ath12k_qmi_reset_mlo_mem(struct ath
  	for (i = 0; i < ARRAY_SIZE(ag->mlo_mem.chunk); i++) {
  		mlo_chunk = &ag->mlo_mem.chunk[i];
  
@@ -53,7 +67,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			memset(mlo_chunk->v.addr, 0, mlo_chunk->size);
  	}
  }
-@@ -2523,78 +2528,165 @@ static void ath12k_qmi_free_mlo_mem_chun
+@@ -2523,78 +2530,188 @@ static void ath12k_qmi_free_mlo_mem_chun
  {
  	struct ath12k_hw_group *ag = ab->ag;
  	struct target_mem_chunk *mlo_chunk;
@@ -248,6 +262,29 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  }
  
++static bool ath12k_qmi_needs_ipq5332_window(struct ath12k_base *ab, u32 type)
++{
++	struct ath12k_hw_group *ag = ab->ag;
++	struct ath12k_base *partner;
++	int i;
++
++	if (ab->hw_rev == ATH12K_HW_IPQ5332_HW10)
++		return true;
++
++	if (type != MLO_GLOBAL_MEM_REGION_TYPE)
++		return false;
++
++	lockdep_assert_held(&ag->mutex);
++
++	for (i = 0; i < ag->num_devices; i++) {
++		partner = ag->ab[i];
++		if (partner && partner->hw_rev == ATH12K_HW_IPQ5332_HW10)
++			return true;
++	}
++
++	return false;
++}
++
  static int ath12k_qmi_alloc_chunk(struct ath12k_base *ab,
  				  struct target_mem_chunk *chunk)
  {
@@ -258,7 +295,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Firmware reloads in recovery/resume.
  	 * In such cases, no need to allocate memory for FW again.
  	 */
-@@ -2604,9 +2696,7 @@ static int ath12k_qmi_alloc_chunk(struct
+@@ -2604,9 +2721,7 @@ static int ath12k_qmi_alloc_chunk(struct
  			goto this_chunk_done;
  
  		/* cannot reuse the existing chunk */
@@ -269,11 +306,27 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	chunk->v.addr = dma_alloc_coherent(ab->dev,
-@@ -2629,27 +2719,155 @@ static int ath12k_qmi_alloc_chunk(struct
+@@ -2629,27 +2744,171 @@ static int ath12k_qmi_alloc_chunk(struct
  	}
  	chunk->prev_type = chunk->type;
  	chunk->prev_size = chunk->size;
 +	chunk->dma_allocated = true;
++
++	/*
++	 * CMA normally supplies these buffers. Check the entire range before
++	 * sending a QMI response in case DMA allocation fell back to other RAM.
++	 */
++	if (ath12k_qmi_needs_ipq5332_window(ab, chunk->type) &&
++	    (chunk->paddr < ATH12K_QMI_IPQ5332_FW_MEM_START ||
++	     chunk->paddr >= ATH12K_QMI_IPQ5332_FW_MEM_END ||
++	     chunk->size > ATH12K_QMI_IPQ5332_FW_MEM_END - chunk->paddr)) {
++		ath12k_warn(ab,
++			    "firmware memory type %u addr %pad size %u outside Q6 WLAN_SRAM\n",
++			    chunk->type, &chunk->paddr, chunk->size);
++		ath12k_qmi_free_dma_chunk(ab, chunk);
++		return -ERANGE;
++	}
++
 +	if (test_bit(ATH12K_FLAG_FIXED_MEM_REGION, &ab->dev_flags) &&
 +	    (chunk->type == M3_DUMP_REGION_TYPE ||
 +	     chunk->type == CALDB_MEM_REGION_TYPE))
@@ -429,7 +482,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		chunk = &ab->qmi.target_mem[i];
  
  		/* Allocate memory for the region and the functionality supported
-@@ -2657,6 +2875,15 @@ static int ath12k_qmi_alloc_target_mem_c
+@@ -2657,6 +2916,15 @@ static int ath12k_qmi_alloc_target_mem_c
  		 * allocate memory, assigns NULL and FW will handle this without crashing.
  		 */
  		switch (chunk->type) {
@@ -445,7 +498,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		case HOST_DDR_REGION_TYPE:
  		case M3_DUMP_REGION_TYPE:
  		case PAGEABLE_MEM_REGION_TYPE:
-@@ -2667,6 +2894,10 @@ static int ath12k_qmi_alloc_target_mem_c
+@@ -2667,6 +2935,10 @@ static int ath12k_qmi_alloc_target_mem_c
  				goto err;
  			break;
  		case MLO_GLOBAL_MEM_REGION_TYPE:
@@ -456,7 +509,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			mlo_size += chunk->size;
  			if (ag->mlo_mem.mlo_mem_size &&
  			    mlo_size > ag->mlo_mem.mlo_mem_size) {
-@@ -2676,31 +2907,17 @@ static int ath12k_qmi_alloc_target_mem_c
+@@ -2676,31 +2948,17 @@ static int ath12k_qmi_alloc_target_mem_c
  				goto err;
  			}
  
@@ -494,7 +547,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			chunk->paddr = 0;
  			chunk->v.addr = NULL;
  			break;
-@@ -2716,6 +2933,9 @@ static int ath12k_qmi_alloc_target_mem_c
+@@ -2716,6 +2974,9 @@ static int ath12k_qmi_alloc_target_mem_c
  		goto err;
  	}
  
@@ -504,7 +557,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ag->mutex);
  
  	return 0;
-@@ -2738,112 +2958,98 @@ err:
+@@ -2738,112 +2999,98 @@ err:
  
  static int ath12k_qmi_assign_target_mem_chunk(struct ath12k_base *ab)
  {
@@ -622,8 +675,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			}
 -			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
 -			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
--			idx++;
--			break;
+ 			idx++;
+ 			break;
 -		case CALDB_MEM_REGION_TYPE:
 -			/* Cold boot calibration is not enabled in Ath12k. Hence,
 -			 * assign paddr = 0.
@@ -634,8 +687,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -			ab->qmi.target_mem[idx].v.ioaddr = NULL;
 -			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
 -			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
- 			idx++;
- 			break;
+-			idx++;
+-			break;
 -		case M3_DUMP_REGION_TYPE:
 -			rmem = ath12k_core_get_reserved_mem(ab, 1);
 -			if (!rmem) {
@@ -681,7 +734,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			idx++;
  			break;
  		default:
-@@ -2851,12 +3057,28 @@ static int ath12k_qmi_assign_target_mem_
+@@ -2851,12 +3098,28 @@ static int ath12k_qmi_assign_target_mem_
  				    ab->qmi.target_mem[i].type);
  			break;
  		}
@@ -710,7 +763,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -3838,9 +4060,11 @@ static void ath12k_qmi_msg_mem_request_c
+@@ -3838,9 +4101,11 @@ static void ath12k_qmi_msg_mem_request_c
  	ath12k_dbg(ab, ATH12K_DBG_QMI, "qmi firmware request memory request\n");
  
  	if (msg->mem_seg_len == 0 ||

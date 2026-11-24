@@ -1,19 +1,17 @@
-From b6a3bb1561e98980b24f08bffe91327b29091c82 Mon Sep 17 00:00:00 2001
 From: Matt Merhar <mattmerhar@protonmail.com>
-Date: Wed, 4 Mar 2026 22:07:15 -0500
-Subject: [PATCH] ath12k: control thermal support via symbol
+Date: Tue, 24 Nov 2026 18:35:49 +0800
+Subject: [PATCH] wifi: ath12k: configure and guard thermal support
 
-As is already done for ath10k and ath11k, add a new ATH12K_THERMAL
-symbol to decouple the enablement of thermal support from
-CONFIG_THERMAL.
+Keep ATH12K_THERMAL independent of CONFIG_THERMAL. Check the active pdev
+under the wiphy lock before sending a temperature request. A shared
+wiphy can be up while a pdev with no usable channels stays inactive.
+
+Merged from:
+  300-ath12k-control-thermal-support-via-symbol.patch - ath12k: control thermal support via symbol
+  913-ath12k-skip-temperature-reads-for-inactive-pdevs.patch - wifi: ath12k: skip temperature reads for inactive pdevs
 
 Signed-off-by: Matt Merhar <mattmerhar@protonmail.com>
----
- drivers/net/wireless/ath/ath12k/Kconfig   | 7 +++++++
- drivers/net/wireless/ath/ath12k/Makefile  | 2 +-
- drivers/net/wireless/ath/ath12k/thermal.h | 2 +-
- local-symbols                             | 1 +
- 4 files changed, 10 insertions(+), 2 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/Kconfig
 +++ b/drivers/net/wireless/ath/ath12k/Kconfig
@@ -60,3 +58,15 @@ Signed-off-by: Matt Merhar <mattmerhar@protonmail.com>
  WLAN_VENDOR_ATMEL=
  AT76C50X_USB=
  WLAN_VENDOR_BROADCOM=
+--- a/drivers/net/wireless/ath/ath12k/thermal.c
++++ b/drivers/net/wireless/ath/ath12k/thermal.c
+@@ -153,7 +153,8 @@ static ssize_t ath12k_thermal_temp_show(
+ 
+ 	guard(wiphy)(ath12k_ar_to_hw(ar)->wiphy);
+ 
+-	if (ar->ah->state != ATH12K_HW_STATE_ON)
++	if (ar->ah->state != ATH12K_HW_STATE_ON ||
++	    !rcu_access_pointer(ar->ab->pdevs_active[ar->pdev_idx]))
+ 		return -ENETDOWN;
+ 
+ 	reinit_completion(&ar->thermal.wmi_sync);

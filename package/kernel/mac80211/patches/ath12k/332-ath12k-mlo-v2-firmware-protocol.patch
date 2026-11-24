@@ -261,7 +261,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #endif
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -63,6 +63,43 @@ static const struct qmi_elem_info wlfw_h
+@@ -65,6 +65,43 @@ static const struct qmi_elem_info wlfw_h
  	},
  };
  
@@ -305,7 +305,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct qmi_elem_info qmi_wlanfw_host_cap_req_msg_v01_ei[] = {
  	{
  		.data_type	= QMI_OPT_FLAG,
-@@ -507,6 +544,25 @@ static const struct qmi_elem_info qmi_wl
+@@ -509,6 +546,25 @@ static const struct qmi_elem_info qmi_wl
  					   feature_list),
  	},
  	{
@@ -331,7 +331,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.data_type	= QMI_EOTI,
  		.array_type	= NO_ARRAY,
  		.tlv_type	= QMI_COMMON_TLV_TYPE,
-@@ -2086,12 +2142,85 @@ static void ath12k_host_cap_hw_link_id_i
+@@ -2088,12 +2144,85 @@ static void ath12k_host_cap_hw_link_id_i
  	ag->hw_link_id_init_done = true;
  }
  
@@ -418,7 +418,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u8 hw_link_id = 0;
  	int i, j, ret;
  
-@@ -2114,6 +2243,15 @@ static int ath12k_host_cap_parse_mlo(str
+@@ -2116,6 +2245,15 @@ static int ath12k_host_cap_parse_mlo(str
  		return -EINVAL;
  	}
  
@@ -434,7 +434,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	req->mlo_capable_valid = 1;
  	req->mlo_capable = 1;
  	req->mlo_chip_id_valid = 1;
-@@ -2137,47 +2275,67 @@ static int ath12k_host_cap_parse_mlo(str
+@@ -2139,47 +2277,67 @@ static int ath12k_host_cap_parse_mlo(str
  		ath12k_host_cap_hw_link_id_init(ag);
  
  	for (i = 0; i < ag->num_devices; i++) {
