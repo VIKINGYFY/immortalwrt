@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	netif_carrier_on(sdata->dev);
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -5274,6 +5274,10 @@ static void __ieee80211_beacon_add_tim(s
+@@ -5280,6 +5280,10 @@ static void __ieee80211_beacon_add_tim(s
  	bool mcast_traffic = false, have_bits = false;
  	struct ieee80211_bss_conf *link_conf = link->conf;
  	bool s1g = ieee80211_get_link_sband(link)->band == NL80211_BAND_S1GHZ;
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Generate bitmap for TIM only if there are any STAs in power save
  	 * mode. */
-@@ -5284,19 +5288,19 @@ static void __ieee80211_beacon_add_tim(s
+@@ -5290,19 +5294,19 @@ static void __ieee80211_beacon_add_tim(s
  					  IEEE80211_MAX_AID + 1);
  
  	if (!is_template) {
@@ -143,7 +143,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		mcast_traffic = true;
  
  	ps->dtim_bc_mc = mcast_traffic;
-@@ -6399,6 +6403,7 @@ ieee80211_get_buffered_bc(struct ieee802
+@@ -6405,6 +6409,7 @@ ieee80211_get_buffered_bc(struct ieee802
  	struct ps_data *ps;
  	struct ieee80211_tx_info *info;
  	struct ieee80211_chanctx_conf *chanctx_conf;
@@ -151,7 +151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	sdata = vif_to_sdata(vif);
  
-@@ -6416,13 +6421,15 @@ ieee80211_get_buffered_bc(struct ieee802
+@@ -6422,13 +6427,15 @@ ieee80211_get_buffered_bc(struct ieee802
  			goto out;
  
  		ps = &sdata->u.ap.ps;

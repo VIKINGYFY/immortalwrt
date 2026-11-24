@@ -223,7 +223,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			continue;
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -3951,6 +3951,32 @@ static bool ieee80211_drop_unauth_port(s
+@@ -3954,6 +3954,32 @@ static bool ieee80211_drop_unauth_port(s
  	return true;
  }
  
@@ -256,7 +256,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  struct sk_buff *ieee80211_tx_dequeue(struct ieee80211_hw *hw,
  				     struct ieee80211_txq *txq)
  {
-@@ -4015,6 +4041,11 @@ begin:
+@@ -4018,6 +4044,11 @@ begin:
  	tx.skb = skb;
  	tx.sdata = vif_to_sdata(info->control.vif);
  
@@ -268,7 +268,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (txq->sta) {
  		tx.sta = container_of(txq->sta, struct sta_info, sta);
  
-@@ -4628,11 +4659,26 @@ static void ieee80211_mlo_multicast_tx_o
+@@ -4632,11 +4663,26 @@ static void ieee80211_mlo_multicast_tx_o
  	__ieee80211_subif_start_xmit(out, sdata->dev, 0, ctrl_flags, NULL);
  }
  
