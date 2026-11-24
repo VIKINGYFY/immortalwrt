@@ -7,8 +7,29 @@ USE_PROCD=1
 PENDING=/etc/nss-wifi.pending
 LOCK=/var/run/nss-wifi-start.lock
 
+wifi_set_vlan_host() {
+	local ap_vlan="$1" wlan="$2" params=/sys/module/ath11k/parameters
+
+	[ "$ap_vlan" -ne 0 ] || return 0
+	if [ -e "$params/ap_vlan_host" ]; then
+		printf '%s\n' "$ap_vlan" > "$params/ap_vlan_host" && return 0
+	elif [ "$wlan" -eq 0 ]; then
+		# A host-only driver without NSS uses the original radio parameters.
+		echo 0 > "$params/frame_mode" && echo 1 > "$params/crypto_mode" && return 0
+	fi
+	logger -t nss-wifi "cannot select host WLAN mode for AP VLAN"
+	return 1
+}
+
 wifi_load_host() {
-	nss_module_present ath11k && modprobe ath11k 2>/dev/null
+	local ap_vlan="$1"
+
+	if nss_module_present ath11k; then
+		modprobe ath11k 2>/dev/null
+		if ! wifi_ath11k_probed; then
+			wifi_set_vlan_host "$ap_vlan" 0 || return 1
+		fi
+	fi
 	nss_module_present ath11k_ahb && modprobe ath11k_ahb 2>/dev/null
 	nss_module_present ath11k_pci && modprobe ath11k_pci 2>/dev/null
 	return 0
@@ -91,6 +112,43 @@ nss_wlan_buses() {
 	echo "$wlan"
 }
 
+wifi_ap_vlan() {
+	local iface="$1" mode vlan dev type path disabled node bus=3
+
+	config_get mode "$iface" mode
+	config_get_bool disabled "$iface" disabled 0
+	[ "$mode" = ap ] && [ "$disabled" = 0 ] || return 0
+	config_get vlan "$iface" dynamic_vlan 0
+	case "$vlan" in 1|2) ;; *) return 0 ;; esac
+	config_get dev "$iface" device
+	[ -n "$dev" ] || return 0
+	config_get type "$dev" type
+	config_get_bool disabled "$dev" disabled 0
+	[ "$type" = mac80211 ] && [ "$disabled" = 0 ] || return 0
+
+	config_get path "$dev" path
+	if [ -n "$path" ]; then
+		path="${path%%+*}"
+		case "$path" in
+			platform/*) node="/sys/devices/$path" ;;
+			*) node="/sys/devices/platform/$path" ;;
+		esac
+		# Match the same AHB and PCIe bits as nss_wlan_buses.
+		# A pre-probe PHY- or MAC-only configuration can need either bus.
+		if [ -r "$node/vendor" ] && [ -r "$node/device" ]; then
+			[ "$(cat "$node/vendor"):$(cat "$node/device")" = 0x17cb:0x1104 ] ||
+				return 0
+			bus=2
+		elif [ -r "$node/of_node/compatible" ]; then
+			grep -qsE 'qcom,ipq(6018|8074)-wifi' "$node/of_node/compatible" ||
+				return 0
+			bus=1
+		fi
+	fi
+
+	ap_vlan=$((ap_vlan | bus))
+}
+
 nss_state_has() {
 	local state
 	[ -r "$dir/state" ] || return 1
@@ -102,7 +160,11 @@ nss_state_has() {
 }
 
 nss_start() {
-	local dir fw i token wlan
+	local dir fw i token wlan ap_vlan=0
+
+	if nss_module_present ath11k && config_load wireless; then
+		config_foreach wifi_ap_vlan wifi-iface
+	fi
 
 	dir=/sys/bus/platform/devices/39000000.nss
 	# Check before touching pending or boot: repeated service actions must
@@ -117,15 +179,19 @@ nss_start() {
 		return 1
 	fi
 	[ "$(uci -q get nss-wifi.general.offload)" = 1 ] || {
-		wifi_load_host
-		return 0
+		wifi_load_host "$ap_vlan"
+		return $?
 	}
 	[ -e "$PENDING" ] && {
 		logger -t nss-wifi "offload skipped: $(cat "$PENDING"); remove $PENDING to retry after reboot"
-		wifi_load_host
-		return 0
+		wifi_load_host "$ap_vlan"
+		return $?
 	}
 	wlan=$(nss_wlan_buses)
+	if [ "$((wlan & ap_vlan))" -ne 0 ]; then
+		wlan=$((wlan & ~ap_vlan))
+		logger -t nss-wifi "dynamic AP VLAN host WLAN buses=$ap_vlan, NSS WLAN buses=$wlan"
+	fi
 	if [ "$wlan" -ne 0 ] && wifi_ath11k_probed; then
 		logger -t nss-wifi "WLAN already probed; reboot to select offload"
 		return 1
@@ -144,8 +210,8 @@ nss_start() {
 	[ -e "$dir/state" ] || {
 		logger -t nss-wifi "no NSS core; using the host path"
 		rm -f "$PENDING"
-		wifi_load_host
-		return 0
+		wifi_load_host "$ap_vlan"
+		return $?
 	}
 	if [ "$(cat /sys/module/nss_wifi_drv/parameters/wlan)" != "$wlan" ]; then
 		logger -t nss-wifi "WLAN bus selection already fixed; reboot to apply it"
@@ -156,17 +222,18 @@ nss_start() {
 	/usr/share/nss-wifi/flowtable.sh || return 1
 	if [ "$wlan" -ne 0 ]; then
 		modprobe ath11k 2>/dev/null
+		wifi_set_vlan_host "$ap_vlan" "$wlan" || return 1
 		if ! echo 1 > /sys/module/ath11k/parameters/nss_offload 2>/dev/null; then
 			logger -t nss-wifi "ath11k offload unavailable; using the host path"
 			rm -f "$PENDING"
-			wifi_load_host
-			return 0
+			wifi_load_host "$ap_vlan"
+			return $?
 		fi
 		if ! echo 2 > /sys/module/ath11k/parameters/frame_mode 2>/dev/null; then
 			echo 0 > /sys/module/ath11k/parameters/nss_offload 2>/dev/null
 			rm -f "$PENDING"
-			wifi_load_host
-			return 0
+			wifi_load_host "$ap_vlan"
+			return $?
 		fi
 		if [ "$((wlan & 1))" -ne 0 ]; then
 			wifi_prepare_recovery || return 1
@@ -210,7 +277,7 @@ nss_start() {
 	fi
 	[ "$wlan" -ne 0 ] || logger -t nss-wifi "non-WLAN offload ready; no ath11k bus required"
 	# Probe any remaining host-only bus after NSS has finished its handover.
-	wifi_load_host
+	wifi_load_host "$ap_vlan" || return 1
 	# An older checker cannot clear a newer boot's failure marker.
 	(
 	 # The delayed checker must not retain rc.common/procd's flock.
