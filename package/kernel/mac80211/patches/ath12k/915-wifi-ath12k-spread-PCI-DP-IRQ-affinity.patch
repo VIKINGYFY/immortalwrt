@@ -1,0 +1,87 @@
+From: Christopher Griffin <christophergriffin05@gmail.com>
+Date: Tue, 24 Nov 2026 18:35:49 +0800
+Subject: [PATCH] wifi: ath12k: spread PCI datapath IRQ affinity
+
+Distribute the first MSI group for each PCI REO and TX completion
+vector across CPUs. Monitor groups that share such a vector inherit
+its placement. Apply hints only after all groups are registered and
+when the IRQ supports affinity. Clear the hint on teardown.
+
+Preserve the single-vector path and the threaded NAPI fallback.
+
+Link: https://github.com/openwrt/openwrt/pull/26707
+
+Signed-off-by: Christopher Griffin <christophergriffin05@gmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/pci.c
++++ b/drivers/net/wireless/ath/ath12k/pci.c
+@@ -317,13 +317,19 @@ static void ath12k_pci_sw_reset(struct a
+ 
+ static void ath12k_pci_free_ext_irq(struct ath12k_base *ab)
+ {
++	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
+ 	int i, j;
+ 
+ 	for (i = 0; i < ATH12K_EXT_IRQ_GRP_NUM_MAX; i++) {
+ 		struct ath12k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
+ 
+-		for (j = 0; j < irq_grp->num_irq; j++)
+-			free_irq(ab->irq_num[irq_grp->irqs[j]], irq_grp);
++		for (j = 0; j < irq_grp->num_irq; j++) {
++			int irq = ab->irq_num[irq_grp->irqs[j]];
++
++			if (test_bit(ATH12K_PCI_FLAG_MULTI_MSI_VECTORS, &ab_pci->flags))
++				irq_update_affinity_hint(irq, NULL);
++			free_irq(irq, irq_grp);
++		}
+ 
+ 		netif_napi_del(&irq_grp->napi);
+ 		free_netdev(irq_grp->napi_ndev);
+@@ -539,6 +545,27 @@ static irqreturn_t ath12k_pci_ext_interr
+ 	return IRQ_HANDLED;
+ }
+ 
++static void ath12k_pci_ext_irq_set_affinity(struct ath12k_base *ab,
++					    int grp_id, int irq)
++{
++	const struct ath12k_hw_ring_mask *ring_mask = ab->hw_params->ring_mask;
++	unsigned int cpu;
++
++	/* Put each REO destination ring, over which the hardware hashes
++	 * the received frames, on its own CPU, and each TX completion ring
++	 * on the CPU after its number.
++	 */
++	if (ring_mask->rx[grp_id])
++		cpu = __ffs(ring_mask->rx[grp_id]);
++	else if (ring_mask->tx[grp_id])
++		cpu = __ffs(ring_mask->tx[grp_id]) + 1;
++	else
++		return;
++
++	cpu = cpumask_local_spread(cpu, dev_to_node(ab->dev));
++	irq_set_affinity_and_hint(irq, cpumask_of(cpu));
++}
++
+ static int ath12k_pci_ext_irq_config(struct ath12k_base *ab)
+ {
+ 	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
+@@ -615,6 +642,18 @@ static int ath12k_pci_ext_irq_config(str
+ 		ath12k_pci_ext_grp_disable(irq_grp);
+ 	}
+ 
++	/* Install hints only after every group has been registered. */
++	if (test_bit(ATH12K_PCI_FLAG_MULTI_MSI_VECTORS, &ab_pci->flags)) {
++		for (i = 0; i < min(num_vectors, ATH12K_EXT_IRQ_GRP_NUM_MAX); i++) {
++			irq_grp = &ab->ext_irq_grp[i];
++			if (!irq_grp->num_irq)
++				continue;
++			irq = ab->irq_num[irq_grp->irqs[0]];
++			if (irq_can_set_affinity(irq))
++				ath12k_pci_ext_irq_set_affinity(ab, i, irq);
++		}
++	}
++
+ 	return 0;
+ 
+ fail_request:
