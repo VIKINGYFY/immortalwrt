@@ -1,0 +1,42 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Date: Thu, 26 Nov 2026 10:41:54 +0800
+Subject: [PATCH] wifi: mac80211: return pending airtime for freed 802.3 frames
+
+Encapsulation offload leaves an Ethernet header on a frame that is
+freed with an AQL estimate. Recover the receiver through the same
+interface-scoped lookup used by the 802.3 transmit path. Release the
+station charge when the original data interface is still available.
+
+Split from:
+  cf495c344322 (mac80211: return the airtime of a freed 802.3 frame to its station)
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/net/mac80211/status.c
++++ b/net/mac80211/status.c
+@@ -783,11 +783,22 @@
+ 		acked = false;
+ 
+ 	if (tx_time_est) {
+-		struct sta_info *sta;
++		struct sta_info *sta = NULL;
+ 
+ 		rcu_read_lock();
+ 
+-		sta = sta_info_get_by_addrs(local, hdr->addr1, hdr->addr2);
++		if (info->flags & IEEE80211_TX_CTL_HW_80211_ENCAP) {
++			struct ieee80211_sub_if_data *sdata = NULL;
++
++			if (skb->dev)
++				sdata = ieee80211_sdata_from_skb(local, skb);
++			if (!sdata ||
++			    ieee80211_lookup_ra_sta(sdata, skb, &sta, false) ||
++			    IS_ERR(sta))
++				sta = NULL;
++		} else {
++			sta = sta_info_get_by_addrs(local, hdr->addr1, hdr->addr2);
++		}
+ 		ieee80211_sta_update_pending_airtime(local, sta,
+ 						     skb_get_queue_mapping(skb),
+ 						     tx_time_est,
