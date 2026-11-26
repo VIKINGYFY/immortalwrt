@@ -373,6 +373,7 @@ struct edma_queue {
 	u16 txcmpl_cons;
 	u16 rxfill_prod;
 	u16 rxdesc_cons;
+	bool rx_more;	/* Discard the remaining descriptors of this frame. */
 	bool tx_kick;
 
 	spinlock_t tx_lock;

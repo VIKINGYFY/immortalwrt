@@ -764,6 +764,7 @@ static u32 edma_clean_rx(struct edma_queue *q, int budget)
 		u32 desc_addr, desc_status;
 		u16 next = cons + 1;
 		u32 store_idx;
+		bool split, more;
 
 		if (ahead) {
 			desc_addr = next_addr;
@@ -781,10 +782,16 @@ static u32 edma_clean_rx(struct edma_queue *q, int budget)
 		rxph = phys_to_virt(desc_addr);
 		page = virt_to_head_page(rxph);
 
-		pkt_len = desc_status & EDMA_RXDESC_PACKET_LEN_MASK;
-
-		if (unlikely(desc_status & EDMA_RXDESC_MORE))
-			q->stats.rx_split_frame++;
+		more = desc_status & EDMA_RXDESC_MORE;
+		split = q->rx_more || more;
+		if (unlikely(split)) {
+			if (more)
+				q->stats.rx_split_frame++;
+			if (!q->rx_more)
+				DEV_STATS_INC(netdev, rx_length_errors);
+			/* Track the frame even if taking this page fails. */
+			q->rx_more = more;
+		}
 
 		store_idx = le32_to_cpu(rxph->opaque);
 		if (unlikely(!edma_rx_page_take(q, page, store_idx))) {
@@ -793,6 +800,12 @@ static u32 edma_clean_rx(struct edma_queue *q, int budget)
 			goto next;
 		}
 
+		if (unlikely(split)) {
+			page_pool_put_full_page(q->page_pool, page, true);
+			goto next;
+		}
+
+		pkt_len = desc_status & EDMA_RXDESC_PACKET_LEN_MASK;
 		if (unlikely(EDMA_RX_PREHDR_SIZE + pkt_len > priv->rx_frame_len)) {
 			page_pool_put_full_page(q->page_pool, page, true);
 			DEV_STATS_INC(netdev, rx_length_errors);
@@ -1404,6 +1417,7 @@ static void edma_configure_rxdesc_ring(struct edma_queue *q)
 
 	q->rxdesc_cons = edma_idx_read(priv, EDMA_REG_RXDESC_CONS_IDX(q->rxdesc)) &
 			 EDMA_RXDESC_CONS_IDX_MASK;
+	q->rx_more = false;
 }
 
 static void edma_configure_rxfill_ring(struct edma_queue *q)
