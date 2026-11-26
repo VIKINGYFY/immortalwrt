@@ -1,0 +1,24 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Date: Thu, 26 Nov 2026 10:41:54 +0800
+Subject: [PATCH] clk: qcom: gcc-ipq8074: enable parents across the crypto clock switch
+
+An enabled NSS crypto root clock needs the target PLL running when
+device tree clock defaults select it. Keep the clock parents enabled
+across the RCG update so the hardware can complete that switch.
+
+Split from:
+  34a8bd60de0f (qualcommax: enable parents while switching ipq8074 nss_crypto_clk_src)
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/clk/qcom/gcc-ipq8074.c
++++ b/drivers/clk/qcom/gcc-ipq8074.c
+@@ -1198,6 +1198,7 @@
+ 		.name = "nss_crypto_clk_src",
+ 		.parent_data = gcc_xo_nss_crypto_pll_gpll0,
+ 		.num_parents = ARRAY_SIZE(gcc_xo_nss_crypto_pll_gpll0),
++		.flags = CLK_OPS_PARENT_ENABLE,
+ 		.ops = &clk_rcg2_ops,
+ 	},
+ };
