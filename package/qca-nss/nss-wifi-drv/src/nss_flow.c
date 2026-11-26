@@ -36,6 +36,7 @@
 #include <linux/soc/qcom/nss_wifi.h>
 #include <net/flow_offload.h>
 #include <net/netfilter/nf_conntrack.h>
+#include <net/netfilter/nf_conntrack_acct.h>
 #include <net/netfilter/nf_flow_table.h>
 #include <net/dsa.h>
 #include <net/pkt_cls.h>
@@ -125,6 +126,7 @@ struct nss_flow_entry {
 	enum flow_offload_tuple_dir pppoe_dir;	/* the side that is PPPoE */
 	u64 lastused;
 	u64 cnt[4];	/* flow rx, flow tx, return rx, return tx */
+	struct nf_conn *ct;	/* Reference held by routed rules. */
 	union {
 		struct nss_ipv4_5tuple t4;
 		struct nss_ipv6_5tuple t6;
@@ -1255,11 +1257,19 @@ static int nss_flow_withdraw(struct nss_core *core, struct nss_flow_entry *e)
 	return 0;
 }
 
+static void nss_flow_free_entry(struct nss_flow_entry *e)
+{
+	/* Unindexing under nss_flow_sync_lock has stopped accounting. */
+	if (e->ct)
+		nf_ct_put(e->ct);
+	kfree_rcu(e, rcu);
+}
+
 static void nss_flow_release(struct nss_core *core, struct nss_flow_entry *e)
 {
 	if (e->pppoe)
 		nss_flow_pppoe_put(core, e->pppoe);
-	kfree_rcu(e, rcu);
+	nss_flow_free_entry(e);
 }
 
 static void nss_flow_retire(struct nss_flow_entry *e, int ret)
@@ -1474,6 +1484,11 @@ static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
 		goto drop;
 	}
 
+	/* Firmware sync can outlive the flowtable's conntrack reference. */
+	if (!e->bridged && !e->ct) {
+		nf_conntrack_get(&flow->ct->ct_general);
+		e->ct = flow->ct;
+	}
 	nss_flow_sync_install(e);
 	WRITE_ONCE(e->lastused, jiffies);
 	nss_flow_pushed++;
@@ -1520,7 +1535,24 @@ static bool nss_flow_is_v6(const struct nss_flow_entry *e,
 	       e->t6.return_ident == r->return_ident;
 }
 
-/* A record from the firmware's sweep marks its connection recently used if
+/* Firmware reports RX deltas from each direction's ingress. The tuple
+ * index lock protects the entry through both sweep and terminal syncs.
+ */
+static void nss_flow_sync_account(const struct nss_flow_entry *e,
+				  u32 orig_pkts, u32 orig_bytes,
+				  u32 reply_pkts, u32 reply_bytes)
+{
+	lockdep_assert_held(&nss_flow_sync_lock);
+
+	if (!e->ct)
+		return;
+	if (orig_pkts)
+		nf_ct_acct_add(e->ct, IP_CT_DIR_ORIGINAL, orig_pkts, orig_bytes);
+	if (reply_pkts)
+		nf_ct_acct_add(e->ct, IP_CT_DIR_REPLY, reply_pkts, reply_bytes);
+}
+
+/* A firmware sync marks its connection recently used if
  * any of its four counters moved since the previous sweep, and gone if the
  * firmware flushed or evicted it, so that no destroy follows for it.
  */
@@ -1542,14 +1574,16 @@ static void nss_flow_sync_mark_v4(const struct nss_ipv4_conn_sync *r)
 	hash_for_each_possible(nss_flow_sync_table, e, sync_node, key) {
 		if (!e->installed || !nss_flow_is_v4(e, r))
 			continue;
-		if (gone) {
-			nss_flow_sync_drop(e);
-		}
 		WRITE_ONCE(e->lastused, jiffies);
 		e->cnt[0] += r->flow_rx_packet_count;
 		e->cnt[1] += r->flow_tx_packet_count;
 		e->cnt[2] += r->return_rx_packet_count;
 		e->cnt[3] += r->return_tx_packet_count;
+		nss_flow_sync_account(e, r->flow_rx_packet_count,
+				      r->flow_rx_byte_count, r->return_rx_packet_count,
+				      r->return_rx_byte_count);
+		if (gone)
+			nss_flow_sync_drop(e);
 		break;
 	}
 }
@@ -1572,31 +1606,30 @@ static void nss_flow_sync_mark_v6(const struct nss_ipv6_conn_sync *r)
 	hash_for_each_possible(nss_flow_sync_table, e, sync_node, key) {
 		if (!e->installed || !nss_flow_is_v6(e, r))
 			continue;
-		if (gone) {
-			nss_flow_sync_drop(e);
-		}
 		WRITE_ONCE(e->lastused, jiffies);
 		e->cnt[0] += r->flow_rx_packet_count;
 		e->cnt[1] += r->flow_tx_packet_count;
 		e->cnt[2] += r->return_rx_packet_count;
 		e->cnt[3] += r->return_tx_packet_count;
+		nss_flow_sync_account(e, r->flow_rx_packet_count,
+				      r->flow_rx_byte_count, r->return_rx_packet_count,
+				      r->return_rx_byte_count);
+		if (gone)
+			nss_flow_sync_drop(e);
 		break;
 	}
 }
 
 /* The firmware drops a connection on its own, flushed or evicted, and says so
- * with a sync carrying the reason. Its rule is gone: a destroy for it is
- * refused, and the flow table's next refresh has to push it again. From the
- * receive poll, sharing the tuple index lock with process-side sweeps.
+ * with a sync carrying the reason and its last traffic delta. A short TCP
+ * flow can finish before a sweep visits it. Credit the delta and remove the
+ * tuple under the same lock used by the sweep.
  */
 void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 {
 	u32 iface = NSS_INTERFACE_NUM_GET(ncm->interface);
 	const struct nss_ipv4_msg *m4;
 	const struct nss_ipv6_msg *m6;
-	struct nss_flow_entry *e;
-	struct hlist_node *tmp;
-	u32 key;
 
 	m4 = container_of_const(ncm, struct nss_ipv4_msg, cm);
 	m6 = container_of_const(ncm, struct nss_ipv6_msg, cm);
@@ -1610,33 +1643,15 @@ void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 		    (m4->msg.conn_stats.reason != NSS_IPV4_RULE_SYNC_REASON_FLUSH &&
 		     m4->msg.conn_stats.reason != NSS_IPV4_RULE_SYNC_REASON_EVICT))
 			return;
-		key = nss_flow_sync_hash_v4(m4->msg.conn_stats.protocol,
-					    m4->msg.conn_stats.flow_ip,
-					    m4->msg.conn_stats.flow_ident,
-					    m4->msg.conn_stats.return_ip,
-					    m4->msg.conn_stats.return_ident);
+		nss_flow_sync_mark_v4(&m4->msg.conn_stats);
 	} else if (iface == NSS_INTERFACE_IPV6) {
 		if (ncm->type != NSS_IPV6_RX_CONN_STATS_SYNC_MSG ||
 		    len < offsetofend(struct nss_ipv6_msg, msg.conn_stats) ||
 		    (m6->msg.conn_stats.reason != NSS_IPV6_RULE_SYNC_REASON_FLUSH &&
 		     m6->msg.conn_stats.reason != NSS_IPV6_RULE_SYNC_REASON_EVICT))
 			return;
-		key = nss_flow_sync_hash_v6(m6->msg.conn_stats.protocol,
-					    m6->msg.conn_stats.flow_ip,
-					    m6->msg.conn_stats.flow_ident,
-					    m6->msg.conn_stats.return_ip,
-					    m6->msg.conn_stats.return_ident);
-	} else {
-		return;
+		nss_flow_sync_mark_v6(&m6->msg.conn_stats);
 	}
-
-	guard(spinlock_bh)(&nss_flow_sync_lock);
-	hash_for_each_possible_safe(nss_flow_sync_table, e, tmp, sync_node, key)
-		if (iface == NSS_INTERFACE_IPV4 ?
-		    nss_flow_is_v4(e, &m4->msg.conn_stats) :
-		    nss_flow_is_v6(e, &m6->msg.conn_stats)) {
-			nss_flow_sync_drop(e);
-		}
 }
 
 /* Sweep the firmware's connection table for what moved.
@@ -2241,14 +2256,14 @@ void nss_flow_flush(void)
 		nss_flow_sync_unindex(e);
 		rhashtable_remove_fast(&nss_flow_table, &e->node,
 				       nss_flow_ht_params);
-		kfree_rcu(e, rcu);
+		nss_flow_free_entry(e);
 	}
 	rhashtable_walk_stop(&iter);
 	rhashtable_walk_exit(&iter);
 	list_for_each_entry_safe(e, tmp, &nss_flow_retire_list, retire_node) {
 		nss_flow_sync_unindex(e);
 		list_del(&e->retire_node);
-		kfree_rcu(e, rcu);
+		nss_flow_free_entry(e);
 	}
 	memset(nss_flow_retiring, 0, sizeof(nss_flow_retiring));
 
@@ -2286,7 +2301,7 @@ int nss_flow_init(void)
 static void nss_flow_free(void *ptr, void *arg)
 {
 	nss_flow_sync_unindex(ptr);
-	kfree(ptr);
+	nss_flow_free_entry(ptr);
 }
 
 void nss_flow_exit(void)
