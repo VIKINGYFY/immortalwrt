@@ -1620,10 +1620,10 @@ static void nss_flow_sync_mark_v6(const struct nss_ipv6_conn_sync *r)
 	}
 }
 
-/* The firmware drops a connection on its own, flushed or evicted, and says so
- * with a sync carrying the reason and its last traffic delta. A short TCP
- * flow can finish before a sweep visits it. Credit the delta and remove the
- * tuple under the same lock used by the sweep.
+/* Before the first sweep, the firmware can send standalone stats deltas.
+ * A flush or eviction also carries its last delta, even for a flow that
+ * closes before any sweep. The sync handlers credit both and unindex a rule
+ * only when the firmware removes it.
  */
 void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 {
@@ -1640,15 +1640,13 @@ void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 	if (iface == NSS_INTERFACE_IPV4) {
 		if (ncm->type != NSS_IPV4_RX_CONN_STATS_SYNC_MSG ||
 		    len < offsetofend(struct nss_ipv4_msg, msg.conn_stats) ||
-		    (m4->msg.conn_stats.reason != NSS_IPV4_RULE_SYNC_REASON_FLUSH &&
-		     m4->msg.conn_stats.reason != NSS_IPV4_RULE_SYNC_REASON_EVICT))
+		    m4->msg.conn_stats.reason > NSS_IPV4_RULE_SYNC_REASON_EVICT)
 			return;
 		nss_flow_sync_mark_v4(&m4->msg.conn_stats);
 	} else if (iface == NSS_INTERFACE_IPV6) {
 		if (ncm->type != NSS_IPV6_RX_CONN_STATS_SYNC_MSG ||
 		    len < offsetofend(struct nss_ipv6_msg, msg.conn_stats) ||
-		    (m6->msg.conn_stats.reason != NSS_IPV6_RULE_SYNC_REASON_FLUSH &&
-		     m6->msg.conn_stats.reason != NSS_IPV6_RULE_SYNC_REASON_EVICT))
+		    m6->msg.conn_stats.reason > NSS_IPV6_RULE_SYNC_REASON_EVICT)
 			return;
 		nss_flow_sync_mark_v6(&m6->msg.conn_stats);
 	}
