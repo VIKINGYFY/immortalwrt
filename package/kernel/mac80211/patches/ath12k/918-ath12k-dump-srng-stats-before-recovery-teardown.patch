@@ -1,0 +1,55 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 27 Nov 2026 13:28:00 +0800
+Subject: [PATCH] wifi: ath12k: dump SRNG stats before recovery teardown
+
+QMI FW_READY events are processed on a workqueue separate from
+restart_work. A repeated event can read the old ring pointers while
+restart_work frees and replaces their coherent DMA storage.
+
+Dump the old rings from restart_work before it tears them down.
+Invalidate their initialized state when the HAL is dismantled, so a
+later restart also skips rings that were not set up again.
+
+Link: https://github.com/VIKINGYFY/immortalwrt/issues/236
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1474,6 +1474,11 @@
+ 	if (test_bit(ATH12K_GROUP_FLAG_DS_QUARANTINED, &ab->ag->flags))
+ 		return -EIO;
+ 	mutex_lock(&ab->core_lock);
++
++	/* The old rings still have their DMA storage on this workqueue. */
++	if (ab->is_reset)
++		ath12k_hal_dump_srng_stats(ab);
++
+ 	ath12k_link_sta_rhash_tbl_destroy(ab);
+ 	ath12k_thermal_unregister(ab);
+ 	ath12k_dp_pdev_free(ab);
+--- a/drivers/net/wireless/ath/ath12k/hal.c
++++ b/drivers/net/wireless/ath/ath12k/hal.c
+@@ -765,6 +765,10 @@
+ void ath12k_hal_srng_deinit(struct ath12k_base *ab)
+ {
+ 	struct ath12k_hal *hal = &ab->hal;
++	int ring_id;
++
++	for (ring_id = 0; ring_id < HAL_SRNG_RING_ID_MAX; ring_id++)
++		hal->srng_list[ring_id].initialized = 0;
+ 
+ 	ath12k_hal_unregister_srng_lock_keys(hal);
+ 	ath12k_hal_free_cont_rdp(hal);
+--- a/drivers/net/wireless/ath/ath12k/qmi.c
++++ b/drivers/net/wireless/ath/ath12k/qmi.c
+@@ -4446,9 +4446,6 @@
+ 
+ 			clear_bit(ATH12K_FLAG_QMI_FAIL, &ab->dev_flags);
+ 			if (test_bit(ATH12K_FLAG_QMI_FW_READY_COMPLETE, &ab->dev_flags)) {
+-				if (ab->is_reset)
+-					ath12k_hal_dump_srng_stats(ab);
+-
+ 				set_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags);
+ 				queue_work(ab->workqueue, &ab->restart_work);
+ 				break;

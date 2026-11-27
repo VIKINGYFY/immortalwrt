@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Mon, 9 Nov 2026 17:04:03 +0100
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] wifi: mac80211: report the airtime of an MLO station only once
 
 mac80211 counts the airtime of a station per AC, not per link.
@@ -25,8 +25,19 @@ not follow the registered airtime exactly.
 
 Fixes: 505991fba9ec ("wifi: mac80211: extend support to fill link level sinfo structure")
 Fixes: 4cb1ce7e254a ("wifi: mac80211: add link_sta_statistics ops to fill link station statistics")
+
+Reported MLO airtime sums the remaining link bitmap after filtering. An
+empty bitmap contributes no link airtime.
+
+Merged from:
+  507-wifi-mac80211-report-the-airtime-of-an-MLO-station-o.patch - wifi: mac80211: report the airtime of an MLO station only once
+  604-mac80211-sum-airtime-only-for-reported-links.patch - wifi: mac80211: sum airtime only for reported links
+
+Link: https://github.com/VIKINGYFY/immortalwrt/issues/236
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/net/mac80211/sta_info.c
 +++ b/net/mac80211/sta_info.c
 @@ -2979,18 +2979,6 @@ static void sta_set_link_sinfo(struct st
@@ -48,7 +59,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (!(link_sinfo->filled & BIT_ULL(NL80211_STA_INFO_AIRTIME_WEIGHT))) {
  		link_sinfo->airtime_weight = sta->airtime_weight;
  		link_sinfo->filled |= BIT_ULL(NL80211_STA_INFO_AIRTIME_WEIGHT);
-@@ -3135,9 +3123,35 @@ static u32 sta_estimate_expected_through
+@@ -3135,9 +3123,36 @@ static u32 sta_estimate_expected_through
  	return ((1024 * USEC_PER_SEC) / duration) * 8;
  }
  
@@ -59,10 +70,11 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +static void sta_sinfo_link_durations_subtract(struct station_info *sinfo,
 +					      bool tx, bool rx)
 +{
++	unsigned long links = sinfo->valid_links;
 +	u64 tx_links = 0, rx_links = 0;
 +	int link_id;
 +
-+	for_each_valid_link(sinfo, link_id) {
++	for_each_set_bit(link_id, &links, ARRAY_SIZE(sinfo->links)) {
 +		struct link_station_info *link_sinfo = sinfo->links[link_id];
 +
 +		if (link_sinfo->filled & BIT_ULL(NL80211_STA_INFO_TX_DURATION))
@@ -84,7 +96,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct ieee80211_sub_if_data *sdata = sta->sdata;
  	struct ieee80211_local *local = sdata->local;
  	u32 thr = 0;
-@@ -3235,12 +3249,14 @@ void sta_set_sinfo(struct sta_info *sta,
+@@ -3235,12 +3250,14 @@ void sta_set_sinfo(struct sta_info *sta,
  		for (ac = 0; ac < IEEE80211_NUM_ACS; ac++)
  			sinfo->rx_duration += sta->airtime[ac].rx_airtime;
  		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_DURATION);
@@ -99,7 +111,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	}
  
  	if (!(sinfo->filled & BIT_ULL(NL80211_STA_INFO_AIRTIME_WEIGHT))) {
-@@ -3409,6 +3425,9 @@ void sta_set_sinfo(struct sta_info *sta,
+@@ -3409,6 +3426,9 @@ void sta_set_sinfo(struct sta_info *sta,
  			sta_set_link_sinfo(sta, sinfo->links[link_id],
  					   link, tidstats);
  		}
