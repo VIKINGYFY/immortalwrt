@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 1 Sep 2026 00:55:00 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: offload TBF queue limit
 
 Size the default unicast queue behind an offloaded root TBF from the queue
@@ -16,11 +16,47 @@ Expose the handle, limits, live table words and rollback failure count.
 Also report callback counts and the last result in read-only debugfs for
 bounded hardware validation.
 
+Physical TBF queue limits are derived from the active port MTU,
+including updates and rollback.
+
+Merged from:
+  0644-01-net-ethernet-qualcomm-ppe-offload-tbf-queue-limit.patch - net: ethernet: qualcomm: ppe: offload TBF queue limit
+  0685-net-ppe-recompute-tbf-queues-after-mtu-changes.patch - net: ppe: recompute TBF queues after MTU changes
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
+
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -352,26 +352,55 @@ static int edma_port_setup_tbf(struct ne
+@@ -173,6 +173,7 @@ static int edma_port_change_mtu(struct n
+ {
+ 	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
+ 	struct ppe_port *port;
++	struct ppe_port_tbf tbf;
+ 	int old_mtu, ret;
+ 
+ 	if (!port_priv)
+@@ -192,6 +193,20 @@ static int edma_port_change_mtu(struct n
+ 		return ret;
+ 	}
+ 
++	/* RTNL serializes MTU and qdisc changes; snapshot under the TBF lock. */
++	mutex_lock(&port->tbf_lock);
++	tbf = port->tbf;
++	mutex_unlock(&port->tbf_lock);
++	if (tbf.active) {
++		ret = ppe_port_tbf_set(port, tbf.handle, tbf.rate, tbf.burst,
++				       tbf.requested_limit, mtu);
++		if (ret) {
++			ppe_port_set_maxframe(port, old_mtu);
++			ppe_l3_if_set(port->ppe_dev, port->port_id,
++					netdev->dev_addr, old_mtu, -1);
++			return ret;
++		}
++	}
+ 	netdev->mtu = mtu;
+ 	return 0;
+ }
+@@ -352,26 +367,55 @@ static int edma_port_setup_tbf(struct ne
  {
  	struct edma_port_priv *port_priv = netdev_priv(netdev);
  	struct ppe_port *port = port_priv->ppe_port;
@@ -55,11 +91,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		return 0;
 +		ret = ppe_port_tbf_stats(port, qopt->handle);
 +		break;
- 	default:
--		return -EOPNOTSUPP;
++	default:
 +		ret = -EOPNOTSUPP;
 +		break;
- 	}
++	}
 +
 +record:
 +	mutex_lock(&port->tbf_lock);
@@ -74,9 +109,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	case TC_TBF_STATS:
 +		port->tbf.stats_calls++;
 +		break;
-+	default:
+ 	default:
+-		return -EOPNOTSUPP;
 +		break;
-+	}
+ 	}
 +	port->tbf.last_command = qopt->command;
 +	port->tbf.last_result = ret;
 +	mutex_unlock(&port->tbf_lock);

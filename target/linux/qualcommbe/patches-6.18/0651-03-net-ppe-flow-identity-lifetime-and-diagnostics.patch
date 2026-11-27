@@ -1,13 +1,20 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] net: ppe: own flow identity and retirement lifecycle
 
 Publish and retire DSA/PPPoE flow resources with indexed ownership and topology state. Keep a mutex-owned active list for block drain, and expose directional and physical-slot resource diagnostics directly.
 
-Split from:
-  0651-net-ppe-flow-identity-and-topology.patch - net: ethernet: qualcomm: own DSA and PPPoE flow identity and topology
+Read the hardware byte counter coherently before computing a per-flow
+delta.
 
 Merged from:
+  0651-03-net-ppe-flow-identity-lifetime-and-diagnostics.patch - net: ppe: own flow identity and retirement lifecycle
+  0682-net-ppe-read-flow-byte-counters-consistently.patch - net: ppe: read flow byte counters consistently
+
+Previous split from (0651-03-net-ppe-flow-identity-lifetime-and-diagnostics.patch):
+  0651-net-ppe-flow-identity-and-topology.patch - net: ethernet: qualcomm: own DSA and PPPoE flow identity and topology
+
+Previous merged from (0651-03-net-ppe-flow-identity-lifetime-and-diagnostics.patch):
   0651-net-ppe-flow-identity-and-topology.patch - net: ethernet: qualcomm: own DSA and PPPoE flow identity and topology
   0683-net-ppe-drain-flow-blocks-outside-rcu-walks.patch - net: ppe: drain flow blocks outside RCU hash walks
 
@@ -17,6 +24,52 @@ Previous merged from (0651-net-ppe-flow-identity-and-topology.patch):
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
+@@ -460,21 +460,34 @@ int ppe_flow_stats_get(struct ppe_device
+ 		       u64 *bytes)
+ {
+ 	u32 reg = PPE_FLOW_CNT_TBL_ADDR + PPE_FLOW_CNT_TBL_INC * index;
+-	u32 val[3];
+-	int ret;
++	u32 pkts, lo, hi, hi2;
++	int ret, i;
+ 
+ 	if (index < 0 || index >= ppe_dev->variant->num_flow_entries)
+ 		return -EINVAL;
+-
+-	ret = regmap_bulk_read(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
++	ret = regmap_read(ppe_dev->regmap, reg, &pkts);
+ 	if (ret)
+ 		return ret;
+ 
+-	*packets = val[0];
+-	*bytes = (u64)FIELD_GET(PPE_FLOW_CNT_W2_BYTE_CNT_HI, val[2]) << 32 |
+-		 val[1];
+-
+-	return 0;
++	/* Bulk MMIO reads do not provide a coherent 40-bit snapshot. */
++	for (i = 0; i < 3; i++) {
++		ret = regmap_read(ppe_dev->regmap, reg + 8, &hi);
++		if (ret)
++			return ret;
++		ret = regmap_read(ppe_dev->regmap, reg + 4, &lo);
++		if (ret)
++			return ret;
++		ret = regmap_read(ppe_dev->regmap, reg + 8, &hi2);
++		if (ret)
++			return ret;
++		if ((hi & PPE_FLOW_CNT_W2_BYTE_CNT_HI) !=
++		    (hi2 & PPE_FLOW_CNT_W2_BYTE_CNT_HI))
++			continue;
++		*packets = pkts;
++		*bytes = (u64)FIELD_GET(PPE_FLOW_CNT_W2_BYTE_CNT_HI, hi) << 32 | lo;
++		return 0;
++	}
++	return -EAGAIN;
+ }
+ 
+ /**
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 @@ -24,6 +24,7 @@

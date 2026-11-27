@@ -1,10 +1,10 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] net: ppe: unwind TX rings and NAPI safely
 
 Unwind partially allocated TX rings and preserve per-ring NAPI enable and interrupt ownership. Keep controller acquisition and port registration separate.
 
-Split from:
+Previous split from (0642-03-net-ppe-edma-tx-ring-napi-lifetime.patch):
   0642-net-ethernet-qualcomm-ppe-fix-edma-resource-lifecycle.patch - net: ethernet: qualcomm: ppe: fix EDMA resource lifecycle
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-@@ -322,6 +322,7 @@ int edma_tx_napi_poll(struct napi_struct
+@@ -326,6 +326,7 @@ int edma_tx_napi_poll(struct napi_struct
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;
  	u32 txcmpl_intr_status;
@@ -111,7 +111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int work_done = 0;
  	u32 data, reg;
  
-@@ -337,11 +338,13 @@ int edma_tx_napi_poll(struct napi_struct
+@@ -341,11 +342,13 @@ int edma_tx_napi_poll(struct napi_struct
  	} while (txcmpl_intr_status);
  
  	/* No more packets to process. Finish NAPI processing. */
@@ -130,7 +130,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return work_done;
  }
-@@ -360,16 +363,20 @@ irqreturn_t edma_tx_handle_irq(int irq,
+@@ -364,16 +367,20 @@ irqreturn_t edma_tx_handle_irq(int irq,
  	struct edma_txcmpl_ring *txcmpl_ring = (struct edma_txcmpl_ring *)ctx;
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct regmap *regmap = ppe_dev->regmap;

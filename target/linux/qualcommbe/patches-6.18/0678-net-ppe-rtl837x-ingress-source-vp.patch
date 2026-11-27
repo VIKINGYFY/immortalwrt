@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 07 Nov 2026 15:33:52 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] net: ppe: select exact RTL837x ingress source virtual ports
 
 Use QSDK VLAN src_info_type=0 to identify a physical conduit plus the
@@ -9,22 +9,17 @@ for the same DSA device and CVID. Disable uncertain rules and quarantine
 resources on rollback failure. Dispatch CPU misses through the existing
 RTL DSA tagger; do not install injection hooks or ATH tags.
 
-Split from:
+Retire virtual port slots after the last ingress lookup can use them.
+
+Merged from:
+  0678-net-ppe-rtl837x-ingress-source-vp.patch - net: ppe: select exact RTL837x ingress source virtual ports
+  0686-net-ppe-defer-vp-slot-reuse-until-rcu-grace.patch - net: ppe: defer virtual port slot reuse until readers retire
+
+Previous split from (0678-net-ppe-rtl837x-ingress-source-vp.patch):
   0677-net-ppe-mppe-rtl837x-bridge-full.patch ([PATCH] net: ppe: offload cross-tree RTL837x bridge flows on MPPE)
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
---- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -362,6 +362,8 @@ int ppe_ing_xlt_rule_set(struct ppe_devi
- 			 int vsi, bool strip_svid, bool strip_cvid);
- int ppe_ing_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
- int ppe_ing_xlt_l3_if_set(struct ppe_device *ppe_dev, int index, int l3_if);
-+int ppe_ing_xlt_source_vp_set(struct ppe_device *ppe_dev, int index, int vp);
-+int ppe_vsi_bridge_members_set(struct ppe_device *ppe_dev, int vsi, u32 members);
- int ppe_eg_xlt_rule_set(struct ppe_device *ppe_dev, int index,
- 			unsigned int port_bitmap, int svid, int cvid,
- 			int vsi, bool add_svid, bool add_cvid);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 @@ -1984,6 +1984,77 @@ int ppe_ing_xlt_l3_if_set(struct ppe_dev
@@ -105,20 +100,61 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * ppe_eg_xlt_rule_set - Program a BE egress VLAN translation rule
   * @ppe_dev: PPE device
---- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
-@@ -66,6 +66,8 @@ int ppe_vp_get(struct ppe_device *ppe_de
- int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
- 		     int priority, bool need_hook);
- int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port);
-+int ppe_vp_get_rtl837x_source(struct ppe_device *ppe_dev,
-+			     struct net_device *dev, int cvid);
- void ppe_vp_put(struct ppe_device *ppe_dev, int vp);
- int ppe_vp_queue_set(struct ppe_device *ppe_dev, int vp, int queue, int profile);
- struct net_device *ppe_vp_dev(struct ppe_device *ppe_dev, int vp);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+@@ -362,6 +362,8 @@ int ppe_ing_xlt_rule_set(struct ppe_devi
+ 			 int vsi, bool strip_svid, bool strip_cvid);
+ int ppe_ing_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
+ int ppe_ing_xlt_l3_if_set(struct ppe_device *ppe_dev, int index, int l3_if);
++int ppe_ing_xlt_source_vp_set(struct ppe_device *ppe_dev, int index, int vp);
++int ppe_vsi_bridge_members_set(struct ppe_device *ppe_dev, int vsi, u32 members);
+ int ppe_eg_xlt_rule_set(struct ppe_device *ppe_dev, int index,
+ 			unsigned int port_bitmap, int svid, int cvid,
+ 			int vsi, bool add_svid, bool add_cvid);
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_debugfs.c
+@@ -1166,6 +1166,13 @@ static int ppe_tbf_queues_show(struct se
+ DEFINE_SHOW_ATTRIBUTE(ppe_tbf_queues);
+ 
+ 
++static int ppe_vp_lifetime_status_show(struct seq_file *seq, void *unused)
++{
++	ppe_vp_lifetime_show(seq->private, seq);
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(ppe_vp_lifetime_status);
++
+ void ppe_debugfs_setup(struct ppe_device *ppe_dev)
+ {
+ 	struct ppe_debugfs_entry *entry;
+@@ -1179,6 +1186,8 @@ void ppe_debugfs_setup(struct ppe_device
+ 	}
+ 
+ 	ppe_flowtable_debugfs_init(ppe_dev);
++	debugfs_create_file("vp_lifetime", 0400, ppe_dev->debugfs_root,
++			    ppe_dev, &ppe_vp_lifetime_status_fops);
+ 
+ 	for (i = 0; i < ARRAY_SIZE(debugfs_files); i++) {
+ 		entry = devm_kzalloc(ppe_dev->dev, sizeof(*entry), GFP_KERNEL);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.c
-@@ -67,6 +67,7 @@ enum ppe_vp_slot_type {
+@@ -27,6 +27,7 @@
+  */
+ 
+ #include <linux/atomic.h>
++#include <linux/cleanup.h>
+ #include <linux/bitfield.h>
+ #include <linux/etherdevice.h>
+ #include <linux/if_ether.h>
+@@ -46,6 +47,7 @@
+ #include <linux/skbuff.h>
+ #include <linux/tcp.h>
+ #include <linux/udp.h>
++#include <linux/workqueue.h>
+ 
+ #include <net/dsa.h>
+ #include <net/dst_metadata.h>
+@@ -67,6 +69,7 @@ enum ppe_vp_slot_type {
  	PPE_VP_SLOT_NONE,
  	PPE_VP_SLOT_WIRELESS,
  	PPE_VP_SLOT_QCA4B,
@@ -126,7 +162,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct ppe_vp_slot {
-@@ -80,6 +81,7 @@ struct ppe_vp_slot {
+@@ -74,12 +77,16 @@ struct ppe_vp_slot {
+ 	struct rhashtable flows;
+ 	atomic_t nflows;
+ 	struct nf_hook_ops nf_ops;
++	struct rcu_work retire_work;
++	struct ppe_vp *owner;
++	bool retiring;
+ 	u64 host_mac;		/* router (bridge) MAC; zero = inject all unicast */
+ 	int vp;			/* PPE port id, read by the ingress hook */
+ 	int refcnt;
  	enum ppe_vp_slot_type type;
  	u8 switch_port;
  	u8 physical_port;
@@ -134,7 +179,90 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct metadata_dst *dsa_meta;
  	u32 athtag_orig_prx;
  	u32 athtag_orig_eg_vp[3];
-@@ -886,6 +888,78 @@ err_reset:
+@@ -95,6 +102,7 @@ struct ppe_vp {
+ 	struct mutex lock;		/* serialises slot allocation */
+ 	struct notifier_block notifier;
+ 	bool inject_disabled;
++	u64 retire_queued, retire_completed;
+ 	u32 athtag_orig_eg_gen;
+ 	u32 athtag_orig_rx[PPE_PORT_ID_COUNT];
+ 	u8 athtag_rx_users[PPE_PORT_ID_COUNT];
+@@ -102,6 +110,8 @@ struct ppe_vp {
+ 	struct ppe_vp_slot slots[PPE_VP_SLOTS];
+ };
+ 
++static DEFINE_MUTEX(ppe_vp_lifetime_lock);
++
+ static const struct rhashtable_params ppe_vp_flow_params = {
+ 	.head_offset = offsetof(struct ppe_vp_flow, node),
+ 	.key_offset = offsetof(struct ppe_vp_flow, key),
+@@ -574,6 +584,13 @@ static unsigned int ppe_vp_ingress(void
+ 	bool tagged = false;
+ 	int mac_len, ret;
+ 
++	/* Old hook entries may still invoke us after unregistration. Never let
++	 * that invocation use a binding installed for another ingress device.
++	 */
++	if (rcu_access_pointer(slot->dev) != state->in ||
++	    READ_ONCE(slot->retiring))
++		return NF_ACCEPT;
++
+ 	/* A hardware miss trips this VP's persistent fail-open circuit
+ 	 * breaker before its packet is returned to this receive path.
+ 	 */
+@@ -768,6 +785,8 @@ static void ppe_vp_slot_release(struct p
+ 	struct net_device *dev = rcu_access_pointer(slot->dev);
+ 	int ret;
+ 
++	/* Stop old readers before withdrawing the hook and device binding. */
++	smp_store_release(&slot->miss_disabled, true);
+ 	ppe_vp_hook_unregister(slot, dev);
+ 	if (slot->type == PPE_VP_SLOT_QCA4B) {
+ 		dev_info(ppe_dev->dev,
+@@ -807,6 +826,34 @@ static void ppe_vp_slot_reset(struct ppe
+ 	slot->carrier_up = false;
+ }
+ 
++/* Hook removal is asynchronous. Keep the slot and its metadata reserved
++ * until readers of both the hook and the published device have left RCU.
++ * Defer the mutex-taking reset to work context; flow deletion may hold the
++ * flowtable lock, so it must not wait synchronously for packet callbacks.
++ */
++static void ppe_vp_retire_work(struct work_struct *work)
++{
++	struct ppe_vp_slot *slot = container_of(to_rcu_work(work),
++					    struct ppe_vp_slot, retire_work);
++	struct ppe_vp *vp = slot->owner;
++
++	mutex_lock(&vp->lock);
++	ppe_vp_slot_reset(slot);
++	vp->retire_completed++;
++	WRITE_ONCE(slot->retiring, false);
++	mutex_unlock(&vp->lock);
++}
++
++static void ppe_vp_slot_retire(struct ppe_vp_slot *slot)
++{
++	lockdep_assert_held(&slot->owner->lock);
++	if (slot->retiring)
++		return;
++	WRITE_ONCE(slot->retiring, true);
++	slot->owner->retire_queued++;
++	queue_rcu_work(system_unbound_wq, &slot->retire_work);
++}
++
+ static int ppe_vp_qca4b_create_locked(struct ppe_vp *vp,
+ 				      struct net_device *dev)
+ {
+@@ -827,6 +874,7 @@ static int ppe_vp_qca4b_create_locked(st
+ 			return vp->slots[i].type == PPE_VP_SLOT_QCA4B ? 0 :
+ 				-EEXIST;
+ 		if (free < 0 && !vp->slots[i].poisoned &&
++		    !vp->slots[i].retiring &&
+ 		    !rcu_access_pointer(vp->slots[i].dev) &&
+ 		    !vp->slots[i].refcnt)
+ 			free = i;
+@@ -886,6 +934,78 @@ err_reset:
  	return ret;
  }
  
@@ -177,7 +305,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			ret = slot->vp;
 +			goto unlock;
 +		}
-+		if (free < 0 && !slot->poisoned &&
++		if (free < 0 && !slot->poisoned && !slot->retiring &&
 +		    !rcu_access_pointer(slot->dev) && !slot->refcnt)
 +			free = i;
 +	}
@@ -213,7 +341,24 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * ppe_vp_get - Get a virtual port for a net device
   * @ppe_dev: PPE device
-@@ -1165,6 +1239,28 @@ bool ppe_vp_rx_fallback(struct ppe_devic
+@@ -930,6 +1050,7 @@ int ppe_vp_get(struct ppe_device *ppe_de
+ 			return PPE_VP_PORT_BASE + i;
+ 		}
+ 		if (free < 0 && !vp->slots[i].poisoned &&
++		    !vp->slots[i].retiring &&
+ 		    !rcu_access_pointer(vp->slots[i].dev) &&
+ 		    !vp->slots[i].refcnt)
+ 			free = i;
+@@ -1092,7 +1213,7 @@ void ppe_vp_put(struct ppe_device *ppe_d
+ 
+ 	if (rcu_access_pointer(vpt->slots[i].dev))
+ 		ppe_vp_slot_release(ppe_dev, vpt, i);
+-	ppe_vp_slot_reset(&vpt->slots[i]);
++	ppe_vp_slot_retire(&vpt->slots[i]);
+ 	mutex_unlock(&vpt->lock);
+ }
+ 
+@@ -1165,6 +1286,28 @@ bool ppe_vp_rx_fallback(struct ppe_devic
  		rcu_read_unlock();
  		return false;
  	}
@@ -242,7 +387,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (slot->type == PPE_VP_SLOT_QCA4B) {
  		struct dsa_port *dp = dsa_port_from_netdev(dev);
  		struct net_device *conduit;
-@@ -1448,7 +1544,8 @@ static int ppe_vp_netdev_event(struct no
+@@ -1448,7 +1591,8 @@ static int ppe_vp_netdev_event(struct no
  					 i, vp->slots[i].vp, dev->name, carrier_up, event);
  			vp->slots[i].carrier_up = carrier_up;
  		}
@@ -252,3 +397,99 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  	mutex_unlock(&vp->lock);
  
+@@ -1471,7 +1615,7 @@ static int ppe_vp_netdev_event(struct no
+ 			if (!vp->slots[i].refcnt &&
+ 			    !rcu_access_pointer(vp->slots[i].dev) &&
+ 			    vp->slots[i].type != PPE_VP_SLOT_NONE)
+-				ppe_vp_slot_reset(&vp->slots[i]);
++				ppe_vp_slot_retire(&vp->slots[i]);
+ 		}
+ 		mutex_unlock(&vp->lock);
+ 	}
+@@ -1479,6 +1623,28 @@ static int ppe_vp_netdev_event(struct no
+ 	return NOTIFY_DONE;
+ }
+ 
++void ppe_vp_lifetime_show(struct ppe_device *ppe_dev, struct seq_file *seq)
++{
++	struct ppe_vp *vp;
++	u32 active = 0, retiring = 0;
++	int i;
++
++	guard(mutex)(&ppe_vp_lifetime_lock);
++	vp = ppe_dev->vp;
++	if (!vp)
++		return;
++	mutex_lock(&vp->lock);
++	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		if (rcu_access_pointer(vp->slots[i].dev))
++			active |= BIT(i);
++		if (vp->slots[i].retiring)
++			retiring |= BIT(i);
++	}
++	seq_printf(seq, "active:%#x retiring:%#x retire_queued:%llu retire_completed:%llu\n",
++		   active, retiring, vp->retire_queued, vp->retire_completed);
++	mutex_unlock(&vp->lock);
++}
++
+ int ppe_vp_setup(struct ppe_device *ppe_dev)
+ {
+ 	struct ppe_vp *vp;
+@@ -1496,6 +1662,8 @@ int ppe_vp_setup(struct ppe_device *ppe_
+ 	mutex_init(&vp->lock);
+ 	vp->notifier.notifier_call = ppe_vp_netdev_event;
+ 	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		vp->slots[i].owner = vp;
++		INIT_RCU_WORK(&vp->slots[i].retire_work, ppe_vp_retire_work);
+ 		ret = rhashtable_init(&vp->slots[i].flows,
+ 				      &ppe_vp_flow_params);
+ 		if (ret)
+@@ -1512,8 +1680,10 @@ int ppe_vp_setup(struct ppe_device *ppe_
+ err_publish:
+ 	ppe_dev->vp = NULL;
+ err_flows:
+-	while (i--)
++	while (i--) {
++		flush_rcu_work(&vp->slots[i].retire_work);
+ 		rhashtable_destroy(&vp->slots[i].flows);
++	}
+ 	mutex_destroy(&vp->lock);
+ 	return ret;
+ }
+@@ -1545,7 +1715,9 @@ void ppe_vp_teardown(struct ppe_device *
+ 	if (!vp)
+ 		return;
+ 
++	mutex_lock(&ppe_vp_lifetime_lock);
+ 	ppe_dev->vp = NULL;
++	mutex_unlock(&ppe_vp_lifetime_lock);
+ 	unregister_netdevice_notifier(&vp->notifier);
+ 
+ 	/* The PPE port net devices are already unregistered, which flushed
+@@ -1565,6 +1737,7 @@ void ppe_vp_teardown(struct ppe_device *
+ 
+ 	synchronize_rcu();
+ 	for (i = 0; i < PPE_VP_SLOTS; i++) {
++		flush_rcu_work(&vp->slots[i].retire_work);
+ 		ppe_vp_slot_reset(&vp->slots[i]);
+ 		rhashtable_destroy(&vp->slots[i].flows);
+ 	}
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_vp.h
+@@ -57,6 +57,7 @@ struct ppe_vp_flow {
+ #define PPE_VP_PORT_BASE	64
+ #define PPE_VP_SLOTS		8
+ 
++void ppe_vp_lifetime_show(struct ppe_device *ppe_dev, struct seq_file *seq);
+ int ppe_vp_setup(struct ppe_device *ppe_dev);
+ void ppe_vp_inject_disable(struct ppe_device *ppe_dev);
+ void ppe_vp_teardown(struct ppe_device *ppe_dev);
+@@ -66,6 +67,8 @@ int ppe_vp_get(struct ppe_device *ppe_de
+ int ppe_vp_get_qca4b(struct ppe_device *ppe_dev, struct net_device *dev,
+ 		     int priority, bool need_hook);
+ int ppe_vp_ref_qca4b(struct ppe_device *ppe_dev, int vp, int physical_port);
++int ppe_vp_get_rtl837x_source(struct ppe_device *ppe_dev,
++			     struct net_device *dev, int cvid);
+ void ppe_vp_put(struct ppe_device *ppe_dev, int vp);
+ int ppe_vp_queue_set(struct ppe_device *ppe_dev, int vp, int queue, int profile);
+ struct net_device *ppe_vp_dev(struct ppe_device *ppe_dev, int vp);

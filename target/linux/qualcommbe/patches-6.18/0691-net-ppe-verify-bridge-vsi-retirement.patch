@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 21 Nov 2026 22:26:08 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: verify bridge VSI retirement
 
 Bind deferred FDB updates to the exact PPE port membership that
@@ -16,8 +16,43 @@ and update the remaining hardware multicast destinations.
 Read back the complete L3 port row after its VSI binding changes.
 Serialize full-row updates with L3 interface and MAC programming.
 
+Bridge detach and quarantine isolate the forwarding path while
+preserving MAC TX.
+
+Merged from:
+  0691-net-ppe-verify-bridge-vsi-retirement.patch - net: ethernet: qualcomm: ppe: verify bridge VSI retirement
+  0693-net-ppe-preserve-mac-tx-across-bridge-detach.patch - net: ethernet: qualcomm: ppe: preserve MAC TX on bridge detach
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/Documentation/networking/qualcomm-ppe-offload.rst
++++ b/Documentation/networking/qualcomm-ppe-offload.rst
+@@ -73,9 +73,12 @@ cores, which OpenWrt leaves idle - so wi
+ L2 bridge offload
+ -----------------
+ 
+-A VLAN-unaware software bridge is backed by one VSI; joining binds the
+-port to the VSI and enables its bridge TX MAC, leaving reverts to the
+-parked state, so failure at any point falls back to a software bridge.
++A VLAN-unaware software bridge is backed by one VSI. Joining binds
++the port to the VSI. Leaving blocks switch forwarding through the
++port's STP state, retires the port membership and parks the last VSI
++before flushing and verifying its address table. The link controls
++MAC TX so a detached port can immediately transmit for Linux again.
++A VSI with uncertain hardware state stays reserved.
+ The CPU port is a member of every VSI: packets without an FDB hit
+ flood to the CPU and reach the software ports of the bridge (wireless
+ interfaces). Received packets carry skb->offload_fwd_mark and all
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
+@@ -103,6 +103,7 @@ struct ppe_device {
+ 	u8 fdb_cmd_id;
+ 	/* Serialize the L3 flow operation registers. */
+ 	struct mutex flow_lock;
++	/* Serialize L3 interface and L3 port table updates. */
+ 	struct mutex l3_if_lock;
+ 	/* Outer lock for TBF and negotiated BM pause policy. */
+ 	struct mutex qos_lock;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 @@ -24,6 +24,7 @@
@@ -411,7 +446,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    !(pb->vsis[entry.vsi].members & BIT(entry.port)))
  			continue;
  
-@@ -720,36 +884,86 @@ requeue:
+@@ -720,36 +884,87 @@ requeue:
  	rtnl_unlock();
  }
  
@@ -429,8 +464,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			ppe_bridge_vsi_quarantine(pb, vsi, err);
 +}
 +
-+/* Tear down a leaving port or unwind a failed join. Gate the port and
-+ * stop learning before switchdev replays deletions that can retire a VSI.
++/* Block switch forwarding and learning before switchdev replays deletions
++ * that can retire a VSI. The MAC TX gate follows the physical link and
++ * also controls frames sent from the CPU directly to the port.
   */
 -static void ppe_bridge_port_vlans_flush(struct ppe_bridge *pb, int port)
 +static void ppe_bridge_port_detach(struct ppe_bridge *pb,
@@ -448,8 +484,8 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		ppe_port_default_cvid_set(pb->ppe_dev, port, -1);
 -		pb->ports[port].pvid = 0;
 -	}
++	err = ppe_port_stp_state_set(ppe_dev, port, PPE_STP_STATE_DISABLED);
 +	ppe_bridge_port_offload_mark_set(dev, false);
-+	err = ppe_port_bridge_txmac_set(ppe_dev, port, false);
 +	ret = ppe_port_bridge_learning_set(ppe_dev, port, false);
 +	if (!err)
 +		err = ret;
@@ -520,7 +556,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  }
  
-@@ -764,6 +978,11 @@ static int ppe_bridge_port_join(struct p
+@@ -764,6 +979,11 @@ static int ppe_bridge_port_join(struct p
  	int vsi = -1, ret;
  	u16 proto;
  
@@ -532,7 +568,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (vlan_aware) {
  		ret = br_vlan_get_proto(br, &proto);
  		if (ret)
-@@ -776,11 +995,15 @@ static int ppe_bridge_port_join(struct p
+@@ -776,11 +996,15 @@ static int ppe_bridge_port_join(struct p
  		 * its ports.
  		 */
  		vsi = ppe_bridge_vsi_get(pb, br, 0);
@@ -549,7 +585,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	/* Commit the port state before the switchdev offload below,
-@@ -800,22 +1023,22 @@ static int ppe_bridge_port_join(struct p
+@@ -800,114 +1024,49 @@ static int ppe_bridge_port_join(struct p
  
  		ret = ppe_bridge_vsi_hw_update(pb, vsi);
  		if (ret)
@@ -575,14 +611,14 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			goto err_detach;
  	}
  
- 	/* The bridge TX MAC gates packets forwarded to the port by the
-@@ -824,90 +1047,33 @@ static int ppe_bridge_port_join(struct p
- 	 */
- 	ret = ppe_port_bridge_txmac_set(ppe_dev, port, true);
- 	if (ret)
+-	/* The bridge TX MAC gates packets forwarded to the port by the
+-	 * hardware bridge, it is kept disabled while a port is not
+-	 * offloaded.
+-	 */
+-	ret = ppe_port_bridge_txmac_set(ppe_dev, port, true);
+-	if (ret)
 -		goto err_datapath;
-+		goto err_detach;
- 
+-
 +	if (vsi >= 0)
 +		ppe_bridge_fdb_member_set(pb, vsi, port, true);
  	ppe_bridge_port_offload_mark_set(dev, true);
@@ -677,7 +713,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_bridge_port_vlan_add(struct ppe_bridge *pb,
-@@ -922,7 +1088,7 @@ static int ppe_bridge_port_vlan_add(stru
+@@ -922,7 +1081,7 @@ static int ppe_bridge_port_vlan_add(stru
  	unsigned int old_members, old_untagged, old_pvids;
  	struct ppe_bridge_vsi *v;
  	u16 old_port_pvid;
@@ -686,7 +722,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Only ports offloaded to a VLAN-aware bridge consume VLAN
  	 * objects.
-@@ -930,10 +1096,15 @@ static int ppe_bridge_port_vlan_add(stru
+@@ -930,10 +1089,15 @@ static int ppe_bridge_port_vlan_add(stru
  	br = pb->ports[port].bridge;
  	if (!br || pb->ports[port].vsi >= 0)
  		return -EOPNOTSUPP;
@@ -703,7 +739,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return vsi;
  	}
  	v = &pb->vsis[vsi];
-@@ -986,7 +1157,9 @@ static int ppe_bridge_port_vlan_add(stru
+@@ -986,7 +1150,9 @@ static int ppe_bridge_port_vlan_add(stru
  				ret = ppe_bridge_vsi_xlt_update(pb, old);
  				if (ret) {
  					pb->vsis[old].pvids |= BIT(port);
@@ -714,7 +750,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					goto err_undo;
  				}
  			}
-@@ -1003,16 +1176,22 @@ static int ppe_bridge_port_vlan_add(stru
+@@ -1003,16 +1169,22 @@ static int ppe_bridge_port_vlan_add(stru
  			goto err_pvid;
  	}
  
@@ -741,7 +777,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_undo:
  	/* Undo the membership and ingress translation rule programmed above so
  	 * the hardware matches the bridge's view of the failed VLAN add.
-@@ -1020,12 +1199,14 @@ err_undo:
+@@ -1020,12 +1192,14 @@ err_undo:
  	v->members = old_members;
  	v->untagged = old_untagged;
  	v->pvids = old_pvids;
@@ -762,7 +798,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return ret;
-@@ -1036,52 +1217,30 @@ static int ppe_bridge_port_vlan_del(stru
+@@ -1036,52 +1210,30 @@ static int ppe_bridge_port_vlan_del(stru
  				    const struct switchdev_obj_port_vlan *vlan)
  {
  	int port = ppe_bridge_port_id(dev);
@@ -779,18 +815,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 -	vsi = ppe_bridge_vsi_find(pb, br, vlan->vid);
 -	if (vsi < 0)
--		return 0;
--	v = &pb->vsis[vsi];
--
--	if (!(v->members & BIT(port)))
 +	vsi = ppe_bridge_vsi_find(pb, p->bridge, vlan->vid);
 +	if (vsi < 0 || !(pb->vsis[vsi].members & BIT(port)))
  		return 0;
- 
+-	v = &pb->vsis[vsi];
+-
+-	if (!(v->members & BIT(port)))
+-		return 0;
+-
 -	v->members &= ~BIT(port);
 -	v->untagged &= ~BIT(port);
 -	v->pvids &= ~BIT(port);
--
+ 
 -	if (pb->ports[port].pvid == vlan->vid) {
 -		pb->ports[port].pvid = 0;
 +	if (p->pvid == vlan->vid) {
@@ -830,7 +866,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /* Resolve the VSI a multicast group of a port maps to, negative when
-@@ -1110,7 +1269,8 @@ static int ppe_bridge_port_mdb_add(struc
+@@ -1110,7 +1262,8 @@ static int ppe_bridge_port_mdb_add(struc
  		return 0;
  
  	vsi = ppe_bridge_mdb_vsi(pb, port, obj->vid);
@@ -840,7 +876,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return 0;
  
  	mdb = ppe_bridge_mdb_find(pb, obj->addr, vsi);
-@@ -1144,7 +1304,7 @@ static int ppe_bridge_port_mdb_del(struc
+@@ -1144,7 +1297,7 @@ static int ppe_bridge_port_mdb_del(struc
  {
  	int port = ppe_bridge_port_id(dev);
  	struct ppe_bridge_mdb *mdb;
@@ -849,7 +885,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!pb->ports[port].bridge)
  		return -EOPNOTSUPP;
-@@ -1156,22 +1316,7 @@ static int ppe_bridge_port_mdb_del(struc
+@@ -1156,22 +1309,7 @@ static int ppe_bridge_port_mdb_del(struc
  	if (!mdb || !(mdb->ports & BIT(port)))
  		return 0;
  
@@ -873,7 +909,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_bridge_stp_state_set(struct ppe_bridge *pb,
-@@ -1340,6 +1485,9 @@ static int ppe_bridge_attr_set(struct ne
+@@ -1340,6 +1478,9 @@ static int ppe_bridge_attr_set(struct ne
  	int port = ppe_bridge_port_id(dev);
  	bool vlan_aware = pb->ports[port].vsi < 0;
  
@@ -883,7 +919,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!pb->ports[port].bridge)
  		return -EOPNOTSUPP;
  
-@@ -1427,18 +1575,9 @@ static void ppe_bridge_fdb_work_fn(struc
+@@ -1427,18 +1568,9 @@ static void ppe_bridge_fdb_work_fn(struc
  
  	port = ppe_bridge_port_id(fdb_work->dev);
  
@@ -905,7 +941,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		goto out;
  
  	ether_addr_copy(entry.addr, fdb_work->addr);
-@@ -1494,9 +1633,13 @@ static int ppe_bridge_fdb_event(struct n
+@@ -1494,9 +1626,13 @@ static int ppe_bridge_fdb_event(struct n
  	struct edma_port_priv *port_priv = netdev_priv(dev);
  	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
  	struct ppe_bridge_fdb_work *fdb_work;
@@ -920,7 +956,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return 0;
  
  	if (fdb_info->locked)
-@@ -1509,6 +1652,16 @@ static int ppe_bridge_fdb_event(struct n
+@@ -1509,6 +1645,16 @@ static int ppe_bridge_fdb_event(struct n
  	else
  		return 0;
  
@@ -937,7 +973,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	fdb_work = kzalloc(sizeof(*fdb_work), GFP_ATOMIC);
  	if (!fdb_work)
  		return -ENOMEM;
-@@ -1519,6 +1672,8 @@ static int ppe_bridge_fdb_event(struct n
+@@ -1519,6 +1665,8 @@ static int ppe_bridge_fdb_event(struct n
  	fdb_work->event = event;
  	ether_addr_copy(fdb_work->addr, fdb_info->addr);
  	fdb_work->vid = fdb_info->vid;
@@ -946,7 +982,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	fdb_work->host_addr = host_addr;
  	fdb_work->notify_offloaded = !host_addr &&
  				     event == SWITCHDEV_FDB_ADD_TO_DEVICE;
-@@ -1539,7 +1694,7 @@ static bool ppe_bridge_foreign_dev_check
+@@ -1539,7 +1687,7 @@ static bool ppe_bridge_foreign_dev_check
  	 * a foreign port's FDB event to its PPE ports for assisted learning.
  	 */
  	if (netif_is_bridge_master(foreign_dev))
@@ -955,7 +991,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (!edma_port_dev_check(foreign_dev))
  		return true;
-@@ -1573,6 +1728,10 @@ static int ppe_bridge_obj_add(struct net
+@@ -1573,6 +1721,10 @@ static int ppe_bridge_obj_add(struct net
  {
  	struct edma_port_priv *port_priv = netdev_priv(dev);
  	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
@@ -966,7 +1002,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* VLANs of the bridge device itself terminate at the CPU port,
  	 * which is a member of every VSI already. Host multicast joins
-@@ -1600,6 +1759,10 @@ static int ppe_bridge_obj_del(struct net
+@@ -1600,6 +1752,10 @@ static int ppe_bridge_obj_del(struct net
  {
  	struct edma_port_priv *port_priv = netdev_priv(dev);
  	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
@@ -977,7 +1013,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (netif_is_bridge_master(obj->orig_dev))
  		return 0;
-@@ -1678,6 +1841,7 @@ int ppe_bridge_setup(struct ppe_device *
+@@ -1678,6 +1834,7 @@ int ppe_bridge_setup(struct ppe_device *
  	for (i = 0; i < ppe_dev->num_ports; i++)
  		pb->ports[i].vsi = -1;
  
@@ -1065,7 +1101,36 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
-@@ -3063,20 +3088,19 @@ int ppe_fdb_port_flush(struct ppe_device
+@@ -2172,28 +2197,6 @@ int ppe_eg_xlt_rule_clear(struct ppe_dev
+ }
+ 
+ /**
+- * ppe_port_bridge_txmac_set - Enable or disable the bridge TX MAC of a port
+- * @ppe_dev: PPE device
+- * @port: PPE port to configure
+- * @enable: Enable or disable the bridge TX MAC
+- *
+- * The bridge TX MAC gates the egress of packets forwarded to the port by
+- * the L2 bridge, it does not affect packets transmitted by the CPU with
+- * an explicit destination port.
+- *
+- * Return: 0 on success, negative error code on failure.
+- */
+-int ppe_port_bridge_txmac_set(struct ppe_device *ppe_dev, int port,
+-			      bool enable)
+-{
+-	u32 reg = PPE_PORT_BRIDGE_CTRL_ADDR + PPE_PORT_BRIDGE_CTRL_INC * port;
+-
+-	return regmap_update_bits(ppe_dev->regmap, reg,
+-				  PPE_PORT_BRIDGE_TXMAC_EN,
+-				  enable ? PPE_PORT_BRIDGE_TXMAC_EN : 0);
+-}
+-
+-/**
+  * ppe_port_bridge_learning_set - Control hardware FDB learning of a port
+  * @ppe_dev: PPE device
+  * @port: PPE port to configure
+@@ -3063,20 +3066,19 @@ int ppe_fdb_port_flush(struct ppe_device
  }
  
  /**
@@ -1090,6 +1155,17 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  /**
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
+@@ -368,8 +368,6 @@ int ppe_eg_xlt_rule_set(struct ppe_devic
+ 			unsigned int port_bitmap, int svid, int cvid,
+ 			int vsi, bool add_svid, bool add_cvid);
+ int ppe_eg_xlt_rule_clear(struct ppe_device *ppe_dev, int index);
+-int ppe_port_bridge_txmac_set(struct ppe_device *ppe_dev, int port,
+-			      bool enable);
+ int ppe_port_bridge_learning_set(struct ppe_device *ppe_dev, int port,
+ 				 bool enable);
+ int ppe_port_shaper_set(struct ppe_device *ppe_dev, int port, u64 rate,
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 @@ -886,6 +886,8 @@ int ppe_port_l3_if_set(struct ppe_device
@@ -1121,27 +1197,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = regmap_bulk_read(ppe_dev->regmap, reg, port_cfg,
  			       ARRAY_SIZE(port_cfg));
  	if (ret)
---- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
-+++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -103,6 +103,7 @@ struct ppe_device {
- 	u8 fdb_cmd_id;
- 	/* Serialize the L3 flow operation registers. */
- 	struct mutex flow_lock;
-+	/* Serialize L3 interface and L3 port table updates. */
- 	struct mutex l3_if_lock;
- 	/* Outer lock for TBF and negotiated BM pause policy. */
- 	struct mutex qos_lock;
---- a/Documentation/networking/qualcomm-ppe-offload.rst
-+++ b/Documentation/networking/qualcomm-ppe-offload.rst
-@@ -74,8 +74,9 @@ L2 bridge offload
- -----------------
- 
- A VLAN-unaware software bridge is backed by one VSI; joining binds the
--port to the VSI and enables its bridge TX MAC, leaving reverts to the
--parked state, so failure at any point falls back to a software bridge.
-+port to the VSI and enables its bridge TX MAC. Leaving retires the
-+port membership and parks the last VSI before flushing and verifying
-+its address table. A VSI with uncertain hardware state stays reserved.
- The CPU port is a member of every VSI: packets without an FDB hit
- flood to the CPU and reach the software ports of the bridge (wireless
- interfaces). Received packets carry skb->offload_fwd_mark and all

@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sat, 21 Nov 2026 22:26:08 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] net: qualcomm: ppe: assign the bridge PVID in ingress translation
 
 The PVID rule selects the correct VSI but leaves the C-VID unchanged.
@@ -14,6 +14,25 @@ translation actions for tagged bridge traffic and routed VLANs.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+--- a/Documentation/networking/qualcomm-ppe-offload.rst
++++ b/Documentation/networking/qualcomm-ppe-offload.rst
+@@ -113,11 +113,11 @@ VLAN-aware bridging backs each 802.1Q VL
+ PPE ports use software forwarding for other VLAN protocols. Detach
+ offloaded PPE ports before changing a bridge's VLAN filtering mode.
+ Ingress VLAN translation rules, matching by port bitmap so they scale
+-with VLANs rather than ports times VLANs, assign tagged and
+-PVID-untagged packets to the VSI; per-VSI egress tag modes provide
+-tagged or untagged egress per port; translation misses drop, which is
+-the ingress side of VLAN filtering. Resource exhaustion (64 VSIs, 128
+-rules) fails only the VLAN object at hand.
++with VLANs rather than ports times VLANs, assign packets to a VSI.
++The PVID rule sets the C-VID on untagged and priority-tagged ingress
++packets. Per-VSI tag modes select tagged or untagged egress per port.
++Dropping translation misses implements ingress VLAN filtering.
++Resource exhaustion (64 VSIs, 128 rules) fails the VLAN object at hand.
+ 
+ Multicast without snooping floods to the members with BR_MCAST_FLOOD,
+ exactly as the software bridge treats groups outside its MDB. With
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_bridge.c
 @@ -399,10 +399,11 @@ static int ppe_bridge_vsi_xlt_update(str
@@ -159,22 +178,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  /* PPE queue counters enable/disable control. */
  #define PPE_EG_BRIDGE_CONFIG_ADDR		0x20044
---- a/Documentation/networking/qualcomm-ppe-offload.rst
-+++ b/Documentation/networking/qualcomm-ppe-offload.rst
-@@ -111,11 +111,11 @@ VLAN-aware bridging backs each 802.1Q VL
- PPE ports use software forwarding for other VLAN protocols. Detach
- offloaded PPE ports before changing a bridge's VLAN filtering mode.
- Ingress VLAN translation rules, matching by port bitmap so they scale
--with VLANs rather than ports times VLANs, assign tagged and
--PVID-untagged packets to the VSI; per-VSI egress tag modes provide
--tagged or untagged egress per port; translation misses drop, which is
--the ingress side of VLAN filtering. Resource exhaustion (64 VSIs, 128
--rules) fails only the VLAN object at hand.
-+with VLANs rather than ports times VLANs, assign packets to a VSI.
-+The PVID rule sets the C-VID on untagged and priority-tagged ingress
-+packets. Per-VSI tag modes select tagged or untagged egress per port.
-+Dropping translation misses implements ingress VLAN filtering.
-+Resource exhaustion (64 VSIs, 128 rules) fails the VLAN object at hand.
- 
- Multicast without snooping floods to the members with BR_MCAST_FLOOD,
- exactly as the software bridge treats groups outside its MDB. With

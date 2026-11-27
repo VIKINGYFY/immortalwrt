@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: fix EDMA TX DMA lifecycle
 
 Track every streaming TX DMA mapping in a descriptor-indexed sidecar.
@@ -16,7 +16,14 @@ lost wakeup window. Retain error and queue-pressure counters.
 Keep the final implementation of this responsibility directly; subsequent
 repairs listed below are integrated without intermediate replacements.
 
+EDMA TX DMA map ownership includes publication, release ordering and
+slot reuse.
+
 Merged from:
+  0641-net-ethernet-qualcomm-ppe-fix-edma-tx-dma-lifecycle.patch - net: ethernet: qualcomm: ppe: fix EDMA TX DMA lifecycle
+  0683-net-ppe-order-edma-dma-map-reuse.patch - net: ppe: order EDMA DMA map release and reuse
+
+Previous merged from (0641-net-ethernet-qualcomm-ppe-fix-edma-tx-dma-lifecycle.patch):
   0641-net-ethernet-qualcomm-ppe-fix-edma-tx-dma-lifecycle.patch - net: ethernet: qualcomm: ppe: fix EDMA TX DMA lifecycle
   0667-net-ethernet-qualcomm-ppe-pad-short-TX-packets.patch - net: ethernet: qualcomm: ppe: pad short TX packets
 
@@ -337,7 +344,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/regmap.h>
  
  #include "edma.h"
-@@ -122,18 +123,73 @@ void edma_tx_xmit_segs(struct net_device
+@@ -122,18 +123,77 @@ void edma_tx_xmit_segs(struct net_device
   *
   * Return the number descriptors for which Tx complete is done.
   */
@@ -347,7 +354,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{
 +	struct sk_buff *skb = map->skb;
 +
-+	switch (map->type) {
++	switch (READ_ONCE(map->type)) {
 +	case EDMA_TX_MAP_SINGLE:
 +		dma_unmap_single(dev, map->dma, map->len, DMA_TO_DEVICE);
 +		break;
@@ -361,7 +368,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		break;
 +	}
 +
-+	memset(map, 0, sizeof(*map));
++	map->skb = NULL;
++	map->dma = 0;
++	map->len = 0;
++	/* Publish reuse only after the previous mapping and metadata are gone. */
++	smp_store_release(&map->type, EDMA_TX_MAP_NONE);
 +	return skb;
 +}
 +
@@ -414,7 +425,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 reg;
  
  	cons_idx = txcmpl_ring->cons_idx;
-@@ -163,52 +219,37 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -163,52 +223,37 @@ u32 edma_tx_complete(u32 work_to_do, str
  
  	count = avail;
  
@@ -482,7 +493,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			txcmpl_errors = EDMA_TXCOMP_RING_ERROR_GET(txcmpl->word3);
  			if (unlikely(txcmpl_errors)) {
  				if (net_ratelimit())
-@@ -220,7 +261,15 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -220,7 +265,15 @@ u32 edma_tx_complete(u32 work_to_do, str
  				u64_stats_update_end(&txcmpl_stats->syncp);
  			}
  
@@ -499,7 +510,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		cons_idx = ((cons_idx + 1) & EDMA_TX_RING_SIZE_MASK);
-@@ -235,9 +284,9 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -235,9 +288,9 @@ u32 edma_tx_complete(u32 work_to_do, str
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CONS_IDX(txcmpl_ring->id);
  	regmap_write(regmap, reg, cons_idx);
  
@@ -512,7 +523,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	 *
  	 * The queue must be derived from the ring, not from the CPU running
  	 * this completion handler: Tx desc and Tx cmpl rings are paired
-@@ -245,18 +294,16 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -245,18 +298,16 @@ u32 edma_tx_complete(u32 work_to_do, str
  	 * the IRQ is affine to. Waking the current CPU's queue leaves any
  	 * other stopped queue stopped forever once its ring fills.
  	 */
@@ -538,7 +549,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	return count;
-@@ -279,7 +326,8 @@ int edma_tx_napi_poll(struct napi_struct
+@@ -279,7 +330,8 @@ int edma_tx_napi_poll(struct napi_struct
  	u32 data, reg;
  
  	do {
@@ -548,7 +559,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (work_done >= budget)
  			return work_done;
  
-@@ -325,51 +373,58 @@ irqreturn_t edma_tx_handle_irq(int irq,
+@@ -325,51 +377,58 @@ irqreturn_t edma_tx_handle_irq(int irq,
  	return IRQ_HANDLED;
  }
  
@@ -581,7 +592,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -		dma_unmap_page(dev, virt_to_phys(frag), PAGE_SIZE,
 -			       DMA_TO_DEVICE);
 -	}
-+	if (WARN_ON_ONCE(map->type != EDMA_TX_MAP_NONE))
++	if (WARN_ON_ONCE(smp_load_acquire(&map->type) != EDMA_TX_MAP_NONE))
 +		return -EBUSY;
 +
 +	map->dma = dma;
@@ -640,7 +651,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		buf_len = skb_frag_size(frag);
  
-@@ -377,11 +432,8 @@ static u32 edma_tx_skb_nr_frags(struct e
+@@ -377,11 +436,8 @@ static u32 edma_tx_skb_nr_frags(struct e
  		 * process them. Zero size segment can happen during TSO operation
  		 * if there is nothing but header in the primary segment.
  		 */
@@ -653,7 +664,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		/* Setting the MORE bit on the previous Tx descriptor.
  		 * Note: We will flush this descriptor as well later.
-@@ -389,15 +441,20 @@ static u32 edma_tx_skb_nr_frags(struct e
+@@ -389,15 +445,20 @@ static u32 edma_tx_skb_nr_frags(struct e
  		EDMA_TXDESC_MORE_BIT_SET(txd, 1);
  		EDMA_TXDESC_ENDIAN_SET(txd);
  
@@ -679,7 +690,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		EDMA_TXDESC_BUFFER_ADDR_SET(txd, buff_addr);
-@@ -405,14 +462,10 @@ static u32 edma_tx_skb_nr_frags(struct e
+@@ -405,14 +466,10 @@ static u32 edma_tx_skb_nr_frags(struct e
  		EDMA_TXDESC_POOL_ID_SET(txd, (i + 1));
  
  		*hw_next_to_use = ((*hw_next_to_use + 1) & EDMA_TX_RING_SIZE_MASK);
@@ -695,7 +706,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	*txdesc = txd;
  
  	return num_descs;
-@@ -513,17 +566,24 @@ static struct edma_txdesc_pri *edma_tx_s
+@@ -513,17 +570,24 @@ static struct edma_txdesc_pri *edma_tx_s
  	struct edma_txdesc_pri *txd = NULL;
  	struct device *dev = ppe_dev->dev;
  	dma_addr_t buff_addr;
@@ -723,7 +734,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return NULL;
  	}
  
-@@ -538,72 +598,22 @@ static struct edma_txdesc_pri *edma_tx_s
+@@ -538,72 +602,22 @@ static struct edma_txdesc_pri *edma_tx_s
  	return txd;
  }
  
@@ -804,7 +815,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		if (stats) {
  			u64_stats_update_begin(&stats->syncp);
-@@ -612,27 +622,11 @@ static u32 edma_tx_skb_sg_fill_desc(stru
+@@ -612,27 +626,11 @@ static u32 edma_tx_skb_sg_fill_desc(stru
  		}
  	}
  
@@ -833,7 +844,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			buf_len = skb_headlen(iter_skb);
  			if (unlikely(buf_len == 0))
  				goto skip_primary;
-@@ -641,12 +635,21 @@ static u32 edma_tx_skb_sg_fill_desc(stru
+@@ -641,12 +639,21 @@ static u32 edma_tx_skb_sg_fill_desc(stru
  			EDMA_TXDESC_MORE_BIT_SET(txd, 1);
  			EDMA_TXDESC_ENDIAN_SET(txd);
  
@@ -857,7 +868,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				goto dma_err;
  			}
  
-@@ -655,24 +658,18 @@ static u32 edma_tx_skb_sg_fill_desc(stru
+@@ -655,24 +662,18 @@ static u32 edma_tx_skb_sg_fill_desc(stru
  			EDMA_TXDESC_POOL_ID_SET(txd, 0);
  
  			*hw_next_to_use = (*hw_next_to_use + 1) & EDMA_TX_RING_SIZE_MASK;
@@ -888,7 +899,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  				/* Update fraglist with nr_frag stats. */
  				if (stats) {
-@@ -685,12 +682,6 @@ skip_primary:
+@@ -685,12 +686,6 @@ skip_primary:
  
  		EDMA_TXDESC_ENDIAN_SET(txd);
  
@@ -901,7 +912,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* Update frag_list stats. */
  		if (stats) {
  			u64_stats_update_begin(&stats->syncp);
-@@ -699,28 +690,16 @@ skip_primary:
+@@ -699,28 +694,16 @@ skip_primary:
  		}
  	}
  
@@ -931,7 +942,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	u32 data = 0, avail = 0, hw_next_to_clean = 0;
-@@ -732,7 +711,7 @@ static u32 edma_tx_avail_desc(struct edm
+@@ -732,7 +715,7 @@ static u32 edma_tx_avail_desc(struct edm
  	hw_next_to_clean = data & EDMA_TXDESC_CONS_IDX_MASK;
  
  	avail = EDMA_DESC_AVAIL_COUNT(hw_next_to_clean - 1,
@@ -940,7 +951,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return avail;
  }
-@@ -760,16 +739,30 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -760,16 +743,30 @@ enum edma_tx_status edma_tx_ring_xmit(st
  	struct ppe_port *port = port_priv->ppe_port;
  	struct regmap *regmap = ppe_dev->regmap;
  	struct edma_txdesc_pri *txdesc = NULL;
@@ -975,7 +986,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (unlikely(!txdesc_ring->avail_desc)) {
  			netdev_dbg(netdev, "No available descriptors are present at %d ring\n",
  				   txdesc_ring->id);
-@@ -790,10 +783,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -790,10 +787,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		if (unlikely(!txdesc)) {
  			netdev_dbg(netdev, "No descriptor available for ring %d\n",
  				   txdesc_ring->id);
@@ -987,7 +998,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		EDMA_TXDESC_ENDIAN_SET(txdesc);
-@@ -822,8 +812,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -822,8 +816,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		}
  
  		if (unlikely(num_tx_desc_needed > txdesc_ring->avail_desc)) {
@@ -997,7 +1008,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (num_tx_desc_needed > txdesc_ring->avail_desc) {
  				u64_stats_update_begin(&txdesc_stats->syncp);
  				++txdesc_stats->no_desc_avail;
-@@ -840,30 +829,22 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -840,30 +833,22 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		if (unlikely(!txdesc)) {
  			netdev_dbg(netdev, "No non-linear descriptor available for ring %d\n",
  				   txdesc_ring->id);
@@ -1035,7 +1046,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Update producer index. */
  	txdesc_ring->prod_idx = hw_next_to_use & EDMA_TXDESC_PROD_IDX_MASK;
-@@ -873,10 +854,14 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -873,10 +858,14 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		   netdev->name, skb, txdesc_ring->id, ntohs(skb->protocol),
  		 skb->len, port_id, hw_next_to_use, skb->ip_summed);
  
@@ -1054,7 +1065,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (stats) {
  		u64_stats_update_begin(&stats->syncp);
-@@ -885,6 +870,11 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -885,6 +874,11 @@ enum edma_tx_status edma_tx_ring_xmit(st
  		u64_stats_update_end(&stats->syncp);
  	}
  
