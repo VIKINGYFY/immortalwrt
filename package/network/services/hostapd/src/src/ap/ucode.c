@@ -935,12 +935,47 @@ uc_hostapd_iface_switch_channel(uc_vm_t *vm, size_t nargs)
 	if ((intval = ucv_int64_get(ucv_object_get(info, "center_freq2", NULL))) && !errno)
 		csa.freq_params.center_freq2 = intval;
 
+#ifdef NEED_AP_MLME
+	if (ucv_is_truish(uc_fn_arg(1))) {
+		u8 channel;
+
+		if (ieee80211_freq_to_chan(csa.freq_params.freq, &channel) !=
+		    HOSTAPD_MODE_IEEE80211A)
+			return ucv_boolean_new(false);
+		csa.freq_params.channel = channel;
+		iface->channel_reason = NULL;
+		/* The selected channel may be outside the narrower ACS list. */
+		conf->acs = 0;
+		hostapd_switch_channel_fallback(iface, &csa.freq_params);
+		return ucv_boolean_new(iface->state != HAPD_IFACE_DISABLED);
+	}
+#endif
+
 	/* mac80211 completes the switch only if every BSS of the radio
 	 * takes part */
 	for (i = 0; i < iface->num_bss && !ret; i++)
 		ret = hostapd_switch_channel(iface->bss[i], &csa);
 
+	if (!ret)
+		iface->channel_reason = "channel_switch";
+
 	return ucv_boolean_new(!ret);
+}
+
+static uc_value_t *
+uc_hostapd_iface_idle(uc_vm_t *vm, size_t nargs)
+{
+	struct hostapd_iface *iface = uc_fn_thisval("hostapd.iface");
+	unsigned int i;
+
+	if (!iface)
+		return NULL;
+
+	for (i = 0; i < iface->num_bss; i++)
+		if (iface->bss[i]->num_sta)
+			return ucv_boolean_new(false);
+
+	return ucv_boolean_new(true);
 }
 
 static uc_value_t *
@@ -970,6 +1005,10 @@ uc_hostapd_iface_freq_running(uc_vm_t *vm, size_t nargs)
 	ucv_object_add(ret, "sec_channel", ucv_int64_new(iface->conf->secondary_channel));
 	ucv_object_add(ret, "center_seg0_idx",
 		       ucv_int64_new(hostapd_get_oper_centr_freq_seg0_idx(iface->conf)));
+	ucv_object_add(ret, "oper_chwidth",
+		       ucv_int64_new(hostapd_get_oper_chwidth(iface->conf)));
+	if (iface->channel_reason)
+		ucv_object_add(ret, "reason", ucv_string_new(iface->channel_reason));
 
 	return ret;
 }
@@ -1565,6 +1604,7 @@ int hostapd_ucode_init(struct hapd_interfaces *ifaces)
 		{ "stop", uc_hostapd_iface_stop },
 		{ "start", uc_hostapd_iface_start },
 		{ "switch_channel", uc_hostapd_iface_switch_channel },
+		{ "idle", uc_hostapd_iface_idle },
 		{ "csa_in_progress", uc_hostapd_iface_csa_in_progress },
 		{ "freq_running", uc_hostapd_iface_freq_running },
 		{ "cac", uc_hostapd_iface_cac },

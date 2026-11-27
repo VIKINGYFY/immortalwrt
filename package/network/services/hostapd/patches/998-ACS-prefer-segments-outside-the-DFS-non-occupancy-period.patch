@@ -1,0 +1,63 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Fri, 27 Nov 2026 17:39:39 +0800
+Subject: [PATCH] ACS: prefer segments outside the DFS non-occupancy period
+
+Exclude any candidate with a constituent channel in the non-occupancy period when scoring survey results. If all permitted segments are unavailable, preserve the existing DFS wait path.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/src/ap/acs.c
++++ b/src/ap/acs.c
+@@ -864,7 +864,7 @@
+ static void
+ acs_find_ideal_chan_mode(struct hostapd_iface *iface,
+ 			 struct hostapd_hw_modes *mode,
+-			 int n_chans, u32 bw,
++			 int n_chans, u32 bw, bool allow_nop,
+ 			 struct hostapd_channel_data **rand_chan,
+ 			 struct hostapd_channel_data **ideal_chan,
+ 			 long double *ideal_factor)
+@@ -956,6 +956,10 @@
+ 			    iface->conf->acs_exclude_dfs)
+ 				break;
+ 
++			if (!allow_nop && (chan2->flag & HOSTAPD_CHAN_DFS_MASK) ==
++			    HOSTAPD_CHAN_DFS_UNAVAILABLE)
++				break;
++
+ 			if (chan2->max_tx_power < iface->conf->min_tx_power)
+ 				break;
+ 
+@@ -1130,7 +1134,7 @@
+ 	struct hostapd_channel_data *ideal_chan = NULL,
+ 		*rand_chan = NULL;
+ 	long double ideal_factor = 0;
+-	int i;
++	int i, pass;
+ 	int n_chans = 1;
+ 	u32 bw;
+ 	struct hostapd_hw_modes *mode;
+@@ -1170,12 +1174,17 @@
+ 	wpa_printf(MSG_DEBUG,
+ 		   "ACS: Survey analysis for selected bandwidth %d MHz", bw);
+ 
+-	for (i = 0; i < iface->num_hw_features; i++) {
+-		mode = &iface->hw_features[i];
+-		if (!hostapd_hw_skip_mode(iface, mode))
+-			acs_find_ideal_chan_mode(iface, mode, n_chans, bw,
+-						 &rand_chan, &ideal_chan,
+-						 &ideal_factor);
++	for (pass = 0; pass < 2; pass++) {
++		for (i = 0; i < iface->num_hw_features; i++) {
++			mode = &iface->hw_features[i];
++			if (!hostapd_hw_skip_mode(iface, mode))
++				acs_find_ideal_chan_mode(iface, mode, n_chans, bw,
++							 pass != 0, &rand_chan,
++							 &ideal_chan, &ideal_factor);
++		}
++		/* If every permitted segment is blocked, DFS can wait for NOP. */
++		if (ideal_chan || rand_chan)
++			break;
+ 	}
+ 
+ 	if (ideal_chan) {

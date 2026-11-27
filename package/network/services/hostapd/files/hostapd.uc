@@ -1202,6 +1202,71 @@ function iface_runs_channel(name, config)
 	       (!wanted.sec_channel || running.center_seg0_idx == wanted.center_seg0_idx);
 }
 
+const DFS_IDLE_UPGRADE_MS = 30000;
+
+function dfs_idle_check(name, recovery)
+{
+	delete recovery.timer;
+	let config = hostapd.data.config[name];
+	let iface = hostapd.interfaces[name];
+	if (config?.dfs_upgrade !== recovery || !iface)
+		return;
+
+	let running = iface.freq_running();
+	let status = iface.state();
+	if (recovery.previous) {
+		if (status != "ENABLED" && status != "DISABLED" &&
+		    !(status == "DFS" && !iface.cac()))
+			return;
+
+		let previous = recovery.previous;
+		delete recovery.previous;
+		if (status == "ENABLED" && running?.oper_chwidth == 2) {
+			recovery.result = "dfs_idle_upgrade";
+			hostapd.printf(`Restored 160 MHz on idle radio ${name}`);
+		} else {
+			recovery.result = "dfs_upgrade_failed";
+			hostapd.printf(`160 MHz recovery failed on ${name}`);
+			if (status != "ENABLED")
+				iface.switch_channel(previous, true);
+		}
+		return;
+	}
+
+	if (recovery.result == "dfs_idle_upgrade" && running?.reason == "dfs_radar") {
+		delete recovery.result;
+		delete recovery.attempted;
+	}
+	if (recovery.attempted || status != "ENABLED" || !running ||
+	    running.oper_chwidth > 1 || !iface.idle() || iface.csa_in_progress() ||
+	    hostapd.data.pending_config[name] || hostapd.data.link_reload[name] ||
+	    running.reason == "channel_switch" ||
+	    (!config.dfs_nop_fallback && !(running.reason in ["dfs_radar", "dfs_nop"])))
+		return;
+
+	try {
+		const utils = import("wifi.utils");
+		const channels = import("wifi.channels");
+		let phy = utils.wiphy_info(config.phy);
+		let freq = channels.dfs_upgrade_frequency(phy, utils.wiphy_band(phy, "5g"),
+		                                          recovery, running.frequency);
+		let target = freq && hostapd.freq_info(freq, null, 2);
+		let previous = hostapd.freq_info(running.frequency, running.sec_channel,
+		                                 running.oper_chwidth);
+		if (!target || !previous)
+			return;
+
+		recovery.attempted = true;
+		recovery.previous = previous;
+		hostapd.printf(`Trying 160 MHz on idle radio ${name}, frequency ${freq} MHz`);
+		iface.switch_channel(target, true);
+		if (!recovery.timer)
+			recovery.timer = uloop.timer(0, () => dfs_idle_check(name, recovery));
+	} catch (e) {
+		hostapd.printf(`160 MHz recovery on ${name}: ${e}`);
+	}
+}
+
 const status_bss_color_re = /^he_bss_color=([0-9]+)$/;
 
 // hostapd leaves the configured color by itself after a color collision, so
@@ -1849,6 +1914,7 @@ function iface_link_reload_timed(phy, name, bss)
 function iface_set_config(name, config)
 {
 	let old_config = hostapd.data.config[name];
+	old_config?.dfs_upgrade?.timer?.cancel();
 	let reload = hostapd.data.link_reload[name];
 
 	// The radio runs the configuration from before the announced restart
@@ -1979,6 +2045,16 @@ function iface_load_config(phy, radio, filename)
 
 		if (val[0] == "#channel_follow") {
 			config.radio.channel_follow = int(val[1]) == 1;
+			continue;
+		}
+
+		if (val[0] == "#dfs_upgrade") {
+			config.dfs_upgrade = json(val[1]);
+			continue;
+		}
+
+		if (val[0] == "#dfs_nop_fallback") {
+			config.dfs_nop_fallback = true;
 			continue;
 		}
 
@@ -2623,11 +2699,17 @@ let main_obj = {
 				return libubus.STATUS_INVALID_ARGUMENT;
 			let name = phy_name(req.args.phy, req.args.radio);
 			let iface = hostapd.interfaces[name];
+			let running = iface?.freq_running();
+			let recovery = hostapd.data.config[name]?.dfs_upgrade;
 			return {
 				status: hostapd.data.apsta_stopped[name] ? "WAITING_STA" :
 					(hostapd.data.pending_config[name] || hostapd.data.link_reload[name]) ? "STARTING" :
 					iface?.state(),
 				error: hostapd.data.setup_errors?.[name],
+				channel_reason: hostapd.data.apsta_freq[name] ? "sta_follow" :
+					(recovery?.result && running?.reason == "ht_coexistence") ?
+						recovery.result : running?.reason ?? recovery?.result,
+				dfs_upgrade: recovery?.previous ? "checking" : null,
 			};
 		}
 	},
@@ -2883,6 +2965,15 @@ return {
 		hostapd.data.obj?.notify("cac_start",
 			{ wiphy: hostapd.data.config[phy]?.phy, ...cac },
 			null, null, null, -1);
+	},
+	dfs_update: function(name) {
+		let recovery = hostapd.data.config[name]?.dfs_upgrade;
+		if (!recovery)
+			return;
+
+		recovery.timer?.cancel();
+		recovery.timer = uloop.timer(recovery.previous ? 0 : DFS_IDLE_UPGRADE_MS,
+		                             () => dfs_idle_check(name, recovery));
 	},
 	sta_auth: function(iface, sta) {
 		let msg = { iface, sta };
