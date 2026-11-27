@@ -19,6 +19,10 @@
 		serial2 = &blsp1_uart3;
 	};
 
+	chosen {
+		bootargs-append = " cma=320M";
+	};
+
 	regulator_fixed_3p3: s3300 {
 		compatible = "regulator-fixed";
 		regulator-min-microvolt = <3300000>;
@@ -158,10 +162,6 @@
 			};
 		};
 	};
-};
-
-&{/chosen} {
-	bootargs-append = " cma=320M";
 };
 
 &pwm {
