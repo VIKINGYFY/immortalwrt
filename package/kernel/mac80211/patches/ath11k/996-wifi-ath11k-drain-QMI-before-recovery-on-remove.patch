@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 15 Nov 2026 09:40:08 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] wifi: ath11k: drain QMI before recovery on device removal
 
 A QMI event that passed the unregister check can queue restart_work
@@ -98,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  qmi_fail:
 --- a/drivers/net/wireless/ath/ath11k/qmi.c
 +++ b/drivers/net/wireless/ath/ath11k/qmi.c
-@@ -3433,7 +3433,8 @@ static void ath11k_qmi_driver_event_work
+@@ -3448,7 +3448,8 @@ static void ath11k_qmi_driver_event_work
  
  		if (test_bit(ATH11K_FLAG_UNREGISTERING, &ab->dev_flags)) {
  			kfree(event);
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  
  		switch (event->type) {
-@@ -3567,8 +3568,23 @@ int ath11k_qmi_init_service(struct ath11
+@@ -3582,8 +3583,23 @@ int ath11k_qmi_init_service(struct ath11
  
  void ath11k_qmi_deinit_service(struct ath11k_base *ab)
  {

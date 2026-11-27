@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] wifi: ath12k: quiesce and release Direct Switch resources
 
 Coordinate Direct Switch startup, shutdown and quarantine before
@@ -8,7 +8,7 @@ releasing shared DMA rings, buffers and group resources.
 Keep the final implementation of this responsibility directly; subsequent
 repairs listed below are integrated without intermediate replacements.
 
-Merged from:
+Previous merged from (906-05-ath12k-quiesce-and-release-Direct-Switch-resources.patch):
   906-05-ath12k-quiesce-and-release-Direct-Switch-resources.patch - wifi: ath12k: quiesce and release Direct Switch resources
   918-ath12k-deliver-Direct-Switch-EAPOL-to-control-port.patch - wifi: ath12k: deliver Direct Switch EAPOL to the control port
 
@@ -548,7 +548,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath12k_mac_station_unauthorize(ar, arvif, arsta);
  
  	/* IEEE80211_STA_ASSOC -> IEEE80211_STA_AUTH: disassoc peer connected to
-@@ -11148,11 +11182,15 @@ static int ath12k_mac_vdev_delete(struct
+@@ -11174,11 +11208,15 @@ static int ath12k_mac_vdev_delete(struct
  	struct ath12k_base *ab = ar->ab;
  	unsigned long time_left;
  	int ret = 0;
@@ -564,7 +564,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (test_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags) &&
  	    list_empty(&arvif->list))
  		goto err_vdev_del;
-@@ -11182,8 +11220,12 @@ static int ath12k_mac_vdev_delete(struct
+@@ -11208,8 +11246,12 @@ static int ath12k_mac_vdev_delete(struct
  
  	ath12k_dbg(ab, ATH12K_DBG_MAC, "vdev %pM deleted, vdev_id %d\n",
  		   vif->addr, arvif->vdev_id);
@@ -577,7 +577,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spin_lock_bh(&ar->data_lock);
  	if (!list_empty(&arvif->list))
  		list_del_init(&arvif->list);
-@@ -15186,10 +15228,12 @@ static int ath12k_mac_hw_register(struct
+@@ -15212,10 +15254,12 @@ static int ath12k_mac_hw_register(struct
  	ieee80211_hw_set(hw, REPORTS_LOW_ACK);
  	ieee80211_hw_set(hw, NO_VIRTUAL_MONITOR);
  
@@ -592,7 +592,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (cap->nss_ratio_enabled)
  		ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
-@@ -15443,6 +15487,7 @@ static void ath12k_mac_setup(struct ath1
+@@ -15469,6 +15513,7 @@ static void ath12k_mac_setup(struct ath1
  	init_completion(&ar->scan.completed);
  	init_completion(&ar->scan.on_channel);
  	init_completion(&ar->mlo_setup_done);
@@ -600,7 +600,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	init_completion(&ar->completed_11d_scan);
  	init_completion(&ar->regd_update_completed);
  	init_completion(&ar->thermal.wmi_sync);
-@@ -15549,8 +15594,12 @@ static int __ath12k_mac_mlo_teardown(str
+@@ -15575,8 +15620,12 @@ static int __ath12k_mac_mlo_teardown(str
  	if (num_link == 0)
  		return 0;
  
@@ -613,7 +613,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath12k_warn(ab, "failed to send MLO teardown WMI command for pdev %d: %d\n",
  			    ar->pdev_idx, ret);
  		return ret;
-@@ -15607,20 +15656,42 @@ void ath12k_mac_mlo_teardown(struct ath1
+@@ -15633,20 +15682,42 @@ void ath12k_mac_mlo_teardown(struct ath1
  {
  	struct ath12k_hw *ah;
  	struct ath12k *ar;
@@ -880,7 +880,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/hashtable.h>
  #include <linux/delay.h>
  #include <linux/debugfs.h>
-@@ -71,6 +72,8 @@ struct ath12k_ds_buffer {
+@@ -72,6 +73,8 @@ struct ath12k_ds_buffer {
  };
  
  struct ath12k_ds_vp {
@@ -889,7 +889,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ath12k_vif *vif;
  	struct net_device *dev;
  	int port, bank;
-@@ -90,6 +93,7 @@ struct ath12k_ds_peer {
+@@ -91,6 +94,7 @@ struct ath12k_ds_peer {
  };
  
  struct ath12k_ds {
@@ -897,7 +897,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ath12k_dp *dp;
  	struct qcom_ppe_ds *handle;
  	struct dp_srng tcl, reo, complete;
-@@ -600,6 +604,7 @@ static int ath12k_ds_stats_show(struct s
+@@ -601,6 +605,7 @@ static int ath12k_ds_stats_show(struct s
  	seq_printf(seq, "tx_complete:%lld rx_recycled:%lld bad_cookie:%lld tx_exception:%lld\n",
  		   atomic64_read(&ds->tx_completed), atomic64_read(&ds->rx_recycled),
  		   atomic64_read(&ds->bad_cookie), atomic64_read(&ds->tx_exception));
@@ -905,7 +905,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	seq_printf(seq, "tx_acked:%lld tx_dropped:%lld\n",
  		   atomic64_read(&ds->tx_acked), atomic64_read(&ds->tx_dropped));
  	for (i = 0; i < ATH12K_DS_VP_COUNT; i++)
-@@ -905,6 +910,58 @@ static int ath12k_ds_start(struct ath12k
+@@ -906,6 +911,58 @@ static int ath12k_ds_start(struct ath12k
  	return ret;
  }
  
@@ -964,7 +964,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath12k_ds_bind_vif(struct ath12k_ds *ds, struct ath12k_link_vif *arvif)
  {
  	struct ath12k_vif *vif = arvif->ahvif;
-@@ -955,6 +1012,16 @@ static int ath12k_ds_bind_vif(struct ath
+@@ -956,6 +1013,16 @@ static int ath12k_ds_bind_vif(struct ath
  	dev_hold(vp->dev);
  	vp->port = port;
  	vp->bank = bank;
@@ -981,7 +981,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return port;
  }
  
-@@ -1234,6 +1301,7 @@ void ath12k_wifi7_ds_vif_remove(struct a
+@@ -1236,6 +1303,7 @@ void ath12k_wifi7_ds_vif_remove(struct a
  				vp = &ds->vps[i];
  				if (vp->vif != arvif->ahvif)
  					continue;
@@ -989,7 +989,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				vp->vif = NULL;
  				vp->closing = true;
  				if (vp->dev) {
-@@ -1265,6 +1333,7 @@ void ath12k_wifi7_ds_vif_remove(struct a
+@@ -1267,6 +1335,7 @@ void ath12k_wifi7_ds_vif_remove(struct a
  			if (vp->vif != arvif->ahvif)
  				continue;
  			if (before) {
@@ -997,7 +997,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				vp->closing = true;
  				ret = qcom_ppe_ds_vp_route(ds->handle, vp->port, false);
  				for (retry = 0; !ret && retry < 200; retry++) {
-@@ -1308,3 +1377,243 @@ void ath12k_wifi7_ds_vif_remove(struct a
+@@ -1310,3 +1379,243 @@ void ath12k_wifi7_ds_vif_remove(struct a
  	}
  }
  

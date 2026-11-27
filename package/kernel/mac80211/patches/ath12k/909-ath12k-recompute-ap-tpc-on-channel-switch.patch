@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] wifi: ath12k: recompute AP TPC after channel changes
 
 num_pwr_levels is also populated by the local TPC calculation. On an AP,
@@ -16,7 +16,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -12339,7 +12339,12 @@ void ath12k_mac_fill_reg_tpc_info(struct
+@@ -12365,7 +12365,12 @@ void ath12k_mac_fill_reg_tpc_info(struct
  	start_freq = ath12k_mac_get_6ghz_start_frequency(&ctx->def);
  	pwr_reduction = bss_conf->pwr_reduction;
  

@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 15 Nov 2026 09:40:52 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] wifi: ath11k: offload NSS WDS and recover its sessions
 
 Adapt the R50 WDS/ext-vdev and MCBC contracts to the local NSS driver.
@@ -11,6 +11,26 @@ Keep AP VLANs separate from WLAN vdevs, restore 4addr Ethernet conversion,
 and require the versioned private registration API. Rejoin NSS stations
 and notify userspace to renew encrypted AP sessions after firmware recovery.
 Finish station cleanup when a crashed NSS WLAN cannot accept deletion.
+
+Previous merged from (924-ath11k-offload-WDS-with-NSS-address-lifetimes.patch):
+  QSDK R50 0044-001-ath11k-add-WDS-offload-changes-to-NSS-driver-interface.patch
+    [PATCH 1/2] ath11k: add WDS offload changes to NSS driver interface
+  QSDK R50 0044-002-ath11k-add-WDS-offload-support-on-NSS-offload-for-STA-mode.patch
+    [PATCH] ath11k: add WDS offload support on NSS offload for STA mode
+  QSDK R50 0063-002-ath11k-add-support-for-ext-vdev-in-NSS-for-AP_VLAN-vif-handling.patch
+    [PATCH 2/3] ath11k: add support for ext vdev in NSS for AP_VLAN vif handling
+  QSDK R50 0063-003-ath11k-add-AP_VLAN-vif-support-for-WDS-offload-in-NSS-offload.patch
+    [PATCH 3/3] ath11k: add AP_VLAN vif support for WDS offload in NSS offload
+  QSDK R50 0077-ath11k-nss-mcbc-exception.patch
+    [PATCH] ath11k: NSS MCBC Exception added for STA
+  QSDK R50 0112-ath11k-sync-wds_ast_entry-updates.patch
+    [PATCH] ath11k: sync wds ast entry on peer/entry deletions
+  QSDK R50 0128-ath11k-fix-support-for-ext-vdev-in-NSS-for-AP_VLAN-v.patch
+    [PATCH] ath11k: fix support for ext vdev in NSS for AP_VLAN vif during recovery
+  QSDK R50 0154-ath11k-fix-incorrect-ast-index-assignment-for-wds-peer.patch
+    [PATCH] ath11k: fix incorrect ast index assignment for wds peer
+  QSDK R50 0067-002-ath11k-add-dynamic-VLAN-support-in-NSS-offload.patch
+    [PATCH 3/3] ath11k: add dynamic VLAN support in NSS offload
 
 Previous merged from (924-ath11k-offload-WDS-with-NSS-address-lifetimes.patch):
   QSDK R50 0044-001-ath11k-add-WDS-offload-changes-to-NSS-driver-interface.patch
@@ -53,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    pcic.o \
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -3003,6 +3003,7 @@ EXPORT_SYMBOL(ath11k_core_deinit);
+@@ -3011,6 +3011,7 @@ EXPORT_SYMBOL(ath11k_core_deinit);
  
  void ath11k_core_free(struct ath11k_base *ab)
  {
@@ -61,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	destroy_workqueue(ab->workqueue_aux);
  	destroy_workqueue(ab->workqueue);
  
-@@ -3056,6 +3057,7 @@ struct ath11k_base *ath11k_core_alloc(st
+@@ -3064,6 +3065,7 @@ struct ath11k_base *ath11k_core_alloc(st
  	init_completion(&ab->restart_completed);
  
  	ab->dev = dev;

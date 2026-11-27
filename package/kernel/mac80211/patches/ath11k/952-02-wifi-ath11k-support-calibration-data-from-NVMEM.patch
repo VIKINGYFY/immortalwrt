@@ -1,5 +1,5 @@
 From: Robert Marko <robimarko@gmail.com>
-Date: Tue, 22 Sep 2026 12:00:00 +0200
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] wifi: ath11k: support calibration data from NVMEM
 
 Allow ath11k devices to supply calibration data through a Device Tree
@@ -7,14 +7,16 @@ NVMEM cell named "calibration". This mirrors ath10k's calibration cell
 support and lets boards use the in-flash calibration data directly,
 without creating a firmware file in userspace.
 
-The NVMEM cell is preferred to the existing per-device and generic
-calibration files. If it is absent (or cannot be read), retain the
-existing fallback behaviour.
+Prefer the installed per-device and generic calibration files. Read the
+NVMEM cell when no installed file can be loaded.
+
+Merged from:
+  952-02-wifi-ath11k-support-calibration-data-from-NVMEM.patch - wifi: ath11k: support calibration data from NVMEM
+  999-ath11k-prefer-installed-calibration-before-nvmem.patch - wifi: ath11k: prefer installed calibration to the nvmem cell
 
 Signed-off-by: Robert Marko <robimarko@gmail.com>
----
- drivers/net/wireless/ath/ath11k/qmi.c | 49 +++++++++++++++++++++++++++++++--
- 1 file changed, 46 insertions(+), 3 deletions(-)
+Signed-off-by: Christopher Griffin <christophergriffin05@gmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/qmi.c
 +++ b/drivers/net/wireless/ath/ath11k/qmi.c
@@ -26,7 +28,7 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
  #include <linux/of_irq.h>
  
  #define SLEEP_CLOCK_SELECT_INTERNAL_BIT	0x02
-@@ -2438,14 +2439,44 @@ err_free_req:
+@@ -2438,14 +2439,45 @@ err_free_req:
  	return ret;
  }
  
@@ -65,6 +67,7 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
  	struct device *dev = ab->dev;
  	char filename[ATH11K_QMI_MAX_BDF_FILE_NAME_SIZE];
 -	const struct firmware *fw_entry;
++	char path[100];
  	struct ath11k_board_data bd;
  	u32 fw_size, file_type;
 +	const struct firmware *fw_entry = NULL;
@@ -72,10 +75,23 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
  	int ret = 0, bdf_type;
  	const u8 *tmp;
  
-@@ -2489,6 +2520,15 @@ static int ath11k_qmi_load_bdf_qmi(struc
- 		fw_size = ATH11K_QMI_MAX_BDF_FILE_NAME_SIZE;
+@@ -2490,6 +2522,29 @@ static int ath11k_qmi_load_bdf_qmi(struc
  	} else {
  		file_type = ATH11K_QMI_FILE_TYPE_CALDATA;
+ 
++		/* A radio plan may install calibration from a different ART
++		 * cell before probe. Prefer that file to the default nvmem cell.
++		 */
++		snprintf(filename, sizeof(filename), "cal-%s-%s.bin",
++			 ath11k_bus_str(ab->hif.bus), dev_name(dev));
++		ath11k_core_create_firmware_path(ab, filename, path, sizeof(path));
++		if (!request_firmware_direct(&fw_entry, path, dev)) {
++			ath11k_dbg(ab, ATH11K_DBG_QMI,
++				   "calibration data from %s before nvmem\n", path);
++			goto success;
++		}
++		fw_entry = NULL;
++
 +		ret = ath11k_qmi_get_caldata_nvmem(ab, &caldata, &fw_size);
 +		if (!ret) {
 +			tmp = caldata;
@@ -85,10 +101,11 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
 +		ath11k_dbg(ab, ATH11K_DBG_QMI,
 +			   "failed to load calibration data from nvmem-cell: %d, try file next\n",
 +			   ret);
- 
++
  		/* cal-<bus>-<id>.bin */
  		snprintf(filename, sizeof(filename), "cal-%s-%s.bin",
-@@ -2518,6 +2558,7 @@ success:
+ 			 ath11k_bus_str(ab->hif.bus), dev_name(dev));
+@@ -2518,6 +2573,7 @@ success:
  		tmp = fw_entry->data;
  	}
  
@@ -96,7 +113,7 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
  	ret = ath11k_qmi_load_file_target_mem(ab, tmp, fw_size, file_type);
  	if (ret < 0) {
  		ath11k_warn(ab, "qmi failed to load caldata\n");
-@@ -2527,9 +2568,10 @@ success:
+@@ -2527,9 +2583,10 @@ success:
  	ath11k_dbg(ab, ATH11K_DBG_QMI, "caldata type: %u\n", file_type);
  
  out_qmi_cal:
