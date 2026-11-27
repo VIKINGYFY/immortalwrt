@@ -607,6 +607,11 @@ export function prepare(data, phy) {
 		append('\n#frequency', data.config.frequency);
 	if (data.channel_follow)
 		append('\n#channel_follow', 1);
+	if (data.config.dfs_upgrade) {
+		append('\n#dfs_upgrade', sprintf('%J', data.config.dfs_upgrade));
+		if (data.config.channel_plan?.reason == 'dfs_nop')
+			append('#dfs_nop_fallback', 1);
+	}
 
 	for (let k, interface in data.interfaces) {
 		if (interface.config.mode != 'ap')

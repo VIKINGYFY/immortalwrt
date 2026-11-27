@@ -9,7 +9,7 @@ import * as hostapd from 'wifi.hostapd';
 import * as netifd from 'wifi.netifd';
 import * as iface from 'wifi.iface';
 import { find_phy, wiphy_info, wiphy_band, wiphy_country } from 'wifi.utils';
-import { ap_channel_plan } from 'wifi.channels';
+import { ap_channel_plan, dfs_idle_upgrade_allowed } from 'wifi.channels';
 import * as nl80211 from 'nl80211';
 import * as fs from 'fs';
 
@@ -246,6 +246,14 @@ function setup() {
 			netifd.setup_failed(plan.error, true);
 			return 1;
 		}
+		if (dfs_idle_upgrade_allowed(config))
+			config.dfs_upgrade = {
+				htmode: config.htmode,
+				radio: config.radio,
+				country3: config.country3,
+				acs_exclude_dfs: config.acs_exclude_dfs,
+				min_tx_power: config.min_tx_power,
+			};
 		config.htmode = plan.htmode;
 		config.chanlist = plan.channels ?? config.chanlist;
 		config.channel_plan = plan;

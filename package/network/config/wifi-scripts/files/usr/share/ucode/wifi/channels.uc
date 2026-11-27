@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
+// enum nl80211_dfs_state
+const NL80211_DFS_UNAVAILABLE = 1;
+
 export function freq_to_channel(freq) {
 	if (freq < 1000)
 		return 0;
@@ -44,7 +47,9 @@ export function usable_channel_blocks(band, freqs, max_width, ranges) {
 		if (ranges && !freq_range_match(ranges, start + width / 2 - 10, width))
 			return;
 
-		let channels = [], members = [], dfs = false, indoor_only = false, no_he = false, no_eht = false;
+		let channels = [], members = [], dfs = false, dfs_unavailable = false;
+		let indoor_only = false, no_he = false, no_eht = false;
+		let max_tx_power;
 		for (let offset = 0; offset < width; offset += 20) {
 			let freq = enabled[start + offset];
 			if (!freq || (width == 320 && freq.no_320mhz) ||
@@ -53,9 +58,12 @@ export function usable_channel_blocks(band, freqs, max_width, ranges) {
 				return;
 
 			dfs ||= !!freq.radar;
+			dfs_unavailable ||= freq.dfs_state == NL80211_DFS_UNAVAILABLE;
 			indoor_only ||= !!freq.indoor_only;
 			no_he ||= !!freq.no_he;
 			no_eht ||= !!freq.no_eht;
+			if (freq.max_tx_power != null)
+				max_tx_power = min(max_tx_power ?? freq.max_tx_power, freq.max_tx_power);
 			push(members, freq_to_channel(freq.freq));
 			// Auto HT40 on 2.4 GHz uses the lower primary with HT40+.
 			if (band != "2G" || !offset)
@@ -64,7 +72,10 @@ export function usable_channel_blocks(band, freqs, max_width, ranges) {
 
 		blocks[width] ??= [];
 		let center = start + width / 2 - 10;
-		push(blocks[width], { channels, members, center, center_channel: freq_to_channel(center), dfs, indoor_only, no_he, no_eht });
+		push(blocks[width], {
+			channels, members, center, center_channel: freq_to_channel(center),
+			dfs, dfs_unavailable, indoor_only, no_he, no_eht, max_tx_power
+		});
 	}
 
 	// Lowest 20 MHz center of each aligned 5 GHz block, as used by ACS.
@@ -191,25 +202,30 @@ export function eligible_blocks(blocks, htmode, config, automatic) {
 	let width = mode ? int(mode[2]) : 20;
 	return filter(blocks?.[width] || [], block =>
 		!(automatic && +config.acs_exclude_dfs && block.dfs) &&
+		!(automatic && config.min_tx_power > 0 && block.max_tx_power != null &&
+		  block.max_tx_power < config.min_tx_power * 100) &&
 		!(config.country3 in [ '0x4f', '0x4F', '79' ] && block.indoor_only) &&
 		!(mode?.[1] in [ 'HE', 'EHT' ] && block.no_he) &&
 		!(mode?.[1] == 'EHT' && block.no_eht));
 }
 
-export function automatic_channels(blocks) {
+export function automatic_channels(blocks, skip_nop) {
 	let channels = [];
-	for (let block in blocks)
+	for (let block in blocks) {
+		if (skip_nop && block.dfs_unavailable)
+			continue;
 		push(channels, ...block.channels);
+	}
 	return map(uniq(channels), channel => '' + channel);
 }
 
-export function maximum_channel_plan(modes, blocks, config) {
+export function maximum_channel_plan(modes, blocks, config, skip_nop) {
 	for (let width in [ 320, 160, 80, 40, 20 ])
 		for (let family in [ 'EHT', 'HE', 'VHT', 'HT', 'NOHT' ]) {
 			if (family == 'NOHT' && width != 20) continue;
 			let htmode = family == 'NOHT' ? family : family + width;
 			if (!(htmode in modes)) continue;
-			let channels = automatic_channels(eligible_blocks(blocks, htmode, config, true));
+			let channels = automatic_channels(eligible_blocks(blocks, htmode, config, true), skip_nop);
 			if (length(channels)) return { htmode, channels };
 		}
 	return null;
@@ -226,6 +242,12 @@ export function candidate_contains(list, channel) {
 	return false;
 }
 
+export function dfs_idle_upgrade_allowed(config) {
+	return +config.dfs_idle_upgrade && config.band == '5g' && +config.ieee80211h &&
+	       !+config.channel && !length(config.chanlist) &&
+	       !!match(config.htmode, /^(EHT|HE|VHT)160$/);
+}
+
 export function ap_channel_plan(info, band, config) {
 	if (!band?.freqs || !length(band.freqs)) return { error: 'NO_AP_BAND' };
 	let band_name = uc(config.band);
@@ -237,15 +259,46 @@ export function ap_channel_plan(info, band, config) {
 	let automatic = !+config.channel || config.channel == 'auto';
 	let manual_list = config.chanlist || [];
 	let requested = config.htmode ?? 'NOHT';
-	if (automatic && !length(manual_list) && config.auto_htmode == requested)
-		return maximum_channel_plan(caps.modes, blocks, config) ?? { error: 'NO_USABLE_CHANNEL_BLOCK' };
+	let recover = dfs_idle_upgrade_allowed(config);
+	if (automatic && !length(manual_list) && (recover || config.auto_htmode == requested)) {
+		let modes = caps.modes;
+		if (recover) {
+			if (!(requested in modes))
+				return { error: 'AP_BANDWIDTH_UNSUPPORTED' };
+			let family = match(requested, /^[A-Z]+/)[0];
+			modes = filter(modes, mode => substr(mode, 0, length(family)) == family);
+		}
+		let supported = maximum_channel_plan(modes, blocks, config);
+		if (!supported)
+			return { error: 'NO_USABLE_CHANNEL_BLOCK' };
+		let ready = maximum_channel_plan(modes, blocks, config, true);
+		if (!ready)
+			return { ...supported, reason: 'dfs_wait' };
+		if (ready.htmode != supported.htmode || length(ready.channels) != length(supported.channels))
+			return { ...ready, reason: 'dfs_nop' };
+		if (ready.htmode != requested) {
+			let dfs = +config.acs_exclude_dfs &&
+			          length(eligible_blocks(blocks, requested, { ...config, acs_exclude_dfs: false }, true)) &&
+			          !length(eligible_blocks(blocks, requested, config, true));
+			ready.reason = dfs ? 'dfs_excluded' : 'channel_blocks';
+		}
+		return ready;
+	}
 
 	let mode = replace(requested, /[+-]$/, '');
 	if (!(mode in caps.modes)) return { error: 'AP_BANDWIDTH_UNSUPPORTED' };
 	let eligible = eligible_blocks(blocks, requested, config, automatic);
 	if (automatic) {
-		let channels = filter(automatic_channels(eligible), ch => candidate_contains(manual_list, +ch));
-		return length(channels) ? { htmode: requested, channels } : { error: 'NO_USABLE_CHANNEL_BLOCK' };
+		let allowed = ch => candidate_contains(manual_list, +ch);
+		let permitted = filter(automatic_channels(eligible), allowed);
+		let channels = filter(automatic_channels(eligible, true), allowed);
+		if (!length(permitted))
+			return { error: 'NO_USABLE_CHANNEL_BLOCK' };
+		if (!length(channels))
+			return { htmode: requested, channels: permitted, reason: 'dfs_wait' };
+		if (length(channels) < length(permitted))
+			return { htmode: requested, channels, reason: 'dfs_nop' };
+		return { htmode: requested, channels };
 	}
 
 	let primary = +config.channel;
@@ -257,4 +310,13 @@ export function ap_channel_plan(info, band, config) {
 		return primary in block.channels;
 	})[0];
 	return block ? { htmode: requested, center_channel: block.center_channel } : { error: 'CHANNEL_BANDWIDTH_MISMATCH' };
+}
+
+export function dfs_upgrade_frequency(info, band, config, current_freq) {
+	let plan = ap_channel_plan(info, band, { ...config, band: '5g', channel: 'auto' });
+	if (!length(plan.channels) || plan.reason == 'dfs_wait')
+		return null;
+
+	let primary = '' + freq_to_channel(current_freq);
+	return primary in plan.channels ? current_freq : 5000 + int(plan.channels[0]) * 5;
 }
