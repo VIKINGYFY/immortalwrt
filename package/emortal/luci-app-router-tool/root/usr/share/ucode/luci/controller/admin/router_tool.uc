@@ -300,6 +300,7 @@ function wireless_status() {
 			chanbw: radio.config?.chanbw,
 			noscan: !!+radio.config?.noscan,
 			planned_htmode: radio.channel_plan?.htmode,
+			plan_reason: radio.channel_plan?.reason,
 			candidates: radio.channel_plan?.channels,
 			pending: radio.pending,
 			disabled: radio.disabled,
@@ -339,6 +340,7 @@ function wireless_status() {
 			const status = ubus.call('hostapd', 'config_status', args);
 			data.status = status?.status;
 			data.error ??= status?.error;
+			data.channel_reason = status?.channel_reason;
 		}
 	}
 	http.header('Cache-Control', 'no-store');

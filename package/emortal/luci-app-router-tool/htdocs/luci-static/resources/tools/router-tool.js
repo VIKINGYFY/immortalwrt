@@ -427,6 +427,9 @@ function wirelessStatusText(state) {
 		return _('Wireless is disabled');
 	if (error || state.failed || status == 'DISABLED')
 		return _('Wireless configuration failed') + (error ? ' (' + error + ')' : '');
+	if (status == 'DFS' && !state.cac_active &&
+	    (state.plan_reason == 'dfs_wait' || [ 'dfs_nop', 'dfs_radar' ].includes(state.channel_reason)))
+		return _('Waiting for the DFS non-occupancy period to end');
 	if (state.cac_active || status == 'DFS')
 		return state.cac ? _('DFS availability check (%d s remaining)').format(state.cac) : _('DFS availability check');
 	if (status == 'ACS') return _('Selecting a channel');
@@ -443,22 +446,42 @@ function configuredBandwidth(htmode) {
 function wirelessAdjustmentReasons(data, ap, automatic) {
 	const reasons = [];
 	const channel = +ap.channel;
-	if (channel > 0 && +data.channel > 0 && channel != +data.channel)
-		reasons.push(_('Channel changed (reason not reported)'));
-	else if (channel > 0 && automatic && data.candidates?.length && !data.candidates.includes(String(channel)))
-		reasons.push(_('Operating channel outside the candidate list'));
-
 	const requested = data.chanbw > 0 ? String(data.chanbw) : configuredBandwidth(data.htmode);
 	const actual = ap.width ? String(ap.width) : null;
-	if (requested && actual && actual != requested) {
-		const planned = configuredBandwidth(data.planned_htmode);
-		if (actual == planned)
-			reasons.push(_('Bandwidth selected from available channel blocks'));
-		else if (data.band == '2g' && !data.noscan && planned == '40' && actual == '20')
-			reasons.push(_('Possible 20/40 MHz coexistence limit'));
-		else
-			reasons.push(_('Bandwidth adjusted (reason not reported)'));
-	}
+	const selected = configuredBandwidth(data.planned_htmode);
+	const moved = channel > 0 && +data.channel > 0 && channel != +data.channel;
+	const outside = channel > 0 && automatic && data.candidates?.length && !data.candidates.includes(String(channel));
+	const narrowed = requested && actual && actual != requested;
+	const runtimeWidthChanged = (selected || requested) && actual && actual != (selected || requested);
+	const explanations = {
+		dfs_radar: _('Channel or bandwidth changed after radar detection'),
+		dfs_nop: _('Skipped channel blocks in the DFS non-occupancy period'),
+		dfs_excluded: _('Adjusted bandwidth to exclude DFS channels'),
+		dfs_idle_upgrade: _('Restored 160 MHz while the radio was idle'),
+		dfs_upgrade_failed: _('160 MHz recovery failed'),
+		sta_follow: _('Following the station uplink channel'),
+		ht_coexistence: _('Adjusted channel or bandwidth for 20/40 MHz coexistence'),
+		ht_scan_failed: _('Using 20 MHz because the coexistence scan failed'),
+		channel_blocks: _('Bandwidth selected from available channel blocks'),
+		channel_switch: _('Applied a channel switch request'),
+	};
+	const runtime = data.channel_reason;
+	if (explanations[runtime] && (moved || outside || runtimeWidthChanged ||
+	    [ 'dfs_radar', 'dfs_idle_upgrade', 'dfs_upgrade_failed' ].includes(runtime)))
+		reasons.push(explanations[runtime]);
+	const plan = data.plan_reason;
+	if (actual && actual == selected && !outside && runtime != 'dfs_idle_upgrade' &&
+	    explanations[plan] && (narrowed || plan == 'dfs_nop') && plan != runtime)
+		reasons.push(explanations[plan]);
+	if (reasons.length)
+		return reasons;
+
+	if (outside)
+		reasons.push(_('Operating channel outside the candidate list'));
+	else if (moved)
+		reasons.push(_('Operating channel %d differs from the configured channel').format(channel));
+	if (narrowed && actual == selected)
+		reasons.push(_('Bandwidth selected from available channel blocks'));
 	return reasons;
 }
 
@@ -488,7 +511,7 @@ return baseclass.extend({
 		const dfs = active.find(ap => ap.cac_active || ap.status == 'DFS');
 		const status = data.status ?? (enabled[0] ?? active[0])?.status;
 		const disabled = data.disabled || radio.get('disabled') == '1';
-		const shared = wirelessStatusText({ ...data, status, disabled, cac_active: !!dfs, cac: dfs?.cac });
+		const shared = wirelessStatusText({ ...data, status, disabled, cac_active: dfs?.cac_active, cac: dfs?.cac });
 		const operating = !shared && status == 'ENABLED' ? enabled.find(ap => ap.width) ?? enabled[0] : null;
 
 		const details = new Map();
@@ -514,7 +537,8 @@ return baseclass.extend({
 			fields.push(_('Device is not active'));
 		if (data.htmode) {
 			fields.push(_('Configured bandwidth') + ' ' + data.htmode);
-			if (data.planned_htmode && data.planned_htmode != data.htmode)
+			if (data.planned_htmode && data.planned_htmode != data.htmode &&
+			    data.channel_reason != 'dfs_idle_upgrade')
 				fields.push(_('Selected bandwidth') + ' ' + data.planned_htmode);
 		}
 		const automatic = data.channel == 'auto' || data.channel == '0';
@@ -564,6 +588,12 @@ return baseclass.extend({
 			});
 			return valid || _('Enter channel numbers from 1 to 233 or ascending ranges, separated by spaces.');
 		};
+
+		const recovery = section.taboption('advanced', form.Flag, 'dfs_idle_upgrade',
+			_('Restore 160 MHz when idle'),
+			_('Allows a narrower bandwidth during DFS with automatic 5 GHz channel selection and no ACS channel list. Clients joining during a foreground DFS check must wait.'));
+		recovery.depends({ _freq: /^(?:EHT|HE|VHT)160,5g,auto$/ });
+		recovery.rmempty = true;
 	},
 
 	trackWireless(map) {
