@@ -1,26 +1,25 @@
 From: Manikanta Mylavarapu <quic_mmanikan@quicinc.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
-Subject: [PATCH] remoteproc: qcom: provide secure WCSS PIL and platform bindings
+Date: Fri, 27 Nov 2026 13:57:57 +0800
+Subject: [PATCH] remoteproc: qcom: provide secure WCSS PIL
 
-Add new binding document for hexagon based WCSS secure PIL remoteproc.
-IPQ5018, IPQ5332, IPQ5424 and IPQ9574 follow secure PIL remoteproc.
+Provide the secure WCSS PIL driver, its bindings and the remoteproc
+dump contracts. Keep recovery independent of a coredump reader by
+default and allow an explicit coredump opt-in through sysfs.
 
-Add support to bring up hexagon based WCSS using secure PIL. All IPQxxxx
-SoCs support secure Peripheral Image Loading (PIL).
-
-Enable nodes required for q6 remoteproc bring up.
-
-Keep the final implementation of this responsibility directly; subsequent
-repairs listed below are integrated without intermediate replacements.
+Split from:
+  0186-remoteproc-qcom-secure-wcss-pil.patch - remoteproc: qcom: provide secure WCSS PIL and platform bindings
 
 Merged from:
+  0186-remoteproc-qcom-secure-wcss-pil.patch - remoteproc: qcom: provide secure WCSS PIL and platform bindings
+  0819-remoteproc-qcom-wcss-sec-don-t-hold-recovery-for-a-coredump.patch - remoteproc: qcom: wcss-sec: don't hold recovery for a  coredump
+
+Previous merged from (0186-remoteproc-qcom-secure-wcss-pil.patch):
   0186-remoteproc-qcom-secure-wcss-pil.patch - remoteproc: qcom: provide secure WCSS PIL and platform bindings
   0808-remoteproc-qcom-wcss-sec-firmware-startup.patch - remoteproc: qcom: complete secure WCSS firmware startup
 
 Previous merged from (0186-remoteproc-qcom-secure-wcss-pil.patch):
   0186-dt-bindings-remoteproc-qcom-document-hexagon-based-wcss-secure-pil.patch
   0188-remoteproc-qcom-add-hexagon-based-wcss-secure-pil-driver.patch
-  0189-arm64-dts-qcom-ipq5018-add-nodes-to-bringup-q6.patch
 
 Previous merged from (0808-remoteproc-qcom-wcss-sec-firmware-startup.patch):
   0808-remoteproc-qcom-wcss-sec-add-split-firmware-support.patch
@@ -29,8 +28,7 @@ Previous merged from (0808-remoteproc-qcom-wcss-sec-firmware-startup.patch):
 
 Original-commit: db128ef0282b8cc41816caf39a03fa17d10fa865
 Original-commit: 47d46157200bb5f67e540a87c67aab9cde62f8a4
-Original-commit: 553461c1f1ae9b2ac50bce5ed5de15092cc04d29
-Original-commit: 0000000000000000000000000000000000000000
+Original-commit: 183bb4182b696f76105052cb1cf3a4661bc20c63
 
 Signed-off-by: Manikanta Mylavarapu <quic_mmanikan@quicinc.com>
 Signed-off-by: Gokul Sriram Palanisamy <quic_gokulsri@quicinc.com>
@@ -38,6 +36,7 @@ Signed-off-by: Vignesh Viswanathan <vignesh.viswanathan@oss.qualcomm.com>
 Signed-off-by: Gokul Sriram Palanisamy <gokul.sriram.p@oss.qualcomm.com>
 Signed-off-by: George Moussalem <george.moussalem@outlook.com>
 Signed-off-by: Robert Marko <robimarko@gmail.com>
+Signed-off-by: Christopher Griffin <christophergriffin05@gmail.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- /dev/null
@@ -178,91 +177,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +        mboxes = <&apcs_glb 8>;
 +      };
 +    };
---- a/arch/arm64/boot/dts/qcom/ipq5018.dtsi
-+++ b/arch/arm64/boot/dts/qcom/ipq5018.dtsi
-@@ -162,6 +162,11 @@
- 			reg = <0x0 0x4ac00000 0x0 0x200000>;
- 			no-map;
- 		};
-+
-+		q6_region: wcss@4b000000 {
-+			reg = <0x0 0x4b000000 0x0 0x1b00000>;
-+			no-map;
-+		};
- 	};
- 
- 	soc: soc@0 {
-@@ -752,6 +757,41 @@
- 			};
- 		};
- 
-+		q6v5_wcss: remoteproc@cd00000 {
-+			compatible = "qcom,ipq5018-wcss-sec-pil";
-+			reg = <0x0cd00000 0x10000>;
-+			firmware-name = "ath11k/IPQ5018/hw1.0/q6_fw.mbn";
-+			interrupts-extended = <&intc GIC_SPI 291 IRQ_TYPE_EDGE_RISING>,
-+					      <&wcss_smp2p_in 0 IRQ_TYPE_NONE>,
-+					      <&wcss_smp2p_in 1 IRQ_TYPE_NONE>,
-+					      <&wcss_smp2p_in 2 IRQ_TYPE_NONE>,
-+					      <&wcss_smp2p_in 3 IRQ_TYPE_NONE>;
-+			interrupt-names = "wdog",
-+					  "fatal",
-+					  "ready",
-+					  "handover",
-+					  "stop-ack";
-+
-+			clocks = <&gcc GCC_SLEEP_CLK_SRC>,
-+				 <&gcc GCC_SYS_NOC_WCSS_AHB_CLK>;
-+			clock-names = "sleep",
-+				      "interconnect";
-+
-+			qcom,smem-states = <&wcss_smp2p_out 0>,
-+					   <&wcss_smp2p_out 1>;
-+			qcom,smem-state-names = "shutdown",
-+						"stop";
-+
-+			memory-region = <&q6_region>;
-+
-+			glink-edge {
-+				interrupts = <GIC_SPI 179 IRQ_TYPE_EDGE_RISING>;
-+				label = "rtr";
-+				qcom,remote-pid = <1>;
-+				mboxes = <&apcs_glb 8>;
-+			};
-+		};
-+
- 		pcie1: pcie@80000000 {
- 			compatible = "qcom,pcie-ipq5018";
- 			reg = <0x80000000 0xf1d>,
-@@ -1026,4 +1066,28 @@
- 			     <GIC_PPI 4 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
- 			     <GIC_PPI 1 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
- 	};
-+
-+	wcss: smp2p-wcss {
-+		compatible = "qcom,smp2p";
-+		qcom,smem = <435>, <428>;
-+
-+		interrupt-parent = <&intc>;
-+		interrupts = <GIC_SPI 177 IRQ_TYPE_EDGE_RISING>;
-+
-+		mboxes = <&apcs_glb 9>;
-+
-+		qcom,local-pid = <0>;
-+		qcom,remote-pid = <1>;
-+
-+		wcss_smp2p_out: master-kernel {
-+			qcom,entry-name = "master-kernel";
-+			#qcom,smem-state-cells = <1>;
-+		};
-+
-+		wcss_smp2p_in: slave-kernel {
-+			qcom,entry-name = "slave-kernel";
-+			interrupt-controller;
-+			#interrupt-cells = <2>;
-+		};
-+	};
- };
 --- a/drivers/remoteproc/Kconfig
 +++ b/drivers/remoteproc/Kconfig
 @@ -254,6 +254,25 @@ config QCOM_Q6V5_WCSS
@@ -303,7 +217,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  qcom_wcnss_pil-y			+= qcom_wcnss.o
 --- /dev/null
 +++ b/drivers/remoteproc/qcom_q6v5_wcss_sec.c
-@@ -0,0 +1,443 @@
+@@ -0,0 +1,447 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (C) 2016-2018 Linaro Ltd.
@@ -676,7 +590,11 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	qcom_add_ssr_subdev(rproc, &wcss->ssr_subdev, desc->ss_name);
 +
 +	rproc->auto_boot = false;
-+	rproc->dump_conf = RPROC_COREDUMP_INLINE;
++	/* An inline coredump holds the recovery until userspace reads the
++	 * devcoredump, or for 5 minutes when nothing does. Leave dumps
++	 * off unless asked for through the coredump sysfs attribute.
++	 */
++	rproc->dump_conf = RPROC_COREDUMP_DISABLED;
 +	rproc_coredump_set_elf_info(rproc, ELFCLASS32, EM_NONE);
 +
 +	if (desc->use_tmelcom) {

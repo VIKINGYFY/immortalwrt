@@ -1,5 +1,5 @@
 From: Robert Marko <robimarko@gmail.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Fri, 27 Nov 2026 13:57:57 +0800
 Subject: [PATCH] remoteproc: qcom: enable IPQ6018 WCSS and optional QDSS clocks
 
 Enable the optional QDSS clock while the secure WCSS remote processor is
@@ -9,12 +9,9 @@ IPQ6018 uses the secure WCSS PIL remoteproc driver, but its SSR subsystem
 name is "wcnss" rather than the "q6wcss" name used by IPQ9574. Add a
 dedicated descriptor for IPQ6018 and match its WCSS compatible to it.
 
-Merged from:
+Previous merged from (0811-02-remoteproc-qcom-ipq6018-wcss-clocks.patch):
   0811-02-remoteproc-qcom-wcss-sec-enable-qdss-clock.patch
   0812-01-remoteproc-qcom-wcss-sec-add-ipq6018-support.patch
-
-Based on work by:
-  Robert Marko <robimarko@gmail.com>
 
 Original-commit: 0000000000000000000000000000000000000000
 
@@ -43,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
  			     WCSS_CRASH_REASON, NULL, NULL);
  	if (ret)
-@@ -414,6 +420,11 @@ static const struct wcss_data wcss_sec_i
+@@ -418,6 +424,11 @@ static const struct wcss_data wcss_sec_i
  	.use_tmelcom = true,
  };
  
@@ -55,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct wcss_data wcss_sec_ipq9574_res_init = {
  	.pasid = WCSS_PAS_ID,
  	.ss_name = "q6wcss",
-@@ -423,6 +434,7 @@ static const struct of_device_id wcss_se
+@@ -427,6 +438,7 @@ static const struct of_device_id wcss_se
  	{ .compatible = "qcom,ipq5018-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
  	{ .compatible = "qcom,ipq5332-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
  	{ .compatible = "qcom,ipq5424-wcss-sec-pil", .data = &wcss_sec_ipq5424_res_init },
